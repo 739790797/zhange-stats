@@ -1,39 +1,38 @@
-# 圈子战绩 · CircleStats
+# 战鸽数据 · Zhange Stats
 
-朋友小圈子的战绩归档与排行统计（MVP）。
+圈子 Steam 游玩统计与成员管理。
 
-## 功能（第一期）
+## 功能
 
-- 账号登录（JWT，无公开注册）
-- 圈子成员管理
-- 游戏字典
-- 手动录入战绩
-- 总览看板、排行榜、个人主页
+- **邮箱注册 / 登录**：邮箱即账号，JWT 鉴权；角色区分普通用户与管理员
+- **成员档案**：注册用户与成员 1:1 同步，个人设置可改用户名、绑定 Steam ID
+- **Steam 监控**：定时轮询当前游玩状态，记录会话；总览看板、成员详情、日/周/月/年日历热力
+- **系统设置**（管理员）：用户管理（角色 / 删除）、SMTP 邮箱配置
 
 ## 技术栈
 
 | 端 | 技术 |
 |---|---|
-| 前端 | React 18 + TypeScript + Vite + Ant Design 5 + TanStack Query + Zustand |
-| 后端 | FastAPI + SQLAlchemy 2 + MySQL + JWT/bcrypt |
+| 前端 | React 18 · TypeScript · Vite · Ant Design 5 · TanStack Query · Zustand |
+| 后端 | FastAPI · SQLAlchemy 2 · APScheduler · MySQL/MariaDB · JWT / bcrypt |
 
 ## 环境准备
 
 1. Python 3.11+
 2. Node.js 18+
-3. MySQL 8.x，并创建数据库：
+3. MySQL / MariaDB，创建库：
 
 ```sql
-CREATE DATABASE circlestats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE zhange_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-4. 复制环境变量：
+4. 复制环境变量并填写：
 
 ```bash
 cp .env.example .env
 ```
 
-按需修改 `DATABASE_URL`、`SECRET_KEY` 等。后端也会读取项目根目录的 `.env`。
+必填：`DATABASE_URL`、`SECRET_KEY`、`ADMIN_*`。Steam 轮询需 `STEAM_API_KEY`。邮件验证码可配 SMTP，未配置时验证码会打印到后端控制台。
 
 ## 启动后端
 
@@ -51,10 +50,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-首次启动会自动建表，并种子：
-
-- 管理员账号：`admin` / `admin123`（生产环境务必修改）
-- 示例游戏：王者荣耀、CS2
+首次启动会自动建表、清理废弃表（`games` / `match_records`），并按 `.env` 同步管理员账号。
 
 接口文档：http://127.0.0.1:8000/docs
 
@@ -68,14 +64,14 @@ npm run dev
 
 浏览器打开：http://127.0.0.1:5173  
 
-开发模式下 Vite 会把 `/api` 代理到 `http://127.0.0.1:8000`。
+开发模式下 Vite 将 `/api` 代理到 `http://127.0.0.1:8000`。
 
-## 推荐验收路径
+## 推荐体验路径
 
-1. 使用 `admin` / `admin123` 登录，进入总览
-2. 「系统设置」→ 新增成员
-3. 「战绩录入」→ 选择成员/游戏，提交一条战绩
-4. 回到总览与排行榜，确认数据变化
+1. 用邮箱注册并登录，或使用 `.env` 中的管理员账号
+2. 「个人设置」绑定 Steam ID（资料需对好友 / 公开可见）
+3. 「总览」查看正在游玩与近期会话；「Steam 日历」看热力统计
+4. 管理员：「系统设置」→ 用户管理 / 邮箱设置
 
 ## 目录结构
 
@@ -83,27 +79,30 @@ npm run dev
 zhange-stats/
   .env.example
   README.md
-  frontend/          # React 中后台
+  frontend/                 # React 中后台
   backend/
     app/
-      api/           # 路由
-      core/          # 配置、数据库、鉴权
-      models/
+      api/                  # 路由：auth / members / profile / steam / settings
+      core/                 # 配置、数据库、鉴权、schema 补丁
+      models/               # users / members / play_sessions / job_runs / …
       schemas/
-      services/      # 统计聚合；adapters/ 预留各游戏数据源
-    alembic/         # 迁移目录预留（MVP 使用 create_all）
+      services/             # Steam 轮询与聚合、邮件、成员同步
+    alembic/                # 迁移预留（当前用 create_all + ensure_schema）
 ```
 
-## 下一步（第二期）
+## 数据表（当前）
 
-- Steam / 各游戏官方或社区数据 adapter（见 `backend/app/services/adapters/`）
-- 系统 cron 调用 FastAPI 任务接口做定时同步
-- 成就徽章、趣味称号
-- Alembic 正式迁移与邀请码入圈
+| 表 | 用途 |
+|---|---|
+| `users` | 账号（邮箱登录）、角色 |
+| `members` | 成员档案、Steam ID |
+| `play_sessions` | Steam 游玩会话 |
+| `job_runs` | 轮询任务日志 |
+| `system_configs` | 系统配置（如 SMTP） |
+| `register_challenges` | 注册验证码 |
 
-## 明确不做（第一期）
+## 说明
 
-- 真实游戏爬虫 / 自动化抓取
-- 公开注册
-- Redis / Celery
-- 复杂权限矩阵
+- 已移除战绩录入、游戏字典、排行榜等旧能力及相关表字段
+- Steam 资料隐私过严时无法获取「正在游戏」状态
+- 请勿将含密钥的 `.env` 提交到仓库

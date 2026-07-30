@@ -18,3 +18,51 @@ body {
 a {
   color: inherit;
 }
+
+/* 侧栏菜单：统一底色，选中项浅色 */
+.sider-menu.ant-menu-dark,
+.sider-menu.ant-menu-dark .ant-menu-sub.ant-menu-inline {
+  background: #1a2332 !important;
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item,
+.sider-menu.ant-menu-dark .ant-menu-submenu-title {
+  margin-inline: 8px;
+  width: calc(100% - 16px);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item:hover,
+.sider-menu.ant-menu-dark .ant-menu-submenu-title:hover,
+.sider-menu.ant-menu-dark .ant-menu-item-active {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #fff !important;
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item-selected {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+
+/* 子项选中时，父级不显示选中底色 */
+.sider-menu.ant-menu-dark
+  .ant-menu-submenu-selected
+  > .ant-menu-submenu-title {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item a,
+.sider-menu.ant-menu-dark .ant-menu-item-selected a {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item-selected .anticon {
+  color: #fff !important;
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item::after {
+  display: none !important;
+}

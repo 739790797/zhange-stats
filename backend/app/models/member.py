@@ -12,6 +12,9 @@ class Member(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nickname: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    steam_id: Mapped[str | None] = mapped_column(
+        String(32), unique=True, nullable=True, index=True
+    )
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), unique=True, nullable=True
     )
@@ -20,4 +23,4 @@ class Member(Base):
     )
 
     user = relationship("User", back_populates="member")
-    records = relationship("MatchRecord", back_populates="member")
+    play_sessions = relationship("PlaySession", back_populates="member")

@@ -1,39 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, Col, Empty, Row, Statistic, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
-import { fetchOverview } from "@/api/client";
+import { Link } from "react-router-dom";
+import { fetchSteamOverview } from "@/api/client";
+import { formatDuration } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
-
-const resultColor: Record<string, string> = {
-  win: "success",
-  lose: "error",
-  draw: "warning",
-  unknown: "default",
-};
-
-const resultLabel: Record<string, string> = {
-  win: "胜",
-  lose: "负",
-  draw: "平",
-  unknown: "未知",
-};
 
 export default function OverviewPage() {
   const { data, isLoading } = useQuery({
-    queryKey: ["overview"],
-    queryFn: fetchOverview,
+    queryKey: ["steam-overview"],
+    queryFn: fetchSteamOverview,
+    refetchInterval: 60_000,
   });
 
   return (
     <div>
-      <PageHeader title="总览看板" subtitle="最近战绩 · 本周之星 · 胜率概览" />
+      <PageHeader title="总览" subtitle="圈子 Steam 游玩概况" />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="总场次"
-              value={data?.win_rate.total_matches ?? 0}
+              title="成员数"
+              value={data?.member_count ?? 0}
               loading={isLoading}
             />
           </Card>
@@ -41,9 +30,8 @@ export default function OverviewPage() {
         <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="总胜率"
-              value={data?.win_rate.win_rate ?? 0}
-              suffix="%"
+              title="已绑 Steam"
+              value={data?.steam_bound_count ?? 0}
               loading={isLoading}
             />
           </Card>
@@ -51,44 +39,70 @@ export default function OverviewPage() {
         <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="本周之星"
-              value={data?.week_star?.member_nickname ?? "暂无"}
+              title="本周游玩"
+              value={formatDuration(data?.week_play_seconds ?? 0)}
               loading={isLoading}
             />
-            {data?.week_star ? (
-              <Typography.Text type="secondary">
-                {data.week_star.wins} 胜 / {data.week_star.total} 场 · 胜率{" "}
-                {data.week_star.win_rate}%
-              </Typography.Text>
-            ) : null}
           </Card>
         </Col>
       </Row>
 
-      <Typography.Title level={5}>最近战绩</Typography.Title>
+      <Typography.Title level={5}>正在游玩</Typography.Title>
       <Table
         rowKey="id"
         loading={isLoading}
-        dataSource={data?.recent_records ?? []}
+        dataSource={data?.now_playing ?? []}
         pagination={false}
-        locale={{ emptyText: <Empty description="还没有战绩，去录入一条吧" /> }}
+        style={{ marginBottom: 24 }}
+        locale={{ emptyText: <Empty description="当前无人在线游玩" /> }}
         columns={[
           {
-            title: "时间",
-            dataIndex: "played_at",
-            render: (v: string) => dayjs(v).format("YYYY-MM-DD HH:mm"),
-          },
-          { title: "成员", dataIndex: "member_nickname" },
-          { title: "游戏", dataIndex: "game_name" },
-          { title: "模式", dataIndex: "mode", render: (v) => v || "-" },
-          {
-            title: "结果",
-            dataIndex: "result",
-            render: (v: string) => (
-              <Tag color={resultColor[v] || "default"}>
-                {resultLabel[v] || v}
-              </Tag>
+            title: "成员",
+            dataIndex: "member_nickname",
+            render: (name: string, row) => (
+              <Link to={`/members/${row.member_id}`}>{name}</Link>
             ),
+          },
+          { title: "游戏", dataIndex: "game_name" },
+          {
+            title: "已玩",
+            dataIndex: "duration_seconds",
+            render: (v: number) => formatDuration(v),
+          },
+        ]}
+      />
+
+      <Typography.Title level={5}>近期会话</Typography.Title>
+      <Table
+        rowKey="id"
+        loading={isLoading}
+        dataSource={data?.recent_sessions ?? []}
+        pagination={false}
+        locale={{ emptyText: <Empty description="暂无游玩记录" /> }}
+        columns={[
+          {
+            title: "开始",
+            dataIndex: "started_at",
+            render: (v: string) => dayjs(v).format("MM-DD HH:mm"),
+          },
+          {
+            title: "成员",
+            dataIndex: "member_nickname",
+            render: (name: string, row) => (
+              <Link to={`/members/${row.member_id}`}>{name}</Link>
+            ),
+          },
+          { title: "游戏", dataIndex: "game_name" },
+          {
+            title: "时长",
+            dataIndex: "duration_seconds",
+            render: (v: number) => formatDuration(v),
+          },
+          {
+            title: "状态",
+            dataIndex: "is_ongoing",
+            render: (v: boolean) =>
+              v ? <Tag color="green">进行中</Tag> : <Tag>已结束</Tag>,
           },
         ]}
       />

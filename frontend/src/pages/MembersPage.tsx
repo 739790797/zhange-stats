@@ -13,12 +13,12 @@ export default function MembersPage() {
 
   return (
     <div>
-      <PageHeader title="圈子成员" subtitle="当前圈子里的小伙伴们" />
+      <PageHeader title="成员" subtitle="与注册用户一一对应" />
       <Table
         rowKey="id"
         loading={isLoading}
         dataSource={data ?? []}
-        locale={{ emptyText: <Empty description="暂无成员，请管理员在设置中添加" /> }}
+        locale={{ emptyText: <Empty description="暂无成员" /> }}
         columns={[
           {
             title: "头像",

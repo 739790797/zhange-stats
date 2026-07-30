@@ -19,6 +19,6 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
       logout: () => set({ token: null, user: null }),
     }),
-    { name: "circlestats-auth" },
+    { name: "zhange-stats-auth" },
   ),
 );

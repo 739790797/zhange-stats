@@ -1,13 +1,15 @@
-from app.models.game import Game
-from app.models.match_record import MatchRecord, MatchResult, MatchSource
+from app.models.job_run import JobRun
 from app.models.member import Member
+from app.models.play_session import PlaySession
+from app.models.register_challenge import RegisterChallenge
+from app.models.system_config import SystemConfig
 from app.models.user import User
 
 __all__ = [
     "User",
     "Member",
-    "Game",
-    "MatchRecord",
-    "MatchResult",
-    "MatchSource",
+    "PlaySession",
+    "JobRun",
+    "SystemConfig",
+    "RegisterChallenge",
 ]

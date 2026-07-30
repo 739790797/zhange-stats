@@ -10,3 +10,5 @@ passlib[bcrypt]>=1.7.4
 bcrypt>=4.0.1,<4.1
 python-multipart>=0.0.9
 alembic>=1.13.0
+apscheduler>=3.10.0
+email-validator>=2.0.0

@@ -1,12 +1,14 @@
 import {
   DashboardOutlined,
-  FormOutlined,
   SettingOutlined,
   TeamOutlined,
-  TrophyOutlined,
   LogoutOutlined,
+  CalendarOutlined,
+  UserOutlined,
+  MailOutlined,
 } from "@ant-design/icons";
 import { Layout, Menu, Typography, Button, Space, theme } from "antd";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -20,14 +22,14 @@ const menuItems = [
     label: <Link to="/members">成员</Link>,
   },
   {
-    key: "/records/new",
-    icon: <FormOutlined />,
-    label: <Link to="/records/new">战绩录入</Link>,
+    key: "/steam",
+    icon: <CalendarOutlined />,
+    label: <Link to="/steam">Steam 日历</Link>,
   },
   {
-    key: "/leaderboard",
-    icon: <TrophyOutlined />,
-    label: <Link to="/leaderboard">排行榜</Link>,
+    key: "/profile",
+    icon: <UserOutlined />,
+    label: <Link to="/profile">个人设置</Link>,
   },
 ];
 
@@ -38,23 +40,53 @@ export function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const { token } = theme.useToken();
 
-  const selected = menuItems
-    .map((i) => i.key)
-    .concat(["/settings"])
-    .find((key) =>
-      key === "/"
-        ? location.pathname === "/"
-        : location.pathname.startsWith(key),
+  const settingsOpen = location.pathname.startsWith("/settings");
+  const [openKeys, setOpenKeys] = useState<string[]>(
+    settingsOpen ? ["settings"] : [],
+  );
+
+  useEffect(() => {
+    if (settingsOpen) {
+      setOpenKeys((keys) =>
+        keys.includes("settings") ? keys : [...keys, "settings"],
+      );
+    }
+  }, [settingsOpen]);
+
+  const selected = useMemo(() => {
+    if (location.pathname.startsWith("/settings/email")) return "/settings/email";
+    if (location.pathname.startsWith("/settings")) return "/settings/users";
+    return (
+      menuItems
+        .map((i) => i.key)
+        .find((key) =>
+          key === "/"
+            ? location.pathname === "/"
+            : location.pathname.startsWith(key),
+        ) || "/"
     );
+  }, [location.pathname]);
 
   const items = [
     ...menuItems,
     ...(user?.is_admin
       ? [
           {
-            key: "/settings",
+            key: "settings",
             icon: <SettingOutlined />,
-            label: <Link to="/settings">系统设置</Link>,
+            label: "系统设置",
+            children: [
+              {
+                key: "/settings/users",
+                icon: <TeamOutlined />,
+                label: <Link to="/settings/users">用户管理</Link>,
+              },
+              {
+                key: "/settings/email",
+                icon: <MailOutlined />,
+                label: <Link to="/settings/email">邮箱设置</Link>,
+              },
+            ],
           },
         ]
       : []),
@@ -80,13 +112,16 @@ export function AppLayout() {
             strong
             style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
           >
-            圈子战绩
+            战鸽数据
           </Typography.Text>
         </div>
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[selected || "/"]}
+          className="sider-menu"
+          selectedKeys={[selected]}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
           items={items}
           style={{ background: "#1a2332", borderInlineEnd: "none" }}
         />
@@ -103,7 +138,7 @@ export function AppLayout() {
           }}
         >
           <Space>
-            <Typography.Text>{user?.display_name || user?.username}</Typography.Text>
+            <Typography.Text>{user?.display_name || user?.email}</Typography.Text>
             <Button
               type="text"
               icon={<LogoutOutlined />}

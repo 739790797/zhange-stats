@@ -1,8 +1,8 @@
 """
-游戏数据适配器接口预留（第二期）。
+游戏数据适配器接口。
 
-各平台/游戏实现应继承 BaseGameAdapter，提供拉取原始战绩并解析为 MatchRecord 字段的能力。
-第一期不实现真实爬虫或官方 API 调用。
+各平台/游戏实现应继承 BaseGameAdapter。
+Steam 当前游玩状态见 steam.SteamAdapter。
 """
 
 from abc import ABC, abstractmethod
@@ -20,7 +20,4 @@ class BaseGameAdapter(ABC):
 
     @abstractmethod
     def parse(self, raw: Any) -> list[dict[str, Any]]:
-        """将原始数据解析为可写入 MatchRecord 的字典列表。"""
-
-
-# 示例：后续可添加 SteamAdapter / HonorOfKingsAdapter 等
+        """将原始数据解析为统一结构的字典列表。"""

@@ -3,13 +3,17 @@ import zhCN from "antd/locale/zh_CN";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
-import LeaderboardPage from "@/pages/LeaderboardPage";
+import EmailSettingsPage from "@/pages/EmailSettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import MemberDetailPage from "@/pages/MemberDetailPage";
+import MemberProfilePage from "@/pages/MemberProfilePage";
 import MembersPage from "@/pages/MembersPage";
 import OverviewPage from "@/pages/OverviewPage";
-import RecordCreatePage from "@/pages/RecordCreatePage";
-import SettingsPage from "@/pages/SettingsPage";
+import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
+import RegisterPage from "@/pages/RegisterPage";
+import SteamCalendarPage from "@/pages/SteamCalendarPage";
+import UserManagementPage from "@/pages/UserManagementPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
 
 export default function App() {
   return (
@@ -28,6 +32,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route
             element={
               <PrivateRoute>
@@ -38,13 +44,26 @@ export default function App() {
             <Route path="/" element={<OverviewPage />} />
             <Route path="/members" element={<MembersPage />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />
-            <Route path="/records/new" element={<RecordCreatePage />} />
-            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/members/:id/profile" element={<MemberProfilePage />} />
+            <Route path="/steam" element={<SteamCalendarPage />} />
+            <Route path="/profile" element={<ProfileSettingsPage />} />
             <Route
               path="/settings"
+              element={<Navigate to="/settings/users" replace />}
+            />
+            <Route
+              path="/settings/users"
               element={
                 <AdminRoute>
-                  <SettingsPage />
+                  <UserManagementPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/settings/email"
+              element={
+                <AdminRoute>
+                  <EmailSettingsPage />
                 </AdminRoute>
               }
             />

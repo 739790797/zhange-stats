@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { fetchMe, login } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -25,8 +25,23 @@ export default function LoginPage() {
       setAuth(access_token, user);
       message.success("登录成功");
       navigate("/", { replace: true });
-    } catch {
-      setError("用户名或密码错误");
+    } catch (e: unknown) {
+      const detail =
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { data?: { detail?: string }; status?: number } })
+          .response?.data?.detail;
+      const status =
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { status?: number } }).response?.status;
+      if (status === 403) {
+        setError(String(detail || "请先完成邮箱验证"));
+      } else {
+        setError(String(detail || "账号或密码错误"));
+      }
     } finally {
       setLoading(false);
     }
@@ -63,13 +78,13 @@ export default function LoginPage() {
               letterSpacing: 2,
             }}
           >
-            圈子战绩
+            战鸽数据
           </Typography.Title>
           <Typography.Paragraph
             type="secondary"
             style={{ marginTop: 8, marginBottom: 0 }}
           >
-            CircleStats · 朋友小圈子的战绩档案馆
+            Zhange Stats · Steam 游玩统计
           </Typography.Paragraph>
         </div>
 
@@ -79,16 +94,26 @@ export default function LoginPage() {
             message={error}
             showIcon
             style={{ marginBottom: 16 }}
+            action={
+              error.includes("邮箱验证") ? (
+                <Link to="/verify-email">去验证</Link>
+              ) : undefined
+            }
           />
         ) : null}
 
         <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
           <Form.Item
             name="username"
-            label="账号"
-            rules={[{ required: true, message: "请输入账号" }]}
+            label="邮箱"
+            rules={[{ required: true, message: "请输入邮箱" }]}
+            extra="使用注册邮箱登录"
           >
-            <Input size="large" placeholder="用户名" autoComplete="username" />
+            <Input
+              size="large"
+              placeholder="邮箱"
+              autoComplete="email"
+            />
           </Form.Item>
           <Form.Item
             name="password"
@@ -113,7 +138,15 @@ export default function LoginPage() {
               marginTop: 8,
             }}
           >
-            进入圈子
+            登录
+          </Button>
+          <Button
+            size="large"
+            block
+            style={{ marginTop: 12 }}
+            onClick={() => navigate("/register")}
+          >
+            注册账号
           </Button>
         </Form>
       </Card>
