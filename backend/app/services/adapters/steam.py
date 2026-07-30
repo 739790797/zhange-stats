@@ -16,12 +16,22 @@ from app.services.adapters import BaseGameAdapter
 class SteamPresence:
     steam_id: str
     persona_name: str | None
+    persona_state: int | None
     game_id: str | None
     game_extra_info: str | None
 
     @property
     def is_playing(self) -> bool:
         return bool(self.game_id)
+
+    @property
+    def status(self) -> str:
+        """归一化为 offline / online / playing。"""
+        if self.game_id:
+            return "playing"
+        if self.persona_state is None or self.persona_state == 0:
+            return "offline"
+        return "online"
 
 
 class SteamAdapter(BaseGameAdapter):
@@ -72,6 +82,9 @@ class SteamAdapter(BaseGameAdapter):
                 SteamPresence(
                     steam_id=str(p.get("steamid", "")),
                     persona_name=p.get("personaname"),
+                    persona_state=int(p["personastate"])
+                    if p.get("personastate") is not None
+                    else None,
                     game_id=str(game_id) if game_id else None,
                     game_extra_info=p.get("gameextrainfo"),
                 )

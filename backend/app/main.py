@@ -12,6 +12,7 @@ from app.core.schema_ensure import ensure_schema
 from app.models import job_run as _job_run  # noqa: F401
 from app.models import member as _member  # noqa: F401
 from app.models import play_session as _play_session  # noqa: F401
+from app.models import presence_segment as _presence_segment  # noqa: F401
 from app.models import register_challenge as _register_challenge  # noqa: F401
 from app.models import system_config as _system_config  # noqa: F401
 from app.models import user as _user  # noqa: F401

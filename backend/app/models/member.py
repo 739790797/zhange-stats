@@ -24,3 +24,4 @@ class Member(Base):
 
     user = relationship("User", back_populates="member")
     play_sessions = relationship("PlaySession", back_populates="member")
+    presence_segments = relationship("PresenceSegment", back_populates="member")

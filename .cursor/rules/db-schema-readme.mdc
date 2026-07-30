@@ -1,0 +1,11 @@
+---
+description: 数据库表结构变更必须同步更新 README
+globs: backend/app/models/**/*.py,backend/app/core/schema_ensure.py
+alwaysApply: false
+---
+
+# 数据库与 README 同步
+
+只要改动了数据库表或表结构（含 `backend/app/models/`、`schema_ensure.py` 的建表/删表/增删改列/索引/约束），必须在同一次改动中更新根目录 `README.md` 的「数据库表结构」章节，使其与模型完全一致。
+
+提交或推送前确认 README 已反映最新表名、字段、类型、约束与关系说明。

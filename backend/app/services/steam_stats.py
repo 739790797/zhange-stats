@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.member import Member
 from app.models.play_session import PlaySession
+from app.models.presence_segment import PresenceSegment
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -116,8 +117,33 @@ def build_calendar(db: Session, granularity: str, anchor: date) -> dict:
     }
 
 
+def _presence_end(seg: PresenceSegment, now: datetime) -> datetime:
+    if seg.ended_at is not None:
+        return _to_aware(seg.ended_at)
+    # 进行中：取 last_seen 与当前时刻较大者，避免色条过短
+    return max(_to_aware(seg.last_seen_at), now)
+
+
+def _clip_to_day(
+    start: datetime, end: datetime, day_start: datetime, day_end: datetime
+) -> tuple[int, int] | None:
+    """返回当日 [start_sec, end_sec)，单位秒；无重叠则 None。"""
+    s = max(start, day_start)
+    e = min(end, day_end)
+    if e <= s:
+        return None
+    start_sec = int((s - day_start).total_seconds())
+    end_sec = int((e - day_start).total_seconds())
+    start_sec = max(0, min(86400, start_sec))
+    end_sec = max(0, min(86400, end_sec))
+    if end_sec <= start_sec:
+        return None
+    return start_sec, end_sec
+
+
 def build_day_detail(db: Session, d: date) -> dict:
     day_start, day_end = _day_bounds(d)
+    now = datetime.now(timezone.utc)
     sessions = _sessions_in_window(db, day_start, day_end)
     sessions = sorted(sessions, key=lambda s: _to_aware(s.started_at))
 
@@ -165,11 +191,115 @@ def build_day_detail(db: Session, d: date) -> dict:
     member_list = sorted(
         by_member.values(), key=lambda x: x["total_seconds"], reverse=True
     )
+
+    # ---- 日时间轴：按用户的状态片段 ----
+    steam_members = (
+        db.query(Member)
+        .filter(Member.user_id.isnot(None), Member.steam_id.isnot(None), Member.steam_id != "")
+        .order_by(Member.nickname.asc())
+        .all()
+    )
+
+    presence_rows = (
+        db.query(PresenceSegment)
+        .options(joinedload(PresenceSegment.member))
+        .filter(
+            PresenceSegment.source == "steam",
+            PresenceSegment.started_at < day_end,
+            (PresenceSegment.ended_at.is_(None))
+            | (PresenceSegment.ended_at >= day_start)
+            | (PresenceSegment.last_seen_at >= day_start),
+        )
+        .order_by(PresenceSegment.started_at.asc())
+        .all()
+    )
+
+    segments_by_member: dict[int, list[dict]] = {m.id: [] for m in steam_members}
+    games_legend: dict[str, str] = {}
+
+    def _append_seg(
+        member_id: int,
+        status: str,
+        app_id: str | None,
+        game_name: str | None,
+        start: datetime,
+        end: datetime,
+    ) -> None:
+        clipped = _clip_to_day(start, end, day_start, day_end)
+        if not clipped:
+            return
+        start_sec, end_sec = clipped
+        if member_id not in segments_by_member:
+            segments_by_member[member_id] = []
+        segments_by_member[member_id].append(
+            {
+                "status": status,
+                "steam_app_id": app_id,
+                "game_name": game_name,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+            }
+        )
+        if status == "playing" and app_id:
+            games_legend[app_id] = game_name or f"App {app_id}"
+
+    if presence_rows:
+        for seg in presence_rows:
+            _append_seg(
+                seg.member_id,
+                seg.status,
+                seg.steam_app_id,
+                seg.game_name,
+                _to_aware(seg.started_at),
+                _presence_end(seg, now),
+            )
+    else:
+        # 兼容旧数据：仅有 play_sessions 时当作 playing 片段
+        for s in sessions:
+            _append_seg(
+                s.member_id,
+                "playing",
+                s.steam_app_id,
+                s.game_name,
+                _to_aware(s.started_at),
+                _session_end(s) if s.ended_at is not None else max(_session_end(s), now),
+            )
+
+    # 确保有会话但未绑显示名的成员也出现在轴上
+    known_ids = {m.id for m in steam_members}
+    for mid, segs in list(segments_by_member.items()):
+        if mid not in known_ids and segs:
+            mem = db.query(Member).filter(Member.id == mid).first()
+            if mem:
+                steam_members.append(mem)
+
+    timeline = []
+    for m in steam_members:
+        segs = sorted(segments_by_member.get(m.id, []), key=lambda x: x["start_sec"])
+        timeline.append(
+            {
+                "member_id": m.id,
+                "member_nickname": m.nickname,
+                "avatar_url": m.avatar_url,
+                "segments": segs,
+            }
+        )
+
+    # 有时间轴数据但未在 steam_members 列表的（兜底已处理）
+    # 按有片段优先、再按昵称
+    timeline.sort(
+        key=lambda row: (0 if row["segments"] else 1, row["member_nickname"])
+    )
+
     return {
         "date": d.isoformat(),
         "sessions": items,
         "by_member": member_list,
         "total_seconds": total_seconds,
+        "timeline": timeline,
+        "games_legend": [
+            {"steam_app_id": k, "game_name": v} for k, v in sorted(games_legend.items())
+        ],
     }
 
 

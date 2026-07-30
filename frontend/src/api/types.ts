@@ -81,6 +81,28 @@ export interface SteamDayData {
   sessions: SteamDaySession[];
   by_member: SteamDayMemberSummary[];
   total_seconds: number;
+  timeline?: SteamTimelineRow[];
+  games_legend?: SteamGameLegendItem[];
+}
+
+export interface SteamTimelineSegment {
+  status: "offline" | "online" | "playing" | string;
+  steam_app_id?: string | null;
+  game_name?: string | null;
+  start_sec: number;
+  end_sec: number;
+}
+
+export interface SteamTimelineRow {
+  member_id: number;
+  member_nickname: string;
+  avatar_url: string | null;
+  segments: SteamTimelineSegment[];
+}
+
+export interface SteamGameLegendItem {
+  steam_app_id: string;
+  game_name: string;
 }
 
 export interface SteamNowItem {

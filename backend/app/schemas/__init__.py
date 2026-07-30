@@ -108,11 +108,33 @@ class SteamDayMemberSummary(BaseModel):
     games: list[str]
 
 
+class SteamTimelineSegment(BaseModel):
+    status: str  # offline | online | playing
+    steam_app_id: str | None = None
+    game_name: str | None = None
+    start_sec: int
+    end_sec: int
+
+
+class SteamTimelineRow(BaseModel):
+    member_id: int
+    member_nickname: str
+    avatar_url: str | None
+    segments: list[SteamTimelineSegment]
+
+
+class SteamGameLegendItem(BaseModel):
+    steam_app_id: str
+    game_name: str
+
+
 class SteamDayResponse(BaseModel):
     date: str
     sessions: list[SteamDaySessionItem]
     by_member: list[SteamDayMemberSummary]
     total_seconds: int
+    timeline: list[SteamTimelineRow] = Field(default_factory=list)
+    games_legend: list[SteamGameLegendItem] = Field(default_factory=list)
 
 
 class SteamNowItem(BaseModel):

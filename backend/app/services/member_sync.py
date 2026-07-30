@@ -27,8 +27,13 @@ def ensure_user_member(db: Session, user: User) -> Member:
 
 
 def delete_member_cascade(db: Session, member: Member) -> None:
-    """删除成员及其 Steam 游玩会话。"""
+    """删除成员及其 Steam 会话 / 状态片段。"""
+    from app.models.presence_segment import PresenceSegment
+
     db.query(PlaySession).filter(PlaySession.member_id == member.id).delete(
+        synchronize_session=False
+    )
+    db.query(PresenceSegment).filter(PresenceSegment.member_id == member.id).delete(
         synchronize_session=False
     )
     db.delete(member)
