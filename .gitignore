@@ -9,6 +9,7 @@ venv/
 
 # Env
 .env
+.env.production
 *.local
 
 # Node
