@@ -245,7 +245,9 @@ def list_viewer_steam_friends(
                 site_by_steam[row.steam_id] = row
 
     players: dict[str, dict] = {}
-    if friend_steam_ids and did_sync:
+    # 好友边可走缓存，但昵称/头像/在线状态不落库，每次展示都需 GetPlayerSummaries
+    # （否则冷却期内 force=false 只会显示 steam_id）
+    if friend_steam_ids:
         settings = get_settings()
         if settings.STEAM_API_KEY:
             adapter = SteamAdapter(settings.STEAM_API_KEY)
@@ -264,7 +266,8 @@ def list_viewer_steam_friends(
 
     playing_member_ids: set[int] = set()
     playing_game: dict[int, str] = {}
-    if site_by_steam and not did_sync:
+    # summaries 失败时，站内已绑定好友仍可用本地进行中会话兜底「游戏中」
+    if site_by_steam and not players:
         site_ids = [m.id for m in site_by_steam.values()]
         if site_ids:
             for s in (
