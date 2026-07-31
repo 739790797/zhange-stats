@@ -23,6 +23,7 @@ export default function App() {
           ...zhCN.Modal,
           okText: "确定",
           cancelText: "取消",
+          justOkText: zhCN.Modal?.justOkText ?? "知道了",
         },
         Popconfirm: {
           ...zhCN.Popconfirm,
