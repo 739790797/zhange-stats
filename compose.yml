@@ -1,7 +1,8 @@
-# 战鸽数据 · 仅运行应用容器（MySQL 请自备）
+# 战鸽数据 · 应用 + Watchtower 自动更新（MySQL 请自备）
 # 复制 .env.example → .env，填好 DATABASE_URL 后：
 #   docker compose pull && docker compose up -d
-# 也可用 docker run（见 README）；compose 只是方便挂载目录与环境变量。
+#
+# 发版后 CI 推送 GHCR :latest；Watchtower 定时检测并自动拉取重建 app。
 
 name: zhange-stats
 
@@ -12,7 +13,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.1.4}
+        APP_VERSION: ${APP_VERSION:-0.1.5}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -23,26 +24,43 @@ services:
       STATIC_DIR: /app/static
       DATA_DIR: /app/data
       UPLOAD_DIR: /app/uploads
+      # 管理端「系统更新」默认关闭；生产自动更新请用下方 watchtower
       UPDATE_ENABLED: ${UPDATE_ENABLED:-false}
       UPDATE_REPO: ${UPDATE_REPO:-739790797/zhange-stats}
       UPDATE_IMAGE: ${APP_IMAGE:-ghcr.io/739790797/zhange-stats}
       UPDATE_COMPOSE_FILE: /deploy/compose.yml
       UPDATE_COMPOSE_SERVICE: app
       UPDATE_COMPOSE_PROJECT: zhange-stats
+    labels:
+      # 仅允许 Watchtower 管理本服务
+      com.centurylinklabs.watchtower.enable: "true"
     extra_hosts:
       # 便于 DATABASE_URL 使用 host.docker.internal 访问宿主机上的 MySQL
       - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
       - ./data/uploads:/app/uploads
-      # 启用管理端「系统更新」时取消下面三行注释，并设 UPDATE_ENABLED=true
-      # 警告：挂载 docker.sock 等于把宿主机 Docker 管理权交给容器内管理员操作
-      # - /var/run/docker.sock:/var/run/docker.sock
-      # - ./compose.yml:/deploy/compose.yml:ro
-      # - ./.env:/deploy/.env:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 40s
+
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 若 GHCR 镜像仍为私有，取消下一行并先在宿主机 docker login ghcr.io
+      # - ${HOME}/.docker/config.json:/config.json:ro
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      # 默认每 5 分钟检查一次；可用 .env 覆盖
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
+      # DOCKER_CONFIG: /config
+    # 不监控自己（无 enable 标签）
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"

@@ -1,12 +1,13 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.4** — 圈子 Steam 游玩统计：今天谁在玩、好友日历、个人资料与 Steam 绑定。
+**v0.1.5** — 圈子 Steam 游玩统计：今天谁在玩、好友日历、个人资料与 Steam 绑定。
 
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户
 - Steam OpenID 绑定、自定义头像、今天玩什么（日时间轴 + 周/月/年热力）
-- 圈子内 Steam 好友；管理端：用户 / SMTP / 系统更新（可选）
+- 圈子内 Steam 好友；管理端：用户 / SMTP
+- Docker 部署后由 **Watchtower** 自动拉取新镜像（无需管理端点更新）
 
 ## 技术栈
 
@@ -57,7 +58,7 @@ docker compose pull && docker compose up -d
 
 发版：每次推送都会构建并推送 GHCR 镜像——`main` → `latest` + `sha-*`；其它分支 → `<分支名>` + `sha-*`；`v*` 标签 → 版本号 + `latest`。
 
-一键更新（可选）：挂载 `docker.sock` + 设 `UPDATE_ENABLED=true`（**等同宿主机 Docker 权限，仅信任环境开启**）。
+**自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。生产需先更新本机的 `compose.yml` 再 `docker compose up -d` 一次以启动 Watchtower。
 
 ## 目录
 
