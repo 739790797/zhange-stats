@@ -2,7 +2,7 @@ import { Alert, Button, Card, Form, Input, Space, Typography, message } from "an
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { fetchMe, register, sendRegisterCode } from "@/api/client";
-import { SiteFooter } from "@/components/SiteFooter";
+import { AppVersion } from "@/components/AppVersion";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function RegisterPage() {
@@ -216,8 +216,8 @@ export default function RegisterPage() {
           </div>
         </Form>
       </Card>
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0 }}>
-        <SiteFooter light />
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
+        <AppVersion light />
       </div>
     </div>
   );

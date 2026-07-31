@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchMe, fetchMyProfile } from "@/api/client";
-import { SiteFooter } from "@/components/SiteFooter";
+import { AppVersion } from "@/components/AppVersion";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
@@ -275,6 +275,9 @@ export function AppLayout() {
                 </div>
               </button>
             </Dropdown>
+            <div style={{ marginTop: 8, paddingBottom: 2 }}>
+              <AppVersion light />
+            </div>
           </div>
         </div>
       </Sider>
@@ -288,26 +291,17 @@ export function AppLayout() {
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         />
-        <Content
-          style={{
-            margin: 24,
-            display: "flex",
-            flexDirection: "column",
-            minHeight: "calc(100vh - 56px - 48px)",
-          }}
-        >
+        <Content style={{ margin: 24 }}>
           <div
             style={{
               background: token.colorBgContainer,
               padding: 24,
               borderRadius: 8,
               minHeight: 360,
-              flex: 1,
             }}
           >
             <Outlet />
           </div>
-          <SiteFooter />
         </Content>
       </Layout>
     </Layout>
