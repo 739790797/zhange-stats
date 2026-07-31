@@ -1,17 +1,11 @@
 name: Build and push Docker image
 
+# 只在 main 推送时构建一次：镜像同时打 VERSION 与 latest（不再因 v* 标签重复构建）
 on:
   push:
     branches:
-      - "**"
-    tags:
-      - "v*"
+      - main
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "镜像 tag（留空则用 latest；打正式版请 push v* 标签）"
-        required: false
-        default: "latest"
 
 permissions:
   contents: read
@@ -33,28 +27,12 @@ jobs:
         shell: bash
         run: |
           IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME,,}"
-          SHA_SHORT="${GITHUB_SHA::7}"
-          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
-
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
-          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            VERSION="${FILE_VERSION}"
-            TAGS="${IMAGE}:latest,${IMAGE}:sha-${SHA_SHORT}"
-          elif [[ "${GITHUB_REF}" == refs/heads/* ]]; then
-            BRANCH="${GITHUB_REF_NAME,,}"
-            BRANCH="${BRANCH//\//-}"
-            BRANCH="$(echo "${BRANCH}" | sed 's/[^a-z0-9._-]/-/g')"
-            VERSION="${FILE_VERSION}"
-            TAGS="${IMAGE}:${BRANCH},${IMAGE}:sha-${SHA_SHORT}"
-          else
-            VERSION="${FILE_VERSION}"
-            INPUT_TAG="${{ inputs.tag }}"
-            TAG="${INPUT_TAG:-latest}"
-            TAGS="${IMAGE}:${TAG},${IMAGE}:sha-${SHA_SHORT}"
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [[ -z "${VERSION}" ]]; then
+            echo "VERSION file is empty" >&2
+            exit 1
           fi
-
+          TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "Resolved version=${VERSION}"
