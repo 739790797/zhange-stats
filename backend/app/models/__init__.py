@@ -1,4 +1,3 @@
-from app.models.cs2_match import Cs2Match, Cs2MatchPlayer
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.play_session import PlaySession
@@ -16,7 +15,5 @@ __all__ = [
     "JobRun",
     "SystemConfig",
     "RegisterChallenge",
-    "Cs2Match",
-    "Cs2MatchPlayer",
     "SteamFriendEdge",
 ]

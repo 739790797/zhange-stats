@@ -1,6 +1,23 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _read_version_file() -> str:
+    for candidate in (
+        Path("/app/VERSION"),
+        Path(__file__).resolve().parents[3] / "VERSION",
+        Path.cwd() / "VERSION",
+        Path.cwd().parent / "VERSION",
+    ):
+        try:
+            text = candidate.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return "0.1.0"
 
 
 class Settings(BaseSettings):
@@ -28,14 +45,6 @@ class Settings(BaseSettings):
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
     UPLOAD_DIR: str = "uploads"
 
-    CS2_MATCH_POLL_ENABLED: bool = False
-    CS2_MATCH_POLL_INTERVAL_MINUTES: int = 15
-    CS2_MATCH_MAX_PER_MEMBER: int = 20
-    CS2_GC_BOILER_PATH: str = ""
-    CS2_GC_FETCH_SCRIPT: str = ""
-    CS2_GC_TIMEOUT_SECONDS: int = 90
-    CS2_GC_ENRICH_LIMIT: int = 10
-
     # 邮件（不配置则验证码打印到服务端日志）
     SMTP_HOST: str = ""
     SMTP_PORT: int = 465
@@ -46,10 +55,20 @@ class Settings(BaseSettings):
     SMTP_STARTTLS: bool = False
     EMAIL_CODE_EXPIRE_MINUTES: int = 15
 
+    # 部署 / 在线更新（Docker Compose）
+    APP_VERSION: str = _read_version_file()
+    STATIC_DIR: str = ""
+    UPDATE_ENABLED: bool = False
+    UPDATE_REPO: str = "739790797/zhange-stats"
+    UPDATE_IMAGE: str = "ghcr.io/739790797/zhange-stats"
+    UPDATE_COMPOSE_FILE: str = "/deploy/compose.yml"
+    UPDATE_COMPOSE_SERVICE: str = "app"
+    UPDATE_COMPOSE_PROJECT: str = "zhange-stats"
+    UPDATE_GITHUB_TOKEN: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
-
 
 
 @lru_cache

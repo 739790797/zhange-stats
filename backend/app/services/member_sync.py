@@ -27,8 +27,7 @@ def ensure_user_member(db: Session, user: User) -> Member:
 
 
 def delete_member_cascade(db: Session, member: Member) -> None:
-    """删除成员及其关联的会话、状态、好友边、CS2 对局关联。"""
-    from app.models.cs2_match import Cs2MatchPlayer
+    """删除成员及其关联的会话、状态、好友边。"""
     from app.models.presence_segment import PresenceSegment
     from app.models.steam_friend import SteamFriendEdge
 
@@ -41,11 +40,6 @@ def delete_member_cascade(db: Session, member: Member) -> None:
     )
     db.query(SteamFriendEdge).filter(SteamFriendEdge.member_id == mid).delete(
         synchronize_session=False
-    )
-    # 对局选手行保留，仅解除与成员的关联
-    db.query(Cs2MatchPlayer).filter(Cs2MatchPlayer.member_id == mid).update(
-        {Cs2MatchPlayer.member_id: None},
-        synchronize_session=False,
     )
     db.delete(member)
     db.flush()
@@ -64,7 +58,7 @@ def sync_users_and_members(db: Session) -> dict[str, int]:
     """
     修复存量：
     - 每个用户补齐成员
-    - 对齐成员昵称 = 用户显示名
+    - 同步成员昵称 = 用户显示名
     - 删除无关联用户的孤儿成员
     """
     created = 0

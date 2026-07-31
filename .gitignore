@@ -15,10 +15,6 @@ venv/
 node_modules/
 frontend/dist/
 frontend/.vite/
-backend/tools/cs2_gc/node_modules/
-backend/tools/cs2_gc/boiler/
-backend/tools/cs2_gc/boiler-win.zip
-backend/tools/cs2_gc/*.info
 
 
 # IDE / OS
@@ -27,6 +23,5 @@ backend/tools/cs2_gc/*.info
 .DS_Store
 Thumbs.db
 
-# Uploads
-uploads/
-backend/uploads/
+data/
+

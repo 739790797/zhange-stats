@@ -19,9 +19,6 @@ class Member(Base):
     steam_friends_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    cs2_auth_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    cs2_known_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    cs2_sync_cursor: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), unique=True, nullable=True
     )

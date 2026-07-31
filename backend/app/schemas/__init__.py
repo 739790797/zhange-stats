@@ -75,9 +75,6 @@ class MemberProfileOut(BaseModel):
     steam_persona_name: str | None = None
     steam_friends_public: bool | None = None
     steam_friends_synced_at: datetime | None = None
-    cs2_auth_code: str | None = None
-    cs2_known_code: str | None = None
-    cs2_sync_ready: bool = False
     user_id: int | None = None
     username: str | None = None
     email: str | None = None
@@ -88,8 +85,6 @@ class MemberProfileOut(BaseModel):
 class MemberProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     steam_id: str | None = Field(default=None, max_length=512)
-    cs2_auth_code: str | None = Field(default=None, max_length=64)
-    cs2_known_code: str | None = Field(default=None, max_length=64)
 
 
 class SteamBindPreviewRequest(BaseModel):
@@ -275,83 +270,3 @@ class MemberPlayStatsResponse(BaseModel):
     session_count: int
     trend: list[PlayTrendPoint]
     recent_sessions: list[SteamSessionBrief]
-
-
-class Cs2PlayerStats(BaseModel):
-    kills: int = 0
-    deaths: int = 0
-    kd_ratio: float | None = None
-    wins: int = 0
-    mvps: int = 0
-    headshot_kills: int = 0
-    headshot_pct: float | None = None
-    accuracy_pct: float | None = None
-    time_played_seconds: int = 0
-    planted_bombs: int = 0
-    defused_bombs: int = 0
-    shots_fired: int = 0
-    shots_hit: int = 0
-
-
-class Cs2PlayerRow(BaseModel):
-    member_id: int
-    nickname: str
-    avatar_url: str | None = None
-    steam_id: str | None = None
-    status: str
-    message: str | None = None
-    stats: Cs2PlayerStats | None = None
-
-
-class Cs2OverviewResponse(BaseModel):
-    app_id: int
-    member_count: int
-    steam_bound_count: int
-    ok_count: int
-    players: list[Cs2PlayerRow]
-
-
-class Cs2MatchPlayerOut(BaseModel):
-    steam_id: str
-    member_id: int | None = None
-    nickname: str | None = None
-    avatar_url: str | None = None
-    team: int | None = None
-    kills: int | None = None
-    deaths: int | None = None
-    assists: int | None = None
-    mvps: int | None = None
-    score: int | None = None
-    damage: int | None = None
-    won: bool | None = None
-    persona_name: str | None = None
-
-
-class Cs2MatchOut(BaseModel):
-    match_id: str
-    share_code: str | None = None
-    map_name: str | None = None
-    played_at: datetime | None = None
-    score_team0: int | None = None
-    score_team1: int | None = None
-    demo_url: str | None = None
-    enriched: bool = False
-    my_stats: Cs2MatchPlayerOut | None = None
-    players: list[Cs2MatchPlayerOut] = []
-
-
-class Cs2TogetherMatchOut(BaseModel):
-    match_id: str
-    share_code: str | None = None
-    map_name: str | None = None
-    played_at: datetime | None = None
-    score_team0: int | None = None
-    score_team1: int | None = None
-    enriched: bool = False
-    circled_players: list[Cs2MatchPlayerOut] = []
-
-
-class Cs2SyncResult(BaseModel):
-    status: str
-    message: str | None = None
-    stats: dict[str, Any] | None = None

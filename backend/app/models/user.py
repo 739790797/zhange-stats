@@ -28,10 +28,6 @@ class User(Base):
         default=UserRole.user,
     )
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    verify_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    verify_code_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

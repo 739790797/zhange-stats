@@ -10,6 +10,7 @@ import MemberDetailPage from "@/pages/MemberDetailPage";
 import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
 import RegisterPage from "@/pages/RegisterPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
+import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 
@@ -82,6 +83,14 @@ export default function App() {
               element={
                 <AdminRoute>
                   <EmailSettingsPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/settings/update"
+              element={
+                <AdminRoute>
+                  <SystemUpdatePage />
                 </AdminRoute>
               }
             />

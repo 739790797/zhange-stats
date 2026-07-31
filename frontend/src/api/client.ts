@@ -215,6 +215,41 @@ export async function testEmailSettings(to_email: string) {
   return data;
 }
 
+export interface UpdateCheckResult {
+  current_version: string;
+  latest_version: string | null;
+  has_update: boolean;
+  update_enabled: boolean;
+  image: string;
+  repo: string;
+}
+
+export interface UpdateStatusResult {
+  state: string;
+  message: string;
+  current_version: string;
+  target_version: string;
+  started_at: number | null;
+  finished_at: number | null;
+  error: string | null;
+  update_enabled: boolean;
+}
+
+export async function checkUpdate() {
+  const { data } = await client.get<UpdateCheckResult>("/update/check");
+  return data;
+}
+
+export async function fetchUpdateStatus() {
+  const { data } = await client.get<UpdateStatusResult>("/update/status");
+  return data;
+}
+
+export async function triggerUpdate() {
+  const { data } = await client.post<UpdateStatusResult>("/update/do");
+  return data;
+}
+
 export async function fetchMyProfile() {
   const { data } = await client.get<MemberProfile>("/profile/me");
   return data;

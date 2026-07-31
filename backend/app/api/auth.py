@@ -65,16 +65,6 @@ def _gen_username(db: Session) -> str:
     raise HTTPException(status_code=500, detail="无法生成唯一用户名，请重试")
 
 
-def _set_user_verify_code(user: User) -> str:
-    settings = get_settings()
-    code = _gen_code()
-    user.verify_code = code
-    user.verify_code_expires_at = _utcnow() + timedelta(
-        minutes=settings.EMAIL_CODE_EXPIRE_MINUTES
-    )
-    return code
-
-
 def _upsert_register_challenge(db: Session, email: str) -> tuple[str, dict]:
     settings = get_settings()
     code = _gen_code()
@@ -182,7 +172,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)) -> RegisterRe
 
 @router.post("/verify-email")
 def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)) -> dict:
-    """兼容旧流程：已注册未验证用户补验证。"""
+    """兼容旧流程：已注册未验证用户补验证（验证码存于 register_challenges）。"""
     email = str(body.email).strip().lower()
     code = body.code.strip()
     user = db.query(User).filter(User.email == email).first()
@@ -190,19 +180,8 @@ def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)) -> dic
         raise HTTPException(status_code=404, detail="用户不存在")
     if user.email_verified:
         return {"message": "邮箱已验证，可直接登录"}
-    if not user.verify_code or not user.verify_code_expires_at:
-        raise HTTPException(status_code=400, detail="请先获取验证码")
-    expires = user.verify_code_expires_at
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if expires < _utcnow():
-        raise HTTPException(status_code=400, detail="验证码已过期，请重新获取")
-    if user.verify_code != code:
-        raise HTTPException(status_code=400, detail="验证码错误")
-
+    _consume_register_challenge(db, email, code)
     user.email_verified = True
-    user.verify_code = None
-    user.verify_code_expires_at = None
     db.commit()
     return {"message": "邮箱验证成功，请登录"}
 
@@ -217,9 +196,7 @@ def resend_code(
         raise HTTPException(status_code=404, detail="用户不存在")
     if user.email_verified:
         raise HTTPException(status_code=400, detail="邮箱已验证")
-    code = _set_user_verify_code(user)
-    db.commit()
-    delivery = send_verification_email(email, code, db=db)
+    _, delivery = _upsert_register_challenge(db, email)
     msg = "验证码已重新发送"
     if delivery["mode"] == "log":
         msg = "验证码已输出到服务端日志"

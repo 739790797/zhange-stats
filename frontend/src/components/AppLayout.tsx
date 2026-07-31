@@ -1,5 +1,6 @@
 import {
   CalendarOutlined,
+  CloudDownloadOutlined,
   LogoutOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -127,6 +128,12 @@ export function AppLayout() {
             icon: <SettingOutlined />,
             label: "邮箱设置",
             onClick: () => navigate("/settings/email"),
+          },
+          {
+            key: "settings-update",
+            icon: <CloudDownloadOutlined />,
+            label: "系统更新",
+            onClick: () => navigate("/settings/update"),
           },
         ]
       : []),

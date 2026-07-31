@@ -51,11 +51,6 @@ def _profile_from_member(
         steam_persona_name=steam_persona_name,
         steam_friends_public=member.steam_friends_public,
         steam_friends_synced_at=member.steam_friends_synced_at,
-        cs2_auth_code=member.cs2_auth_code,
-        cs2_known_code=member.cs2_known_code,
-        cs2_sync_ready=bool(
-            member.steam_id and member.cs2_auth_code and member.cs2_known_code
-        ),
         user_id=member.user_id,
         username=user.username if user else None,
         email=user.email if user else None,
@@ -300,54 +295,8 @@ def _apply_profile_fields(
     steam_persona: str | None = None
     if "steam_id" in data:
         steam_persona = _set_steam_id(db, member, data["steam_id"])
-        if data["steam_id"] is None or not str(data["steam_id"]).strip():
-            member.cs2_auth_code = None
-            member.cs2_known_code = None
-            member.cs2_sync_cursor = None
-
-    if "cs2_auth_code" in data or "cs2_known_code" in data:
-        if not member.steam_id:
-            raise HTTPException(status_code=400, detail="请先绑定 Steam 后再配置对局同步")
-
-    if "cs2_auth_code" in data:
-        auth = (data["cs2_auth_code"] or "").strip() or None
-        member.cs2_auth_code = auth
-
-    if "cs2_known_code" in data:
-        known_raw = (data["cs2_known_code"] or "").strip() or None
-        if known_raw:
-            from app.services.cs2_sharecode import normalize_share_code
-
-            try:
-                known_raw = normalize_share_code(known_raw)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            member.cs2_known_code = known_raw
-            member.cs2_sync_cursor = known_raw
-        else:
-            member.cs2_known_code = None
-            member.cs2_sync_cursor = None
 
     return steam_persona
-
-
-def _maybe_sync_cs2_after_profile(db: Session, member: Member, data: dict) -> None:
-    """对局码有变更且配置齐全时，立即拉取该成员对局。"""
-    if "cs2_auth_code" not in data and "cs2_known_code" not in data:
-        return
-    if not (member.steam_id and member.cs2_auth_code and member.cs2_known_code):
-        return
-    try:
-        from app.services.cs2_match_sync import sync_member_matches
-
-        sync_member_matches(db, member)
-    except Exception as exc:  # noqa: BLE001
-        # 保存码成功优先；同步失败不阻断配置
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "CS2 immediate sync member=%s failed: %s", member.id, exc
-        )
 
 
 @router.get("/profile/me", response_model=MemberProfileOut)
@@ -588,7 +537,6 @@ def update_my_profile(
     steam_persona = _apply_profile_fields(db, user, member, data)
     db.commit()
     db.refresh(member)
-    _maybe_sync_cs2_after_profile(db, member, data)
     member = (
         db.query(Member)
         .options(joinedload(Member.user))
@@ -638,7 +586,6 @@ def update_member_profile(
     steam_persona = _apply_profile_fields(db, member.user, member, data)
     db.commit()
     db.refresh(member)
-    _maybe_sync_cs2_after_profile(db, member, data)
     member = (
         db.query(Member)
         .options(joinedload(Member.user))
