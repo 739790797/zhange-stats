@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     CORS_ORIGINS: str = "http://127.0.0.1:5173,http://localhost:5173"
     ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "admin123"
+    ADMIN_PASSWORD: str = "123456"
     ADMIN_DISPLAY_NAME: str = "管理员"
     ADMIN_EMAIL: str = "admin@localhost"
     # 仅当显式开启时，启动才把种子管理员密码重置为 ADMIN_PASSWORD
