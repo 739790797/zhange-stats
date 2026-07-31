@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**版本：v0.1.1**
+**版本：v0.1.2**
 
 圈子 Steam 游玩统计：今天谁在玩、好友可见日历、个人资料与 Steam 绑定。
 
@@ -127,12 +127,12 @@ docker compose up -d --build
 2. 打版本标签并推送：
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 3. Actions 构建镜像并推到：
-   - `ghcr.io/739790797/zhange-stats:0.1.1`
+   - `ghcr.io/739790797/zhange-stats:0.1.2`
    - `ghcr.io/739790797/zhange-stats:latest`
 
 也可在 GitHub → Actions → **Build and push Docker image** → **Run workflow** 手动构建 `latest`。
