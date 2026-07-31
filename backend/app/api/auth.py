@@ -35,6 +35,8 @@ class RegisterResponse(BaseModel):
     message: str
     email: str
     delivery: str | None = None
+    access_token: str | None = None
+    token_type: str = "bearer"
 
 
 class VerifyEmailRequest(BaseModel):
@@ -104,6 +106,7 @@ def _consume_register_challenge(db: Session, email: str, code: str) -> None:
 
 
 def _user_out(user: User) -> UserOut:
+    member = user.member
     return UserOut(
         id=user.id,
         username=user.username,
@@ -112,6 +115,8 @@ def _user_out(user: User) -> UserOut:
         role=user.role.value if isinstance(user.role, UserRole) else str(user.role),
         is_admin=bool(user.is_admin) or user.role == UserRole.admin,
         email_verified=bool(user.email_verified),
+        avatar_url=member.avatar_url if member else None,
+        steam_id=member.steam_id if member else None,
         created_at=user.created_at,
     )
 
@@ -162,10 +167,17 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)) -> RegisterRe
     )
     db.add(user)
     db.flush()
-    ensure_user_member(db, user)
+    member = ensure_user_member(db, user)
     db.commit()
-
-    return RegisterResponse(message="注册成功，请登录", email=email)
+    db.refresh(user)
+    db.refresh(member)
+    user.member = member
+    token = create_access_token(user.username)
+    return RegisterResponse(
+        message="注册成功",
+        email=email,
+        access_token=token,
+    )
 
 
 @router.post("/verify-email")
@@ -236,5 +248,13 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
 
 
 @router.get("/me", response_model=UserOut)
-def me(user: User = Depends(get_current_user)) -> UserOut:
+def me(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> UserOut:
+    member = ensure_user_member(db, user)
+    db.commit()
+    db.refresh(user)
+    db.refresh(member)
+    user.member = member
     return _user_out(user)

@@ -4,8 +4,10 @@ import type {
   Member,
   MemberPlayStats,
   MemberProfile,
+  SteamBindPreview,
   SteamCalendarData,
   SteamDayData,
+  SteamFriendsData,
   SteamNowItem,
   SteamOverviewData,
   SteamPollResult,
@@ -53,6 +55,8 @@ export async function register(payload: {
     message: string;
     email: string;
     delivery?: string;
+    access_token?: string;
+    token_type?: string;
   }>("/auth/register", payload);
   return data;
 }
@@ -85,6 +89,14 @@ export async function resendCode(email: string) {
 
 export async function fetchMe() {
   const { data } = await client.get<User>("/auth/me");
+  return data;
+}
+
+export async function fetchSteamFriends(force = false) {
+  const { data } = await client.get<SteamFriendsData>("/steam/friends", {
+    params: { force },
+    timeout: 60000,
+  });
   return data;
 }
 
@@ -137,10 +149,26 @@ export async function fetchUsers() {
   return data;
 }
 
-export async function updateUserRole(userId: number, role: "user" | "admin") {
-  const { data } = await client.patch<UserBrief>(`/users/${userId}/role`, {
-    role,
-  });
+export async function createUser(payload: {
+  email: string;
+  display_name: string;
+  password: string;
+  steam_id?: string | null;
+}) {
+  const { data } = await client.post<UserBrief>("/users", payload);
+  return data;
+}
+
+export async function updateUser(
+  userId: number,
+  payload: {
+    email?: string;
+    display_name?: string;
+    password?: string;
+    steam_id?: string | null;
+  },
+) {
+  const { data } = await client.patch<UserBrief>(`/users/${userId}`, payload);
   return data;
 }
 
@@ -192,6 +220,20 @@ export async function fetchMyProfile() {
   return data;
 }
 
+export async function previewSteamBind(steam_input: string) {
+  const { data } = await client.post<SteamBindPreview>("/profile/steam/preview", {
+    steam_input,
+  });
+  return data;
+}
+
+export async function startSteamOpenIdBind(memberId?: number) {
+  const { data } = await client.get<{ url: string }>("/profile/steam/openid/start", {
+    params: memberId != null ? { member_id: memberId } : undefined,
+  });
+  return data;
+}
+
 export async function updateMyProfile(payload: {
   display_name?: string;
   steam_id?: string | null;
@@ -200,9 +242,48 @@ export async function updateMyProfile(payload: {
   return data;
 }
 
+export async function uploadMyAvatar(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await client.post<MemberProfile>("/profile/me/avatar", form, {
+    timeout: 30000,
+  });
+  return data;
+}
+
+export async function uploadMemberAvatar(memberId: number, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await client.post<MemberProfile>(
+    `/members/${memberId}/avatar`,
+    form,
+    { timeout: 30000 },
+  );
+  return data;
+}
+
+export async function deleteMyAvatar() {
+  const { data } = await client.delete<MemberProfile>("/profile/me/avatar");
+  return data;
+}
+
 export async function fetchMemberProfile(memberId: number) {
   const { data } = await client.get<MemberProfile>(
     `/members/${memberId}/profile`,
+  );
+  return data;
+}
+
+export async function updateMemberProfile(
+  memberId: number,
+  payload: {
+    display_name?: string;
+    steam_id?: string | null;
+  },
+) {
+  const { data } = await client.patch<MemberProfile>(
+    `/members/${memberId}/profile`,
+    payload,
   );
   return data;
 }

@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
     STEAM_POLL_ENABLED: bool = True
+    # Steam OpenID 回调地址（必须是 Steam 能访问的公网/局域网 URL）
+    PUBLIC_BACKEND_URL: str = "http://127.0.0.1:8000"
+    PUBLIC_FRONTEND_URL: str = "http://127.0.0.1:5173"
+    # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
+    UPLOAD_DIR: str = "uploads"
+
+    CS2_MATCH_POLL_ENABLED: bool = False
+    CS2_MATCH_POLL_INTERVAL_MINUTES: int = 15
+    CS2_MATCH_MAX_PER_MEMBER: int = 20
+    CS2_GC_BOILER_PATH: str = ""
+    CS2_GC_FETCH_SCRIPT: str = ""
+    CS2_GC_TIMEOUT_SECONDS: int = 90
+    CS2_GC_ENRICH_LIMIT: int = 10
 
     # 邮件（不配置则验证码打印到服务端日志）
     SMTP_HOST: str = ""

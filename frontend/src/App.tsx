@@ -4,11 +4,9 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import EmailSettingsPage from "@/pages/EmailSettingsPage";
+import FriendsPage from "@/pages/FriendsPage";
 import LoginPage from "@/pages/LoginPage";
 import MemberDetailPage from "@/pages/MemberDetailPage";
-import MemberProfilePage from "@/pages/MemberProfilePage";
-import MembersPage from "@/pages/MembersPage";
-import OverviewPage from "@/pages/OverviewPage";
 import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
 import RegisterPage from "@/pages/RegisterPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
@@ -18,7 +16,19 @@ import VerifyEmailPage from "@/pages/VerifyEmailPage";
 export default function App() {
   return (
     <ConfigProvider
-      locale={zhCN}
+      locale={{
+        ...zhCN,
+        Modal: {
+          ...zhCN.Modal,
+          okText: "确定",
+          cancelText: "取消",
+        },
+        Popconfirm: {
+          ...zhCN.Popconfirm,
+          okText: "确定",
+          cancelText: "取消",
+        },
+      }}
       theme={{
         token: {
           colorPrimary: "#1a2332",
@@ -41,11 +51,19 @@ export default function App() {
               </PrivateRoute>
             }
           >
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/members" element={<MembersPage />} />
-            <Route path="/members/:id" element={<MemberDetailPage />} />
-            <Route path="/members/:id/profile" element={<MemberProfilePage />} />
+            <Route path="/" element={<Navigate to="/steam" replace />} />
             <Route path="/steam" element={<SteamCalendarPage />} />
+            <Route path="/friends" element={<FriendsPage />} />
+            <Route path="/members" element={<Navigate to="/friends" replace />} />
+            <Route path="/members/:id" element={<MemberDetailPage />} />
+            <Route
+              path="/members/:id/profile"
+              element={
+                <AdminRoute>
+                  <ProfileSettingsPage />
+                </AdminRoute>
+              }
+            />
             <Route path="/profile" element={<ProfileSettingsPage />} />
             <Route
               path="/settings"
@@ -68,7 +86,7 @@ export default function App() {
               }
             />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/steam" replace />} />
         </Routes>
       </BrowserRouter>
     </ConfigProvider>

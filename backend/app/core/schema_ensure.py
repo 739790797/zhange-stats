@@ -37,6 +37,59 @@ def ensure_schema(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE members DROP COLUMN extra_bindings"))
                 except Exception:  # noqa: BLE001
                     pass
+            if "cs2_auth_code" not in columns:
+                conn.execute(
+                    text("ALTER TABLE members ADD COLUMN cs2_auth_code VARCHAR(64) NULL")
+                )
+            if "cs2_known_code" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE members ADD COLUMN cs2_known_code VARCHAR(64) NULL"
+                    )
+                )
+            if "cs2_sync_cursor" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE members ADD COLUMN cs2_sync_cursor VARCHAR(64) NULL"
+                    )
+                )
+            if "steam_friends_public" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE members ADD COLUMN steam_friends_public "
+                        "TINYINT(1) NULL"
+                    )
+                )
+            if "steam_friends_synced_at" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE members ADD COLUMN steam_friends_synced_at "
+                        "DATETIME(6) NULL"
+                    )
+                )
+
+    if "steam_friend_edges" not in tables:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS steam_friend_edges (
+                        id INT NOT NULL AUTO_INCREMENT,
+                        member_id INT NOT NULL,
+                        friend_steam_id VARCHAR(32) NOT NULL,
+                        friend_since INT NULL,
+                        synced_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                        PRIMARY KEY (id),
+                        CONSTRAINT uq_steam_friend_edge UNIQUE (member_id, friend_steam_id),
+                        CONSTRAINT fk_steam_friend_edges_member
+                            FOREIGN KEY (member_id) REFERENCES members (id)
+                            ON DELETE CASCADE,
+                        INDEX ix_steam_friend_edges_member_id (member_id),
+                        INDEX ix_steam_friend_edges_friend_steam_id (friend_steam_id)
+                    )
+                    """
+                )
+            )
 
     if "users" in tables:
         columns = {c["name"] for c in inspector.get_columns("users")}

@@ -29,5 +29,17 @@ def seed_data(db: Session) -> None:
         admin.email_verified = True
         admin.password_hash = hash_password(settings.ADMIN_PASSWORD)
 
+    # 保证全局有且仅有一名管理员（种子账号）
+    extras = (
+        db.query(User)
+        .filter(
+            User.id != admin.id,
+            (User.role == UserRole.admin) | (User.is_admin.is_(True)),
+        )
+        .all()
+    )
+    for u in extras:
+        u.apply_role(UserRole.user)
+
     ensure_user_member(db, admin)
     db.commit()

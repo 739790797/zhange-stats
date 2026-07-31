@@ -6,6 +6,8 @@ export interface User {
   role: string;
   is_admin: boolean;
   email_verified?: boolean;
+  avatar_url?: string | null;
+  steam_id?: string | null;
   created_at: string;
 }
 
@@ -26,6 +28,7 @@ export interface UserBrief {
   is_admin: boolean;
   email_verified?: boolean;
   member_id: number | null;
+  steam_id?: string | null;
 }
 
 export interface MemberProfile {
@@ -33,11 +36,59 @@ export interface MemberProfile {
   nickname: string;
   avatar_url: string | null;
   steam_id: string | null;
+  steam_persona_name?: string | null;
+  steam_friends_public?: boolean | null;
+  steam_friends_synced_at?: string | null;
   user_id: number | null;
   username: string | null;
   email?: string | null;
   display_name: string | null;
   joined_at: string;
+}
+
+export interface SteamVisibilityMeta {
+  mode: string;
+  self_member_id: number;
+  steam_bound: boolean;
+  friends_list_public: boolean | null;
+  friends_synced_at: string | null;
+  visible_friend_count: number;
+  hint: string | null;
+}
+
+export interface SteamFriendItem {
+  steam_id: string;
+  persona_name: string;
+  avatar_url: string | null;
+  profile_url?: string | null;
+  status: "offline" | "online" | "playing" | string;
+  game_name: string | null;
+  steam_app_id?: string | null;
+  friend_since: number | null;
+  member_id: number | null;
+  is_registered: boolean;
+}
+
+export interface SteamFriendsData {
+  steam_bound: boolean;
+  friends_list_public: boolean | null;
+  friends_synced_at: string | null;
+  friend_count: number;
+  sync_ok: boolean;
+  synced?: boolean;
+  sync_interval_seconds?: number;
+  hint: string | null;
+  friends: SteamFriendItem[];
+}
+
+export interface SteamBindPreview {
+  steam_id: string;
+  persona_name: string | null;
+  avatar_url: string | null;
+  profile_url: string | null;
+  is_public: boolean;
+  privacy_label: string;
+  message: string | null;
 }
 
 export interface SteamCalendarCell {
@@ -52,6 +103,7 @@ export interface SteamCalendarData {
   range_end: string;
   cells: SteamCalendarCell[];
   total_seconds: number;
+  visibility?: SteamVisibilityMeta | null;
 }
 
 export interface SteamDaySession {
@@ -83,6 +135,7 @@ export interface SteamDayData {
   total_seconds: number;
   timeline?: SteamTimelineRow[];
   games_legend?: SteamGameLegendItem[];
+  visibility?: SteamVisibilityMeta | null;
 }
 
 export interface SteamTimelineSegment {
@@ -136,6 +189,7 @@ export interface SteamOverviewData {
   week_play_seconds: number;
   now_playing: SteamNowItem[];
   recent_sessions: SteamSessionBrief[];
+  visibility?: SteamVisibilityMeta | null;
 }
 
 export interface PlayTrendPoint {

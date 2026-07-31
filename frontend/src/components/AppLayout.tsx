@@ -1,95 +1,146 @@
 import {
-  DashboardOutlined,
+  CalendarOutlined,
+  LogoutOutlined,
   SettingOutlined,
   TeamOutlined,
-  LogoutOutlined,
-  CalendarOutlined,
   UserOutlined,
-  MailOutlined,
 } from "@ant-design/icons";
-import { Layout, Menu, Typography, Button, Space, theme } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Avatar,
+  Dropdown,
+  Layout,
+  Menu,
+  Tag,
+  Typography,
+  theme,
+  type MenuProps,
+} from "antd";
+import { useEffect, useMemo } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { fetchMe, fetchMyProfile } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems = [
-  { key: "/", icon: <DashboardOutlined />, label: <Link to="/">总览</Link> },
-  {
-    key: "/members",
-    icon: <TeamOutlined />,
-    label: <Link to="/members">成员</Link>,
-  },
-  {
-    key: "/steam",
-    icon: <CalendarOutlined />,
-    label: <Link to="/steam">Steam 日历</Link>,
-  },
-  {
-    key: "/profile",
-    icon: <UserOutlined />,
-    label: <Link to="/profile">个人设置</Link>,
-  },
-];
+const leafKeys = ["/steam", "/friends"];
 
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const { token } = theme.useToken();
 
-  const settingsOpen = location.pathname.startsWith("/settings");
-  const [openKeys, setOpenKeys] = useState<string[]>(
-    settingsOpen ? ["settings"] : [],
-  );
+  const meQuery = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: fetchMe,
+  });
+
+  const profileQuery = useQuery({
+    queryKey: ["profile-me"],
+    queryFn: fetchMyProfile,
+  });
 
   useEffect(() => {
-    if (settingsOpen) {
-      setOpenKeys((keys) =>
-        keys.includes("settings") ? keys : [...keys, "settings"],
-      );
+    if (!meQuery.data) return;
+    setUser(meQuery.data);
+  }, [meQuery.data, setUser]);
+
+  useEffect(() => {
+    const profile = profileQuery.data;
+    if (!profile) return;
+    const current = useAuthStore.getState().user;
+    if (!current) return;
+    const nextName = profile.display_name || profile.nickname;
+    const nextAvatar = profile.avatar_url;
+    const nextSteam = profile.steam_id ?? null;
+    if (
+      (nextName && nextName !== current.display_name) ||
+      (nextAvatar !== undefined && nextAvatar !== current.avatar_url) ||
+      nextSteam !== (current.steam_id ?? null)
+    ) {
+      setUser({
+        ...current,
+        display_name: nextName || current.display_name,
+        avatar_url: nextAvatar ?? current.avatar_url ?? null,
+        steam_id: nextSteam,
+      });
     }
-  }, [settingsOpen]);
+  }, [profileQuery.data, setUser]);
 
   const selected = useMemo(() => {
-    if (location.pathname.startsWith("/settings/email")) return "/settings/email";
-    if (location.pathname.startsWith("/settings")) return "/settings/users";
+    if (location.pathname.startsWith("/friends")) return "/friends";
+    if (location.pathname.startsWith("/members")) return "/friends";
     return (
-      menuItems
-        .map((i) => i.key)
-        .find((key) =>
-          key === "/"
-            ? location.pathname === "/"
-            : location.pathname.startsWith(key),
-        ) || "/"
+      leafKeys.find((key) =>
+        key === "/steam"
+          ? location.pathname === "/steam" || location.pathname === "/"
+          : location.pathname.startsWith(key),
+      ) || "/steam"
     );
   }, [location.pathname]);
 
   const items = [
-    ...menuItems,
-    ...(user?.is_admin
+    {
+      key: "/steam",
+      icon: <CalendarOutlined />,
+      label: <Link to="/steam">今天玩什么</Link>,
+    },
+    {
+      key: "/friends",
+      icon: <TeamOutlined />,
+      label: <Link to="/friends">好友</Link>,
+    },
+  ];
+
+  const displayName =
+    profileQuery.data?.display_name ||
+    profileQuery.data?.nickname ||
+    user?.display_name ||
+    user?.email ||
+    "用户";
+  const avatarUrl =
+    profileQuery.data?.avatar_url || user?.avatar_url || undefined;
+  const isAdmin = Boolean(user?.is_admin);
+  const roleLabel = isAdmin ? "管理员" : null;
+
+  const accountMenuItems: MenuProps["items"] = [
+    {
+      key: "profile",
+      icon: <UserOutlined />,
+      label: "个人中心",
+      onClick: () => navigate("/profile"),
+    },
+    ...(isAdmin
       ? [
+          { type: "divider" as const },
           {
-            key: "settings",
+            key: "settings-users",
+            icon: <TeamOutlined />,
+            label: "用户管理",
+            onClick: () => navigate("/settings/users"),
+          },
+          {
+            key: "settings-email",
             icon: <SettingOutlined />,
-            label: "系统设置",
-            children: [
-              {
-                key: "/settings/users",
-                icon: <TeamOutlined />,
-                label: <Link to="/settings/users">用户管理</Link>,
-              },
-              {
-                key: "/settings/email",
-                icon: <MailOutlined />,
-                label: <Link to="/settings/email">邮箱设置</Link>,
-              },
-            ],
+            label: "邮箱设置",
+            onClick: () => navigate("/settings/email"),
           },
         ]
       : []),
+    { type: "divider" as const },
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      label: "退出登录",
+      danger: true,
+      onClick: () => {
+        logout();
+        navigate("/login");
+      },
+    },
   ];
 
   return (
@@ -97,60 +148,138 @@ export function AppLayout() {
       <Sider
         breakpoint="lg"
         collapsedWidth={64}
-        style={{ background: "#1a2332" }}
+        width={220}
+        style={{
+          background: "#1a2332",
+          height: "100vh",
+          position: "sticky",
+          top: 0,
+          left: 0,
+          overflow: "hidden",
+        }}
       >
         <div
           style={{
-            height: 64,
+            height: "100%",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
-          <Typography.Text
-            strong
-            style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
+          <div
+            style={{
+              height: 64,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+              flexShrink: 0,
+            }}
           >
-            战鸽数据
-          </Typography.Text>
+            <Typography.Text
+              strong
+              style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
+            >
+              战鸽数据
+            </Typography.Text>
+          </div>
+          <Menu
+            theme="dark"
+            mode="inline"
+            className="sider-menu"
+            selectedKeys={[selected]}
+            items={items}
+            style={{
+              background: "#1a2332",
+              borderInlineEnd: "none",
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              paddingTop: 8,
+            }}
+          />
+          <div
+            style={{
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+              padding: "12px 10px",
+              flexShrink: 0,
+            }}
+          >
+            <Dropdown
+              menu={{ items: accountMenuItems }}
+              trigger={["click"]}
+              placement="topLeft"
+            >
+              <button
+                type="button"
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 10px",
+                  border: "none",
+                  borderRadius: 8,
+                  background: "transparent",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  color: "#fff",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                }}
+              >
+                <Avatar size={36} src={avatarUrl}>
+                  {displayName?.[0] || "?"}
+                </Avatar>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      color: "#fff",
+                      fontWeight: 600,
+                      fontSize: 14,
+                      lineHeight: 1.3,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                  {roleLabel ? (
+                    <Tag
+                      style={{
+                        marginTop: 4,
+                        marginInlineEnd: 0,
+                        fontSize: 11,
+                        lineHeight: "18px",
+                        borderColor: "rgba(255,255,255,0.2)",
+                        background: "rgba(255,255,255,0.06)",
+                        color: "rgba(255,255,255,0.75)",
+                      }}
+                    >
+                      {roleLabel}
+                    </Tag>
+                  ) : null}
+                </div>
+              </button>
+            </Dropdown>
+          </div>
         </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          className="sider-menu"
-          selectedKeys={[selected]}
-          openKeys={openKeys}
-          onOpenChange={setOpenKeys}
-          items={items}
-          style={{ background: "#1a2332", borderInlineEnd: "none" }}
-        />
       </Sider>
       <Layout>
         <Header
           style={{
             background: token.colorBgContainer,
             padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
+            height: 56,
+            lineHeight: "56px",
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
-        >
-          <Space>
-            <Typography.Text>{user?.display_name || user?.email}</Typography.Text>
-            <Button
-              type="text"
-              icon={<LogoutOutlined />}
-              onClick={() => {
-                logout();
-                navigate("/login");
-              }}
-            >
-              退出
-            </Button>
-          </Space>
-        </Header>
+        />
         <Content style={{ margin: 24 }}>
           <div
             style={{

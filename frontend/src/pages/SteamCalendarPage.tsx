@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   Avatar,
   Button,
   Empty,
@@ -333,8 +334,8 @@ export default function SteamCalendarPage() {
   return (
     <div>
       <PageHeader
-        title="Steam 日历"
-        subtitle="日时间轴 · 周/月/年热力 · 轮询在线与游玩状态"
+        title="今天玩什么"
+        subtitle="仅显示你与 Steam 好友的游玩状态 · 日时间轴 · 周/月/年热力"
         extra={
           isAdmin ? (
             <Button loading={poll.isPending} onClick={() => poll.mutate()}>
@@ -343,6 +344,17 @@ export default function SteamCalendarPage() {
           ) : null
         }
       />
+
+      {calendar?.visibility?.hint ? (
+        <Alert
+          type={
+            calendar.visibility.friends_list_public === false ? "warning" : "info"
+          }
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={calendar.visibility.hint}
+        />
+      ) : null}
 
       {nowPlaying && nowPlaying.length > 0 ? (
         <div style={{ marginBottom: 16 }}>

@@ -11,6 +11,12 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
+from app.models.user import User
+from app.services.steam_friends import (
+    can_view_member_steam,
+    visibility_meta,
+    visible_member_ids_for_user,
+)
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -59,7 +65,11 @@ def _day_bounds(d: date) -> tuple[datetime, datetime]:
 
 
 def _sessions_in_window(
-    db: Session, window_start: datetime, window_end: datetime, member_id: int | None = None
+    db: Session,
+    window_start: datetime,
+    window_end: datetime,
+    member_id: int | None = None,
+    member_ids: set[int] | None = None,
 ) -> list[PlaySession]:
     q = (
         db.query(PlaySession)
@@ -74,15 +84,24 @@ def _sessions_in_window(
     )
     if member_id is not None:
         q = q.filter(PlaySession.member_id == member_id)
+    elif member_ids is not None:
+        if not member_ids:
+            return []
+        q = q.filter(PlaySession.member_id.in_(member_ids))
     return q.order_by(PlaySession.started_at.desc()).all()
 
 
-def build_calendar(db: Session, granularity: str, anchor: date) -> dict:
+def build_calendar(
+    db: Session, granularity: str, anchor: date, viewer: User
+) -> dict:
+    visible_ids = visible_member_ids_for_user(db, viewer)
     range_start, range_end = _range_for(granularity, anchor)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
 
-    sessions = _sessions_in_window(db, window_start, window_end)
+    sessions = _sessions_in_window(
+        db, window_start, window_end, member_ids=visible_ids
+    )
 
     cells: list[dict] = []
     total_seconds = 0
@@ -114,13 +133,13 @@ def build_calendar(db: Session, granularity: str, anchor: date) -> dict:
         "range_end": range_end.isoformat(),
         "cells": cells,
         "total_seconds": total_seconds,
+        "visibility": visibility_meta(db, viewer, visible_ids),
     }
 
 
 def _presence_end(seg: PresenceSegment, now: datetime) -> datetime:
     if seg.ended_at is not None:
         return _to_aware(seg.ended_at)
-    # 进行中：取 last_seen 与当前时刻较大者，避免色条过短
     return max(_to_aware(seg.last_seen_at), now)
 
 
@@ -141,10 +160,13 @@ def _clip_to_day(
     return start_sec, end_sec
 
 
-def build_day_detail(db: Session, d: date) -> dict:
+def build_day_detail(db: Session, d: date, viewer: User) -> dict:
+    visible_ids = visible_member_ids_for_user(db, viewer)
     day_start, day_end = _day_bounds(d)
     now = datetime.now(timezone.utc)
-    sessions = _sessions_in_window(db, day_start, day_end)
+    sessions = _sessions_in_window(
+        db, day_start, day_end, member_ids=visible_ids
+    )
     sessions = sorted(sessions, key=lambda s: _to_aware(s.started_at))
 
     items: list[dict] = []
@@ -192,12 +214,18 @@ def build_day_detail(db: Session, d: date) -> dict:
         by_member.values(), key=lambda x: x["total_seconds"], reverse=True
     )
 
-    # ---- 日时间轴：按用户的状态片段 ----
     steam_members = (
         db.query(Member)
-        .filter(Member.user_id.isnot(None), Member.steam_id.isnot(None), Member.steam_id != "")
+        .filter(
+            Member.id.in_(visible_ids),
+            Member.user_id.isnot(None),
+            Member.steam_id.isnot(None),
+            Member.steam_id != "",
+        )
         .order_by(Member.nickname.asc())
         .all()
+        if visible_ids
+        else []
     )
 
     presence_rows = (
@@ -205,6 +233,7 @@ def build_day_detail(db: Session, d: date) -> dict:
         .options(joinedload(PresenceSegment.member))
         .filter(
             PresenceSegment.source == "steam",
+            PresenceSegment.member_id.in_(visible_ids),
             PresenceSegment.started_at < day_end,
             (PresenceSegment.ended_at.is_(None))
             | (PresenceSegment.ended_at >= day_start)
@@ -212,6 +241,8 @@ def build_day_detail(db: Session, d: date) -> dict:
         )
         .order_by(PresenceSegment.started_at.asc())
         .all()
+        if visible_ids
+        else []
     )
 
     segments_by_member: dict[int, list[dict]] = {m.id: [] for m in steam_members}
@@ -254,7 +285,6 @@ def build_day_detail(db: Session, d: date) -> dict:
                 _presence_end(seg, now),
             )
     else:
-        # 兼容旧数据：仅有 play_sessions 时当作 playing 片段
         for s in sessions:
             _append_seg(
                 s.member_id,
@@ -265,7 +295,6 @@ def build_day_detail(db: Session, d: date) -> dict:
                 _session_end(s) if s.ended_at is not None else max(_session_end(s), now),
             )
 
-    # 确保有会话但未绑显示名的成员也出现在轴上
     known_ids = {m.id for m in steam_members}
     for mid, segs in list(segments_by_member.items()):
         if mid not in known_ids and segs:
@@ -285,8 +314,6 @@ def build_day_detail(db: Session, d: date) -> dict:
             }
         )
 
-    # 有时间轴数据但未在 steam_members 列表的（兜底已处理）
-    # 按有片段优先、再按昵称
     timeline.sort(
         key=lambda row: (0 if row["segments"] else 1, row["member_nickname"])
     )
@@ -300,14 +327,22 @@ def build_day_detail(db: Session, d: date) -> dict:
         "games_legend": [
             {"steam_app_id": k, "game_name": v} for k, v in sorted(games_legend.items())
         ],
+        "visibility": visibility_meta(db, viewer, visible_ids),
     }
 
 
-def list_now_playing(db: Session) -> list[dict]:
+def list_now_playing(db: Session, viewer: User) -> list[dict]:
+    visible_ids = visible_member_ids_for_user(db, viewer)
+    if not visible_ids:
+        return []
     sessions = (
         db.query(PlaySession)
         .options(joinedload(PlaySession.member))
-        .filter(PlaySession.source == "steam", PlaySession.ended_at.is_(None))
+        .filter(
+            PlaySession.source == "steam",
+            PlaySession.ended_at.is_(None),
+            PlaySession.member_id.in_(visible_ids),
+        )
         .order_by(PlaySession.started_at.desc())
         .all()
     )
@@ -331,36 +366,45 @@ def list_now_playing(db: Session) -> list[dict]:
     return result
 
 
-def build_overview(db: Session) -> dict:
-    """圈子 Steam 总览：成员、绑定、本周时长、正在游玩、近期会话。"""
+def build_overview(db: Session, viewer: User) -> dict:
+    """圈子 Steam 总览：仅自己与 Steam 好友。"""
+    visible_ids = visible_member_ids_for_user(db, viewer)
     today = datetime.now(TZ).date()
     week_start = today - timedelta(days=today.weekday())
     window_start, _ = _day_bounds(week_start)
     _, window_end = _day_bounds(today)
 
     members = (
-        db.query(Member).filter(Member.user_id.isnot(None)).all()
+        db.query(Member)
+        .filter(Member.id.in_(visible_ids), Member.user_id.isnot(None))
+        .all()
+        if visible_ids
+        else []
     )
     member_count = len(members)
     steam_bound_count = sum(1 for m in members if m.steam_id)
 
-    week_sessions = _sessions_in_window(db, window_start, window_end)
+    week_sessions = _sessions_in_window(
+        db, window_start, window_end, member_ids=visible_ids
+    )
     week_seconds = 0
     for s in week_sessions:
         week_seconds += _overlap_seconds(
             _to_aware(s.started_at), _session_end(s), window_start, window_end
         )
 
-    now_playing = list_now_playing(db)
+    now_playing = list_now_playing(db, viewer)
 
-    recent = (
+    recent_q = (
         db.query(PlaySession)
         .options(joinedload(PlaySession.member))
         .filter(PlaySession.source == "steam")
-        .order_by(PlaySession.started_at.desc())
-        .limit(20)
-        .all()
     )
+    if visible_ids:
+        recent_q = recent_q.filter(PlaySession.member_id.in_(visible_ids))
+    else:
+        recent_q = recent_q.filter(PlaySession.id < 0)
+    recent = recent_q.order_by(PlaySession.started_at.desc()).limit(20).all()
     recent_sessions = []
     now = datetime.now(timezone.utc)
     for s in recent:
@@ -391,16 +435,21 @@ def build_overview(db: Session) -> dict:
         "week_play_seconds": week_seconds,
         "now_playing": now_playing,
         "recent_sessions": recent_sessions,
+        "visibility": visibility_meta(db, viewer, visible_ids),
     }
 
 
-def build_member_play_stats(db: Session, member_id: int) -> dict | None:
+def build_member_play_stats(
+    db: Session, member_id: int, viewer: User
+) -> dict | None:
     member = (
         db.query(Member)
         .filter(Member.id == member_id, Member.user_id.isnot(None))
         .first()
     )
     if not member:
+        return None
+    if not can_view_member_steam(db, viewer, member_id):
         return None
 
     today = datetime.now(TZ).date()

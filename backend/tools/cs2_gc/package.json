@@ -1,0 +1,8 @@
+{
+  "name": "zhange-cs2-gc",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "csgo-protobuf": "^3.0.0"
+  }
+}

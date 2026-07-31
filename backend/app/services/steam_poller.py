@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
 from app.models.job_run import JobRun
@@ -66,6 +66,18 @@ def _apply_presence(
     now: datetime,
     stats: dict,
 ) -> None:
+    # 已绑定账号以 Steam 昵称为展示名
+    if presence.persona_name:
+        if member.nickname != presence.persona_name:
+            member.nickname = presence.persona_name
+        user = member.user
+        if user is None and member.user_id is not None:
+            from app.models.user import User
+
+            user = db.query(User).filter(User.id == member.user_id).first()
+        if user and user.display_name != presence.persona_name:
+            user.display_name = presence.persona_name
+
     status = presence.status
     app_id = presence.game_id
     game_name = presence.game_extra_info or (
@@ -179,6 +191,9 @@ def run_steam_presence_poll(db: Session) -> dict:
         "presence_continued": 0,
         "presence_closed": 0,
         "skipped_private": 0,
+        "friends_synced": 0,
+        "friends_private": 0,
+        "friends_failed": 0,
     }
 
     try:
@@ -187,6 +202,7 @@ def run_steam_presence_poll(db: Session) -> dict:
 
         members = (
             db.query(Member)
+            .options(joinedload(Member.user))
             .filter(Member.steam_id.isnot(None), Member.steam_id != "")
             .all()
         )
@@ -219,11 +235,23 @@ def run_steam_presence_poll(db: Session) -> dict:
                 continue
             _apply_presence(db, member, presence, now, stats)
 
+        from app.services.steam_friends import sync_member_friends
+
+        for member in members:
+            result = sync_member_friends(db, member)
+            if not result.ok:
+                stats["friends_failed"] += 1
+            elif result.friends_public is False:
+                stats["friends_private"] += 1
+            else:
+                stats["friends_synced"] += 1
+
         job.status = "ok"
         job.message = (
             f"轮询 {stats['members']} 人，"
             f"玩 {stats['playing']} / 在线 {stats['online']} / 离线 {stats['offline']}，"
-            f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}"
+            f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}；"
+            f"好友同步 {stats['friends_synced']} / 未公开 {stats['friends_private']}"
         )
         job.stats = stats
         job.finished_at = _utcnow()

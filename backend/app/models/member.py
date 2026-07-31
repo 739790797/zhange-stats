@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -15,6 +15,13 @@ class Member(Base):
     steam_id: Mapped[str | None] = mapped_column(
         String(32), unique=True, nullable=True, index=True
     )
+    steam_friends_public: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    steam_friends_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cs2_auth_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cs2_known_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cs2_sync_cursor: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), unique=True, nullable=True
     )
@@ -25,3 +32,6 @@ class Member(Base):
     user = relationship("User", back_populates="member")
     play_sessions = relationship("PlaySession", back_populates="member")
     presence_segments = relationship("PresenceSegment", back_populates="member")
+    steam_friend_edges = relationship(
+        "SteamFriendEdge", back_populates="member", cascade="all, delete-orphan"
+    )

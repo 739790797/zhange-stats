@@ -24,7 +24,14 @@ export default function LoginPage() {
       const user = await fetchMe();
       setAuth(access_token, user);
       message.success("登录成功");
-      navigate("/", { replace: true });
+      if (!user.steam_id) {
+        navigate("/profile", {
+          replace: true,
+          state: { promptSteamBind: true },
+        });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (e: unknown) {
       const detail =
         e &&
@@ -107,7 +114,6 @@ export default function LoginPage() {
             name="username"
             label="邮箱"
             rules={[{ required: true, message: "请输入邮箱" }]}
-            extra="使用注册邮箱登录"
           >
             <Input
               size="large"

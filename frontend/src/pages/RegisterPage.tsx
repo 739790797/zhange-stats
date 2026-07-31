@@ -1,12 +1,13 @@
 import { Alert, Button, Card, Form, Input, Space, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { register, sendRegisterCode } from "@/api/client";
+import { fetchMe, register, sendRegisterCode } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
+  const setAuth = useAuthStore((s) => s.setAuth);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -59,8 +60,23 @@ export default function RegisterPage() {
         password: values.password,
         code: values.code,
       });
-      message.success(res.message);
-      navigate("/login", { replace: true });
+      if (!res.access_token) {
+        message.success(res.message || "注册成功，请登录");
+        navigate("/login", { replace: true });
+        return;
+      }
+      useAuthStore.setState({ token: res.access_token });
+      const user = await fetchMe();
+      setAuth(res.access_token, user);
+      message.success(res.message || "注册成功");
+      if (!user.steam_id) {
+        navigate("/profile", {
+          replace: true,
+          state: { promptSteamBind: true },
+        });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (e: unknown) {
       const detail =
         e &&
@@ -99,9 +115,6 @@ export default function RegisterPage() {
           <Typography.Title level={2} style={{ margin: 0, color: "#1a2332" }}>
             注册账号
           </Typography.Title>
-          <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
-            邮箱注册；用户名自动生成，可稍后在个人设置修改
-          </Typography.Paragraph>
         </div>
 
         {error ? (

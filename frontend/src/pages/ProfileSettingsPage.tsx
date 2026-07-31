@@ -1,3 +1,4 @@
+import { CameraOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -5,56 +6,203 @@ import {
   Button,
   Card,
   Descriptions,
-  Form,
-  Input,
+  Modal,
+  Popconfirm,
   Space,
+  Tag,
+  Typography,
+  Upload,
   message,
 } from "antd";
-import { useEffect } from "react";
-import { fetchMyProfile, updateMyProfile } from "@/api/client";
+import type { UploadProps } from "antd";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  fetchMemberProfile,
+  fetchMyProfile,
+  startSteamOpenIdBind,
+  updateMemberProfile,
+  updateMyProfile,
+  uploadMemberAvatar,
+  uploadMyAvatar,
+} from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
 import { useAuthStore } from "@/stores/authStore";
 
+/** 避免 React StrictMode 双次挂载导致绑定回跳提示重复弹出 */
+let handledSteamBindQuery: string | null = null;
+
+type ProfilePayload = {
+  steam_id?: string | null;
+};
+
+function apiError(e: unknown, fallback: string) {
+  const detail =
+    e &&
+    typeof e === "object" &&
+    "response" in e &&
+    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+  return String(detail || (e as Error)?.message || fallback);
+}
+
 export default function ProfileSettingsPage() {
+  const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const targetMemberId = id ? Number(id) : NaN;
+  const isAdminEdit = Number.isFinite(targetMemberId);
+
   const queryClient = useQueryClient();
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const token = useAuthStore((s) => s.token);
+  const setUser = useAuthStore((s) => s.setUser);
   const authUser = useAuthStore((s) => s.user);
-  const [form] = Form.useForm();
+  const [steamPromptOpen, setSteamPromptOpen] = useState(false);
+
+  const profileQueryKey = isAdminEdit
+    ? (["member-profile", targetMemberId] as const)
+    : (["profile-me"] as const);
 
   const { data, isLoading, error, isError } = useQuery({
-    queryKey: ["profile-me"],
-    queryFn: fetchMyProfile,
+    queryKey: profileQueryKey,
+    queryFn: () =>
+      isAdminEdit ? fetchMemberProfile(targetMemberId) : fetchMyProfile(),
+    enabled: !isAdminEdit || Number.isFinite(targetMemberId),
     retry: false,
   });
 
   useEffect(() => {
-    if (!data) return;
-    form.setFieldsValue({
-      display_name: data.display_name || data.nickname || "",
-      steam_id: data.steam_id || "",
-    });
-  }, [data, form]);
+    const status = searchParams.get("steam_bind");
+    if (!status) return;
+    const bindKey = searchParams.toString();
+    if (handledSteamBindQuery === bindKey) return;
+    handledSteamBindQuery = bindKey;
 
-  const save = useMutation({
-    mutationFn: async (values: { display_name?: string; steam_id?: string }) =>
-      updateMyProfile({
-        display_name: values.display_name?.trim() || undefined,
-        steam_id: values.steam_id?.trim() || null,
-      }),
-    onSuccess: (profile) => {
-      message.success("个人设置已保存");
-      queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-      // 同步顶栏显示名
-      if (token && authUser) {
-        setAuth(token, {
+    const detail = searchParams.get("detail");
+    const name = searchParams.get("name");
+    const next = new URLSearchParams(searchParams);
+    next.delete("steam_bind");
+    next.delete("detail");
+    next.delete("name");
+    setSearchParams(next, { replace: true });
+
+    if (status === "ok") {
+      message.success({
+        key: "steam-bind",
+        content: name ? `已绑定 Steam：${name}` : "Steam 绑定成功",
+      });
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+      if (!isAdminEdit && authUser && name) {
+        setUser({
           ...authUser,
-          display_name: profile.display_name || authUser.display_name,
+          display_name: name,
         });
       }
+      if (isAdminEdit) {
+        queryClient.invalidateQueries({ queryKey: ["users"] });
+        queryClient.invalidateQueries({ queryKey: ["members"] });
+      }
+    } else if (status === "error") {
+      message.error({
+        key: "steam-bind",
+        content: detail || "Steam 绑定失败",
+      });
+    }
+  }, [
+    searchParams,
+    setSearchParams,
+    queryClient,
+    profileQueryKey,
+    isAdminEdit,
+    authUser,
+    setUser,
+  ]);
+
+  useEffect(() => {
+    if (isAdminEdit) return;
+    const state = location.state as { promptSteamBind?: boolean } | null;
+    if (!state?.promptSteamBind) return;
+    navigate(location.pathname, { replace: true, state: {} });
+    setSteamPromptOpen(true);
+  }, [isAdminEdit, location.pathname, location.state, navigate]);
+
+  const saveProfilePatch = (payload: ProfilePayload) =>
+    isAdminEdit
+      ? updateMemberProfile(targetMemberId, payload)
+      : updateMyProfile(payload);
+
+  const invalidateProfile = () => {
+    queryClient.invalidateQueries({ queryKey: profileQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+    if (isAdminEdit) {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+    }
+  };
+
+  const applyProfileLocally = (profile: {
+    display_name?: string | null;
+    nickname?: string;
+    avatar_url?: string | null;
+    steam_id?: string | null;
+  }) => {
+    if (isAdminEdit || !authUser) return;
+    setUser({
+      ...authUser,
+      display_name:
+        profile.display_name || profile.nickname || authUser.display_name,
+      avatar_url: profile.avatar_url ?? null,
+      steam_id: profile.steam_id ?? null,
+    });
+  };
+
+  const startSteamBind = useMutation({
+    mutationFn: async () =>
+      startSteamOpenIdBind(isAdminEdit ? targetMemberId : undefined),
+    onSuccess: ({ url }) => {
+      window.location.href = url;
     },
-    onError: () => message.error("保存失败"),
+    onError: (e: unknown) => message.error(apiError(e, "无法跳转 Steam 登录")),
   });
+
+  const unbindSteam = useMutation({
+    mutationFn: async () => saveProfilePatch({ steam_id: null }),
+    onSuccess: (profile) => {
+      message.success("已解除 Steam 绑定");
+      invalidateProfile();
+      applyProfileLocally(profile);
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
+  const uploadAvatar = useMutation({
+    mutationFn: async (file: File) =>
+      isAdminEdit
+        ? uploadMemberAvatar(targetMemberId, file)
+        : uploadMyAvatar(file),
+    onSuccess: (profile) => {
+      message.success("头像已更新");
+      invalidateProfile();
+      applyProfileLocally(profile);
+    },
+    onError: (e: unknown) => message.error(apiError(e, "头像上传失败")),
+  });
+
+  const beforeUpload: UploadProps["beforeUpload"] = (file) => {
+    const okType = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(
+      file.type,
+    );
+    if (!okType) {
+      message.error("仅支持 JPG / PNG / WebP / GIF");
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error("头像不能超过 5MB");
+      return Upload.LIST_IGNORE;
+    }
+    uploadAvatar.mutate(file);
+    return false;
+  };
 
   const errMsg =
     isError && error && typeof error === "object" && "response" in error
@@ -64,60 +212,186 @@ export default function ProfileSettingsPage() {
         )
       : null;
 
+  const steamBound = Boolean(data?.steam_id);
+  const displayName =
+    data?.steam_persona_name ||
+    data?.display_name ||
+    data?.nickname ||
+    "-";
+  const subjectLabel =
+    data?.display_name || data?.nickname || data?.email || `成员 #${targetMemberId}`;
+
+  useEffect(() => {
+    if (steamBound) setSteamPromptOpen(false);
+  }, [steamBound]);
+
   return (
     <div>
-      <PageHeader title="个人设置" subtitle="修改用户名与 Steam 绑定" />
+      <PageHeader
+        title={isAdminEdit ? "编辑成员个人中心" : "个人中心"}
+        subtitle={
+          isAdminEdit
+            ? `正在编辑：${subjectLabel}（管理员代操作：需用目标 Steam 账号完成登录）`
+            : "绑定 Steam 后使用 Steam 用户名；头像可自行上传"
+        }
+        extra={
+          isAdminEdit ? <Link to="/settings/users">返回用户管理</Link> : undefined
+        }
+      />
+
+      {isAdminEdit ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="管理员模式：跳转 Steam 登录后，将把「当前登录的 Steam 账号」绑定到该成员"
+        />
+      ) : null}
 
       {errMsg ? (
         <Alert type="warning" showIcon message={errMsg} style={{ marginBottom: 16 }} />
       ) : null}
 
-      {data ? (
-        <Card loading={isLoading} style={{ marginBottom: 24 }}>
-          <Space align="start" size={16}>
-            <Avatar size={64} src={data.avatar_url || undefined}>
-              {(data.display_name || data.nickname || "?")[0]}
-            </Avatar>
-            <Descriptions column={1} size="small">
-              <Descriptions.Item label="邮箱">
-                {data.email || "-"}
-              </Descriptions.Item>
-            </Descriptions>
-          </Space>
-        </Card>
-      ) : null}
-
-      <Card title="资料与绑定" loading={isLoading && !errMsg}>
-        <Form
-          form={form}
-          layout="vertical"
-          style={{ maxWidth: 480 }}
-          onFinish={(v) => save.mutate(v)}
-          disabled={!!errMsg}
-        >
-          <Form.Item
-            name="display_name"
-            label="用户名"
-            rules={[
-              { required: true, message: "请输入用户名" },
-              { max: 64, message: "最多 64 个字符" },
-            ]}
-            extra="展示用名称，登录仍使用邮箱"
+      <Card title="个人信息" loading={isLoading} style={{ marginBottom: 24 }}>
+        <Space align="start" size={20}>
+          <Upload
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            showUploadList={false}
+            beforeUpload={beforeUpload}
+            disabled={!!errMsg || !data || uploadAvatar.isPending}
           >
-            <Input placeholder="怎么称呼你" />
-          </Form.Item>
-          <Form.Item
-            name="steam_id"
-            label="Steam ID"
-            extra="64 位 SteamID（如 7656119…），资料需对好友/公开可见才能监控正在游玩"
-          >
-            <Input placeholder="可选" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" loading={save.isPending}>
-            保存
-          </Button>
-        </Form>
+            <button
+              type="button"
+              title="点击上传头像"
+              style={{
+                position: "relative",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                cursor: errMsg || !data ? "not-allowed" : "pointer",
+                borderRadius: "50%",
+              }}
+            >
+              <Avatar size={72} src={data?.avatar_url || undefined}>
+                {displayName !== "-" ? displayName[0] : "?"}
+              </Avatar>
+              <span
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  bottom: 0,
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: "#1a2332",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  boxShadow: "0 0 0 2px #fff",
+                }}
+              >
+                <CameraOutlined />
+              </span>
+            </button>
+          </Upload>
+          <Descriptions column={1} size="small">
+            <Descriptions.Item label="用户名">{displayName}</Descriptions.Item>
+            <Descriptions.Item label="邮箱">{data?.email || "-"}</Descriptions.Item>
+          </Descriptions>
+        </Space>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
+          点击头像可上传自定义头像（JPG / PNG / WebP / GIF，最大 5MB）。
+          绑定 Steam 后用户名自动同步；自定义头像不会被 Steam 覆盖。
+        </Typography.Paragraph>
       </Card>
+
+      <Card title="账号绑定" loading={isLoading && !errMsg}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            padding: "16px 4px",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <Space size={8} align="center">
+              {steamBound ? (
+                <Avatar size={28} src={data?.avatar_url || undefined}>
+                  S
+                </Avatar>
+              ) : null}
+              <Typography.Text strong>Steam</Typography.Text>
+              {steamBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+            </Space>
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {steamBound
+                  ? `SteamID：${data?.steam_id}${
+                      data?.steam_friends_public === false
+                        ? " · 好友列表未公开（日历只能看自己）"
+                        : data?.steam_friends_public
+                          ? " · 好友列表已同步"
+                          : ""
+                    }`
+                  : "通过 Steam 登录确认归属；请公开资料与好友列表，日历仅对 Steam 好友可见"}
+              </Typography.Text>
+            </div>
+          </div>
+          <Space>
+            {steamBound ? (
+              <>
+                <Button
+                  loading={startSteamBind.isPending}
+                  disabled={!!errMsg}
+                  onClick={() => startSteamBind.mutate()}
+                >
+                  换绑
+                </Button>
+                <Popconfirm
+                  title="确认解除 Steam 绑定？"
+                  okText="确定"
+                  cancelText="取消"
+                  onConfirm={() => unbindSteam.mutate()}
+                >
+                  <Button danger loading={unbindSteam.isPending} disabled={!!errMsg}>
+                    解绑
+                  </Button>
+                </Popconfirm>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                loading={startSteamBind.isPending}
+                disabled={!!errMsg}
+                onClick={() => startSteamBind.mutate()}
+              >
+                Steam 登录绑定
+              </Button>
+            )}
+          </Space>
+        </div>
+      </Card>
+
+      <Modal
+        title="请绑定 Steam 账号"
+        open={steamPromptOpen && !steamBound && !isAdminEdit}
+        okText="去 Steam 登录绑定"
+        cancelText="稍后再说"
+        confirmLoading={startSteamBind.isPending}
+        onOk={() => startSteamBind.mutate()}
+        onCancel={() => setSteamPromptOpen(false)}
+        destroyOnClose
+      >
+        <Typography.Paragraph style={{ marginBottom: 0 }}>
+          战鸽数据依赖 Steam
+          才能同步游玩记录与好友可见范围。请先完成 Steam
+          登录绑定；绑定后请公开个人资料与好友列表。
+        </Typography.Paragraph>
+      </Modal>
     </div>
   );
 }

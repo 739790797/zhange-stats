@@ -12,6 +12,7 @@ import {
   message,
 } from "antd";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   fetchEmailSettings,
   testEmailSettings,
@@ -112,7 +113,11 @@ export default function EmailSettingsPage() {
 
   return (
     <div>
-      <PageHeader title="邮箱设置" subtitle="配置注册验证码等系统邮件发送" />
+      <PageHeader
+        title="邮箱设置"
+        subtitle="配置注册验证码等系统邮件发送"
+        extra={<Link to="/settings/users">用户管理</Link>}
+      />
 
       <Form
         form={form}
