@@ -19,7 +19,7 @@ from app.services.steam_friends import list_viewer_steam_friends
 from app.services.steam_poller import run_steam_presence_poll
 from app.services.steam_stats import (
     build_calendar,
-    build_day_detail,
+    build_range_detail,
     build_member_play_stats,
     build_overview,
     list_now_playing,
@@ -80,15 +80,29 @@ def steam_calendar(
 
 @router.get("/day", response_model=SteamDayResponse)
 def steam_day(
-    date_str: str = Query(..., alias="date", description="日期 YYYY-MM-DD"),
+    date_str: str = Query(..., alias="date", description="起始日期 YYYY-MM-DD"),
+    end_str: str | None = Query(
+        None, alias="end", description="结束日期 YYYY-MM-DD；缺省则仅查询当日"
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
     try:
-        d = date.fromisoformat(date_str)
+        start = date.fromisoformat(date_str)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="date 格式应为 YYYY-MM-DD") from exc
-    return build_day_detail(db, d, user)
+    end = start
+    if end_str:
+        try:
+            end = date.fromisoformat(end_str)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="end 格式应为 YYYY-MM-DD"
+            ) from exc
+    try:
+        return build_range_detail(db, start, end, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/now", response_model=list[SteamNowItem])

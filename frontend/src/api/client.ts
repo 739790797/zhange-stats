@@ -127,9 +127,9 @@ export async function fetchSteamCalendar(params: {
   return data;
 }
 
-export async function fetchSteamDay(date: string) {
+export async function fetchSteamDay(date: string, end?: string) {
   const { data } = await client.get<SteamDayData>("/steam/day", {
-    params: { date },
+    params: end ? { date, end } : { date },
   });
   return data;
 }

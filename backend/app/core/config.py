@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = "mysql+pymysql://root:password@127.0.0.1:3306/zhange_stats"
+    DATABASE_URL: str = "mysql+pymysql://root:password@127.0.0.1:3306/zhange_stats_dev"
     # 留空或保持占位值时，首次启动会自动生成并写入 DATA_DIR/.secret_key
     SECRET_KEY: str = DEFAULT_SECRET_KEY
     # 默认 24 小时；生产可按需再缩短

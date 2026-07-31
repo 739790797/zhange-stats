@@ -103,7 +103,16 @@ export interface SteamCalendarData {
   range_end: string;
   cells: SteamCalendarCell[];
   total_seconds: number;
+  members?: SteamCalendarMemberSeries[];
   visibility?: SteamVisibilityMeta | null;
+}
+
+export interface SteamCalendarMemberSeries {
+  member_id: number;
+  member_nickname: string;
+  avatar_url?: string | null;
+  total_seconds: number;
+  cells: SteamCalendarCell[];
 }
 
 export interface SteamDaySession {
@@ -130,6 +139,9 @@ export interface SteamDayMemberSummary {
 
 export interface SteamDayData {
   date: string;
+  range_start?: string;
+  range_end?: string;
+  span_seconds?: number;
   sessions: SteamDaySession[];
   by_member: SteamDayMemberSummary[];
   total_seconds: number;

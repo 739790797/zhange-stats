@@ -112,6 +112,14 @@ class SteamCalendarCell(BaseModel):
     session_count: int
 
 
+class SteamCalendarMemberSeries(BaseModel):
+    member_id: int
+    member_nickname: str
+    avatar_url: str | None = None
+    total_seconds: int = 0
+    cells: list[SteamCalendarCell] = Field(default_factory=list)
+
+
 class SteamVisibilityMeta(BaseModel):
     mode: str = "steam_friends"
     self_member_id: int
@@ -128,6 +136,7 @@ class SteamCalendarResponse(BaseModel):
     range_end: str
     cells: list[SteamCalendarCell]
     total_seconds: int
+    members: list[SteamCalendarMemberSeries] = Field(default_factory=list)
     visibility: SteamVisibilityMeta | None = None
 
 
@@ -175,6 +184,9 @@ class SteamGameLegendItem(BaseModel):
 
 class SteamDayResponse(BaseModel):
     date: str
+    range_start: str | None = None
+    range_end: str | None = None
+    span_seconds: int = 86400
     sessions: list[SteamDaySessionItem]
     by_member: list[SteamDayMemberSummary]
     total_seconds: int

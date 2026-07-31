@@ -106,29 +106,109 @@ def build_calendar(
         db, window_start, window_end, member_ids=visible_ids
     )
 
-    cells: list[dict] = []
-    total_seconds = 0
+    # date -> totals; (member_id, date) -> seconds
+    day_seconds: dict[str, int] = {}
+    day_counts: dict[str, int] = {}
+    member_day_seconds: dict[int, dict[str, int]] = {}
+    member_meta: dict[int, dict] = {}
+
     d = range_start
     while d <= range_end:
-        day_start, day_end = _day_bounds(d)
-        seconds = 0
-        count = 0
-        for s in sessions:
+        key = d.isoformat()
+        day_seconds[key] = 0
+        day_counts[key] = 0
+        d += timedelta(days=1)
+
+    for s in sessions:
+        member = s.member
+        mid = s.member_id
+        if mid not in member_meta:
+            member_meta[mid] = {
+                "member_id": mid,
+                "member_nickname": member.nickname if member else str(mid),
+                "avatar_url": member.avatar_url if member else None,
+            }
+            member_day_seconds[mid] = {k: 0 for k in day_seconds}
+
+        sess_start = _to_aware(s.started_at).astimezone(TZ).date()
+        sess_end = _session_end(s).astimezone(TZ).date()
+        d = max(sess_start, range_start)
+        last = min(sess_end, range_end)
+        while d <= last:
+            day_start, day_end = _day_bounds(d)
             sec = _overlap_seconds(
                 _to_aware(s.started_at), _session_end(s), day_start, day_end
             )
             if sec > 0:
-                seconds += sec
-                count += 1
+                key = d.isoformat()
+                day_seconds[key] += sec
+                day_counts[key] += 1
+                member_day_seconds[mid][key] += sec
+            d += timedelta(days=1)
+
+    cells: list[dict] = []
+    total_seconds = 0
+    for key, seconds in day_seconds.items():
         cells.append(
             {
-                "date": d.isoformat(),
+                "date": key,
                 "total_seconds": seconds,
-                "session_count": count,
+                "session_count": day_counts[key],
             }
         )
         total_seconds += seconds
-        d += timedelta(days=1)
+
+    members = []
+    for mid, meta in member_meta.items():
+        m_cells = [
+            {"date": k, "total_seconds": v, "session_count": 1 if v > 0 else 0}
+            for k, v in member_day_seconds[mid].items()
+        ]
+        m_total = sum(c["total_seconds"] for c in m_cells)
+        if m_total <= 0 and granularity != "year":
+            continue
+        members.append({**meta, "cells": m_cells, "total_seconds": m_total})
+    members.sort(key=lambda x: x["total_seconds"], reverse=True)
+
+    # year 视图即使无游玩也列出可见好友，便于对照活跃图
+    if granularity == "year" and visible_ids:
+        known = {m["member_id"] for m in members}
+        steam_members = (
+            db.query(Member)
+            .filter(
+                Member.id.in_(visible_ids),
+                Member.user_id.isnot(None),
+                Member.steam_id.isnot(None),
+                Member.steam_id != "",
+            )
+            .order_by(Member.nickname.asc())
+            .all()
+        )
+        for m in steam_members:
+            if m.id in known:
+                continue
+            members.append(
+                {
+                    "member_id": m.id,
+                    "member_nickname": m.nickname,
+                    "avatar_url": m.avatar_url,
+                    "cells": [
+                        {"date": k, "total_seconds": 0, "session_count": 0}
+                        for k in day_seconds
+                    ],
+                    "total_seconds": 0,
+                }
+            )
+
+    meta = visibility_meta(db, viewer, visible_ids)
+    self_id = meta.get("self_member_id")
+    members.sort(
+        key=lambda x: (
+            0 if x["member_id"] == self_id else 1,
+            -x["total_seconds"],
+            x["member_nickname"],
+        )
+    )
 
     return {
         "granularity": granularity,
@@ -136,7 +216,8 @@ def build_calendar(
         "range_end": range_end.isoformat(),
         "cells": cells,
         "total_seconds": total_seconds,
-        "visibility": visibility_meta(db, viewer, visible_ids),
+        "members": members,
+        "visibility": meta,
     }
 
 
@@ -146,29 +227,48 @@ def _presence_end(seg: PresenceSegment, now: datetime) -> datetime:
     return max(_to_aware(seg.last_seen_at), now)
 
 
-def _clip_to_day(
-    start: datetime, end: datetime, day_start: datetime, day_end: datetime
+def _clip_to_window(
+    start: datetime,
+    end: datetime,
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    span_seconds: int,
 ) -> tuple[int, int] | None:
-    """返回当日 [start_sec, end_sec)，单位秒；无重叠则 None。"""
-    s = max(start, day_start)
-    e = min(end, day_end)
+    """返回窗口内 [start_sec, end_sec)，相对 window_start；无重叠则 None。"""
+    s = max(start, window_start)
+    e = min(end, window_end)
     if e <= s:
         return None
-    start_sec = int((s - day_start).total_seconds())
-    end_sec = int((e - day_start).total_seconds())
-    start_sec = max(0, min(86400, start_sec))
-    end_sec = max(0, min(86400, end_sec))
+    start_sec = int((s - window_start).total_seconds())
+    end_sec = int((e - window_start).total_seconds())
+    start_sec = max(0, min(span_seconds, start_sec))
+    end_sec = max(0, min(span_seconds, end_sec))
     if end_sec <= start_sec:
         return None
     return start_sec, end_sec
 
 
 def build_day_detail(db: Session, d: date, viewer: User) -> dict:
+    return build_range_detail(db, d, d, viewer)
+
+
+def build_range_detail(
+    db: Session, range_start: date, range_end: date, viewer: User
+) -> dict:
+    if range_end < range_start:
+        raise ValueError("end 不能早于 date")
+    # 防止误请求超长区间拖垮查询
+    if (range_end - range_start).days > 31:
+        raise ValueError("时间轴区间最长 31 天")
+
     visible_ids = visible_member_ids_for_user(db, viewer)
-    day_start, day_end = _day_bounds(d)
+    window_start, _ = _day_bounds(range_start)
+    _, window_end = _day_bounds(range_end)
+    span_seconds = int((window_end - window_start).total_seconds())
     now = datetime.now(timezone.utc)
     sessions = _sessions_in_window(
-        db, day_start, day_end, member_ids=visible_ids
+        db, window_start, window_end, member_ids=visible_ids
     )
     sessions = sorted(sessions, key=lambda s: _to_aware(s.started_at))
 
@@ -178,7 +278,7 @@ def build_day_detail(db: Session, d: date, viewer: User) -> dict:
 
     for s in sessions:
         duration = _overlap_seconds(
-            _to_aware(s.started_at), _session_end(s), day_start, day_end
+            _to_aware(s.started_at), _session_end(s), window_start, window_end
         )
         if duration <= 0:
             continue
@@ -237,10 +337,10 @@ def build_day_detail(db: Session, d: date, viewer: User) -> dict:
         .filter(
             PresenceSegment.source == "steam",
             PresenceSegment.member_id.in_(visible_ids),
-            PresenceSegment.started_at < day_end,
+            PresenceSegment.started_at < window_end,
             (PresenceSegment.ended_at.is_(None))
-            | (PresenceSegment.ended_at >= day_start)
-            | (PresenceSegment.last_seen_at >= day_start),
+            | (PresenceSegment.ended_at >= window_start)
+            | (PresenceSegment.last_seen_at >= window_start),
         )
         .order_by(PresenceSegment.started_at.asc())
         .all()
@@ -259,7 +359,9 @@ def build_day_detail(db: Session, d: date, viewer: User) -> dict:
         start: datetime,
         end: datetime,
     ) -> None:
-        clipped = _clip_to_day(start, end, day_start, day_end)
+        clipped = _clip_to_window(
+            start, end, window_start, window_end, span_seconds=span_seconds
+        )
         if not clipped:
             return
         start_sec, end_sec = clipped
@@ -322,7 +424,10 @@ def build_day_detail(db: Session, d: date, viewer: User) -> dict:
     )
 
     return {
-        "date": d.isoformat(),
+        "date": range_start.isoformat(),
+        "range_start": range_start.isoformat(),
+        "range_end": range_end.isoformat(),
+        "span_seconds": span_seconds,
         "sessions": items,
         "by_member": member_list,
         "total_seconds": total_seconds,

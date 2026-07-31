@@ -43,8 +43,15 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _alembic_config() -> Config:
+    # Read alembic.ini as UTF-8; Windows locale (GBK) breaks non-ASCII comments.
+    from configparser import ConfigParser
+
     ini = _BACKEND_ROOT / "alembic.ini"
-    cfg = Config(str(ini))
+    parser = ConfigParser()
+    parser.read(str(ini), encoding="utf-8")
+    cfg = Config()
+    cfg.config_file_name = str(ini)
+    cfg.__dict__["file_config"] = parser
     cfg.set_main_option("script_location", str(_BACKEND_ROOT / "alembic"))
     return cfg
 
