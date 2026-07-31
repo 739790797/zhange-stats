@@ -54,7 +54,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送 `v*` tag，Actions 构建并推到 `ghcr.io/739790797/zhange-stats`。
+发版：每次推送都会构建并推送 GHCR 镜像——`main` → `latest` + `sha-*`；其它分支 → `<分支名>` + `sha-*`；`v*` 标签 → 版本号 + `latest`。
 
 一键更新（可选）：挂载 `docker.sock` + 设 `UPDATE_ENABLED=true`（**等同宿主机 Docker 权限，仅信任环境开启**）。
 

@@ -2,6 +2,8 @@ name: Build and push Docker image
 
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
   workflow_dispatch:
@@ -30,16 +32,29 @@ jobs:
         id: meta
         shell: bash
         run: |
+          IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME,,}"
+          SHA_SHORT="${GITHUB_SHA::7}"
+          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
+
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
-            TAGS="${{ env.REGISTRY }}/${IMAGE_NAME,,}:${VERSION}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${IMAGE_NAME,,}:latest"
+            TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            VERSION="${FILE_VERSION}"
+            TAGS="${IMAGE}:latest,${IMAGE}:sha-${SHA_SHORT}"
+          elif [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            BRANCH="${GITHUB_REF_NAME,,}"
+            BRANCH="${BRANCH//\//-}"
+            BRANCH="$(echo "${BRANCH}" | sed 's/[^a-z0-9._-]/-/g')"
+            VERSION="${FILE_VERSION}"
+            TAGS="${IMAGE}:${BRANCH},${IMAGE}:sha-${SHA_SHORT}"
           else
-            VERSION="$(tr -d '[:space:]' < VERSION)"
+            VERSION="${FILE_VERSION}"
             INPUT_TAG="${{ inputs.tag }}"
             TAG="${INPUT_TAG:-latest}"
-            TAGS="${{ env.REGISTRY }}/${IMAGE_NAME,,}:${TAG}"
+            TAGS="${IMAGE}:${TAG},${IMAGE}:sha-${SHA_SHORT}"
           fi
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "Resolved version=${VERSION}"
