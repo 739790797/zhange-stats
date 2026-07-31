@@ -250,7 +250,7 @@ export default function UserManagementPage() {
             label="密码"
             rules={[
               { required: true, message: "请输入密码" },
-              { min: 6, message: "密码至少 6 位" },
+              { min: 8, message: "密码至少 8 位" },
             ]}
           >
             <Input.Password placeholder="初始密码" autoComplete="new-password" />
@@ -308,7 +308,7 @@ export default function UserManagementPage() {
                 validator: async (_, value) => {
                   if (!value || !String(value).trim()) return;
                   if (String(value).trim().length < 6) {
-                    throw new Error("密码至少 6 位");
+                    throw new Error("密码至少 8 位");
                   }
                 },
               },

@@ -1,31 +1,11 @@
-# 战鸽数据 · Docker Compose（适合 PVE LXC）
-# 首次：复制 .env.example → .env 并填写，再 docker compose up -d
-# 更新：管理员在前端点「系统更新」，或手动 docker compose pull && docker compose up -d
+# 战鸽数据 · 仅运行应用容器（MySQL 请自备）
+# 复制 .env.example → .env，填好 DATABASE_URL 后：
+#   docker compose pull && docker compose up -d
+# 也可用 docker run（见 README）；compose 只是方便挂载目录与环境变量。
 
 name: zhange-stats
 
 services:
-  db:
-    image: mysql:8.4
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: zhange_stats
-      MYSQL_USER: zhange
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zhange_change_me}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_change_me}
-    volumes:
-      - db_data:/var/lib/mysql
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
   app:
     image: ${APP_IMAGE:-ghcr.io/739790797/zhange-stats}:${APP_TAG:-latest}
     build:
@@ -34,37 +14,35 @@ services:
       args:
         APP_VERSION: ${APP_VERSION:-0.1.3}
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     ports:
       - "${APP_PORT:-8080}:8000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: mysql+pymysql://zhange:${MYSQL_PASSWORD:-zhange_change_me}@db:3306/zhange_stats
-      # APP_VERSION 以镜像构建参数为准，勿用宿主机变量覆盖，否则一键更新后版本号不刷新
+      # APP_VERSION 以镜像为准，勿用宿主机变量覆盖
       STATIC_DIR: /app/static
+      DATA_DIR: /app/data
       UPLOAD_DIR: /app/uploads
-      UPDATE_ENABLED: ${UPDATE_ENABLED:-true}
+      UPDATE_ENABLED: ${UPDATE_ENABLED:-false}
       UPDATE_REPO: ${UPDATE_REPO:-739790797/zhange-stats}
       UPDATE_IMAGE: ${APP_IMAGE:-ghcr.io/739790797/zhange-stats}
       UPDATE_COMPOSE_FILE: /deploy/compose.yml
       UPDATE_COMPOSE_SERVICE: app
       UPDATE_COMPOSE_PROJECT: zhange-stats
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    extra_hosts:
+      # 便于 DATABASE_URL 使用 host.docker.internal 访问宿主机上的 MySQL
+      - "host.docker.internal:host-gateway"
     volumes:
+      - ./data:/app/data
       - ./data/uploads:/app/uploads
-      # 管理端一键更新（LXC 内 Docker）。不需要时可注释掉 sock 与下面两个挂载，并设 UPDATE_ENABLED=false
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./compose.yml:/deploy/compose.yml:ro
-      - ./.env:/deploy/.env:ro
+      # 启用管理端「系统更新」时取消下面三行注释，并设 UPDATE_ENABLED=true
+      # 警告：挂载 docker.sock 等于把宿主机 Docker 管理权交给容器内管理员操作
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - ./compose.yml:/deploy/compose.yml:ro
+      # - ./.env:/deploy/.env:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 40s
-
-volumes:
-  db_data:

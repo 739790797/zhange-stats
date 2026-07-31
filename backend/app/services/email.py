@@ -31,6 +31,7 @@ def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
     password = str(cfg.get("smtp_password") or "")
 
     if not enabled or not host or not mail_from:
+        # 仅开发兜底：完整验证码入日志，便于本地调试
         logger.warning(
             "[email-dev] 邮件未启用或未配置，验证码发给 %s → %s", to_email, code
         )
@@ -67,8 +68,9 @@ def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
         return {"sent": True, "mode": "smtp"}
     except Exception:  # noqa: BLE001
         logger.exception("发送验证邮件失败")
-        logger.warning("[email-fallback] %s → %s", to_email, code)
-        print(f"[战鸽数据] 邮件发送失败，验证码 {to_email}: {code}", flush=True)
+        # 已启用 SMTP 时不把完整验证码打到日志，避免生产泄露
+        masked = ("*" * max(0, len(code) - 2)) + code[-2:]
+        logger.warning("[email-fallback] %s → %s（已脱敏）", to_email, masked)
         return {"sent": False, "mode": "log"}
 
 

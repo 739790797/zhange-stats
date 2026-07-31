@@ -40,9 +40,21 @@ router = APIRouter(tags=["profile"])
 
 
 def _profile_from_member(
-    member: Member, steam_persona_name: str | None = None
+    member: Member,
+    steam_persona_name: str | None = None,
+    *,
+    viewer: User | None = None,
+    include_email: bool | None = None,
 ) -> MemberProfileOut:
     user = member.user
+    show_email = include_email
+    if show_email is None:
+        if viewer is None:
+            show_email = True
+        else:
+            show_email = _is_admin_user(viewer) or (
+                user is not None and user.id == viewer.id
+            )
     return MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
@@ -53,7 +65,7 @@ def _profile_from_member(
         steam_friends_synced_at=member.steam_friends_synced_at,
         user_id=member.user_id,
         username=user.username if user else None,
-        email=user.email if user else None,
+        email=(user.email if user else None) if show_email else None,
         display_name=user.display_name if user else None,
         joined_at=member.joined_at,
     )
@@ -550,7 +562,7 @@ def update_my_profile(
 def get_member_profile(
     member_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    viewer: User = Depends(get_current_user),
 ) -> MemberProfileOut:
     member = (
         db.query(Member)
@@ -560,7 +572,7 @@ def get_member_profile(
     )
     if not member:
         raise HTTPException(status_code=404, detail="成员不存在")
-    return _profile_from_member(member)
+    return _profile_from_member(member, viewer=viewer)
 
 
 @router.patch("/members/{member_id}/profile", response_model=MemberProfileOut)

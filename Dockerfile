@@ -15,6 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION} \
     STATIC_DIR=/app/static \
+    DATA_DIR=/app/data \
     UPLOAD_DIR=/app/uploads \
     UPDATE_ENABLED=false \
     UPDATE_COMPOSE_FILE=/deploy/compose.yml \
@@ -39,7 +40,7 @@ COPY backend/ /app/backend/
 COPY --from=frontend-build /src/frontend/dist /app/static
 COPY VERSION /app/VERSION
 
-RUN mkdir -p /app/uploads/avatars /deploy \
+RUN mkdir -p /app/data /app/uploads/avatars /deploy \
     && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose \
     && printf '%s' "${APP_VERSION}" > /app/VERSION
 

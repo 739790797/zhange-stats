@@ -11,6 +11,10 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 
 async function waitForNewVersion(previous: string, timeoutMs = 180_000) {
+  const prev = previous.replace(/^v/i, "").trim();
+  if (!prev) {
+    throw new Error("无法确认当前版本，请刷新页面后重试");
+  }
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     await new Promise((r) => setTimeout(r, 2000));
@@ -18,8 +22,8 @@ async function waitForNewVersion(previous: string, timeoutMs = 180_000) {
       const res = await fetch("/health", { cache: "no-store" });
       if (!res.ok) continue;
       const data = (await res.json()) as { version?: string };
-      const next = (data.version || "").replace(/^v/i, "");
-      if (next && next !== previous.replace(/^v/i, "")) {
+      const next = (data.version || "").replace(/^v/i, "").trim();
+      if (next && next !== prev) {
         return next;
       }
     } catch {
@@ -101,7 +105,7 @@ export default function SystemUpdatePage() {
     <div>
       <PageHeader
         title="系统更新"
-        subtitle="Docker Compose 部署下，由管理员一键拉取新镜像并重建应用容器"
+        subtitle="拉取新镜像并重建应用容器（需 Docker 部署且启用 UPDATE_ENABLED）"
         extra={
           <Space>
             <Link to="/settings/users">用户管理</Link>
@@ -110,15 +114,45 @@ export default function SystemUpdatePage() {
         }
       />
 
+      {checkQuery.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="检查更新失败"
+          description={
+            (checkQuery.error as { response?: { data?: { detail?: string } } })
+              ?.response?.data?.detail ||
+            (checkQuery.error instanceof Error
+              ? checkQuery.error.message
+              : "请稍后重试")
+          }
+        />
+      ) : null}
+
       {!data?.update_enabled ? (
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
           message="当前未启用在线更新"
-          description="请确认 compose 已挂载 /var/run/docker.sock，且 UPDATE_ENABLED=true。LXC 需开启 nesting。"
+          description={
+            <>
+              请确认已挂载 docker.sock 与 compose.yml，并设置{" "}
+              <Typography.Text code>UPDATE_ENABLED=true</Typography.Text>。
+              挂载 docker.sock 等同授予容器宿主机 Docker 管理权限，仅信任的管理员环境再开启。
+            </>
+          }
         />
-      ) : null}
+      ) : (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="安全提示"
+          description="在线更新通过 docker.sock 操作宿主机容器。请确保仅管理员可登录，并知晓此权限等同 Docker 主机管理能力。"
+        />
+      )}
 
       <Descriptions
         bordered

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -17,13 +18,20 @@ from app.services.adapters.steam import SteamAdapter, SteamPresence
 logger = logging.getLogger(__name__)
 
 JOB_KEY = "steam_presence"
+_poll_lock = threading.Lock()
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _open_presence(db: Session, member_id: int) -> PresenceSegment | None:
+def _aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _open_presences(db: Session, member_id: int) -> list[PresenceSegment]:
     return (
         db.query(PresenceSegment)
         .filter(
@@ -32,11 +40,11 @@ def _open_presence(db: Session, member_id: int) -> PresenceSegment | None:
             PresenceSegment.source == "steam",
         )
         .order_by(PresenceSegment.started_at.desc())
-        .first()
+        .all()
     )
 
 
-def _open_play(db: Session, member_id: int) -> PlaySession | None:
+def _open_plays(db: Session, member_id: int) -> list[PlaySession]:
     return (
         db.query(PlaySession)
         .filter(
@@ -45,8 +53,45 @@ def _open_play(db: Session, member_id: int) -> PlaySession | None:
             PlaySession.source == "steam",
         )
         .order_by(PlaySession.started_at.desc())
-        .first()
+        .all()
     )
+
+
+def _open_presence(db: Session, member_id: int) -> PresenceSegment | None:
+    rows = _open_presences(db, member_id)
+    return rows[0] if rows else None
+
+
+def _open_play(db: Session, member_id: int) -> PlaySession | None:
+    rows = _open_plays(db, member_id)
+    return rows[0] if rows else None
+
+
+def _collapse_duplicate_opens(
+    db: Session, member_id: int, now: datetime, stats: dict
+) -> None:
+    """Keep at most one open presence / play session per member."""
+    for seg in _open_presences(db, member_id)[1:]:
+        seg.ended_at = now
+        seg.last_seen_at = now
+        stats["presence_closed"] += 1
+    for play in _open_plays(db, member_id)[1:]:
+        play.ended_at = now
+        play.last_seen_at = now
+        stats["closed"] += 1
+
+
+def _close_open_sessions(
+    db: Session, member_id: int, now: datetime, stats: dict
+) -> None:
+    for seg in _open_presences(db, member_id):
+        seg.ended_at = now
+        seg.last_seen_at = now
+        stats["presence_closed"] += 1
+    for play in _open_plays(db, member_id):
+        play.ended_at = now
+        play.last_seen_at = now
+        stats["closed"] += 1
 
 
 def _same_presence(
@@ -66,17 +111,7 @@ def _apply_presence(
     now: datetime,
     stats: dict,
 ) -> None:
-    # 已绑定账号以 Steam 昵称为展示名
-    if presence.persona_name:
-        if member.nickname != presence.persona_name:
-            member.nickname = presence.persona_name
-        user = member.user
-        if user is None and member.user_id is not None:
-            from app.models.user import User
-
-            user = db.query(User).filter(User.id == member.user_id).first()
-        if user and user.display_name != presence.persona_name:
-            user.display_name = presence.persona_name
+    _collapse_duplicate_opens(db, member.id, now, stats)
 
     status = presence.status
     app_id = presence.game_id
@@ -172,7 +207,45 @@ def _apply_presence(
         stats["closed"] += 1
 
 
+def _maybe_close_stale(
+    db: Session,
+    member: Member,
+    now: datetime,
+    stale_after: timedelta,
+    stats: dict,
+) -> None:
+    """Steam 未返回该玩家时：仅在超时后收尾，避免短暂隐私/抖动误关。"""
+    open_seg = _open_presence(db, member.id)
+    open_play = _open_play(db, member.id)
+    if open_seg is None and open_play is None:
+        return
+    last_candidates = []
+    if open_seg is not None:
+        last_candidates.append(_aware(open_seg.last_seen_at))
+    if open_play is not None:
+        last_candidates.append(_aware(open_play.last_seen_at))
+    last = max(last_candidates)
+    if now - last < stale_after:
+        return
+    _close_open_sessions(db, member.id, now, stats)
+    stats["stale_closed"] = stats.get("stale_closed", 0) + 1
+
+
 def run_steam_presence_poll(db: Session) -> dict:
+    if not _poll_lock.acquire(blocking=False):
+        return {
+            "status": "skipped",
+            "message": "已有轮询在进行中",
+            "stats": {},
+        }
+
+    try:
+        return _run_steam_presence_poll_locked(db)
+    finally:
+        _poll_lock.release()
+
+
+def _run_steam_presence_poll_locked(db: Session) -> dict:
     settings = get_settings()
     job = JobRun(job_key=JOB_KEY, status="running", started_at=_utcnow())
     db.add(job)
@@ -191,7 +264,9 @@ def run_steam_presence_poll(db: Session) -> dict:
         "presence_continued": 0,
         "presence_closed": 0,
         "skipped_private": 0,
+        "stale_closed": 0,
         "friends_synced": 0,
+        "friends_skipped_fresh": 0,
         "friends_private": 0,
         "friends_failed": 0,
     }
@@ -227,19 +302,24 @@ def run_steam_presence_poll(db: Session) -> dict:
 
         presence_map = {p.steam_id: p for p in all_presences}
         now = _utcnow()
+        interval = max(1, int(settings.STEAM_POLL_INTERVAL_MINUTES))
+        stale_after = timedelta(minutes=interval * 3)
 
         for steam_id, member in by_steam.items():
             presence = presence_map.get(steam_id)
             if presence is None:
                 stats["skipped_private"] += 1
+                _maybe_close_stale(db, member, now, stale_after, stats)
                 continue
             _apply_presence(db, member, presence, now, stats)
 
-        from app.services.steam_friends import sync_member_friends
+        from app.services.steam_friends import ensure_friends_fresh
 
         for member in members:
-            result = sync_member_friends(db, member)
-            if not result.ok:
+            result = ensure_friends_fresh(db, member)
+            if result is None:
+                stats["friends_skipped_fresh"] += 1
+            elif not result.ok:
                 stats["friends_failed"] += 1
             elif result.friends_public is False:
                 stats["friends_private"] += 1
@@ -251,7 +331,8 @@ def run_steam_presence_poll(db: Session) -> dict:
             f"轮询 {stats['members']} 人，"
             f"玩 {stats['playing']} / 在线 {stats['online']} / 离线 {stats['offline']}，"
             f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}；"
-            f"好友同步 {stats['friends_synced']} / 未公开 {stats['friends_private']}"
+            f"好友同步 {stats['friends_synced']} / 跳过新鲜 {stats['friends_skipped_fresh']} / "
+            f"未公开 {stats['friends_private']}"
         )
         job.stats = stats
         job.finished_at = _utcnow()

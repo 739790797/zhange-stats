@@ -21,6 +21,7 @@ _VERSION_RE = re.compile(
     r"^v?(?P<ver>\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?)$",
     re.IGNORECASE,
 )
+_REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 
 
 @dataclass
@@ -114,6 +115,8 @@ def fetch_latest_release_tag() -> str | None:
     repo = settings.UPDATE_REPO.strip()
     if not repo:
         return None
+    if not _REPO_RE.match(repo):
+        raise RuntimeError("UPDATE_REPO 格式无效，应为 owner/name")
     url = f"https://api.github.com/repos/{repo}/releases/latest"
     try:
         data = _github_json(url, settings.UPDATE_GITHUB_TOKEN)
@@ -235,6 +238,10 @@ def start_update(version: str | None = None) -> dict[str, Any]:
         raise RuntimeError("未启用在线更新（UPDATE_ENABLED=false 或未挂载 docker.sock）")
 
     target = _normalize_version(version or "") or fetch_latest_release_tag() or "latest"
+    if target != "latest" and not _VERSION_RE.match(target) and not _VERSION_RE.match(
+        f"v{target}"
+    ):
+        raise RuntimeError("更新版本号无效")
     with _lock:
         if _worker and _worker.is_alive():
             raise RuntimeError("已有更新任务进行中")

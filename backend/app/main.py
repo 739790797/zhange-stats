@@ -10,8 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api import auth, members, profile, steam, update
 from app.api import settings as settings_api
 from app.core.config import get_settings
-from app.core.database import Base, SessionLocal, engine
-from app.core.schema_ensure import ensure_schema
+from app.core.database import SessionLocal
+from app.core.migrate import run_migrations
 from app.models import job_run as _job_run  # noqa: F401
 from app.models import member as _member  # noqa: F401
 from app.models import play_session as _play_session  # noqa: F401
@@ -39,8 +39,7 @@ def _ensure_upload_root() -> Path:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    ensure_schema(engine)
+    run_migrations()
     _ensure_upload_root()
     db = SessionLocal()
     try:
@@ -96,8 +95,14 @@ api.include_router(steam.router)
 api.include_router(update.router)
 app.include_router(api)
 
+# 只挂载头像子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问
 upload_root = _ensure_upload_root()
-app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
+avatars_root = upload_root / "avatars"
+app.mount(
+    "/uploads/avatars",
+    StaticFiles(directory=str(avatars_root)),
+    name="uploads_avatars",
+)
 
 
 @app.get("/health")

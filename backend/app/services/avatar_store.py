@@ -19,6 +19,8 @@ ALLOWED_CONTENT_TYPES = {
 }
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5MB
 AVATAR_SIZE = 256
+# 限制解压后像素，降低恶意图片 DoS
+Image.MAX_IMAGE_PIXELS = 20_000_000
 
 
 def is_custom_avatar_url(url: str | None) -> bool:

@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.models.system_config import SystemConfig
 
 EMAIL_CONFIG_KEY = "email_smtp"
@@ -54,7 +55,7 @@ def _normalize(cfg: dict[str, Any]) -> dict[str, Any]:
     out["smtp_from"] = str(out.get("smtp_from") or "")
     out["smtp_host"] = str(out.get("smtp_host") or "")
     out["smtp_port"] = int(out.get("smtp_port") or 465)
-    out["smtp_password"] = str(out.get("smtp_password") or "")
+    out["smtp_password"] = decrypt_secret(str(out.get("smtp_password") or ""))
     out["code_expire_minutes"] = max(1, int(out.get("code_expire_minutes") or 15))
     return out
 
@@ -70,11 +71,13 @@ def load_email_config(db: Session) -> dict[str, Any]:
         return base
     if not isinstance(stored, dict):
         return base
+    # 先取出密文再 merge，避免 _normalize 对已加密串误处理前丢失
+    stored_password = stored.get("smtp_password")
     merged = {**base, **{k: v for k, v in stored.items() if v is not None}}
-    if not str(merged.get("smtp_password") or "").strip():
-        merged["smtp_password"] = (
-            stored.get("smtp_password") or base.get("smtp_password") or ""
-        )
+    if stored_password is not None and str(stored_password).strip():
+        merged["smtp_password"] = decrypt_secret(str(stored_password))
+    elif not str(merged.get("smtp_password") or "").strip():
+        merged["smtp_password"] = base.get("smtp_password") or ""
     return _normalize(merged)
 
 
@@ -106,8 +109,11 @@ def save_email_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
         }
     )
 
+    to_store = dict(data)
+    to_store["smtp_password"] = encrypt_secret(str(data.get("smtp_password") or ""))
+
     row = db.query(SystemConfig).filter(SystemConfig.key == EMAIL_CONFIG_KEY).first()
-    raw = json.dumps(data, ensure_ascii=False)
+    raw = json.dumps(to_store, ensure_ascii=False)
     if row:
         row.value = raw
     else:

@@ -23,5 +23,9 @@ frontend/.vite/
 .DS_Store
 Thumbs.db
 
+# Uploads / runtime data
+uploads/
+backend/uploads/
 data/
+**/.secret_key
 

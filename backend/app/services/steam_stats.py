@@ -27,10 +27,13 @@ def _to_aware(dt: datetime) -> datetime:
     return dt
 
 
-def _session_end(session: PlaySession) -> datetime:
+def _session_end(session: PlaySession, now: datetime | None = None) -> datetime:
     if session.ended_at is not None:
         return _to_aware(session.ended_at)
-    return _to_aware(session.last_seen_at)
+    end = _to_aware(session.last_seen_at)
+    if now is None:
+        now = datetime.now(timezone.utc)
+    return max(end, now)
 
 
 def _overlap_seconds(

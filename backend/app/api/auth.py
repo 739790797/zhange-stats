@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-import random
+import hmac
+import secrets
 import string
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.rate_limit import auth_limiter, client_ip
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.register_challenge import RegisterChallenge
 from app.models.user import User, UserRole
@@ -27,7 +29,7 @@ class SendRegisterCodeRequest(BaseModel):
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6, max_length=72)
+    password: str = Field(min_length=8, max_length=72)
     code: str = Field(min_length=4, max_length=16)
 
 
@@ -53,12 +55,13 @@ def _utcnow() -> datetime:
 
 
 def _gen_code() -> str:
-    return "".join(random.choices(string.digits, k=6))
+    return "".join(secrets.choice(string.digits) for _ in range(6))
 
 
 def _gen_username(db: Session) -> str:
+    alphabet = string.ascii_lowercase + string.digits
     for _ in range(20):
-        suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        suffix = "".join(secrets.choice(alphabet) for _ in range(6))
         username = f"user_{suffix}"
         if not db.query(User).filter(User.username == username).first():
             return username
@@ -89,7 +92,8 @@ def _consume_register_challenge(db: Session, email: str, code: str) -> None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires < _utcnow():
         raise HTTPException(status_code=400, detail="验证码已过期，请重新获取")
-    if row.code != code.strip():
+    provided = code.strip()
+    if len(provided) != len(row.code) or not hmac.compare_digest(row.code, provided):
         raise HTTPException(status_code=400, detail="验证码错误")
     db.delete(row)
     db.flush()
@@ -113,24 +117,42 @@ def _user_out(user: User) -> UserOut:
 
 @router.post("/send-register-code", response_model=RegisterResponse)
 def send_register_code(
-    body: SendRegisterCodeRequest, db: Session = Depends(get_db)
+    body: SendRegisterCodeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
 ) -> RegisterResponse:
+    ip = client_ip(request)
     email = str(body.email).strip().lower()
+    auth_limiter.hit(f"send-code:ip:{ip}", limit=10, window_sec=600)
+    auth_limiter.hit(f"send-code:email:{email}", limit=5, window_sec=600)
+
     existing = db.query(User).filter(User.email == email).first()
     if existing and existing.email_verified:
-        raise HTTPException(status_code=400, detail="邮箱已被注册")
-    # 未验证完的旧账号：允许重新发码并在注册时覆盖创建
+        # 不暴露邮箱是否已注册
+        return RegisterResponse(
+            message="若该邮箱可注册，验证码已发送",
+            email=email,
+            delivery="skipped",
+        )
     _, delivery = _upsert_register_challenge(db, email)
-    msg = "验证码已发送，请查收邮箱"
+    msg = "若该邮箱可注册，验证码已发送"
     if delivery["mode"] == "log":
         msg = "验证码已输出到服务端日志（邮件未配置或发送失败）"
     return RegisterResponse(message=msg, email=email, delivery=delivery["mode"])
 
 
 @router.post("/register", response_model=RegisterResponse)
-def register(body: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+def register(
+    body: RegisterRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> RegisterResponse:
+    ip = client_ip(request)
+    auth_limiter.hit(f"register:ip:{ip}", limit=10, window_sec=600)
+
     email = str(body.email).strip().lower()
     code = body.code.strip()
+    auth_limiter.hit(f"register:email:{email}", limit=10, window_sec=600)
 
     existing = db.query(User).filter(User.email == email).first()
     if existing and existing.email_verified:
@@ -171,13 +193,20 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)) -> RegisterRe
 
 
 @router.post("/verify-email")
-def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)) -> dict:
+def verify_email(
+    body: VerifyEmailRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
     """兼容旧流程：已注册未验证用户补验证（验证码存于 register_challenges）。"""
+    ip = client_ip(request)
+    auth_limiter.hit(f"verify:ip:{ip}", limit=20, window_sec=600)
+
     email = str(body.email).strip().lower()
     code = body.code.strip()
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise HTTPException(status_code=400, detail="验证失败，请检查邮箱与验证码")
     if user.email_verified:
         return {"message": "邮箱已验证，可直接登录"}
     _consume_register_challenge(db, email, code)
@@ -188,14 +217,22 @@ def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)) -> dic
 
 @router.post("/resend-code", response_model=RegisterResponse)
 def resend_code(
-    body: ResendCodeRequest, db: Session = Depends(get_db)
+    body: ResendCodeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
 ) -> RegisterResponse:
+    ip = client_ip(request)
     email = str(body.email).strip().lower()
+    auth_limiter.hit(f"resend:ip:{ip}", limit=10, window_sec=600)
+    auth_limiter.hit(f"resend:email:{email}", limit=5, window_sec=600)
+
     user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    if user.email_verified:
-        raise HTTPException(status_code=400, detail="邮箱已验证")
+    if not user or user.email_verified:
+        return RegisterResponse(
+            message="若需要验证，验证码已发送",
+            email=email,
+            delivery="skipped",
+        )
     _, delivery = _upsert_register_challenge(db, email)
     msg = "验证码已重新发送"
     if delivery["mode"] == "log":
@@ -204,8 +241,16 @@ def resend_code(
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(
+    body: LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    ip = client_ip(request)
     account = body.username.strip()
+    auth_limiter.hit(f"login:ip:{ip}", limit=20, window_sec=600)
+    auth_limiter.hit(f"login:account:{account.lower()}", limit=10, window_sec=600)
+
     if "@" in account:
         user = db.query(User).filter(User.email == account.lower()).first()
     else:

@@ -1,11 +1,15 @@
 ---
-description: 数据库表结构变更必须同步更新 README
-globs: backend/app/models/**/*.py,backend/app/core/schema_ensure.py
+description: 数据库表结构变更必须带 Alembic 迁移，并同步 README
+globs: backend/app/models/**/*.py,backend/alembic/versions/**/*.py
 alwaysApply: false
 ---
 
-# 数据库与 README 同步
+# 数据库与 Alembic / README
 
-只要改动了数据库表或表结构（含 `backend/app/models/`、`schema_ensure.py` 的建表/删表/增删改列/索引/约束），必须在同一次改动中更新根目录 `README.md` 的「数据库表结构」章节，使其与模型完全一致。
+只要改动了数据库表或表结构（`backend/app/models/`）：
 
-提交或推送前确认 README 已反映最新表名、字段、类型、约束与关系说明。
+1. **必须**在同一次改动中新增 Alembic 迁移（推荐在 `backend/` 下执行 `alembic revision --autogenerate -m "..."`，并人工检查生成文件）。
+2. **必须**同步更新根目录 `README.md` 的「数据库表结构」章节，使其与模型一致。
+3. 增量变更只走 `alembic/versions/`。`schema_ensure.py` 仅用于无 `alembic_version` 的旧库 stamp 前一次性对齐，不要再往里堆新的 `ALTER TABLE`。
+
+提交前确认：迁移可 `upgrade` / `downgrade` 逻辑合理，README 字段与约束已更新。

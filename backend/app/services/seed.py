@@ -23,23 +23,33 @@ def seed_data(db: Session) -> None:
         db.add(admin)
         db.flush()
     else:
+        # 已存在：只保证角色/展示信息，默认不重置密码（避免重启把弱口令写回）
         admin.apply_role(UserRole.admin)
         admin.display_name = settings.ADMIN_DISPLAY_NAME
-        admin.email = settings.ADMIN_EMAIL.lower()
         admin.email_verified = True
-        admin.password_hash = hash_password(settings.ADMIN_PASSWORD)
+        desired_email = settings.ADMIN_EMAIL.lower()
+        if admin.email != desired_email:
+            taken = (
+                db.query(User)
+                .filter(User.email == desired_email, User.id != admin.id)
+                .first()
+            )
+            if not taken:
+                admin.email = desired_email
+        if settings.RESET_ADMIN_PASSWORD:
+            admin.password_hash = hash_password(settings.ADMIN_PASSWORD)
 
-    # 保证全局有且仅有一名管理员（种子账号）
-    extras = (
-        db.query(User)
-        .filter(
-            User.id != admin.id,
-            (User.role == UserRole.admin) | (User.is_admin.is_(True)),
+    if settings.ENFORCE_SINGLE_ADMIN:
+        extras = (
+            db.query(User)
+            .filter(
+                User.id != admin.id,
+                (User.role == UserRole.admin) | (User.is_admin.is_(True)),
+            )
+            .all()
         )
-        .all()
-    )
-    for u in extras:
-        u.apply_role(UserRole.user)
+        for u in extras:
+            u.apply_role(UserRole.user)
 
     ensure_user_member(db, admin)
     db.commit()

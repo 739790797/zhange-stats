@@ -177,7 +177,7 @@ export default function RegisterPage() {
             label="密码"
             rules={[
               { required: true, message: "请输入密码" },
-              { min: 6, message: "至少 6 位" },
+              { min: 8, message: "至少 8 位" },
             ]}
           >
             <Input.Password size="large" autoComplete="new-password" />

@@ -1,356 +1,97 @@
 # 战鸽数据 · Zhange Stats
 
-**版本：v0.1.3**
+**v0.1.3** — 圈子 Steam 游玩统计：今天谁在玩、好友日历、个人资料与 Steam 绑定。
 
-圈子 Steam 游玩统计：今天谁在玩、好友可见日历、个人资料与 Steam 绑定。
+## 功能
 
-## v0.1 功能
-
-- **邮箱注册 / 登录**：邮箱即账号，JWT 鉴权；注册成功自动登录；角色区分普通用户与管理员
-- **Steam OpenID 绑定**：个人中心一键跳转 Steam 登录确认归属；未绑定登录后引导至个人中心并弹窗提示
-- **自定义头像**：个人中心点击头像上传（裁剪为方图 JPEG）；绑定 Steam 不覆盖自定义头像
-- **今天玩什么**：日时间轴（离线 / 在线 / 游戏中）与周/月/年热力；仅展示自己与 Steam 好友
-- **好友**：展示圈子内 Steam 好友；支持手动刷新（冷却）；好友列表需对 Steam API 可见
-- **系统设置**（管理员）：用户管理、SMTP 邮箱配置；侧栏账号菜单入口
+- 邮箱注册 / 登录（JWT）；管理员与普通用户
+- Steam OpenID 绑定、自定义头像、今天玩什么（日时间轴 + 周/月/年热力）
+- 圈子内 Steam 好友；管理端：用户 / SMTP / 系统更新（可选）
 
 ## 技术栈
 
 | 端 | 技术 |
 |---|---|
 | 前端 | React 18 · TypeScript · Vite · Ant Design 5 · TanStack Query · Zustand |
-| 后端 | FastAPI · SQLAlchemy 2 · APScheduler · MySQL/MariaDB · JWT / bcrypt · Pillow |
+| 后端 | FastAPI · SQLAlchemy 2 · Alembic · APScheduler · MySQL · JWT / bcrypt |
 
-## 环境准备
+## 本地开发
 
-1. Python 3.11+
-2. Node.js 18+
-3. MySQL / MariaDB，创建库：
+需要 Python 3.11+、Node 18+、MySQL：
 
 ```sql
 CREATE DATABASE zhange_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-4. 复制环境变量并填写：
-
 ```bash
-cp .env.example .env
+cp .env.example .env   # 至少填 DATABASE_URL、ADMIN_*；SECRET_KEY 可留空自动生成
 ```
 
-必填：`DATABASE_URL`、`SECRET_KEY`、`ADMIN_*`。  
-Steam 轮询需 `STEAM_API_KEY`。  
-Steam 登录绑定需 `PUBLIC_BACKEND_URL` / `PUBLIC_FRONTEND_URL`（OpenID 回调，须浏览器可访问）。  
-头像目录：`UPLOAD_DIR`（默认 `uploads/`，已 gitignore）。  
-邮件验证码可配 SMTP；未配置时验证码打印到后端控制台。
-
-## 启动后端
-
 ```bash
-cd backend
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-# source .venv/bin/activate
-
+# 后端
+cd backend && python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# 前端（另开终端）
+cd frontend && npm install && npm run dev
 ```
 
-首次启动会自动建表（`create_all`）、执行 `ensure_schema`（补列 / 删除废弃表与字段），并按 `.env` 同步管理员账号。
+- API：http://127.0.0.1:8000/docs · 前端：http://127.0.0.1:5173  
+- 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
+- 环境变量说明见 `.env.example`（`DATA_DIR` 存密钥，`UPLOAD_DIR` 存头像；CORS 勿写 `*`）
 
-接口文档：http://127.0.0.1:8000/docs  
-静态上传：http://127.0.0.1:8000/uploads/...
+## Docker
 
-## 启动前端
+镜像只含应用，**MySQL 自备**。复制 `.env` 后：
 
 ```bash
-cd frontend
-npm install
-npm run dev
+docker compose pull && docker compose up -d
+# 浏览器 http://<主机>:8080
 ```
 
-浏览器打开：http://127.0.0.1:5173  
+数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-开发模式下 Vite 将 `/api`、`/uploads` 代理到 `http://127.0.0.1:8000`。
+发版：推送 `v*` tag，Actions 构建并推到 `ghcr.io/739790797/zhange-stats`。
 
-## 推荐体验路径
+一键更新（可选）：挂载 `docker.sock` + 设 `UPDATE_ENABLED=true`（**等同宿主机 Docker 权限，仅信任环境开启**）。
 
-1. 用邮箱注册并登录，或使用 `.env` 中的管理员账号
-2. 未绑定 Steam 时会进入「个人中心」并提示绑定；完成 **Steam 登录绑定**（资料与好友列表建议公开）
-3. 「今天玩什么」查看日时间轴 / 热力；「好友」查看圈子内 Steam 好友
-4. 管理员：侧栏账号菜单 → 系统设置（用户管理 / 邮箱 / 系统更新）
-
-## Docker 部署（PVE LXC 推荐）
-
-适用：Proxmox 里的 LXC（Debian/Ubuntu），容器内安装 Docker + Compose。
-
-### 1. LXC 准备
-
-- Features 开启 **nesting**（建议同时开 keyctl）；新手可用特权 CT
-- 安装 Docker Engine 与 Compose 插件后重启 CT
-- 建议内存 ≥ 2GB
-
-### 2. 首次启动
-
-在 LXC 中：
-
-```bash
-git clone https://github.com/739790797/zhange-stats.git
-cd zhange-stats
-cp .env.example .env
-# 编辑 .env：SECRET_KEY、MYSQL_*、STEAM_API_KEY、
-# PUBLIC_BACKEND_URL / PUBLIC_FRONTEND_URL 改为 http://<LXC-IP>:8080
-```
-
-若 GHCR 上已有镜像（见下文发版）：
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-若还没有远程镜像，可在本机构建：
-
-```bash
-docker compose up -d --build
-```
-
-浏览器打开 `http://<LXC-IP>:8080`。数据在 `data/uploads` 与 MySQL volume `db_data`。
-
-### 3. GitHub Actions 发版
-
-仓库已包含 `.github/workflows/docker.yml`：
-
-1. 把代码推到 GitHub
-2. 打版本标签并推送：
-
-```bash
-git tag v0.1.3
-git push origin v0.1.3
-```
-
-3. Actions 构建镜像并推到：
-   - `ghcr.io/739790797/zhange-stats:0.1.3`
-   - `ghcr.io/739790797/zhange-stats:latest`
-
-也可在 GitHub → Actions → **Build and push Docker image** → **Run workflow** 手动构建 `latest`。
-
-私有仓库需在 LXC 执行一次：
-
-```bash
-echo <GITHUB_PAT> | docker login ghcr.io -u <GitHub用户名> --password-stdin
-```
-
-### 4. 管理员一键更新
-
-侧栏账号菜单 → **系统更新**：
-
-- 检查 GitHub 最新 Release/Tag
-- 一键 `docker pull` + `compose up --force-recreate`
-- 需挂载 `/var/run/docker.sock`（`compose.yml` 已写好）且 `UPDATE_ENABLED=true`
-- `.env` 中请保持 `APP_TAG=latest`
-
-也可手动：
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-## 目录结构
+## 目录
 
 ```
 zhange-stats/
-  VERSION                   # 语义化版本（发版时同步）
-  Dockerfile                # 前端构建 + 后端运行镜像
-  compose.yml               # app + MySQL
-  .github/workflows/        # 打 tag 推 GHCR
-  .env.example
-  README.md
-  uploads/                  # 本地上传（不入库）
-  frontend/                 # React 中后台
-  backend/
-    app/
-      api/                  # auth / members / profile / steam / settings / update
-      core/                 # 配置、数据库、鉴权、schema 补丁
-      models/               # ORM（与下方「数据库表结构」对应）
-      schemas/
-      services/             # Steam 轮询/绑定/好友、头像、邮件、在线更新
-    alembic/                # 迁移预留（当前用 create_all + ensure_schema）
+  compose.yml · Dockerfile · .env.example · VERSION
+  frontend/                 # React
+  backend/app/              # api · core · models · services
+  backend/alembic/          # 迁移（表结构以 versions/ 为准）
 ```
 
-## 数据库表结构
+## 数据库
 
-> **维护约定：只要新增 / 删除表，或增删改字段、索引、约束，必须同步更新本节，并在同一次改动中提交 README。**  
-> 源码以 `backend/app/models/` 为准；启动时由 `create_all` + `ensure_schema` 对齐库结构。字符集建议 `utf8mb4`。
-
-### ER 关系（简图）
+改表须新增 Alembic 迁移，并更新本节总览。细节以 `models/` + `alembic/versions/` 为准。
 
 ```
-users 1 ── 1 members
-              │
-              ├── * play_sessions
-              ├── * presence_segments
-              └── * steam_friend_edges
-
-system_configs          （独立 KV）
-register_challenges     （独立，按邮箱）
-job_runs                （独立任务日志）
+users 1 ── 1 members ── * play_sessions / presence_segments / steam_friend_edges
+system_configs · register_challenges · job_runs
 ```
 
-### 总览
-
-| 表名 | 模型文件 | 用途 |
-|---|---|---|
-| `users` | `models/user.py` | 登录账号、角色、邮箱验证 |
-| `members` | `models/member.py` | 成员档案、Steam 绑定，与用户 1:1 |
-| `steam_friend_edges` | `models/steam_friend.py` | 成员 Steam 好友列表缓存（日历仅好友可见） |
-| `play_sessions` | `models/play_session.py` | 游戏中会话（周/月/年热力） |
-| `presence_segments` | `models/presence_segment.py` | 离线/在线/游戏中片段（日时间轴） |
-| `job_runs` | `models/job_run.py` | Steam 轮询等任务执行日志 |
-| `system_configs` | `models/system_config.py` | 系统配置（如 SMTP JSON） |
-| `register_challenges` | `models/register_challenge.py` | 注册 / 补验证邮箱验证码 |
-
----
-
-### `users`
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `id` | `INT` | PK, AI | 主键 |
-| `username` | `VARCHAR(64)` | UNIQUE, NOT NULL, INDEX | 内部用户名（注册自动生成；管理员种子用 `ADMIN_USERNAME`）；JWT subject |
-| `email` | `VARCHAR(128)` | UNIQUE, NULL, INDEX | 登录邮箱（业务上即账号） |
-| `display_name` | `VARCHAR(64)` | NOT NULL | 展示名 / 用户名 |
-| `password_hash` | `VARCHAR(255)` | NOT NULL | bcrypt 哈希 |
-| `is_admin` | `TINYINT(1)` / `BOOLEAN` | NOT NULL, DEFAULT 0 | 与 `role` 双写，兼容旧库 |
-| `role` | `ENUM('user','admin')` | NOT NULL, DEFAULT `'user'` | 角色 |
-| `email_verified` | `TINYINT(1)` / `BOOLEAN` | NOT NULL, DEFAULT 0 | 是否已验证邮箱 |
-| `created_at` | `DATETIME(6)` TZ | NOT NULL, DEFAULT now | 创建时间 |
-
-关系：`users.id` ← `members.user_id`（一对一）。验证码不落在本表，见 `register_challenges`。
-
----
-
-### `members`
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `id` | `INT` | PK, AI | 主键 |
-| `nickname` | `VARCHAR(64)` | NOT NULL, INDEX | 昵称（与对应用户 `display_name` 同步） |
-| `avatar_url` | `VARCHAR(512)` | NULL | 头像 URL（自定义为 `/uploads/avatars/...`，或 Steam CDN） |
-| `steam_id` | `VARCHAR(32)` | UNIQUE, NULL, INDEX | 64 位 SteamID |
-| `steam_friends_public` | `TINYINT(1)` / `BOOLEAN` | NULL | 好友列表是否可被 API 拉取（`NULL`=未同步） |
-| `steam_friends_synced_at` | `DATETIME(6)` TZ | NULL | 上次同步 Steam 好友列表时间 |
-| `user_id` | `INT` | UNIQUE, NULL, FK → `users.id` | 绑定用户；业务上仅展示已绑定用户的成员 |
-| `joined_at` | `DATETIME(6)` TZ | NOT NULL, DEFAULT now | 加入时间 |
-
-关系：一对多 `play_sessions`、`presence_segments`、`steam_friend_edges`。
-
-Steam 日历可见性：仅展示**自己**以及 **Steam 好友**（任一方好友列表含对方即可）。绑定 / 轮询时调用 `GetFriendList`；好友列表未公开时只能看到自己。
-
----
-
-### `steam_friend_edges`
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `id` | `INT` | PK, AI | 主键 |
-| `member_id` | `INT` | NOT NULL, INDEX, FK → `members.id` ON DELETE CASCADE | 列表所属成员 |
-| `friend_steam_id` | `VARCHAR(32)` | NOT NULL, INDEX | 好友 SteamID64 |
-| `friend_since` | `INT` | NULL | Steam 返回的加好友时间戳 |
-| `synced_at` | `DATETIME(6)` TZ | NOT NULL, DEFAULT now | 本条写入时间 |
-
-唯一约束：`(member_id, friend_steam_id)`。
-
----
-
-### `play_sessions`
-
-仅在 **游戏中** 时由轮询开/续/关，供热力与时长统计。
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `id` | `INT` | PK, AI | 主键 |
-| `member_id` | `INT` | NOT NULL, INDEX, FK → `members.id` | 成员 |
-| `steam_app_id` | `VARCHAR(32)` | NOT NULL, INDEX | Steam AppID |
-| `game_name` | `VARCHAR(128)` | NOT NULL | 游戏名（`gameextrainfo`） |
-| `started_at` | `DATETIME(6)` TZ | NOT NULL, INDEX | 会话开始 |
-| `last_seen_at` | `DATETIME(6)` TZ | NOT NULL | 最近一次仍在玩的探测时间 |
-| `ended_at` | `DATETIME(6)` TZ | NULL, INDEX | 结束时间；`NULL` 表示进行中 |
-| `source` | `VARCHAR(32)` | NOT NULL, DEFAULT `'steam'` | 数据来源 |
-
----
-
-### `presence_segments`
-
-轮询写入的完整状态轴：`offline` / `online` / `playing`，供 **日视图时间轴**。
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `id` | `INT` | PK, AI | 主键 |
-| `member_id` | `INT` | NOT NULL, INDEX, FK → `members.id` | 成员 |
-| `status` | `VARCHAR(16)` | NOT NULL, INDEX | `offline` \| `online` \| `playing` |
-| `steam_app_id` | `VARCHAR(32)` | NULL, INDEX | `playing` 时的 AppID |
-| `game_name` | `VARCHAR(128)` | NULL | `playing` 时的游戏名 |
-| `started_at` | `DATETIME(6)` TZ | NOT NULL, INDEX | 片段开始 |
-| `last_seen_at` | `DATETIME(6)` TZ | NOT NULL | 最近一次状态仍成立的探测时间 |
-| `ended_at` | `DATETIME(6)` TZ | NULL, INDEX | 结束；`NULL` 表示当前片段仍进行中 |
-| `source` | `VARCHAR(32)` | NOT NULL, DEFAULT `'steam'` | 数据来源 |
-
-状态判定（Steam `GetPlayerSummaries`）：有 `gameid` → `playing`；`personastate = 0` 或缺失 → `offline`；其余 → `online`。
-
----
-
-### `job_runs`
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `id` | `INT` | PK, AI | 主键 |
-| `job_key` | `VARCHAR(64)` | NOT NULL, INDEX | 任务键，如 `steam_presence` |
-| `started_at` | `DATETIME(6)` TZ | NOT NULL, DEFAULT now | 开始 |
-| `finished_at` | `DATETIME(6)` TZ | NULL | 结束 |
-| `status` | `VARCHAR(32)` | NOT NULL, DEFAULT `'running'` | `running` / `ok` / `error` 等 |
-| `message` | `TEXT` | NULL | 摘要或错误信息 |
-| `stats` | `JSON` | NULL | 计数等结构化结果 |
-
----
-
-### `system_configs`
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `key` | `VARCHAR(64)` | PK | 配置键，如邮箱 SMTP |
-| `value` | `TEXT` | NOT NULL, DEFAULT `'{}'` | 一般为 JSON 字符串 |
-
----
-
-### `register_challenges`
-
-| 列名 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| `email` | `VARCHAR(128)` | PK | 待验证邮箱 |
-| `code` | `VARCHAR(16)` | NOT NULL | 验证码 |
-| `expires_at` | `DATETIME(6)` TZ | NOT NULL | 过期时间 |
-
-用于注册发码与未验证账号补验证（`/verify-email`、`/resend-code`）。
-
----
-
-### 已废弃（启动时 DROP）
-
-| 对象 | 说明 |
+| 表 | 用途 |
 |---|---|
-| 表 `games` / `match_records` | 旧战绩体系 |
-| 表 `cs2_matches` / `cs2_match_players` | 未上线的 CS2 对局预留 |
-| 列 `members.extra_bindings` | 旧扩展绑定 |
-| 列 `members.cs2_auth_code` / `cs2_known_code` / `cs2_sync_cursor` | CS2 同步凭证 |
-| 列 `users.verify_code` / `verify_code_expires_at` | 已迁至 `register_challenges` |
+| `users` | 账号、角色、邮箱验证 |
+| `members` | 档案、Steam 绑定（与用户 1:1） |
+| `steam_friend_edges` | 好友缓存（日历仅好友可见） |
+| `play_sessions` | 游戏中会话（热力） |
+| `presence_segments` | 离线/在线/游戏中（日时间轴） |
+| `job_runs` | 轮询任务日志 |
+| `system_configs` | 系统配置（如 SMTP） |
+| `register_challenges` | 注册验证码 |
+
+启动时会 DROP 已废弃表：`games` / `match_records` / `cs2_*`。
 
 ## 说明
 
-- 登录以邮箱为主；`username` 仍用于 JWT 与管理员种子账号
-- 绑定 Steam 后展示名同步为 Steam 昵称；解绑还原并清理 Steam 相关头像
-- Steam 资料隐私过严时可能无法获取「正在游戏」；未返回的玩家本轮轮询会跳过
-- 请勿将含密钥的 `.env`、`uploads/` 提交到仓库
+- 登录以邮箱为主；`username` 用于 JWT 与种子管理员
+- Steam 隐私过严时可能跳过本轮状态；未返回过久会超时收尾会话
+- 勿提交 `.env`、`data/`、`uploads/`
