@@ -77,6 +77,9 @@ def prefer_display_name(
 
 
 _CLIENT_ICON_MARKER = "steamcommunity/public/images/apps/"
+# app_id → 上次尝试补全 client icon 的时间戳（进程内，避免每次请求都打 GetOwnedGames）
+_client_icon_fetch_at: dict[str, float] = {}
+_CLIENT_ICON_FETCH_TTL_SEC = 6 * 3600
 
 
 def _strip_html(text: str) -> str:
@@ -88,6 +91,21 @@ def _strip_html(text: str) -> str:
 def _is_client_icon_url(url: str | None) -> bool:
     """是否为 Steam 库列表左侧小图标（非商店 capsule/header）。"""
     return bool(url and _CLIENT_ICON_MARKER in url)
+
+
+def _should_fetch_client_icon(app_id: str) -> bool:
+    import time
+
+    ts = _client_icon_fetch_at.get(app_id)
+    return ts is None or (time.time() - ts) >= _CLIENT_ICON_FETCH_TTL_SEC
+
+
+def _mark_client_icon_fetched(app_ids: Iterable[str]) -> None:
+    import time
+
+    now = time.time()
+    for app_id in app_ids:
+        _client_icon_fetch_at[app_id] = now
 
 
 def _http_url_ok(url: str, *, min_bytes: int = 200, timeout: float = 8) -> bool:
@@ -321,8 +339,8 @@ def resolve_app_icons(
 ) -> dict[str, str]:
     """批量解析 AppID → 图标 URL。
 
-    热路径只读库缓存，不做逐个 HTTP 探测（否则刷新会非常慢）。
-    优先 client icon；没有则用商店 capsule/header；仍缺再拉一次 GetOwnedGames。
+    优先库列表 client icon；没有则临时用商店图，并在 TTL 内尝试补全 client icon。
+    热路径不做逐 URL 探测。
     """
     ids = sorted({str(a).strip() for a in app_ids if a and str(a).strip()})
     if not ids:
@@ -341,17 +359,22 @@ def resolve_app_icons(
             continue
         fb = _store_art_fallback(row)
         if fb:
-            # 已有商店图即可展示；不再每次请求去打 GetOwnedGames
             result[app_id] = fb
-        else:
+        # 还没有真正的库小图标时，按 TTL 补拉（有商店图也不跳过）
+        if fetch_missing and _should_fetch_client_icon(app_id):
             need_fetch.append(app_id)
 
-    if need_fetch and fetch_missing:
+    if need_fetch:
         _fill_client_icons_from_owned_games(db, need_fetch, result)
+        _mark_client_icon_fetched(need_fetch)
         for app_id in need_fetch:
-            if app_id in result and result[app_id]:
-                continue
             row = by_id.get(app_id) or db.get(SteamApp, app_id)
+            # fill 成功写入 client icon 后 result 已是小图标；否则保持商店图
+            if app_id in result and _is_client_icon_url(result[app_id]):
+                continue
+            if row and _is_client_icon_url(row.icon_url):
+                result[app_id] = row.icon_url
+                continue
             fb = _store_art_fallback(row)
             if fb:
                 result[app_id] = fb
