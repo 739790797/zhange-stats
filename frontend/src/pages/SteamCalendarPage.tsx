@@ -21,18 +21,20 @@ import {
   triggerSteamPoll,
 } from "@/api/client";
 import type {
+  SteamDayData,
   SteamNowItem,
   SteamTimelineRow,
 } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { datePickerLocale } from "@/locales/zhCN";
 import { nowBeijing, parseBeijing } from "@/lib/time";
+import { rememberSteamIcons, resolveSteamIcon } from "@/lib/steamIconCache";
 import { useAuthStore } from "@/stores/authStore";
 
 type Granularity = "day" | "week" | "month" | "year";
 
 const DAY_SECONDS = 86400;
-const HOUR_MARKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+const HOUR_MARKS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24];
 const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 const GAME_PALETTE = [
   "#e67e22",
@@ -58,6 +60,89 @@ function formatDuration(seconds: number): string {
   return rm ? `${h}小时${rm}分` : `${h}小时`;
 }
 
+/** 悬浮时段后缀：不足 1 小时「xx分钟」，否则「xx小时xx分钟」。 */
+function formatPlayDuration(seconds: number): string {
+  if (seconds < 60) return "不足1分钟";
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}分钟`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm ? `${h}小时${rm}分钟` : `${h}小时`;
+}
+
+function formatClock(sec: number, spanSeconds: number, rangeStart: Dayjs): string {
+  const s = Math.max(0, Math.min(spanSeconds, Math.floor(sec)));
+  const t = rangeStart.add(s, "second");
+  if (spanSeconds <= DAY_SECONDS) {
+    return t.format("HH:mm");
+  }
+  return t.format("M/D HH:mm");
+}
+
+function SegmentHoverTip({
+  status,
+  gameName,
+  appId,
+  iconUrl,
+  startSec,
+  endSec,
+  spanSeconds,
+  rangeStart,
+}: {
+  status: string;
+  gameName?: string | null;
+  appId?: string | null;
+  iconUrl?: string | null;
+  startSec: number;
+  endSec: number;
+  spanSeconds: number;
+  rangeStart: Dayjs;
+}) {
+  const timeRange = `${formatClock(startSec, spanSeconds, rangeStart)}~${formatClock(endSec, spanSeconds, rangeStart)}`;
+  const timeLine = `${timeRange}（${formatPlayDuration(Math.max(0, endSec - startSec))}）`;
+  if (status === "playing") {
+    return (
+      <div style={{ maxWidth: 280, lineHeight: 1.35 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          {appId ? (
+            <TimelineSegmentLogo appId={appId} iconUrl={iconUrl} size={28} />
+          ) : null}
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: 13,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {gameName || "游戏中"}
+          </span>
+        </div>
+        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+          {timeLine}
+        </div>
+      </div>
+    );
+  }
+  const label = status === "online" ? "在线" : "离线";
+  return (
+    <div style={{ lineHeight: 1.35 }}>
+      <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
+      <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+        {timeLine}
+      </div>
+    </div>
+  );
+}
+
 function hashColor(key: string): string {
   let h = 0;
   for (let i = 0; i < key.length; i++) {
@@ -73,27 +158,84 @@ function segmentColor(status: string, appId?: string | null): string {
   return "#bfbfbf";
 }
 
-function formatClock(sec: number, spanSeconds: number, rangeStart: Dayjs): string {
-  const s = Math.max(0, Math.min(spanSeconds, Math.floor(sec)));
-  if (spanSeconds <= DAY_SECONDS) {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  }
-  const dayOffset = Math.floor(s / DAY_SECONDS);
-  const within = s % DAY_SECONDS;
-  const h = Math.floor(within / 3600);
-  const m = Math.floor((within % 3600) / 60);
-  const d = rangeStart.add(dayOffset, "day");
-  return `${d.format("M/D")} ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
 function steamStoreUrl(appId: string): string {
   return `https://store.steampowered.com/app/${encodeURIComponent(appId)}`;
 }
 
-function steamLibraryCapsuleUrl(appId: string): string {
-  return `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(appId)}/library_600x900.jpg`;
+/** 优先库列表 client icon；失败时回退商店 capsule。 */
+function steamAppImageCandidates(
+  appId: string,
+  iconUrl?: string | null,
+): string[] {
+  const list: string[] = [];
+  const push = (url: string | null | undefined) => {
+    const u = (url || "").trim();
+    if (u && !list.includes(u)) list.push(u);
+  };
+  push(iconUrl);
+  if (appId) {
+    push(
+      `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(appId)}/capsule_231x87.jpg`,
+    );
+  }
+  return list;
+}
+
+function TimelineSegmentLogo({
+  appId,
+  iconUrl,
+  size,
+}: {
+  appId: string;
+  iconUrl?: string | null;
+  size: number;
+}) {
+  const candidates = useMemo(
+    () =>
+      steamAppImageCandidates(
+        appId,
+        resolveSteamIcon(appId, iconUrl),
+      ),
+    [appId, iconUrl],
+  );
+  const [idx, setIdx] = useState(0);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setIdx(0);
+    setFailed(false);
+  }, [candidates]);
+
+  const advance = () => {
+    setIdx((v) => {
+      if (v + 1 < candidates.length) return v + 1;
+      setFailed(true);
+      return v;
+    });
+  };
+
+  const src = candidates[idx];
+  if (!src || failed) return null;
+  return (
+    <img
+      key={src}
+      src={src}
+      alt=""
+      draggable={false}
+      referrerPolicy="no-referrer"
+      onError={advance}
+      style={{
+        width: size,
+        height: size,
+        objectFit: "cover",
+        objectPosition: "center",
+        borderRadius: 2,
+        flexShrink: 0,
+        display: "block",
+        boxShadow: "0 0 0 1px rgba(0,0,0,0.2)",
+        background: "#1b2838",
+      }}
+    />
+  );
 }
 
 function GameIcon({
@@ -108,13 +250,11 @@ function GameIcon({
   size?: number;
 }) {
   const candidates = useMemo(() => {
-    const list: string[] = [];
-    if (iconUrl) list.push(iconUrl);
-    if (appId) {
-      const library = steamLibraryCapsuleUrl(appId);
-      if (!list.includes(library)) list.push(library);
-    }
-    return list;
+    if (!appId && !iconUrl) return [];
+    return steamAppImageCandidates(
+      appId || "",
+      resolveSteamIcon(appId, iconUrl),
+    );
   }, [appId, iconUrl]);
   const [idx, setIdx] = useState(0);
   useEffect(() => setIdx(0), [candidates]);
@@ -278,6 +418,8 @@ function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
           >
             {group.steam_app_id ? (
               <Tooltip
+                placement="top"
+                autoAdjustOverflow={false}
                 color="#ffffff"
                 mouseEnterDelay={0.25}
                 destroyTooltipOnHide
@@ -501,6 +643,52 @@ function GameStoreHoverCard({
   );
 }
 
+/** 把「自然日×2」的接口结果裁成从中午起的 24 小时窗口（查询仍用 date/end）。 */
+function clipTimelineToNoonWindow(data: SteamDayData): SteamDayData {
+  const shift = 12 * 3600;
+  const windowEnd = shift + DAY_SECONDS;
+  const baseStart = parseBeijing(data.range_start ?? data.date);
+  const clippedRows: SteamTimelineRow[] = (data.timeline ?? []).map((row) => ({
+    ...row,
+    segments: row.segments
+      .map((seg) => {
+        const start = Math.max(seg.start_sec, shift);
+        const end = Math.min(seg.end_sec, windowEnd);
+        if (end <= start) return null;
+        return {
+          ...seg,
+          start_sec: start - shift,
+          end_sec: end - shift,
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s != null),
+  }));
+  const legend = new Map<string, { game_name: string; icon_url?: string | null }>();
+  for (const row of clippedRows) {
+    for (const seg of row.segments) {
+      if (seg.status === "playing" && seg.steam_app_id) {
+        const prev = legend.get(seg.steam_app_id);
+        legend.set(seg.steam_app_id, {
+          game_name: seg.game_name || prev?.game_name || `App ${seg.steam_app_id}`,
+          icon_url: seg.icon_url || prev?.icon_url,
+        });
+      }
+    }
+  }
+  return {
+    ...data,
+    range_start: baseStart.add(12, "hour").toISOString(),
+    range_end: baseStart.add(36, "hour").toISOString(),
+    span_seconds: DAY_SECONDS,
+    timeline: clippedRows,
+    games_legend: Array.from(legend, ([steam_app_id, meta]) => ({
+      steam_app_id,
+      game_name: meta.game_name,
+      icon_url: meta.icon_url,
+    })),
+  };
+}
+
 function TimelineChart({
   rows,
   gamesLegend,
@@ -509,24 +697,49 @@ function TimelineChart({
   rangeStart,
 }: {
   rows: SteamTimelineRow[];
-  gamesLegend: { steam_app_id: string; game_name: string }[];
+  gamesLegend: {
+    steam_app_id: string;
+    game_name: string;
+    icon_url?: string | null;
+  }[];
   loading?: boolean;
   spanSeconds: number;
   rangeStart: Dayjs;
 }) {
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const trackMeasureRef = useRef<HTMLDivElement>(null);
   const labelWidth = 112;
   const trackHeight = 28;
   const rowGap = 10;
+  const logoSize = 18;
   const dayCount = Math.max(1, Math.round(spanSeconds / DAY_SECONDS));
   const isWeek = dayCount > 1;
 
+  useEffect(() => {
+    const el = trackMeasureRef.current;
+    if (!el) return;
+    const update = () => setTrackWidth(el.getBoundingClientRect().width);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rows.length, loading, spanSeconds]);
+
   const marks = useMemo(() => {
     if (!isWeek) {
-      return HOUR_MARKS.map((h) => ({
-        at: h * 3600,
-        label: `${String(h).padStart(2, "0")}:00`,
-      }));
+      return HOUR_MARKS.map((h) => {
+        let label: string;
+        if (h < 24) {
+          label = rangeStart.add(h * 3600, "second").format("HH:mm");
+        } else if (rangeStart.hour() === 0 && rangeStart.minute() === 0) {
+          // 自然日终点展示 24:00，避免滚成次日 00:00
+          label = "24:00";
+        } else {
+          label = rangeStart.add(DAY_SECONDS, "second").format("HH:mm");
+        }
+        return { at: h * 3600, label };
+      });
     }
     return Array.from({ length: dayCount }, (_, i) => {
       const d = rangeStart.add(i, "day");
@@ -554,6 +767,8 @@ function TimelineChart({
           return (
             <Tooltip
               key={g.steam_app_id}
+              placement="top"
+              autoAdjustOverflow={false}
               color="#ffffff"
               mouseEnterDelay={0.25}
               destroyTooltipOnHide
@@ -586,8 +801,35 @@ function TimelineChart({
                   outlineOffset: 1,
                   transition: "opacity 0.15s ease, outline-color 0.15s ease",
                   userSelect: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
+                {resolveSteamIcon(g.steam_app_id, g.icon_url) ? (
+                  <img
+                    src={resolveSteamIcon(g.steam_app_id, g.icon_url)!}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    width={14}
+                    height={14}
+                    onError={(e) => {
+                      const el = e.currentTarget;
+                      const fallback = `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(g.steam_app_id)}/header.jpg`;
+                      if (el.src !== fallback) {
+                        el.src = fallback;
+                      } else {
+                        el.style.display = "none";
+                      }
+                    }}
+                    style={{
+                      borderRadius: 2,
+                      objectFit: "cover",
+                      display: "block",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : null}
                 {g.game_name}
               </Tag>
             </Tooltip>
@@ -596,6 +838,7 @@ function TimelineChart({
       </Space>
 
       <div
+        ref={trackMeasureRef}
         style={{
           display: "flex",
           marginBottom: 8,
@@ -692,28 +935,43 @@ function TimelineChart({
                   ))}
                 {row.segments.map((seg, idx) => {
                   const left = (seg.start_sec / spanSeconds) * 100;
-                  const width =
+                  const widthPct =
                     ((seg.end_sec - seg.start_sec) / spanSeconds) * 100;
+                  const segPx =
+                    trackWidth > 0
+                      ? ((seg.end_sec - seg.start_sec) / spanSeconds) * trackWidth
+                      : 0;
                   const color = segmentColor(seg.status, seg.steam_app_id);
-                  const label =
-                    seg.status === "playing"
-                      ? seg.game_name || "游戏中"
-                      : seg.status === "online"
-                        ? "在线"
-                        : "离线";
-                  const title = `${label} · ${formatClock(seg.start_sec, spanSeconds, rangeStart)}–${formatClock(seg.end_sec, spanSeconds, rangeStart)}`;
                   const isMatch =
                     hoveredAppId != null &&
                     seg.status === "playing" &&
                     seg.steam_app_id === hoveredAppId;
                   const isDimmed = hoveredAppId != null && !isMatch;
+                  const showLogo =
+                    seg.status === "playing" &&
+                    Boolean(seg.steam_app_id) &&
+                    (trackWidth <= 0 || segPx >= logoSize + 2);
                   return (
-                    <Tooltip key={`${row.member_id}-${idx}`} title={title}>
+                    <Tooltip
+                      key={`${row.member_id}-${idx}`}
+                      title={
+                        <SegmentHoverTip
+                          status={seg.status}
+                          gameName={seg.game_name}
+                          appId={seg.steam_app_id}
+                          iconUrl={seg.icon_url}
+                          startSec={seg.start_sec}
+                          endSec={seg.end_sec}
+                          spanSeconds={spanSeconds}
+                          rangeStart={rangeStart}
+                        />
+                      }
+                    >
                       <div
                         style={{
                           position: "absolute",
                           left: `${left}%`,
-                          width: `${Math.max(width, 0.08)}%`,
+                          width: `${Math.max(widthPct, 0.08)}%`,
                           top: isMatch ? 1 : 3,
                           bottom: isMatch ? 1 : 3,
                           background: color,
@@ -726,8 +984,21 @@ function TimelineChart({
                           zIndex: isMatch ? 2 : 1,
                           transition:
                             "opacity 0.15s ease, top 0.15s ease, bottom 0.15s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          overflow: "hidden",
+                          paddingLeft: showLogo ? 2 : 0,
+                          boxSizing: "border-box",
                         }}
-                      />
+                      >
+                        {showLogo && seg.steam_app_id ? (
+                          <TimelineSegmentLogo
+                            appId={seg.steam_app_id}
+                            iconUrl={seg.icon_url}
+                            size={logoSize}
+                          />
+                        ) : null}
+                      </div>
                     </Tooltip>
                   );
                 })}
@@ -745,7 +1016,9 @@ export default function SteamCalendarPage() {
   const queryClient = useQueryClient();
   const isAdmin = useAuthStore((s) => s.user?.is_admin);
   const [granularity, setGranularity] = useState<Granularity>("day");
-  const [anchor, setAnchor] = useState(() => nowBeijing());
+  const [anchor, setAnchor] = useState(() => nowBeijing().startOf("day"));
+  /** 日视图：0=自然日 00:00–24:00；12=跨夜窗 12:00–次日 12:00 */
+  const [dayStartHour, setDayStartHour] = useState<0 | 12>(0);
 
   const weekRangeStart = useMemo(() => anchor.startOf("isoWeek"), [anchor]);
   const weekRangeEnd = useMemo(
@@ -754,6 +1027,10 @@ export default function SteamCalendarPage() {
   );
 
   const dayQueryDate = anchor.format("YYYY-MM-DD");
+  const dayQueryEnd =
+    granularity === "day" && dayStartHour === 12
+      ? anchor.add(1, "day").format("YYYY-MM-DD")
+      : undefined;
   const isPendingGranularity =
     granularity === "month" || granularity === "year";
 
@@ -764,20 +1041,61 @@ export default function SteamCalendarPage() {
           end: weekRangeEnd.format("YYYY-MM-DD"),
         }
       : granularity === "day"
-        ? { start: dayQueryDate, end: undefined as string | undefined }
+        ? { start: dayQueryDate, end: dayQueryEnd }
         : null;
 
-  const { data: timelineData, isLoading: timelineLoading } = useQuery({
-    queryKey: ["steam-timeline", timelineRange?.start, timelineRange?.end],
+  const { data: timelineRaw, isLoading: timelineLoading } = useQuery({
+    queryKey: [
+      "steam-timeline",
+      timelineRange?.start,
+      timelineRange?.end,
+      granularity === "day" ? dayStartHour : 0,
+    ],
     queryFn: () => fetchSteamDay(timelineRange!.start, timelineRange!.end),
     enabled: Boolean(timelineRange?.start),
+    staleTime: 60_000,
   });
+
+  const timelineData = useMemo(() => {
+    if (!timelineRaw) return timelineRaw;
+    if (granularity === "day" && dayStartHour === 12) {
+      return clipTimelineToNoonWindow(timelineRaw);
+    }
+    return timelineRaw;
+  }, [timelineRaw, granularity, dayStartHour]);
+
+  useEffect(() => {
+    if (!timelineData) return;
+    const entries: { appId?: string | null; iconUrl?: string | null }[] = [];
+    for (const g of timelineData.games_legend ?? []) {
+      entries.push({ appId: g.steam_app_id, iconUrl: g.icon_url });
+    }
+    for (const row of timelineData.timeline ?? []) {
+      for (const seg of row.segments) {
+        if (seg.steam_app_id) {
+          entries.push({ appId: seg.steam_app_id, iconUrl: seg.icon_url });
+        }
+      }
+    }
+    rememberSteamIcons(entries);
+  }, [timelineData]);
 
   const { data: nowPlaying } = useQuery({
     queryKey: ["steam-now"],
     queryFn: fetchSteamNow,
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!nowPlaying?.length) return;
+    rememberSteamIcons(
+      nowPlaying.map((p) => ({
+        appId: p.steam_app_id,
+        iconUrl: p.icon_url,
+      })),
+    );
+  }, [nowPlaying]);
 
   const poll = useMutation({
     mutationFn: triggerSteamPoll,
@@ -794,19 +1112,44 @@ export default function SteamCalendarPage() {
   });
 
   const shift = (dir: -1 | 1) => {
-    if (granularity === "day") setAnchor((d) => d.add(dir, "day"));
-    else if (granularity === "week") setAnchor((d) => d.add(dir, "week"));
+    if (granularity === "week") {
+      setAnchor((d) => d.add(dir, "week"));
+      return;
+    }
+    if (granularity !== "day") return;
+    // ±12 小时：在 00:00 窗与 12:00 窗之间切换，必要时挪日历日
+    if (dir === 1) {
+      if (dayStartHour === 0) setDayStartHour(12);
+      else {
+        setDayStartHour(0);
+        setAnchor((d) => d.add(1, "day"));
+      }
+    } else if (dayStartHour === 12) {
+      setDayStartHour(0);
+    } else {
+      setDayStartHour(12);
+      setAnchor((d) => d.subtract(1, "day"));
+    }
   };
 
   const spanSeconds =
     timelineData?.span_seconds ??
     (granularity === "week" ? 7 * DAY_SECONDS : DAY_SECONDS);
-  const timelineStart = parseBeijing(
-    timelineData?.range_start ??
-      (granularity === "week"
-        ? weekRangeStart.format("YYYY-MM-DD")
-        : dayQueryDate),
-  );
+  const timelineStart = useMemo(() => {
+    if (timelineData?.range_start) {
+      return parseBeijing(timelineData.range_start);
+    }
+    if (granularity === "week") {
+      return weekRangeStart;
+    }
+    return dayStartHour === 12 ? anchor.hour(12).minute(0).second(0) : anchor;
+  }, [
+    timelineData?.range_start,
+    granularity,
+    weekRangeStart,
+    anchor,
+    dayStartHour,
+  ]);
 
   return (
     <div>
@@ -842,7 +1185,10 @@ export default function SteamCalendarPage() {
       <Space style={{ marginBottom: 16 }} wrap>
         <Radio.Group
           value={granularity}
-          onChange={(e) => setGranularity(e.target.value)}
+          onChange={(e) => {
+            setGranularity(e.target.value);
+            setDayStartHour(0);
+          }}
           optionType="button"
           options={[
             { label: "日", value: "day" },
@@ -853,7 +1199,9 @@ export default function SteamCalendarPage() {
         />
         {!isPendingGranularity && (
           <>
-            <Button onClick={() => shift(-1)}>上一段</Button>
+            <Button onClick={() => shift(-1)}>
+              {granularity === "day" ? "向前12小时" : "上一段"}
+            </Button>
             {granularity === "week" ? (
               <DatePicker
                 picker="week"
@@ -861,22 +1209,39 @@ export default function SteamCalendarPage() {
                 value={anchor}
                 allowClear={false}
                 onChange={(d) =>
-                  d && setAnchor(parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"))
+                  d &&
+                  setAnchor(
+                    parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"),
+                  )
                 }
                 style={{ width: 180 }}
               />
             ) : (
               <DatePicker
+                className="day-window-picker"
                 locale={datePickerLocale}
                 value={anchor}
                 allowClear={false}
-                onChange={(d) =>
-                  d && setAnchor(parseBeijing(d.format("YYYY-MM-DD")))
-                }
-                style={{ width: 150 }}
+                format={(value) => {
+                  const start = value.startOf("day");
+                  if (dayStartHour === 12) {
+                    const a = start.hour(12);
+                    const b = start.add(1, "day").hour(12);
+                    return `${a.format("YYYY-MM-DD HH:mm")} ~ ${b.format("YYYY-MM-DD HH:mm")}`;
+                  }
+                  return `${start.format("YYYY-MM-DD")} 00:00 ~ ${start.format("YYYY-MM-DD")} 24:00`;
+                }}
+                onChange={(d) => {
+                  if (!d) return;
+                  setDayStartHour(0);
+                  setAnchor(parseBeijing(d.format("YYYY-MM-DD")).startOf("day"));
+                }}
+                style={{ width: 320 }}
               />
             )}
-            <Button onClick={() => shift(1)}>下一段</Button>
+            <Button onClick={() => shift(1)}>
+              {granularity === "day" ? "向后12小时" : "下一段"}
+            </Button>
           </>
         )}
       </Space>

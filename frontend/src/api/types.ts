@@ -157,6 +157,7 @@ export interface SteamTimelineSegment {
   status: "offline" | "online" | "playing" | string;
   steam_app_id?: string | null;
   game_name?: string | null;
+  icon_url?: string | null;
   start_sec: number;
   end_sec: number;
 }
@@ -171,6 +172,7 @@ export interface SteamTimelineRow {
 export interface SteamGameLegendItem {
   steam_app_id: string;
   game_name: string;
+  icon_url?: string | null;
 }
 
 export interface SteamNowItem {

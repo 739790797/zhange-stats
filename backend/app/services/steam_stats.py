@@ -312,7 +312,8 @@ def build_range_detail(
     )
     icon_map = resolve_app_icons(
         db,
-        [s.steam_app_id for s in sessions],
+        [s.steam_app_id for s in sessions]
+        + [seg.steam_app_id for seg in presence_rows],
     )
 
     items: list[dict] = []
@@ -411,6 +412,7 @@ def build_range_detail(
                 "status": status,
                 "steam_app_id": app_id,
                 "game_name": localized,
+                "icon_url": icon_map.get(app_id) if status == "playing" and app_id else None,
                 "start_sec": start_sec,
                 "end_sec": end_sec,
             }
@@ -484,7 +486,12 @@ def build_range_detail(
         "total_seconds": total_seconds,
         "timeline": timeline,
         "games_legend": [
-            {"steam_app_id": k, "game_name": v} for k, v in sorted(games_legend.items())
+            {
+                "steam_app_id": k,
+                "game_name": v,
+                "icon_url": icon_map.get(k),
+            }
+            for k, v in sorted(games_legend.items())
         ],
         "visibility": vis,
     }

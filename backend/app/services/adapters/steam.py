@@ -199,6 +199,51 @@ class SteamAdapter(BaseGameAdapter):
             result[sid] = nick[:64]
         return result
 
+    def fetch_owned_game_icons(self, steam_id: str) -> dict[str, str]:
+        """拉取用户库游戏的客户端小图标（库列表名左侧那枚）。
+
+        返回 app_id → 完整 CDN URL。资料未公开或无库时返回空 dict。
+        """
+        if not self.api_key:
+            raise RuntimeError("STEAM_API_KEY 未配置")
+        params = urllib.parse.urlencode(
+            {
+                "key": self.api_key,
+                "steamid": steam_id,
+                "include_appinfo": 1,
+                "include_played_free_games": 1,
+                "format": "json",
+            }
+        )
+        url = (
+            "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
+            f"?{params}"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "zhange-stats/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return {}
+            body = exc.read().decode("utf-8", errors="ignore")
+            raise RuntimeError(f"Steam GetOwnedGames HTTP {exc.code}: {body}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Steam GetOwnedGames 网络错误: {exc}") from exc
+
+        games = (raw or {}).get("response", {}).get("games") or []
+        result: dict[str, str] = {}
+        for g in games:
+            app_id = str(g.get("appid") or "").strip()
+            icon_hash = str(g.get("img_icon_url") or "").strip()
+            if not app_id or not icon_hash:
+                continue
+            result[app_id] = (
+                "https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/"
+                f"{app_id}/{icon_hash}.jpg"
+            )
+        return result
+
     def parse_presences(self, raw: dict[str, Any]) -> list[SteamPresence]:
         players = (raw or {}).get("response", {}).get("players", []) or []
         result: list[SteamPresence] = []

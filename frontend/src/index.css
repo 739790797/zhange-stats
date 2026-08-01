@@ -66,3 +66,16 @@ a {
 .sider-menu.ant-menu-dark .ant-menu-item::after {
   display: none !important;
 }
+
+/* 日时间窗 DatePicker：区间文案居中 */
+.day-window-picker.ant-picker {
+  padding-inline: 11px 28px;
+}
+
+.day-window-picker .ant-picker-input {
+  width: 100%;
+}
+
+.day-window-picker .ant-picker-input > input {
+  text-align: center;
+}

@@ -76,7 +76,7 @@ def prefer_display_name(
     return None
 
 
-_MIN_ICON_BYTES = 4096
+_CLIENT_ICON_MARKER = "steamcommunity/public/images/apps/"
 
 
 def _strip_html(text: str) -> str:
@@ -85,18 +85,20 @@ def _strip_html(text: str) -> str:
     return cleaned
 
 
-def _http_image_usable(url: str, *, timeout: float = 8) -> bool:
-    """GET 校验图片是否真实可用（Steam 对缺失库封面常返回 200 + 极小占位图）。"""
+def _is_client_icon_url(url: str | None) -> bool:
+    """是否为 Steam 库列表左侧小图标（非商店 capsule/header）。"""
+    return bool(url and _CLIENT_ICON_MARKER in url)
+
+
+def _http_url_ok(url: str, *, min_bytes: int = 200, timeout: float = 8) -> bool:
+    """校验图片 URL 可下载（部分新游戏的 client icon hash 会 404）。"""
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if not (200 <= int(resp.status) < 300):
                 return False
-            ctype = (resp.headers.get("Content-Type") or "").lower()
-            if ctype and "image" not in ctype and "octet-stream" not in ctype:
-                return False
-            data = resp.read()
-            return len(data) >= _MIN_ICON_BYTES
+            data = resp.read(min_bytes + 1)
+            return len(data) >= min_bytes
     except (
         urllib.error.URLError,
         urllib.error.HTTPError,
@@ -107,26 +109,14 @@ def _http_image_usable(url: str, *, timeout: float = 8) -> bool:
         return False
 
 
-def _pick_icon_url(
-    app_id: str, *, capsule: str | None, header: str | None
-) -> str | None:
-    """缩略图优先库封面 library_600x900，其次商店 capsule，最后 header。"""
-    library = (
-        f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900.jpg"
-    )
-    if _http_image_usable(library):
-        return library
-    if capsule and _http_image_usable(capsule):
-        return capsule
-    if capsule:
-        return capsule
-    if header:
-        return header
+def _store_art_fallback(row: SteamApp | None) -> str | None:
+    if row is None:
+        return None
+    for raw in (row.capsule_image, row.header_image):
+        u = (raw or "").strip()
+        if u:
+            return u
     return None
-
-
-def _cached_icon_looks_placeholder(url: str | None) -> bool:
-    return bool(url and "library_600x900.jpg" in url)
 
 
 def fetch_store_details(
@@ -170,14 +160,13 @@ def fetch_store_details(
     desc = _strip_html(raw_desc)[:_DESC_MAX] or None
     is_free = bool(data.get("is_free"))
     price = data.get("price_overview") or {}
-    icon_url = _pick_icon_url(app_id, capsule=capsule, header=header)
 
     return StoreDetails(
         success=True,
         name=name,
         header_image=header,
         capsule_image=capsule,
-        icon_url=icon_url,
+        icon_url=None,
         short_description=desc,
         is_free=is_free,
         currency=str(price.get("currency") or "").strip()[:8] or None,
@@ -213,7 +202,9 @@ def _apply_details(row: SteamApp, details: StoreDetails, now: datetime) -> None:
         row.name = details.name
     row.header_image = details.header_image
     row.capsule_image = details.capsule_image
-    row.icon_url = details.icon_url
+    # 不覆盖已缓存的库列表 client icon
+    if details.icon_url and _is_client_icon_url(details.icon_url):
+        row.icon_url = details.icon_url
     row.short_description = details.short_description
     row.is_free = details.is_free
     row.currency = details.currency
@@ -328,48 +319,128 @@ def resolve_app_icons(
     *,
     fetch_missing: bool = True,
 ) -> dict[str, str]:
-    """批量解析 AppID → 缩略图 URL（库封面 / capsule）。"""
+    """批量解析 AppID → 图标 URL。
+
+    热路径只读库缓存，不做逐个 HTTP 探测（否则刷新会非常慢）。
+    优先 client icon；没有则用商店 capsule/header；仍缺再拉一次 GetOwnedGames。
+    """
     ids = sorted({str(a).strip() for a in app_ids if a and str(a).strip()})
     if not ids:
         return {}
 
     rows = db.query(SteamApp).filter(SteamApp.app_id.in_(ids)).all()
     by_id = {r.app_id: r for r in rows}
-    now = _utcnow()
     result: dict[str, str] = {}
+    need_fetch: list[str] = []
 
     for app_id in ids:
         row = by_id.get(app_id)
-        if (
-            row
-            and row.icon_url
-            and _details_fresh(row, now)
-            and not _cached_icon_looks_placeholder(row.icon_url)
-        ):
-            result[app_id] = row.icon_url
+        icon = (row.icon_url or "").strip() if row else ""
+        if _is_client_icon_url(icon):
+            result[app_id] = icon
             continue
-        if (
-            row
-            and row.icon_url
-            and _details_fresh(row, now)
-            and _cached_icon_looks_placeholder(row.icon_url)
-            and _http_image_usable(row.icon_url)
-        ):
-            result[app_id] = row.icon_url
-            continue
-        if not fetch_missing:
-            if row and row.icon_url:
-                result[app_id] = row.icon_url
-            continue
-        details = fetch_store_details(app_id)
-        if details.success:
-            _persist_store_row(app_id, details=details, fetched_at=now)
-            if details.icon_url:
-                result[app_id] = details.icon_url
-        elif row and row.icon_url:
-            result[app_id] = row.icon_url
+        fb = _store_art_fallback(row)
+        if fb:
+            # 已有商店图即可展示；不再每次请求去打 GetOwnedGames
+            result[app_id] = fb
+        else:
+            need_fetch.append(app_id)
+
+    if need_fetch and fetch_missing:
+        _fill_client_icons_from_owned_games(db, need_fetch, result)
+        for app_id in need_fetch:
+            if app_id in result and result[app_id]:
+                continue
+            row = by_id.get(app_id) or db.get(SteamApp, app_id)
+            fb = _store_art_fallback(row)
+            if fb:
+                result[app_id] = fb
 
     return result
+
+
+def _candidate_steam_ids_for_icons(db: Session, app_ids: list[str]) -> list[str]:
+    """优先用玩过这些游戏的成员库，再退回任意已绑定 Steam 的成员。"""
+    from app.models.member import Member
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _push(sid: str | None) -> None:
+        s = (sid or "").strip()
+        if s and s not in seen:
+            seen.add(s)
+            ordered.append(s)
+
+    if app_ids:
+        players = (
+            db.query(Member.steam_id)
+            .join(PlaySession, PlaySession.member_id == Member.id)
+            .filter(
+                Member.steam_id.isnot(None),
+                PlaySession.steam_app_id.in_(app_ids),
+            )
+            .distinct()
+            .limit(8)
+            .all()
+        )
+        for (sid,) in players:
+            _push(sid)
+
+    others = (
+        db.query(Member.steam_id)
+        .filter(Member.steam_id.isnot(None))
+        .limit(12)
+        .all()
+    )
+    for (sid,) in others:
+        _push(sid)
+    return ordered
+
+
+def _fill_client_icons_from_owned_games(
+    db: Session, missing: list[str], result: dict[str, str]
+) -> None:
+    from app.core.config import get_settings
+    from app.services.adapters.steam import SteamAdapter
+
+    settings = get_settings()
+    if not settings.STEAM_API_KEY:
+        return
+
+    still = set(missing)
+    adapter = SteamAdapter(settings.STEAM_API_KEY)
+    now = _utcnow()
+
+    for steam_id in _candidate_steam_ids_for_icons(db, missing):
+        if not still:
+            break
+        try:
+            icons = adapter.fetch_owned_game_icons(steam_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("GetOwnedGames icons failed for %s", steam_id)
+            continue
+        if not icons:
+            continue
+
+        # 只写入当前缺图标的 app，避免一次扫整库写几百行
+        for app_id in list(still):
+            url = icons.get(app_id)
+            if not url or not _http_url_ok(url):
+                continue
+            row = db.get(SteamApp, app_id)
+            if row is None:
+                row = SteamApp(app_id=app_id, fetched_at=now, icon_url=url)
+                db.add(row)
+            else:
+                row.icon_url = url
+            result[app_id] = url
+            still.discard(app_id)
+        try:
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            logger.exception("persist client icons failed")
 
 
 def _serialize_store_card(row: SteamApp) -> dict[str, Any]:
@@ -403,18 +474,18 @@ def get_store_card(db: Session, app_id: str) -> dict[str, Any] | None:
         row is None
         or not _details_fresh(row, now)
         or not row.header_image
-        or not row.icon_url
     )
     if needs_refresh:
         details = fetch_store_details(app_id)
         if details.success:
             _persist_store_row(app_id, details=details, fetched_at=now)
-            return {
+            row = db.get(SteamApp, app_id)
+            card = {
                 "steam_app_id": app_id,
                 "name": details.name or (row.name if row else None),
                 "header_image": details.header_image,
                 "capsule_image": details.capsule_image,
-                "icon_url": details.icon_url,
+                "icon_url": None,
                 "short_description": details.short_description,
                 "is_free": bool(details.is_free),
                 "currency": details.currency,
@@ -425,7 +496,15 @@ def get_store_card(db: Session, app_id: str) -> dict[str, Any] | None:
                 "final_formatted": details.final_formatted,
                 "store_url": f"https://store.steampowered.com/app/{app_id}",
             }
+            if row and _is_client_icon_url(row.icon_url):
+                card["icon_url"] = row.icon_url
+            else:
+                card["icon_url"] = details.capsule_image or details.header_image
+            return card
         if row is None:
             return None
 
-    return _serialize_store_card(row)
+    card = _serialize_store_card(row)
+    if not _is_client_icon_url(card.get("icon_url")):
+        card["icon_url"] = row.capsule_image or row.header_image
+    return card

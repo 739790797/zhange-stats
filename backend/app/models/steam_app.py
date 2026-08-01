@@ -7,7 +7,7 @@ from app.core.database import Base
 
 
 class SteamApp(Base):
-    """Steam AppID → 商店展示信息缓存（简体名 / 头图 / 价格）。"""
+    """Steam AppID → 商店展示信息缓存（简体名 / 头图 / 库列表小图标）。"""
 
     __tablename__ = "steam_apps"
 
@@ -15,6 +15,7 @@ class SteamApp(Base):
     name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     header_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
     capsule_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Steam 库列表名左侧 client icon（steamcommunity/.../apps/{id}/{hash}.jpg）
     icon_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     short_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

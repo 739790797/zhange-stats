@@ -167,6 +167,7 @@ class SteamTimelineSegment(BaseModel):
     status: str  # offline | online | playing
     steam_app_id: str | None = None
     game_name: str | None = None
+    icon_url: str | None = None
     start_sec: int
     end_sec: int
 
@@ -181,6 +182,7 @@ class SteamTimelineRow(BaseModel):
 class SteamGameLegendItem(BaseModel):
     steam_app_id: str
     game_name: str
+    icon_url: str | None = None
 
 
 class SteamDayResponse(BaseModel):
