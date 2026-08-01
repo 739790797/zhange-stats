@@ -59,6 +59,8 @@ export interface SteamVisibilityMeta {
 export interface SteamFriendItem {
   steam_id: string;
   persona_name: string;
+  steam_persona_name?: string | null;
+  friend_nickname?: string | null;
   avatar_url: string | null;
   profile_url?: string | null;
   status: "offline" | "online" | "playing" | string;
@@ -122,6 +124,7 @@ export interface SteamDaySession {
   avatar_url: string | null;
   steam_app_id: string;
   game_name: string;
+  icon_url?: string | null;
   started_at: string;
   last_seen_at: string;
   ended_at: string | null;
@@ -177,9 +180,27 @@ export interface SteamNowItem {
   avatar_url: string | null;
   steam_app_id: string;
   game_name: string;
+  icon_url?: string | null;
   started_at: string;
   last_seen_at: string;
   duration_seconds: number;
+}
+
+export interface SteamAppStoreCard {
+  steam_app_id: string;
+  name?: string | null;
+  header_image?: string | null;
+  capsule_image?: string | null;
+  icon_url?: string | null;
+  short_description?: string | null;
+  is_free: boolean;
+  currency?: string | null;
+  initial_price?: number | null;
+  final_price?: number | null;
+  discount_percent: number;
+  initial_formatted?: string | null;
+  final_formatted?: string | null;
+  store_url: string;
 }
 
 export interface SteamSessionBrief {

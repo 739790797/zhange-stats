@@ -11,6 +11,7 @@ import type {
   SteamNowItem,
   SteamOverviewData,
   SteamPollResult,
+  SteamAppStoreCard,
   User,
   UserBrief,
 } from "./types";
@@ -136,6 +137,11 @@ export async function fetchSteamDay(date: string, end?: string) {
 
 export async function fetchSteamNow() {
   const { data } = await client.get<SteamNowItem[]>("/steam/now");
+  return data;
+}
+
+export async function fetchSteamAppStore(appId: string) {
+  const { data } = await client.get<SteamAppStoreCard>(`/steam/apps/${appId}`);
   return data;
 }
 

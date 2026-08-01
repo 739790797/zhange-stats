@@ -14,6 +14,8 @@ from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
 from app.services.adapters.steam import SteamAdapter, SteamPresence
+from app.services.steam_game_names import display_name_for
+from app.services.steam_persona import apply_steam_persona_name
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +117,10 @@ def _apply_presence(
 
     status = presence.status
     app_id = presence.game_id
-    game_name = presence.game_extra_info or (
-        f"App {app_id}" if app_id else None
+    game_name = (
+        display_name_for(db, app_id, presence.game_extra_info)
+        if status == "playing"
+        else None
     )
 
     if status == "playing":
@@ -269,6 +273,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
         "friends_skipped_fresh": 0,
         "friends_private": 0,
         "friends_failed": 0,
+        "persona_updated": 0,
     }
 
     try:
@@ -311,6 +316,12 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
                 stats["skipped_private"] += 1
                 _maybe_close_stale(db, member, now, stale_after, stats)
                 continue
+            if apply_steam_persona_name(
+                member,
+                presence.persona_name,
+                avatar_url=presence.avatar_url,
+            ):
+                stats["persona_updated"] += 1
             _apply_presence(db, member, presence, now, stats)
 
         from app.services.steam_friends import ensure_friends_fresh
@@ -331,6 +342,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
             f"轮询 {stats['members']} 人，"
             f"玩 {stats['playing']} / 在线 {stats['online']} / 离线 {stats['offline']}，"
             f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}；"
+            f"昵称跟随 {stats['persona_updated']}；"
             f"好友同步 {stats['friends_synced']} / 跳过新鲜 {stats['friends_skipped_fresh']} / "
             f"未公开 {stats['friends_private']}"
         )

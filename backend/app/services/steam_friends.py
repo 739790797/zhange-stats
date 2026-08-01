@@ -10,10 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.member import Member
+from app.models.play_session import PlaySession
 from app.models.steam_friend import SteamFriendEdge
 from app.models.user import User
 from app.services.adapters.steam import SteamAdapter
 from app.services.member_sync import ensure_user_member
+from app.services.steam_game_names import display_name_for
 
 logger = logging.getLogger(__name__)
 
@@ -95,12 +97,22 @@ def sync_member_friends(db: Session, member: Member) -> FriendSyncResult:
 
     clear_member_friends(db, member.id)
     now = _utcnow()
+    nicknames: dict[str, str] = {}
+    try:
+        nicknames = adapter.fetch_nickname_list(steam_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.info(
+            "fetch steam nicknames skipped member=%s: %s", member.id, exc
+        )
+
     for item in friends:
+        sid = item["steam_id"]
         db.add(
             SteamFriendEdge(
                 member_id=member.id,
-                friend_steam_id=item["steam_id"],
+                friend_steam_id=sid,
                 friend_since=item.get("friend_since"),
+                nickname=nicknames.get(sid),
                 synced_at=now,
             )
         )
@@ -186,8 +198,6 @@ def list_viewer_steam_friends(
     db: Session, user: User, *, force: bool = False
 ) -> dict:
     """好友列表。冷却期内默认用缓存；force=True 或过期时从 Steam 同步。"""
-    from app.models.play_session import PlaySession
-
     member = ensure_user_member(db, user)
     bound = bool((member.steam_id or "").strip())
     did_sync = False
@@ -230,6 +240,11 @@ def list_viewer_steam_friends(
 
     friend_steam_ids = [e.friend_steam_id for e in edges]
     since_map = {e.friend_steam_id: e.friend_since for e in edges}
+    alias_map = {
+        e.friend_steam_id: e.nickname
+        for e in edges
+        if e.nickname and str(e.nickname).strip()
+    }
 
     site_by_steam: dict[str, Member] = {}
     if friend_steam_ids:
@@ -266,6 +281,7 @@ def list_viewer_steam_friends(
 
     playing_member_ids: set[int] = set()
     playing_game: dict[int, str] = {}
+    playing_app: dict[int, str] = {}
     # summaries 失败时，站内已绑定好友仍可用本地进行中会话兜底「游戏中」
     if site_by_steam and not players:
         site_ids = [m.id for m in site_by_steam.values()]
@@ -280,6 +296,8 @@ def list_viewer_steam_friends(
                 .all()
             ):
                 playing_member_ids.add(s.member_id)
+                if s.steam_app_id:
+                    playing_app[s.member_id] = s.steam_app_id
                 if s.game_name:
                     playing_game[s.member_id] = s.game_name
 
@@ -301,18 +319,30 @@ def list_viewer_steam_friends(
         elif site and site.id in playing_member_ids:
             status = "playing"
             game_name = playing_game.get(site.id)
-            app_id = None
+            app_id = playing_app.get(site.id)
         else:
             status = "offline"
             game_name = None
             app_id = None
 
+        if status == "playing" and (app_id or game_name):
+            game_name = display_name_for(db, app_id, game_name)
+
+        persona = (
+            p.get("personaname")
+            or (site.steam_persona_name if site else None)
+            or (site.nickname if site else None)
+            or sid
+        )
+        alias = alias_map.get(sid)
+        display = f"*{alias.strip()}" if alias and str(alias).strip() else persona
+
         friends.append(
             {
                 "steam_id": sid,
-                "persona_name": p.get("personaname")
-                or (site.nickname if site else None)
-                or sid,
+                "persona_name": display,
+                "steam_persona_name": persona,
+                "friend_nickname": alias,
                 "avatar_url": p.get("avatarfull")
                 or p.get("avatarmedium")
                 or p.get("avatar")

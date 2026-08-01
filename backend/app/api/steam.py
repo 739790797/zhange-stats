@@ -8,6 +8,7 @@ from app.core.deps import get_current_user, require_admin
 from app.models.user import User
 from app.schemas import (
     MemberPlayStatsResponse,
+    SteamAppStoreCard,
     SteamCalendarResponse,
     SteamDayResponse,
     SteamFriendsResponse,
@@ -16,6 +17,7 @@ from app.schemas import (
     SteamPollResult,
 )
 from app.services.steam_friends import list_viewer_steam_friends
+from app.services.steam_game_names import get_store_card
 from app.services.steam_poller import run_steam_presence_poll
 from app.services.steam_stats import (
     build_calendar,
@@ -111,6 +113,19 @@ def steam_now(
     user: User = Depends(get_current_user),
 ) -> list[dict]:
     return list_now_playing(db, user)
+
+
+@router.get("/apps/{app_id}", response_model=SteamAppStoreCard)
+def steam_app_store_card(
+    app_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> dict:
+    """商店悬停卡片：头图、简介、国区价格（含折扣）。"""
+    data = get_store_card(db, app_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="未找到该游戏的商店信息")
+    return data
 
 
 @router.post("/poll", response_model=SteamPollResult)

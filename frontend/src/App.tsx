@@ -1,8 +1,8 @@
 import { ConfigProvider } from "antd";
-import zhCN from "antd/locale/zh_CN";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
+import { antdLocale } from "@/locales/zhCN";
 import EmailSettingsPage from "@/pages/EmailSettingsPage";
 import FriendsPage from "@/pages/FriendsPage";
 import LoginPage from "@/pages/LoginPage";
@@ -18,15 +18,15 @@ export default function App() {
   return (
     <ConfigProvider
       locale={{
-        ...zhCN,
+        ...antdLocale,
         Modal: {
-          ...zhCN.Modal,
+          ...antdLocale.Modal,
           okText: "确定",
           cancelText: "取消",
-          justOkText: zhCN.Modal?.justOkText ?? "知道了",
+          justOkText: antdLocale.Modal?.justOkText ?? "知道了",
         },
         Popconfirm: {
-          ...zhCN.Popconfirm,
+          ...antdLocale.Popconfirm,
           okText: "确定",
           cancelText: "取消",
         },

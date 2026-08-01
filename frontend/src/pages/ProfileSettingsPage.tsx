@@ -219,7 +219,11 @@ export default function ProfileSettingsPage() {
     data?.nickname ||
     "-";
   const subjectLabel =
-    data?.display_name || data?.nickname || data?.email || `成员 #${targetMemberId}`;
+    data?.steam_persona_name ||
+    data?.display_name ||
+    data?.nickname ||
+    data?.email ||
+    `成员 #${targetMemberId}`;
 
   useEffect(() => {
     if (steamBound) setSteamPromptOpen(false);
@@ -254,56 +258,63 @@ export default function ProfileSettingsPage() {
 
       <Card title="个人信息" loading={isLoading} style={{ marginBottom: 24 }}>
         <Space align="start" size={20}>
-          <Upload
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            showUploadList={false}
-            beforeUpload={beforeUpload}
-            disabled={!!errMsg || !data || uploadAvatar.isPending}
-          >
-            <button
-              type="button"
-              title="点击上传头像"
-              style={{
-                position: "relative",
-                padding: 0,
-                border: "none",
-                background: "transparent",
-                cursor: errMsg || !data ? "not-allowed" : "pointer",
-                borderRadius: "50%",
-              }}
+          {steamBound ? (
+            <Avatar size={72} src={data?.avatar_url || undefined}>
+              {displayName !== "-" ? displayName[0] : "?"}
+            </Avatar>
+          ) : (
+            <Upload
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              showUploadList={false}
+              beforeUpload={beforeUpload}
+              disabled={!!errMsg || !data || uploadAvatar.isPending}
             >
-              <Avatar size={72} src={data?.avatar_url || undefined}>
-                {displayName !== "-" ? displayName[0] : "?"}
-              </Avatar>
-              <span
+              <button
+                type="button"
+                title="点击上传头像"
                 style={{
-                  position: "absolute",
-                  right: 0,
-                  bottom: 0,
-                  width: 24,
-                  height: 24,
+                  position: "relative",
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  cursor: errMsg || !data ? "not-allowed" : "pointer",
                   borderRadius: "50%",
-                  background: "#1a2332",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 12,
-                  boxShadow: "0 0 0 2px #fff",
                 }}
               >
-                <CameraOutlined />
-              </span>
-            </button>
-          </Upload>
+                <Avatar size={72} src={data?.avatar_url || undefined}>
+                  {displayName !== "-" ? displayName[0] : "?"}
+                </Avatar>
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    bottom: 0,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "#1a2332",
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    boxShadow: "0 0 0 2px #fff",
+                  }}
+                >
+                  <CameraOutlined />
+                </span>
+              </button>
+            </Upload>
+          )}
           <Descriptions column={1} size="small">
             <Descriptions.Item label="用户名">{displayName}</Descriptions.Item>
             <Descriptions.Item label="邮箱">{data?.email || "-"}</Descriptions.Item>
           </Descriptions>
         </Space>
         <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          点击头像可上传自定义头像（JPG / PNG / WebP / GIF，最大 5MB）。
-          绑定 Steam 后用户名自动同步；自定义头像不会被 Steam 覆盖。
+          {steamBound
+            ? "已绑定 Steam：头像与用户名始终跟随 Steam，轮询时自动同步。"
+            : "点击头像可上传自定义头像（JPG / PNG / WebP / GIF，最大 5MB）。绑定 Steam 后将改用 Steam 头像与昵称。"}
         </Typography.Paragraph>
       </Card>
 

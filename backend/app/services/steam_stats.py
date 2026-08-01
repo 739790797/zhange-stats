@@ -17,8 +17,18 @@ from app.services.steam_friends import (
     visibility_meta,
     visible_member_ids_for_user,
 )
+from app.services.steam_display import (
+    load_viewer_friend_aliases,
+    member_steam_presentation,
+)
+from app.services.steam_game_names import prefer_display_name, resolve_app_icons, resolve_app_names
 
 TZ = ZoneInfo("Asia/Shanghai")
+
+
+def _localize(app_id: str | None, fallback: str | None, names: dict[str, str]) -> str | None:
+    key = str(app_id).strip() if app_id else ""
+    return prefer_display_name(names.get(key) if key else None, fallback, key or None)
 
 
 def _to_aware(dt: datetime) -> datetime:
@@ -98,6 +108,7 @@ def build_calendar(
     db: Session, granularity: str, anchor: date, viewer: User
 ) -> dict:
     visible_ids = visible_member_ids_for_user(db, viewer)
+    aliases = load_viewer_friend_aliases(db, viewer)
     range_start, range_end = _range_for(granularity, anchor)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
@@ -123,10 +134,13 @@ def build_calendar(
         member = s.member
         mid = s.member_id
         if mid not in member_meta:
+            pres = member_steam_presentation(
+                member, aliases=aliases, fallback_id=mid
+            )
             member_meta[mid] = {
                 "member_id": mid,
-                "member_nickname": member.nickname if member else str(mid),
-                "avatar_url": member.avatar_url if member else None,
+                "member_nickname": pres["member_nickname"],
+                "avatar_url": pres["avatar_url"],
             }
             member_day_seconds[mid] = {k: 0 for k in day_seconds}
 
@@ -187,11 +201,12 @@ def build_calendar(
         for m in steam_members:
             if m.id in known:
                 continue
+            pres = member_steam_presentation(m, aliases=aliases)
             members.append(
                 {
                     "member_id": m.id,
-                    "member_nickname": m.nickname,
-                    "avatar_url": m.avatar_url,
+                    "member_nickname": pres["member_nickname"],
+                    "avatar_url": pres["avatar_url"],
                     "cells": [
                         {"date": k, "total_seconds": 0, "session_count": 0}
                         for k in day_seconds
@@ -263,6 +278,7 @@ def build_range_detail(
         raise ValueError("时间轴区间最长 31 天")
 
     visible_ids = visible_member_ids_for_user(db, viewer)
+    aliases = load_viewer_friend_aliases(db, viewer)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
     span_seconds = int((window_end - window_start).total_seconds())
@@ -271,6 +287,32 @@ def build_range_detail(
         db, window_start, window_end, member_ids=visible_ids
     )
     sessions = sorted(sessions, key=lambda s: _to_aware(s.started_at))
+
+    presence_rows = (
+        db.query(PresenceSegment)
+        .options(joinedload(PresenceSegment.member))
+        .filter(
+            PresenceSegment.source == "steam",
+            PresenceSegment.member_id.in_(visible_ids),
+            PresenceSegment.started_at < window_end,
+            (PresenceSegment.ended_at.is_(None))
+            | (PresenceSegment.ended_at >= window_start)
+            | (PresenceSegment.last_seen_at >= window_start),
+        )
+        .order_by(PresenceSegment.started_at.asc())
+        .all()
+        if visible_ids
+        else []
+    )
+    name_map = resolve_app_names(
+        db,
+        [s.steam_app_id for s in sessions]
+        + [seg.steam_app_id for seg in presence_rows],
+    )
+    icon_map = resolve_app_icons(
+        db,
+        [s.steam_app_id for s in sessions],
+    )
 
     items: list[dict] = []
     by_member: dict[int, dict] = {}
@@ -284,13 +326,18 @@ def build_range_detail(
             continue
         total_seconds += duration
         member = s.member
+        game_name = _localize(s.steam_app_id, s.game_name, name_map)
+        pres = member_steam_presentation(
+            member, aliases=aliases, fallback_id=s.member_id
+        )
         item = {
             "id": s.id,
             "member_id": s.member_id,
-            "member_nickname": member.nickname if member else str(s.member_id),
-            "avatar_url": member.avatar_url if member else None,
+            "member_nickname": pres["member_nickname"],
+            "avatar_url": pres["avatar_url"],
             "steam_app_id": s.steam_app_id,
-            "game_name": s.game_name,
+            "game_name": game_name,
+            "icon_url": icon_map.get(s.steam_app_id),
             "started_at": s.started_at,
             "last_seen_at": s.last_seen_at,
             "ended_at": s.ended_at,
@@ -310,8 +357,8 @@ def build_range_detail(
             }
             by_member[s.member_id] = summary
         summary["total_seconds"] += duration
-        if s.game_name not in summary["games"]:
-            summary["games"].append(s.game_name)
+        if game_name and game_name not in summary["games"]:
+            summary["games"].append(game_name)
 
     member_list = sorted(
         by_member.values(), key=lambda x: x["total_seconds"], reverse=True
@@ -331,22 +378,8 @@ def build_range_detail(
         else []
     )
 
-    presence_rows = (
-        db.query(PresenceSegment)
-        .options(joinedload(PresenceSegment.member))
-        .filter(
-            PresenceSegment.source == "steam",
-            PresenceSegment.member_id.in_(visible_ids),
-            PresenceSegment.started_at < window_end,
-            (PresenceSegment.ended_at.is_(None))
-            | (PresenceSegment.ended_at >= window_start)
-            | (PresenceSegment.last_seen_at >= window_start),
-        )
-        .order_by(PresenceSegment.started_at.asc())
-        .all()
-        if visible_ids
-        else []
-    )
+    vis = visibility_meta(db, viewer, visible_ids)
+    self_id = vis.get("self_member_id")
 
     segments_by_member: dict[int, list[dict]] = {m.id: [] for m in steam_members}
     games_legend: dict[str, str] = {}
@@ -367,17 +400,22 @@ def build_range_detail(
         start_sec, end_sec = clipped
         if member_id not in segments_by_member:
             segments_by_member[member_id] = []
+        localized = (
+            _localize( app_id, game_name, name_map)
+            if status == "playing"
+            else game_name
+        )
         segments_by_member[member_id].append(
             {
                 "status": status,
                 "steam_app_id": app_id,
-                "game_name": game_name,
+                "game_name": localized,
                 "start_sec": start_sec,
                 "end_sec": end_sec,
             }
         )
         if status == "playing" and app_id:
-            games_legend[app_id] = game_name or f"App {app_id}"
+            games_legend[app_id] = localized or f"App {app_id}"
 
     if presence_rows:
         for seg in presence_rows:
@@ -410,17 +448,29 @@ def build_range_detail(
     timeline = []
     for m in steam_members:
         segs = sorted(segments_by_member.get(m.id, []), key=lambda x: x["start_sec"])
+        pres = member_steam_presentation(m, aliases=aliases)
         timeline.append(
             {
                 "member_id": m.id,
-                "member_nickname": m.nickname,
-                "avatar_url": m.avatar_url,
+                "member_nickname": pres["member_nickname"],
+                "avatar_url": pres["avatar_url"],
                 "segments": segs,
             }
         )
 
     timeline.sort(
-        key=lambda row: (0 if row["segments"] else 1, row["member_nickname"])
+        key=lambda row: (
+            0 if row["member_id"] == self_id else 1,
+            0 if row["segments"] else 1,
+            row["member_nickname"],
+        )
+    )
+    member_list.sort(
+        key=lambda row: (
+            0 if row["member_id"] == self_id else 1,
+            -row["total_seconds"],
+            row["member_nickname"],
+        )
     )
 
     return {
@@ -435,7 +485,7 @@ def build_range_detail(
         "games_legend": [
             {"steam_app_id": k, "game_name": v} for k, v in sorted(games_legend.items())
         ],
-        "visibility": visibility_meta(db, viewer, visible_ids),
+        "visibility": vis,
     }
 
 
@@ -443,11 +493,12 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
     visible_ids = visible_member_ids_for_user(db, viewer)
     if not visible_ids:
         return []
+    aliases = load_viewer_friend_aliases(db, viewer)
     sessions = (
         db.query(PlaySession)
         .options(joinedload(PlaySession.member))
         .filter(
-            PlaySession.source == "steam",
+            PlaySession.source.in_(("steam", "demo")),
             PlaySession.ended_at.is_(None),
             PlaySession.member_id.in_(visible_ids),
         )
@@ -455,17 +506,23 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
         .all()
     )
     now = datetime.now(timezone.utc)
+    name_map = resolve_app_names(db, [s.steam_app_id for s in sessions])
+    icon_map = resolve_app_icons(db, [s.steam_app_id for s in sessions])
     result = []
     for s in sessions:
         start = _to_aware(s.started_at)
+        pres = member_steam_presentation(
+            s.member, aliases=aliases, fallback_id=s.member_id
+        )
         result.append(
             {
                 "id": s.id,
                 "member_id": s.member_id,
-                "member_nickname": s.member.nickname if s.member else str(s.member_id),
-                "avatar_url": s.member.avatar_url if s.member else None,
+                "member_nickname": pres["member_nickname"],
+                "avatar_url": pres["avatar_url"],
                 "steam_app_id": s.steam_app_id,
-                "game_name": s.game_name,
+                "game_name": _localize(s.steam_app_id, s.game_name, name_map),
+                "icon_url": icon_map.get(s.steam_app_id),
                 "started_at": s.started_at,
                 "last_seen_at": s.last_seen_at,
                 "duration_seconds": max(0, int((now - start).total_seconds())),
@@ -477,6 +534,7 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
 def build_overview(db: Session, viewer: User) -> dict:
     """圈子 Steam 总览：仅自己与 Steam 好友。"""
     visible_ids = visible_member_ids_for_user(db, viewer)
+    aliases = load_viewer_friend_aliases(db, viewer)
     today = datetime.now(TZ).date()
     week_start = today - timedelta(days=today.weekday())
     window_start, _ = _day_bounds(week_start)
@@ -515,6 +573,7 @@ def build_overview(db: Session, viewer: User) -> dict:
     recent = recent_q.order_by(PlaySession.started_at.desc()).limit(20).all()
     recent_sessions = []
     now = datetime.now(timezone.utc)
+    name_map = resolve_app_names(db, [s.steam_app_id for s in recent])
     for s in recent:
         end = _session_end(s)
         start = _to_aware(s.started_at)
@@ -522,14 +581,17 @@ def build_overview(db: Session, viewer: User) -> dict:
             duration = max(0, int((now - start).total_seconds()))
         else:
             duration = max(0, int((end - start).total_seconds()))
+        pres = member_steam_presentation(
+            s.member, aliases=aliases, fallback_id=s.member_id
+        )
         recent_sessions.append(
             {
                 "id": s.id,
                 "member_id": s.member_id,
-                "member_nickname": s.member.nickname if s.member else str(s.member_id),
-                "avatar_url": s.member.avatar_url if s.member else None,
+                "member_nickname": pres["member_nickname"],
+                "avatar_url": pres["avatar_url"],
                 "steam_app_id": s.steam_app_id,
-                "game_name": s.game_name,
+                "game_name": _localize(s.steam_app_id, s.game_name, name_map),
                 "started_at": s.started_at,
                 "ended_at": s.ended_at,
                 "duration_seconds": duration,
@@ -612,6 +674,7 @@ def build_member_play_stats(
         .all()
     )
     now = datetime.now(timezone.utc)
+    name_map = resolve_app_names(db, [s.steam_app_id for s in recent])
     recent_sessions = []
     for s in recent:
         start = _to_aware(s.started_at)
@@ -627,7 +690,7 @@ def build_member_play_stats(
                 "member_nickname": member.nickname,
                 "avatar_url": member.avatar_url,
                 "steam_app_id": s.steam_app_id,
-                "game_name": s.game_name,
+                "game_name": _localize( s.steam_app_id, s.game_name, name_map),
                 "started_at": s.started_at,
                 "ended_at": s.ended_at,
                 "duration_seconds": duration,

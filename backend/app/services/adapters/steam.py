@@ -19,6 +19,7 @@ class SteamPresence:
     persona_state: int | None
     game_id: str | None
     game_extra_info: str | None
+    avatar_url: str | None = None
 
     @property
     def is_playing(self) -> bool:
@@ -150,6 +151,54 @@ class SteamAdapter(BaseGameAdapter):
             )
         return result
 
+    def fetch_nickname_list(self, steam_id: str) -> dict[str, str]:
+        """拉取用户给好友设置的备注名。
+
+        需要用户级 access token；Publisher Web API Key 通常会 401，此时返回空。
+        """
+        if not self.api_key:
+            raise RuntimeError("STEAM_API_KEY 未配置")
+        params = urllib.parse.urlencode(
+            {
+                "key": self.api_key,
+                "steamid": steam_id,
+                "format": "json",
+            }
+        )
+        url = (
+            "https://api.steampowered.com/IPlayerService/GetNicknameList/v1/"
+            f"?{params}"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "zhange-stats/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return {}
+            body = exc.read().decode("utf-8", errors="ignore")
+            raise RuntimeError(f"Steam NicknameList HTTP {exc.code}: {body}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Steam NicknameList 网络错误: {exc}") from exc
+
+        nicknames = (raw or {}).get("response", {}).get("nicknames") or []
+        result: dict[str, str] = {}
+        steamid64_base = 76561197960265728
+        for item in nicknames:
+            nick = str(item.get("nickname") or "").strip()
+            if not nick:
+                continue
+            sid = str(item.get("steamid") or "").strip()
+            if not sid and item.get("accountid") is not None:
+                try:
+                    sid = str(steamid64_base + int(item["accountid"]))
+                except (TypeError, ValueError):
+                    continue
+            if not sid:
+                continue
+            result[sid] = nick[:64]
+        return result
+
     def parse_presences(self, raw: dict[str, Any]) -> list[SteamPresence]:
         players = (raw or {}).get("response", {}).get("players", []) or []
         result: list[SteamPresence] = []
@@ -164,6 +213,9 @@ class SteamAdapter(BaseGameAdapter):
                     else None,
                     game_id=str(game_id) if game_id else None,
                     game_extra_info=p.get("gameextrainfo"),
+                    avatar_url=p.get("avatarfull")
+                    or p.get("avatarmedium")
+                    or p.get("avatar"),
                 )
             )
         return result

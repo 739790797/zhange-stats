@@ -20,6 +20,7 @@ class SteamFriendEdge(Base):
     )
     friend_steam_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     friend_since: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

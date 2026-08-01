@@ -147,6 +147,7 @@ class SteamDaySessionItem(BaseModel):
     avatar_url: str | None
     steam_app_id: str
     game_name: str
+    icon_url: str | None = None
     started_at: datetime
     last_seen_at: datetime
     ended_at: datetime | None
@@ -202,6 +203,7 @@ class SteamNowItem(BaseModel):
     avatar_url: str | None
     steam_app_id: str
     game_name: str
+    icon_url: str | None = None
     started_at: datetime
     last_seen_at: datetime
     duration_seconds: int
@@ -210,6 +212,8 @@ class SteamNowItem(BaseModel):
 class SteamFriendItem(BaseModel):
     steam_id: str
     persona_name: str
+    steam_persona_name: str | None = None
+    friend_nickname: str | None = None
     avatar_url: str | None = None
     profile_url: str | None = None
     status: str  # offline | online | playing
@@ -236,6 +240,23 @@ class SteamPollResult(BaseModel):
     status: str
     message: str | None = None
     stats: dict[str, Any] | None = None
+
+
+class SteamAppStoreCard(BaseModel):
+    steam_app_id: str
+    name: str | None = None
+    header_image: str | None = None
+    capsule_image: str | None = None
+    icon_url: str | None = None
+    short_description: str | None = None
+    is_free: bool = False
+    currency: str | None = None
+    initial_price: int | None = None
+    final_price: int | None = None
+    discount_percent: int = 0
+    initial_formatted: str | None = None
+    final_formatted: str | None = None
+    store_url: str
 
 
 class SteamSessionBrief(BaseModel):

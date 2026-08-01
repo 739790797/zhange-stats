@@ -55,12 +55,17 @@ def _profile_from_member(
             show_email = _is_admin_user(viewer) or (
                 user is not None and user.id == viewer.id
             )
+    persona = (
+        steam_persona_name
+        if steam_persona_name is not None
+        else member.steam_persona_name
+    )
     return MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
         avatar_url=member.avatar_url,
         steam_id=member.steam_id,
-        steam_persona_name=steam_persona_name,
+        steam_persona_name=persona,
         steam_friends_public=member.steam_friends_public,
         steam_friends_synced_at=member.steam_friends_synced_at,
         user_id=member.user_id,
@@ -96,6 +101,7 @@ def _normalize_email(email: str) -> str:
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
     """绑定或解绑 Steam；绑定时校验公开资料并同步头像。返回 Steam 昵称（解绑为 None）。"""
     from app.services.steam_friends import clear_member_friends, sync_member_friends
+    from app.services.steam_persona import force_set_steam_persona_name
 
     value = (steam_id or "").strip() or None
     if not value:
@@ -105,6 +111,7 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         member.avatar_url = None
         member.steam_friends_public = None
         member.steam_friends_synced_at = None
+        member.steam_persona_name = None
         clear_member_friends(db, member.id)
         user = member.user
         if user is None and member.user_id is not None:
@@ -131,16 +138,16 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         raise HTTPException(status_code=400, detail="该 Steam 账号已被其他成员绑定")
 
     member.steam_id = profile.steam_id
-    # 已上传自定义头像时，不被 Steam 头像覆盖
-    if profile.avatar_url and not is_custom_avatar_url(member.avatar_url):
-        member.avatar_url = profile.avatar_url
-    if profile.persona_name:
-        member.nickname = profile.persona_name
-        user = member.user
-        if user is None and member.user_id is not None:
-            user = db.query(User).filter(User.id == member.user_id).first()
-        if user:
-            user.display_name = profile.persona_name
+    user = member.user
+    if user is None and member.user_id is not None:
+        user = db.query(User).filter(User.id == member.user_id).first()
+    force_set_steam_persona_name(
+        member,
+        profile.persona_name,
+        user=user,
+        update_display=True,
+        avatar_url=profile.avatar_url,
+    )
     sync_member_friends(db, member)
     return profile.persona_name
 

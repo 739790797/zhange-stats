@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.6** — 圈子 Steam 游玩统计：今天谁在玩、好友日历、个人资料与 Steam 绑定。
+**v0.1.7** — 圈子 Steam 游玩统计：今天谁在玩、好友日历、个人资料与 Steam 绑定。
 
 ## 功能
 
@@ -56,7 +56,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.6` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.7` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。生产需先更新本机的 `compose.yml` 再 `docker compose up -d` 一次以启动 Watchtower。
 
@@ -76,7 +76,7 @@ zhange-stats/
 
 ```
 users 1 ── 1 members ── * play_sessions / presence_segments / steam_friend_edges
-system_configs · register_challenges · job_runs
+system_configs · register_challenges · job_runs · steam_apps
 ```
 
 | 表 | 用途 |
@@ -89,6 +89,7 @@ system_configs · register_challenges · job_runs
 | `job_runs` | 轮询任务日志 |
 | `system_configs` | 系统配置（如 SMTP） |
 | `register_challenges` | 注册验证码 |
+| `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
 
 启动时会 DROP 已废弃表：`games` / `match_records` / `cs2_*`。
 

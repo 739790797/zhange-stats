@@ -15,6 +15,7 @@ class Member(Base):
     steam_id: Mapped[str | None] = mapped_column(
         String(32), unique=True, nullable=True, index=True
     )
+    steam_persona_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     steam_friends_public: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     steam_friends_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

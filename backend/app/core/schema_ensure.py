@@ -61,6 +61,13 @@ def ensure_schema(engine: Engine) -> None:
                         "DATETIME(6) NULL"
                     )
                 )
+            if "steam_persona_name" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE members ADD COLUMN steam_persona_name "
+                        "VARCHAR(64) NULL"
+                    )
+                )
             _drop_columns(
                 conn,
                 "members",
@@ -83,6 +90,7 @@ def ensure_schema(engine: Engine) -> None:
                         member_id INT NOT NULL,
                         friend_steam_id VARCHAR(32) NOT NULL,
                         friend_since INT NULL,
+                        nickname VARCHAR(64) NULL,
                         synced_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                         PRIMARY KEY (id),
                         CONSTRAINT uq_steam_friend_edge UNIQUE (member_id, friend_steam_id),
@@ -95,6 +103,16 @@ def ensure_schema(engine: Engine) -> None:
                     """
                 )
             )
+    else:
+        edge_cols = {c["name"] for c in inspector.get_columns("steam_friend_edges")}
+        if "nickname" not in edge_cols:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE steam_friend_edges ADD COLUMN nickname "
+                        "VARCHAR(64) NULL"
+                    )
+                )
 
     if "users" in tables:
         columns = {c["name"] for c in inspector.get_columns("users")}
