@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.timeutil import day_bounds, ensure, now, to_naive, today
 from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -23,8 +23,6 @@ from app.services.steam_display import (
 )
 from app.services.steam_game_names import prefer_display_name, resolve_app_icons, resolve_app_names
 
-TZ = ZoneInfo("Asia/Shanghai")
-
 
 def _localize(app_id: str | None, fallback: str | None, names: dict[str, str]) -> str | None:
     key = str(app_id).strip() if app_id else ""
@@ -32,18 +30,21 @@ def _localize(app_id: str | None, fallback: str | None, names: dict[str, str]) -
 
 
 def _to_aware(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
+    return ensure(dt)
 
 
-def _session_end(session: PlaySession, now: datetime | None = None) -> datetime:
+def _to_db_naive(dt: datetime) -> datetime:
+    """库内 DateTime 存北京墙钟；查询窗口转成 naive 再比较。"""
+    return to_naive(dt)
+
+
+def _session_end(session: PlaySession, now_dt: datetime | None = None) -> datetime:
     if session.ended_at is not None:
         return _to_aware(session.ended_at)
     end = _to_aware(session.last_seen_at)
-    if now is None:
-        now = datetime.now(timezone.utc)
-    return max(end, now)
+    if now_dt is None:
+        now_dt = now()
+    return max(end, now_dt)
 
 
 def _overlap_seconds(
@@ -72,9 +73,7 @@ def _range_for(granularity: str, anchor: date) -> tuple[date, date]:
 
 
 def _day_bounds(d: date) -> tuple[datetime, datetime]:
-    start = datetime(d.year, d.month, d.day, tzinfo=TZ)
-    end = start + timedelta(days=1)
-    return start, end
+    return day_bounds(d)
 
 
 def _sessions_in_window(
@@ -84,15 +83,17 @@ def _sessions_in_window(
     member_id: int | None = None,
     member_ids: set[int] | None = None,
 ) -> list[PlaySession]:
+    ws = _to_db_naive(window_start)
+    we = _to_db_naive(window_end)
     q = (
         db.query(PlaySession)
         .options(joinedload(PlaySession.member))
         .filter(
             PlaySession.source == "steam",
-            PlaySession.started_at < window_end,
+            PlaySession.started_at < we,
             (PlaySession.ended_at.is_(None))
-            | (PlaySession.ended_at >= window_start)
-            | (PlaySession.last_seen_at >= window_start),
+            | (PlaySession.ended_at >= ws)
+            | (PlaySession.last_seen_at >= ws),
         )
     )
     if member_id is not None:
@@ -144,8 +145,8 @@ def build_calendar(
             }
             member_day_seconds[mid] = {k: 0 for k in day_seconds}
 
-        sess_start = _to_aware(s.started_at).astimezone(TZ).date()
-        sess_end = _session_end(s).astimezone(TZ).date()
+        sess_start = _to_aware(s.started_at).date()
+        sess_end = _session_end(s).date()
         d = max(sess_start, range_start)
         last = min(sess_end, range_end)
         while d <= last:
@@ -236,10 +237,10 @@ def build_calendar(
     }
 
 
-def _presence_end(seg: PresenceSegment, now: datetime) -> datetime:
+def _presence_end(seg: PresenceSegment, now_dt: datetime) -> datetime:
     if seg.ended_at is not None:
         return _to_aware(seg.ended_at)
-    return max(_to_aware(seg.last_seen_at), now)
+    return max(_to_aware(seg.last_seen_at), now_dt)
 
 
 def _clip_to_window(
@@ -282,7 +283,7 @@ def build_range_detail(
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
     span_seconds = int((window_end - window_start).total_seconds())
-    now = datetime.now(timezone.utc)
+    now_dt = now()
     sessions = _sessions_in_window(
         db, window_start, window_end, member_ids=visible_ids
     )
@@ -294,10 +295,10 @@ def build_range_detail(
         .filter(
             PresenceSegment.source == "steam",
             PresenceSegment.member_id.in_(visible_ids),
-            PresenceSegment.started_at < window_end,
+            PresenceSegment.started_at < _to_db_naive(window_end),
             (PresenceSegment.ended_at.is_(None))
-            | (PresenceSegment.ended_at >= window_start)
-            | (PresenceSegment.last_seen_at >= window_start),
+            | (PresenceSegment.ended_at >= _to_db_naive(window_start))
+            | (PresenceSegment.last_seen_at >= _to_db_naive(window_start)),
         )
         .order_by(PresenceSegment.started_at.asc())
         .all()
@@ -425,7 +426,7 @@ def build_range_detail(
                 seg.steam_app_id,
                 seg.game_name,
                 _to_aware(seg.started_at),
-                _presence_end(seg, now),
+                _presence_end(seg, now_dt),
             )
     else:
         for s in sessions:
@@ -435,7 +436,7 @@ def build_range_detail(
                 s.steam_app_id,
                 s.game_name,
                 _to_aware(s.started_at),
-                _session_end(s) if s.ended_at is not None else max(_session_end(s), now),
+                _session_end(s) if s.ended_at is not None else max(_session_end(s), now_dt),
             )
 
     known_ids = {m.id for m in steam_members}
@@ -505,7 +506,7 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
         .order_by(PlaySession.started_at.desc())
         .all()
     )
-    now = datetime.now(timezone.utc)
+    now_dt = now()
     name_map = resolve_app_names(db, [s.steam_app_id for s in sessions])
     icon_map = resolve_app_icons(db, [s.steam_app_id for s in sessions])
     result = []
@@ -525,7 +526,7 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
                 "icon_url": icon_map.get(s.steam_app_id),
                 "started_at": s.started_at,
                 "last_seen_at": s.last_seen_at,
-                "duration_seconds": max(0, int((now - start).total_seconds())),
+                "duration_seconds": max(0, int((now_dt - start).total_seconds())),
             }
         )
     return result
@@ -535,10 +536,10 @@ def build_overview(db: Session, viewer: User) -> dict:
     """圈子 Steam 总览：仅自己与 Steam 好友。"""
     visible_ids = visible_member_ids_for_user(db, viewer)
     aliases = load_viewer_friend_aliases(db, viewer)
-    today = datetime.now(TZ).date()
-    week_start = today - timedelta(days=today.weekday())
+    today_d = today()
+    week_start = today_d - timedelta(days=today.weekday())
     window_start, _ = _day_bounds(week_start)
-    _, window_end = _day_bounds(today)
+    _, window_end = _day_bounds(today_d)
 
     members = (
         db.query(Member)
@@ -572,13 +573,13 @@ def build_overview(db: Session, viewer: User) -> dict:
         recent_q = recent_q.filter(PlaySession.id < 0)
     recent = recent_q.order_by(PlaySession.started_at.desc()).limit(20).all()
     recent_sessions = []
-    now = datetime.now(timezone.utc)
+    now_dt = now()
     name_map = resolve_app_names(db, [s.steam_app_id for s in recent])
     for s in recent:
         end = _session_end(s)
         start = _to_aware(s.started_at)
         if s.ended_at is None:
-            duration = max(0, int((now - start).total_seconds()))
+            duration = max(0, int((now_dt - start).total_seconds()))
         else:
             duration = max(0, int((end - start).total_seconds()))
         pres = member_steam_presentation(
@@ -622,16 +623,16 @@ def build_member_play_stats(
     if not can_view_member_steam(db, viewer, member_id):
         return None
 
-    today = datetime.now(TZ).date()
-    week_start = today - timedelta(days=today.weekday())
-    month_start = today.replace(day=1)
-    trend_start = today - timedelta(days=13)
+    today_d = today()
+    week_start = today_d - timedelta(days=today.weekday())
+    month_start = today_d.replace(day=1)
+    trend_start = today_d - timedelta(days=13)
 
     week_ws, _ = _day_bounds(week_start)
-    _, week_we = _day_bounds(today)
+    _, week_we = _day_bounds(today_d)
     month_ws, _ = _day_bounds(month_start)
     trend_ws, _ = _day_bounds(trend_start)
-    _, day_we = _day_bounds(today)
+    _, day_we = _day_bounds(today_d)
 
     all_for_month = _sessions_in_window(db, month_ws, day_we, member_id=member_id)
 
@@ -646,7 +647,7 @@ def build_member_play_stats(
     trend_sessions = _sessions_in_window(db, trend_ws, day_we, member_id=member_id)
     trend: list[dict] = []
     d = trend_start
-    while d <= today:
+    while d <= today_d:
         day_start, day_end = _day_bounds(d)
         seconds = 0
         count = 0
@@ -673,14 +674,14 @@ def build_member_play_stats(
         .limit(50)
         .all()
     )
-    now = datetime.now(timezone.utc)
+    now_dt = now()
     name_map = resolve_app_names(db, [s.steam_app_id for s in recent])
     recent_sessions = []
     for s in recent:
         start = _to_aware(s.started_at)
         end = _session_end(s)
         if s.ended_at is None:
-            duration = max(0, int((now - start).total_seconds()))
+            duration = max(0, int((now_dt - start).total_seconds()))
         else:
             duration = max(0, int((end - start).total_seconds()))
         recent_sessions.append(

@@ -11,16 +11,11 @@ import {
   Typography,
   message,
 } from "antd";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { Link } from "react-router-dom";
 import { fetchSteamFriends } from "@/api/client";
 import type { SteamFriendItem } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
+import { formatBeijing, formatUnixBeijing } from "@/lib/time";
 
 function statusTag(status: string) {
   if (status === "playing") return <Tag color="green">游戏中</Tag>;
@@ -30,7 +25,7 @@ function statusTag(status: string) {
 
 function formatSyncTime(iso: string | null | undefined) {
   if (!iso) return null;
-  return dayjs.utc(iso).tz("Asia/Shanghai").format("YYYY-MM-DD HH:mm:ss");
+  return formatBeijing(iso);
 }
 
 export default function FriendsPage() {
@@ -167,7 +162,7 @@ export default function FriendsPage() {
             dataIndex: "friend_since",
             width: 140,
             render: (ts: number | null) =>
-              ts ? dayjs.unix(ts).format("YYYY-MM-DD") : "—",
+              ts ? formatUnixBeijing(ts, "YYYY-MM-DD") : "—",
           },
         ]}
       />

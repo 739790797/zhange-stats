@@ -12,7 +12,7 @@ import {
   Typography,
   message,
 } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
+import { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchSteamDay,
@@ -26,6 +26,7 @@ import type {
 } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { datePickerLocale } from "@/locales/zhCN";
+import { nowBeijing, parseBeijing } from "@/lib/time";
 import { useAuthStore } from "@/stores/authStore";
 
 type Granularity = "day" | "week" | "month" | "year";
@@ -211,22 +212,8 @@ function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        {groups.map((group) => (
-          <div
-            key={group.steam_app_id || group.game_name}
-            style={{
-              width: 260,
-              flex: "0 0 260px",
-              boxSizing: "border-box",
-              border: "1px solid #f0f0f0",
-              borderRadius: 10,
-              background: "#fff",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
+        {groups.map((group) => {
+          const header = (
             <div
               style={{
                 display: "flex",
@@ -272,6 +259,48 @@ function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
                 </div>
               </div>
             </div>
+          );
+          return (
+          <div
+            key={group.steam_app_id || group.game_name}
+            style={{
+              width: 260,
+              flex: "0 0 260px",
+              boxSizing: "border-box",
+              border: "1px solid #f0f0f0",
+              borderRadius: 10,
+              background: "#fff",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {group.steam_app_id ? (
+              <Tooltip
+                color="#ffffff"
+                mouseEnterDelay={0.25}
+                destroyTooltipOnHide
+                overlayInnerStyle={{
+                  padding: 0,
+                  overflow: "hidden",
+                  borderRadius: 8,
+                  minHeight: 0,
+                  minWidth: 0,
+                  boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                }}
+                title={
+                  <GameStoreHoverCard
+                    appId={group.steam_app_id}
+                    fallbackName={group.game_name}
+                  />
+                }
+              >
+                {header}
+              </Tooltip>
+            ) : (
+              header
+            )}
             <div
               style={{
                 padding: "8px 10px 10px",
@@ -318,7 +347,8 @@ function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -715,7 +745,7 @@ export default function SteamCalendarPage() {
   const queryClient = useQueryClient();
   const isAdmin = useAuthStore((s) => s.user?.is_admin);
   const [granularity, setGranularity] = useState<Granularity>("day");
-  const [anchor, setAnchor] = useState(dayjs());
+  const [anchor, setAnchor] = useState(() => nowBeijing());
 
   const weekRangeStart = useMemo(() => anchor.startOf("isoWeek"), [anchor]);
   const weekRangeEnd = useMemo(
@@ -771,7 +801,7 @@ export default function SteamCalendarPage() {
   const spanSeconds =
     timelineData?.span_seconds ??
     (granularity === "week" ? 7 * DAY_SECONDS : DAY_SECONDS);
-  const timelineStart = dayjs(
+  const timelineStart = parseBeijing(
     timelineData?.range_start ??
       (granularity === "week"
         ? weekRangeStart.format("YYYY-MM-DD")
@@ -830,7 +860,9 @@ export default function SteamCalendarPage() {
                 locale={datePickerLocale}
                 value={anchor}
                 allowClear={false}
-                onChange={(d) => d && setAnchor(d.startOf("isoWeek"))}
+                onChange={(d) =>
+                  d && setAnchor(parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"))
+                }
                 style={{ width: 180 }}
               />
             ) : (
@@ -838,7 +870,9 @@ export default function SteamCalendarPage() {
                 locale={datePickerLocale}
                 value={anchor}
                 allowClear={false}
-                onChange={(d) => d && setAnchor(d)}
+                onChange={(d) =>
+                  d && setAnchor(parseBeijing(d.format("YYYY-MM-DD")))
+                }
                 style={{ width: 150 }}
               />
             )}

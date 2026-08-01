@@ -10,8 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from app.api import auth, members, profile, steam, update
 from app.api import settings as settings_api
 from app.core.config import get_settings
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
+from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.models import job_run as _job_run  # noqa: F401
 from app.models import member as _member  # noqa: F401
 from app.models import play_session as _play_session  # noqa: F401
@@ -44,6 +45,7 @@ async def lifespan(_: FastAPI):
     _ensure_upload_root()
     db = SessionLocal()
     try:
+        ensure_beijing_time_storage(db, engine)
         seed_data(db)
         sync_users_and_members(db)
     finally:

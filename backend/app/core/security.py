@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
+from app.core.timeutil import utc_now
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
@@ -19,7 +20,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(
+    expire = utc_now() + timedelta(
         minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
     payload = {"sub": subject, "exp": expire}

@@ -11,16 +11,11 @@ import {
   Tag,
   Typography,
 } from "antd";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { useParams } from "react-router-dom";
 import { fetchMemberPlayStats } from "@/api/client";
 import { formatDuration } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
+import { formatBeijing } from "@/lib/time";
 
 export default function MemberDetailPage() {
   const { id } = useParams();
@@ -134,8 +129,7 @@ export default function MemberDetailPage() {
           {
             title: "开始",
             dataIndex: "started_at",
-            render: (v: string) =>
-              dayjs.utc(v).tz("Asia/Shanghai").format("YYYY-MM-DD HH:mm"),
+            render: (v: string) => formatBeijing(v, "YYYY-MM-DD HH:mm"),
           },
           { title: "游戏", dataIndex: "game_name" },
           {

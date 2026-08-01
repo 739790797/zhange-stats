@@ -9,12 +9,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Iterable
 
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.timeutil import now_naive, to_naive
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
 from app.models.steam_app import SteamApp
@@ -46,13 +47,12 @@ class StoreDetails:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return now_naive()
 
 
 def _aware(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
+    """库内时间规范为北京墙钟 naive，便于与 _utcnow() 比较。"""
+    return to_naive(dt)
 
 
 def has_cjk(text: str | None) -> bool:
@@ -76,19 +76,27 @@ def prefer_display_name(
     return None
 
 
+_MIN_ICON_BYTES = 4096
+
+
 def _strip_html(text: str) -> str:
     cleaned = re.sub(r"<[^>]+>", " ", text)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
 
-def _http_url_ok(url: str, *, timeout: float = 8) -> bool:
-    req = urllib.request.Request(
-        url, method="HEAD", headers={"User-Agent": _UA}
-    )
+def _http_image_usable(url: str, *, timeout: float = 8) -> bool:
+    """GET 校验图片是否真实可用（Steam 对缺失库封面常返回 200 + 极小占位图）。"""
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return 200 <= int(resp.status) < 300
+            if not (200 <= int(resp.status) < 300):
+                return False
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            if ctype and "image" not in ctype and "octet-stream" not in ctype:
+                return False
+            data = resp.read()
+            return len(data) >= _MIN_ICON_BYTES
     except (
         urllib.error.URLError,
         urllib.error.HTTPError,
@@ -106,13 +114,19 @@ def _pick_icon_url(
     library = (
         f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900.jpg"
     )
-    if _http_url_ok(library):
+    if _http_image_usable(library):
         return library
+    if capsule and _http_image_usable(capsule):
+        return capsule
     if capsule:
         return capsule
     if header:
         return header
     return None
+
+
+def _cached_icon_looks_placeholder(url: str | None) -> bool:
+    return bool(url and "library_600x900.jpg" in url)
 
 
 def fetch_store_details(
@@ -326,7 +340,21 @@ def resolve_app_icons(
 
     for app_id in ids:
         row = by_id.get(app_id)
-        if row and row.icon_url and _details_fresh(row, now):
+        if (
+            row
+            and row.icon_url
+            and _details_fresh(row, now)
+            and not _cached_icon_looks_placeholder(row.icon_url)
+        ):
+            result[app_id] = row.icon_url
+            continue
+        if (
+            row
+            and row.icon_url
+            and _details_fresh(row, now)
+            and _cached_icon_looks_placeholder(row.icon_url)
+            and _http_image_usable(row.icon_url)
+        ):
             result[app_id] = row.icon_url
             continue
         if not fetch_missing:

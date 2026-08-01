@@ -9,13 +9,14 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.database import SessionLocal
 from app.core.security import hash_password
+from app.core.timeutil import now_naive
 from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -73,7 +74,7 @@ AVATAR_POOL = [
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return now_naive()
 
 
 def ensure_demo_user(

@@ -6,12 +6,13 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from jose import JWTError, jwt
 
 from app.core.config import get_settings
 from app.core.security import ALGORITHM
+from app.core.timeutil import utc_now
 
 STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login"
 CLAIMED_ID_RE = re.compile(
@@ -30,7 +31,7 @@ def create_openid_state(
         "purpose": "steam_openid_bind",
         "uid": user_id,
         "mid": member_id,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=expires_minutes),
+        "exp": utc_now() + timedelta(minutes=expires_minutes),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 

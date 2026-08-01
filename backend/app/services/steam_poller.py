@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
+from app.core.timeutil import ensure, now_naive
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.play_session import PlaySession
@@ -23,14 +24,13 @@ JOB_KEY = "steam_presence"
 _poll_lock = threading.Lock()
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+def _now() -> datetime:
+    return now_naive()
 
 
 def _aware(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
+    """读库时间规范为北京墙钟 naive，便于与 _now() 比较。"""
+    return ensure(dt).replace(tzinfo=None)
 
 
 def _open_presences(db: Session, member_id: int) -> list[PresenceSegment]:
@@ -251,7 +251,7 @@ def run_steam_presence_poll(db: Session) -> dict:
 
 def _run_steam_presence_poll_locked(db: Session) -> dict:
     settings = get_settings()
-    job = JobRun(job_key=JOB_KEY, status="running", started_at=_utcnow())
+    job = JobRun(job_key=JOB_KEY, status="running", started_at=_now())
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -291,7 +291,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
             job.status = "ok"
             job.message = "无可轮询成员（未绑定 steam_id）"
             job.stats = stats
-            job.finished_at = _utcnow()
+            job.finished_at = _now()
             db.commit()
             return {"status": job.status, "message": job.message, "stats": stats}
 
@@ -306,7 +306,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
             all_presences.extend(adapter.parse_presences(raw))
 
         presence_map = {p.steam_id: p for p in all_presences}
-        now = _utcnow()
+        now = _now()
         interval = max(1, int(settings.STEAM_POLL_INTERVAL_MINUTES))
         stale_after = timedelta(minutes=interval * 3)
 
@@ -347,7 +347,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
             f"未公开 {stats['friends_private']}"
         )
         job.stats = stats
-        job.finished_at = _utcnow()
+        job.finished_at = _now()
         db.commit()
         return {"status": job.status, "message": job.message, "stats": stats}
     except Exception as exc:  # noqa: BLE001
@@ -355,7 +355,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
         job.status = "error"
         job.message = str(exc)
         job.stats = stats
-        job.finished_at = _utcnow()
+        job.finished_at = _now()
         db.commit()
         return {"status": job.status, "message": job.message, "stats": stats}
 

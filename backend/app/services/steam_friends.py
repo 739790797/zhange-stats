@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.timeutil import ensure, now_naive
 from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.steam_friend import SteamFriendEdge
@@ -34,16 +35,14 @@ class FriendSyncResult:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return now_naive()
 
 
 def _friends_sync_is_fresh(member: Member, ttl: timedelta) -> bool:
     synced = member.steam_friends_synced_at
     if synced is None:
         return False
-    synced_aware = (
-        synced.replace(tzinfo=timezone.utc) if synced.tzinfo is None else synced
-    )
+    synced_aware = ensure(synced).replace(tzinfo=None)
     return _utcnow() - synced_aware < ttl
 
 
@@ -130,10 +129,8 @@ def ensure_friends_fresh(
         return None
     synced = member.steam_friends_synced_at
     if not force and synced is not None:
-        synced_aware = (
-            synced.replace(tzinfo=timezone.utc) if synced.tzinfo is None else synced
-        )
-        if _utcnow() - synced_aware < FRIENDS_SYNC_TTL:
+        synced_naive = ensure(synced).replace(tzinfo=None)
+        if _utcnow() - synced_naive < FRIENDS_SYNC_TTL:
             return None
     return sync_member_friends(db, member)
 

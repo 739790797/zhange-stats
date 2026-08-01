@@ -3,7 +3,7 @@ from __future__ import annotations
 import hmac
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import auth_limiter, client_ip
 from app.core.security import create_access_token, hash_password, verify_password
+from app.core.timeutil import now_naive, to_naive
 from app.models.register_challenge import RegisterChallenge
 from app.models.user import User, UserRole
 from app.schemas import LoginRequest, TokenResponse, UserOut
@@ -51,7 +52,7 @@ class ResendCodeRequest(BaseModel):
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return now_naive()
 
 
 def _gen_code() -> str:
@@ -87,10 +88,7 @@ def _consume_register_challenge(db: Session, email: str, code: str) -> None:
     row = db.query(RegisterChallenge).filter(RegisterChallenge.email == email).first()
     if not row:
         raise HTTPException(status_code=400, detail="请先发送验证码")
-    expires = row.expires_at
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if expires < _utcnow():
+    if to_naive(row.expires_at) < _utcnow():
         raise HTTPException(status_code=400, detail="验证码已过期，请重新获取")
     provided = code.strip()
     if len(provided) != len(row.code) or not hmac.compare_digest(row.code, provided):
