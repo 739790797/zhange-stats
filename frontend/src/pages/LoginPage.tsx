@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { fetchMe, login } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
+import { BrandLogo } from "@/components/BrandLogo";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function LoginPage() {
@@ -77,17 +78,28 @@ export default function LoginPage() {
         styles={{ body: { padding: "40px 36px" } }}
       >
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <Typography.Title
-            level={1}
+          <div
             style={{
-              margin: 0,
-              fontSize: 36,
-              color: "#1a2332",
-              letterSpacing: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              marginBottom: 8,
             }}
           >
-            战鸽数据
-          </Typography.Title>
+            <BrandLogo size={40} color="#1a2332" />
+            <Typography.Title
+              level={1}
+              style={{
+                margin: 0,
+                fontSize: 36,
+                color: "#1a2332",
+                letterSpacing: 2,
+              }}
+            >
+              战鸽数据
+            </Typography.Title>
+          </div>
           <Typography.Paragraph
             type="secondary"
             style={{ marginTop: 8, marginBottom: 0 }}

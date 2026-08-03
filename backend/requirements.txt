@@ -12,4 +12,5 @@ bcrypt>=4.0.1,<4.1
 python-multipart>=0.0.9
 alembic>=1.13.0
 apscheduler>=3.10.0
+qrcode>=7.4.0
 Pillow>=10.0.0

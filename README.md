@@ -1,12 +1,14 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.10** — 圈子 Steam 游玩统计：今天谁在玩、好友日历、个人资料与 Steam 绑定。
+**v0.1.11** — 圈子 Steam 游玩统计、森空岛与塔吉多每日签到。
 
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户
-- Steam OpenID 绑定、自定义头像、今天玩什么（日时间轴 + 周/月/年热力）
-- 圈子内 Steam 好友；管理端：用户 / SMTP
+- Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力）
+- 管理端：用户 / SMTP
+- 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
+- 塔吉多绑定与每日自动签到（异环）
 - Docker 部署后由 **Watchtower** 自动拉取新镜像（无需管理端点更新）
 
 ## 技术栈
@@ -43,7 +45,8 @@ cd frontend && npm install && npm run dev
 
 - API：http://127.0.0.1:8000/docs · 前端：http://127.0.0.1:5173  
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
-- 环境变量说明见 `.env.example`（`DATA_DIR` 存密钥，`UPLOAD_DIR` 存头像；CORS 勿写 `*`）
+- 环境变量说明见 `.env.example`（`DATA_DIR` 存密钥，`UPLOAD_DIR` 存头像；CORS 勿写 `*`）  
+- 本地假监控：`.env` 设 `STEAM_FAKE_POLL=true`（见 `backend/local_dev/README.md`）
 
 ## Docker
 
@@ -56,7 +59,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.10` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.11` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。生产需先更新本机的 `compose.yml` 再 `docker compose up -d` 一次以启动 Watchtower。
 
@@ -76,6 +79,8 @@ zhange-stats/
 
 ```
 users 1 ── 1 members ── * play_sessions / presence_segments / steam_friend_edges
+                      └── 0..1 skland_binds ── * skland_checkin_logs
+                      └── 0..1 taygedo_binds ── * taygedo_checkin_logs
 system_configs · register_challenges · job_runs · steam_apps
 ```
 
@@ -86,7 +91,11 @@ system_configs · register_challenges · job_runs · steam_apps
 | `steam_friend_edges` | 好友缓存（日历仅好友可见） |
 | `play_sessions` | 游戏中会话（热力） |
 | `presence_segments` | 离线/在线/游戏中（日时间轴） |
-| `job_runs` | 轮询任务日志 |
+| `skland_binds` | 森空岛凭证（加密）与自动签到开关 |
+| `skland_checkin_logs` | 森空岛角色签到记录 |
+| `taygedo_binds` | 塔吉多凭证（加密）与自动签到开关 |
+| `taygedo_checkin_logs` | 塔吉多 / 异环签到记录 |
+| `job_runs` | 轮询 / 签到任务日志 |
 | `system_configs` | 系统配置（如 SMTP） |
 | `register_challenges` | 注册验证码 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
@@ -97,4 +106,6 @@ system_configs · register_challenges · job_runs · steam_apps
 
 - 登录以邮箱为主；`username` 用于 JWT 与种子管理员
 - Steam 隐私过严时可能跳过本轮状态；未返回过久会超时收尾会话
+- 森空岛支持扫码 / 短信 / 密码绑定，凭证加密存库；勿在 App 退出登录以免失效
+- 塔吉多使用手机号验证码或密码登录老虎官方接口，凭证加密存库；用于异环 / 幻塔每日签到
 - 勿提交 `.env`、`data/`、`uploads/`

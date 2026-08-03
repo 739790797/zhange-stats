@@ -4,12 +4,13 @@ import { AppLayout } from "@/components/AppLayout";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { antdLocale } from "@/locales/zhCN";
 import EmailSettingsPage from "@/pages/EmailSettingsPage";
-import FriendsPage from "@/pages/FriendsPage";
 import LoginPage from "@/pages/LoginPage";
 import MemberDetailPage from "@/pages/MemberDetailPage";
 import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
 import RegisterPage from "@/pages/RegisterPage";
+import SklandPage from "@/pages/SklandPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
+import TaygedoPage from "@/pages/TaygedoPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
@@ -55,8 +56,10 @@ export default function App() {
           >
             <Route path="/" element={<Navigate to="/steam" replace />} />
             <Route path="/steam" element={<SteamCalendarPage />} />
-            <Route path="/friends" element={<FriendsPage />} />
-            <Route path="/members" element={<Navigate to="/friends" replace />} />
+            <Route path="/friends" element={<Navigate to="/steam" replace />} />
+            <Route path="/skland" element={<SklandPage />} />
+            <Route path="/taygedo" element={<TaygedoPage />} />
+            <Route path="/members" element={<Navigate to="/steam" replace />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />
             <Route
               path="/members/:id/profile"

@@ -1,6 +1,8 @@
 import {
   CalendarOutlined,
   CloudDownloadOutlined,
+  CloudServerOutlined,
+  FireOutlined,
   LogoutOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -21,11 +23,12 @@ import { useEffect, useMemo } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchMe, fetchMyProfile } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
+import { BrandLogo } from "@/components/BrandLogo";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
-const leafKeys = ["/steam", "/friends"];
+const leafKeys = ["/steam", "/skland", "/taygedo"];
 
 export function AppLayout() {
   const location = useLocation();
@@ -73,12 +76,14 @@ export function AppLayout() {
   }, [profileQuery.data, setUser]);
 
   const selected = useMemo(() => {
-    if (location.pathname.startsWith("/friends")) return "/friends";
-    if (location.pathname.startsWith("/members")) return "/friends";
+    if (location.pathname.startsWith("/taygedo")) return "/taygedo";
+    if (location.pathname.startsWith("/skland")) return "/skland";
     return (
       leafKeys.find((key) =>
         key === "/steam"
-          ? location.pathname === "/steam" || location.pathname === "/"
+          ? location.pathname === "/steam" ||
+            location.pathname === "/" ||
+            location.pathname.startsWith("/members")
           : location.pathname.startsWith(key),
       ) || "/steam"
     );
@@ -88,12 +93,17 @@ export function AppLayout() {
     {
       key: "/steam",
       icon: <CalendarOutlined />,
-      label: <Link to="/steam">今天玩什么</Link>,
+      label: <Link to="/steam">Steam</Link>,
     },
     {
-      key: "/friends",
-      icon: <TeamOutlined />,
-      label: <Link to="/friends">好友</Link>,
+      key: "/skland",
+      icon: <CloudServerOutlined />,
+      label: <Link to="/skland">森空岛</Link>,
+    },
+    {
+      key: "/taygedo",
+      icon: <FireOutlined />,
+      label: <Link to="/taygedo">塔吉多</Link>,
     },
   ];
 
@@ -180,10 +190,12 @@ export function AppLayout() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              gap: 8,
               borderBottom: "1px solid rgba(255,255,255,0.08)",
               flexShrink: 0,
             }}
           >
+            <BrandLogo size={26} color="#e8b86d" />
             <Typography.Text
               strong
               style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}

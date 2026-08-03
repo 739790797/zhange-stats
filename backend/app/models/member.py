@@ -33,3 +33,15 @@ class Member(Base):
     steam_friend_edges = relationship(
         "SteamFriendEdge", back_populates="member", cascade="all, delete-orphan"
     )
+    skland_bind = relationship(
+        "SklandBind",
+        back_populates="member",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    taygedo_bind = relationship(
+        "TaygedoBind",
+        back_populates="member",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -30,3 +30,5 @@ backend/uploads/
 data/
 **/.secret_key
 
+# Local scratch
+_tmp_*/

@@ -112,13 +112,17 @@ def _apply_presence(
     presence: SteamPresence,
     now: datetime,
     stats: dict,
+    *,
+    fetch_missing: bool = True,
 ) -> None:
     _collapse_duplicate_opens(db, member.id, now, stats)
 
     status = presence.status
     app_id = presence.game_id
     game_name = (
-        display_name_for(db, app_id, presence.game_extra_info)
+        display_name_for(
+            db, app_id, presence.game_extra_info, fetch_missing=fetch_missing
+        )
         if status == "playing"
         else None
     )

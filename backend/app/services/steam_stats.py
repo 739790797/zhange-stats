@@ -106,9 +106,13 @@ def _sessions_in_window(
 
 
 def build_calendar(
-    db: Session, granularity: str, anchor: date, viewer: User
+    db: Session,
+    granularity: str,
+    anchor: date,
+    viewer: User,
 ) -> dict:
     visible_ids = visible_member_ids_for_user(db, viewer)
+    meta = visibility_meta(db, viewer, visible_ids)
     aliases = load_viewer_friend_aliases(db, viewer)
     range_start, range_end = _range_for(granularity, anchor)
     window_start, _ = _day_bounds(range_start)
@@ -216,7 +220,6 @@ def build_calendar(
                 }
             )
 
-    meta = visibility_meta(db, viewer, visible_ids)
     self_id = meta.get("self_member_id")
     members.sort(
         key=lambda x: (
@@ -270,7 +273,10 @@ def build_day_detail(db: Session, d: date, viewer: User) -> dict:
 
 
 def build_range_detail(
-    db: Session, range_start: date, range_end: date, viewer: User
+    db: Session,
+    range_start: date,
+    range_end: date,
+    viewer: User,
 ) -> dict:
     if range_end < range_start:
         raise ValueError("end 不能早于 date")
@@ -279,6 +285,7 @@ def build_range_detail(
         raise ValueError("时间轴区间最长 31 天")
 
     visible_ids = visible_member_ids_for_user(db, viewer)
+    vis = visibility_meta(db, viewer, visible_ids)
     aliases = load_viewer_friend_aliases(db, viewer)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
@@ -310,10 +317,12 @@ def build_range_detail(
         [s.steam_app_id for s in sessions]
         + [seg.steam_app_id for seg in presence_rows],
     )
+    # 热路径只用库内缓存；client icon 由前端异步 /apps/{id}/icon 补全
     icon_map = resolve_app_icons(
         db,
         [s.steam_app_id for s in sessions]
         + [seg.steam_app_id for seg in presence_rows],
+        fetch_missing=False,
     )
 
     items: list[dict] = []
@@ -380,7 +389,6 @@ def build_range_detail(
         else []
     )
 
-    vis = visibility_meta(db, viewer, visible_ids)
     self_id = vis.get("self_member_id")
 
     segments_by_member: dict[int, list[dict]] = {m.id: [] for m in steam_members}
@@ -515,7 +523,9 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
     )
     now_dt = now()
     name_map = resolve_app_names(db, [s.steam_app_id for s in sessions])
-    icon_map = resolve_app_icons(db, [s.steam_app_id for s in sessions])
+    icon_map = resolve_app_icons(
+        db, [s.steam_app_id for s in sessions], fetch_missing=False
+    )
     result = []
     for s in sessions:
         start = _to_aware(s.started_at)

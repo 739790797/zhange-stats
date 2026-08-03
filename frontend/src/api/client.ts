@@ -4,6 +4,14 @@ import type {
   Member,
   MemberPlayStats,
   MemberProfile,
+  SklandCheckinLog,
+  SklandCheckinResponse,
+  SklandQrPoll,
+  SklandQrStart,
+  SklandStatus,
+  TaygedoCheckinLog,
+  TaygedoCheckinResponse,
+  TaygedoStatus,
   SteamBindPreview,
   SteamCalendarData,
   SteamDayData,
@@ -130,7 +138,10 @@ export async function fetchSteamCalendar(params: {
 
 export async function fetchSteamDay(date: string, end?: string) {
   const { data } = await client.get<SteamDayData>("/steam/day", {
-    params: end ? { date, end } : { date },
+    params: {
+      date,
+      ...(end ? { end } : {}),
+    },
   });
   return data;
 }
@@ -142,6 +153,13 @@ export async function fetchSteamNow() {
 
 export async function fetchSteamAppStore(appId: string) {
   const { data } = await client.get<SteamAppStoreCard>(`/steam/apps/${appId}`);
+  return data;
+}
+
+export async function fetchSteamAppIcon(appId: string) {
+  const { data } = await client.get<{ steam_app_id: string; icon_url: string | null }>(
+    `/steam/apps/${encodeURIComponent(appId)}/icon`,
+  );
   return data;
 }
 
@@ -326,5 +344,133 @@ export async function updateMemberProfile(
     `/members/${memberId}/profile`,
     payload,
   );
+  return data;
+}
+
+export async function fetchSklandStatus(includeRoles = true) {
+  const { data } = await client.get<SklandStatus>("/skland/status", {
+    params: { include_roles: includeRoles },
+  });
+  return data;
+}
+
+export async function fetchSklandLogs(limit = 30) {
+  const { data } = await client.get<SklandCheckinLog[]>("/skland/logs", {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function bindSkland(token: string) {
+  const { data } = await client.post<SklandStatus>("/skland/bind", { token });
+  return data;
+}
+
+export async function bindSklandPassword(phone: string, password: string) {
+  const { data } = await client.post<SklandStatus>("/skland/bind/password", {
+    phone,
+    password,
+  });
+  return data;
+}
+
+export async function sendSklandSms(phone: string) {
+  const { data } = await client.post<{ message: string }>(
+    "/skland/bind/sms/send",
+    { phone },
+  );
+  return data;
+}
+
+export async function bindSklandSms(phone: string, code: string) {
+  const { data } = await client.post<SklandStatus>("/skland/bind/sms", {
+    phone,
+    code,
+  });
+  return data;
+}
+
+export async function unbindSkland() {
+  const { data } = await client.delete<SklandStatus>("/skland/bind");
+  return data;
+}
+
+export async function updateSklandBind(payload: { auto_checkin: boolean }) {
+  const { data } = await client.patch<SklandStatus>("/skland/bind", payload);
+  return data;
+}
+
+export async function triggerSklandCheckin() {
+  const { data } = await client.post<SklandCheckinResponse>("/skland/checkin");
+  return data;
+}
+
+export async function startSklandQrBind() {
+  const { data } = await client.post<SklandQrStart>("/skland/qr/start");
+  return data;
+}
+
+export async function pollSklandQrBind(scanId: string) {
+  const { data } = await client.get<SklandQrPoll>("/skland/qr/poll", {
+    params: { scan_id: scanId },
+  });
+  return data;
+}
+
+export async function fetchTaygedoStatus(includeRoles = true) {
+  const { data } = await client.get<TaygedoStatus>("/taygedo/status", {
+    params: { include_roles: includeRoles },
+  });
+  return data;
+}
+
+export async function fetchTaygedoLogs(limit = 30) {
+  const { data } = await client.get<TaygedoCheckinLog[]>("/taygedo/logs", {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function bindTaygedoPassword(phone: string, password: string) {
+  const { data } = await client.post<TaygedoStatus>("/taygedo/bind/password", {
+    phone,
+    password,
+  });
+  return data;
+}
+
+export async function sendTaygedoSms(phone: string, deviceId?: string | null) {
+  const { data } = await client.post<{ device_id: string; message: string }>(
+    "/taygedo/bind/sms/send",
+    { phone, device_id: deviceId || undefined },
+  );
+  return data;
+}
+
+export async function bindTaygedoSms(
+  phone: string,
+  captcha: string,
+  deviceId: string,
+) {
+  const { data } = await client.post<TaygedoStatus>("/taygedo/bind/sms", {
+    phone,
+    captcha,
+    device_id: deviceId,
+  });
+  return data;
+}
+
+export async function unbindTaygedo() {
+  const { data } = await client.delete<TaygedoStatus>("/taygedo/bind");
+  return data;
+}
+
+export async function updateTaygedoBind(payload: { auto_checkin: boolean }) {
+  const { data } = await client.patch<TaygedoStatus>("/taygedo/bind", payload);
+  return data;
+}
+
+export async function triggerTaygedoCheckin() {
+  const { data } = await client.post<TaygedoCheckinResponse>("/taygedo/checkin");
   return data;
 }

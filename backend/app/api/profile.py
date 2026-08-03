@@ -60,6 +60,8 @@ def _profile_from_member(
         if steam_persona_name is not None
         else member.steam_persona_name
     )
+    skland = getattr(member, "skland_bind", None)
+    taygedo = getattr(member, "taygedo_bind", None)
     return MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
@@ -68,6 +70,11 @@ def _profile_from_member(
         steam_persona_name=persona,
         steam_friends_public=member.steam_friends_public,
         steam_friends_synced_at=member.steam_friends_synced_at,
+        skland_bound=skland is not None,
+        skland_auto_checkin=bool(skland.auto_checkin) if skland is not None else None,
+        taygedo_bound=taygedo is not None,
+        taygedo_auto_checkin=bool(taygedo.auto_checkin) if taygedo is not None else None,
+        taygedo_phone_mask=taygedo.phone_mask if taygedo is not None else None,
         user_id=member.user_id,
         username=user.username if user else None,
         email=(user.email if user else None) if show_email else None,
@@ -314,7 +321,6 @@ def _apply_profile_fields(
     steam_persona: str | None = None
     if "steam_id" in data:
         steam_persona = _set_steam_id(db, member, data["steam_id"])
-
     return steam_persona
 
 
@@ -327,7 +333,11 @@ def get_my_profile(
     db.commit()
     member = (
         db.query(Member)
-        .options(joinedload(Member.user))
+        .options(
+            joinedload(Member.user),
+            joinedload(Member.skland_bind),
+            joinedload(Member.taygedo_bind),
+        )
         .filter(Member.id == member.id)
         .first()
     )
@@ -573,7 +583,11 @@ def get_member_profile(
 ) -> MemberProfileOut:
     member = (
         db.query(Member)
-        .options(joinedload(Member.user))
+        .options(
+            joinedload(Member.user),
+            joinedload(Member.skland_bind),
+            joinedload(Member.taygedo_bind),
+        )
         .filter(Member.id == member_id)
         .first()
     )

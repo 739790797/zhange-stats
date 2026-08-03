@@ -1,4 +1,4 @@
-import { CameraOutlined } from "@ant-design/icons";
+﻿import { CameraOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -21,12 +21,16 @@ import {
   fetchMemberProfile,
   fetchMyProfile,
   startSteamOpenIdBind,
+  unbindSkland,
+  unbindTaygedo,
   updateMemberProfile,
   updateMyProfile,
   uploadMemberAvatar,
   uploadMyAvatar,
 } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
+import { SklandBindPanel } from "@/components/SklandBindPanel";
+import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
 import { useAuthStore } from "@/stores/authStore";
 
 /** 避免 React StrictMode 双次挂载导致绑定回跳提示重复弹出 */
@@ -57,6 +61,8 @@ export default function ProfileSettingsPage() {
   const setUser = useAuthStore((s) => s.setUser);
   const authUser = useAuthStore((s) => s.user);
   const [steamPromptOpen, setSteamPromptOpen] = useState(false);
+  const [sklandModalOpen, setSklandModalOpen] = useState(false);
+  const [taygedoModalOpen, setTaygedoModalOpen] = useState(false);
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -175,6 +181,36 @@ export default function ProfileSettingsPage() {
     onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
   });
 
+  const closeSklandModal = () => {
+    setSklandModalOpen(false);
+  };
+
+  const closeTaygedoModal = () => {
+    setTaygedoModalOpen(false);
+  };
+
+  const unbindSklandMut = useMutation({
+    mutationFn: unbindSkland,
+    onSuccess: () => {
+      message.success("已解除森空岛绑定");
+      invalidateProfile();
+      queryClient.invalidateQueries({ queryKey: ["skland-status"] });
+      queryClient.invalidateQueries({ queryKey: ["skland-logs"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
+  const unbindTaygedoMut = useMutation({
+    mutationFn: unbindTaygedo,
+    onSuccess: () => {
+      message.success("已解除塔吉多绑定");
+      invalidateProfile();
+      queryClient.invalidateQueries({ queryKey: ["taygedo-status"] });
+      queryClient.invalidateQueries({ queryKey: ["taygedo-logs"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
   const uploadAvatar = useMutation({
     mutationFn: async (file: File) =>
       isAdminEdit
@@ -213,6 +249,8 @@ export default function ProfileSettingsPage() {
       : null;
 
   const steamBound = Boolean(data?.steam_id);
+  const sklandBound = Boolean(data?.skland_bound);
+  const taygedoBound = Boolean(data?.taygedo_bound);
   const displayName =
     data?.steam_persona_name ||
     data?.display_name ||
@@ -236,7 +274,7 @@ export default function ProfileSettingsPage() {
         subtitle={
           isAdminEdit
             ? `正在编辑：${subjectLabel}（管理员代操作：需用目标 Steam 账号完成登录）`
-            : "绑定 Steam 后使用 Steam 用户名；头像可自行上传"
+            : "绑定 Steam / 森空岛；头像可自行上传"
         }
         extra={
           isAdminEdit ? <Link to="/settings/users">返回用户管理</Link> : undefined
@@ -326,6 +364,7 @@ export default function ProfileSettingsPage() {
             justifyContent: "space-between",
             gap: 16,
             padding: "16px 4px",
+            borderBottom: "1px solid rgba(0,0,0,0.06)",
           }}
         >
           <div style={{ minWidth: 0 }}>
@@ -385,6 +424,123 @@ export default function ProfileSettingsPage() {
             )}
           </Space>
         </div>
+
+        {!isAdminEdit ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              padding: "16px 4px",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <Space size={8} align="center">
+                <Typography.Text strong>森空岛</Typography.Text>
+                {sklandBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+              </Space>
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {sklandBound
+                    ? `自动签到已${data?.skland_auto_checkin ? "开启" : "关闭"} · 可在「森空岛」页手动签到`
+                    : "扫码 / 短信 / 密码登录鹰角通行证，用于明日方舟 / 终末地每日签到"}
+                </Typography.Text>
+              </div>
+            </div>
+            <Space>
+              {sklandBound ? (
+                <>
+                  <Button disabled={!!errMsg} onClick={() => setSklandModalOpen(true)}>
+                    换绑
+                  </Button>
+                  <Popconfirm
+                    title="确认解除森空岛绑定？"
+                    okText="确定"
+                    cancelText="取消"
+                    onConfirm={() => unbindSklandMut.mutate()}
+                  >
+                    <Button
+                      danger
+                      loading={unbindSklandMut.isPending}
+                      disabled={!!errMsg}
+                    >
+                      解绑
+                    </Button>
+                  </Popconfirm>
+                </>
+              ) : (
+                <Button
+                  type="primary"
+                  disabled={!!errMsg}
+                  onClick={() => setSklandModalOpen(true)}
+                >
+                  绑定森空岛
+                </Button>
+              )}
+            </Space>
+          </div>
+        ) : null}
+
+        {!isAdminEdit ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              padding: "16px 4px",
+              borderTop: "1px solid rgba(0,0,0,0.06)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <Space size={8} align="center">
+                <Typography.Text strong>塔吉多</Typography.Text>
+                {taygedoBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+              </Space>
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {taygedoBound
+                    ? `自动签到已${
+                        data?.taygedo_auto_checkin ? "开启" : "关闭"
+                      } · 可在「塔吉多」页手动签到`
+                    : "手机号验证码或密码登录，用于异环每日签到"}
+                </Typography.Text>
+              </div>
+            </div>
+            <Space>
+              {taygedoBound ? (
+                <>
+                  <Button disabled={!!errMsg} onClick={() => setTaygedoModalOpen(true)}>
+                    换绑
+                  </Button>
+                  <Popconfirm
+                    title="确认解除塔吉多绑定？"
+                    okText="确定"
+                    cancelText="取消"
+                    onConfirm={() => unbindTaygedoMut.mutate()}
+                  >
+                    <Button
+                      danger
+                      loading={unbindTaygedoMut.isPending}
+                      disabled={!!errMsg}
+                    >
+                      解绑
+                    </Button>
+                  </Popconfirm>
+                </>
+              ) : (
+                <Button
+                  type="primary"
+                  disabled={!!errMsg}
+                  onClick={() => setTaygedoModalOpen(true)}
+                >
+                  绑定塔吉多
+                </Button>
+              )}
+            </Space>
+          </div>
+        ) : null}
       </Card>
 
       <Modal
@@ -402,6 +558,46 @@ export default function ProfileSettingsPage() {
           才能同步游玩记录与好友可见范围。请先完成 Steam
           登录绑定；绑定后请公开个人资料与好友列表。
         </Typography.Paragraph>
+      </Modal>
+
+      <Modal
+        title={sklandBound ? "更换森空岛绑定" : "绑定森空岛"}
+        open={sklandModalOpen && !isAdminEdit}
+        footer={null}
+        onCancel={closeSklandModal}
+        destroyOnClose
+        width={480}
+      >
+        {sklandModalOpen && !isAdminEdit ? (
+          <SklandBindPanel
+            title=""
+            onSuccess={() => {
+              invalidateProfile();
+              queryClient.invalidateQueries({ queryKey: ["skland-logs"] });
+              closeSklandModal();
+            }}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        title={taygedoBound ? "更换塔吉多绑定" : "绑定塔吉多"}
+        open={taygedoModalOpen && !isAdminEdit}
+        footer={null}
+        onCancel={closeTaygedoModal}
+        destroyOnClose
+        width={480}
+      >
+        {taygedoModalOpen && !isAdminEdit ? (
+          <TaygedoBindPanel
+            title=""
+            onSuccess={() => {
+              invalidateProfile();
+              queryClient.invalidateQueries({ queryKey: ["taygedo-logs"] });
+              closeTaygedoModal();
+            }}
+          />
+        ) : null}
       </Modal>
     </div>
   );

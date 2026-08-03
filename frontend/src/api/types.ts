@@ -39,12 +39,148 @@ export interface MemberProfile {
   steam_persona_name?: string | null;
   steam_friends_public?: boolean | null;
   steam_friends_synced_at?: string | null;
+  skland_bound?: boolean;
+  skland_auto_checkin?: boolean | null;
+  taygedo_bound?: boolean;
+  taygedo_auto_checkin?: boolean | null;
+  taygedo_phone_mask?: string | null;
   user_id: number | null;
   username: string | null;
   email?: string | null;
   display_name: string | null;
   joined_at: string;
 }
+
+export interface SklandRole {
+  game_code: string;
+  game_name: string;
+  uid: string;
+  role_name: string;
+  channel_name: string;
+}
+
+export interface SklandCheckinLog {
+  id: number;
+  game_code: string;
+  game_name: string;
+  role_uid: string;
+  role_name?: string | null;
+  channel_name?: string | null;
+  status: string;
+  status_label?: string | null;
+  message?: string | null;
+  awards_text?: string | null;
+  checkin_date: string;
+  checked_at: string;
+}
+
+export interface SklandStatus {
+  bound: boolean;
+  auto_checkin?: boolean | null;
+  bound_at?: string | null;
+  last_checkin_at?: string | null;
+  last_checkin_date?: string | null;
+  last_checkin_ok?: boolean | null;
+  last_checkin_summary?: string | null;
+  token_ok?: boolean | null;
+  token_error?: string | null;
+  roles: SklandRole[];
+  today_results?: SklandCheckinResultItem[];
+  today_logs?: SklandCheckinLog[];
+}
+
+export interface SklandCheckinResultItem {
+  game_code: string;
+  game_name: string;
+  role_uid: string;
+  role_name: string;
+  channel_name: string;
+  status: string;
+  status_label?: string | null;
+  message: string;
+  awards_text?: string | null;
+}
+
+export interface SklandCheckinResponse {
+  skipped: boolean;
+  ok?: boolean | null;
+  summary: string;
+  results: SklandCheckinResultItem[];
+}
+
+export interface SklandQrStart {
+  scan_id: string;
+  scan_url: string;
+  qr_image: string;
+  expires_in: number;
+}
+
+export interface SklandQrPoll {
+  status: "waiting" | "scanned" | "ok" | "expired" | "error" | string;
+  message: string;
+  bound?: boolean;
+  auto_checkin?: boolean | null;
+  roles?: SklandRole[];
+}
+
+export interface TaygedoRole {
+  game_code: string;
+  game_name: string;
+  uid: string;
+  role_name: string;
+  channel_name: string;
+}
+
+export interface TaygedoCheckinLog {
+  id: number;
+  game_code: string;
+  game_name: string;
+  role_uid: string;
+  role_name?: string | null;
+  channel_name?: string | null;
+  status: string;
+  status_label?: string | null;
+  message?: string | null;
+  awards_text?: string | null;
+  checkin_date: string;
+  checked_at: string;
+}
+
+export interface TaygedoStatus {
+  bound: boolean;
+  auto_checkin?: boolean | null;
+  phone_mask?: string | null;
+  bound_at?: string | null;
+  last_checkin_at?: string | null;
+  last_checkin_date?: string | null;
+  last_checkin_ok?: boolean | null;
+  last_checkin_summary?: string | null;
+  token_ok?: boolean | null;
+  token_error?: string | null;
+  roles: TaygedoRole[];
+  today_results?: TaygedoCheckinResultItem[];
+  today_logs?: TaygedoCheckinLog[];
+}
+
+export interface TaygedoCheckinResultItem {
+  game_code: string;
+  game_name: string;
+  role_uid: string;
+  role_name: string;
+  channel_name: string;
+  status: string;
+  status_label?: string | null;
+  message: string;
+  awards_text?: string | null;
+}
+
+export interface TaygedoCheckinResponse {
+  skipped: boolean;
+  ok?: boolean | null;
+  summary: string;
+  results: TaygedoCheckinResultItem[];
+}
+
 
 export interface SteamVisibilityMeta {
   mode: string;

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LoadingOutlined } from "@ant-design/icons";
 import {
   Alert,
   Avatar,
@@ -7,13 +8,14 @@ import {
   Empty,
   Radio,
   Space,
+  Spin,
   Tag,
   Tooltip,
   Typography,
   message,
 } from "antd";
 import { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   fetchSteamDay,
   fetchSteamNow,
@@ -28,7 +30,11 @@ import type {
 import { PageHeader } from "@/components/PageHeader";
 import { datePickerLocale } from "@/locales/zhCN";
 import { nowBeijing, parseBeijing } from "@/lib/time";
-import { rememberSteamIcons, resolveSteamIcon } from "@/lib/steamIconCache";
+import {
+  loadSteamClientIcon,
+  rememberSteamIcons,
+  resolveSteamIcon,
+} from "@/lib/steamIconCache";
 import { useAuthStore } from "@/stores/authStore";
 
 type Granularity = "day" | "week" | "month" | "year";
@@ -162,23 +168,129 @@ function steamStoreUrl(appId: string): string {
   return `https://store.steampowered.com/app/${encodeURIComponent(appId)}`;
 }
 
-/** 优先库列表 client icon；失败时回退商店 capsule。 */
-function steamAppImageCandidates(
-  appId: string,
-  iconUrl?: string | null,
-): string[] {
-  const list: string[] = [];
-  const push = (url: string | null | undefined) => {
-    const u = (url || "").trim();
-    if (u && !list.includes(u)) list.push(u);
-  };
-  push(iconUrl);
-  if (appId) {
-    push(
-      `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(appId)}/capsule_231x87.jpg`,
-    );
+function IconPlaceholder({ size }: { size: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 2,
+        flexShrink: 0,
+        display: "inline-block",
+        background: "#d9d9d9",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)",
+      }}
+    />
+  );
+}
+
+function IconLoading({ size }: { size: number }) {
+  return (
+    <span
+      aria-busy
+      aria-label="加载图标"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 2,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.04)",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.06)",
+      }}
+    >
+      <LoadingOutlined
+        spin
+        style={{
+          fontSize: Math.max(10, Math.round(size * 0.5)),
+          color: "rgba(0,0,0,0.35)",
+        }}
+      />
+    </span>
+  );
+}
+
+/** 库列表 client icon：异步补全时转圈，真失败才灰块。 */
+function SteamClientIcon({
+  appId,
+  iconUrl,
+  size,
+  imgStyle,
+}: {
+  appId?: string | null;
+  iconUrl?: string | null;
+  size: number;
+  imgStyle?: CSSProperties;
+}) {
+  const known = useMemo(
+    () => resolveSteamIcon(appId, iconUrl),
+    [appId, iconUrl],
+  );
+  const [src, setSrc] = useState<string | null>(known);
+  const [phase, setPhase] = useState<"loading" | "ready" | "failed">(() =>
+    known ? "ready" : appId ? "loading" : "failed",
+  );
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    const resolved = resolveSteamIcon(appId, iconUrl);
+    if (resolved) {
+      setSrc(resolved);
+      setPhase("ready");
+      setImgFailed(false);
+      return;
+    }
+    if (!appId) {
+      setSrc(null);
+      setPhase("failed");
+      return;
+    }
+    let cancelled = false;
+    setPhase("loading");
+    setImgFailed(false);
+    void loadSteamClientIcon(appId).then((url) => {
+      if (cancelled) return;
+      if (url) {
+        setSrc(url);
+        setPhase("ready");
+      } else {
+        setSrc(null);
+        setPhase("failed");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, iconUrl]);
+
+  if (phase === "loading") return <IconLoading size={size} />;
+  if (phase === "failed" || !src || imgFailed) {
+    return <IconPlaceholder size={size} />;
   }
-  return list;
+  return (
+    <img
+      key={src}
+      src={src}
+      alt=""
+      draggable={false}
+      referrerPolicy="no-referrer"
+      onError={() => setImgFailed(true)}
+      style={{
+        width: size,
+        height: size,
+        objectFit: "cover",
+        objectPosition: "center",
+        borderRadius: 2,
+        flexShrink: 0,
+        display: "block",
+        background: "#d9d9d9",
+        ...imgStyle,
+      }}
+    />
+  );
 }
 
 function TimelineSegmentLogo({
@@ -190,50 +302,12 @@ function TimelineSegmentLogo({
   iconUrl?: string | null;
   size: number;
 }) {
-  const candidates = useMemo(
-    () =>
-      steamAppImageCandidates(
-        appId,
-        resolveSteamIcon(appId, iconUrl),
-      ),
-    [appId, iconUrl],
-  );
-  const [idx, setIdx] = useState(0);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    setIdx(0);
-    setFailed(false);
-  }, [candidates]);
-
-  const advance = () => {
-    setIdx((v) => {
-      if (v + 1 < candidates.length) return v + 1;
-      setFailed(true);
-      return v;
-    });
-  };
-
-  const src = candidates[idx];
-  if (!src || failed) return null;
   return (
-    <img
-      key={src}
-      src={src}
-      alt=""
-      draggable={false}
-      referrerPolicy="no-referrer"
-      onError={advance}
-      style={{
-        width: size,
-        height: size,
-        objectFit: "cover",
-        objectPosition: "center",
-        borderRadius: 2,
-        flexShrink: 0,
-        display: "block",
-        boxShadow: "0 0 0 1px rgba(0,0,0,0.2)",
-        background: "#1b2838",
-      }}
+    <SteamClientIcon
+      appId={appId}
+      iconUrl={iconUrl}
+      size={size}
+      imgStyle={{ boxShadow: "0 0 0 1px rgba(0,0,0,0.2)" }}
     />
   );
 }
@@ -241,7 +315,6 @@ function TimelineSegmentLogo({
 function GameIcon({
   appId,
   iconUrl,
-  name,
   size = 40,
 }: {
   appId?: string | null;
@@ -249,34 +322,7 @@ function GameIcon({
   name: string;
   size?: number;
 }) {
-  const candidates = useMemo(() => {
-    if (!appId && !iconUrl) return [];
-    return steamAppImageCandidates(
-      appId || "",
-      resolveSteamIcon(appId, iconUrl),
-    );
-  }, [appId, iconUrl]);
-  const [idx, setIdx] = useState(0);
-  useEffect(() => setIdx(0), [candidates]);
-  const src = candidates[idx];
-
-  return (
-    <Avatar
-      shape="square"
-      size={size}
-      src={src}
-      onError={() => {
-        if (idx + 1 < candidates.length) {
-          setIdx((v) => v + 1);
-          return false;
-        }
-        return true;
-      }}
-      style={{ flexShrink: 0, background: "#1b2838" }}
-    >
-      {name[0]}
-    </Avatar>
-  );
+  return <SteamClientIcon appId={appId} iconUrl={iconUrl} size={size} />;
 }
 
 function sessionDurationSeconds(
@@ -755,7 +801,8 @@ function TimelineChart({
   }
 
   return (
-    <div style={{ opacity: loading ? 0.6 : 1 }}>
+    <Spin spinning={Boolean(loading)} tip="加载统计中…" size="large">
+      <div style={{ minHeight: loading && rows.length === 0 ? 280 : undefined }}>
       <Space wrap style={{ marginBottom: 12 }}>
         <Tag color="#d9d9d9" style={{ color: "#595959" }}>
           离线
@@ -806,30 +853,11 @@ function TimelineChart({
                   gap: 6,
                 }}
               >
-                {resolveSteamIcon(g.steam_app_id, g.icon_url) ? (
-                  <img
-                    src={resolveSteamIcon(g.steam_app_id, g.icon_url)!}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    width={14}
-                    height={14}
-                    onError={(e) => {
-                      const el = e.currentTarget;
-                      const fallback = `https://cdn.cloudflare.steamstatic.com/steam/apps/${encodeURIComponent(g.steam_app_id)}/header.jpg`;
-                      if (el.src !== fallback) {
-                        el.src = fallback;
-                      } else {
-                        el.style.display = "none";
-                      }
-                    }}
-                    style={{
-                      borderRadius: 2,
-                      objectFit: "cover",
-                      display: "block",
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : null}
+                <TimelineSegmentLogo
+                  appId={g.steam_app_id}
+                  iconUrl={g.icon_url}
+                  size={14}
+                />
                 {g.game_name}
               </Tag>
             </Tooltip>
@@ -1007,7 +1035,8 @@ function TimelineChart({
           ))}
         </div>
       </div>
-    </div>
+      </div>
+    </Spin>
   );
 }
 
@@ -1044,19 +1073,26 @@ export default function SteamCalendarPage() {
         ? { start: dayQueryDate, end: dayQueryEnd }
         : null;
 
-  const { data: timelineRaw, isLoading: timelineLoading } = useQuery({
+  const timelineEnabled = Boolean(timelineRange?.start);
+
+  const {
+    data: timelineRaw,
+    isLoading: timelineLoading,
+    isFetching: timelineFetching,
+  } = useQuery({
     queryKey: [
       "steam-timeline",
       timelineRange?.start,
       timelineRange?.end,
       granularity === "day" ? dayStartHour : 0,
     ],
-    queryFn: () => fetchSteamDay(timelineRange!.start, timelineRange!.end),
-    enabled: Boolean(timelineRange?.start),
+    queryFn: () =>
+      fetchSteamDay(timelineRange!.start, timelineRange!.end),
+    enabled: timelineEnabled,
     staleTime: 60_000,
   });
 
-  const timelineData = useMemo(() => {
+  const timelineBase = useMemo(() => {
     if (!timelineRaw) return timelineRaw;
     if (granularity === "day" && dayStartHour === 12) {
       return clipTimelineToNoonWindow(timelineRaw);
@@ -1064,13 +1100,15 @@ export default function SteamCalendarPage() {
     return timelineRaw;
   }, [timelineRaw, granularity, dayStartHour]);
 
+  const timelineData = timelineBase;
+
   useEffect(() => {
-    if (!timelineData) return;
+    if (!timelineBase) return;
     const entries: { appId?: string | null; iconUrl?: string | null }[] = [];
-    for (const g of timelineData.games_legend ?? []) {
+    for (const g of timelineBase.games_legend ?? []) {
       entries.push({ appId: g.steam_app_id, iconUrl: g.icon_url });
     }
-    for (const row of timelineData.timeline ?? []) {
+    for (const row of timelineBase.timeline ?? []) {
       for (const seg of row.segments) {
         if (seg.steam_app_id) {
           entries.push({ appId: seg.steam_app_id, iconUrl: seg.icon_url });
@@ -1078,11 +1116,11 @@ export default function SteamCalendarPage() {
       }
     }
     rememberSteamIcons(entries);
-  }, [timelineData]);
+  }, [timelineBase]);
 
   const { data: nowPlaying } = useQuery({
     queryKey: ["steam-now"],
-    queryFn: fetchSteamNow,
+    queryFn: () => fetchSteamNow(),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -1154,8 +1192,12 @@ export default function SteamCalendarPage() {
   return (
     <div>
       <PageHeader
-        title="今天玩什么"
-        subtitle="仅显示你与 Steam 好友 · 日/周时间轴"
+        title="Steam"
+        subtitle={
+          isAdmin
+            ? "管理员可见全部成员 · 日/周时间轴"
+            : "仅显示你与 Steam 好友 · 日/周时间轴"
+        }
         extra={
           isAdmin ? (
             <Button loading={poll.isPending} onClick={() => poll.mutate()}>
@@ -1250,7 +1292,7 @@ export default function SteamCalendarPage() {
         <TimelineChart
           rows={timelineData?.timeline ?? []}
           gamesLegend={timelineData?.games_legend ?? []}
-          loading={timelineLoading}
+          loading={timelineLoading || timelineFetching}
           spanSeconds={spanSeconds}
           rangeStart={timelineStart}
         />

@@ -3,11 +3,14 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
+from app.core.local_dev_hooks import import_steam_fake
 from app.models.user import User
 from app.schemas import (
     MemberPlayStatsResponse,
+    SteamAppIcon,
     SteamAppStoreCard,
     SteamCalendarResponse,
     SteamDayResponse,
@@ -17,7 +20,7 @@ from app.schemas import (
     SteamPollResult,
 )
 from app.services.steam_friends import list_viewer_steam_friends
-from app.services.steam_game_names import get_store_card
+from app.services.steam_game_names import get_store_card, resolve_app_icons
 from app.services.steam_poller import run_steam_presence_poll
 from app.services.steam_stats import (
     build_calendar,
@@ -74,10 +77,7 @@ def steam_calendar(
         anchor = date.fromisoformat(date_str)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="date 格式应为 YYYY-MM-DD") from exc
-    try:
-        return build_calendar(db, granularity, anchor, user)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return build_calendar(db, granularity, anchor, user)
 
 
 @router.get("/day", response_model=SteamDayResponse)
@@ -115,6 +115,20 @@ def steam_now(
     return list_now_playing(db, user)
 
 
+@router.get("/apps/{app_id}/icon", response_model=SteamAppIcon)
+def steam_app_icon(
+    app_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> dict:
+    """单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。"""
+    app_id = (app_id or "").strip()
+    if not app_id:
+        raise HTTPException(status_code=400, detail="app_id 无效")
+    icons = resolve_app_icons(db, [app_id], fetch_missing=True)
+    return {"steam_app_id": app_id, "icon_url": icons.get(app_id)}
+
+
 @router.get("/apps/{app_id}", response_model=SteamAppStoreCard)
 def steam_app_store_card(
     app_id: str,
@@ -133,4 +147,12 @@ def steam_poll(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> dict:
+    if get_settings().STEAM_FAKE_POLL:
+        steam_fake = import_steam_fake()
+        if steam_fake is None:
+            raise HTTPException(
+                status_code=503,
+                detail="STEAM_FAKE_POLL 已开启但 local_dev.steam_fake 不可用",
+            )
+        return steam_fake.run_fake_steam_presence_poll(db)
     return run_steam_presence_poll(db)

@@ -75,6 +75,11 @@ class MemberProfileOut(BaseModel):
     steam_persona_name: str | None = None
     steam_friends_public: bool | None = None
     steam_friends_synced_at: datetime | None = None
+    skland_bound: bool = False
+    skland_auto_checkin: bool | None = None
+    taygedo_bound: bool = False
+    taygedo_auto_checkin: bool | None = None
+    taygedo_phone_mask: str | None = None
     user_id: int | None = None
     username: str | None = None
     email: str | None = None
@@ -85,6 +90,171 @@ class MemberProfileOut(BaseModel):
 class MemberProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     steam_id: str | None = Field(default=None, max_length=512)
+
+
+class SklandBindRequest(BaseModel):
+    token: str = Field(min_length=8, max_length=4096)
+
+
+class SklandBindPasswordRequest(BaseModel):
+    phone: str = Field(min_length=5, max_length=32)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class SklandBindSmsSendRequest(BaseModel):
+    phone: str = Field(min_length=5, max_length=32)
+
+
+class SklandBindSmsSendResponse(BaseModel):
+    message: str = "验证码已发送"
+
+
+class SklandBindSmsRequest(BaseModel):
+    phone: str = Field(min_length=5, max_length=32)
+    code: str = Field(min_length=4, max_length=16)
+
+
+class SklandBindUpdate(BaseModel):
+    auto_checkin: bool
+
+
+class SklandRoleOut(BaseModel):
+    game_code: str
+    game_name: str
+    uid: str
+    role_name: str
+    channel_name: str
+
+
+class CheckinLogOut(BaseModel):
+    """签到记录公共结构（森空岛 / 塔吉多等共用）。"""
+
+    id: int
+    game_code: str
+    game_name: str
+    role_uid: str
+    role_name: str | None = None
+    channel_name: str | None = None
+    status: str
+    status_label: str = ""
+    message: str | None = None
+    awards_text: str | None = None
+    checkin_date: str
+    checked_at: datetime
+
+
+class CheckinResultItem(BaseModel):
+    game_code: str
+    game_name: str
+    role_uid: str
+    role_name: str
+    channel_name: str
+    status: str
+    status_label: str = ""
+    message: str
+    awards_text: str | None = None
+
+
+class CheckinResponse(BaseModel):
+    skipped: bool = False
+    ok: bool | None = None
+    summary: str
+    results: list[CheckinResultItem] = Field(default_factory=list)
+
+
+# 兼容旧命名
+SklandCheckinLogOut = CheckinLogOut
+SklandCheckinResultItem = CheckinResultItem
+SklandCheckinResponse = CheckinResponse
+
+
+class SklandStatusOut(BaseModel):
+    bound: bool
+    auto_checkin: bool | None = None
+    bound_at: datetime | None = None
+    last_checkin_at: datetime | None = None
+    last_checkin_date: str | None = None
+    last_checkin_ok: bool | None = None
+    last_checkin_summary: str | None = None
+    token_ok: bool | None = None
+    token_error: str | None = None
+    roles: list[SklandRoleOut] = Field(default_factory=list)
+    today_results: list[CheckinResultItem] = Field(default_factory=list)
+    # 兼容旧字段名（前端已切 today_results）
+    today_logs: list[CheckinLogOut] = Field(default_factory=list)
+
+
+class SklandQrStartResponse(BaseModel):
+    scan_id: str
+    scan_url: str
+    qr_image: str
+    expires_in: int = 180
+
+
+class SklandQrPollResponse(BaseModel):
+    status: str  # waiting | scanned | ok | expired | error
+    message: str
+    bound: bool = False
+    auto_checkin: bool | None = None
+    roles: list[SklandRoleOut] = Field(default_factory=list)
+
+
+class TaygedoBindPasswordRequest(BaseModel):
+    phone: str = Field(min_length=6, max_length=32)
+    password: str = Field(min_length=4, max_length=128)
+
+
+class TaygedoBindSmsSendRequest(BaseModel):
+    phone: str = Field(min_length=6, max_length=32)
+    device_id: str | None = Field(default=None, max_length=64)
+
+
+class TaygedoBindSmsSendResponse(BaseModel):
+    device_id: str
+    message: str = "验证码已发送"
+
+
+class TaygedoBindSmsRequest(BaseModel):
+    phone: str = Field(min_length=6, max_length=32)
+    captcha: str = Field(min_length=4, max_length=8)
+    device_id: str = Field(min_length=8, max_length=64)
+
+
+class TaygedoBindJsonRequest(BaseModel):
+    credentials_json: str = Field(min_length=8, max_length=8192)
+
+
+class TaygedoBindUpdate(BaseModel):
+    auto_checkin: bool
+
+
+class TaygedoRoleOut(BaseModel):
+    game_code: str
+    game_name: str
+    uid: str
+    role_name: str
+    channel_name: str
+
+
+TaygedoCheckinLogOut = CheckinLogOut
+TaygedoCheckinResultItem = CheckinResultItem
+TaygedoCheckinResponse = CheckinResponse
+
+
+class TaygedoStatusOut(BaseModel):
+    bound: bool
+    auto_checkin: bool | None = None
+    phone_mask: str | None = None
+    bound_at: datetime | None = None
+    last_checkin_at: datetime | None = None
+    last_checkin_date: str | None = None
+    last_checkin_ok: bool | None = None
+    last_checkin_summary: str | None = None
+    token_ok: bool | None = None
+    token_error: str | None = None
+    roles: list[TaygedoRoleOut] = Field(default_factory=list)
+    today_results: list[CheckinResultItem] = Field(default_factory=list)
+    today_logs: list[CheckinLogOut] = Field(default_factory=list)
 
 
 class SteamBindPreviewRequest(BaseModel):
@@ -259,6 +429,11 @@ class SteamAppStoreCard(BaseModel):
     initial_formatted: str | None = None
     final_formatted: str | None = None
     store_url: str
+
+
+class SteamAppIcon(BaseModel):
+    steam_app_id: str
+    icon_url: str | None = None
 
 
 class SteamSessionBrief(BaseModel):

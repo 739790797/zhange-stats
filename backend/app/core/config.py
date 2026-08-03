@@ -47,9 +47,20 @@ class Settings(BaseSettings):
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
     STEAM_POLL_ENABLED: bool = True
+    # 本地开发：假 Steam 监控（不调 API，持续写入 presence/play；与真实轮询互斥）
+    STEAM_FAKE_POLL: bool = False
     # Steam OpenID 回调地址（必须是 Steam 能访问的公网/局域网 URL）
     PUBLIC_BACKEND_URL: str = "http://127.0.0.1:8000"
     PUBLIC_FRONTEND_URL: str = "http://127.0.0.1:5173"
+
+    # 森空岛每日签到（明日方舟 / 终末地）
+    SKLAND_CHECKIN_ENABLED: bool = True
+    SKLAND_CHECKIN_HOUR: int = 8
+    SKLAND_CHECKIN_MINUTE: int = 30
+    # 塔吉多每日签到（异环）
+    TAYGEDO_CHECKIN_ENABLED: bool = True
+    TAYGEDO_CHECKIN_HOUR: int = 8
+    TAYGEDO_CHECKIN_MINUTE: int = 35
     # 运行时数据目录（密钥等；勿挂到公开静态路径）
     DATA_DIR: str = "data"
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
