@@ -105,6 +105,22 @@ class SklandRole:
 
 
 @dataclass
+class ArknightsSkill:
+    skill_id: str
+    specialize_level: int  # 0-3
+    label: str  # 展示用，如 技能1 Lv.7 / 技能2 专精三
+
+
+@dataclass
+class ArknightsEquip:
+    equip_id: str
+    name: str
+    level: int
+    type_icon: str
+    locked: bool
+
+
+@dataclass
 class ArknightsChar:
     char_id: str
     name: str
@@ -118,6 +134,9 @@ class ArknightsChar:
     skin_id: str | None = None
     avatar_url: str | None = None
     obtain_ts: int | None = None
+    main_skill_lvl: int = 1
+    skills: list[ArknightsSkill] | None = None
+    equips: list[ArknightsEquip] | None = None
 
 
 @dataclass
@@ -1109,10 +1128,78 @@ def _char_avatar_url(char_id: str) -> str:
     return f"{CHAR_AVATAR_CDN}/{char_id}.png"
 
 
+_SPEC_CN = ("", "一", "二", "三")
+
+
+def _skill_label(index: int, *, specialize: int, main_lvl: int) -> str:
+    name = f"技能{index}"
+    if specialize >= 1:
+        sp = _SPEC_CN[min(3, specialize)]
+        return f"{name} 专精{sp}"
+    return f"{name} Lv.{max(1, min(7, main_lvl))}"
+
+
+def _parse_skills(raw_skills: Any, *, main_skill_lvl: int) -> list[ArknightsSkill]:
+    if not isinstance(raw_skills, list):
+        return []
+    out: list[ArknightsSkill] = []
+    for i, row in enumerate(raw_skills, start=1):
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("id") or "").strip()
+        if not sid:
+            continue
+        try:
+            specialize = int(row.get("specializeLevel") or 0)
+        except (TypeError, ValueError):
+            specialize = 0
+        specialize = max(0, min(3, specialize))
+        out.append(
+            ArknightsSkill(
+                skill_id=sid,
+                specialize_level=specialize,
+                label=_skill_label(i, specialize=specialize, main_lvl=main_skill_lvl),
+            )
+        )
+    return out
+
+
+def _parse_equips(raw_equips: Any, equip_info_map: dict[str, Any]) -> list[ArknightsEquip]:
+    if not isinstance(raw_equips, list):
+        return []
+    out: list[ArknightsEquip] = []
+    for row in raw_equips:
+        if not isinstance(row, dict):
+            continue
+        eid = str(row.get("id") or "").strip()
+        if not eid:
+            continue
+        info = equip_info_map.get(eid) if isinstance(equip_info_map.get(eid), dict) else {}
+        try:
+            level = int(row.get("level") or 1)
+        except (TypeError, ValueError):
+            level = 1
+        out.append(
+            ArknightsEquip(
+                equip_id=eid,
+                name=str(info.get("name") or eid).strip() or eid,
+                level=max(1, level),
+                type_icon=str(info.get("typeIcon") or "").strip(),
+                locked=bool(row.get("locked")),
+            )
+        )
+    return out
+
+
 def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
     status = data.get("status") if isinstance(data.get("status"), dict) else {}
     char_info_map = (
         data.get("charInfoMap") if isinstance(data.get("charInfoMap"), dict) else {}
+    )
+    equip_info_map = (
+        data.get("equipmentInfoMap")
+        if isinstance(data.get("equipmentInfoMap"), dict)
+        else {}
     )
     raw_chars = data.get("chars") if isinstance(data.get("chars"), list) else []
     ap = status.get("ap") if isinstance(status.get("ap"), dict) else {}
@@ -1158,6 +1245,13 @@ def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
         except (TypeError, ValueError):
             obtain_ts = None
         skin_id = item.get("skinId")
+        try:
+            main_skill_lvl = int(item.get("mainSkillLvl") or 1)
+        except (TypeError, ValueError):
+            main_skill_lvl = 1
+        main_skill_lvl = max(1, min(7, main_skill_lvl))
+        skills = _parse_skills(item.get("skills"), main_skill_lvl=main_skill_lvl)
+        equips = _parse_equips(item.get("equip"), equip_info_map)
         chars.append(
             ArknightsChar(
                 char_id=char_id,
@@ -1172,6 +1266,9 @@ def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
                 skin_id=str(skin_id) if skin_id else None,
                 avatar_url=_char_avatar_url(char_id),
                 obtain_ts=obtain_ts,
+                main_skill_lvl=main_skill_lvl,
+                skills=skills,
+                equips=equips,
             )
         )
 
@@ -1183,23 +1280,22 @@ def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
         player_level = int(status.get("level") or 0)
     except (TypeError, ValueError):
         player_level = 0
-    reg = status.get("registerTs")
     try:
-        register_ts = int(reg) if reg is not None else None
+        register_ts = int(status.get("registerTs")) if status.get("registerTs") is not None else None
     except (TypeError, ValueError):
         register_ts = None
     try:
-        ap_current = int(ap["current"]) if ap.get("current") is not None else None
-    except (TypeError, ValueError, KeyError):
+        ap_current = int(ap.get("current")) if ap.get("current") is not None else None
+    except (TypeError, ValueError):
         ap_current = None
     try:
-        ap_max = int(ap["max"]) if ap.get("max") is not None else None
-    except (TypeError, ValueError, KeyError):
+        ap_max = int(ap.get("max")) if ap.get("max") is not None else None
+    except (TypeError, ValueError):
         ap_max = None
 
     return ArknightsBox(
         uid=str(status.get("uid") or uid),
-        name=str(status.get("name") or "未知博士"),
+        name=str(status.get("name") or uid),
         level=player_level,
         register_ts=register_ts,
         ap_current=ap_current,

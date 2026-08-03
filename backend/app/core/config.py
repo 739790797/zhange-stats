@@ -57,14 +57,22 @@ class Settings(BaseSettings):
     QQ_APP_ID: str = ""
     QQ_APP_KEY: str = ""
 
-    # 森空岛每日签到（明日方舟 / 终末地）
+    # 森空岛每日签到（明日方舟 / 终末地）— 默认北京时间 00:01
     SKLAND_CHECKIN_ENABLED: bool = True
-    SKLAND_CHECKIN_HOUR: int = 8
-    SKLAND_CHECKIN_MINUTE: int = 30
+    SKLAND_CHECKIN_HOUR: int = 0
+    SKLAND_CHECKIN_MINUTE: int = 1
+    # 明日方舟盒子练度日更（默认 00:20，可与签到错开）
+    ARKNIGHTS_BOX_SYNC_ENABLED: bool = True
+    ARKNIGHTS_BOX_SYNC_HOUR: int = 0
+    ARKNIGHTS_BOX_SYNC_MINUTE: int = 20
     # 塔吉多每日签到（异环）
     TAYGEDO_CHECKIN_ENABLED: bool = True
-    TAYGEDO_CHECKIN_HOUR: int = 8
-    TAYGEDO_CHECKIN_MINUTE: int = 35
+    TAYGEDO_CHECKIN_HOUR: int = 0
+    TAYGEDO_CHECKIN_MINUTE: int = 1
+    # 追放社区每日签到
+    EXILIUM_CHECKIN_ENABLED: bool = True
+    EXILIUM_CHECKIN_HOUR: int = 0
+    EXILIUM_CHECKIN_MINUTE: int = 1
     # 运行时数据目录（密钥等；勿挂到公开静态路径）
     DATA_DIR: str = "data"
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）

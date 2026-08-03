@@ -44,6 +44,9 @@ export interface MemberProfile {
   taygedo_bound?: boolean;
   taygedo_auto_checkin?: boolean | null;
   taygedo_phone_mask?: string | null;
+  exilium_bound?: boolean;
+  exilium_auto_checkin?: boolean | null;
+  exilium_phone_mask?: string | null;
   qq_bound?: boolean;
   qq_nickname?: string | null;
   qq_avatar_url?: string | null;
@@ -62,6 +65,20 @@ export interface SklandRole {
   channel_name: string;
 }
 
+export interface ArknightsCharSkill {
+  skill_id: string;
+  specialize_level: number;
+  label: string;
+}
+
+export interface ArknightsCharEquip {
+  equip_id: string;
+  name: string;
+  level: number;
+  type_icon: string;
+  locked: boolean;
+}
+
 export interface ArknightsChar {
   char_id: string;
   name: string;
@@ -75,6 +92,9 @@ export interface ArknightsChar {
   skin_id?: string | null;
   avatar_url?: string | null;
   obtain_ts?: number | null;
+  main_skill_lvl?: number;
+  skills?: ArknightsCharSkill[];
+  equips?: ArknightsCharEquip[];
 }
 
 export interface ArknightsBox {
@@ -89,6 +109,64 @@ export interface ArknightsBox {
   role_name?: string | null;
   chars: ArknightsChar[];
   roles: SklandRole[];
+}
+
+export interface ArknightsOperator {
+  char_id: string;
+  name: string;
+  rarity: number;
+  profession: string;
+  profession_label: string;
+  avatar_url?: string | null;
+}
+
+export interface ArknightsOwnedChar {
+  level: number;
+  evolve_phase: number;
+  potential_rank: number;
+  favor_percent?: number | null;
+  skin_id?: string | null;
+  avatar_url?: string | null;
+  main_skill_lvl?: number;
+  skills?: ArknightsCharSkill[];
+  equips?: ArknightsCharEquip[];
+}
+
+export interface ArknightsCompareCandidate {
+  member_id: number;
+  nickname: string;
+  avatar_url?: string | null;
+  is_self: boolean;
+  skland_bound: boolean;
+}
+
+export interface ArknightsCompareRole {
+  uid: string;
+  role_name: string;
+  channel_name: string;
+}
+
+export interface ArknightsCompareRow {
+  member_id: number;
+  nickname: string;
+  avatar_url?: string | null;
+  status: "ok" | "unbound" | "error" | "missing" | string;
+  message?: string | null;
+  uid?: string | null;
+  role_name?: string | null;
+  channel_name?: string | null;
+  player_name?: string | null;
+  player_level?: number | null;
+  char_count: number;
+  owned: Record<string, ArknightsOwnedChar>;
+  roles?: ArknightsCompareRole[];
+}
+
+export interface ArknightsBoxCompare {
+  catalog: ArknightsOperator[];
+  catalog_version?: string | null;
+  catalog_synced_at?: string | null;
+  rows: ArknightsCompareRow[];
 }
 
 export interface SklandCheckinLog {
@@ -131,6 +209,7 @@ export interface SklandCheckinResultItem {
   status_label?: string | null;
   message: string;
   awards_text?: string | null;
+  extra_text?: string | null;
 }
 
 export interface SklandCheckinResponse {
@@ -204,6 +283,7 @@ export interface TaygedoCheckinResultItem {
   status_label?: string | null;
   message: string;
   awards_text?: string | null;
+  extra_text?: string | null;
 }
 
 export interface TaygedoCheckinResponse {
@@ -213,6 +293,67 @@ export interface TaygedoCheckinResponse {
   results: TaygedoCheckinResultItem[];
 }
 
+export interface ExiliumRole {
+  game_code: string;
+  game_name: string;
+  uid: string;
+  role_name: string;
+  channel_name: string;
+}
+
+export interface ExiliumStatus {
+  bound: boolean;
+  auto_checkin?: boolean | null;
+  phone_mask?: string | null;
+  bound_at?: string | null;
+  last_checkin_at?: string | null;
+  last_checkin_date?: string | null;
+  last_checkin_ok?: boolean | null;
+  last_checkin_summary?: string | null;
+  token_ok?: boolean | null;
+  token_error?: string | null;
+  roles: ExiliumRole[];
+  today_results?: TaygedoCheckinResultItem[];
+}
+
+export interface ExiliumCheckinResponse {
+  skipped: boolean;
+  ok?: boolean | null;
+  summary: string;
+  results: TaygedoCheckinResultItem[];
+}
+
+export interface ExiliumSmsSendResponse {
+  ok: boolean;
+  message: string;
+  need_graph_captcha?: boolean;
+  graph_captcha_image?: string | null;
+}
+
+export interface ExiliumExchangeItem {
+  exchange_id: number;
+  item_name: string;
+  item_count: number;
+  item_pic: string;
+  item_context: string;
+  use_score: number;
+  exchange_count: number;
+  max_exchange_count: number;
+  cycle: string;
+  remain_seconds?: number | null;
+}
+
+export interface ExiliumExchangeShop {
+  score: number;
+  items: ExiliumExchangeItem[];
+}
+
+export interface ExiliumExchangeResult {
+  ok: boolean;
+  message: string;
+  score?: number | null;
+  item?: ExiliumExchangeItem | null;
+}
 
 export interface SteamVisibilityMeta {
   mode: string;

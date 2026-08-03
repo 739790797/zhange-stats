@@ -11,7 +11,9 @@ import RegisterPage from "@/pages/RegisterPage";
 import SklandPage from "@/pages/SklandPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
 import TaygedoPage from "@/pages/TaygedoPage";
+import ExiliumPage from "@/pages/ExiliumPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
+import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 
@@ -59,6 +61,7 @@ export default function App() {
             <Route path="/friends" element={<Navigate to="/steam" replace />} />
             <Route path="/skland" element={<SklandPage />} />
             <Route path="/taygedo" element={<TaygedoPage />} />
+            <Route path="/exilium" element={<ExiliumPage />} />
             <Route path="/members" element={<Navigate to="/steam" replace />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />
             <Route
@@ -87,6 +90,14 @@ export default function App() {
               element={
                 <AdminRoute>
                   <EmailSettingsPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/settings/jobs"
+              element={
+                <AdminRoute>
+                  <ScheduledJobsPage />
                 </AdminRoute>
               }
             />

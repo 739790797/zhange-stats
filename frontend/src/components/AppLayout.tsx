@@ -2,8 +2,10 @@ import {
   CalendarOutlined,
   CloudDownloadOutlined,
   CloudServerOutlined,
+  CompassOutlined,
   FireOutlined,
   LogoutOutlined,
+  ScheduleOutlined,
   SettingOutlined,
   TeamOutlined,
   UserOutlined,
@@ -28,7 +30,7 @@ import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
-const leafKeys = ["/steam", "/skland", "/taygedo"];
+const leafKeys = ["/steam", "/skland", "/taygedo", "/exilium"];
 
 export function AppLayout() {
   const location = useLocation();
@@ -76,6 +78,7 @@ export function AppLayout() {
   }, [profileQuery.data, setUser]);
 
   const selected = useMemo(() => {
+    if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
     if (location.pathname.startsWith("/skland")) return "/skland";
     return (
@@ -104,6 +107,11 @@ export function AppLayout() {
       key: "/taygedo",
       icon: <FireOutlined />,
       label: <Link to="/taygedo">塔吉多</Link>,
+    },
+    {
+      key: "/exilium",
+      icon: <CompassOutlined />,
+      label: <Link to="/exilium">追放</Link>,
     },
   ];
 
@@ -139,6 +147,12 @@ export function AppLayout() {
             icon: <SettingOutlined />,
             label: "邮箱设置",
             onClick: () => navigate("/settings/email"),
+          },
+          {
+            key: "settings-jobs",
+            icon: <ScheduleOutlined />,
+            label: "定时任务",
+            onClick: () => navigate("/settings/jobs"),
           },
           {
             key: "settings-update",

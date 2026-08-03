@@ -80,6 +80,9 @@ class MemberProfileOut(BaseModel):
     taygedo_bound: bool = False
     taygedo_auto_checkin: bool | None = None
     taygedo_phone_mask: str | None = None
+    exilium_bound: bool = False
+    exilium_auto_checkin: bool | None = None
+    exilium_phone_mask: str | None = None
     qq_bound: bool = False
     qq_nickname: str | None = None
     qq_avatar_url: str | None = None
@@ -133,6 +136,20 @@ class SklandRoleOut(BaseModel):
     channel_name: str
 
 
+class ArknightsCharSkillOut(BaseModel):
+    skill_id: str = ""
+    specialize_level: int = 0
+    label: str = ""
+
+
+class ArknightsCharEquipOut(BaseModel):
+    equip_id: str = ""
+    name: str = ""
+    level: int = 1
+    type_icon: str = ""
+    locked: bool = False
+
+
 class ArknightsCharOut(BaseModel):
     char_id: str
     name: str
@@ -146,6 +163,9 @@ class ArknightsCharOut(BaseModel):
     skin_id: str | None = None
     avatar_url: str | None = None
     obtain_ts: int | None = None
+    main_skill_lvl: int = 1
+    skills: list[ArknightsCharSkillOut] = Field(default_factory=list)
+    equips: list[ArknightsCharEquipOut] = Field(default_factory=list)
 
 
 class ArknightsBoxOut(BaseModel):
@@ -160,6 +180,77 @@ class ArknightsBoxOut(BaseModel):
     role_name: str | None = None
     chars: list[ArknightsCharOut] = Field(default_factory=list)
     roles: list[SklandRoleOut] = Field(default_factory=list)
+
+
+class ArknightsOperatorOut(BaseModel):
+    char_id: str
+    name: str
+    rarity: int
+    profession: str
+    profession_label: str
+    avatar_url: str | None = None
+
+
+class ArknightsCatalogOut(BaseModel):
+    operators: list[ArknightsOperatorOut] = Field(default_factory=list)
+    operator_count: int = 0
+    source_version: str | None = None
+    synced_at: str | None = None
+
+
+class ArknightsCatalogSyncOut(BaseModel):
+    operator_count: int
+    source_version: str | None = None
+    synced_at: str | None = None
+
+
+class ArknightsOwnedCharOut(BaseModel):
+    level: int = 0
+    evolve_phase: int = 0
+    potential_rank: int = 0
+    favor_percent: int | None = None
+    skin_id: str | None = None
+    avatar_url: str | None = None
+    main_skill_lvl: int = 1
+    skills: list[ArknightsCharSkillOut] = Field(default_factory=list)
+    equips: list[ArknightsCharEquipOut] = Field(default_factory=list)
+
+
+class ArknightsCompareRoleOut(BaseModel):
+    uid: str
+    role_name: str
+    channel_name: str
+
+
+class ArknightsCompareRowOut(BaseModel):
+    member_id: int
+    nickname: str
+    avatar_url: str | None = None
+    status: str  # ok | unbound | error | missing
+    message: str | None = None
+    uid: str | None = None
+    role_name: str | None = None
+    channel_name: str | None = None
+    player_name: str | None = None
+    player_level: int | None = None
+    char_count: int = 0
+    owned: dict[str, ArknightsOwnedCharOut] = Field(default_factory=dict)
+    roles: list[ArknightsCompareRoleOut] = Field(default_factory=list)
+
+
+class ArknightsBoxCompareOut(BaseModel):
+    catalog: list[ArknightsOperatorOut] = Field(default_factory=list)
+    catalog_version: str | None = None
+    catalog_synced_at: str | None = None
+    rows: list[ArknightsCompareRowOut] = Field(default_factory=list)
+
+
+class ArknightsCompareCandidateOut(BaseModel):
+    member_id: int
+    nickname: str
+    avatar_url: str | None = None
+    is_self: bool = False
+    skland_bound: bool = False
 
 
 class CheckinLogOut(BaseModel):
@@ -189,6 +280,7 @@ class CheckinResultItem(BaseModel):
     status_label: str = ""
     message: str
     awards_text: str | None = None
+    extra_text: str | None = None
 
 
 class CheckinResponse(BaseModel):
@@ -291,6 +383,108 @@ class TaygedoStatusOut(BaseModel):
     roles: list[TaygedoRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
     today_logs: list[CheckinLogOut] = Field(default_factory=list)
+
+
+class ExiliumBindPasswordRequest(BaseModel):
+    account: str = Field(min_length=5, max_length=128)
+    password: str = Field(min_length=4, max_length=128)
+
+
+class ExiliumBindSmsSendRequest(BaseModel):
+    phone: str = Field(min_length=6, max_length=32)
+    graph_code: str | None = Field(default=None, max_length=16)
+
+
+class ExiliumBindSmsSendResponse(BaseModel):
+    ok: bool = True
+    message: str = "验证码已发送"
+    need_graph_captcha: bool = False
+    graph_captcha_image: str | None = None
+
+
+class ExiliumBindSmsRequest(BaseModel):
+    phone: str = Field(min_length=6, max_length=32)
+    captcha: str = Field(min_length=4, max_length=8)
+
+
+class ExiliumBindUpdate(BaseModel):
+    auto_checkin: bool
+
+
+class ExiliumRoleOut(BaseModel):
+    game_code: str
+    game_name: str
+    uid: str
+    role_name: str
+    channel_name: str
+
+
+ExiliumCheckinResultItem = CheckinResultItem
+ExiliumCheckinResponse = CheckinResponse
+
+
+class ExiliumStatusOut(BaseModel):
+    bound: bool
+    auto_checkin: bool | None = None
+    phone_mask: str | None = None
+    bound_at: datetime | None = None
+    last_checkin_at: datetime | None = None
+    last_checkin_date: str | None = None
+    last_checkin_ok: bool | None = None
+    last_checkin_summary: str | None = None
+    token_ok: bool | None = None
+    token_error: str | None = None
+    roles: list[ExiliumRoleOut] = Field(default_factory=list)
+    today_results: list[CheckinResultItem] = Field(default_factory=list)
+    today_logs: list[CheckinLogOut] = Field(default_factory=list)
+
+
+class ExiliumExchangeItemOut(BaseModel):
+    exchange_id: int
+    item_name: str
+    item_count: int = 1
+    item_pic: str = ""
+    item_context: str = ""
+    use_score: int = 0
+    exchange_count: int = 0
+    max_exchange_count: int = 0
+    cycle: str = "day"
+    remain_seconds: int | None = None
+
+
+class ExiliumExchangeShopOut(BaseModel):
+    score: int = 0
+    items: list[ExiliumExchangeItemOut] = Field(default_factory=list)
+
+
+class ExiliumExchangeRequest(BaseModel):
+    exchange_id: int = Field(ge=1)
+
+
+class ExiliumExchangeResultOut(BaseModel):
+    ok: bool = True
+    message: str = ""
+    score: int | None = None
+    item: ExiliumExchangeItemOut | None = None
+
+
+class ExiliumScoreLogItemOut(BaseModel):
+    score: int = 0
+    reason: str = ""
+    log_time: str = ""
+
+
+class ExiliumScoreLogOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[ExiliumScoreLogItemOut] = Field(
+        default_factory=list,
+        alias="list",
+        serialization_alias="list",
+    )
+    total: int = 0
+    page: int = 1
+    page_size: int = 50
 
 
 class SteamBindPreviewRequest(BaseModel):

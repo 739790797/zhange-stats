@@ -6,12 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_admin
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    ArknightsBoxCompareOut,
     ArknightsBoxOut,
+    ArknightsCatalogOut,
+    ArknightsCatalogSyncOut,
     ArknightsCharOut,
+    ArknightsCompareCandidateOut,
+    ArknightsCompareRoleOut,
+    ArknightsCompareRowOut,
+    ArknightsOperatorOut,
+    ArknightsOwnedCharOut,
     SklandBindPasswordRequest,
     SklandBindRequest,
     SklandBindSmsRequest,
@@ -25,6 +33,17 @@ from app.schemas import (
     SklandQrStartResponse,
     SklandRoleOut,
     SklandStatusOut,
+)
+from app.services.arknights_box_compare import (
+    build_box_compare,
+    list_compare_candidates,
+)
+from app.services.arknights_catalog import (
+    ArknightsCatalogError,
+    ensure_catalog,
+    get_catalog_meta,
+    list_operators,
+    sync_from_upstream,
 )
 from app.services.member_sync import ensure_user_member
 from app.services.skland_checkin import (
@@ -164,6 +183,25 @@ def skland_arknights_box(
                 skin_id=c.skin_id,
                 avatar_url=c.avatar_url,
                 obtain_ts=c.obtain_ts,
+                main_skill_lvl=c.main_skill_lvl,
+                skills=[
+                    {
+                        "skill_id": s.skill_id,
+                        "specialize_level": s.specialize_level,
+                        "label": s.label,
+                    }
+                    for s in (c.skills or [])
+                ],
+                equips=[
+                    {
+                        "equip_id": e.equip_id,
+                        "name": e.name,
+                        "level": e.level,
+                        "type_icon": e.type_icon,
+                        "locked": e.locked,
+                    }
+                    for e in (c.equips or [])
+                ],
             )
             for c in box.chars
         ],
@@ -176,6 +214,140 @@ def skland_arknights_box(
                 channel_name=r.channel_name,
             )
             for r in roles
+        ],
+    )
+
+
+@router.get("/arknights/catalog", response_model=ArknightsCatalogOut)
+def skland_arknights_catalog(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """干员图鉴（可招募干员全集）。空库时自动从上游同步一次。"""
+    _ = user
+    try:
+        ensure_catalog(db)
+    except ArknightsCatalogError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    operators = [
+        ArknightsOperatorOut(
+            char_id=op.char_id,
+            name=op.name,
+            rarity=op.rarity,
+            profession=op.profession,
+            profession_label=op.profession_label,
+            avatar_url=op.avatar_url,
+        )
+        for op in list_operators(db)
+    ]
+    meta = get_catalog_meta(db)
+    return ArknightsCatalogOut(
+        operators=operators,
+        operator_count=len(operators),
+        source_version=meta.source_version if meta else None,
+        synced_at=meta.synced_at.isoformat() if meta and meta.synced_at else None,
+    )
+
+
+@router.post("/arknights/catalog/sync", response_model=ArknightsCatalogSyncOut)
+def skland_arknights_catalog_sync(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：从 ArknightsGameResource 同步 character_table。"""
+    try:
+        result = sync_from_upstream(db)
+    except ArknightsCatalogError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return ArknightsCatalogSyncOut(
+        operator_count=int(result["operator_count"]),
+        source_version=result.get("source_version"),
+        synced_at=result.get("synced_at"),
+    )
+
+
+@router.get(
+    "/arknights/box/compare-candidates",
+    response_model=list[ArknightsCompareCandidateOut],
+)
+def skland_arknights_compare_candidates(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """盒子对比可选成员（自己 + 可见好友，含是否已绑森空岛）。"""
+    _member_or_404(db, user)
+    rows = list_compare_candidates(db, user)
+    return [ArknightsCompareCandidateOut(**r) for r in rows]
+
+
+@router.get("/arknights/box/compare", response_model=ArknightsBoxCompareOut)
+def skland_arknights_box_compare(
+    member_ids: str = Query(..., description="逗号分隔的成员 id，最多 5 人"),
+    role_uids: str | None = Query(
+        default=None,
+        description="可选，格式 memberId:uid,memberId:uid，指定各成员渠道服角色",
+    ),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """多用户盒子对比：统一图鉴顺序，未拥有不在 owned 中。"""
+    _member_or_404(db, user)
+    ids: list[int] = []
+    for part in member_ids.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"无效的 member_id: {part}") from exc
+
+    uid_map: dict[int, str] = {}
+    if role_uids:
+        for part in role_uids.split(","):
+            part = part.strip()
+            if not part or ":" not in part:
+                continue
+            mid_raw, _, uid_raw = part.partition(":")
+            try:
+                mid = int(mid_raw.strip())
+            except ValueError:
+                continue
+            uid = uid_raw.strip()
+            if uid:
+                uid_map[mid] = uid
+
+    try:
+        data = build_box_compare(db, user, ids, role_uids=uid_map)
+    except ArknightsCatalogError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ArknightsBoxCompareOut(
+        catalog=[ArknightsOperatorOut(**c) for c in data["catalog"]],
+        catalog_version=data.get("catalog_version"),
+        catalog_synced_at=data.get("catalog_synced_at"),
+        rows=[
+            ArknightsCompareRowOut(
+                member_id=r["member_id"],
+                nickname=r["nickname"],
+                avatar_url=r.get("avatar_url"),
+                status=r["status"],
+                message=r.get("message"),
+                uid=r.get("uid"),
+                role_name=r.get("role_name"),
+                channel_name=r.get("channel_name"),
+                player_name=r.get("player_name"),
+                player_level=r.get("player_level"),
+                char_count=r.get("char_count") or 0,
+                owned={
+                    cid: ArknightsOwnedCharOut(**owned)
+                    for cid, owned in (r.get("owned") or {}).items()
+                },
+                roles=[
+                    ArknightsCompareRoleOut(**role)
+                    for role in (r.get("roles") or [])
+                ],
+            )
+            for r in data["rows"]
         ],
     )
 

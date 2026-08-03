@@ -34,6 +34,7 @@ class CheckinResult:
     status: str  # ok | already | error | skipped
     message: str
     awards_text: str | None = None
+    extra_text: str | None = None
 
     def to_api_dict(self) -> dict[str, Any]:
         return {
@@ -46,6 +47,7 @@ class CheckinResult:
             "status_label": status_label(self.status),
             "message": self.message,
             "awards_text": self.awards_text,
+            "extra_text": self.extra_text,
         }
 
 

@@ -17,6 +17,8 @@ export function PhoneAuthBindTemplate({
   defaultMode,
   submitText = "登录并绑定",
   qrPanel,
+  accountPlaceholder = "手机号",
+  smsExtra,
   onModeChange,
   onPhoneChange,
   onSendSms,
@@ -30,10 +32,14 @@ export function PhoneAuthBindTemplate({
   submitText?: string;
   /** 扫码模式内容；仅当 modes 含 qr 时使用 */
   qrPanel?: ReactNode;
+  accountPlaceholder?: string;
+  /** 短信模式下额外字段（如图形验证码） */
+  smsExtra?: ReactNode;
   onModeChange?: (mode: PhoneAuthMode) => void;
   /** 手机号变更时回调（如塔吉多清 deviceId） */
   onPhoneChange?: (phone: string, prevPhone: string) => void;
-  onSendSms: (phone: string) => Promise<void>;
+  /** 返回 false 表示未真正发出短信（如需先填图形验证码），不进入冷却 */
+  onSendSms: (phone: string) => Promise<boolean | void>;
   onBindSms: (phone: string, code: string) => Promise<void>;
   onBindPassword: (phone: string, password: string) => Promise<void>;
 }) {
@@ -103,7 +109,7 @@ export function PhoneAuthBindTemplate({
         ) : (
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Input
-              placeholder="手机号"
+              placeholder={accountPlaceholder}
               value={phone}
               onChange={(e) => {
                 const next = e.target.value;
@@ -114,6 +120,7 @@ export function PhoneAuthBindTemplate({
             />
             {mode === "sms" ? (
               <>
+                {smsExtra}
                 <Space.Compact style={{ width: "100%" }}>
                   <Input
                     placeholder="短信验证码"
@@ -132,7 +139,10 @@ export function PhoneAuthBindTemplate({
                       }
                       setSendingSms(true);
                       try {
-                        await onSendSms(phone.trim());
+                        const sent = await onSendSms(phone.trim());
+                        if (sent === false) {
+                          return;
+                        }
                         startSmsCooldown(60);
                         message.success("验证码已发送");
                       } catch (e: unknown) {

@@ -1,18 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Tabs, message } from "antd";
-import { useMemo, useState } from "react";
+import { Alert, Button, Card, Tabs, message } from "antd";
+import { useState } from "react";
 import {
-  fetchSklandStatus,
-  triggerSklandCheckin,
-  updateSklandBind,
+  fetchExiliumStatus,
+  triggerExiliumCheckin,
+  updateExiliumBind,
 } from "@/api/client";
-import { ArknightsBoxCompare } from "@/components/ArknightsBoxCompare";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
+import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
+import { ExiliumExchangePanel } from "@/components/ExiliumExchangePanel";
 import { PageHeader } from "@/components/PageHeader";
-import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { isCheckinSuccess } from "@/lib/checkinStatus";
 
-type TabKey = "checkin" | "arknights" | "endfield";
+type TabKey = "checkin" | "exchange";
 
 function apiError(e: unknown, fallback: string) {
   const detail =
@@ -23,18 +23,18 @@ function apiError(e: unknown, fallback: string) {
   return String(detail || (e as Error)?.message || fallback);
 }
 
-export default function SklandPage() {
+export default function ExiliumPage() {
   const [tab, setTab] = useState<TabKey>("checkin");
   const queryClient = useQueryClient();
 
   const statusQuery = useQuery({
-    queryKey: ["skland-status"],
-    queryFn: () => fetchSklandStatus(true),
+    queryKey: ["exilium-status"],
+    queryFn: () => fetchExiliumStatus(true),
     retry: false,
   });
 
   const checkin = useMutation({
-    mutationFn: triggerSklandCheckin,
+    mutationFn: triggerExiliumCheckin,
     onSuccess: (data) => {
       const allDone =
         Boolean(data.results?.length) &&
@@ -45,11 +45,12 @@ export default function SklandPage() {
       ) {
         message.info("今日已签到");
       } else if (data.ok === false) {
-        message.warning("签到未全部成功，失败角色可再次尝试");
+        message.warning("签到未成功，可再次尝试");
       } else {
         message.success("签到完成");
       }
-      queryClient.invalidateQueries({ queryKey: ["skland-status"] });
+      queryClient.invalidateQueries({ queryKey: ["exilium-status"] });
+      queryClient.invalidateQueries({ queryKey: ["exilium-exchange"] });
       queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "签到失败")),
@@ -59,17 +60,11 @@ export default function SklandPage() {
   const tokenBroken = bound && statusQuery.data?.token_ok === false;
   const canUse = bound && !tokenBroken;
 
-  const endfieldRoles = useMemo(
-    () =>
-      (statusQuery.data?.roles || []).filter((r) => r.game_code === "endfield"),
-    [statusQuery.data?.roles],
-  );
-
   return (
     <div>
       <PageHeader
-        title="森空岛"
-        subtitle="签到、明日方舟干员盒子对比与终末地"
+        title="追放"
+        subtitle="少女前线2：追放官方社区签到与积分兑换"
         extra={
           tab === "checkin" && canUse ? (
             <Button
@@ -88,8 +83,8 @@ export default function SklandPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="尚未绑定森空岛"
-          description="支持扫码、短信验证码或账号密码登录鹰角通行证，用于方舟 / 终末地签到与干员盒子。"
+          message="尚未绑定追放社区"
+          description="使用社区账号密码或手机验证码绑定后，可自动签到并兑换积分物品。"
         />
       ) : null}
 
@@ -98,14 +93,14 @@ export default function SklandPage() {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="森空岛凭证可能已失效"
+          message="追放凭证可能已失效"
           description={statusQuery.data?.token_error || "请重新绑定后再试。"}
         />
       ) : null}
 
       {(!bound || tokenBroken) && !statusQuery.isLoading ? (
         <Card style={{ marginBottom: 24 }}>
-          <SklandBindPanel title="绑定森空岛账号" />
+          <ExiliumBindPanel title="绑定追放社区账号" />
         </Card>
       ) : null}
 
@@ -119,47 +114,22 @@ export default function SklandPage() {
             children: (
               <CheckinPageTemplate
                 contentOnly
-                title="森空岛"
+                title="追放"
                 subtitle=""
-                bindName="森空岛"
+                bindName="追放社区"
                 bindDescription=""
-                statusQueryKey={["skland-status"]}
-                fetchStatus={fetchSklandStatus}
-                triggerCheckin={triggerSklandCheckin}
-                updateBind={updateSklandBind}
+                statusQueryKey={["exilium-status"]}
+                fetchStatus={fetchExiliumStatus}
+                triggerCheckin={triggerExiliumCheckin}
+                updateBind={updateExiliumBind}
+                showPhoneMask
               />
             ),
           },
           {
-            key: "arknights",
-            label: "明日方舟",
-            children: <ArknightsBoxCompare />,
-          },
-          {
-            key: "endfield",
-            label: "明日方舟：终末地",
-            children: canUse ? (
-              endfieldRoles.length ? (
-                <Card title="绑定角色">
-                  {endfieldRoles.map((r) => (
-                    <div key={r.uid} style={{ marginBottom: 8 }}>
-                      {r.role_name}
-                      <span style={{ color: "#888" }}> · {r.channel_name}</span>
-                      <span style={{ color: "#888" }}> · UID {r.uid}</span>
-                    </div>
-                  ))}
-                  <Empty
-                    style={{ marginTop: 24 }}
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="终末地角色卡片 / 养成展示开发中"
-                  />
-                </Card>
-              ) : (
-                <Empty description="未绑定终末地角色" />
-              )
-            ) : (
-              <Empty description="绑定森空岛后可查看终末地角色" />
-            ),
+            key: "exchange",
+            label: "积分兑换",
+            children: <ExiliumExchangePanel />,
           },
         ]}
       />

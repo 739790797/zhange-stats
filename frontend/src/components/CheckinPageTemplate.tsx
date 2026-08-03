@@ -37,6 +37,7 @@ export interface CheckinPageResultItem {
   status_label?: string | null;
   message: string;
   awards_text?: string | null;
+  extra_text?: string | null;
 }
 
 export interface CheckinPageStatus {
@@ -106,6 +107,16 @@ function awardsText(row: CheckinPageResultItem) {
   if (row.message && row.message.includes("获得：")) {
     return row.message.split("获得：").slice(1).join("获得：") || "-";
   }
+  // 追放等：message 形如「今日已签到：积分+40」/「签到成功：…」
+  if (row.message) {
+    for (const sep of ["：", ":"]) {
+      const idx = row.message.indexOf(sep);
+      if (idx >= 0) {
+        const rest = row.message.slice(idx + sep.length).trim();
+        if (rest) return rest;
+      }
+    }
+  }
   return "-";
 }
 
@@ -148,6 +159,9 @@ export function CheckinPageTemplate({
       }
       queryClient.invalidateQueries({ queryKey: statusQueryKey });
       queryClient.invalidateQueries({ queryKey: ["profile-me"] });
+      if (statusQueryKey[0] === "exilium-status") {
+        queryClient.invalidateQueries({ queryKey: ["exilium-exchange"] });
+      }
     },
     onError: (e: unknown) => message.error(apiError(e, "签到失败")),
   });
@@ -242,6 +256,11 @@ export function CheckinPageTemplate({
                       <Typography.Text type="secondary">
                         奖励：{awardsText(row)}
                       </Typography.Text>
+                      {row.extra_text ? (
+                        <Typography.Text type="secondary">
+                          {row.extra_text}
+                        </Typography.Text>
+                      ) : null}
                     </Space>
                   </List.Item>
                 )}

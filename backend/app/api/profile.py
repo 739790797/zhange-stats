@@ -103,6 +103,7 @@ def _profile_from_member(
     )
     skland = getattr(member, "skland_bind", None)
     taygedo = getattr(member, "taygedo_bind", None)
+    exilium = getattr(member, "exilium_bind", None)
     return MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
@@ -116,6 +117,9 @@ def _profile_from_member(
         taygedo_bound=taygedo is not None,
         taygedo_auto_checkin=bool(taygedo.auto_checkin) if taygedo is not None else None,
         taygedo_phone_mask=taygedo.phone_mask if taygedo is not None else None,
+        exilium_bound=exilium is not None,
+        exilium_auto_checkin=bool(exilium.auto_checkin) if exilium is not None else None,
+        exilium_phone_mask=exilium.phone_mask if exilium is not None else None,
         qq_bound=bool(member.qq_openid),
         qq_nickname=member.qq_nickname,
         qq_avatar_url=member.qq_avatar_url,
@@ -381,6 +385,7 @@ def get_my_profile(
             joinedload(Member.user),
             joinedload(Member.skland_bind),
             joinedload(Member.taygedo_bind),
+            joinedload(Member.exilium_bind),
         )
         .filter(Member.id == member.id)
         .first()
@@ -660,6 +665,7 @@ def unbind_qq(
                 joinedload(Member.user),
                 joinedload(Member.skland_bind),
                 joinedload(Member.taygedo_bind),
+                joinedload(Member.exilium_bind),
             )
             .filter(Member.id == member_id)
             .first()
@@ -780,6 +786,7 @@ def get_member_profile(
             joinedload(Member.user),
             joinedload(Member.skland_bind),
             joinedload(Member.taygedo_bind),
+            joinedload(Member.exilium_bind),
         )
         .filter(Member.id == member_id)
         .first()

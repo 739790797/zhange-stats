@@ -53,3 +53,9 @@ class Member(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    exilium_bind = relationship(
+        "ExiliumBind",
+        back_populates="member",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

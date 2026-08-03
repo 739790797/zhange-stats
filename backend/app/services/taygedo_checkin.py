@@ -76,6 +76,7 @@ def bind_with_password(db: Session, member: Member, phone: str, password: str) -
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
+    _maybe_checkin_after_bind(db, bind)
     return bind
 
 
@@ -95,6 +96,7 @@ def bind_with_sms(
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
+    _maybe_checkin_after_bind(db, bind)
     return bind
 
 
@@ -116,7 +118,22 @@ def bind_with_credentials_json(db: Session, member: Member, raw_json: str) -> Ta
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
+    _maybe_checkin_after_bind(db, bind)
     return bind
+
+
+def _maybe_checkin_after_bind(db: Session, bind: TaygedoBind) -> None:
+    """绑定成功后：若开启自动签到且今日尚未签到，则立即补签。"""
+    if not bind.auto_checkin:
+        return
+    try:
+        run_checkin_for_bind(db, bind, force=False)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "taygedo checkin after bind failed member_id=%s", bind.member_id
+        )
+        db.rollback()
+        db.refresh(bind)
 
 
 def unbind_taygedo(db: Session, member: Member) -> None:

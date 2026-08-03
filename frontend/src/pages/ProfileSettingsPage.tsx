@@ -1,4 +1,4 @@
-﻿import { CameraOutlined } from "@ant-design/icons";
+import { CameraOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -25,12 +25,14 @@ import {
   unbindQq,
   unbindSkland,
   unbindTaygedo,
+  unbindExilium,
   updateMemberProfile,
   updateMyProfile,
   uploadMemberAvatar,
   uploadMyAvatar,
 } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
+import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
 import { useAuthStore } from "@/stores/authStore";
@@ -66,6 +68,7 @@ export default function ProfileSettingsPage() {
   const [steamPromptOpen, setSteamPromptOpen] = useState(false);
   const [sklandModalOpen, setSklandModalOpen] = useState(false);
   const [taygedoModalOpen, setTaygedoModalOpen] = useState(false);
+  const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -241,6 +244,10 @@ export default function ProfileSettingsPage() {
     setTaygedoModalOpen(false);
   };
 
+  const closeExiliumModal = () => {
+    setExiliumModalOpen(false);
+  };
+
   const unbindSklandMut = useMutation({
     mutationFn: unbindSkland,
     onSuccess: () => {
@@ -259,6 +266,16 @@ export default function ProfileSettingsPage() {
       invalidateProfile();
       queryClient.invalidateQueries({ queryKey: ["taygedo-status"] });
       queryClient.invalidateQueries({ queryKey: ["taygedo-logs"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
+  const unbindExiliumMut = useMutation({
+    mutationFn: unbindExilium,
+    onSuccess: () => {
+      message.success("已解除追放社区绑定");
+      invalidateProfile();
+      queryClient.invalidateQueries({ queryKey: ["exilium-status"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
   });
@@ -304,6 +321,7 @@ export default function ProfileSettingsPage() {
   const qqBound = Boolean(data?.qq_bound);
   const sklandBound = Boolean(data?.skland_bound);
   const taygedoBound = Boolean(data?.taygedo_bound);
+  const exiliumBound = Boolean(data?.exilium_bound);
   const displayName =
     data?.steam_persona_name ||
     data?.display_name ||
@@ -656,6 +674,66 @@ export default function ProfileSettingsPage() {
             </Space>
           </div>
         ) : null}
+
+        {!isAdminEdit ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              padding: "16px 4px",
+              borderTop: "1px solid rgba(0,0,0,0.06)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <Space size={8} align="center">
+                <Typography.Text strong>追放</Typography.Text>
+                {exiliumBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+              </Space>
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {exiliumBound
+                    ? `自动签到已${
+                        data?.exilium_auto_checkin ? "开启" : "关闭"
+                      } · 可在「追放」页手动签到`
+                    : "官方社区账号密码或手机验证码，用于每日签到"}
+                </Typography.Text>
+              </div>
+            </div>
+            <Space>
+              {exiliumBound ? (
+                <>
+                  <Button disabled={!!errMsg} onClick={() => setExiliumModalOpen(true)}>
+                    换绑
+                  </Button>
+                  <Popconfirm
+                    title="确认解除追放社区绑定？"
+                    okText="确定"
+                    cancelText="取消"
+                    onConfirm={() => unbindExiliumMut.mutate()}
+                  >
+                    <Button
+                      danger
+                      loading={unbindExiliumMut.isPending}
+                      disabled={!!errMsg}
+                    >
+                      解绑
+                    </Button>
+                  </Popconfirm>
+                </>
+              ) : (
+                <Button
+                  type="primary"
+                  disabled={!!errMsg}
+                  onClick={() => setExiliumModalOpen(true)}
+                >
+                  绑定追放
+                </Button>
+              )}
+            </Space>
+          </div>
+        ) : null}
       </Card>
 
       <Modal
@@ -710,6 +788,25 @@ export default function ProfileSettingsPage() {
               invalidateProfile();
               queryClient.invalidateQueries({ queryKey: ["taygedo-logs"] });
               closeTaygedoModal();
+            }}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        title={exiliumBound ? "更换追放绑定" : "绑定追放"}
+        open={exiliumModalOpen && !isAdminEdit}
+        footer={null}
+        onCancel={closeExiliumModal}
+        destroyOnClose
+        width={480}
+      >
+        {exiliumModalOpen && !isAdminEdit ? (
+          <ExiliumBindPanel
+            title=""
+            onSuccess={() => {
+              invalidateProfile();
+              closeExiliumModal();
             }}
           />
         ) : null}

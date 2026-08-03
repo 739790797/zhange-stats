@@ -122,5 +122,11 @@ def run_migrations() -> None:
     else:
         command.upgrade(cfg, "head")
 
+    # 补建模型中新增、尚未写入 Alembic 的表（幂等）
+    import app.models  # noqa: F401
+
+    Base.metadata.create_all(bind=engine)
+    ensure_schema(engine)
+
     _drop_obsolete_tables()
     logger.info("Database migrations are up to date")

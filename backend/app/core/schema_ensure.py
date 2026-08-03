@@ -165,3 +165,13 @@ def ensure_schema(engine: Engine) -> None:
                 columns,
                 ["verify_code", "verify_code_expires_at"],
             )
+
+    # 盒子快照 JSON 含技能/模组，TEXT(64KB) 不够，升级为 LONGTEXT
+    if "arknights_box_snapshots" in tables:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE arknights_box_snapshots "
+                    "MODIFY COLUMN payload_json LONGTEXT NOT NULL"
+                )
+            )

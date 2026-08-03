@@ -2,6 +2,8 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
 import type {
   ArknightsBox,
+  ArknightsBoxCompare,
+  ArknightsCompareCandidate,
   Member,
   MemberPlayStats,
   MemberProfile,
@@ -13,6 +15,11 @@ import type {
   TaygedoCheckinLog,
   TaygedoCheckinResponse,
   TaygedoStatus,
+  ExiliumCheckinResponse,
+  ExiliumExchangeResult,
+  ExiliumExchangeShop,
+  ExiliumSmsSendResponse,
+  ExiliumStatus,
   SteamBindPreview,
   SteamCalendarData,
   SteamDayData,
@@ -213,8 +220,39 @@ export interface EmailSettings {
   configured: boolean;
 }
 
+export interface ScheduledJobLastRun {
+  status?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  message?: string | null;
+}
+
+export interface ScheduledJob {
+  id: string;
+  name: string;
+  description: string;
+  registered: boolean;
+  scheduler_running: boolean;
+  trigger_type?: string | null;
+  schedule?: string | null;
+  next_run_at?: string | null;
+  config_enabled?: boolean | null;
+  last_run?: ScheduledJobLastRun | null;
+}
+
+export interface ScheduledJobsResponse {
+  scheduler_running: boolean;
+  timezone: string;
+  jobs: ScheduledJob[];
+}
+
 export async function fetchEmailSettings() {
   const { data } = await client.get<EmailSettings>("/settings/email");
+  return data;
+}
+
+export async function fetchScheduledJobs() {
+  const { data } = await client.get<ScheduledJobsResponse>("/settings/jobs");
   return data;
 }
 
@@ -377,6 +415,36 @@ export async function fetchArknightsBox(uid?: string) {
   return data;
 }
 
+export async function fetchArknightsCompareCandidates() {
+  const { data } = await client.get<ArknightsCompareCandidate[]>(
+    "/skland/arknights/box/compare-candidates",
+  );
+  return data;
+}
+
+export async function fetchArknightsBoxCompare(
+  memberIds: number[],
+  roleUids?: Record<number, string>,
+) {
+  const roleUidParam =
+    roleUids &&
+    Object.entries(roleUids)
+      .filter(([, uid]) => Boolean(uid))
+      .map(([memberId, uid]) => `${memberId}:${uid}`)
+      .join(",");
+  const { data } = await client.get<ArknightsBoxCompare>(
+    "/skland/arknights/box/compare",
+    {
+      params: {
+        member_ids: memberIds.join(","),
+        ...(roleUidParam ? { role_uids: roleUidParam } : {}),
+      },
+      timeout: 120000,
+    },
+  );
+  return data;
+}
+
 export async function fetchSklandLogs(limit = 30) {
   const { data } = await client.get<SklandCheckinLog[]>("/skland/logs", {
     params: { limit },
@@ -495,5 +563,67 @@ export async function updateTaygedoBind(payload: { auto_checkin: boolean }) {
 
 export async function triggerTaygedoCheckin() {
   const { data } = await client.post<TaygedoCheckinResponse>("/taygedo/checkin");
+  return data;
+}
+
+export async function fetchExiliumStatus(includeRoles = true) {
+  const { data } = await client.get<ExiliumStatus>("/exilium/status", {
+    params: { include_roles: includeRoles },
+  });
+  return data;
+}
+
+export async function bindExiliumPassword(account: string, password: string) {
+  const { data } = await client.post<ExiliumStatus>("/exilium/bind/password", {
+    account,
+    password,
+  });
+  return data;
+}
+
+export async function sendExiliumSms(phone: string, graphCode?: string | null) {
+  const { data } = await client.post<ExiliumSmsSendResponse>(
+    "/exilium/bind/sms/send",
+    { phone, graph_code: graphCode || null },
+  );
+  return data;
+}
+
+export async function bindExiliumSms(phone: string, captcha: string) {
+  const { data } = await client.post<ExiliumStatus>("/exilium/bind/sms", {
+    phone,
+    captcha,
+  });
+  return data;
+}
+
+export async function unbindExilium() {
+  const { data } = await client.delete<ExiliumStatus>("/exilium/bind");
+  return data;
+}
+
+export async function updateExiliumBind(payload: { auto_checkin: boolean }) {
+  const { data } = await client.patch<ExiliumStatus>("/exilium/bind", payload);
+  return data;
+}
+
+export async function triggerExiliumCheckin() {
+  const { data } = await client.post<ExiliumCheckinResponse>("/exilium/checkin");
+  return data;
+}
+
+export async function fetchExiliumExchange() {
+  const { data } = await client.get<ExiliumExchangeShop>("/exilium/exchange", {
+    timeout: 60000,
+  });
+  return data;
+}
+
+export async function exchangeExiliumItem(exchangeId: number) {
+  const { data } = await client.post<ExiliumExchangeResult>(
+    "/exilium/exchange",
+    { exchange_id: exchangeId },
+    { timeout: 60000 },
+  );
   return data;
 }

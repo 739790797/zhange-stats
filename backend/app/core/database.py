@@ -21,6 +21,7 @@ def _set_session_timezone(dbapi_conn, _connection_record) -> None:
     cursor = dbapi_conn.cursor()
     try:
         cursor.execute("SET time_zone = '+08:00'")
+        cursor.execute("SET NAMES utf8mb4")
     finally:
         cursor.close()
 

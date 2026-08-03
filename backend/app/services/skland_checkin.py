@@ -62,7 +62,22 @@ def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
     bind.updated_at = now_naive()
     db.commit()
     db.refresh(bind)
+    _maybe_checkin_after_bind(db, bind)
     return bind
+
+
+def _maybe_checkin_after_bind(db: Session, bind: SklandBind) -> None:
+    """绑定成功后：若开启自动签到且今日尚未签到，则立即补签。"""
+    if not bind.auto_checkin:
+        return
+    try:
+        run_checkin_for_bind(db, bind, force=False)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "skland checkin after bind failed member_id=%s", bind.member_id
+        )
+        db.rollback()
+        db.refresh(bind)
 
 
 def bind_skland_with_password(

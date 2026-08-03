@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.12** — 圈子 Steam 游玩统计、森空岛与塔吉多每日签到。
+**v0.1.13** — 圈子 Steam 游玩统计；森空岛 / 塔吉多 / 追放签到；明日方舟盒子对比。
 
 ## 功能
 
@@ -8,7 +8,10 @@
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力）
 - 管理端：用户 / SMTP
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
+- 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）
 - 塔吉多绑定与每日自动签到（异环）
+- 追放社区绑定、签到、每日任务与积分兑换
+- 管理端：用户 / SMTP / 定时任务一览
 - Docker 部署后由 **Watchtower** 自动拉取新镜像（无需管理端点更新）
 
 ## 技术栈
@@ -59,7 +62,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.12` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.13` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。生产需先更新本机的 `compose.yml` 再 `docker compose up -d` 一次以启动 Watchtower。
 
