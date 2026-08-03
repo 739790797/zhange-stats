@@ -23,6 +23,7 @@ from app.services.skland_client import (
     SklandApiError,
     SklandRole,
     checkin_role,
+    fetch_arknights_box,
     friendly_error_message,
     list_roles,
     login_with_token,
@@ -30,6 +31,7 @@ from app.services.skland_client import (
     query_role_today,
     query_today_all,
     sort_skland_results,
+    GAME_ARKNIGHTS,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,6 +113,23 @@ def preview_roles(db: Session, member: Member) -> list[SklandRole]:
         raise SklandApiError("凭证已损坏，请重新绑定")
     session = login_with_token(token)
     return list_roles(session)
+
+
+def get_arknights_box_for_member(db: Session, member: Member, uid: str | None = None):
+    """拉取指定（或默认）明日方舟账号的干员盒子。"""
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise SklandApiError("尚未绑定森空岛")
+    session = _session_for_bind(bind)
+    roles = [r for r in list_roles(session) if r.game_code == GAME_ARKNIGHTS]
+    if not roles:
+        raise SklandApiError("未找到明日方舟绑定角色")
+    target_uid = str(uid or "").strip()
+    role = next((r for r in roles if r.uid == target_uid), None) if target_uid else roles[0]
+    if role is None:
+        raise SklandApiError("UID 不在当前森空岛绑定列表中")
+    box = fetch_arknights_box(session, role.uid)
+    return box, role, roles
 
 
 def _summarize(results: list[CheckinResult]) -> tuple[bool, str]:

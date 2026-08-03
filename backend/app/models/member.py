@@ -20,6 +20,14 @@ class Member(Base):
     steam_friends_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    qq_openid: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True, index=True
+    )
+    qq_unionid: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    qq_nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    qq_avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), unique=True, nullable=True
     )

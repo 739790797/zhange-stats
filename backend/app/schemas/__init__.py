@@ -80,6 +80,9 @@ class MemberProfileOut(BaseModel):
     taygedo_bound: bool = False
     taygedo_auto_checkin: bool | None = None
     taygedo_phone_mask: str | None = None
+    qq_bound: bool = False
+    qq_nickname: str | None = None
+    qq_avatar_url: str | None = None
     user_id: int | None = None
     username: str | None = None
     email: str | None = None
@@ -90,6 +93,10 @@ class MemberProfileOut(BaseModel):
 class MemberProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     steam_id: str | None = Field(default=None, max_length=512)
+
+
+class QqOAuthStartResponse(BaseModel):
+    url: str
 
 
 class SklandBindRequest(BaseModel):
@@ -124,6 +131,35 @@ class SklandRoleOut(BaseModel):
     uid: str
     role_name: str
     channel_name: str
+
+
+class ArknightsCharOut(BaseModel):
+    char_id: str
+    name: str
+    rarity: int
+    profession: str
+    profession_label: str
+    level: int
+    evolve_phase: int
+    potential_rank: int
+    favor_percent: int | None = None
+    skin_id: str | None = None
+    avatar_url: str | None = None
+    obtain_ts: int | None = None
+
+
+class ArknightsBoxOut(BaseModel):
+    uid: str
+    name: str
+    level: int
+    register_ts: int | None = None
+    ap_current: int | None = None
+    ap_max: int | None = None
+    char_count: int
+    channel_name: str | None = None
+    role_name: str | None = None
+    chars: list[ArknightsCharOut] = Field(default_factory=list)
+    roles: list[SklandRoleOut] = Field(default_factory=list)
 
 
 class CheckinLogOut(BaseModel):

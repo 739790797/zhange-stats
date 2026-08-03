@@ -3,92 +3,38 @@ type BrandLogoProps = {
   color?: string;
   title?: string;
   className?: string;
+  /** @deprecated 几何实心标不再使用描边宽度 */
   strokeWidth?: number;
 };
 
-/** 简笔黑白线条鸽子（原创线稿） */
+const VIEW_W = 529;
+const VIEW_H = 368;
+
+/** ZHANGE / 战鸽几何标（与 public/brand/logo-mark 同源） */
 export function BrandLogo({
   size = 28,
   color = "currentColor",
   title = "战鸽数据",
   className,
-  strokeWidth = 1.7,
 }: BrandLogoProps) {
+  const width = size;
+  const height = Math.round((size * VIEW_H) / VIEW_W);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      width={width}
+      height={height}
       role="img"
       aria-label={title}
       className={className}
-      fill="none"
       style={{ display: "block", flexShrink: 0, color }}
     >
       <title>{title}</title>
-      {/* head + beak */}
       <path
-        d="M15.2 7.2c1.1-.9 2.5-1.1 3.6-.4.5.3.8.8.9 1.3"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M19.6 8.2h2.2l-1.1 1.1"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="17.35" cy="7.55" r="0.7" fill="currentColor" />
-      {/* neck to breast */}
-      <path
-        d="M15.4 8.6c-.6 1.3-1.1 2.7-.8 4.1"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* wing */}
-      <path
-        d="M8.2 11.2c2.2-2.8 5.3-4.2 8.6-4.1"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9.2 13c1.8-1.8 4.1-2.8 6.6-2.9"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* body */}
-      <path
-        d="M6.8 12.8c-1.6.8-2.6 2.3-2.4 3.9.2 1.6 1.6 2.7 3.4 2.6 1.5-.1 2.9-.9 4-2"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* tail */}
-      <path
-        d="M6.2 16.4c-1.5.9-2.9 1.1-4.2.6M6.8 17.8c-1.3 1-2.6 1.3-4 .9"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* leg suggestion */}
-      <path
-        d="M11.2 16.8c-.2 1.5.1 2.9 1.1 4"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M98.00 359.50 L96.50 358.00 L198.50 255.00 L110.00 253.50 L67.00 211.50 L321.00 211.50 L227.50 307.00 L323.00 308.50 L442.50 188.00 L445.50 180.00 L446.50 128.00 L451.00 121.50 L457.00 118.50 L473.00 118.50 L474.50 116.00 L453.00 96.50 L411.00 96.50 L403.00 99.50 L345.00 157.50 L279.00 157.50 L172.00 50.50 L54.00 50.50 L9.00 7.50 L202.00 7.50 L333.00 139.50 L396.00 77.50 L407.00 73.50 L454.00 73.50 L462.00 76.50 L518.50 133.00 L470.00 133.50 L464.50 138.00 L462.50 197.00 L303.00 357.50 L100.00 357.50 L98.00 359.50 Z M265.00 157.50 L228.00 157.50 L174.00 103.50 L109.00 103.50 L64.50 61.00 L169.00 60.50 L265.00 157.50 Z M214.00 157.50 L164.00 157.50 L119.50 114.00 L171.00 113.50 L214.00 157.50 Z"
       />
     </svg>
   );

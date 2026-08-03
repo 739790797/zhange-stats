@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     PUBLIC_BACKEND_URL: str = "http://127.0.0.1:8000"
     PUBLIC_FRONTEND_URL: str = "http://127.0.0.1:5173"
 
+    # QQ 互联（个人中心绑定；审核中仅调试 QQ 号可用）
+    QQ_APP_ID: str = ""
+    QQ_APP_KEY: str = ""
+
     # 森空岛每日签到（明日方舟 / 终末地）
     SKLAND_CHECKIN_ENABLED: bool = True
     SKLAND_CHECKIN_HOUR: int = 8

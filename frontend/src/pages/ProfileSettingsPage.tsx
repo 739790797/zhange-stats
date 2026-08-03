@@ -20,7 +20,9 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import {
   fetchMemberProfile,
   fetchMyProfile,
+  startQqOAuthBind,
   startSteamOpenIdBind,
+  unbindQq,
   unbindSkland,
   unbindTaygedo,
   updateMemberProfile,
@@ -35,6 +37,7 @@ import { useAuthStore } from "@/stores/authStore";
 
 /** 避免 React StrictMode 双次挂载导致绑定回跳提示重复弹出 */
 let handledSteamBindQuery: string | null = null;
+let handledQqBindQuery: string | null = null;
 
 type ProfilePayload = {
   steam_id?: string | null;
@@ -125,6 +128,36 @@ export default function ProfileSettingsPage() {
   ]);
 
   useEffect(() => {
+    const status = searchParams.get("qq_bind");
+    if (!status) return;
+    const bindKey = `qq:${searchParams.toString()}`;
+    if (handledQqBindQuery === bindKey) return;
+    handledQqBindQuery = bindKey;
+
+    const detail = searchParams.get("detail");
+    const name = searchParams.get("name");
+    const next = new URLSearchParams(searchParams);
+    next.delete("qq_bind");
+    next.delete("detail");
+    next.delete("name");
+    setSearchParams(next, { replace: true });
+
+    if (status === "ok") {
+      message.success({
+        key: "qq-bind",
+        content: name ? `已绑定 QQ：${name}` : "QQ 绑定成功",
+      });
+      queryClient.invalidateQueries({ queryKey: profileQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+    } else if (status === "error") {
+      message.error({
+        key: "qq-bind",
+        content: detail || "QQ 绑定失败",
+      });
+    }
+  }, [searchParams, setSearchParams, queryClient, profileQueryKey]);
+
+  useEffect(() => {
     if (isAdminEdit) return;
     const state = location.state as { promptSteamBind?: boolean } | null;
     if (!state?.promptSteamBind) return;
@@ -171,12 +204,31 @@ export default function ProfileSettingsPage() {
     onError: (e: unknown) => message.error(apiError(e, "无法跳转 Steam 登录")),
   });
 
+  const startQqBind = useMutation({
+    mutationFn: async () =>
+      startQqOAuthBind(isAdminEdit ? targetMemberId : undefined),
+    onSuccess: ({ url }) => {
+      window.location.href = url;
+    },
+    onError: (e: unknown) => message.error(apiError(e, "无法跳转 QQ 登录")),
+  });
+
   const unbindSteam = useMutation({
     mutationFn: async () => saveProfilePatch({ steam_id: null }),
     onSuccess: (profile) => {
       message.success("已解除 Steam 绑定");
       invalidateProfile();
       applyProfileLocally(profile);
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
+  const unbindQqMut = useMutation({
+    mutationFn: async () =>
+      unbindQq(isAdminEdit ? targetMemberId : undefined),
+    onSuccess: () => {
+      message.success("已解除 QQ 绑定");
+      invalidateProfile();
     },
     onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
   });
@@ -249,6 +301,7 @@ export default function ProfileSettingsPage() {
       : null;
 
   const steamBound = Boolean(data?.steam_id);
+  const qqBound = Boolean(data?.qq_bound);
   const sklandBound = Boolean(data?.skland_bound);
   const taygedoBound = Boolean(data?.taygedo_bound);
   const displayName =
@@ -420,6 +473,68 @@ export default function ProfileSettingsPage() {
                 onClick={() => startSteamBind.mutate()}
               >
                 Steam 登录绑定
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            padding: "16px 4px",
+            borderBottom: "1px solid rgba(0,0,0,0.06)",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <Space size={8} align="center">
+              {qqBound && data?.qq_avatar_url ? (
+                <Avatar size={28} src={data.qq_avatar_url}>
+                  Q
+                </Avatar>
+              ) : null}
+              <Typography.Text strong>QQ</Typography.Text>
+              {qqBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+            </Space>
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {qqBound
+                  ? `昵称：${data?.qq_nickname || "已绑定"}`
+                  : "通过 QQ 互联登录确认归属（审核中仅调试 QQ 号可用）"}
+              </Typography.Text>
+            </div>
+          </div>
+          <Space>
+            {qqBound ? (
+              <>
+                <Button
+                  loading={startQqBind.isPending}
+                  disabled={!!errMsg}
+                  onClick={() => startQqBind.mutate()}
+                >
+                  换绑
+                </Button>
+                <Popconfirm
+                  title="确认解除 QQ 绑定？"
+                  okText="确定"
+                  cancelText="取消"
+                  onConfirm={() => unbindQqMut.mutate()}
+                >
+                  <Button danger loading={unbindQqMut.isPending} disabled={!!errMsg}>
+                    解绑
+                  </Button>
+                </Popconfirm>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                loading={startQqBind.isPending}
+                disabled={!!errMsg}
+                onClick={() => startQqBind.mutate()}
+              >
+                QQ 登录绑定
               </Button>
             )}
           </Space>

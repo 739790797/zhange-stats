@@ -87,7 +87,7 @@ export default function LoginPage() {
               marginBottom: 8,
             }}
           >
-            <BrandLogo size={40} color="#1a2332" />
+            <BrandLogo size={48} color="#1a2332" />
             <Typography.Title
               level={1}
               style={{

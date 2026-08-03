@@ -195,7 +195,7 @@ export function AppLayout() {
               flexShrink: 0,
             }}
           >
-            <BrandLogo size={26} color="#e8b86d" />
+            <BrandLogo size={32} color="#e8b86d" />
             <Typography.Text
               strong
               style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}

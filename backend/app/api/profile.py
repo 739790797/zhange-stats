@@ -12,6 +12,7 @@ from app.models.user import User, UserRole
 from app.schemas import (
     MemberProfileOut,
     MemberProfileUpdate,
+    QqOAuthStartResponse,
     SteamBindPreviewRequest,
     SteamBindPreviewResponse,
     SteamOpenIdStartResponse,
@@ -36,7 +37,47 @@ from app.services.steam_openid import (
     decode_openid_state,
     verify_steam_openid_assertion,
 )
+from app.services.qq_oauth import (
+    QqOAuthError,
+    build_qq_authorize_url,
+    create_qq_oauth_state,
+    decode_qq_oauth_state,
+    exchange_code_for_profile,
+)
 router = APIRouter(tags=["profile"])
+
+
+def _set_qq_profile(
+    db: Session,
+    member: Member,
+    *,
+    openid: str | None,
+    unionid: str | None = None,
+    nickname: str | None = None,
+    avatar_url: str | None = None,
+) -> str | None:
+    """绑定或解绑 QQ；返回昵称（解绑为 None）。"""
+    value = (openid or "").strip() or None
+    if not value:
+        member.qq_openid = None
+        member.qq_unionid = None
+        member.qq_nickname = None
+        member.qq_avatar_url = None
+        return None
+
+    conflict = (
+        db.query(Member)
+        .filter(Member.qq_openid == value, Member.id != member.id)
+        .first()
+    )
+    if conflict:
+        raise HTTPException(status_code=400, detail="该 QQ 已绑定其他账号")
+
+    member.qq_openid = value
+    member.qq_unionid = (unionid or "").strip() or None
+    member.qq_nickname = (nickname or "").strip() or None
+    member.qq_avatar_url = (avatar_url or "").strip() or None
+    return member.qq_nickname
 
 
 def _profile_from_member(
@@ -75,6 +116,9 @@ def _profile_from_member(
         taygedo_bound=taygedo is not None,
         taygedo_auto_checkin=bool(taygedo.auto_checkin) if taygedo is not None else None,
         taygedo_phone_mask=taygedo.phone_mask if taygedo is not None else None,
+        qq_bound=bool(member.qq_openid),
+        qq_nickname=member.qq_nickname,
+        qq_avatar_url=member.qq_avatar_url,
         user_id=member.user_id,
         username=user.username if user else None,
         email=(user.email if user else None) if show_email else None,
@@ -479,6 +523,155 @@ def steam_openid_callback(
     if persona:
         params["name"] = persona
     return _redirect(path, **params)
+
+
+@router.get("/profile/qq/oauth/start", response_model=QqOAuthStartResponse)
+def qq_oauth_start(
+    member_id: int | None = Query(
+        default=None, description="管理员可为指定成员发起绑定"
+    ),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> QqOAuthStartResponse:
+    settings = get_settings()
+    if not (settings.QQ_APP_ID or "").strip() or not (settings.QQ_APP_KEY or "").strip():
+        raise HTTPException(status_code=400, detail="未配置 QQ_APP_ID / QQ_APP_KEY")
+    backend = (settings.PUBLIC_BACKEND_URL or "").rstrip("/")
+    if not backend:
+        raise HTTPException(
+            status_code=400,
+            detail="未配置 PUBLIC_BACKEND_URL，无法发起 QQ 登录绑定",
+        )
+
+    if member_id is not None:
+        if not _is_admin_user(user):
+            raise HTTPException(status_code=403, detail="仅管理员可为其他成员绑定")
+        member = (
+            db.query(Member)
+            .options(joinedload(Member.user))
+            .filter(Member.id == member_id)
+            .first()
+        )
+        if not member or not member.user:
+            raise HTTPException(status_code=404, detail="成员不存在")
+        target_member_id = member.id
+    else:
+        member = ensure_user_member(db, user)
+        db.commit()
+        target_member_id = member.id
+
+    try:
+        state = create_qq_oauth_state(user_id=user.id, member_id=target_member_id)
+        url = build_qq_authorize_url(state=state)
+    except QqOAuthError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+    return QqOAuthStartResponse(url=url)
+
+
+@router.get("/auth/qq/callback")
+def qq_oauth_callback(
+    db: Session = Depends(get_db),
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    error_description: str | None = Query(default=None),
+) -> RedirectResponse:
+    """QQ 互联登记的回调：/api/auth/qq/callback"""
+    settings = get_settings()
+    frontend = (settings.PUBLIC_FRONTEND_URL or "http://127.0.0.1:5173").rstrip("/")
+
+    def _redirect(path: str, **params: str) -> RedirectResponse:
+        q = urllib.parse.urlencode(params)
+        return RedirectResponse(url=f"{frontend}{path}?{q}", status_code=302)
+
+    if error:
+        detail = error_description or error or "用户取消授权"
+        return _redirect("/profile", qq_bind="error", detail=detail)
+
+    if not state:
+        return _redirect("/profile", qq_bind="error", detail="缺少 state")
+    try:
+        state_data = decode_qq_oauth_state(state)
+    except QqOAuthError as exc:
+        return _redirect("/profile", qq_bind="error", detail=exc.message)
+
+    actor_id = int(state_data["uid"])
+    target_member_id = int(state_data.get("mid") or 0)
+
+    actor = db.query(User).filter(User.id == actor_id).first()
+    if not actor:
+        return _redirect("/profile", qq_bind="error", detail="登录用户不存在")
+
+    member = (
+        db.query(Member)
+        .options(joinedload(Member.user))
+        .filter(Member.id == target_member_id)
+        .first()
+    )
+    if not member:
+        return _redirect("/profile", qq_bind="error", detail="成员不存在")
+    if member.user_id != actor.id and not _is_admin_user(actor):
+        return _redirect("/profile", qq_bind="error", detail="无权绑定该成员")
+
+    path = (
+        "/profile"
+        if member.user_id == actor.id
+        else f"/members/{member.id}/profile"
+    )
+
+    if not code:
+        return _redirect(path, qq_bind="error", detail="缺少授权 code")
+
+    try:
+        profile = exchange_code_for_profile(code)
+        nickname = _set_qq_profile(
+            db,
+            member,
+            openid=profile.openid,
+            unionid=profile.unionid,
+            nickname=profile.nickname,
+            avatar_url=profile.avatar_url,
+        )
+        db.commit()
+    except QqOAuthError as exc:
+        return _redirect(path, qq_bind="error", detail=exc.message)
+    except HTTPException as exc:
+        detail = str(exc.detail) if exc.detail else "绑定失败"
+        return _redirect(path, qq_bind="error", detail=detail)
+
+    params = {"qq_bind": "ok"}
+    if nickname:
+        params["name"] = nickname
+    return _redirect(path, **params)
+
+
+@router.delete("/profile/qq", response_model=MemberProfileOut)
+def unbind_qq(
+    member_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> MemberProfileOut:
+    if member_id is not None:
+        if not _is_admin_user(user):
+            raise HTTPException(status_code=403, detail="仅管理员可为其他成员解绑")
+        member = (
+            db.query(Member)
+            .options(
+                joinedload(Member.user),
+                joinedload(Member.skland_bind),
+                joinedload(Member.taygedo_bind),
+            )
+            .filter(Member.id == member_id)
+            .first()
+        )
+        if not member:
+            raise HTTPException(status_code=404, detail="成员不存在")
+    else:
+        member = ensure_user_member(db, user)
+    _set_qq_profile(db, member, openid=None)
+    db.commit()
+    db.refresh(member)
+    return _profile_from_member(member, viewer=user)
 
 
 @router.post("/profile/me/avatar", response_model=MemberProfileOut)

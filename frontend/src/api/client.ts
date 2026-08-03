@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
 import type {
+  ArknightsBox,
   Member,
   MemberPlayStats,
   MemberProfile,
@@ -293,6 +294,20 @@ export async function startSteamOpenIdBind(memberId?: number) {
   return data;
 }
 
+export async function startQqOAuthBind(memberId?: number) {
+  const { data } = await client.get<{ url: string }>("/profile/qq/oauth/start", {
+    params: memberId != null ? { member_id: memberId } : undefined,
+  });
+  return data;
+}
+
+export async function unbindQq(memberId?: number) {
+  const { data } = await client.delete<MemberProfile>("/profile/qq", {
+    params: memberId != null ? { member_id: memberId } : undefined,
+  });
+  return data;
+}
+
 export async function updateMyProfile(payload: {
   display_name?: string;
   steam_id?: string | null;
@@ -350,6 +365,14 @@ export async function updateMemberProfile(
 export async function fetchSklandStatus(includeRoles = true) {
   const { data } = await client.get<SklandStatus>("/skland/status", {
     params: { include_roles: includeRoles },
+  });
+  return data;
+}
+
+export async function fetchArknightsBox(uid?: string) {
+  const { data } = await client.get<ArknightsBox>("/skland/arknights/box", {
+    params: uid ? { uid } : undefined,
+    timeout: 60000,
   });
   return data;
 }

@@ -21,7 +21,21 @@ APP_CODE = "4ca99fa6b56cc2ba"
 GRANT_URL = "https://as.hypergryph.com/user/oauth2/v2/grant"
 CRED_URL = "https://zonai.skland.com/api/v1/user/auth/generate_cred_by_code"
 BINDING_URL = "https://zonai.skland.com/api/v1/game/player/binding"
+PLAYER_INFO_URL = "https://zonai.skland.com/api/v1/game/player/info"
 ARKNIGHTS_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/attendance"
+CHAR_AVATAR_CDN = (
+    "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar"
+)
+PROFESSION_CN = {
+    "PIONEER": "先锋",
+    "WARRIOR": "近卫",
+    "TANK": "重装",
+    "SNIPER": "狙击",
+    "CASTER": "术师",
+    "MEDIC": "医疗",
+    "SUPPORT": "辅助",
+    "SPECIAL": "特种",
+}
 ENDFIELD_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/endfield/attendance"
 # App「领取记录」：按真实领取时间戳查询，勿用 calendar 下标（calendar 是本月第 N 次）
 ENDFIELD_ATTENDANCE_RECORD_URL = (
@@ -88,6 +102,34 @@ class SklandRole:
     channel_master_id: str | None = None
     role_id: str | None = None
     server_id: str | None = None
+
+
+@dataclass
+class ArknightsChar:
+    char_id: str
+    name: str
+    rarity: int  # 星级 1-6
+    profession: str
+    profession_label: str
+    level: int
+    evolve_phase: int
+    potential_rank: int
+    favor_percent: int | None = None
+    skin_id: str | None = None
+    avatar_url: str | None = None
+    obtain_ts: int | None = None
+
+
+@dataclass
+class ArknightsBox:
+    uid: str
+    name: str
+    level: int
+    register_ts: int | None
+    ap_current: int | None
+    ap_max: int | None
+    char_count: int
+    chars: list[ArknightsChar]
 
 
 def normalize_hg_token(raw: str) -> str:
@@ -1042,3 +1084,130 @@ def checkin_all_roles(session: SklandSession) -> list[CheckinResult]:
                 )
             )
     return results
+
+
+def fetch_player_info(session: SklandSession, uid: str) -> dict[str, Any]:
+    """拉取森空岛玩家完整数据（含干员盒子）。"""
+    uid = str(uid or "").strip()
+    if not uid:
+        raise SklandApiError("缺少游戏 UID")
+    url = f"{PLAYER_INFO_URL}?{urllib.parse.urlencode({'uid': uid})}"
+    headers = _signed_headers(session, url, "get", None)
+    resp = _http_json("GET", url, headers=headers)
+    if resp.get("code") != 0:
+        raise SklandApiError(
+            resp.get("message") or "获取玩家数据失败",
+            code=resp.get("code"),
+        )
+    data = resp.get("data")
+    if not isinstance(data, dict):
+        raise SklandApiError("玩家数据为空")
+    return data
+
+
+def _char_avatar_url(char_id: str) -> str:
+    return f"{CHAR_AVATAR_CDN}/{char_id}.png"
+
+
+def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
+    status = data.get("status") if isinstance(data.get("status"), dict) else {}
+    char_info_map = (
+        data.get("charInfoMap") if isinstance(data.get("charInfoMap"), dict) else {}
+    )
+    raw_chars = data.get("chars") if isinstance(data.get("chars"), list) else []
+    ap = status.get("ap") if isinstance(status.get("ap"), dict) else {}
+
+    chars: list[ArknightsChar] = []
+    for item in raw_chars:
+        if not isinstance(item, dict):
+            continue
+        char_id = str(item.get("charId") or "").strip()
+        if not char_id:
+            continue
+        info = char_info_map.get(char_id) if isinstance(char_info_map.get(char_id), dict) else {}
+        profession = str(info.get("profession") or item.get("profession") or "")
+        # charInfoMap.rarity 多为 0-5（对应 1-6 星）
+        rarity_raw = info.get("rarity")
+        try:
+            rarity_idx = int(rarity_raw) if rarity_raw is not None else 0
+        except (TypeError, ValueError):
+            rarity_idx = 0
+        rarity = rarity_idx + 1 if 0 <= rarity_idx <= 5 else max(1, min(6, rarity_idx))
+
+        name = str(info.get("name") or char_id)
+        try:
+            level = int(item.get("level") or 0)
+        except (TypeError, ValueError):
+            level = 0
+        try:
+            evolve_phase = int(item.get("evolvePhase") or 0)
+        except (TypeError, ValueError):
+            evolve_phase = 0
+        try:
+            potential_rank = int(item.get("potentialRank") or 0)
+        except (TypeError, ValueError):
+            potential_rank = 0
+        favor = item.get("favorPercent")
+        try:
+            favor_percent = int(favor) if favor is not None else None
+        except (TypeError, ValueError):
+            favor_percent = None
+        gain = item.get("gainTime") or item.get("obtainTs")
+        try:
+            obtain_ts = int(gain) if gain is not None else None
+        except (TypeError, ValueError):
+            obtain_ts = None
+        skin_id = item.get("skinId")
+        chars.append(
+            ArknightsChar(
+                char_id=char_id,
+                name=name,
+                rarity=rarity,
+                profession=profession,
+                profession_label=PROFESSION_CN.get(profession, profession or "未知"),
+                level=level,
+                evolve_phase=evolve_phase,
+                potential_rank=potential_rank,
+                favor_percent=favor_percent,
+                skin_id=str(skin_id) if skin_id else None,
+                avatar_url=_char_avatar_url(char_id),
+                obtain_ts=obtain_ts,
+            )
+        )
+
+    chars.sort(
+        key=lambda c: (-c.rarity, -c.evolve_phase, -c.level, -c.potential_rank, c.name)
+    )
+
+    try:
+        player_level = int(status.get("level") or 0)
+    except (TypeError, ValueError):
+        player_level = 0
+    reg = status.get("registerTs")
+    try:
+        register_ts = int(reg) if reg is not None else None
+    except (TypeError, ValueError):
+        register_ts = None
+    try:
+        ap_current = int(ap["current"]) if ap.get("current") is not None else None
+    except (TypeError, ValueError, KeyError):
+        ap_current = None
+    try:
+        ap_max = int(ap["max"]) if ap.get("max") is not None else None
+    except (TypeError, ValueError, KeyError):
+        ap_max = None
+
+    return ArknightsBox(
+        uid=str(status.get("uid") or uid),
+        name=str(status.get("name") or "未知博士"),
+        level=player_level,
+        register_ts=register_ts,
+        ap_current=ap_current,
+        ap_max=ap_max,
+        char_count=len(chars),
+        chars=chars,
+    )
+
+
+def fetch_arknights_box(session: SklandSession, uid: str) -> ArknightsBox:
+    return parse_arknights_box(fetch_player_info(session, uid), uid=uid)

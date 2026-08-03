@@ -120,7 +120,8 @@ export function CheckinPageTemplate({
   triggerCheckin,
   updateBind,
   showPhoneMask = false,
-}: CheckinPageTemplateProps) {
+  contentOnly = false,
+}: CheckinPageTemplateProps & { contentOnly?: boolean }) {
   const queryClient = useQueryClient();
 
   const statusQuery = useQuery({
@@ -165,6 +166,108 @@ export function CheckinPageTemplate({
   const todayResults = statusQuery.data?.today_results || [];
   const tokenBroken = bound && statusQuery.data?.token_ok === false;
 
+  const statusCard = (
+    <Card title="签到状态" loading={statusQuery.isLoading} style={{ marginBottom: contentOnly ? 0 : 24 }}>
+      {bound ? (
+        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 24,
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Space size={12} wrap>
+              <Tag color="success">已绑定</Tag>
+              {showPhoneMask && statusQuery.data?.phone_mask ? (
+                <Typography.Text type="secondary">
+                  {statusQuery.data.phone_mask}
+                </Typography.Text>
+              ) : null}
+              {statusQuery.data?.token_ok === true ? (
+                <Tag color="processing">凭证有效</Tag>
+              ) : statusQuery.data?.token_ok === false ? (
+                <Tag color="error">凭证失效</Tag>
+              ) : null}
+              {statusQuery.data?.last_checkin_date ? (
+                <Typography.Text type="secondary">
+                  最近签到：{statusQuery.data.last_checkin_date}
+                  {statusQuery.data.last_checkin_ok === true
+                    ? " · 成功"
+                    : statusQuery.data.last_checkin_ok === false
+                      ? " · 有失败"
+                      : ""}
+                </Typography.Text>
+              ) : null}
+            </Space>
+            <Space>
+              <Typography.Text>每日自动签到</Typography.Text>
+              <Switch
+                checked={Boolean(statusQuery.data?.auto_checkin)}
+                loading={toggleAuto.isPending}
+                onChange={(v) => toggleAuto.mutate(v)}
+              />
+            </Space>
+          </div>
+
+          <div>
+            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+              今日签到
+            </Typography.Text>
+            {todayResults.length ? (
+              <List
+                size="small"
+                dataSource={todayResults}
+                renderItem={(row) => (
+                  <List.Item>
+                    <Space direction="vertical" size={2} style={{ width: "100%" }}>
+                      <Space wrap>
+                        <Tag>{row.game_name || row.game_code}</Tag>
+                        <span>
+                          {row.role_name || row.role_uid}
+                          {row.channel_name ? (
+                            <Typography.Text type="secondary">
+                              {" "}
+                              · {row.channel_name}
+                            </Typography.Text>
+                          ) : null}
+                        </span>
+                        <StatusTag
+                          status={row.status}
+                          statusLabel={row.status_label}
+                        />
+                      </Space>
+                      <Typography.Text type="secondary">
+                        奖励：{awardsText(row)}
+                      </Typography.Text>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  tokenBroken
+                    ? "无法查询今日状态"
+                    : "暂无今日结果，可点击立即签到"
+                }
+              />
+            )}
+          </div>
+        </Space>
+      ) : (
+        <Empty description="绑定后可在此查看签到记录" />
+      )}
+    </Card>
+  );
+
+  if (contentOnly) {
+    return statusCard;
+  }
+
   return (
     <div>
       <PageHeader
@@ -207,101 +310,7 @@ export function CheckinPageTemplate({
         <Card style={{ marginBottom: 24 }}>{bindPanel}</Card>
       ) : null}
 
-      <Card title="签到状态" loading={statusQuery.isLoading} style={{ marginBottom: 24 }}>
-        {bound ? (
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 24,
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Space size={12} wrap>
-                <Tag color="success">已绑定</Tag>
-                {showPhoneMask && statusQuery.data?.phone_mask ? (
-                  <Typography.Text type="secondary">
-                    {statusQuery.data.phone_mask}
-                  </Typography.Text>
-                ) : null}
-                {statusQuery.data?.token_ok === true ? (
-                  <Tag color="processing">凭证有效</Tag>
-                ) : statusQuery.data?.token_ok === false ? (
-                  <Tag color="error">凭证失效</Tag>
-                ) : null}
-                {statusQuery.data?.last_checkin_date ? (
-                  <Typography.Text type="secondary">
-                    最近签到：{statusQuery.data.last_checkin_date}
-                    {statusQuery.data.last_checkin_ok === true
-                      ? " · 成功"
-                      : statusQuery.data.last_checkin_ok === false
-                        ? " · 有失败"
-                        : ""}
-                  </Typography.Text>
-                ) : null}
-              </Space>
-              <Space>
-                <Typography.Text>每日自动签到</Typography.Text>
-                <Switch
-                  checked={Boolean(statusQuery.data?.auto_checkin)}
-                  loading={toggleAuto.isPending}
-                  onChange={(v) => toggleAuto.mutate(v)}
-                />
-              </Space>
-            </div>
-
-            <div>
-              <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-                今日签到
-              </Typography.Text>
-              {todayResults.length ? (
-                <List
-                  size="small"
-                  dataSource={todayResults}
-                  renderItem={(row) => (
-                    <List.Item>
-                      <Space direction="vertical" size={2} style={{ width: "100%" }}>
-                        <Space wrap>
-                          <Tag>{row.game_name || row.game_code}</Tag>
-                          <span>
-                            {row.role_name || row.role_uid}
-                            {row.channel_name ? (
-                              <Typography.Text type="secondary">
-                                {" "}
-                                · {row.channel_name}
-                              </Typography.Text>
-                            ) : null}
-                          </span>
-                          <StatusTag
-                            status={row.status}
-                            statusLabel={row.status_label}
-                          />
-                        </Space>
-                        <Typography.Text type="secondary">
-                          奖励：{awardsText(row)}
-                        </Typography.Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
-              ) : (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description={
-                    tokenBroken
-                      ? "无法查询今日状态"
-                      : "暂无今日结果，可点击立即签到"
-                  }
-                />
-              )}
-            </div>
-          </Space>
-        ) : (
-          <Empty description="绑定后可在此查看签到记录" />
-        )}
-      </Card>
+      {statusCard}
     </div>
   );
 }

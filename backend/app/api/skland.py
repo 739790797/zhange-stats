@@ -10,6 +10,8 @@ from app.core.deps import get_current_user
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    ArknightsBoxOut,
+    ArknightsCharOut,
     SklandBindPasswordRequest,
     SklandBindRequest,
     SklandBindSmsRequest,
@@ -29,6 +31,7 @@ from app.services.skland_checkin import (
     bind_skland,
     bind_skland_with_password,
     bind_skland_with_sms,
+    get_arknights_box_for_member,
     get_bind_for_member,
     preview_roles,
     query_today_for_bind,
@@ -123,6 +126,58 @@ def skland_logs(
     """已弃用：签到改为实时查询，不再返回历史记录。"""
     _ = (db, user, limit)
     return []
+
+
+@router.get("/arknights/box", response_model=ArknightsBoxOut)
+def skland_arknights_box(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    uid: str | None = Query(default=None, max_length=32),
+):
+    """明日方舟干员盒子（森空岛 player/info）。"""
+    member = _member_or_404(db, user)
+    try:
+        box, role, roles = get_arknights_box_for_member(db, member, uid)
+    except SklandApiError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+    return ArknightsBoxOut(
+        uid=box.uid,
+        name=box.name,
+        level=box.level,
+        register_ts=box.register_ts,
+        ap_current=box.ap_current,
+        ap_max=box.ap_max,
+        char_count=box.char_count,
+        channel_name=role.channel_name,
+        role_name=role.role_name,
+        chars=[
+            ArknightsCharOut(
+                char_id=c.char_id,
+                name=c.name,
+                rarity=c.rarity,
+                profession=c.profession,
+                profession_label=c.profession_label,
+                level=c.level,
+                evolve_phase=c.evolve_phase,
+                potential_rank=c.potential_rank,
+                favor_percent=c.favor_percent,
+                skin_id=c.skin_id,
+                avatar_url=c.avatar_url,
+                obtain_ts=c.obtain_ts,
+            )
+            for c in box.chars
+        ],
+        roles=[
+            SklandRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.uid,
+                role_name=r.role_name,
+                channel_name=r.channel_name,
+            )
+            for r in roles
+        ],
+    )
 
 
 @router.post("/bind", response_model=SklandStatusOut)

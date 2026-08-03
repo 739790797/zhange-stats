@@ -44,6 +44,9 @@ export interface MemberProfile {
   taygedo_bound?: boolean;
   taygedo_auto_checkin?: boolean | null;
   taygedo_phone_mask?: string | null;
+  qq_bound?: boolean;
+  qq_nickname?: string | null;
+  qq_avatar_url?: string | null;
   user_id: number | null;
   username: string | null;
   email?: string | null;
@@ -57,6 +60,35 @@ export interface SklandRole {
   uid: string;
   role_name: string;
   channel_name: string;
+}
+
+export interface ArknightsChar {
+  char_id: string;
+  name: string;
+  rarity: number;
+  profession: string;
+  profession_label: string;
+  level: number;
+  evolve_phase: number;
+  potential_rank: number;
+  favor_percent?: number | null;
+  skin_id?: string | null;
+  avatar_url?: string | null;
+  obtain_ts?: number | null;
+}
+
+export interface ArknightsBox {
+  uid: string;
+  name: string;
+  level: number;
+  register_ts?: number | null;
+  ap_current?: number | null;
+  ap_max?: number | null;
+  char_count: number;
+  channel_name?: string | null;
+  role_name?: string | null;
+  chars: ArknightsChar[];
+  roles: SklandRole[];
 }
 
 export interface SklandCheckinLog {
