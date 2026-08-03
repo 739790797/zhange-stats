@@ -86,53 +86,85 @@ export function PhoneAuthBindTemplate({
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         {description}
       </Typography.Paragraph>
-      {modes.length > 1 ? (
-        <Segmented
-          block
-          style={{ marginBottom: 12 }}
-          value={mode}
-          onChange={(v) => changeMode(v as PhoneAuthMode)}
-          options={modes.map((m) => ({ label: MODE_LABEL[m], value: m }))}
-        />
-      ) : null}
-
-      {mode === "qr" ? (
-        qrPanel
-      ) : (
-        <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          <Input
-            placeholder="手机号"
-            value={phone}
-            onChange={(e) => {
-              const next = e.target.value;
-              onPhoneChange?.(next, phone);
-              setPhone(next);
-            }}
-            autoComplete="username"
+      {/* Align with Login/Register (~420px); avoid full-bleed inputs in wide cards */}
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        {modes.length > 1 ? (
+          <Segmented
+            block
+            style={{ marginBottom: 12 }}
+            value={mode}
+            onChange={(v) => changeMode(v as PhoneAuthMode)}
+            options={modes.map((m) => ({ label: MODE_LABEL[m], value: m }))}
           />
-          {mode === "sms" ? (
-            <>
-              <Space.Compact style={{ width: "100%" }}>
-                <Input
-                  placeholder="短信验证码"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                />
+        ) : null}
+
+        {mode === "qr" ? (
+          qrPanel
+        ) : (
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Input
+              placeholder="手机号"
+              value={phone}
+              onChange={(e) => {
+                const next = e.target.value;
+                onPhoneChange?.(next, phone);
+                setPhone(next);
+              }}
+              autoComplete="username"
+            />
+            {mode === "sms" ? (
+              <>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Input
+                    placeholder="短信验证码"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                  />
+                  <Button
+                    loading={sendingSms}
+                    disabled={smsCooldown > 0 || sendingSms}
+                    onClick={async () => {
+                      if (!phone.trim()) {
+                        message.warning("请填写手机号");
+                        return;
+                      }
+                      setSendingSms(true);
+                      try {
+                        await onSendSms(phone.trim());
+                        startSmsCooldown(60);
+                        message.success("验证码已发送");
+                      } catch (e: unknown) {
+                        const detail =
+                          e &&
+                          typeof e === "object" &&
+                          "response" in e &&
+                          (e as { response?: { data?: { detail?: string } } })
+                            .response?.data?.detail;
+                        message.error(
+                          String(detail || (e as Error)?.message || "发送验证码失败"),
+                        );
+                      } finally {
+                        setSendingSms(false);
+                      }
+                    }}
+                  >
+                    {smsCooldown > 0 ? `${smsCooldown}s` : "获取验证码"}
+                  </Button>
+                </Space.Compact>
                 <Button
-                  loading={sendingSms}
-                  disabled={smsCooldown > 0 || sendingSms}
+                  type="primary"
+                  block
+                  loading={binding}
                   onClick={async () => {
-                    if (!phone.trim()) {
-                      message.warning("请填写手机号");
+                    if (!phone.trim() || !code.trim()) {
+                      message.warning("请填写手机号与验证码");
                       return;
                     }
-                    setSendingSms(true);
+                    setBinding(true);
                     try {
-                      await onSendSms(phone.trim());
-                      startSmsCooldown(60);
-                      message.success("验证码已发送");
+                      await onBindSms(phone.trim(), code.trim());
                     } catch (e: unknown) {
                       const detail =
                         e &&
@@ -141,87 +173,58 @@ export function PhoneAuthBindTemplate({
                         (e as { response?: { data?: { detail?: string } } })
                           .response?.data?.detail;
                       message.error(
-                        String(detail || (e as Error)?.message || "发送验证码失败"),
+                        String(detail || (e as Error)?.message || "绑定失败"),
                       );
                     } finally {
-                      setSendingSms(false);
+                      setBinding(false);
                     }
                   }}
                 >
-                  {smsCooldown > 0 ? `${smsCooldown}s` : "获取验证码"}
+                  {submitText}
                 </Button>
-              </Space.Compact>
-              <Button
-                type="primary"
-                block
-                loading={binding}
-                onClick={async () => {
-                  if (!phone.trim() || !code.trim()) {
-                    message.warning("请填写手机号与验证码");
-                    return;
-                  }
-                  setBinding(true);
-                  try {
-                    await onBindSms(phone.trim(), code.trim());
-                  } catch (e: unknown) {
-                    const detail =
-                      e &&
-                      typeof e === "object" &&
-                      "response" in e &&
-                      (e as { response?: { data?: { detail?: string } } })
-                        .response?.data?.detail;
-                    message.error(
-                      String(detail || (e as Error)?.message || "绑定失败"),
-                    );
-                  } finally {
-                    setBinding(false);
-                  }
-                }}
-              >
-                {submitText}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Input.Password
-                placeholder="密码"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-              <Button
-                type="primary"
-                block
-                loading={binding}
-                onClick={async () => {
-                  if (!phone.trim() || !password) {
-                    message.warning("请填写手机号与密码");
-                    return;
-                  }
-                  setBinding(true);
-                  try {
-                    await onBindPassword(phone.trim(), password);
-                  } catch (e: unknown) {
-                    const detail =
-                      e &&
-                      typeof e === "object" &&
-                      "response" in e &&
-                      (e as { response?: { data?: { detail?: string } } })
-                        .response?.data?.detail;
-                    message.error(
-                      String(detail || (e as Error)?.message || "绑定失败"),
-                    );
-                  } finally {
-                    setBinding(false);
-                  }
-                }}
-              >
-                {submitText}
-              </Button>
-            </>
-          )}
-        </Space>
-      )}
+              </>
+            ) : (
+              <>
+                <Input.Password
+                  placeholder="密码"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <Button
+                  type="primary"
+                  block
+                  loading={binding}
+                  onClick={async () => {
+                    if (!phone.trim() || !password) {
+                      message.warning("请填写手机号与密码");
+                      return;
+                    }
+                    setBinding(true);
+                    try {
+                      await onBindPassword(phone.trim(), password);
+                    } catch (e: unknown) {
+                      const detail =
+                        e &&
+                        typeof e === "object" &&
+                        "response" in e &&
+                        (e as { response?: { data?: { detail?: string } } })
+                          .response?.data?.detail;
+                      message.error(
+                        String(detail || (e as Error)?.message || "绑定失败"),
+                      );
+                    } finally {
+                      setBinding(false);
+                    }
+                  }}
+                >
+                  {submitText}
+                </Button>
+              </>
+            )}
+          </Space>
+        )}
+      </div>
     </div>
   );
 }

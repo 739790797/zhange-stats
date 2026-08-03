@@ -240,9 +240,7 @@ export function CheckinPageTemplate({
                         ? " · 有失败"
                         : ""}
                   </Typography.Text>
-                ) : (
-                  <Typography.Text type="secondary">尚未执行过签到</Typography.Text>
-                )}
+                ) : null}
               </Space>
               <Space>
                 <Typography.Text>每日自动签到</Typography.Text>

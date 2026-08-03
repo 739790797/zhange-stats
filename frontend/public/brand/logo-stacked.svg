@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 340" role="img" aria-label="ZHANGE 战鸽">
+  <rect width="300" height="340" fill="#ffffff"/>
+  <svg x="40" y="18" width="220" height="140" viewBox="0 0 529 368" preserveAspectRatio="xMidYMid meet">
+    <path fill="#111111" fill-rule="evenodd" d="M98.00 359.50 L96.50 358.00 L198.50 255.00 L110.00 253.50 L67.00 211.50 L321.00 211.50 L227.50 307.00 L323.00 308.50 L442.50 188.00 L445.50 180.00 L446.50 128.00 L451.00 121.50 L457.00 118.50 L473.00 118.50 L474.50 116.00 L453.00 96.50 L411.00 96.50 L403.00 99.50 L345.00 157.50 L279.00 157.50 L172.00 50.50 L54.00 50.50 L9.00 7.50 L202.00 7.50 L333.00 139.50 L396.00 77.50 L407.00 73.50 L454.00 73.50 L462.00 76.50 L518.50 133.00 L470.00 133.50 L464.50 138.00 L462.50 197.00 L303.00 357.50 L100.00 357.50 L98.00 359.50 Z M265.00 157.50 L228.00 157.50 L174.00 103.50 L109.00 103.50 L64.50 61.00 L169.00 60.50 L265.00 157.50 Z M214.00 157.50 L164.00 157.50 L119.50 114.00 L171.00 113.50 L214.00 157.50 Z"/>
+  </svg>
+  <g fill="#111111" font-family="Microsoft YaHei, PingFang SC, Segoe UI, Helvetica Neue, Arial, sans-serif" text-anchor="middle">
+    <text x="150" y="230" font-size="42" font-weight="700" letter-spacing="8">ZHANGE</text>
+    <text x="150" y="286" font-size="26" font-weight="600" letter-spacing="18">战鸽</text>
+  </g>
+  <rect x="58" y="274" width="36" height="2.5" fill="#111111"/>
+  <rect x="206" y="274" width="36" height="2.5" fill="#111111"/>
+</svg>
