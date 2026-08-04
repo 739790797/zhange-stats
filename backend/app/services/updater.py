@@ -15,6 +15,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from app.core.config import get_settings
@@ -228,13 +229,32 @@ def check_for_update() -> dict[str, Any]:
     }
 
 
+def _ensure_update_runtime() -> str:
+    """校验一键更新所需挂载，返回 compose 文件路径。"""
+    settings = get_settings()
+    compose_file = settings.UPDATE_COMPOSE_FILE.strip() or "/deploy/compose.yml"
+    if not Path(compose_file).is_file():
+        raise RuntimeError(
+            f"找不到 {compose_file}。请将宿主机 compose.yml 挂载到该路径"
+            "（见仓库 compose.yml 的 volumes），并在宿主机执行一次"
+            " docker compose up -d 使挂载生效。"
+        )
+    if not Path("/var/run/docker.sock").exists():
+        raise RuntimeError(
+            "找不到 /var/run/docker.sock。请在 app 服务挂载 Docker socket"
+            "（见仓库 compose.yml），并重新 up -d。"
+        )
+    return compose_file
+
+
 def _run_compose(args: list[str]) -> None:
     settings = get_settings()
+    compose_file = _ensure_update_runtime()
     cmd = [
         "docker",
         "compose",
         "-f",
-        settings.UPDATE_COMPOSE_FILE,
+        compose_file,
         "-p",
         settings.UPDATE_COMPOSE_PROJECT,
         *args,
@@ -261,6 +281,7 @@ def _update_worker(target_version: str) -> None:
     image_ref = f"{image}:{tag}" if ":" not in image.split("/")[-1] else image
 
     try:
+        _ensure_update_runtime()
         _set_status(
             state="pulling",
             message=f"正在拉取镜像 {image_ref} …",

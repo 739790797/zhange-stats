@@ -13,7 +13,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.1.18}
+        APP_VERSION: ${APP_VERSION:-0.1.19}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -39,6 +39,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./data/uploads:/app/uploads
+      # 管理端「系统更新」：容器内 docker compose 需本文件 + docker.sock
+      - ./compose.yml:/deploy/compose.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 30s
