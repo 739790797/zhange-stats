@@ -26,6 +26,7 @@ import {
   unbindSkland,
   unbindTaygedo,
   unbindExilium,
+  unbindKujiequ,
   updateMemberProfile,
   updateMyProfile,
   uploadMemberAvatar,
@@ -33,6 +34,7 @@ import {
 } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
+import { KujiequBindPanel } from "@/components/KujiequBindPanel";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
 import { useAuthStore } from "@/stores/authStore";
@@ -69,6 +71,7 @@ export default function ProfileSettingsPage() {
   const [sklandModalOpen, setSklandModalOpen] = useState(false);
   const [taygedoModalOpen, setTaygedoModalOpen] = useState(false);
   const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
+  const [kujiequModalOpen, setKujiequModalOpen] = useState(false);
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -248,6 +251,10 @@ export default function ProfileSettingsPage() {
     setExiliumModalOpen(false);
   };
 
+  const closeKujiequModal = () => {
+    setKujiequModalOpen(false);
+  };
+
   const unbindSklandMut = useMutation({
     mutationFn: unbindSkland,
     onSuccess: () => {
@@ -276,6 +283,16 @@ export default function ProfileSettingsPage() {
       message.success("已解除追放社区绑定");
       invalidateProfile();
       queryClient.invalidateQueries({ queryKey: ["exilium-status"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
+  const unbindKujiequMut = useMutation({
+    mutationFn: unbindKujiequ,
+    onSuccess: () => {
+      message.success("已解除库街区绑定");
+      invalidateProfile();
+      queryClient.invalidateQueries({ queryKey: ["kujiequ-status"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
   });
@@ -322,6 +339,7 @@ export default function ProfileSettingsPage() {
   const sklandBound = Boolean(data?.skland_bound);
   const taygedoBound = Boolean(data?.taygedo_bound);
   const exiliumBound = Boolean(data?.exilium_bound);
+  const kujiequBound = Boolean(data?.kujiequ_bound);
   const displayName =
     data?.steam_persona_name ||
     data?.display_name ||
@@ -734,6 +752,66 @@ export default function ProfileSettingsPage() {
             </Space>
           </div>
         ) : null}
+
+        {!isAdminEdit ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              padding: "16px 4px",
+              borderTop: "1px solid rgba(0,0,0,0.06)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <Space size={8} align="center">
+                <Typography.Text strong>库街区</Typography.Text>
+                {kujiequBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+              </Space>
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {kujiequBound
+                    ? `自动签到已${
+                        data?.kujiequ_auto_checkin ? "开启" : "关闭"
+                      } · 可在「库街区」页手动签到`
+                    : "手机号短信验证码绑定，用于社区与鸣潮/战双签到"}
+                </Typography.Text>
+              </div>
+            </div>
+            <Space>
+              {kujiequBound ? (
+                <>
+                  <Button disabled={!!errMsg} onClick={() => setKujiequModalOpen(true)}>
+                    换绑
+                  </Button>
+                  <Popconfirm
+                    title="确认解除库街区绑定？"
+                    okText="确定"
+                    cancelText="取消"
+                    onConfirm={() => unbindKujiequMut.mutate()}
+                  >
+                    <Button
+                      danger
+                      loading={unbindKujiequMut.isPending}
+                      disabled={!!errMsg}
+                    >
+                      解绑
+                    </Button>
+                  </Popconfirm>
+                </>
+              ) : (
+                <Button
+                  type="primary"
+                  disabled={!!errMsg}
+                  onClick={() => setKujiequModalOpen(true)}
+                >
+                  绑定库街区
+                </Button>
+              )}
+            </Space>
+          </div>
+        ) : null}
       </Card>
 
       <Modal
@@ -807,6 +885,25 @@ export default function ProfileSettingsPage() {
             onSuccess={() => {
               invalidateProfile();
               closeExiliumModal();
+            }}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        title={kujiequBound ? "更换库街区绑定" : "绑定库街区"}
+        open={kujiequModalOpen && !isAdminEdit}
+        footer={null}
+        onCancel={closeKujiequModal}
+        destroyOnClose
+        width={480}
+      >
+        {kujiequModalOpen && !isAdminEdit ? (
+          <KujiequBindPanel
+            title=""
+            onSuccess={() => {
+              invalidateProfile();
+              closeKujiequModal();
             }}
           />
         ) : null}

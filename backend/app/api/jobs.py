@@ -62,6 +62,12 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "description": "少女前线2：追放社区签到与每日任务",
         "kind": "cron",
     },
+    {
+        "id": "kujiequ_checkin",
+        "name": "库街区每日签到",
+        "description": "库街区社区签到 + 鸣潮 / 战双游戏签到",
+        "kind": "cron",
+    },
 ]
 
 

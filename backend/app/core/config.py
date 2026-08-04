@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     EXILIUM_CHECKIN_ENABLED: bool = True
     EXILIUM_CHECKIN_HOUR: int = 0
     EXILIUM_CHECKIN_MINUTE: int = 1
+    # 库街区每日签到（社区 + 鸣潮/战双）
+    KUJIEQU_CHECKIN_ENABLED: bool = True
+    KUJIEQU_CHECKIN_HOUR: int = 0
+    KUJIEQU_CHECKIN_MINUTE: int = 1
     # 运行时数据目录（密钥等；勿挂到公开静态路径）
     DATA_DIR: str = "data"
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）

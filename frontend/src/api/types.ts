@@ -33,6 +33,7 @@ export interface UserBrief {
   skland_bound?: boolean;
   taygedo_bound?: boolean;
   exilium_bound?: boolean;
+  kujiequ_bound?: boolean;
   qq_bound?: boolean;
 }
 
@@ -52,6 +53,9 @@ export interface MemberProfile {
   exilium_bound?: boolean;
   exilium_auto_checkin?: boolean | null;
   exilium_phone_mask?: string | null;
+  kujiequ_bound?: boolean;
+  kujiequ_auto_checkin?: boolean | null;
+  kujiequ_phone_mask?: string | null;
   qq_bound?: boolean;
   qq_nickname?: string | null;
   qq_avatar_url?: string | null;
@@ -326,6 +330,17 @@ export interface ExiliumCheckinResponse {
   ok?: boolean | null;
   summary: string;
   results: TaygedoCheckinResultItem[];
+}
+
+export type KujiequRole = ExiliumRole;
+export type KujiequStatus = ExiliumStatus;
+export type KujiequCheckinResponse = ExiliumCheckinResponse;
+
+export interface KujiequSmsSendResponse {
+  ok: boolean;
+  message: string;
+  need_geetest?: boolean;
+  captcha_id?: string | null;
 }
 
 export interface ExiliumSmsSendResponse {

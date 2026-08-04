@@ -59,3 +59,9 @@ class Member(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    kujiequ_bind = relationship(
+        "KujiequBind",
+        back_populates="member",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

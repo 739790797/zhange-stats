@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, exilium, jobs, members, profile, skland, steam, taygedo, update
+from app.api import auth, exilium, jobs, kujiequ, members, profile, skland, steam, taygedo, update
 from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
@@ -15,6 +15,7 @@ from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
+from app.models import kujiequ as _kujiequ  # noqa: F401
 from app.models import job_run as _job_run  # noqa: F401
 from app.models import member as _member  # noqa: F401
 from app.models import play_session as _play_session  # noqa: F401
@@ -97,6 +98,7 @@ api.include_router(steam.router)
 api.include_router(skland.router)
 api.include_router(taygedo.router)
 api.include_router(exilium.router)
+api.include_router(kujiequ.router)
 api.include_router(update.router)
 app.include_router(api)
 

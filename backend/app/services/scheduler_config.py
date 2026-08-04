@@ -18,6 +18,7 @@ JOB_IDS = (
     "arknights_box_sync",
     "taygedo_checkin",
     "exilium_checkin",
+    "kujiequ_checkin",
 )
 
 
@@ -68,6 +69,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(s.EXILIUM_CHECKIN_ENABLED),
             "hour": _clamp_hour(s.EXILIUM_CHECKIN_HOUR),
             "minute": _clamp_minute(s.EXILIUM_CHECKIN_MINUTE),
+        },
+        "kujiequ_checkin": {
+            "enabled": bool(s.KUJIEQU_CHECKIN_ENABLED),
+            "hour": _clamp_hour(s.KUJIEQU_CHECKIN_HOUR),
+            "minute": _clamp_minute(s.KUJIEQU_CHECKIN_MINUTE),
         },
     }
 

@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.15** — 系统管理集中配置；OAuth 按访问地址自动推断；平台侧栏图标。
+**v0.1.16** — 库街区短信绑定（官方极验）与社区 / 鸣潮 / 战双自动签到。
 
 ## 功能
 
@@ -11,6 +11,7 @@
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）
 - 塔吉多绑定与每日自动签到（异环）
 - 追放社区绑定、签到、每日任务与积分兑换
+- 库街区绑定与每日自动签到（社区 + 鸣潮 / 战双）
 - Docker 部署后由 **Watchtower** 自动拉取新镜像（无需管理端点更新）
 
 ## 技术栈
@@ -63,7 +64,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.15` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.16` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。生产需先更新本机的 `compose.yml` 再 `docker compose up -d` 一次以启动 Watchtower。
 
@@ -85,6 +86,7 @@ zhange-stats/
 users 1 ── 1 members ── * play_sessions / presence_segments / steam_friend_edges
                       └── 0..1 skland_binds ── * skland_checkin_logs
                       └── 0..1 taygedo_binds ── * taygedo_checkin_logs
+                      └── 0..1 kujiequ_binds ── * kujiequ_checkin_logs
 system_configs · register_challenges · job_runs · steam_apps
 ```
 
@@ -99,6 +101,8 @@ system_configs · register_challenges · job_runs · steam_apps
 | `skland_checkin_logs` | 森空岛角色签到记录 |
 | `taygedo_binds` | 塔吉多凭证（加密）与自动签到开关 |
 | `taygedo_checkin_logs` | 塔吉多 / 异环签到记录 |
+| `kujiequ_binds` | 库街区凭证（加密）与自动签到开关 |
+| `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录 |
 | `job_runs` | 轮询 / 签到任务日志 |
 | `system_configs` | 系统配置（如 SMTP） |
 | `register_challenges` | 注册验证码 |
@@ -112,4 +116,5 @@ system_configs · register_challenges · job_runs · steam_apps
 - Steam 隐私过严时可能跳过本轮状态；未返回过久会超时收尾会话
 - 森空岛支持扫码 / 短信 / 密码绑定，凭证加密存库；勿在 App 退出登录以免失效
 - 塔吉多使用手机号验证码或密码登录老虎官方接口，凭证加密存库；用于异环 / 幻塔每日签到
+- 库街区使用手机号短信验证码绑定，凭证加密存库
 - 勿提交 `.env`、`data/`、`uploads/`

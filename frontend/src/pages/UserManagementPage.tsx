@@ -36,6 +36,7 @@ type BindPlatform = {
     | "skland_bound"
     | "taygedo_bound"
     | "exilium_bound"
+    | "kujiequ_bound"
     | "qq_bound"
   >;
   label: string;
@@ -46,6 +47,7 @@ const BASE_PLATFORMS: BindPlatform[] = [
   { key: "skland_bound", label: "森空岛" },
   { key: "taygedo_bound", label: "塔吉多" },
   { key: "exilium_bound", label: "追放" },
+  { key: "kujiequ_bound", label: "库街区" },
 ];
 
 function BindStatusTags({

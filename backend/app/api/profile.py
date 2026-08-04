@@ -119,6 +119,7 @@ def _profile_from_member(
     skland = getattr(member, "skland_bind", None)
     taygedo = getattr(member, "taygedo_bind", None)
     exilium = getattr(member, "exilium_bind", None)
+    kujiequ = getattr(member, "kujiequ_bind", None)
     return MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
@@ -135,6 +136,9 @@ def _profile_from_member(
         exilium_bound=exilium is not None,
         exilium_auto_checkin=bool(exilium.auto_checkin) if exilium is not None else None,
         exilium_phone_mask=exilium.phone_mask if exilium is not None else None,
+        kujiequ_bound=kujiequ is not None,
+        kujiequ_auto_checkin=bool(kujiequ.auto_checkin) if kujiequ is not None else None,
+        kujiequ_phone_mask=kujiequ.phone_mask if kujiequ is not None else None,
         qq_bound=bool(member.qq_openid),
         qq_nickname=member.qq_nickname,
         qq_avatar_url=member.qq_avatar_url,
@@ -151,6 +155,7 @@ def _user_brief(u: User) -> UserBrief:
     skland = getattr(member, "skland_bind", None) if member else None
     taygedo = getattr(member, "taygedo_bind", None) if member else None
     exilium = getattr(member, "exilium_bind", None) if member else None
+    kujiequ = getattr(member, "kujiequ_bind", None) if member else None
     return UserBrief(
         id=u.id,
         username=u.username,
@@ -165,6 +170,7 @@ def _user_brief(u: User) -> UserBrief:
         skland_bound=skland is not None,
         taygedo_bound=taygedo is not None,
         exilium_bound=exilium is not None,
+        kujiequ_bound=kujiequ is not None,
         qq_bound=bool(member and member.qq_openid),
     )
 
@@ -251,6 +257,7 @@ def list_users(
             joinedload(User.member).joinedload(Member.skland_bind),
             joinedload(User.member).joinedload(Member.taygedo_bind),
             joinedload(User.member).joinedload(Member.exilium_bind),
+            joinedload(User.member).joinedload(Member.kujiequ_bind),
         )
         .order_by(User.id.asc())
         .all()
@@ -414,6 +421,7 @@ def get_my_profile(
             joinedload(Member.skland_bind),
             joinedload(Member.taygedo_bind),
             joinedload(Member.exilium_bind),
+            joinedload(Member.kujiequ_bind),
         )
         .filter(Member.id == member.id)
         .first()
@@ -713,6 +721,7 @@ def unbind_qq(
                 joinedload(Member.skland_bind),
                 joinedload(Member.taygedo_bind),
                 joinedload(Member.exilium_bind),
+                joinedload(Member.kujiequ_bind),
             )
             .filter(Member.id == member_id)
             .first()
@@ -834,6 +843,7 @@ def get_member_profile(
             joinedload(Member.skland_bind),
             joinedload(Member.taygedo_bind),
             joinedload(Member.exilium_bind),
+            joinedload(Member.kujiequ_bind),
         )
         .filter(Member.id == member_id)
         .first()

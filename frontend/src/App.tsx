@@ -14,6 +14,7 @@ import SklandPage from "@/pages/SklandPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
 import TaygedoPage from "@/pages/TaygedoPage";
 import ExiliumPage from "@/pages/ExiliumPage";
+import KujiequPage from "@/pages/KujiequPage";
 import SystemAdminPage from "@/pages/SystemAdminPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/skland" element={<SklandPage />} />
             <Route path="/taygedo" element={<TaygedoPage />} />
             <Route path="/exilium" element={<ExiliumPage />} />
+            <Route path="/kujiequ" element={<KujiequPage />} />
             <Route path="/members" element={<Navigate to="/steam" replace />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />
             <Route path="/profile" element={<ProfileSettingsPage />} />

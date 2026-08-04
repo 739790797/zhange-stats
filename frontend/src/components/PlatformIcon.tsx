@@ -3,6 +3,7 @@ const SRC = {
   skland: "/platform-icons/skland.png",
   taygedo: "/platform-icons/taygedo.png",
   exilium: "/platform-icons/exilium.png",
+  kujiequ: "/platform-icons/kujiequ.png",
 } as const;
 
 export type PlatformIconName = keyof typeof SRC;

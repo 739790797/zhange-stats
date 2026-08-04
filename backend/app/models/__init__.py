@@ -10,6 +10,7 @@ from app.models.steam_friend import SteamFriendEdge
 from app.models.system_config import SystemConfig
 from app.models.taygedo import TaygedoBind, TaygedoCheckinLog
 from app.models.exilium import ExiliumBind, ExiliumCheckinLog
+from app.models.kujiequ import KujiequBind, KujiequCheckinLog
 from app.models.user import User
 
 __all__ = [
@@ -28,6 +29,8 @@ __all__ = [
     "TaygedoCheckinLog",
     "ExiliumBind",
     "ExiliumCheckinLog",
+    "KujiequBind",
+    "KujiequCheckinLog",
     "ArknightsOperator",
     "ArknightsCatalogMeta",
     "ArknightsBoxSnapshot",

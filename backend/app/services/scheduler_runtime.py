@@ -17,6 +17,7 @@ from app.services.arknights_box_compare import (
 )
 from app.services.dev_config import is_steam_fake_poll
 from app.services.exilium_checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
+from app.services.kujiequ_checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
 from app.services.integrations_config import get_steam_api_key
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.skland_checkin import checkin_job_wrapper as skland_checkin_job_wrapper
@@ -90,6 +91,7 @@ def register_scheduler_jobs(
             ("arknights_box_sync", arknights_box_sync_job_wrapper),
             ("taygedo_checkin", taygedo_checkin_job_wrapper),
             ("exilium_checkin", exilium_checkin_job_wrapper),
+            ("kujiequ_checkin", kujiequ_checkin_job_wrapper),
         ]
         for job_id, func in cron_jobs:
             job_cfg = cfg.get(job_id) or {}

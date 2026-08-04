@@ -24,7 +24,14 @@ import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
-const leafKeys = ["/settings", "/steam", "/skland", "/taygedo", "/exilium"];
+const leafKeys = [
+  "/settings",
+  "/steam",
+  "/skland",
+  "/taygedo",
+  "/exilium",
+  "/kujiequ",
+];
 
 export function AppLayout() {
   const location = useLocation();
@@ -73,6 +80,7 @@ export function AppLayout() {
 
   const selected = useMemo(() => {
     if (location.pathname.startsWith("/settings")) return "/settings";
+    if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
     if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
     if (location.pathname.startsWith("/skland")) return "/skland";
@@ -118,6 +126,11 @@ export function AppLayout() {
       key: "/exilium",
       icon: <PlatformIcon name="exilium" />,
       label: <Link to="/exilium">追放</Link>,
+    },
+    {
+      key: "/kujiequ",
+      icon: <PlatformIcon name="kujiequ" />,
+      label: <Link to="/kujiequ">库街区</Link>,
     },
   ];
 
