@@ -24,15 +24,21 @@ def create_openid_state(
     *,
     user_id: int,
     member_id: int | None = None,
+    frontend: str | None = None,
+    backend: str | None = None,
     expires_minutes: int = 15,
 ) -> str:
     settings = get_settings()
-    payload = {
+    payload: dict = {
         "purpose": "steam_openid_bind",
         "uid": user_id,
         "mid": member_id,
         "exp": utc_now() + timedelta(minutes=expires_minutes),
     }
+    if frontend:
+        payload["frontend"] = frontend.rstrip("/")
+    if backend:
+        payload["backend"] = backend.rstrip("/")
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 

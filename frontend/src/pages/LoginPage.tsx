@@ -104,7 +104,7 @@ export default function LoginPage() {
             type="secondary"
             style={{ marginTop: 8, marginBottom: 0 }}
           >
-            Zhange Stats · Steam 游玩统计
+            Zhange Stats
           </Typography.Paragraph>
         </div>
 

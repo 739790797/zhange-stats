@@ -8,13 +8,18 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
   message,
 } from "antd";
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { createUser, deleteUser, fetchUsers, updateUser } from "@/api/client";
+import { useMemo, useState } from "react";
+import {
+  createUser,
+  deleteUser,
+  fetchIntegrationsSettings,
+  fetchUsers,
+  updateUser,
+} from "@/api/client";
 import type { UserBrief } from "@/api/types";
-import { PageHeader } from "@/components/PageHeader";
 import { useAuthStore } from "@/stores/authStore";
 
 type UserFormValues = {
@@ -23,6 +28,47 @@ type UserFormValues = {
   password?: string;
   steam_id?: string;
 };
+
+type BindPlatform = {
+  key: keyof Pick<
+    UserBrief,
+    | "steam_bound"
+    | "skland_bound"
+    | "taygedo_bound"
+    | "exilium_bound"
+    | "qq_bound"
+  >;
+  label: string;
+};
+
+const BASE_PLATFORMS: BindPlatform[] = [
+  { key: "steam_bound", label: "Steam" },
+  { key: "skland_bound", label: "森空岛" },
+  { key: "taygedo_bound", label: "塔吉多" },
+  { key: "exilium_bound", label: "追放" },
+];
+
+function BindStatusTags({
+  row,
+  platforms,
+}: {
+  row: UserBrief;
+  platforms: BindPlatform[];
+}) {
+  return (
+    <Space size={[4, 4]} wrap>
+      {platforms.map((p) => {
+        const bound = Boolean(row[p.key]);
+        return (
+          <Tag key={p.key} color={bound ? "success" : undefined}>
+            {p.label}
+            {bound ? " · 已绑" : " · 未绑"}
+          </Tag>
+        );
+      })}
+    </Space>
+  );
+}
 
 export default function UserManagementPage() {
   const queryClient = useQueryClient();
@@ -36,6 +82,19 @@ export default function UserManagementPage() {
     queryKey: ["users"],
     queryFn: fetchUsers,
   });
+
+  const { data: integrations } = useQuery({
+    queryKey: ["integrations-settings"],
+    queryFn: fetchIntegrationsSettings,
+  });
+
+  const platforms = useMemo(() => {
+    const list = [...BASE_PLATFORMS];
+    if (integrations?.qq_configured) {
+      list.push({ key: "qq_bound", label: "QQ" });
+    }
+    return list;
+  }, [integrations?.qq_configured]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -136,18 +195,22 @@ export default function UserManagementPage() {
 
   return (
     <div>
-      <PageHeader
-        title="用户管理"
-        subtitle="管理员可添加、编辑普通用户；系统仅保留一名管理员"
-        extra={
-          <Space>
-            <Link to="/settings/email">邮箱设置</Link>
-            <Button type="primary" onClick={() => setCreateOpen(true)}>
-              添加用户
-            </Button>
-          </Space>
-        }
-      />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 16,
+          gap: 16,
+        }}
+      >
+        <Typography.Text type="secondary">
+          管理员可添加、编辑普通用户；系统仅保留一名管理员。绑定由用户在个人中心自行完成。
+        </Typography.Text>
+        <Button type="primary" onClick={() => setCreateOpen(true)}>
+          添加用户
+        </Button>
+      </div>
       <Table
         rowKey="id"
         loading={isLoading}
@@ -160,13 +223,16 @@ export default function UserManagementPage() {
             render: (v: string | null | undefined) => v || "-",
           },
           {
-            title: "Steam ID",
-            dataIndex: "steam_id",
-            render: (v: string | null | undefined) => v || "-",
+            title: "平台绑定",
+            key: "binds",
+            render: (_, row) => (
+              <BindStatusTags row={row} platforms={platforms} />
+            ),
           },
           {
             title: "角色",
             dataIndex: "role",
+            width: 100,
             render: (role: string) =>
               role === "admin" ? (
                 <Tag color="gold">管理员</Tag>
@@ -176,18 +242,12 @@ export default function UserManagementPage() {
           },
           {
             title: "操作",
+            width: 140,
             render: (_, row) => {
               const isSelf = row.id === currentUser?.id;
               const isAdmin = row.role === "admin" || row.is_admin;
               return (
                 <Space>
-                  {row.member_id ? (
-                    <Link to={`/members/${row.member_id}/profile`}>个人中心</Link>
-                  ) : (
-                    <Button type="link" disabled>
-                      个人中心
-                    </Button>
-                  )}
                   <Button type="link" onClick={() => openEdit(row)}>
                     编辑
                   </Button>
@@ -314,7 +374,10 @@ export default function UserManagementPage() {
               },
             ]}
           >
-            <Input.Password placeholder="新密码（可选）" autoComplete="new-password" />
+            <Input.Password
+              placeholder="新密码（可选）"
+              autoComplete="new-password"
+            />
           </Form.Item>
           <Form.Item name="steam_id" label="Steam ID">
             <Input placeholder="可选，清空则解除绑定" />

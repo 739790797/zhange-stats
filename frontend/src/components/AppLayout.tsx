@@ -1,13 +1,6 @@
 import {
-  CalendarOutlined,
-  CloudDownloadOutlined,
-  CloudServerOutlined,
-  CompassOutlined,
-  FireOutlined,
+  ControlOutlined,
   LogoutOutlined,
-  ScheduleOutlined,
-  SettingOutlined,
-  TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -26,11 +19,12 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchMe, fetchMyProfile } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
-const leafKeys = ["/steam", "/skland", "/taygedo", "/exilium"];
+const leafKeys = ["/settings", "/steam", "/skland", "/taygedo", "/exilium"];
 
 export function AppLayout() {
   const location = useLocation();
@@ -78,6 +72,7 @@ export function AppLayout() {
   }, [profileQuery.data, setUser]);
 
   const selected = useMemo(() => {
+    if (location.pathname.startsWith("/settings")) return "/settings";
     if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
     if (location.pathname.startsWith("/skland")) return "/skland";
@@ -92,25 +87,36 @@ export function AppLayout() {
     );
   }, [location.pathname]);
 
+  const isAdmin = Boolean(user?.is_admin);
+
   const items = [
+    ...(isAdmin
+      ? [
+          {
+            key: "/settings",
+            icon: <ControlOutlined />,
+            label: <Link to="/settings/users">系统管理</Link>,
+          },
+        ]
+      : []),
     {
       key: "/steam",
-      icon: <CalendarOutlined />,
+      icon: <PlatformIcon name="steam" />,
       label: <Link to="/steam">Steam</Link>,
     },
     {
       key: "/skland",
-      icon: <CloudServerOutlined />,
+      icon: <PlatformIcon name="skland" />,
       label: <Link to="/skland">森空岛</Link>,
     },
     {
       key: "/taygedo",
-      icon: <FireOutlined />,
+      icon: <PlatformIcon name="taygedo" />,
       label: <Link to="/taygedo">塔吉多</Link>,
     },
     {
       key: "/exilium",
-      icon: <CompassOutlined />,
+      icon: <PlatformIcon name="exilium" />,
       label: <Link to="/exilium">追放</Link>,
     },
   ];
@@ -123,7 +129,6 @@ export function AppLayout() {
     "用户";
   const avatarUrl =
     profileQuery.data?.avatar_url || user?.avatar_url || undefined;
-  const isAdmin = Boolean(user?.is_admin);
   const roleLabel = isAdmin ? "管理员" : null;
 
   const accountMenuItems: MenuProps["items"] = [
@@ -133,35 +138,6 @@ export function AppLayout() {
       label: "个人中心",
       onClick: () => navigate("/profile"),
     },
-    ...(isAdmin
-      ? [
-          { type: "divider" as const },
-          {
-            key: "settings-users",
-            icon: <TeamOutlined />,
-            label: "用户管理",
-            onClick: () => navigate("/settings/users"),
-          },
-          {
-            key: "settings-email",
-            icon: <SettingOutlined />,
-            label: "邮箱设置",
-            onClick: () => navigate("/settings/email"),
-          },
-          {
-            key: "settings-jobs",
-            icon: <ScheduleOutlined />,
-            label: "定时任务",
-            onClick: () => navigate("/settings/jobs"),
-          },
-          {
-            key: "settings-update",
-            icon: <CloudDownloadOutlined />,
-            label: "系统更新",
-            onClick: () => navigate("/settings/update"),
-          },
-        ]
-      : []),
     { type: "divider" as const },
     {
       key: "logout",

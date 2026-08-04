@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.timeutil import ensure, now_naive
 from app.models.member import Member
 from app.models.play_session import PlaySession
@@ -67,8 +66,10 @@ def sync_member_friends(db: Session, member: Member) -> FriendSyncResult:
             ok=True, friends_public=None, friend_count=0, message="未绑定 Steam"
         )
 
-    settings = get_settings()
-    if not settings.STEAM_API_KEY:
+    from app.services.integrations_config import get_steam_api_key
+
+    steam_key = get_steam_api_key(db)
+    if not steam_key:
         return FriendSyncResult(
             ok=False,
             friends_public=member.steam_friends_public,
@@ -76,7 +77,7 @@ def sync_member_friends(db: Session, member: Member) -> FriendSyncResult:
             message="STEAM_API_KEY 未配置",
         )
 
-    adapter = SteamAdapter(settings.STEAM_API_KEY)
+    adapter = SteamAdapter(steam_key)
     try:
         friends = adapter.fetch_friend_list(steam_id)
     except PermissionError:
@@ -271,9 +272,11 @@ def list_viewer_steam_friends(
     # 好友边可走缓存，但昵称/头像/在线状态不落库，每次展示都需 GetPlayerSummaries
     # （否则冷却期内 force=false 只会显示 steam_id）
     if friend_steam_ids:
-        settings = get_settings()
-        if settings.STEAM_API_KEY:
-            adapter = SteamAdapter(settings.STEAM_API_KEY)
+        from app.services.integrations_config import get_steam_api_key
+
+        steam_key = get_steam_api_key(db)
+        if steam_key:
+            adapter = SteamAdapter(steam_key)
             try:
                 for i in range(0, len(friend_steam_ids), 100):
                     chunk = friend_steam_ids[i : i + 100]

@@ -212,11 +212,13 @@ export interface EmailSettings {
   enabled: boolean;
   smtp_user: string;
   smtp_from: string;
+  smtp_password?: string;
   smtp_password_set: boolean;
   display_name: string;
   smtp_host: string;
   smtp_port: number;
   encryption: "SSL" | "STARTTLS" | "NONE" | string;
+  code_expire_minutes: number;
   configured: boolean;
 }
 
@@ -231,19 +233,41 @@ export interface ScheduledJob {
   id: string;
   name: string;
   description: string;
+  kind?: string;
   registered: boolean;
   scheduler_running: boolean;
   trigger_type?: string | null;
   schedule?: string | null;
   next_run_at?: string | null;
   config_enabled?: boolean | null;
+  interval_minutes?: number | null;
+  hour?: number | null;
+  minute?: number | null;
   last_run?: ScheduledJobLastRun | null;
 }
 
 export interface ScheduledJobsResponse {
   scheduler_running: boolean;
   timezone: string;
+  steam_fake_poll?: boolean;
+  steam_fake_available?: boolean;
   jobs: ScheduledJob[];
+}
+
+export interface IntegrationsSettings {
+  steam_api_key?: string;
+  steam_api_key_set: boolean;
+  qq_app_id: string;
+  qq_app_key?: string;
+  qq_app_key_set: boolean;
+  qq_configured: boolean;
+  steam_configured: boolean;
+  qq_callback_url?: string;
+}
+
+export interface AuthSettings {
+  access_token_expire_minutes: number;
+  access_token_expire_days: number;
 }
 
 export async function fetchEmailSettings() {
@@ -256,6 +280,58 @@ export async function fetchScheduledJobs() {
   return data;
 }
 
+export async function updateScheduledJobs(payload: {
+  jobs: Record<
+    string,
+    {
+      enabled?: boolean;
+      interval_minutes?: number;
+      hour?: number;
+      minute?: number;
+    }
+  >;
+  steam_fake_poll?: boolean;
+}) {
+  const { data } = await client.put<ScheduledJobsResponse>(
+    "/settings/jobs",
+    payload,
+  );
+  return data;
+}
+
+export async function fetchIntegrationsSettings() {
+  const { data } = await client.get<IntegrationsSettings>(
+    "/settings/integrations",
+  );
+  return data;
+}
+
+export async function updateIntegrationsSettings(payload: {
+  steam_api_key?: string | null;
+  qq_app_id?: string | null;
+  qq_app_key?: string | null;
+  clear_steam_api_key?: boolean;
+  clear_qq_app_key?: boolean;
+}) {
+  const { data } = await client.put<IntegrationsSettings>(
+    "/settings/integrations",
+    payload,
+  );
+  return data;
+}
+
+export async function fetchAuthSettings() {
+  const { data } = await client.get<AuthSettings>("/settings/auth");
+  return data;
+}
+
+export async function updateAuthSettings(payload: {
+  access_token_expire_minutes: number;
+}) {
+  const { data } = await client.put<AuthSettings>("/settings/auth", payload);
+  return data;
+}
+
 export async function updateEmailSettings(payload: {
   enabled: boolean;
   smtp_user: string;
@@ -265,6 +341,7 @@ export async function updateEmailSettings(payload: {
   smtp_host: string;
   smtp_port: number;
   encryption: string;
+  code_expire_minutes: number;
 }) {
   const { data } = await client.put<EmailSettings>("/settings/email", payload);
   return data;
@@ -285,6 +362,7 @@ export interface UpdateCheckResult {
   update_enabled: boolean;
   image: string;
   repo: string;
+  check_error?: string | null;
 }
 
 export interface UpdateStatusResult {

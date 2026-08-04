@@ -13,7 +13,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.1.14}
+        APP_VERSION: ${APP_VERSION:-0.1.15}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -24,8 +24,7 @@ services:
       STATIC_DIR: /app/static
       DATA_DIR: /app/data
       UPLOAD_DIR: /app/uploads
-      # 管理端「系统更新」默认关闭；生产自动更新请用下方 watchtower
-      UPDATE_ENABLED: ${UPDATE_ENABLED:-false}
+      # 管理端「系统更新」拉镜像/重建；生产也可依赖下方 watchtower
       UPDATE_REPO: ${UPDATE_REPO:-739790797/zhange-stats}
       UPDATE_IMAGE: ${APP_IMAGE:-ghcr.io/739790797/zhange-stats}
       UPDATE_COMPOSE_FILE: /deploy/compose.yml

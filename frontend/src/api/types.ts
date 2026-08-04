@@ -29,6 +29,11 @@ export interface UserBrief {
   email_verified?: boolean;
   member_id: number | null;
   steam_id?: string | null;
+  steam_bound?: boolean;
+  skland_bound?: boolean;
+  taygedo_bound?: boolean;
+  exilium_bound?: boolean;
+  qq_bound?: boolean;
 }
 
 export interface MemberProfile {

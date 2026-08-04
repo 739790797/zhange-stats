@@ -33,8 +33,9 @@ class Settings(BaseSettings):
     # 留空或保持占位值时，首次启动会自动生成并写入 DATA_DIR/.secret_key
     SECRET_KEY: str = DEFAULT_SECRET_KEY
     # 默认 24 小时；生产可按需再缩短
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
-    CORS_ORIGINS: str = "http://127.0.0.1:5173,http://localhost:5173"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 默认 30 天
+    # 留空：本地 Vite 用 allow_origin_regex；生产同域一般无需 CORS
+    CORS_ORIGINS: str = ""
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "123456"
     ADMIN_DISPLAY_NAME: str = "管理员"
@@ -47,11 +48,11 @@ class Settings(BaseSettings):
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
     STEAM_POLL_ENABLED: bool = True
-    # 本地开发：假 Steam 监控（不调 API，持续写入 presence/play；与真实轮询互斥）
+    # 本地开发：假 Steam 监控（不调 API；与真实轮询互斥）。优先读系统管理配置
     STEAM_FAKE_POLL: bool = False
-    # Steam OpenID 回调地址（必须是 Steam 能访问的公网/局域网 URL）
-    PUBLIC_BACKEND_URL: str = "http://127.0.0.1:8000"
-    PUBLIC_FRONTEND_URL: str = "http://127.0.0.1:5173"
+    # 可选手动覆盖 OAuth 回调基址；留空则从请求 Host / Origin / X-Forwarded-* 推断
+    PUBLIC_BACKEND_URL: str = ""
+    PUBLIC_FRONTEND_URL: str = ""
 
     # QQ 互联（个人中心绑定；审核中仅调试 QQ 号可用）
     QQ_APP_ID: str = ""
@@ -88,10 +89,9 @@ class Settings(BaseSettings):
     SMTP_STARTTLS: bool = False
     EMAIL_CODE_EXPIRE_MINUTES: int = 15
 
-    # 部署 / 在线更新（可选；仅 Docker 且启用管理端更新时需要）
+    # 部署 / 在线更新（Docker 管理端手动更新始终可用）
     APP_VERSION: str = _read_version_file()
     STATIC_DIR: str = ""
-    UPDATE_ENABLED: bool = False
     UPDATE_REPO: str = "739790797/zhange-stats"
     UPDATE_IMAGE: str = "ghcr.io/739790797/zhange-stats"
     UPDATE_COMPOSE_FILE: str = "/deploy/compose.yml"

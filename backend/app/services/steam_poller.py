@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.config import get_settings
 from app.core.timeutil import ensure, now_naive
 from app.models.job_run import JobRun
 from app.models.member import Member
@@ -254,7 +253,13 @@ def run_steam_presence_poll(db: Session) -> dict:
 
 
 def _run_steam_presence_poll_locked(db: Session) -> dict:
-    settings = get_settings()
+    from app.services.integrations_config import get_steam_api_key
+    from app.services.scheduler_config import load_scheduler_config
+
+    steam_key = get_steam_api_key(db)
+    sched = load_scheduler_config(db).get("steam_presence") or {}
+    interval = max(1, int(sched.get("interval_minutes") or 3))
+
     job = JobRun(job_key=JOB_KEY, status="running", started_at=_now())
     db.add(job)
     db.commit()
@@ -281,7 +286,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
     }
 
     try:
-        if not settings.STEAM_API_KEY:
+        if not steam_key:
             raise RuntimeError("STEAM_API_KEY 未配置")
 
         members = (
@@ -300,7 +305,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
             return {"status": job.status, "message": job.message, "stats": stats}
 
         by_steam = {m.steam_id: m for m in members if m.steam_id}
-        adapter = SteamAdapter(settings.STEAM_API_KEY)
+        adapter = SteamAdapter(steam_key)
         steam_ids = list(by_steam.keys())
 
         all_presences: list[SteamPresence] = []
@@ -311,7 +316,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
 
         presence_map = {p.steam_id: p for p in all_presences}
         now = _now()
-        interval = max(1, int(settings.STEAM_POLL_INTERVAL_MINUTES))
+        # interval 已从调度配置读取
         stale_after = timedelta(minutes=interval * 3)
 
         for steam_id, member in by_steam.items():

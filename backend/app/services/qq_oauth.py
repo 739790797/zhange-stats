@@ -40,27 +40,35 @@ class QqProfile:
     avatar_url: str | None
 
 
-def qq_redirect_uri() -> str:
-    settings = get_settings()
-    backend = (settings.PUBLIC_BACKEND_URL or "").rstrip("/")
-    if not backend:
-        raise QqOAuthError("未配置 PUBLIC_BACKEND_URL")
-    return f"{backend}/api/auth/qq/callback"
+def qq_redirect_uri(backend: str | None = None) -> str:
+    base = (backend or "").rstrip("/")
+    if not base:
+        settings = get_settings()
+        base = (settings.PUBLIC_BACKEND_URL or "").rstrip("/")
+    if not base:
+        raise QqOAuthError("无法确定回调地址（缺少访问 Host）")
+    return f"{base}/api/auth/qq/callback"
 
 
 def create_qq_oauth_state(
     *,
     user_id: int,
     member_id: int | None = None,
+    frontend: str | None = None,
+    backend: str | None = None,
     expires_minutes: int = 15,
 ) -> str:
     settings = get_settings()
-    payload = {
+    payload: dict = {
         "purpose": "qq_oauth_bind",
         "uid": user_id,
         "mid": member_id,
         "exp": utc_now() + timedelta(minutes=expires_minutes),
     }
+    if frontend:
+        payload["frontend"] = frontend.rstrip("/")
+    if backend:
+        payload["backend"] = backend.rstrip("/")
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -77,17 +85,18 @@ def decode_qq_oauth_state(token: str) -> dict:
     return payload
 
 
-def build_qq_authorize_url(*, state: str) -> str:
-    settings = get_settings()
-    app_id = (settings.QQ_APP_ID or "").strip()
+def build_qq_authorize_url(*, state: str, backend: str | None = None) -> str:
+    from app.services.integrations_config import get_qq_credentials
+
+    app_id, app_key = get_qq_credentials()
     if not app_id:
         raise QqOAuthError("未配置 QQ_APP_ID")
-    if not (settings.QQ_APP_KEY or "").strip():
+    if not app_key:
         raise QqOAuthError("未配置 QQ_APP_KEY")
     params = {
         "response_type": "code",
         "client_id": app_id,
-        "redirect_uri": qq_redirect_uri(),
+        "redirect_uri": qq_redirect_uri(backend),
         "state": state,
         "scope": "get_user_info",
     }
@@ -151,10 +160,10 @@ def _parse_jsonp_or_json(text: str) -> dict:
     return data
 
 
-def exchange_code_for_profile(code: str) -> QqProfile:
-    settings = get_settings()
-    app_id = (settings.QQ_APP_ID or "").strip()
-    app_key = (settings.QQ_APP_KEY or "").strip()
+def exchange_code_for_profile(code: str, *, backend: str | None = None) -> QqProfile:
+    from app.services.integrations_config import get_qq_credentials
+
+    app_id, app_key = get_qq_credentials()
     if not app_id or not app_key:
         raise QqOAuthError("未配置 QQ_APP_ID / QQ_APP_KEY")
     code = (code or "").strip()
@@ -167,7 +176,7 @@ def exchange_code_for_profile(code: str) -> QqProfile:
             "client_id": app_id,
             "client_secret": app_key,
             "code": code,
-            "redirect_uri": qq_redirect_uri(),
+            "redirect_uri": qq_redirect_uri(backend),
             "fmt": "json",
         }
     )

@@ -2,12 +2,14 @@
 
 启用：
 
-1. `.env` 设置 `STEAM_FAKE_POLL=true`
-2. 启动后端：会幂等补齐演示账号，并按间隔跑假轮询
-3. 可选手动灌数：
+1. 登录管理员 → **系统管理 → 定时任务** → 打开「本地假监控」→ 保存并应用  
+   （会幂等补齐演示账号，并按 Steam 任务间隔跑假轮询）
+2. 可选手动灌数：
    - `python -m local_dev.seed_local`
    - `python -m local_dev.seed_local --wipe`
    - `python -m local_dev.seed_local --reseed-history`（清空并重生成历史）
+
+兼容：`.env` 仍可设 `STEAM_FAKE_POLL=true` 作为冷启动默认（未在系统界面保存过时生效）。
 
 登录示例：`user_a` / `demopass123`
 

@@ -51,6 +51,11 @@ class UserBrief(OrmModel):
     email_verified: bool = False
     member_id: int | None = None
     steam_id: str | None = None
+    steam_bound: bool = False
+    skland_bound: bool = False
+    taygedo_bound: bool = False
+    exilium_bound: bool = False
+    qq_bound: bool = False
 
 
 class UserAdminCreate(BaseModel):

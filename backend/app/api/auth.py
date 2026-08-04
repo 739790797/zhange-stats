@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import auth_limiter, client_ip
@@ -70,9 +69,12 @@ def _gen_username(db: Session) -> str:
 
 
 def _upsert_register_challenge(db: Session, email: str) -> tuple[str, dict]:
-    settings = get_settings()
+    from app.services.email_config import load_email_config
+
+    cfg = load_email_config(db)
+    expire_minutes = max(1, int(cfg.get("code_expire_minutes") or 15))
     code = _gen_code()
-    expires = _utcnow() + timedelta(minutes=settings.EMAIL_CODE_EXPIRE_MINUTES)
+    expires = _utcnow() + timedelta(minutes=expire_minutes)
     row = db.query(RegisterChallenge).filter(RegisterChallenge.email == email).first()
     if row:
         row.code = code

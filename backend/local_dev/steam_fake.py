@@ -1,6 +1,6 @@
 """本地/开发假 Steam 数据与假轮询（不访问 Steam presence API）。
 
-启用：.env 设置 STEAM_FAKE_POLL=true。
+启用：系统管理 → 定时任务 →「本地假监控」（或 .env STEAM_FAKE_POLL=true 冷启动默认）。
 只伪造用户在线/游玩轨迹；游戏 icon / 商店信息等仍走真实请求链路。
 
 启动时幂等补齐演示账号 / 好友 / 游戏缓存 / 历史；调度器持续写入监控数据。

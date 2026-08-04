@@ -2,13 +2,11 @@ import { CloudDownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Descriptions, Space, Typography, message } from "antd";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   checkUpdate,
   fetchUpdateStatus,
   triggerUpdate,
 } from "@/api/client";
-import { PageHeader } from "@/components/PageHeader";
 
 async function waitForNewVersion(previous: string, timeoutMs = 180_000) {
   const prev = previous.replace(/^v/i, "").trim();
@@ -33,6 +31,11 @@ async function waitForNewVersion(previous: string, timeoutMs = 180_000) {
   throw new Error("等待服务恢复超时，请手动刷新或检查服务器");
 }
 
+function formatVersion(v?: string | null) {
+  const text = (v || "").replace(/^v/i, "").trim();
+  return text ? `v${text}` : "—";
+}
+
 export default function SystemUpdatePage() {
   const queryClient = useQueryClient();
   const [waiting, setWaiting] = useState(false);
@@ -42,6 +45,7 @@ export default function SystemUpdatePage() {
     queryKey: ["update-check"],
     queryFn: checkUpdate,
     refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   const statusQuery = useQuery({
@@ -57,10 +61,12 @@ export default function SystemUpdatePage() {
   });
 
   useEffect(() => {
-    if (checkQuery.data?.current_version) {
-      previousVersion.current = checkQuery.data.current_version;
+    const current =
+      checkQuery.data?.current_version || statusQuery.data?.current_version;
+    if (current) {
+      previousVersion.current = current;
     }
-  }, [checkQuery.data?.current_version]);
+  }, [checkQuery.data?.current_version, statusQuery.data?.current_version]);
 
   const doUpdate = useMutation({
     mutationFn: triggerUpdate,
@@ -70,7 +76,10 @@ export default function SystemUpdatePage() {
       queryClient.invalidateQueries({ queryKey: ["update-status"] });
       try {
         const prev =
-          previousVersion.current || checkQuery.data?.current_version || "";
+          previousVersion.current ||
+          checkQuery.data?.current_version ||
+          statusQuery.data?.current_version ||
+          "";
         const next = await waitForNewVersion(prev);
         message.success(`已更新到 v${next}`);
         window.location.reload();
@@ -80,6 +89,7 @@ export default function SystemUpdatePage() {
         setWaiting(false);
         queryClient.invalidateQueries({ queryKey: ["update-check"] });
         queryClient.invalidateQueries({ queryKey: ["update-status"] });
+        queryClient.invalidateQueries({ queryKey: ["app-version"] });
       }
     },
     onError: (e: unknown) => {
@@ -95,64 +105,52 @@ export default function SystemUpdatePage() {
 
   const data = checkQuery.data;
   const status = statusQuery.data;
+  const currentVersion =
+    data?.current_version || status?.current_version || "";
   const busy =
     waiting ||
     doUpdate.isPending ||
     status?.state === "pulling" ||
     status?.state === "recreating";
 
+  const checkHardError =
+    checkQuery.isError &&
+    ((checkQuery.error as { response?: { data?: { detail?: string } } })
+      ?.response?.data?.detail ||
+      (checkQuery.error instanceof Error
+        ? checkQuery.error.message
+        : "请稍后重试"));
+
   return (
     <div>
-      <PageHeader
-        title="系统更新"
-        subtitle="拉取新镜像并重建应用容器（需 Docker 部署且启用 UPDATE_ENABLED）"
-        extra={
-          <Space>
-            <Link to="/settings/users">用户管理</Link>
-            <Link to="/settings/email">邮箱设置</Link>
-          </Space>
-        }
-      />
-
-      {checkQuery.isError ? (
+      {checkHardError ? (
         <Alert
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
           message="检查更新失败"
-          description={
-            (checkQuery.error as { response?: { data?: { detail?: string } } })
-              ?.response?.data?.detail ||
-            (checkQuery.error instanceof Error
-              ? checkQuery.error.message
-              : "请稍后重试")
-          }
+          description={checkHardError}
         />
       ) : null}
 
-      {!data?.update_enabled ? (
+      {data?.check_error ? (
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="当前未启用在线更新"
-          description={
-            <>
-              请确认已挂载 docker.sock 与 compose.yml，并设置{" "}
-              <Typography.Text code>UPDATE_ENABLED=true</Typography.Text>。
-              挂载 docker.sock 等同授予容器宿主机 Docker 管理权限，仅信任的管理员环境再开启。
-            </>
-          }
+          message="最新版本获取不完整"
+          description={data.check_error}
         />
-      ) : (
+      ) : null}
+
+      {data?.has_update ? (
         <Alert
-          type="info"
+          type="success"
           showIcon
           style={{ marginBottom: 16 }}
-          message="安全提示"
-          description="在线更新通过 docker.sock 操作宿主机容器。请确保仅管理员可登录，并知晓此权限等同 Docker 主机管理能力。"
+          message={`发现新版本 ${formatVersion(data.latest_version)}`}
         />
-      )}
+      ) : null}
 
       <Descriptions
         bordered
@@ -161,13 +159,20 @@ export default function SystemUpdatePage() {
         style={{ maxWidth: 560, marginBottom: 20 }}
       >
         <Descriptions.Item label="当前版本">
-          {data?.current_version ? `v${data.current_version}` : "—"}
+          {formatVersion(currentVersion)}
         </Descriptions.Item>
         <Descriptions.Item label="最新版本">
-          {data?.latest_version ? `v${data.latest_version}` : "暂无 Release / Tag"}
+          {data?.latest_version
+            ? formatVersion(data.latest_version)
+            : data?.check_error
+              ? "获取失败"
+              : "—"}
         </Descriptions.Item>
         <Descriptions.Item label="镜像">
           <Typography.Text code>{data?.image || "—"}</Typography.Text>
+        </Descriptions.Item>
+        <Descriptions.Item label="仓库">
+          <Typography.Text code>{data?.repo || "—"}</Typography.Text>
         </Descriptions.Item>
         <Descriptions.Item label="更新状态">
           {status?.state || "idle"}
@@ -183,7 +188,10 @@ export default function SystemUpdatePage() {
           icon={<ReloadOutlined />}
           size="large"
           loading={checkQuery.isFetching}
-          onClick={() => checkQuery.refetch()}
+          onClick={() => {
+            checkQuery.refetch();
+            statusQuery.refetch();
+          }}
         >
           检查更新
         </Button>
@@ -191,24 +199,23 @@ export default function SystemUpdatePage() {
           type="primary"
           icon={<CloudDownloadOutlined />}
           size="large"
-          disabled={!data?.update_enabled || !data?.has_update || busy}
+          disabled={!data?.has_update || busy}
           loading={busy}
           onClick={() => {
-            if (!data?.latest_version) return;
+            if (!data?.latest_version && !data?.has_update) return;
             doUpdate.mutate();
           }}
-          style={{ background: "#1a2332", borderColor: "#1a2332" }}
+          style={{
+            background: "#1a2332",
+            borderColor: "#1a2332",
+            color: "#fff",
+          }}
         >
           {data?.has_update
-            ? `更新到 v${data.latest_version}`
+            ? `更新到 ${formatVersion(data.latest_version)}`
             : "已是最新版本"}
         </Button>
       </Space>
-
-      <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
-        发版方式：在 GitHub 打 <Typography.Text code>v*</Typography.Text>{" "}
-        标签，Actions 会构建并推送到 GHCR；此处检查的是仓库最新 Release/Tag。
-      </Typography.Paragraph>
     </div>
   );
 }

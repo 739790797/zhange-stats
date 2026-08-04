@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from app.core.config import get_settings
 from app.services.adapters.steam import SteamAdapter, SteamPlayerProfile
 from app.services.steam_resolve import resolve_steam_input
 
@@ -15,12 +14,14 @@ PRIVACY_HINT = (
 
 
 def lookup_steam_profile(raw_input: str) -> SteamPlayerProfile:
-    settings = get_settings()
-    if not settings.STEAM_API_KEY:
+    from app.services.integrations_config import get_steam_api_key
+
+    api_key = get_steam_api_key()
+    if not api_key:
         raise RuntimeError("未配置 STEAM_API_KEY，无法验证 Steam 账号")
 
-    steam_id = resolve_steam_input(raw_input, settings.STEAM_API_KEY)
-    adapter = SteamAdapter(settings.STEAM_API_KEY)
+    steam_id = resolve_steam_input(raw_input, api_key)
+    adapter = SteamAdapter(api_key)
     return adapter.fetch_player_profile(steam_id)
 
 

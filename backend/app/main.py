@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-import threading
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -13,9 +12,7 @@ from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
-from app.core.local_dev_hooks import import_steam_fake
 from app.core.migrate import run_migrations
-from app.core.timeutil import BEIJING
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
 from app.models import job_run as _job_run  # noqa: F401
@@ -29,13 +26,12 @@ from app.models import steam_friend as _steam_friend  # noqa: F401
 from app.models import system_config as _system_config  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
-from app.services.arknights_box_compare import box_sync_job_wrapper as arknights_box_sync_job_wrapper
-from app.services.exilium_checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
 from app.services.member_sync import sync_users_and_members
+from app.services.scheduler_runtime import (
+    ensure_local_fake_data_if_needed,
+    register_scheduler_jobs,
+)
 from app.services.seed import seed_data
-from app.services.skland_checkin import checkin_job_wrapper as skland_checkin_job_wrapper
-from app.services.steam_poller import poll_job_wrapper
-from app.services.taygedo_checkin import checkin_job_wrapper as taygedo_checkin_job_wrapper
 
 scheduler = BackgroundScheduler()
 
@@ -59,118 +55,10 @@ async def lifespan(_: FastAPI):
         ensure_beijing_time_storage(db, engine)
         seed_data(db)
         sync_users_and_members(db)
+        ensure_local_fake_data_if_needed(db)
+        register_scheduler_jobs(scheduler, db, run_steam_once=True)
     finally:
         db.close()
-
-    settings = get_settings()
-    started = False
-    steam_fake = import_steam_fake() if settings.STEAM_FAKE_POLL else None
-    if settings.STEAM_FAKE_POLL and steam_fake is not None:
-        db = SessionLocal()
-        try:
-            steam_fake.ensure_local_fake_data(db)
-        finally:
-            db.close()
-        scheduler.add_job(
-            steam_fake.fake_poll_job_wrapper,
-            "interval",
-            minutes=max(1, settings.STEAM_POLL_INTERVAL_MINUTES),
-            id="steam_presence",
-            replace_existing=True,
-            max_instances=1,
-        )
-        started = True
-        steam_fake.fake_poll_job_wrapper()
-    elif settings.STEAM_FAKE_POLL and steam_fake is None:
-        import logging
-
-        logging.getLogger("zhange.main").warning(
-            "STEAM_FAKE_POLL=true 但未找到 local_dev.steam_fake，已跳过假监控"
-        )
-    elif settings.STEAM_POLL_ENABLED and settings.STEAM_API_KEY:
-        scheduler.add_job(
-            poll_job_wrapper,
-            "interval",
-            minutes=max(1, settings.STEAM_POLL_INTERVAL_MINUTES),
-            id="steam_presence",
-            replace_existing=True,
-            max_instances=1,
-        )
-        started = True
-        poll_job_wrapper()
-
-    if settings.SKLAND_CHECKIN_ENABLED:
-        hour = max(0, min(23, int(settings.SKLAND_CHECKIN_HOUR)))
-        minute = max(0, min(59, int(settings.SKLAND_CHECKIN_MINUTE)))
-        scheduler.add_job(
-            skland_checkin_job_wrapper,
-            "cron",
-            hour=hour,
-            minute=minute,
-            timezone=BEIJING,
-            id="skland_checkin",
-            replace_existing=True,
-            max_instances=1,
-        )
-        started = True
-
-    if settings.ARKNIGHTS_BOX_SYNC_ENABLED:
-        hour = max(0, min(23, int(settings.ARKNIGHTS_BOX_SYNC_HOUR)))
-        minute = max(0, min(59, int(settings.ARKNIGHTS_BOX_SYNC_MINUTE)))
-        scheduler.add_job(
-            arknights_box_sync_job_wrapper,
-            "cron",
-            hour=hour,
-            minute=minute,
-            timezone=BEIJING,
-            id="arknights_box_sync",
-            replace_existing=True,
-            max_instances=1,
-        )
-        started = True
-
-    if settings.TAYGEDO_CHECKIN_ENABLED:
-        hour = max(0, min(23, int(settings.TAYGEDO_CHECKIN_HOUR)))
-        minute = max(0, min(59, int(settings.TAYGEDO_CHECKIN_MINUTE)))
-        scheduler.add_job(
-            taygedo_checkin_job_wrapper,
-            "cron",
-            hour=hour,
-            minute=minute,
-            timezone=BEIJING,
-            id="taygedo_checkin",
-            replace_existing=True,
-            max_instances=1,
-        )
-        started = True
-
-    if settings.EXILIUM_CHECKIN_ENABLED:
-        hour = max(0, min(23, int(settings.EXILIUM_CHECKIN_HOUR)))
-        minute = max(0, min(59, int(settings.EXILIUM_CHECKIN_MINUTE)))
-        scheduler.add_job(
-            exilium_checkin_job_wrapper,
-            "cron",
-            hour=hour,
-            minute=minute,
-            timezone=BEIJING,
-            id="exilium_checkin",
-            replace_existing=True,
-            max_instances=1,
-        )
-        started = True
-
-    # 延后启动调度器，避免 Windows 上 BackgroundScheduler 卡住 uvicorn lifespan 收尾日志
-    if started and not scheduler.running:
-
-        def _start_scheduler() -> None:
-            if not scheduler.running:
-                scheduler.start()
-
-        threading.Thread(
-            target=_start_scheduler,
-            name="apscheduler-start",
-            daemon=True,
-        ).start()
 
     yield
 
@@ -185,13 +73,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_cors_origins = settings.cors_origin_list
+_cors_kwargs: dict = {
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if _cors_origins:
+    _cors_kwargs["allow_origins"] = _cors_origins
+else:
+    # 本地 Vite（任意端口）；生产同域部署一般不触发跨域
+    _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 api = APIRouter(prefix="/api")
 api.include_router(auth.router)

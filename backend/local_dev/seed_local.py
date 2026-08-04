@@ -5,7 +5,7 @@
   .venv\\Scripts\\python.exe -m local_dev.seed_local --wipe
   .venv\\Scripts\\python.exe -m local_dev.seed_local --reseed-history
 
-也可在 .env 设 STEAM_FAKE_POLL=true，启动后端时自动补齐。
+也可在系统管理 → 定时任务开启「本地假监控」，启动后端时自动补齐。
 登录示例: user_a / demopass123
 
 作息：
@@ -62,7 +62,7 @@ def main() -> int:
         print("  用户名: user_a … user_z（显示名：用户A～用户Z）")
         print("  作息:   A–I 大学生 / J–R 上班族 / S–Z 游戏主播")
         print(f"  密码:   {FAKE_PASSWORD}")
-        print("假监控: .env 设置 STEAM_FAKE_POLL=true 后启动后端。")
+        print("假监控: 系统管理 → 定时任务 → 开启「本地假监控」并保存。")
         return 0
     except Exception:
         db.rollback()

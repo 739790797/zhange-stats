@@ -138,11 +138,13 @@ def public_email_config(cfg: dict[str, Any]) -> dict[str, Any]:
         "enabled": bool(cfg.get("enabled")),
         "smtp_user": cfg.get("smtp_user") or "",
         "smtp_from": cfg.get("smtp_from") or "",
+        "smtp_password": pwd,
         "smtp_password_set": bool(pwd),
         "display_name": cfg.get("display_name") or "",
         "smtp_host": cfg.get("smtp_host") or "",
         "smtp_port": int(cfg.get("smtp_port") or 465),
         "encryption": cfg.get("encryption") or "SSL",
+        "code_expire_minutes": int(cfg.get("code_expire_minutes") or 15),
         "configured": bool(
             cfg.get("enabled") and cfg.get("smtp_host") and mail_from and pwd
         ),

@@ -4,6 +4,8 @@ import { AppLayout } from "@/components/AppLayout";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { antdLocale } from "@/locales/zhCN";
 import EmailSettingsPage from "@/pages/EmailSettingsPage";
+import AuthSettingsPage from "@/pages/AuthSettingsPage";
+import IntegrationsSettingsPage from "@/pages/IntegrationsSettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import MemberDetailPage from "@/pages/MemberDetailPage";
 import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
@@ -12,6 +14,7 @@ import SklandPage from "@/pages/SklandPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
 import TaygedoPage from "@/pages/TaygedoPage";
 import ExiliumPage from "@/pages/ExiliumPage";
+import SystemAdminPage from "@/pages/SystemAdminPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import UserManagementPage from "@/pages/UserManagementPage";
@@ -64,51 +67,26 @@ export default function App() {
             <Route path="/exilium" element={<ExiliumPage />} />
             <Route path="/members" element={<Navigate to="/steam" replace />} />
             <Route path="/members/:id" element={<MemberDetailPage />} />
-            <Route
-              path="/members/:id/profile"
-              element={
-                <AdminRoute>
-                  <ProfileSettingsPage />
-                </AdminRoute>
-              }
-            />
             <Route path="/profile" element={<ProfileSettingsPage />} />
             <Route
               path="/settings"
-              element={<Navigate to="/settings/users" replace />}
-            />
-            <Route
-              path="/settings/users"
               element={
                 <AdminRoute>
-                  <UserManagementPage />
+                  <SystemAdminPage />
                 </AdminRoute>
               }
-            />
-            <Route
-              path="/settings/email"
-              element={
-                <AdminRoute>
-                  <EmailSettingsPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/settings/jobs"
-              element={
-                <AdminRoute>
-                  <ScheduledJobsPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/settings/update"
-              element={
-                <AdminRoute>
-                  <SystemUpdatePage />
-                </AdminRoute>
-              }
-            />
+            >
+              <Route index element={<Navigate to="users" replace />} />
+              <Route path="users" element={<UserManagementPage />} />
+              <Route
+                path="integrations"
+                element={<IntegrationsSettingsPage />}
+              />
+              <Route path="auth" element={<AuthSettingsPage />} />
+              <Route path="email" element={<EmailSettingsPage />} />
+              <Route path="jobs" element={<ScheduledJobsPage />} />
+              <Route path="update" element={<SystemUpdatePage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/steam" replace />} />
         </Routes>

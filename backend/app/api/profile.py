@@ -6,6 +6,7 @@ import urllib.parse
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
+from app.core.public_url import resolve_backend_base, resolve_frontend_base
 from app.core.security import hash_password
 from app.models.member import Member
 from app.models.user import User, UserRole
@@ -45,6 +46,20 @@ from app.services.qq_oauth import (
     exchange_code_for_profile,
 )
 router = APIRouter(tags=["profile"])
+
+
+def _frontend_from_state(state_data: dict, request: Request) -> str:
+    stored = str(state_data.get("frontend") or "").rstrip("/")
+    if stored:
+        return stored
+    backend = str(state_data.get("backend") or "").rstrip("/")
+    if backend:
+        return backend
+    settings = get_settings()
+    override = (settings.PUBLIC_FRONTEND_URL or "").rstrip("/")
+    if override:
+        return override
+    return resolve_frontend_base(request) or resolve_backend_base(request)
 
 
 def _set_qq_profile(
@@ -132,6 +147,10 @@ def _profile_from_member(
 
 
 def _user_brief(u: User) -> UserBrief:
+    member = u.member
+    skland = getattr(member, "skland_bind", None) if member else None
+    taygedo = getattr(member, "taygedo_bind", None) if member else None
+    exilium = getattr(member, "exilium_bind", None) if member else None
     return UserBrief(
         id=u.id,
         username=u.username,
@@ -140,8 +159,13 @@ def _user_brief(u: User) -> UserBrief:
         role=u.role.value if isinstance(u.role, UserRole) else str(u.role),
         is_admin=bool(u.is_admin) or u.role == UserRole.admin,
         email_verified=bool(u.email_verified),
-        member_id=u.member.id if u.member else None,
-        steam_id=u.member.steam_id if u.member else None,
+        member_id=member.id if member else None,
+        steam_id=member.steam_id if member else None,
+        steam_bound=bool(member and member.steam_id),
+        skland_bound=skland is not None,
+        taygedo_bound=taygedo is not None,
+        exilium_bound=exilium is not None,
+        qq_bound=bool(member and member.qq_openid),
     )
 
 
@@ -223,7 +247,11 @@ def list_users(
     db.commit()
     users = (
         db.query(User)
-        .options(joinedload(User.member))
+        .options(
+            joinedload(User.member).joinedload(Member.skland_bind),
+            joinedload(User.member).joinedload(Member.taygedo_bind),
+            joinedload(User.member).joinedload(Member.exilium_bind),
+        )
         .order_by(User.id.asc())
         .all()
     )
@@ -426,19 +454,20 @@ def preview_steam_bind(
 
 @router.get("/profile/steam/openid/start", response_model=SteamOpenIdStartResponse)
 def steam_openid_start(
+    request: Request,
     member_id: int | None = Query(
         default=None, description="管理员可为指定成员发起绑定"
     ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SteamOpenIdStartResponse:
-    settings = get_settings()
-    backend = (settings.PUBLIC_BACKEND_URL or "").rstrip("/")
+    backend = resolve_backend_base(request)
     if not backend:
         raise HTTPException(
             status_code=400,
-            detail="未配置 PUBLIC_BACKEND_URL，无法发起 Steam 登录绑定",
+            detail="无法确定回调地址，请检查访问 Host 或配置 PUBLIC_BACKEND_URL",
         )
+    frontend = resolve_frontend_base(request, backend=backend)
 
     target_member_id: int
     if member_id is not None:
@@ -458,7 +487,12 @@ def steam_openid_start(
         db.commit()
         target_member_id = member.id
 
-    state = create_openid_state(user_id=user.id, member_id=target_member_id)
+    state = create_openid_state(
+        user_id=user.id,
+        member_id=target_member_id,
+        frontend=frontend,
+        backend=backend,
+    )
     return_to = f"{backend}/api/profile/steam/openid/callback?state={state}"
     realm = f"{backend}/"
     return SteamOpenIdStartResponse(
@@ -472,18 +506,17 @@ def steam_openid_callback(
     db: Session = Depends(get_db),
     state: str = Query(...),
 ) -> RedirectResponse:
-    settings = get_settings()
-    frontend = (settings.PUBLIC_FRONTEND_URL or "http://127.0.0.1:5173").rstrip("/")
-
-    def _redirect(path: str, **params: str) -> RedirectResponse:
+    def _redirect(frontend: str, path: str, **params: str) -> RedirectResponse:
         q = urllib.parse.urlencode(params)
         return RedirectResponse(url=f"{frontend}{path}?{q}", status_code=302)
 
     try:
         state_data = decode_openid_state(state)
     except ValueError as exc:
-        return _redirect("/profile", steam_bind="error", detail=str(exc))
+        frontend = resolve_frontend_base(request) or resolve_backend_base(request)
+        return _redirect(frontend, "/profile", steam_bind="error", detail=str(exc))
 
+    frontend = _frontend_from_state(state_data, request)
     actor_id = int(state_data["uid"])
     target_member_id = int(state_data.get("mid") or 0)
 
@@ -491,11 +524,11 @@ def steam_openid_callback(
     try:
         steam_id = verify_steam_openid_assertion(query)
     except ValueError as exc:
-        return _redirect("/profile", steam_bind="error", detail=str(exc))
+        return _redirect(frontend, "/profile", steam_bind="error", detail=str(exc))
 
     actor = db.query(User).filter(User.id == actor_id).first()
     if not actor:
-        return _redirect("/profile", steam_bind="error", detail="登录用户不存在")
+        return _redirect(frontend, "/profile", steam_bind="error", detail="登录用户不存在")
 
     member = (
         db.query(Member)
@@ -504,11 +537,11 @@ def steam_openid_callback(
         .first()
     )
     if not member:
-        return _redirect("/profile", steam_bind="error", detail="成员不存在")
+        return _redirect(frontend, "/profile", steam_bind="error", detail="成员不存在")
 
     # 非管理员只能绑定自己
     if member.user_id != actor.id and not _is_admin_user(actor):
-        return _redirect("/profile", steam_bind="error", detail="无权绑定该成员")
+        return _redirect(frontend, "/profile", steam_bind="error", detail="无权绑定该成员")
 
     # 本人回个人中心；管理员代绑他人回成员个人中心
     path = (
@@ -522,31 +555,35 @@ def steam_openid_callback(
         db.commit()
     except HTTPException as exc:
         detail = str(exc.detail) if exc.detail else "绑定失败"
-        return _redirect(path, steam_bind="error", detail=detail)
+        return _redirect(frontend, path, steam_bind="error", detail=detail)
 
     params = {"steam_bind": "ok"}
     if persona:
         params["name"] = persona
-    return _redirect(path, **params)
+    return _redirect(frontend, path, **params)
 
 
 @router.get("/profile/qq/oauth/start", response_model=QqOAuthStartResponse)
 def qq_oauth_start(
+    request: Request,
     member_id: int | None = Query(
         default=None, description="管理员可为指定成员发起绑定"
     ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> QqOAuthStartResponse:
-    settings = get_settings()
-    if not (settings.QQ_APP_ID or "").strip() or not (settings.QQ_APP_KEY or "").strip():
+    from app.services.integrations_config import get_qq_credentials
+
+    qq_app_id, qq_app_key = get_qq_credentials(db)
+    if not qq_app_id or not qq_app_key:
         raise HTTPException(status_code=400, detail="未配置 QQ_APP_ID / QQ_APP_KEY")
-    backend = (settings.PUBLIC_BACKEND_URL or "").rstrip("/")
+    backend = resolve_backend_base(request)
     if not backend:
         raise HTTPException(
             status_code=400,
-            detail="未配置 PUBLIC_BACKEND_URL，无法发起 QQ 登录绑定",
+            detail="无法确定回调地址，请检查访问 Host 或配置 PUBLIC_BACKEND_URL",
         )
+    frontend = resolve_frontend_base(request, backend=backend)
 
     if member_id is not None:
         if not _is_admin_user(user):
@@ -566,8 +603,13 @@ def qq_oauth_start(
         target_member_id = member.id
 
     try:
-        state = create_qq_oauth_state(user_id=user.id, member_id=target_member_id)
-        url = build_qq_authorize_url(state=state)
+        state = create_qq_oauth_state(
+            user_id=user.id,
+            member_id=target_member_id,
+            frontend=frontend,
+            backend=backend,
+        )
+        url = build_qq_authorize_url(state=state, backend=backend)
     except QqOAuthError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return QqOAuthStartResponse(url=url)
@@ -575,6 +617,7 @@ def qq_oauth_start(
 
 @router.get("/auth/qq/callback")
 def qq_oauth_callback(
+    request: Request,
     db: Session = Depends(get_db),
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
@@ -582,30 +625,34 @@ def qq_oauth_callback(
     error_description: str | None = Query(default=None),
 ) -> RedirectResponse:
     """QQ 互联登记的回调：/api/auth/qq/callback"""
-    settings = get_settings()
-    frontend = (settings.PUBLIC_FRONTEND_URL or "http://127.0.0.1:5173").rstrip("/")
 
-    def _redirect(path: str, **params: str) -> RedirectResponse:
+    def _redirect(frontend: str, path: str, **params: str) -> RedirectResponse:
         q = urllib.parse.urlencode(params)
         return RedirectResponse(url=f"{frontend}{path}?{q}", status_code=302)
 
+    fallback_frontend = (
+        resolve_frontend_base(request) or resolve_backend_base(request) or ""
+    )
+
     if error:
         detail = error_description or error or "用户取消授权"
-        return _redirect("/profile", qq_bind="error", detail=detail)
+        return _redirect(fallback_frontend, "/profile", qq_bind="error", detail=detail)
 
     if not state:
-        return _redirect("/profile", qq_bind="error", detail="缺少 state")
+        return _redirect(fallback_frontend, "/profile", qq_bind="error", detail="缺少 state")
     try:
         state_data = decode_qq_oauth_state(state)
     except QqOAuthError as exc:
-        return _redirect("/profile", qq_bind="error", detail=exc.message)
+        return _redirect(fallback_frontend, "/profile", qq_bind="error", detail=exc.message)
 
+    frontend = _frontend_from_state(state_data, request) or fallback_frontend
+    backend = str(state_data.get("backend") or "").rstrip("/") or None
     actor_id = int(state_data["uid"])
     target_member_id = int(state_data.get("mid") or 0)
 
     actor = db.query(User).filter(User.id == actor_id).first()
     if not actor:
-        return _redirect("/profile", qq_bind="error", detail="登录用户不存在")
+        return _redirect(frontend, "/profile", qq_bind="error", detail="登录用户不存在")
 
     member = (
         db.query(Member)
@@ -614,9 +661,9 @@ def qq_oauth_callback(
         .first()
     )
     if not member:
-        return _redirect("/profile", qq_bind="error", detail="成员不存在")
+        return _redirect(frontend, "/profile", qq_bind="error", detail="成员不存在")
     if member.user_id != actor.id and not _is_admin_user(actor):
-        return _redirect("/profile", qq_bind="error", detail="无权绑定该成员")
+        return _redirect(frontend, "/profile", qq_bind="error", detail="无权绑定该成员")
 
     path = (
         "/profile"
@@ -625,10 +672,10 @@ def qq_oauth_callback(
     )
 
     if not code:
-        return _redirect(path, qq_bind="error", detail="缺少授权 code")
+        return _redirect(frontend, path, qq_bind="error", detail="缺少授权 code")
 
     try:
-        profile = exchange_code_for_profile(code)
+        profile = exchange_code_for_profile(code, backend=backend)
         nickname = _set_qq_profile(
             db,
             member,
@@ -639,15 +686,15 @@ def qq_oauth_callback(
         )
         db.commit()
     except QqOAuthError as exc:
-        return _redirect(path, qq_bind="error", detail=exc.message)
+        return _redirect(frontend, path, qq_bind="error", detail=exc.message)
     except HTTPException as exc:
         detail = str(exc.detail) if exc.detail else "绑定失败"
-        return _redirect(path, qq_bind="error", detail=detail)
+        return _redirect(frontend, path, qq_bind="error", detail=detail)
 
     params = {"qq_bind": "ok"}
     if nickname:
         params["name"] = nickname
-    return _redirect(path, **params)
+    return _redirect(frontend, path, **params)
 
 
 @router.delete("/profile/qq", response_model=MemberProfileOut)

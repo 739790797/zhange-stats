@@ -481,14 +481,14 @@ def _fill_client_icons_from_owned_games(
 
     与是否开启假监控无关——假监控只伪造用户在线/游玩状态。
     """
-    from app.core.config import get_settings
     from app.services.adapters.steam import SteamAdapter
+    from app.services.integrations_config import get_steam_api_key
 
-    settings = get_settings()
+    steam_key = get_steam_api_key(db)
     still = set(missing)
 
-    if settings.STEAM_API_KEY:
-        adapter = SteamAdapter(settings.STEAM_API_KEY)
+    if steam_key:
+        adapter = SteamAdapter(steam_key)
         now = _utcnow()
 
         for steam_id in _candidate_steam_ids_for_icons(db, missing):

@@ -1,4 +1,8 @@
-"""Docker Compose based self-update (admin WebUI)."""
+"""Docker Compose based self-update (admin WebUI).
+
+发版以仓库根目录 VERSION + main 推送为准（CI 打 VERSION / latest 镜像）。
+检查更新优先读取 raw.githubusercontent.com 上的 VERSION，避免 GitHub API 限流。
+"""
 
 from __future__ import annotations
 
@@ -62,7 +66,7 @@ def get_update_status() -> dict[str, Any]:
     with _lock:
         data = _status.to_dict()
     data["current_version"] = get_current_version()
-    data["update_enabled"] = bool(get_settings().UPDATE_ENABLED)
+    data["update_enabled"] = True
     return data
 
 
@@ -97,38 +101,64 @@ def _compare_version(a: str, b: str) -> int:
     return 1 if pa[1] > pb[1] else -1
 
 
-def _github_json(url: str, token: str = "") -> Any:
+def _http_text(url: str, *, token: str = "", accept: str = "*/*", timeout: int = 20) -> str:
     headers = {
-        "Accept": "application/vnd.github+json",
+        "Accept": accept,
         "User-Agent": "zhange-stats-updater",
-        "X-GitHub-Api-Version": "2022-11-28",
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8")
 
 
-def fetch_latest_release_tag() -> str | None:
-    settings = get_settings()
-    repo = settings.UPDATE_REPO.strip()
-    if not repo:
-        return None
-    if not _REPO_RE.match(repo):
-        raise RuntimeError("UPDATE_REPO 格式无效，应为 owner/name")
+def _github_json(url: str, token: str = "") -> Any:
+    return json.loads(
+        _http_text(
+            url,
+            token=token,
+            accept="application/vnd.github+json",
+        )
+    )
+
+
+def _format_http_error(exc: urllib.error.HTTPError) -> str:
+    if exc.code == 403:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="ignore")
+        except Exception:  # noqa: BLE001
+            body = ""
+        if "rate limit" in body.lower() or "rate limit" in str(exc).lower():
+            return "GitHub API 限流，请稍后重试或配置 UPDATE_GITHUB_TOKEN"
+        return f"GitHub API 拒绝访问 (HTTP 403)"
+    if exc.code == 404:
+        return "仓库或资源不存在 (HTTP 404)"
+    return f"HTTP Error {exc.code}: {exc.reason}"
+
+
+def _fetch_version_from_raw(repo: str) -> str | None:
+    """Read VERSION on main — does not consume GitHub REST API quota."""
+    url = f"https://raw.githubusercontent.com/{repo}/main/VERSION"
+    text = _http_text(url, timeout=15).strip()
+    return _normalize_version(text) or None
+
+
+def _fetch_version_from_api(repo: str, token: str) -> str | None:
     url = f"https://api.github.com/repos/{repo}/releases/latest"
     try:
-        data = _github_json(url, settings.UPDATE_GITHUB_TOKEN)
+        data = _github_json(url, token)
         tag = str(data.get("tag_name") or "")
-        return _normalize_version(tag) or None
+        ver = _normalize_version(tag)
+        if ver:
+            return ver
     except urllib.error.HTTPError as exc:
         if exc.code != 404:
-            logger.warning("GitHub latest release failed: %s", exc)
             raise
-    # 无正式 Release 时回退到 tags
     tags_url = f"https://api.github.com/repos/{repo}/tags?per_page=20"
-    tags = _github_json(tags_url, settings.UPDATE_GITHUB_TOKEN)
+    tags = _github_json(tags_url, token)
     if not isinstance(tags, list):
         return None
     for item in tags:
@@ -138,18 +168,63 @@ def fetch_latest_release_tag() -> str | None:
     return None
 
 
+def fetch_latest_release_tag() -> tuple[str | None, str | None]:
+    """Return (latest_version, soft_error). Soft errors do not block the check UI."""
+    settings = get_settings()
+    repo = settings.UPDATE_REPO.strip()
+    if not repo:
+        return None, "未配置 UPDATE_REPO"
+    if not _REPO_RE.match(repo):
+        raise RuntimeError("UPDATE_REPO 格式无效，应为 owner/name")
+
+    token = settings.UPDATE_GITHUB_TOKEN.strip()
+    errors: list[str] = []
+
+    try:
+        ver = _fetch_version_from_raw(repo)
+        if ver:
+            return ver, None
+        errors.append("远程 VERSION 为空")
+    except urllib.error.HTTPError as exc:
+        msg = _format_http_error(exc)
+        logger.warning("fetch VERSION via raw failed: %s", msg)
+        errors.append(msg)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fetch VERSION via raw failed: %s", exc)
+        errors.append(str(exc).strip() or exc.__class__.__name__)
+
+    try:
+        ver = _fetch_version_from_api(repo, token)
+        if ver:
+            return ver, None
+        errors.append("未找到 Release / Tag")
+    except urllib.error.HTTPError as exc:
+        msg = _format_http_error(exc)
+        logger.warning("GitHub API latest version failed: %s", msg)
+        errors.append(msg)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("GitHub API latest version failed: %s", exc)
+        errors.append(str(exc).strip() or exc.__class__.__name__)
+
+    return None, "；".join(errors) if errors else "无法获取最新版本"
+
+
 def check_for_update() -> dict[str, Any]:
     settings = get_settings()
     current = get_current_version()
-    latest = fetch_latest_release_tag()
-    has_update = bool(latest and _compare_version(latest, current) > 0)
+    latest, check_error = fetch_latest_release_tag()
+    has_update = bool(latest and current and _compare_version(latest, current) > 0)
+    # 当前版本未知时，只要远端有版本就提示可更新（便于首次部署）
+    if latest and not current:
+        has_update = True
     return {
         "current_version": current,
         "latest_version": latest,
         "has_update": has_update,
-        "update_enabled": bool(settings.UPDATE_ENABLED),
+        "update_enabled": True,
         "image": settings.UPDATE_IMAGE,
         "repo": settings.UPDATE_REPO,
+        "check_error": check_error,
     }
 
 
@@ -192,7 +267,7 @@ def _update_worker(target_version: str) -> None:
             target_version=tag,
             error=None,
         )
-        # 先 pull 具体 tag，再让 compose 用 env 重建
+        # 生产以 Watchtower 跟踪 :latest 为主；手动更新优先 pull 版本号，再同步 latest
         pull = subprocess.run(
             ["docker", "pull", image_ref],
             capture_output=True,
@@ -201,11 +276,9 @@ def _update_worker(target_version: str) -> None:
             timeout=600,
         )
         if pull.returncode != 0:
-            # 回退：compose pull（依赖 .env 中 APP_TAG）
             logger.warning("docker pull failed, fallback to compose pull: %s", pull.stderr)
             _run_compose(["pull", service])
         else:
-            # 把 latest 也指到同镜像，方便 compose 默认 APP_TAG=latest
             if tag != "latest":
                 subprocess.run(
                     ["docker", "tag", image_ref, f"{image}:latest"],
@@ -234,10 +307,13 @@ def _update_worker(target_version: str) -> None:
 def start_update(version: str | None = None) -> dict[str, Any]:
     global _worker
     settings = get_settings()
-    if not settings.UPDATE_ENABLED:
-        raise RuntimeError("未启用在线更新（UPDATE_ENABLED=false 或未挂载 docker.sock）")
 
-    target = _normalize_version(version or "") or fetch_latest_release_tag() or "latest"
+    target = _normalize_version(version or "")
+    if not target:
+        latest, err = fetch_latest_release_tag()
+        target = latest or "latest"
+        if not latest and err:
+            logger.warning("start_update fallback to latest: %s", err)
     if target != "latest" and not _VERSION_RE.match(target) and not _VERSION_RE.match(
         f"v{target}"
     ):

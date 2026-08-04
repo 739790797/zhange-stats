@@ -1,17 +1,16 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.14** — 圈子 Steam 游玩统计；森空岛 / 塔吉多 / 追放签到；明日方舟盒子对比。
+**v0.1.15** — 系统管理集中配置；OAuth 按访问地址自动推断；平台侧栏图标。
 
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力）
-- 管理端：用户 / SMTP
+- 管理端：用户 / 集成密钥 / 邮箱 / 可配置定时任务 / 系统更新
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）
 - 塔吉多绑定与每日自动签到（异环）
 - 追放社区绑定、签到、每日任务与积分兑换
-- 管理端：用户 / SMTP / 定时任务一览
 - Docker 部署后由 **Watchtower** 自动拉取新镜像（无需管理端点更新）
 
 ## 技术栈
@@ -31,8 +30,10 @@ CREATE DATABASE zhange_stats_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 ```
 
 ```bash
-cp .env.example .env   # 至少填 DATABASE_URL、ADMIN_*；SECRET_KEY 可留空自动生成
+cp .env.example .env   # 至少填 DATABASE_URL、ADMIN_*；JWT 密钥自动生成
 ```
+
+邮件 SMTP、Steam/QQ 密钥、登录有效期、签到与轮询调度：登录管理员后在 **系统管理** 配置（写入 `system_configs`，无需再写进 `.env`）。
 
 ```bash
 # 后端
@@ -48,8 +49,8 @@ cd frontend && npm install && npm run dev
 
 - API：http://127.0.0.1:8000/docs · 前端：http://127.0.0.1:5173  
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
-- 环境变量说明见 `.env.example`（`DATA_DIR` 存密钥，`UPLOAD_DIR` 存头像；CORS 勿写 `*`）  
-- 本地假监控：`.env` 设 `STEAM_FAKE_POLL=true`（见 `backend/local_dev/README.md`）
+- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地 `data/`、`uploads/`；Docker 挂载 `./data`）。  
+- 本地假监控：管理员在 **系统管理 → 定时任务** 开启（见 `backend/local_dev/README.md`）
 
 ## Docker
 
@@ -57,12 +58,12 @@ cd frontend && npm install && npm run dev
 
 ```bash
 docker compose pull && docker compose up -d
-# 浏览器 http://<主机>:8080
+# 浏览器 http://<主机>:8080 （前后端同域，OAuth 回调按访问地址自动推断）
 ```
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.14` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.15` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。生产需先更新本机的 `compose.yml` 再 `docker compose up -d` 一次以启动 Watchtower。
 
