@@ -20,6 +20,11 @@ from app.schemas import (
     ArknightsCompareRowOut,
     ArknightsOperatorOut,
     ArknightsOwnedCharOut,
+    EndfieldBoxOut,
+    EndfieldCharOut,
+    EndfieldEquipOut,
+    EndfieldSkillOut,
+    EndfieldWeaponOut,
     SklandBindPasswordRequest,
     SklandBindRequest,
     SklandBindSmsRequest,
@@ -52,6 +57,7 @@ from app.services.skland_checkin import (
     bind_skland_with_sms,
     get_arknights_box_for_member,
     get_bind_for_member,
+    get_endfield_box_for_member,
     preview_roles,
     query_today_for_bind,
     run_checkin_for_member,
@@ -77,6 +83,7 @@ def skland_status(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     include_roles: bool = Query(default=True),
+    force: bool = Query(default=False),
 ):
     member = _member_or_404(db, user)
     bind = get_bind_for_member(db, member.id)
@@ -90,7 +97,7 @@ def skland_status(
     summary = bind.last_checkin_summary
 
     try:
-        live = query_today_for_bind(db, bind)
+        live = query_today_for_bind(db, bind, force=force)
         today_results = [
             SklandCheckinResultItem(**r) for r in (live.get("results") or [])
         ]
@@ -216,6 +223,110 @@ def skland_arknights_box(
             for r in roles
         ],
     )
+
+
+def _endfield_box_out(box, role, roles, synced_at, stale: bool) -> EndfieldBoxOut:
+    return EndfieldBoxOut(
+        uid=box.uid,
+        role_id=box.role_id,
+        server_id=box.server_id,
+        name=box.name,
+        level=box.level,
+        server_name=box.server_name or role.channel_name,
+        avatar_url=box.avatar_url,
+        char_count=box.char_count,
+        synced_at=synced_at.isoformat() if synced_at else None,
+        stale=stale,
+        chars=[
+            EndfieldCharOut(
+                char_id=c.char_id,
+                name=c.name,
+                rarity=c.rarity,
+                level=c.level,
+                evolve_phase=c.evolve_phase,
+                potential_level=c.potential_level,
+                profession=c.profession,
+                property_name=c.property_name,
+                weapon_type=c.weapon_type,
+                label_type=c.label_type,
+                own_ts=c.own_ts,
+                gender=c.gender,
+                avatar_url=c.avatar_url,
+                illustration_url=c.illustration_url,
+                property_icon_url=c.property_icon_url,
+                weapon=(
+                    EndfieldWeaponOut(
+                        weapon_id=c.weapon.weapon_id,
+                        name=c.weapon.name,
+                        icon_url=c.weapon.icon_url,
+                        rarity=c.weapon.rarity,
+                        level=c.weapon.level,
+                        refine_level=c.weapon.refine_level,
+                        breakthrough_level=c.weapon.breakthrough_level,
+                        weapon_type=c.weapon.weapon_type,
+                        gem_id=c.weapon.gem_id,
+                        gem_name=c.weapon.gem_name,
+                        gem_icon_url=c.weapon.gem_icon_url,
+                    )
+                    if c.weapon
+                    else None
+                ),
+                skills=[
+                    EndfieldSkillOut(
+                        skill_id=s.skill_id,
+                        name=s.name,
+                        skill_type=s.skill_type,
+                        type_label=s.type_label,
+                        icon_url=s.icon_url,
+                        level=s.level,
+                        max_level=s.max_level,
+                    )
+                    for s in (c.skills or [])
+                ],
+                equips=[
+                    EndfieldEquipOut(
+                        slot=e.slot,
+                        item_id=e.item_id,
+                        name=e.name,
+                        icon_url=e.icon_url,
+                        rarity=e.rarity,
+                        level=e.level,
+                        refine_level=e.refine_level,
+                    )
+                    for e in (c.equips or [])
+                ],
+            )
+            for c in box.chars
+        ],
+        roles=[
+            SklandRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.uid,
+                role_name=r.role_name,
+                channel_name=r.channel_name,
+            )
+            for r in roles
+        ],
+    )
+
+
+@router.get("/endfield/box", response_model=EndfieldBoxOut)
+def skland_endfield_box(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    uid: str | None = Query(default=None, max_length=64),
+    force: bool = Query(default=False),
+):
+    """终末地养成盒：默认读库二次加工；force 或首次回源落库。"""
+    member = _member_or_404(db, user)
+    try:
+        box, role, roles, synced_at, stale = get_endfield_box_for_member(
+            db, member, uid, force=force
+        )
+    except SklandApiError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+    return _endfield_box_out(box, role, roles, synced_at, stale)
 
 
 @router.get("/arknights/catalog", response_model=ArknightsCatalogOut)

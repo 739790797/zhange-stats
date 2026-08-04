@@ -4,6 +4,7 @@ import type {
   ArknightsBox,
   ArknightsBoxCompare,
   ArknightsCompareCandidate,
+  EndfieldBox,
   Member,
   MemberPlayStats,
   MemberProfile,
@@ -87,6 +88,40 @@ export async function sendRegisterCode(email: string) {
     email: string;
     delivery?: string;
   }>("/auth/send-register-code", { email });
+  return data;
+}
+
+export async function sendBindEmailCode(email: string) {
+  const { data } = await client.post<{
+    message: string;
+    email: string;
+    delivery?: string;
+  }>("/auth/send-bind-email-code", { email });
+  return data;
+}
+
+export async function bindEmail(payload: {
+  email: string;
+  code: string;
+  password?: string;
+}) {
+  const { data } = await client.post<{
+    message: string;
+    user: User;
+  }>("/auth/bind-email", payload);
+  return data;
+}
+
+export async function linkExistingAccount(payload: {
+  email: string;
+  password: string;
+}) {
+  const { data } = await client.post<{
+    message: string;
+    access_token: string;
+    token_type: string;
+    user: User;
+  }>("/auth/link-existing-account", payload);
   return data;
 }
 
@@ -266,6 +301,10 @@ export interface IntegrationsSettings {
   qq_configured: boolean;
   steam_configured: boolean;
   qq_callback_url?: string;
+  napcat_base_url?: string;
+  napcat_token?: string;
+  napcat_token_set: boolean;
+  napcat_configured: boolean;
 }
 
 export interface AuthSettings {
@@ -315,6 +354,9 @@ export async function updateIntegrationsSettings(payload: {
   qq_app_key?: string | null;
   clear_steam_api_key?: boolean;
   clear_qq_app_key?: boolean;
+  napcat_base_url?: string | null;
+  napcat_token?: string | null;
+  clear_napcat_token?: boolean;
 }) {
   const { data } = await client.put<IntegrationsSettings>(
     "/settings/integrations",
@@ -420,6 +462,11 @@ export async function startQqOAuthBind(memberId?: number) {
   return data;
 }
 
+export async function startQqOAuthLogin() {
+  const { data } = await client.get<{ url: string }>("/auth/qq/oauth/start");
+  return data;
+}
+
 export async function unbindQq(memberId?: number) {
   const { data } = await client.delete<MemberProfile>("/profile/qq", {
     params: memberId != null ? { member_id: memberId } : undefined,
@@ -430,6 +477,7 @@ export async function unbindQq(memberId?: number) {
 export async function updateMyProfile(payload: {
   display_name?: string;
   steam_id?: string | null;
+  qq_number?: string | null;
 }) {
   const { data } = await client.patch<MemberProfile>("/profile/me", payload);
   return data;
@@ -472,6 +520,7 @@ export async function updateMemberProfile(
   payload: {
     display_name?: string;
     steam_id?: string | null;
+    qq_number?: string | null;
   },
 ) {
   const { data } = await client.patch<MemberProfile>(
@@ -481,9 +530,12 @@ export async function updateMemberProfile(
   return data;
 }
 
-export async function fetchSklandStatus(includeRoles = true) {
+export async function fetchSklandStatus(includeRoles = true, force = false) {
   const { data } = await client.get<SklandStatus>("/skland/status", {
-    params: { include_roles: includeRoles },
+    params: {
+      include_roles: includeRoles,
+      ...(force ? { force: true } : {}),
+    },
   });
   return data;
 }
@@ -491,6 +543,17 @@ export async function fetchSklandStatus(includeRoles = true) {
 export async function fetchArknightsBox(uid?: string) {
   const { data } = await client.get<ArknightsBox>("/skland/arknights/box", {
     params: uid ? { uid } : undefined,
+    timeout: 60000,
+  });
+  return data;
+}
+
+export async function fetchEndfieldBox(uid?: string, force = false) {
+  const { data } = await client.get<EndfieldBox>("/skland/endfield/box", {
+    params: {
+      ...(uid ? { uid } : {}),
+      ...(force ? { force: true } : {}),
+    },
     timeout: 60000,
   });
   return data;
@@ -589,9 +652,12 @@ export async function pollSklandQrBind(scanId: string) {
   return data;
 }
 
-export async function fetchTaygedoStatus(includeRoles = true) {
+export async function fetchTaygedoStatus(includeRoles = true, force = false) {
   const { data } = await client.get<TaygedoStatus>("/taygedo/status", {
-    params: { include_roles: includeRoles },
+    params: {
+      include_roles: includeRoles,
+      ...(force ? { force: true } : {}),
+    },
   });
   return data;
 }
@@ -647,9 +713,12 @@ export async function triggerTaygedoCheckin() {
   return data;
 }
 
-export async function fetchExiliumStatus(includeRoles = true) {
+export async function fetchExiliumStatus(includeRoles = true, force = false) {
   const { data } = await client.get<ExiliumStatus>("/exilium/status", {
-    params: { include_roles: includeRoles },
+    params: {
+      include_roles: includeRoles,
+      ...(force ? { force: true } : {}),
+    },
   });
   return data;
 }
@@ -693,9 +762,12 @@ export async function triggerExiliumCheckin() {
   return data;
 }
 
-export async function fetchKujiequStatus(includeRoles = true) {
+export async function fetchKujiequStatus(includeRoles = true, force = false) {
   const { data } = await client.get<KujiequStatus>("/kujiequ/status", {
-    params: { include_roles: includeRoles },
+    params: {
+      include_roles: includeRoles,
+      ...(force ? { force: true } : {}),
+    },
   });
   return data;
 }
@@ -746,6 +818,59 @@ export async function exchangeExiliumItem(exchangeId: number) {
     "/exilium/exchange",
     { exchange_id: exchangeId },
     { timeout: 60000 },
+  );
+  return data;
+}
+
+export interface NapCatGroup {
+  group_id: string;
+  group_name: string;
+  member_count?: number | null;
+  max_member_count?: number | null;
+}
+
+export interface NapCatSiteMember {
+  id: number;
+  nickname: string;
+  user_id?: number | null;
+  qq_number?: string | null;
+}
+
+export interface NapCatGroupMember {
+  user_id: string;
+  nickname: string;
+  card: string;
+  role: string;
+  title: string;
+  site_member: NapCatSiteMember | null;
+}
+
+export interface NapCatGroupsResponse {
+  configured: boolean;
+  groups: NapCatGroup[];
+}
+
+export interface NapCatGroupMembersResponse {
+  group_id: string;
+  members: NapCatGroupMember[];
+  site_bound_count: number;
+}
+
+export async function fetchNapCatGroups(force = false) {
+  const { data } = await client.get<NapCatGroupsResponse>("/napcat/groups", {
+    params: force ? { force: true } : undefined,
+    timeout: 60000,
+  });
+  return data;
+}
+
+export async function fetchNapCatGroupMembers(groupId: string, force = false) {
+  const { data } = await client.get<NapCatGroupMembersResponse>(
+    `/napcat/groups/${encodeURIComponent(groupId)}/members`,
+    {
+      params: force ? { force: true } : undefined,
+      timeout: 60000,
+    },
   );
   return data;
 }

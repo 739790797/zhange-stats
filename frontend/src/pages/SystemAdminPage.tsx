@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 const TAB_ITEMS = [
   { key: "/settings/users", label: "用户管理" },
   { key: "/settings/integrations", label: "集成密钥" },
+  { key: "/settings/qq-groups", label: "QQ群" },
   { key: "/settings/auth", label: "安全设置" },
   { key: "/settings/email", label: "邮箱设置" },
   { key: "/settings/jobs", label: "定时任务" },

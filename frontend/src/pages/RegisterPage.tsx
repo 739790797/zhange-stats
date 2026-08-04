@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { fetchMe, register, sendRegisterCode } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
+import { QqLoginButton } from "@/components/QqLoginButton";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function RegisterPage() {
@@ -70,14 +71,7 @@ export default function RegisterPage() {
       const user = await fetchMe();
       setAuth(res.access_token, user);
       message.success(res.message || "注册成功");
-      if (!user.steam_id) {
-        navigate("/profile", {
-          replace: true,
-          state: { promptSteamBind: true },
-        });
-      } else {
-        navigate("/", { replace: true });
-      }
+      navigate("/", { replace: true });
     } catch (e: unknown) {
       const detail =
         e &&
@@ -215,6 +209,8 @@ export default function RegisterPage() {
             <Link to="/login">已有账号？去登录</Link>
           </div>
         </Form>
+
+        <QqLoginButton dividerText="或使用 QQ 登录" />
       </Card>
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
         <AppVersion light />

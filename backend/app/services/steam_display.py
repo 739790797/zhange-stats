@@ -1,4 +1,4 @@
-"""Steam 显示名：始终以 Steam 昵称/头像为准，好友备注加 *。"""
+"""Steam 显示名 / 头像：仅写入 Steam 专用字段，不覆盖站内身份。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def apply_steam_profile(
     persona_name: str | None = None,
     avatar_url: str | None = None,
 ) -> bool:
-    """始终用 Steam 资料覆盖本站显示名与头像。返回是否有字段变化。"""
+    """只更新 steam_persona_name / steam_avatar_url。返回是否有字段变化。"""
     changed = False
 
     if persona_name and str(persona_name).strip():
@@ -27,18 +27,11 @@ def apply_steam_profile(
         if member.steam_persona_name != new_name:
             member.steam_persona_name = new_name
             changed = True
-        if member.nickname != new_name:
-            member.nickname = new_name
-            changed = True
-        user = member.user
-        if user is not None and user.display_name != new_name:
-            user.display_name = new_name
-            changed = True
 
     if avatar_url and str(avatar_url).strip():
         url = str(avatar_url).strip()[:512]
-        if member.avatar_url != url:
-            member.avatar_url = url
+        if member.steam_avatar_url != url:
+            member.steam_avatar_url = url
             changed = True
 
     return changed
@@ -52,25 +45,22 @@ def force_set_steam_persona_name(
     update_display: bool = True,
     avatar_url: str | None = None,
 ) -> None:
-    """绑定 Steam 时强制写入资料。"""
+    """绑定 Steam 时写入 Steam 专用资料（update_display 已废弃，保留参数兼容）。"""
+    del update_display  # 不再覆盖站内 display_name / nickname / avatar_url
     target = user if user is not None else member.user
     if target is not None and member.user is None:
         member.user = target
 
     if avatar_url and str(avatar_url).strip():
-        member.avatar_url = str(avatar_url).strip()[:512]
+        member.steam_avatar_url = str(avatar_url).strip()[:512]
+    else:
+        member.steam_avatar_url = None
 
     if not persona_name or not str(persona_name).strip():
         member.steam_persona_name = None
         return
 
-    new_name = _clip(str(persona_name))
-    member.steam_persona_name = new_name
-    if not update_display:
-        return
-    member.nickname = new_name
-    if target is not None:
-        target.display_name = new_name
+    member.steam_persona_name = _clip(str(persona_name))
 
 
 def load_viewer_friend_aliases(db: Session, viewer: User | Member | int | None) -> dict[str, str]:
@@ -111,7 +101,7 @@ def format_steam_display_name(
     if alias and str(alias).strip():
         return f"*{_clip(str(alias))}"
     if member is not None:
-        name = (member.steam_persona_name or member.nickname or "").strip()
+        name = (member.steam_persona_name or "").strip()
         if name:
             return name
         return fallback or f"#{member.id}"
@@ -128,15 +118,16 @@ def member_steam_presentation(
     alias = None
     if member is not None and member.steam_id:
         alias = aliases.get(member.steam_id)
+    steam_avatar = None
+    if member is not None:
+        steam_avatar = member.steam_avatar_url or None
     return {
         "member_nickname": format_steam_display_name(
             member,
             alias=alias,
             fallback=str(fallback_id) if fallback_id is not None else None,
         ),
-        "avatar_url": member.avatar_url if member else None,
+        "avatar_url": steam_avatar,
         "friend_nickname": alias,
-        "steam_persona_name": (
-            (member.steam_persona_name or member.nickname) if member else None
-        ),
+        "steam_persona_name": (member.steam_persona_name if member else None),
     }

@@ -7,7 +7,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base, resolve_frontend_base
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 from app.models.member import Member
 from app.models.user import User, UserRole
 from app.schemas import (
@@ -39,6 +39,8 @@ from app.services.steam_openid import (
     verify_steam_openid_assertion,
 )
 from app.services.qq_oauth import (
+    PURPOSE_BIND,
+    PURPOSE_LOGIN,
     QqOAuthError,
     build_qq_authorize_url,
     create_qq_oauth_state,
@@ -126,6 +128,7 @@ def _profile_from_member(
         avatar_url=member.avatar_url,
         steam_id=member.steam_id,
         steam_persona_name=persona,
+        steam_avatar_url=member.steam_avatar_url,
         steam_friends_public=member.steam_friends_public,
         steam_friends_synced_at=member.steam_friends_synced_at,
         skland_bound=skland is not None,
@@ -142,6 +145,7 @@ def _profile_from_member(
         qq_bound=bool(member.qq_openid),
         qq_nickname=member.qq_nickname,
         qq_avatar_url=member.qq_avatar_url,
+        qq_number=member.qq_number,
         user_id=member.user_id,
         username=user.username if user else None,
         email=(user.email if user else None) if show_email else None,
@@ -184,27 +188,18 @@ def _normalize_email(email: str) -> str:
 
 
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
-    """绑定或解绑 Steam；绑定时校验公开资料并同步头像。返回 Steam 昵称（解绑为 None）。"""
+    """绑定或解绑 Steam；仅同步 Steam 专用昵称/头像，不改站内身份。"""
     from app.services.steam_friends import clear_member_friends, sync_member_friends
     from app.services.steam_persona import force_set_steam_persona_name
 
     value = (steam_id or "").strip() or None
     if not value:
         member.steam_id = None
-        if is_custom_avatar_url(member.avatar_url):
-            delete_avatar_file(member.id)
-        member.avatar_url = None
         member.steam_friends_public = None
         member.steam_friends_synced_at = None
         member.steam_persona_name = None
+        member.steam_avatar_url = None
         clear_member_friends(db, member.id)
-        user = member.user
-        if user is None and member.user_id is not None:
-            user = db.query(User).filter(User.id == member.user_id).first()
-        if user:
-            # 解绑后还原为注册时的随机用户名，并清除头像
-            member.nickname = user.username
-            user.display_name = user.username
         return None
 
     try:
@@ -230,7 +225,7 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         member,
         profile.persona_name,
         user=user,
-        update_display=True,
+        update_display=False,
         avatar_url=profile.avatar_url,
     )
     sync_member_friends(db, member)
@@ -388,6 +383,26 @@ def delete_user(
         raise HTTPException(status_code=400, detail=f"删除失败：{exc}") from exc
 
 
+def _set_qq_number(db: Session, member: Member, raw: str | None) -> None:
+    if raw is None:
+        member.qq_number = None
+        return
+    value = str(raw).strip()
+    if not value:
+        member.qq_number = None
+        return
+    if not value.isdigit() or not (5 <= len(value) <= 12):
+        raise HTTPException(status_code=400, detail="QQ 号须为 5–12 位数字")
+    conflict = (
+        db.query(Member)
+        .filter(Member.qq_number == value, Member.id != member.id)
+        .first()
+    )
+    if conflict:
+        raise HTTPException(status_code=400, detail="该 QQ 号已被其他账号使用")
+    member.qq_number = value
+
+
 def _apply_profile_fields(
     db: Session,
     user: User,
@@ -395,15 +410,19 @@ def _apply_profile_fields(
     data: dict,
 ) -> str | None:
     """应用个人中心字段更新。返回绑定时的 Steam 昵称（若有）。"""
-    if "display_name" in data:
-        raise HTTPException(
-            status_code=400,
-            detail="用户名由 Steam 绑定后自动同步，不可手动修改",
-        )
+    if "display_name" in data and data["display_name"] is not None:
+        name = str(data["display_name"]).strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="显示名称不能为空")
+        name = name[:64]
+        user.display_name = name
+        member.nickname = name
 
     steam_persona: str | None = None
     if "steam_id" in data:
         steam_persona = _set_steam_id(db, member, data["steam_id"])
+    if "qq_number" in data:
+        _set_qq_number(db, member, data["qq_number"])
     return steam_persona
 
 
@@ -612,6 +631,7 @@ def qq_oauth_start(
 
     try:
         state = create_qq_oauth_state(
+            purpose=PURPOSE_BIND,
             user_id=user.id,
             member_id=target_member_id,
             frontend=frontend,
@@ -632,7 +652,9 @@ def qq_oauth_callback(
     error: str | None = Query(default=None),
     error_description: str | None = Query(default=None),
 ) -> RedirectResponse:
-    """QQ 互联登记的回调：/api/auth/qq/callback"""
+    """QQ 互联登记的回调：/api/auth/qq/callback（登录 / 绑定共用）。"""
+    import secrets
+    import string
 
     def _redirect(frontend: str, path: str, **params: str) -> RedirectResponse:
         q = urllib.parse.urlencode(params)
@@ -642,19 +664,101 @@ def qq_oauth_callback(
         resolve_frontend_base(request) or resolve_backend_base(request) or ""
     )
 
+    state_data: dict | None = None
+    if state:
+        try:
+            state_data = decode_qq_oauth_state(state)
+        except QqOAuthError:
+            state_data = None
+
+    frontend = (
+        (_frontend_from_state(state_data, request) if state_data else None)
+        or fallback_frontend
+    )
+    purpose = str((state_data or {}).get("purpose") or PURPOSE_LOGIN)
+    err_path = "/login" if purpose == PURPOSE_LOGIN else "/profile"
+    err_key = "qq_login" if purpose == PURPOSE_LOGIN else "qq_bind"
+
     if error:
         detail = error_description or error or "用户取消授权"
-        return _redirect(fallback_frontend, "/profile", qq_bind="error", detail=detail)
+        return _redirect(frontend, err_path, **{err_key: "error", "detail": detail})
 
-    if not state:
-        return _redirect(fallback_frontend, "/profile", qq_bind="error", detail="缺少 state")
-    try:
-        state_data = decode_qq_oauth_state(state)
-    except QqOAuthError as exc:
-        return _redirect(fallback_frontend, "/profile", qq_bind="error", detail=exc.message)
+    if not state or not state_data:
+        detail = "缺少 state" if not state else "QQ 登录状态已过期，请重试"
+        return _redirect(frontend, err_path, **{err_key: "error", "detail": detail})
 
-    frontend = _frontend_from_state(state_data, request) or fallback_frontend
     backend = str(state_data.get("backend") or "").rstrip("/") or None
+
+    if purpose == PURPOSE_LOGIN:
+        if not code:
+            return _redirect(frontend, "/login", qq_login="error", detail="缺少授权 code")
+        try:
+            profile = exchange_code_for_profile(code, backend=backend)
+            member = (
+                db.query(Member)
+                .options(joinedload(Member.user))
+                .filter(Member.qq_openid == profile.openid)
+                .first()
+            )
+            if member and member.user:
+                user = member.user
+                member.qq_unionid = profile.unionid or member.qq_unionid
+                member.qq_nickname = profile.nickname or member.qq_nickname
+                member.qq_avatar_url = profile.avatar_url or member.qq_avatar_url
+                if profile.avatar_url and not is_custom_avatar_url(member.avatar_url):
+                    member.avatar_url = profile.avatar_url
+            else:
+                alphabet = string.ascii_lowercase + string.digits
+                username = None
+                for _ in range(20):
+                    suffix = "".join(secrets.choice(alphabet) for _ in range(6))
+                    candidate = f"qq_{suffix}"
+                    if not db.query(User).filter(User.username == candidate).first():
+                        username = candidate
+                        break
+                if not username:
+                    return _redirect(
+                        frontend, "/login", qq_login="error", detail="无法创建账号，请重试"
+                    )
+                nick = (profile.nickname or username)[:64]
+                user = User(
+                    username=username,
+                    email=None,
+                    display_name=nick,
+                    password_hash=hash_password(secrets.token_urlsafe(32)),
+                    role=UserRole.user,
+                    is_admin=False,
+                    email_verified=True,
+                )
+                db.add(user)
+                db.flush()
+                member = ensure_user_member(db, user)
+                _set_qq_profile(
+                    db,
+                    member,
+                    openid=profile.openid,
+                    unionid=profile.unionid,
+                    nickname=profile.nickname,
+                    avatar_url=profile.avatar_url,
+                )
+                if profile.avatar_url:
+                    member.avatar_url = profile.avatar_url
+
+            db.commit()
+            token = create_access_token(user.username)
+            params = {"qq_login": "ok", "access_token": token}
+            if member.qq_nickname:
+                params["name"] = member.qq_nickname
+            if not user.email:
+                params["need_complete"] = "1"
+            return _redirect(frontend, "/login", **params)
+        except QqOAuthError as exc:
+            return _redirect(frontend, "/login", qq_login="error", detail=exc.message)
+        except HTTPException as exc:
+            detail = str(exc.detail) if exc.detail else "登录失败"
+            return _redirect(frontend, "/login", qq_login="error", detail=detail)
+
+    # 绑定流程
     actor_id = int(state_data["uid"])
     target_member_id = int(state_data.get("mid") or 0)
 

@@ -1,19 +1,66 @@
 import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
-import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { fetchMe, login } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
+import { QqLoginButton } from "@/components/QqLoginButton";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const token = useAuthStore((s) => s.token);
   const setAuth = useAuthStore((s) => s.setAuth);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qqCompleting, setQqCompleting] = useState(false);
+  const qqHandled = useRef(false);
 
-  if (token) {
+  useEffect(() => {
+    if (qqHandled.current) return;
+    const status = searchParams.get("qq_login");
+    if (!status) return;
+    qqHandled.current = true;
+
+    const accessToken = searchParams.get("access_token");
+    const name = searchParams.get("name");
+    const detail = searchParams.get("detail");
+    const needCompleteFlag = searchParams.get("need_complete") === "1";
+    const next = new URLSearchParams(searchParams);
+    next.delete("qq_login");
+    next.delete("access_token");
+    next.delete("name");
+    next.delete("detail");
+    next.delete("need_complete");
+    setSearchParams(next, { replace: true });
+
+    if (status === "ok" && accessToken) {
+      setQqCompleting(true);
+      void (async () => {
+        try {
+          useAuthStore.setState({ token: accessToken });
+          const user = await fetchMe();
+          setAuth(accessToken, user);
+          message.success(name ? `欢迎，${name}` : "QQ 登录成功");
+          const needComplete = needCompleteFlag || !user.email;
+          navigate("/", {
+            replace: true,
+            state: needComplete ? { promptCompleteProfile: true } : undefined,
+          });
+        } catch {
+          useAuthStore.getState().logout();
+          setError("QQ 登录失败，请重试");
+          setQqCompleting(false);
+        }
+      })();
+      return;
+    }
+
+    setError(detail || "QQ 登录失败");
+  }, [navigate, searchParams, setAuth, setSearchParams]);
+
+  if (token && !qqCompleting && !searchParams.get("qq_login")) {
     return <Navigate to="/" replace />;
   }
 
@@ -26,14 +73,10 @@ export default function LoginPage() {
       const user = await fetchMe();
       setAuth(access_token, user);
       message.success("登录成功");
-      if (!user.steam_id) {
-        navigate("/profile", {
-          replace: true,
-          state: { promptSteamBind: true },
-        });
-      } else {
-        navigate("/", { replace: true });
-      }
+      navigate("/", {
+        replace: true,
+        state: !user.email ? { promptCompleteProfile: true } : undefined,
+      });
     } catch (e: unknown) {
       const detail =
         e &&
@@ -168,6 +211,8 @@ export default function LoginPage() {
             注册账号
           </Button>
         </Form>
+
+        <QqLoginButton />
       </Card>
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
         <AppVersion light />

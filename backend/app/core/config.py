@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     QQ_APP_ID: str = ""
     QQ_APP_KEY: str = ""
 
+    # NapCat OneBot HTTP（群列表 / 群成员；库配置优先）
+    NAPCAT_BASE_URL: str = ""
+    NAPCAT_TOKEN: str = ""
+
     # 森空岛每日签到（明日方舟 / 终末地）— 默认北京时间 00:01
     SKLAND_CHECKIN_ENABLED: bool = True
     SKLAND_CHECKIN_HOUR: int = 0

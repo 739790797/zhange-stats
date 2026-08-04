@@ -10,28 +10,35 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
+from app.models.endfield import EndfieldBoxRaw
 from app.models.job_run import JobRun
 from app.models.member import Member
-from app.models.skland import SklandBind
+from app.models.skland import SklandBind, SklandCheckinLog
 from app.services.checkin_common import (
     CheckinResult,
+    day_results_payload,
     is_success_status,
+    load_day_checkin_results,
     results_to_api,
     summarize_results,
+    upsert_day_checkin_logs,
 )
 from app.services.skland_client import (
     SklandApiError,
     SklandRole,
     checkin_role,
     fetch_arknights_box,
+    fetch_endfield_card_detail,
     friendly_error_message,
     list_roles,
     login_with_token,
     normalize_hg_token,
+    parse_endfield_box,
     query_role_today,
     query_today_all,
     sort_skland_results,
     GAME_ARKNIGHTS,
+    GAME_ENDFIELD,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,6 +154,93 @@ def get_arknights_box_for_member(db: Session, member: Member, uid: str | None = 
     return box, role, roles
 
 
+def get_endfield_box_for_member(
+    db: Session,
+    member: Member,
+    uid: str | None = None,
+    *,
+    force: bool = False,
+):
+    """读库二次加工终末地养成盒；无记录或 force 时回源落库。"""
+    import json
+
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise SklandApiError("尚未绑定森空岛")
+    session = _session_for_bind(bind)
+    roles = [r for r in list_roles(session) if r.game_code == GAME_ENDFIELD]
+    if not roles:
+        raise SklandApiError("未找到终末地绑定角色")
+    target_uid = str(uid or "").strip()
+    role = None
+    if target_uid:
+        role = next(
+            (
+                r
+                for r in roles
+                if r.uid == target_uid or r.role_id == target_uid
+            ),
+            None,
+        )
+    else:
+        role = roles[0]
+    if role is None:
+        raise SklandApiError("UID 不在当前终末地绑定列表中")
+    if not role.role_id:
+        raise SklandApiError("终末地角色缺少 roleId，请重新绑定森空岛")
+
+    row = (
+        db.query(EndfieldBoxRaw)
+        .filter(
+            EndfieldBoxRaw.member_id == member.id,
+            EndfieldBoxRaw.role_id == str(role.role_id),
+        )
+        .one_or_none()
+    )
+    stale = False
+    if force or row is None:
+        try:
+            raw = fetch_endfield_card_detail(session, role)
+            raw_json = json.dumps(raw, ensure_ascii=False)
+            now = now_naive()
+            if row is None:
+                row = EndfieldBoxRaw(
+                    member_id=member.id,
+                    role_id=str(role.role_id),
+                    server_id=str(role.server_id or ""),
+                    uid=str(role.uid or role.role_id),
+                    raw_json=raw_json,
+                    synced_at=now,
+                )
+                db.add(row)
+            else:
+                row.server_id = str(role.server_id or "")
+                row.uid = str(role.uid or role.role_id)
+                row.raw_json = raw_json
+                row.synced_at = now
+            db.commit()
+            db.refresh(row)
+        except SklandApiError:
+            if row is None:
+                raise
+            stale = True
+            logger.exception(
+                "endfield card refresh failed member_id=%s role_id=%s",
+                member.id,
+                role.role_id,
+            )
+
+    try:
+        raw_obj = json.loads(row.raw_json)
+    except json.JSONDecodeError as exc:
+        raise SklandApiError("终末地养成数据损坏，请刷新重试") from exc
+    if not isinstance(raw_obj, dict):
+        raise SklandApiError("终末地养成数据格式异常，请刷新重试")
+
+    box = parse_endfield_box(raw_obj, role=role)
+    return box, role, roles, row.synced_at, stale
+
+
 def _summarize(results: list[CheckinResult]) -> tuple[bool, str]:
     return summarize_results(
         results,
@@ -161,34 +255,50 @@ def _session_for_bind(bind: SklandBind):
     return login_with_token(token)
 
 
-def query_today_for_bind(db: Session, bind: SklandBind) -> dict[str, Any]:
-    """打开页：实时查询官方今日签到状态（不写日志表）。"""
+def query_today_for_bind(
+    db: Session, bind: SklandBind, *, force: bool = False
+) -> dict[str, Any]:
+    """今日签到状态：有今日日志则读库；否则查官方并落库。"""
+    checkin_date = today()
+    if not force:
+        cached = load_day_checkin_results(
+            db,
+            SklandCheckinLog,
+            member_id=bind.member_id,
+            checkin_date=checkin_date,
+        )
+        if cached is not None:
+            cached = sort_skland_results(cached)
+            return day_results_payload(cached)
+
     session = _session_for_bind(bind)
     try:
         results = query_today_all(session)
     except SklandApiError as exc:
         raise SklandApiError(friendly_error_message(exc.message)) from exc
     results = sort_skland_results(results)
-    ok, summary = _summarize(results)
-    # pending 不算失败；query 页只展示实时态
+    now = now_naive()
     if results:
-        ok = all(r.status != "error" for r in results)
-        summary = "\n".join(
-            f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}" for r in results
+        upsert_day_checkin_logs(
+            db,
+            SklandCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
         )
-    return {
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(results),
-        "token_ok": True,
-    }
+        db.commit()
+    return day_results_payload(results)
 
 
-def query_today_for_member(db: Session, member: Member) -> dict[str, Any]:
+def query_today_for_member(
+    db: Session, member: Member, *, force: bool = False
+) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    return query_today_for_bind(db, bind)
+    return query_today_for_bind(db, bind, force=force)
 
 
 def run_checkin_for_bind(
@@ -197,19 +307,15 @@ def run_checkin_for_bind(
     *,
     force: bool = False,
 ) -> dict[str, Any]:
-    """手动 / 自动签到：始终以官方为准；不写签到日志表。
-
-    自动任务可用 bind.last_checkin_* 轻量跳过；手动 force 时忽略跳过。
-    """
+    """手动 / 自动签到；结果写入今日签到日志。"""
     checkin_date = today()
     if (
         not force
         and bind.last_checkin_date == checkin_date
         and bind.last_checkin_ok
     ):
-        # 仍查官方，避免摘要过期；全部已签则 skipped
         try:
-            live = query_today_for_bind(db, bind)
+            live = query_today_for_bind(db, bind, force=False)
             results = [
                 CheckinResult(
                     game_code=str(r.get("game_code") or ""),
@@ -294,11 +400,22 @@ def run_checkin_for_bind(
 
     results = sort_skland_results(results)
     ok, summary = _summarize(results)
-    bind.last_checkin_at = now_naive()
+    now = now_naive()
+    bind.last_checkin_at = now
     bind.last_checkin_date = checkin_date
     bind.last_checkin_ok = ok
     bind.last_checkin_summary = summary
-    bind.updated_at = now_naive()
+    bind.updated_at = now
+    if results:
+        upsert_day_checkin_logs(
+            db,
+            SklandCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
+        )
     db.commit()
 
     return {

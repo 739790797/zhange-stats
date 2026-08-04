@@ -50,21 +50,31 @@ def qq_redirect_uri(backend: str | None = None) -> str:
     return f"{base}/api/auth/qq/callback"
 
 
+PURPOSE_BIND = "qq_oauth_bind"
+PURPOSE_LOGIN = "qq_oauth_login"
+
+
 def create_qq_oauth_state(
     *,
-    user_id: int,
+    purpose: str = PURPOSE_BIND,
+    user_id: int | None = None,
     member_id: int | None = None,
     frontend: str | None = None,
     backend: str | None = None,
     expires_minutes: int = 15,
 ) -> str:
     settings = get_settings()
+    if purpose not in (PURPOSE_BIND, PURPOSE_LOGIN):
+        raise QqOAuthError("无效的 QQ 登录用途")
     payload: dict = {
-        "purpose": "qq_oauth_bind",
-        "uid": user_id,
-        "mid": member_id,
+        "purpose": purpose,
         "exp": utc_now() + timedelta(minutes=expires_minutes),
     }
+    if purpose == PURPOSE_BIND:
+        if not user_id:
+            raise QqOAuthError("无效的 QQ 登录状态")
+        payload["uid"] = user_id
+        payload["mid"] = member_id
     if frontend:
         payload["frontend"] = frontend.rstrip("/")
     if backend:
@@ -78,9 +88,10 @@ def decode_qq_oauth_state(token: str) -> dict:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError as exc:
         raise QqOAuthError("QQ 登录状态已过期，请重试") from exc
-    if payload.get("purpose") != "qq_oauth_bind":
+    purpose = payload.get("purpose")
+    if purpose not in (PURPOSE_BIND, PURPOSE_LOGIN):
         raise QqOAuthError("无效的 QQ 登录状态")
-    if not payload.get("uid"):
+    if purpose == PURPOSE_BIND and not payload.get("uid"):
         raise QqOAuthError("无效的 QQ 登录状态")
     return payload
 

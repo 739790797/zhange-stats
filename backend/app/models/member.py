@@ -16,6 +16,7 @@ class Member(Base):
         String(32), unique=True, nullable=True, index=True
     )
     steam_persona_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    steam_avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     steam_friends_public: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     steam_friends_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -28,6 +29,9 @@ class Member(Base):
     )
     qq_nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
     qq_avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    qq_number: Mapped[str | None] = mapped_column(
+        String(20), unique=True, nullable=True, index=True
+    )
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), unique=True, nullable=True
     )

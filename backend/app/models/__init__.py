@@ -1,6 +1,7 @@
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.arknights import ArknightsBoxSnapshot, ArknightsCatalogMeta, ArknightsOperator
+from app.models.endfield import EndfieldBoxRaw
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
 from app.models.register_challenge import RegisterChallenge
@@ -34,4 +35,5 @@ __all__ = [
     "ArknightsOperator",
     "ArknightsCatalogMeta",
     "ArknightsBoxSnapshot",
+    "EndfieldBoxRaw",
 ]

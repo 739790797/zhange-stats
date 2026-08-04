@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Tabs, message } from "antd";
-import { useMemo, useState } from "react";
+import { Alert, Button, Card, Tabs, message } from "antd";
+import { useState } from "react";
 import {
   fetchSklandStatus,
   triggerSklandCheckin,
@@ -8,6 +8,7 @@ import {
 } from "@/api/client";
 import { ArknightsBoxCompare } from "@/components/ArknightsBoxCompare";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
+import { EndfieldBoxPanel } from "@/components/EndfieldBoxPanel";
 import { PageHeader } from "@/components/PageHeader";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { isCheckinSuccess } from "@/lib/checkinStatus";
@@ -59,17 +60,11 @@ export default function SklandPage() {
   const tokenBroken = bound && statusQuery.data?.token_ok === false;
   const canUse = bound && !tokenBroken;
 
-  const endfieldRoles = useMemo(
-    () =>
-      (statusQuery.data?.roles || []).filter((r) => r.game_code === "endfield"),
-    [statusQuery.data?.roles],
-  );
-
   return (
     <div>
       <PageHeader
         title="森空岛"
-        subtitle="签到、明日方舟干员盒子对比与终末地"
+        subtitle="签到、明日方舟干员盒子对比与终末地养成"
         extra={
           tab === "checkin" && canUse ? (
             <Button
@@ -89,7 +84,7 @@ export default function SklandPage() {
           showIcon
           style={{ marginBottom: 16 }}
           message="尚未绑定森空岛"
-          description="支持扫码、短信验证码或账号密码登录鹰角通行证，用于方舟 / 终末地签到与干员盒子。"
+          description="支持扫码、短信验证码或账号密码登录鹰角通行证，用于方舟 / 终末地签到与养成展示。"
         />
       ) : null}
 
@@ -138,28 +133,7 @@ export default function SklandPage() {
           {
             key: "endfield",
             label: "明日方舟：终末地",
-            children: canUse ? (
-              endfieldRoles.length ? (
-                <Card title="绑定角色">
-                  {endfieldRoles.map((r) => (
-                    <div key={r.uid} style={{ marginBottom: 8 }}>
-                      {r.role_name}
-                      <span style={{ color: "#888" }}> · {r.channel_name}</span>
-                      <span style={{ color: "#888" }}> · UID {r.uid}</span>
-                    </div>
-                  ))}
-                  <Empty
-                    style={{ marginTop: 24 }}
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="终末地角色卡片 / 养成展示开发中"
-                  />
-                </Card>
-              ) : (
-                <Empty description="未绑定终末地角色" />
-              )
-            ) : (
-              <Empty description="绑定森空岛后可查看终末地角色" />
-            ),
+            children: <EndfieldBoxPanel enabled={canUse} />,
           },
         ]}
       />

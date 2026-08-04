@@ -705,8 +705,8 @@ def build_member_play_stats(
             {
                 "id": s.id,
                 "member_id": s.member_id,
-                "member_nickname": member.nickname,
-                "avatar_url": member.avatar_url,
+                "member_nickname": member.steam_persona_name or member.nickname,
+                "avatar_url": member.steam_avatar_url or member.avatar_url,
                 "steam_app_id": s.steam_app_id,
                 "game_name": _localize( s.steam_app_id, s.game_name, name_map),
                 "started_at": s.started_at,
@@ -719,8 +719,8 @@ def build_member_play_stats(
     return {
         "member": {
             "id": member.id,
-            "nickname": member.nickname,
-            "avatar_url": member.avatar_url,
+            "nickname": member.steam_persona_name or member.nickname,
+            "avatar_url": member.steam_avatar_url or member.avatar_url,
             "user_id": member.user_id,
             "joined_at": member.joined_at,
             "steam_id": member.steam_id,

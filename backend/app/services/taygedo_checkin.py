@@ -13,12 +13,15 @@ from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
 from app.models.job_run import JobRun
 from app.models.member import Member
-from app.models.taygedo import TaygedoBind
+from app.models.taygedo import TaygedoBind, TaygedoCheckinLog
 from app.services.checkin_common import (
     CheckinResult,
+    day_results_payload,
     is_success_status,
+    load_day_checkin_results,
     results_to_api,
     summarize_results,
+    upsert_day_checkin_logs,
 )
 from app.services.taygedo_client import (
     TaygedoApiError,
@@ -186,35 +189,49 @@ def _summarize(results: list[CheckinResult]) -> tuple[bool, str]:
     return summarize_results(results, empty_message="未执行任何签到")
 
 
-def query_today_for_bind(db: Session, bind: TaygedoBind) -> dict[str, Any]:
-    """打开页：实时查询官方今日签到状态（不写日志表）。"""
+def query_today_for_bind(
+    db: Session, bind: TaygedoBind, *, force: bool = False
+) -> dict[str, Any]:
+    """今日签到状态：有今日日志则读库；否则查官方并落库。"""
+    checkin_date = today()
+    if not force:
+        cached = load_day_checkin_results(
+            db,
+            TaygedoCheckinLog,
+            member_id=bind.member_id,
+            checkin_date=checkin_date,
+        )
+        if cached is not None:
+            return day_results_payload(cached)
+
     creds = _load_creds(bind)
     try:
         working, results = query_today_all(creds)
     except TaygedoApiError as exc:
         raise TaygedoApiError(friendly_error_message(exc.message)) from exc
     _save_creds(bind, working)
-    db.commit()
+    now = now_naive()
     if results:
-        ok = all(r.status != "error" for r in results)
-        summary = "\n".join(
-            f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}" for r in results
+        upsert_day_checkin_logs(
+            db,
+            TaygedoCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
         )
-    else:
-        ok, summary = False, "未找到可签到目标"
-    return {
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(results),
-        "token_ok": True,
-    }
+    db.commit()
+    return day_results_payload(results)
 
 
-def query_today_for_member(db: Session, member: Member) -> dict[str, Any]:
+def query_today_for_member(
+    db: Session, member: Member, *, force: bool = False
+) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
-    return query_today_for_bind(db, bind)
+    return query_today_for_bind(db, bind, force=force)
 
 
 def run_checkin_for_bind(
@@ -233,7 +250,7 @@ def run_checkin_for_bind(
         and bind.last_checkin_ok
     ):
         try:
-            live = query_today_for_bind(db, bind)
+            live = query_today_for_bind(db, bind, force=False)
             api_results = live.get("results") or []
             if api_results and all(
                 is_success_status(str(r.get("status"))) for r in api_results
@@ -343,11 +360,22 @@ def run_checkin_for_bind(
 
     _save_creds(bind, working)
     ok, summary = _summarize(results)
-    bind.last_checkin_at = now_naive()
+    now = now_naive()
+    bind.last_checkin_at = now
     bind.last_checkin_date = checkin_date
     bind.last_checkin_ok = ok
     bind.last_checkin_summary = summary
-    bind.updated_at = now_naive()
+    bind.updated_at = now
+    if results:
+        upsert_day_checkin_logs(
+            db,
+            TaygedoCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
+        )
     db.commit()
 
     return {

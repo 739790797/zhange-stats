@@ -14,11 +14,15 @@ import {
   theme,
   type MenuProps,
 } from "antd";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchMe, fetchMyProfile } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
+import {
+  CompleteProfileModal,
+  shouldPromptCompleteProfile,
+} from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -40,6 +44,7 @@ export function AppLayout() {
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const { token } = theme.useToken();
+  const [completeOpen, setCompleteOpen] = useState(false);
 
   const meQuery = useQuery({
     queryKey: ["auth-me"],
@@ -77,6 +82,24 @@ export function AppLayout() {
       });
     }
   }, [profileQuery.data, setUser]);
+
+  useEffect(() => {
+    const state = location.state as { promptCompleteProfile?: boolean } | null;
+    const force = Boolean(state?.promptCompleteProfile);
+    if (force) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    const email = meQuery.data?.email ?? user?.email;
+    if (force || shouldPromptCompleteProfile(email)) {
+      if (!email) setCompleteOpen(true);
+    }
+  }, [
+    location.pathname,
+    location.state,
+    meQuery.data?.email,
+    navigate,
+    user?.email,
+  ]);
 
   const selected = useMemo(() => {
     if (location.pathname.startsWith("/settings")) return "/settings";
@@ -319,6 +342,15 @@ export function AppLayout() {
           </div>
         </Content>
       </Layout>
+      <CompleteProfileModal
+        open={completeOpen}
+        onClose={() => setCompleteOpen(false)}
+        onCompleted={() => {
+          setCompleteOpen(false);
+          meQuery.refetch();
+          profileQuery.refetch();
+        }}
+      />
     </Layout>
   );
 }

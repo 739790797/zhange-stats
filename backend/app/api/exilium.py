@@ -61,6 +61,7 @@ def exilium_status(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     include_roles: bool = Query(default=True),
+    force: bool = Query(default=False),
 ):
     member = _member_or_404(db, user)
     bind = get_bind_for_member(db, member.id)
@@ -74,7 +75,7 @@ def exilium_status(
     summary = bind.last_checkin_summary
 
     try:
-        live = query_today_for_bind(db, bind)
+        live = query_today_for_bind(db, bind, force=force)
         today_results = [
             ExiliumCheckinResultItem(**r) for r in (live.get("results") or [])
         ]

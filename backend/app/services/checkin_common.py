@@ -74,6 +74,111 @@ def results_to_api(results: list[CheckinResult]) -> list[dict[str, Any]]:
     return [r.to_api_dict() for r in results]
 
 
+def day_results_payload(results: list[CheckinResult]) -> dict[str, Any]:
+    """组装 status 用的今日结果（不访问上游）。"""
+    if results:
+        ok = all(r.status != "error" for r in results)
+        summary = "\n".join(
+            f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}"
+            for r in results
+        )
+    else:
+        ok, summary = False, "未找到可签到目标"
+    return {
+        "ok": ok,
+        "summary": summary,
+        "results": results_to_api(results),
+        "token_ok": True,
+    }
+
+
+def load_day_checkin_results(
+    db: Any,
+    log_model: Any,
+    *,
+    member_id: int,
+    checkin_date: Any,
+) -> list[CheckinResult] | None:
+    """有今日日志则返回；无则 None（调用方应回源）。"""
+    rows = (
+        db.query(log_model)
+        .filter(
+            log_model.member_id == member_id,
+            log_model.checkin_date == checkin_date,
+        )
+        .all()
+    )
+    if not rows:
+        return None
+    return [
+        CheckinResult(
+            game_code=str(row.game_code or ""),
+            game_name=str(row.game_name or ""),
+            role_uid=str(row.role_uid or ""),
+            role_name=str(row.role_name or ""),
+            channel_name=str(row.channel_name or ""),
+            status=str(row.status or "pending"),
+            message=str(row.message or ""),
+            awards_text=row.awards_text,
+        )
+        for row in rows
+    ]
+
+
+def upsert_day_checkin_logs(
+    db: Any,
+    log_model: Any,
+    *,
+    member_id: int,
+    bind_id: int,
+    checkin_date: Any,
+    results: list[CheckinResult],
+    now: Any,
+) -> None:
+    """按今日角色键 upsert 签到/查询结果。"""
+    for r in results:
+        role_uid = str(r.role_uid or "-")
+        game_code = str(r.game_code or "")
+        message = r.message or ""
+        if r.extra_text:
+            message = f"{message}\n{r.extra_text}" if message else r.extra_text
+        row = (
+            db.query(log_model)
+            .filter(
+                log_model.member_id == member_id,
+                log_model.checkin_date == checkin_date,
+                log_model.game_code == game_code,
+                log_model.role_uid == role_uid,
+            )
+            .one_or_none()
+        )
+        if row is None:
+            db.add(
+                log_model(
+                    member_id=member_id,
+                    bind_id=bind_id,
+                    game_code=game_code,
+                    game_name=r.game_name or game_code,
+                    role_uid=role_uid,
+                    role_name=r.role_name or None,
+                    channel_name=r.channel_name or None,
+                    status=r.status,
+                    message=message or None,
+                    awards_text=r.awards_text,
+                    checkin_date=checkin_date,
+                    checked_at=now,
+                )
+            )
+        else:
+            row.game_name = r.game_name or row.game_name
+            row.role_name = r.role_name or row.role_name
+            row.channel_name = r.channel_name or row.channel_name
+            row.status = r.status
+            row.message = message or None
+            row.awards_text = r.awards_text
+            row.checked_at = now
+
+
 def log_row_to_api(
     *,
     id: int,

@@ -1,0 +1,52 @@
+---
+description: 第三方平台数据：原始响应落库、二次加工、读库优先、手动/定时回源
+globs: backend/app/services/**/*.py,backend/app/api/**/*.py,backend/app/models/**/*.py,frontend/src/pages/**/*.tsx,frontend/src/components/**/*Box*.tsx,frontend/src/components/CheckinPageTemplate.tsx,frontend/src/api/**
+alwaysApply: false
+---
+
+# 平台数据：Raw 落库 + 二次加工
+
+适用于森空岛 / 终末地 / 塔吉多 / 库街区 / 追放等绑定后拉游戏数据的能力。
+
+## 养成 / 盒子（跨日可缓存）
+
+参考：`endfield_box_raws` + `parse_endfield_box` + `GET /skland/endfield/box`。
+
+```
+上游 ──(回源)──► raw_json 落库 ──(parse)──► *Out ──► 前端
+                    ▲
+         用户刷新 / 定时 force
+```
+
+- 用户访问默认读库；无记录或 `force` 才回源。
+- 落库存原始响应；`parse_*(raw)` 纯函数。
+- 回源失败且有旧 raw → 降级 + `stale`。
+
+## 签到状态 / 奖励（按「今日」缓存）
+
+参考：各平台已有 `*_checkin_logs`（按 `member_id + checkin_date + game_code + role_uid` 唯一）。
+
+```
+打开签到页 ──► 库内有「今日」日志？──是──► 直接返回（含奖励文案）
+                    │否
+                    ▼
+              查官方 → upsert 今日日志 → 返回
+                    ▲
+         用户刷新 status?force=1 / 点签到 / 定时签到任务
+```
+
+- **有今日记录就不再打官方**（含 `pending` / `already` / `ok`）；跨日自然失效。
+- 查询与真正签到成功后都要 upsert 日志；`awards_text` / `message` 一并落库。
+- `bind.last_checkin_*` 仍表示「最近一次签到动作」；今日展示以日志为准。
+- status 接口支持 `force`，前端提供刷新。
+
+## 不要做的事
+
+- 每次打开 status 都实时打上游
+- 只更新 bind 摘要却不写按角色的今日日志
+- 前端直连上游
+
+## Checklist
+
+**盒子**：`*_raws` + fetch/parse + 读库 API + 刷新  
+**签到**：今日日志读优先 → 无则回源 upsert；force / 签到 / 定时写回

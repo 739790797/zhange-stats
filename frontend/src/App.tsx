@@ -19,6 +19,7 @@ import SystemAdminPage from "@/pages/SystemAdminPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import UserManagementPage from "@/pages/UserManagementPage";
+import QqGroupsPage from "@/pages/QqGroupsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 
 export default function App() {
@@ -84,6 +85,7 @@ export default function App() {
                 path="integrations"
                 element={<IntegrationsSettingsPage />}
               />
+              <Route path="qq-groups" element={<QqGroupsPage />} />
               <Route path="auth" element={<AuthSettingsPage />} />
               <Route path="email" element={<EmailSettingsPage />} />
               <Route path="jobs" element={<ScheduledJobsPage />} />

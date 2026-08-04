@@ -12,12 +12,15 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
 from app.models.job_run import JobRun
-from app.models.kujiequ import KujiequBind
+from app.models.kujiequ import KujiequBind, KujiequCheckinLog
 from app.models.member import Member
 from app.services.checkin_common import (
+    day_results_payload,
     is_success_status,
+    load_day_checkin_results,
     results_to_api,
     summarize_results,
+    upsert_day_checkin_logs,
 )
 from app.services.kujiequ_client import (
     KujiequApiError,
@@ -140,28 +143,39 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     ]
 
 
-def query_today_for_bind(db: Session, bind: KujiequBind) -> dict[str, Any]:
+def query_today_for_bind(
+    db: Session, bind: KujiequBind, *, force: bool = False
+) -> dict[str, Any]:
+    checkin_date = today()
+    if not force:
+        cached = load_day_checkin_results(
+            db,
+            KujiequCheckinLog,
+            member_id=bind.member_id,
+            checkin_date=checkin_date,
+        )
+        if cached is not None:
+            return day_results_payload(cached)
+
     creds = _load_creds(bind)
     try:
         working, results = query_today_all(creds)
     except KujiequApiError as exc:
         raise KujiequApiError(friendly_error_message(exc.message), code=exc.code) from exc
     _save_creds(bind, working)
-    db.commit()
+    now = now_naive()
     if results:
-        ok = all(r.status != "error" for r in results)
-        summary = "\n".join(
-            f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}"
-            for r in results
+        upsert_day_checkin_logs(
+            db,
+            KujiequCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
         )
-    else:
-        ok, summary = False, "未找到可签到目标"
-    return {
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(results),
-        "token_ok": True,
-    }
+    db.commit()
+    return day_results_payload(results)
 
 
 def run_checkin_for_bind(
@@ -173,7 +187,7 @@ def run_checkin_for_bind(
     checkin_date = today()
     if not force and bind.last_checkin_date == checkin_date and bind.last_checkin_ok:
         try:
-            live = query_today_for_bind(db, bind)
+            live = query_today_for_bind(db, bind, force=False)
             api_results = live.get("results") or []
             if api_results and all(
                 is_success_status(str(r.get("status"))) for r in api_results
@@ -196,11 +210,22 @@ def run_checkin_for_bind(
 
     _save_creds(bind, working)
     ok, summary = summarize_results(results, empty_message="未执行任何签到")
-    bind.last_checkin_at = now_naive()
+    now = now_naive()
+    bind.last_checkin_at = now
     bind.last_checkin_date = checkin_date
     bind.last_checkin_ok = ok
     bind.last_checkin_summary = summary
-    bind.updated_at = now_naive()
+    bind.updated_at = now
+    if results:
+        upsert_day_checkin_logs(
+            db,
+            KujiequCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
+        )
     db.commit()
     return {
         "skipped": False,

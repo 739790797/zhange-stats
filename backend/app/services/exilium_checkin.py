@@ -11,12 +11,15 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
-from app.models.exilium import ExiliumBind
+from app.models.exilium import ExiliumBind, ExiliumCheckinLog
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.services.checkin_common import (
+    day_results_payload,
+    load_day_checkin_results,
     results_to_api,
     summarize_results,
+    upsert_day_checkin_logs,
 )
 from app.services.exilium_client import (
     ExiliumApiError,
@@ -211,24 +214,39 @@ def fetch_score_logs(
     return list_score_logs(working, page=page, page_size=page_size)
 
 
-def query_today_for_bind(db: Session, bind: ExiliumBind) -> dict[str, Any]:
+def query_today_for_bind(
+    db: Session, bind: ExiliumBind, *, force: bool = False
+) -> dict[str, Any]:
+    checkin_date = today()
+    if not force:
+        cached = load_day_checkin_results(
+            db,
+            ExiliumCheckinLog,
+            member_id=bind.member_id,
+            checkin_date=checkin_date,
+        )
+        if cached is not None:
+            return day_results_payload(cached)
+
     creds = _load_creds(bind)
     try:
         working, results = query_today(creds)
     except ExiliumApiError as exc:
         raise ExiliumApiError(friendly_error_message(exc.message)) from exc
     _save_creds(bind, working)
+    now = now_naive()
+    if results:
+        upsert_day_checkin_logs(
+            db,
+            ExiliumCheckinLog,
+            member_id=bind.member_id,
+            bind_id=bind.id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
+        )
     db.commit()
-    ok = all(r.status != "error" for r in results) if results else False
-    summary = "\n".join(
-        f"[{r.game_name}] {r.role_name}：{r.message}" for r in results
-    ) if results else "未查询到签到状态"
-    return {
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(results),
-        "token_ok": True,
-    }
+    return day_results_payload(results)
 
 
 def run_checkin_for_bind(
@@ -256,11 +274,21 @@ def run_checkin_for_bind(
         and bind.last_checkin_ok
         and result.status == "already"
     )
-    bind.last_checkin_at = now_naive()
+    now = now_naive()
+    bind.last_checkin_at = now
     bind.last_checkin_date = checkin_date
     bind.last_checkin_ok = ok
     bind.last_checkin_summary = summary
-    bind.updated_at = now_naive()
+    bind.updated_at = now
+    upsert_day_checkin_logs(
+        db,
+        ExiliumCheckinLog,
+        member_id=bind.member_id,
+        bind_id=bind.id,
+        checkin_date=checkin_date,
+        results=results,
+        now=now,
+    )
     db.commit()
 
     return {

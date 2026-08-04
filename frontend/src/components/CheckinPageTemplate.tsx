@@ -11,7 +11,9 @@ import {
   Typography,
   message,
 } from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import {
   checkinStatusLabel,
@@ -69,7 +71,10 @@ export interface CheckinPageTemplateProps {
   /** 未绑定 / 凭证失效时展示的页内绑定区（替代跳转个人中心） */
   bindPanel?: ReactNode;
   statusQueryKey: string[];
-  fetchStatus: (includeRoles?: boolean) => Promise<CheckinPageStatus>;
+  fetchStatus: (
+    includeRoles?: boolean,
+    force?: boolean,
+  ) => Promise<CheckinPageStatus>;
   triggerCheckin: () => Promise<CheckinPageResponse>;
   updateBind: (payload: {
     auto_checkin: boolean;
@@ -134,12 +139,26 @@ export function CheckinPageTemplate({
   contentOnly = false,
 }: CheckinPageTemplateProps & { contentOnly?: boolean }) {
   const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
-    queryFn: () => fetchStatus(true),
+    queryFn: () => fetchStatus(true, false),
     retry: false,
   });
+
+  const onRefreshStatus = async () => {
+    setRefreshing(true);
+    try {
+      const data = await fetchStatus(true, true);
+      queryClient.setQueryData(statusQueryKey, data);
+      message.success("已从官方同步今日签到状态");
+    } catch (e: unknown) {
+      message.error(apiError(e, "同步失败"));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const checkin = useMutation({
     mutationFn: triggerCheckin,
@@ -181,7 +200,23 @@ export function CheckinPageTemplate({
   const tokenBroken = bound && statusQuery.data?.token_ok === false;
 
   const statusCard = (
-    <Card title="签到状态" loading={statusQuery.isLoading} style={{ marginBottom: contentOnly ? 0 : 24 }}>
+    <Card
+      title="签到状态"
+      loading={statusQuery.isLoading}
+      style={{ marginBottom: contentOnly ? 0 : 24 }}
+      extra={
+        bound && !tokenBroken ? (
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            loading={refreshing}
+            onClick={() => onRefreshStatus()}
+          >
+            同步官方
+          </Button>
+        ) : null
+      }
+    >
       {bound ? (
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
           <div
@@ -271,7 +306,7 @@ export function CheckinPageTemplate({
                 description={
                   tokenBroken
                     ? "无法查询今日状态"
-                    : "暂无今日结果，可点击立即签到"
+                    : "暂无今日结果，可点击立即签到或同步官方"
                 }
               />
             )}

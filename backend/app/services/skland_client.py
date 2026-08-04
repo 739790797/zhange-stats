@@ -41,6 +41,7 @@ ENDFIELD_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/endfield/attenda
 ENDFIELD_ATTENDANCE_RECORD_URL = (
     "https://zonai.skland.com/api/v1/game/endfield/attendance/record"
 )
+ENDFIELD_CARD_DETAIL_URL = "https://zonai.skland.com/api/v1/game/endfield/card/detail"
 SCAN_LOGIN_URL = "https://as.hypergryph.com/general/v1/gen_scan/login"
 SCAN_STATUS_URL = "https://as.hypergryph.com/general/v1/scan_status"
 TOKEN_BY_SCAN_URL = "https://as.hypergryph.com/user/auth/v1/token_by_scan_code"
@@ -102,6 +103,78 @@ class SklandRole:
     channel_master_id: str | None = None
     role_id: str | None = None
     server_id: str | None = None
+
+
+@dataclass
+class EndfieldEquip:
+    slot: str
+    item_id: str
+    name: str
+    icon_url: str | None
+    rarity: int
+    level: int | None = None
+    refine_level: int | None = None  # 精锻；上游多为 equipData.level
+
+
+@dataclass
+class EndfieldSkill:
+    skill_id: str
+    name: str
+    skill_type: str
+    type_label: str
+    icon_url: str | None
+    level: int
+    max_level: int
+
+
+@dataclass
+class EndfieldWeapon:
+    weapon_id: str
+    name: str
+    icon_url: str | None
+    rarity: int
+    level: int
+    refine_level: int = 0
+    breakthrough_level: int = 0
+    weapon_type: str = ""
+    gem_id: str = ""
+    gem_name: str = ""
+    gem_icon_url: str | None = None
+
+
+@dataclass
+class EndfieldChar:
+    char_id: str
+    name: str
+    rarity: int
+    level: int
+    evolve_phase: int
+    potential_level: int
+    profession: str
+    property_name: str
+    weapon_type: str
+    label_type: str
+    own_ts: int | None
+    gender: str
+    avatar_url: str | None
+    illustration_url: str | None
+    property_icon_url: str | None
+    weapon: EndfieldWeapon | None
+    skills: list[EndfieldSkill]
+    equips: list[EndfieldEquip]
+
+
+@dataclass
+class EndfieldBox:
+    uid: str
+    role_id: str
+    server_id: str
+    name: str
+    level: int
+    server_name: str
+    avatar_url: str | None
+    char_count: int
+    chars: list[EndfieldChar]
 
 
 @dataclass
@@ -1307,3 +1380,377 @@ def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
 
 def fetch_arknights_box(session: SklandSession, uid: str) -> ArknightsBox:
     return parse_arknights_box(fetch_player_info(session, uid), uid=uid)
+
+
+_ENDFIELD_SKILL_ORDER = {
+    "skill_type_normal_attack": 0,
+    "normal_attack": 0,
+    "normal_skill": 1,
+    "skill_type_normal_skill": 1,
+    "combo_skill": 2,
+    "skill_type_combo_skill": 2,
+    "ultimate_skill": 3,
+    "skill_type_ultimate_skill": 3,
+}
+
+_ENDFIELD_EQUIP_SLOTS = (
+    ("bodyEquip", "护甲"),
+    ("armEquip", "护手"),
+    ("firstAccessory", "配件·一"),
+    ("secondAccessory", "配件·二"),
+)
+
+_ENDFIELD_SKILL_TYPE_LABEL = {
+    "skill_type_normal_attack": "普攻",
+    "normal_attack": "普攻",
+    "normal_skill": "战技",
+    "skill_type_normal_skill": "战技",
+    "combo_skill": "连携技",
+    "skill_type_combo_skill": "连携技",
+    "ultimate_skill": "终结技",
+    "skill_type_ultimate_skill": "终结技",
+}
+
+
+def fetch_endfield_card_detail(session: SklandSession, role: SklandRole) -> dict[str, Any]:
+    """拉取终末地养成卡原始响应（整包 JSON，供落库）。"""
+    if not role.role_id or not role.server_id:
+        raise SklandApiError("缺少终末地角色参数，无法拉取养成卡")
+    params = {
+        "roleId": str(role.role_id),
+        "serverId": str(role.server_id),
+    }
+    uid = str(role.uid or "").strip()
+    if uid:
+        params["uid"] = uid
+    query = urllib.parse.urlencode(params)
+    url = f"{ENDFIELD_CARD_DETAIL_URL}?{query}"
+    headers = _signed_headers(session, url, "get", None)
+    headers["sk-game-role"] = f"3_{role.role_id}_{role.server_id}"
+    resp = _http_json("GET", url, headers=headers)
+    if resp.get("code") != 0:
+        raise SklandApiError(
+            resp.get("message") or "获取终末地养成卡失败",
+            code=resp.get("code"),
+        )
+    return resp
+
+
+def _endfield_extract_detail(raw: dict[str, Any]) -> dict[str, Any]:
+    if isinstance(raw.get("detail"), dict):
+        return raw["detail"]
+    data = raw.get("data")
+    if isinstance(data, dict):
+        if isinstance(data.get("detail"), dict):
+            return data["detail"]
+        if "base" in data or "chars" in data:
+            return data
+    if "base" in raw or "chars" in raw:
+        return raw
+    return {}
+
+
+def _endfield_int(value: Any, default: int = 0) -> int:
+    if isinstance(value, dict):
+        for k in ("value", "level", "id"):
+            if k in value:
+                return _endfield_int(value.get(k), default)
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        if isinstance(value, str):
+            s = value.strip()
+            # equip_level_70
+            if "_" in s:
+                tail = s.rsplit("_", 1)[-1]
+                if tail.isdigit():
+                    return int(tail)
+        return default
+
+
+def _endfield_optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, dict) and not value:
+        return None
+    n = _endfield_int(value, -10**9)
+    if n == -10**9:
+        return None
+    return n
+
+
+def _endfield_rarity(value: Any) -> int:
+    if isinstance(value, dict):
+        key = value.get("key")
+        if isinstance(key, str) and "rarity" in key:
+            tail = key.rsplit("_", 1)[-1]
+            if tail.isdigit():
+                return max(1, min(6, int(tail)))
+        for k in ("value", "id", "rarity"):
+            if k in value:
+                return _endfield_rarity(value.get(k))
+        return 1
+    if isinstance(value, (int, float)):
+        n = int(value)
+        # 部分接口用 0-5 表示 1-6 星
+        if 0 <= n <= 5:
+            return n + 1
+        return max(1, min(6, n))
+    if isinstance(value, str):
+        s = value.strip()
+        if s.isdigit():
+            return _endfield_rarity(int(s))
+        if "rarity" in s:
+            tail = s.rsplit("_", 1)[-1]
+            if tail.isdigit():
+                return max(1, min(6, int(tail)))
+    return 1
+
+
+def _endfield_named(value: Any) -> tuple[str, str]:
+    """返回 (id_or_key, display_name)。"""
+    if isinstance(value, dict):
+        vid = str(value.get("id") or value.get("key") or "").strip()
+        name = str(value.get("value") or value.get("name") or vid).strip()
+        return vid, name
+    if value is None:
+        return "", ""
+    s = str(value).strip()
+    return s, s
+
+
+def _endfield_icon(obj: Any) -> str | None:
+    if not isinstance(obj, dict):
+        return None
+    for key in ("iconUrl", "icon", "avatarSqUrl", "avatarRtUrl", "avatarUrl"):
+        url = obj.get(key)
+        if url:
+            return str(url).strip() or None
+    return None
+
+
+def _parse_endfield_equip(slot: str, label: str, raw: Any) -> EndfieldEquip | None:
+    if not isinstance(raw, dict) or not raw:
+        return None
+    data = raw.get("equipData") or raw.get("itemData") or raw.get("data") or raw
+    if not isinstance(data, dict):
+        data = raw
+    item_id = str(
+        data.get("id") or raw.get("equipId") or raw.get("id") or ""
+    ).strip()
+    name = str(data.get("name") or raw.get("name") or item_id or label).strip()
+    if not item_id and not name:
+        return None
+
+    # 精锻：国服多为 equipData.level={key:equip_level_70,value:"70"}；也兼容 refine/forge 键
+    refine = None
+    for src in (raw, data):
+        if not isinstance(src, dict):
+            continue
+        for key in (
+            "refineLevel",
+            "forgeLevel",
+            "enhanceLevel",
+            "breakthroughLevel",
+            "精锻",
+        ):
+            if key in src and src.get(key) is not None:
+                refine = _endfield_optional_int(src.get(key))
+                if refine is not None:
+                    break
+        if refine is not None:
+            break
+    level = _endfield_optional_int(data.get("level"))
+    if level is None:
+        level = _endfield_optional_int(raw.get("level"))
+    if refine is None and level is not None:
+        # 无独立精锻字段时，装备等级即精锻等级
+        refine = level
+
+    return EndfieldEquip(
+        slot=slot,
+        item_id=item_id or name,
+        name=name or label,
+        icon_url=_endfield_icon(data) or _endfield_icon(raw),
+        rarity=_endfield_rarity(data.get("rarity") if isinstance(data, dict) else None),
+        level=level,
+        refine_level=refine,
+    )
+
+
+def _parse_endfield_weapon(raw: Any) -> EndfieldWeapon | None:
+    if not isinstance(raw, dict) or not raw:
+        return None
+    data = raw.get("weaponData") if isinstance(raw.get("weaponData"), dict) else raw
+    weapon_id = str(data.get("id") or raw.get("id") or "").strip()
+    name = str(data.get("name") or raw.get("name") or weapon_id).strip()
+    if not weapon_id and not name:
+        return None
+    _, weapon_type = _endfield_named(data.get("type") or raw.get("type"))
+    gem = raw.get("gem") if isinstance(raw.get("gem"), dict) else {}
+    gem_data = gem.get("gemData") if isinstance(gem.get("gemData"), dict) else {}
+    gem_icon = (
+        str(gem_data.get("icon") or "").strip()
+        or str(gem.get("icon") or "").strip()
+        or None
+    )
+    return EndfieldWeapon(
+        weapon_id=weapon_id or name,
+        name=name or weapon_id,
+        icon_url=_endfield_icon(data) or _endfield_icon(raw),
+        rarity=_endfield_rarity(data.get("rarity")),
+        level=_endfield_int(raw.get("level"), 1),
+        refine_level=_endfield_int(raw.get("refineLevel"), 0),
+        breakthrough_level=_endfield_int(raw.get("breakthroughLevel"), 0),
+        weapon_type=weapon_type,
+        gem_id=str(gem.get("id") or gem_data.get("termId") or "").strip(),
+        gem_name=str(gem_data.get("name") or "").strip(),
+        gem_icon_url=gem_icon or None,
+    )
+
+
+def _parse_endfield_skills(
+    char_data: dict[str, Any], user_skills: Any
+) -> list[EndfieldSkill]:
+    catalog = char_data.get("skills") if isinstance(char_data.get("skills"), list) else []
+    levels: dict[str, dict[str, Any]] = {}
+    if isinstance(user_skills, dict):
+        for sid, row in user_skills.items():
+            if isinstance(row, dict):
+                levels[str(sid)] = row
+                nested_id = str(row.get("skillId") or "").strip()
+                if nested_id:
+                    levels[nested_id] = row
+
+    skills: list[EndfieldSkill] = []
+    for row in catalog:
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("id") or "").strip()
+        if not sid:
+            continue
+        type_obj = row.get("type")
+        type_key, type_value = _endfield_named(type_obj)
+        if not type_key and isinstance(type_obj, str):
+            type_key = type_obj
+        type_label = (
+            _ENDFIELD_SKILL_TYPE_LABEL.get(type_key)
+            or type_value
+            or type_key
+            or "技能"
+        )
+        lvl_row = levels.get(sid) or {}
+        skills.append(
+            EndfieldSkill(
+                skill_id=sid,
+                name=str(row.get("name") or sid).strip(),
+                skill_type=type_key,
+                type_label=type_label,
+                icon_url=_endfield_icon(row),
+                level=_endfield_int(lvl_row.get("level"), 1),
+                max_level=_endfield_int(lvl_row.get("maxLevel"), 0),
+            )
+        )
+    skills.sort(
+        key=lambda s: (_ENDFIELD_SKILL_ORDER.get(s.skill_type, 99), s.skill_id)
+    )
+    return skills
+
+
+def _parse_endfield_char(item: dict[str, Any]) -> EndfieldChar | None:
+    char_data = item.get("charData") if isinstance(item.get("charData"), dict) else {}
+    char_id = str(
+        item.get("id") or char_data.get("id") or item.get("charId") or ""
+    ).strip()
+    name = str(char_data.get("name") or item.get("name") or char_id).strip()
+    if not char_id and not name:
+        return None
+    _, profession = _endfield_named(char_data.get("profession"))
+    prop_obj = char_data.get("property")
+    _, property_name = _endfield_named(prop_obj)
+    prop_icon = None
+    if isinstance(prop_obj, dict):
+        prop_icon = _endfield_icon(prop_obj)
+    _, weapon_type = _endfield_named(char_data.get("weaponType"))
+    label_key, label_val = _endfield_named(char_data.get("labelType"))
+    label_type = label_key or label_val
+    gender = str(item.get("gender") or char_data.get("gender") or "").strip()
+    own_ts = _endfield_optional_int(item.get("ownTs"))
+
+    equips: list[EndfieldEquip] = []
+    for field, label in _ENDFIELD_EQUIP_SLOTS:
+        eq = _parse_endfield_equip(field, label, item.get(field))
+        if eq:
+            equips.append(eq)
+
+    return EndfieldChar(
+        char_id=char_id or name,
+        name=name or char_id,
+        rarity=_endfield_rarity(char_data.get("rarity")),
+        level=_endfield_int(item.get("level"), 1),
+        evolve_phase=_endfield_int(item.get("evolvePhase"), 0),
+        potential_level=_endfield_int(item.get("potentialLevel"), 0),
+        profession=profession,
+        property_name=property_name,
+        weapon_type=weapon_type,
+        label_type=label_type,
+        own_ts=own_ts,
+        gender=gender,
+        avatar_url=(
+            str(char_data.get("avatarSqUrl") or "").strip()
+            or str(char_data.get("avatarRtUrl") or "").strip()
+            or None
+        ),
+        illustration_url=str(char_data.get("illustrationUrl") or "").strip() or None,
+        property_icon_url=prop_icon,
+        weapon=_parse_endfield_weapon(item.get("weapon")),
+        skills=_parse_endfield_skills(char_data, item.get("userSkills")),
+        equips=equips,
+    )
+
+
+def parse_endfield_box(
+    raw: dict[str, Any],
+    *,
+    role: SklandRole | None = None,
+) -> EndfieldBox:
+    """从落库的原始响应二次加工为展示结构。"""
+    detail = _endfield_extract_detail(raw)
+    base = detail.get("base") if isinstance(detail.get("base"), dict) else {}
+    raw_chars = detail.get("chars") if isinstance(detail.get("chars"), list) else []
+
+    chars: list[EndfieldChar] = []
+    for item in raw_chars:
+        if not isinstance(item, dict):
+            continue
+        parsed = _parse_endfield_char(item)
+        if parsed:
+            chars.append(parsed)
+    chars.sort(key=lambda c: (-c.rarity, -c.level, -c.potential_level, c.name))
+
+    role_id = str(base.get("roleId") or (role.role_id if role else "") or "").strip()
+    uid = str(
+        base.get("uid")
+        or base.get("roleId")
+        or (role.uid if role else "")
+        or role_id
+    ).strip()
+    server_id = str(
+        base.get("serverId") or (role.server_id if role else "") or ""
+    ).strip()
+    char_num = _endfield_int(base.get("charNum"), len(chars))
+
+    return EndfieldBox(
+        uid=uid or role_id,
+        role_id=role_id or uid,
+        server_id=server_id,
+        name=str(base.get("name") or (role.role_name if role else "") or uid).strip(),
+        level=_endfield_int(base.get("level"), 0),
+        server_name=str(
+            base.get("serverName") or (role.channel_name if role else "") or ""
+        ).strip(),
+        avatar_url=str(base.get("avatarUrl") or "").strip() or None,
+        char_count=char_num or len(chars),
+        chars=chars,
+    )

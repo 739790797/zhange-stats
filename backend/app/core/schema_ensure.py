@@ -68,6 +68,13 @@ def ensure_schema(engine: Engine) -> None:
                         "VARCHAR(64) NULL"
                     )
                 )
+            if "steam_avatar_url" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE members ADD COLUMN steam_avatar_url "
+                        "VARCHAR(512) NULL"
+                    )
+                )
             _drop_columns(
                 conn,
                 "members",

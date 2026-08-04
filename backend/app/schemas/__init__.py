@@ -79,6 +79,7 @@ class MemberProfileOut(BaseModel):
     avatar_url: str | None
     steam_id: str | None
     steam_persona_name: str | None = None
+    steam_avatar_url: str | None = None
     steam_friends_public: bool | None = None
     steam_friends_synced_at: datetime | None = None
     skland_bound: bool = False
@@ -95,6 +96,7 @@ class MemberProfileOut(BaseModel):
     qq_bound: bool = False
     qq_nickname: str | None = None
     qq_avatar_url: str | None = None
+    qq_number: str | None = None
     user_id: int | None = None
     username: str | None = None
     email: str | None = None
@@ -105,6 +107,7 @@ class MemberProfileOut(BaseModel):
 class MemberProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     steam_id: str | None = Field(default=None, max_length=512)
+    qq_number: str | None = Field(default=None, max_length=20)
 
 
 class QqOAuthStartResponse(BaseModel):
@@ -189,6 +192,76 @@ class ArknightsBoxOut(BaseModel):
     role_name: str | None = None
     chars: list[ArknightsCharOut] = Field(default_factory=list)
     roles: list[SklandRoleOut] = Field(default_factory=list)
+
+
+class EndfieldEquipOut(BaseModel):
+    slot: str
+    item_id: str = ""
+    name: str = ""
+    icon_url: str | None = None
+    rarity: int = 1
+    level: int | None = None
+    refine_level: int | None = None
+
+
+class EndfieldSkillOut(BaseModel):
+    skill_id: str = ""
+    name: str = ""
+    skill_type: str = ""
+    type_label: str = ""
+    icon_url: str | None = None
+    level: int = 1
+    max_level: int = 0
+
+
+class EndfieldWeaponOut(BaseModel):
+    weapon_id: str = ""
+    name: str = ""
+    icon_url: str | None = None
+    rarity: int = 1
+    level: int = 1
+    refine_level: int = 0
+    breakthrough_level: int = 0
+    weapon_type: str = ""
+    gem_id: str = ""
+    gem_name: str = ""
+    gem_icon_url: str | None = None
+
+
+class EndfieldCharOut(BaseModel):
+    char_id: str
+    name: str
+    rarity: int
+    level: int
+    evolve_phase: int = 0
+    potential_level: int = 0
+    profession: str = ""
+    property_name: str = ""
+    weapon_type: str = ""
+    label_type: str = ""
+    own_ts: int | None = None
+    gender: str = ""
+    avatar_url: str | None = None
+    illustration_url: str | None = None
+    property_icon_url: str | None = None
+    weapon: EndfieldWeaponOut | None = None
+    skills: list[EndfieldSkillOut] = Field(default_factory=list)
+    equips: list[EndfieldEquipOut] = Field(default_factory=list)
+
+
+class EndfieldBoxOut(BaseModel):
+    uid: str
+    role_id: str = ""
+    server_id: str = ""
+    name: str
+    level: int
+    server_name: str | None = None
+    avatar_url: str | None = None
+    char_count: int
+    chars: list[EndfieldCharOut] = Field(default_factory=list)
+    roles: list[SklandRoleOut] = Field(default_factory=list)
+    synced_at: str | None = None
+    stale: bool = False
 
 
 class ArknightsOperatorOut(BaseModel):

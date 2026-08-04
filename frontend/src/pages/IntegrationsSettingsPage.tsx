@@ -10,6 +10,8 @@ type FormValues = {
   steam_api_key?: string;
   qq_app_id?: string;
   qq_app_key?: string;
+  napcat_base_url?: string;
+  napcat_token?: string;
 };
 
 export default function IntegrationsSettingsPage() {
@@ -27,6 +29,8 @@ export default function IntegrationsSettingsPage() {
       steam_api_key: data.steam_api_key || "",
       qq_app_id: data.qq_app_id || "",
       qq_app_key: data.qq_app_key || "",
+      napcat_base_url: data.napcat_base_url || "",
+      napcat_token: data.napcat_token || "",
     });
   }, [data, form]);
 
@@ -36,6 +40,7 @@ export default function IntegrationsSettingsPage() {
       message.success("集成密钥已保存");
       queryClient.invalidateQueries({ queryKey: ["integrations-settings"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["napcat-groups"] });
     },
     onError: (e: unknown) => {
       const detail =
@@ -60,12 +65,16 @@ export default function IntegrationsSettingsPage() {
         onFinish={(values) => {
           const steam = values.steam_api_key?.trim() || "";
           const qqKey = values.qq_app_key?.trim() || "";
+          const napcatToken = values.napcat_token?.trim() || "";
           save.mutate({
             steam_api_key: steam || null,
             qq_app_id: values.qq_app_id ?? "",
             qq_app_key: qqKey || null,
             clear_steam_api_key: !steam,
             clear_qq_app_key: !qqKey,
+            napcat_base_url: values.napcat_base_url ?? "",
+            napcat_token: napcatToken || null,
+            clear_napcat_token: !napcatToken,
           });
         }}
       >
@@ -91,10 +100,7 @@ export default function IntegrationsSettingsPage() {
             size="large"
           />
         </Form.Item>
-        <Form.Item
-          label="QQ 回调地址"
-          extra="按当前访问地址自动推断；请原样填到 QQ 互联后台（须与打开本站的 Host 一致）"
-        >
+        <Form.Item label="QQ 回调地址">
           <Space.Compact style={{ width: "100%" }}>
             <Input value={callbackUrl} readOnly size="large" />
             <Button
@@ -112,6 +118,22 @@ export default function IntegrationsSettingsPage() {
               复制
             </Button>
           </Space.Compact>
+        </Form.Item>
+
+        <Typography.Title level={5}>NapCat</Typography.Title>
+        <Form.Item
+          name="napcat_base_url"
+          label="Base URL"
+          extra="填 OneBot HTTP 服务地址（网络配置里的 HTTP），不要填 /webui 管理页"
+        >
+          <Input placeholder="http://127.0.0.1:3000" size="large" />
+        </Form.Item>
+        <Form.Item name="napcat_token" label="Token">
+          <Input.Password
+            placeholder="请输入 HTTP 服务 Token"
+            autoComplete="new-password"
+            size="large"
+          />
         </Form.Item>
 
         <Space size={12} style={{ marginTop: 8 }}>

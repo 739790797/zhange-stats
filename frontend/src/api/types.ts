@@ -43,6 +43,7 @@ export interface MemberProfile {
   avatar_url: string | null;
   steam_id: string | null;
   steam_persona_name?: string | null;
+  steam_avatar_url?: string | null;
   steam_friends_public?: boolean | null;
   steam_friends_synced_at?: string | null;
   skland_bound?: boolean;
@@ -59,6 +60,7 @@ export interface MemberProfile {
   qq_bound?: boolean;
   qq_nickname?: string | null;
   qq_avatar_url?: string | null;
+  qq_number?: string | null;
   user_id: number | null;
   username: string | null;
   email?: string | null;
@@ -118,6 +120,76 @@ export interface ArknightsBox {
   role_name?: string | null;
   chars: ArknightsChar[];
   roles: SklandRole[];
+}
+
+export interface EndfieldEquip {
+  slot: string;
+  item_id: string;
+  name: string;
+  icon_url?: string | null;
+  rarity: number;
+  level?: number | null;
+  refine_level?: number | null;
+}
+
+export interface EndfieldSkill {
+  skill_id: string;
+  name: string;
+  skill_type: string;
+  type_label?: string;
+  icon_url?: string | null;
+  level: number;
+  max_level: number;
+}
+
+export interface EndfieldWeapon {
+  weapon_id: string;
+  name: string;
+  icon_url?: string | null;
+  rarity: number;
+  level: number;
+  refine_level: number;
+  breakthrough_level: number;
+  weapon_type?: string;
+  gem_id?: string;
+  gem_name?: string;
+  gem_icon_url?: string | null;
+}
+
+export interface EndfieldChar {
+  char_id: string;
+  name: string;
+  rarity: number;
+  level: number;
+  evolve_phase: number;
+  potential_level: number;
+  profession: string;
+  property_name: string;
+  weapon_type?: string;
+  label_type?: string;
+  own_ts?: number | null;
+  gender?: string;
+  avatar_url?: string | null;
+  illustration_url?: string | null;
+  property_icon_url?: string | null;
+  weapon?: EndfieldWeapon | null;
+  skills: EndfieldSkill[];
+  equips: EndfieldEquip[];
+}
+
+export interface EndfieldBox {
+  uid: string;
+  role_id: string;
+  server_id: string;
+  name: string;
+  level: number;
+  server_name?: string | null;
+  avatar_url?: string | null;
+  char_count: number;
+  chars: EndfieldChar[];
+  roles: SklandRole[];
+  synced_at?: string | null;
+  stale?: boolean;
 }
 
 export interface ArknightsOperator {

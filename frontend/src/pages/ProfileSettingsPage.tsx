@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Descriptions,
+  Input,
   Modal,
   Popconfirm,
   Space,
@@ -16,11 +17,10 @@ import {
 } from "antd";
 import type { UploadProps } from "antd";
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   fetchMemberProfile,
   fetchMyProfile,
-  startQqOAuthBind,
   startSteamOpenIdBind,
   unbindQq,
   unbindSkland,
@@ -35,6 +35,7 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
+import { QqLoginButton } from "@/components/QqLoginButton";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
 import { useAuthStore } from "@/stores/authStore";
@@ -44,7 +45,9 @@ let handledSteamBindQuery: string | null = null;
 let handledQqBindQuery: string | null = null;
 
 type ProfilePayload = {
+  display_name?: string;
   steam_id?: string | null;
+  qq_number?: string | null;
 };
 
 function apiError(e: unknown, fallback: string) {
@@ -59,19 +62,18 @@ function apiError(e: unknown, fallback: string) {
 export default function ProfileSettingsPage() {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
-  const navigate = useNavigate();
   const targetMemberId = id ? Number(id) : NaN;
   const isAdminEdit = Number.isFinite(targetMemberId);
 
   const queryClient = useQueryClient();
   const setUser = useAuthStore((s) => s.setUser);
   const authUser = useAuthStore((s) => s.user);
-  const [steamPromptOpen, setSteamPromptOpen] = useState(false);
   const [sklandModalOpen, setSklandModalOpen] = useState(false);
   const [taygedoModalOpen, setTaygedoModalOpen] = useState(false);
   const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
   const [kujiequModalOpen, setKujiequModalOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [qqNumberDraft, setQqNumberDraft] = useState("");
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -107,12 +109,6 @@ export default function ProfileSettingsPage() {
       });
       queryClient.invalidateQueries({ queryKey: profileQueryKey });
       queryClient.invalidateQueries({ queryKey: ["auth-me"] });
-      if (!isAdminEdit && authUser && name) {
-        setUser({
-          ...authUser,
-          display_name: name,
-        });
-      }
       if (isAdminEdit) {
         queryClient.invalidateQueries({ queryKey: ["users"] });
         queryClient.invalidateQueries({ queryKey: ["members"] });
@@ -163,14 +159,6 @@ export default function ProfileSettingsPage() {
     }
   }, [searchParams, setSearchParams, queryClient, profileQueryKey]);
 
-  useEffect(() => {
-    if (isAdminEdit) return;
-    const state = location.state as { promptSteamBind?: boolean } | null;
-    if (!state?.promptSteamBind) return;
-    navigate(location.pathname, { replace: true, state: {} });
-    setSteamPromptOpen(true);
-  }, [isAdminEdit, location.pathname, location.state, navigate]);
-
   const saveProfilePatch = (payload: ProfilePayload) =>
     isAdminEdit
       ? updateMemberProfile(targetMemberId, payload)
@@ -201,6 +189,33 @@ export default function ProfileSettingsPage() {
     });
   };
 
+
+  useEffect(() => {
+    if (!data) return;
+    setNameDraft(data.display_name || data.nickname || "");
+    setQqNumberDraft(data.qq_number || "");
+  }, [data]);
+
+  const saveName = useMutation({
+    mutationFn: async (name: string) => saveProfilePatch({ display_name: name }),
+    onSuccess: (profile) => {
+      message.success("显示名称已更新");
+      invalidateProfile();
+      applyProfileLocally(profile);
+    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  });
+
+  const saveQqNumber = useMutation({
+    mutationFn: async (qqNumber: string) =>
+      saveProfilePatch({ qq_number: qqNumber.trim() || null }),
+    onSuccess: () => {
+      message.success("QQ 号已更新");
+      invalidateProfile();
+    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  });
+
   const startSteamBind = useMutation({
     mutationFn: async () =>
       startSteamOpenIdBind(isAdminEdit ? targetMemberId : undefined),
@@ -208,15 +223,6 @@ export default function ProfileSettingsPage() {
       window.location.href = url;
     },
     onError: (e: unknown) => message.error(apiError(e, "无法跳转 Steam 登录")),
-  });
-
-  const startQqBind = useMutation({
-    mutationFn: async () =>
-      startQqOAuthBind(isAdminEdit ? targetMemberId : undefined),
-    onSuccess: ({ url }) => {
-      window.location.href = url;
-    },
-    onError: (e: unknown) => message.error(apiError(e, "无法跳转 QQ 登录")),
   });
 
   const unbindSteam = useMutation({
@@ -341,20 +347,14 @@ export default function ProfileSettingsPage() {
   const exiliumBound = Boolean(data?.exilium_bound);
   const kujiequBound = Boolean(data?.kujiequ_bound);
   const displayName =
-    data?.steam_persona_name ||
     data?.display_name ||
     data?.nickname ||
     "-";
   const subjectLabel =
-    data?.steam_persona_name ||
     data?.display_name ||
     data?.nickname ||
     data?.email ||
     `成员 #${targetMemberId}`;
-
-  useEffect(() => {
-    if (steamBound) setSteamPromptOpen(false);
-  }, [steamBound]);
 
   return (
     <div>
@@ -385,63 +385,78 @@ export default function ProfileSettingsPage() {
 
       <Card title="个人信息" loading={isLoading} style={{ marginBottom: 24 }}>
         <Space align="start" size={20}>
-          {steamBound ? (
-            <Avatar size={72} src={data?.avatar_url || undefined}>
-              {displayName !== "-" ? displayName[0] : "?"}
-            </Avatar>
-          ) : (
-            <Upload
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              showUploadList={false}
-              beforeUpload={beforeUpload}
-              disabled={!!errMsg || !data || uploadAvatar.isPending}
+          <Upload
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            showUploadList={false}
+            beforeUpload={beforeUpload}
+            disabled={!!errMsg || !data || uploadAvatar.isPending}
+          >
+            <button
+              type="button"
+              title="点击上传头像"
+              style={{
+                position: "relative",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                cursor: errMsg || !data ? "not-allowed" : "pointer",
+                borderRadius: "50%",
+              }}
             >
-              <button
-                type="button"
-                title="点击上传头像"
+              <Avatar size={72} src={data?.avatar_url || undefined}>
+                {displayName !== "-" ? displayName[0] : "?"}
+              </Avatar>
+              <span
                 style={{
-                  position: "relative",
-                  padding: 0,
-                  border: "none",
-                  background: "transparent",
-                  cursor: errMsg || !data ? "not-allowed" : "pointer",
+                  position: "absolute",
+                  right: 0,
+                  bottom: 0,
+                  width: 24,
+                  height: 24,
                   borderRadius: "50%",
+                  background: "#1a2332",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  boxShadow: "0 0 0 2px #fff",
                 }}
               >
-                <Avatar size={72} src={data?.avatar_url || undefined}>
-                  {displayName !== "-" ? displayName[0] : "?"}
-                </Avatar>
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    bottom: 0,
-                    width: 24,
-                    height: 24,
-                    borderRadius: "50%",
-                    background: "#1a2332",
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                    boxShadow: "0 0 0 2px #fff",
-                  }}
-                >
-                  <CameraOutlined />
-                </span>
-              </button>
-            </Upload>
-          )}
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label="用户名">{displayName}</Descriptions.Item>
-            <Descriptions.Item label="邮箱">{data?.email || "-"}</Descriptions.Item>
-          </Descriptions>
+                <CameraOutlined />
+              </span>
+            </button>
+          </Upload>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Space.Compact style={{ width: "100%", maxWidth: 360, marginBottom: 8 }}>
+              <Input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                placeholder="显示名称"
+                disabled={!!errMsg || !data || saveName.isPending}
+                maxLength={64}
+              />
+              <Button
+                type="primary"
+                loading={saveName.isPending}
+                disabled={
+                  !!errMsg ||
+                  !data ||
+                  !nameDraft.trim() ||
+                  nameDraft.trim() === displayName
+                }
+                onClick={() => saveName.mutate(nameDraft.trim())}
+              >
+                保存
+              </Button>
+            </Space.Compact>
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="邮箱">{data?.email || "未绑定"}</Descriptions.Item>
+            </Descriptions>
+          </div>
         </Space>
         <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          {steamBound
-            ? "已绑定 Steam：头像与用户名始终跟随 Steam，轮询时自动同步。"
-            : "点击头像可上传自定义头像（JPG / PNG / WebP / GIF，最大 5MB）。绑定 Steam 后将改用 Steam 头像与昵称。"}
+          站内头像与昵称可自行修改；Steam 页统计仍使用 Steam 头像与昵称。
         </Typography.Paragraph>
       </Card>
 
@@ -459,7 +474,7 @@ export default function ProfileSettingsPage() {
           <div style={{ minWidth: 0 }}>
             <Space size={8} align="center">
               {steamBound ? (
-                <Avatar size={28} src={data?.avatar_url || undefined}>
+                <Avatar size={28} src={data?.steam_avatar_url || undefined}>
                   S
                 </Avatar>
               ) : null}
@@ -469,7 +484,7 @@ export default function ProfileSettingsPage() {
             <div>
               <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                 {steamBound
-                  ? `SteamID：${data?.steam_id}${
+                  ? `${data?.steam_persona_name || "已绑定"} · SteamID：${data?.steam_id}${
                       data?.steam_friends_public === false
                         ? " · 好友列表未公开（日历只能看自己）"
                         : data?.steam_friends_public
@@ -508,7 +523,7 @@ export default function ProfileSettingsPage() {
                 disabled={!!errMsg}
                 onClick={() => startSteamBind.mutate()}
               >
-                Steam 登录绑定
+                绑定
               </Button>
             )}
           </Space>
@@ -538,20 +553,48 @@ export default function ProfileSettingsPage() {
               <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                 {qqBound
                   ? `昵称：${data?.qq_nickname || "已绑定"}`
-                  : "通过 QQ 互联登录确认归属（审核中仅调试 QQ 号可用）"}
+                  : "绑定后可在登录页使用 QQ 登录"}
               </Typography.Text>
+            </div>
+            <div style={{ marginTop: 10, maxWidth: 320 }}>
+              <Typography.Text
+                type="secondary"
+                style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+              >
+                QQ 号（用于群成员匹配与后续按群统计；与 QQ 互联绑定独立）
+              </Typography.Text>
+              <Space.Compact style={{ width: "100%" }}>
+                <Input
+                  value={qqNumberDraft}
+                  onChange={(e) => setQqNumberDraft(e.target.value)}
+                  placeholder="5–12 位数字"
+                  disabled={!!errMsg || !data || saveQqNumber.isPending}
+                  maxLength={12}
+                  inputMode="numeric"
+                />
+                <Button
+                  loading={saveQqNumber.isPending}
+                  disabled={
+                    !!errMsg ||
+                    !data ||
+                    (qqNumberDraft.trim() || "") === (data?.qq_number || "")
+                  }
+                  onClick={() => saveQqNumber.mutate(qqNumberDraft)}
+                >
+                  保存
+                </Button>
+              </Space.Compact>
             </div>
           </div>
           <Space>
             {qqBound ? (
               <>
-                <Button
-                  loading={startQqBind.isPending}
+                <QqLoginButton
+                  mode="bind"
+                  dividerText={null}
+                  memberId={isAdminEdit ? targetMemberId : undefined}
                   disabled={!!errMsg}
-                  onClick={() => startQqBind.mutate()}
-                >
-                  换绑
-                </Button>
+                />
                 <Popconfirm
                   title="确认解除 QQ 绑定？"
                   okText="确定"
@@ -564,14 +607,12 @@ export default function ProfileSettingsPage() {
                 </Popconfirm>
               </>
             ) : (
-              <Button
-                type="primary"
-                loading={startQqBind.isPending}
+              <QqLoginButton
+                mode="bind"
+                dividerText={null}
+                memberId={isAdminEdit ? targetMemberId : undefined}
                 disabled={!!errMsg}
-                onClick={() => startQqBind.mutate()}
-              >
-                QQ 登录绑定
-              </Button>
+              />
             )}
           </Space>
         </div>
@@ -626,7 +667,7 @@ export default function ProfileSettingsPage() {
                   disabled={!!errMsg}
                   onClick={() => setSklandModalOpen(true)}
                 >
-                  绑定森空岛
+                  绑定
                 </Button>
               )}
             </Space>
@@ -686,7 +727,7 @@ export default function ProfileSettingsPage() {
                   disabled={!!errMsg}
                   onClick={() => setTaygedoModalOpen(true)}
                 >
-                  绑定塔吉多
+                  绑定
                 </Button>
               )}
             </Space>
@@ -746,7 +787,7 @@ export default function ProfileSettingsPage() {
                   disabled={!!errMsg}
                   onClick={() => setExiliumModalOpen(true)}
                 >
-                  绑定追放
+                  绑定
                 </Button>
               )}
             </Space>
@@ -806,30 +847,13 @@ export default function ProfileSettingsPage() {
                   disabled={!!errMsg}
                   onClick={() => setKujiequModalOpen(true)}
                 >
-                  绑定库街区
+                  绑定
                 </Button>
               )}
             </Space>
           </div>
         ) : null}
       </Card>
-
-      <Modal
-        title="请绑定 Steam 账号"
-        open={steamPromptOpen && !steamBound && !isAdminEdit}
-        okText="去 Steam 登录绑定"
-        cancelText="稍后再说"
-        confirmLoading={startSteamBind.isPending}
-        onOk={() => startSteamBind.mutate()}
-        onCancel={() => setSteamPromptOpen(false)}
-        destroyOnClose
-      >
-        <Typography.Paragraph style={{ marginBottom: 0 }}>
-          战鸽数据依赖 Steam
-          才能同步游玩记录与好友可见范围。请先完成 Steam
-          登录绑定；绑定后请公开个人资料与好友列表。
-        </Typography.Paragraph>
-      </Modal>
 
       <Modal
         title={sklandBound ? "更换森空岛绑定" : "绑定森空岛"}

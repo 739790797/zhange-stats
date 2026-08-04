@@ -67,6 +67,10 @@ class IntegrationsOut(BaseModel):
     qq_configured: bool
     steam_configured: bool
     qq_callback_url: str = ""
+    napcat_base_url: str = ""
+    napcat_token: str = ""
+    napcat_token_set: bool = False
+    napcat_configured: bool = False
 
 
 class IntegrationsUpdate(BaseModel):
@@ -75,6 +79,9 @@ class IntegrationsUpdate(BaseModel):
     qq_app_key: str | None = None
     clear_steam_api_key: bool = False
     clear_qq_app_key: bool = False
+    napcat_base_url: str | None = None
+    napcat_token: str | None = None
+    clear_napcat_token: bool = False
 
 
 class AuthSettingsOut(BaseModel):
