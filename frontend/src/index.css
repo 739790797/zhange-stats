@@ -67,6 +67,19 @@ a {
   display: none !important;
 }
 
+/* 侧栏退出按钮：与菜单项相同的悬浮底色 */
+.sider-logout-btn.ant-btn {
+  color: rgba(255, 255, 255, 0.65) !important;
+  background: transparent !important;
+  flex-shrink: 0;
+}
+
+.sider-logout-btn.ant-btn:hover,
+.sider-logout-btn.ant-btn:focus {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
 /* 日时间窗 DatePicker：区间文案居中 */
 .day-window-picker.ant-picker {
   padding-inline: 11px 28px;

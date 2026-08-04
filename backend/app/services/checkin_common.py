@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -53,6 +54,49 @@ class CheckinResult:
 
 def is_success_status(status: str | None) -> bool:
     return (status or "") in SUCCESS_STATUSES
+
+
+# 「奖励×2」等占位：签到响应缺物品名时的回退文案，不算完整奖励
+_PLACEHOLDER_AWARDS = re.compile(
+    r"^(?:奖励|reward)(?:\s*[×xX*＊]\s*\d+)?$",
+    re.IGNORECASE,
+)
+
+
+def is_placeholder_awards(text: str | None) -> bool:
+    raw = (text or "").strip()
+    if not raw:
+        return True
+    if _PLACEHOLDER_AWARDS.fullmatch(raw):
+        return True
+    # 多段里若全是占位也视为不完整
+    parts = [p.strip() for p in re.split(r"[·，,、]", raw) if p.strip()]
+    return bool(parts) and all(_PLACEHOLDER_AWARDS.fullmatch(p) for p in parts)
+
+
+def awards_richness(text: str | None) -> tuple[int, int, int]:
+    """越大越完整：(信息档, 分段数, 字符数)。占位文案档位最低。"""
+    raw = (text or "").strip()
+    if not raw:
+        return (0, 0, 0)
+    if is_placeholder_awards(raw):
+        return (1, 0, len(raw))
+    parts = [p.strip() for p in re.split(r"[·，,、/]", raw) if p.strip()]
+    # 仅「积分+N」比带道具名的描述更弱
+    only_score = bool(re.fullmatch(r"积分\s*[+＋]\s*\d+", raw))
+    tier = 2 if only_score else 3
+    return (tier, len(parts), len(raw))
+
+
+def prefer_richer_awards(current: str | None, incoming: str | None) -> str | None:
+    """合并奖励文案：保留更完整的一侧，避免同步用残缺结果覆盖签到明细。"""
+    if not (incoming or "").strip():
+        return current
+    if not (current or "").strip():
+        return incoming
+    if awards_richness(incoming) >= awards_richness(current):
+        return incoming
+    return current
 
 
 def status_label(status: str | None) -> str:
@@ -175,8 +219,40 @@ def upsert_day_checkin_logs(
             row.channel_name = r.channel_name or row.channel_name
             row.status = r.status
             row.message = message or None
-            row.awards_text = r.awards_text
+            # 奖励文案：同步残缺结果不得覆盖签到时已写入的完整明细
+            row.awards_text = prefer_richer_awards(row.awards_text, r.awards_text)
             row.checked_at = now
+
+
+def upsert_and_reload_day_results(
+    db: Any,
+    log_model: Any,
+    *,
+    member_id: int,
+    bind_id: int,
+    checkin_date: Any,
+    results: list[CheckinResult],
+    now: Any,
+) -> list[CheckinResult]:
+    """写入并读回合并后的今日结果（供接口返回，避免带回残缺 awards）。"""
+    if results:
+        upsert_day_checkin_logs(
+            db,
+            log_model,
+            member_id=member_id,
+            bind_id=bind_id,
+            checkin_date=checkin_date,
+            results=results,
+            now=now,
+        )
+        db.flush()
+    cached = load_day_checkin_results(
+        db,
+        log_model,
+        member_id=member_id,
+        checkin_date=checkin_date,
+    )
+    return cached if cached is not None else results
 
 
 def log_row_to_api(

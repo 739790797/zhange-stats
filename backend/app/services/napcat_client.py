@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 import urllib.error
 import urllib.request
 from typing import Any
@@ -18,6 +19,20 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
+
+# QQ 客户端花字/特效标记，NapCat 原样带回，网页无法渲染（如 <$ǿĀD\x0e>）
+_QQ_STYLE_TAG_RE = re.compile(r"<\$[^>]*>")
+_QQ_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\ufeff\ufffd]+")
+
+
+def sanitize_qq_display_text(text: str | None) -> str:
+    """去掉 QQ 花字标签与控制符，保留可读显示文本。"""
+    if not text:
+        return ""
+    cleaned = _QQ_STYLE_TAG_RE.sub("", str(text))
+    cleaned = _QQ_CONTROL_RE.sub("", cleaned)
+    cleaned = "".join(ch for ch in cleaned if unicodedata.category(ch) != "Cc")
+    return cleaned.strip()
 
 _WEBUI_HINT = (
     "当前地址像是 NapCat WebUI，不是 OneBot HTTP 服务。"
@@ -217,6 +232,21 @@ def _post_action(
     if not isinstance(parsed, dict):
         raise NapCatError("NapCat 返回格式异常")
     return _parse_onebot_payload(parsed)
+
+
+def get_login_info(
+    base_url: str,
+    token: str,
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> dict[str, Any]:
+    """调用 get_login_info，用于连通性探测。"""
+    data = _post_action(
+        base_url, token, "get_login_info", {}, timeout=timeout
+    )
+    if not isinstance(data, dict):
+        raise NapCatError("登录信息格式异常")
+    return data
 
 
 def get_group_list(base_url: str, token: str, *, no_cache: bool = False) -> list[dict]:

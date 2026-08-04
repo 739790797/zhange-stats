@@ -306,7 +306,7 @@ def update_user(
     user_id: int,
     body: UserAdminUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    current: User = Depends(require_admin),
 ) -> UserBrief:
     user = (
         db.query(User)
@@ -345,6 +345,33 @@ def update_user(
 
     if "steam_id" in data:
         _set_steam_id(db, member, data["steam_id"])
+
+    # 角色：支持 role 或 is_admin（前端以 role 为主）
+    target_role: UserRole | None = None
+    if "role" in data and data["role"] is not None:
+        raw = str(data["role"]).strip().lower()
+        if raw not in ("admin", "user"):
+            raise HTTPException(status_code=400, detail="角色无效，可选 admin / user")
+        target_role = UserRole.admin if raw == "admin" else UserRole.user
+    elif "is_admin" in data and data["is_admin"] is not None:
+        target_role = UserRole.admin if data["is_admin"] else UserRole.user
+
+    if target_role is not None:
+        currently_admin = _is_admin_user(user)
+        becoming_user = target_role == UserRole.user and currently_admin
+        if becoming_user:
+            if user.id == current.id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="不能取消自己的管理员角色",
+                )
+            admin_count = sum(1 for u in db.query(User).all() if _is_admin_user(u))
+            if admin_count <= 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="系统至少保留一名管理员",
+                )
+        user.apply_role(target_role)
 
     db.commit()
     user = (

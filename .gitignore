@@ -32,3 +32,6 @@ data/
 
 # Local scratch
 _tmp_*/
+frontend/public/brand/_preview/
+frontend/public/brand/_gen_from_original.py
+frontend/public/brand/_preview_render.cjs

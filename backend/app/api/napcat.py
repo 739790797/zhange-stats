@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
@@ -15,9 +15,14 @@ from app.services.napcat_client import (
     NapCatError,
     get_group_list,
     get_group_member_list,
+    get_login_info,
+    normalize_napcat_base_url,
+    sanitize_qq_display_text,
 )
 
 router = APIRouter(prefix="/napcat", tags=["napcat"])
+
+_TEST_TIMEOUT = 8.0
 
 
 class NapCatGroupOut(BaseModel):
@@ -61,6 +66,51 @@ def _require_napcat(db: Session) -> tuple[str, str]:
     return base_url, token
 
 
+class NapCatTestRequest(BaseModel):
+    """表单草稿可测：未填 Token 时回退已保存密钥。"""
+
+    base_url: str = ""
+    token: str | None = Field(default=None, max_length=512)
+
+
+class NapCatTestResponse(BaseModel):
+    ok: bool
+    message: str
+    user_id: str | None = None
+    nickname: str | None = None
+
+
+@router.post("/test", response_model=NapCatTestResponse)
+def test_napcat_connection(
+    body: NapCatTestRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> NapCatTestResponse:
+    saved_url, saved_token = get_napcat_credentials(db)
+    base_url = normalize_napcat_base_url(body.base_url or saved_url)
+    token = (body.token or "").strip() or saved_token
+    if not base_url:
+        raise HTTPException(status_code=400, detail="请填写 NapCat Base URL")
+    if not token:
+        raise HTTPException(status_code=400, detail="请填写 NapCat Token")
+
+    try:
+        info = get_login_info(base_url, token, timeout=_TEST_TIMEOUT)
+    except NapCatError as exc:
+        raise HTTPException(status_code=502, detail=exc.message) from exc
+
+    user_id = info.get("user_id")
+    nickname = str(info.get("nickname") or "").strip() or None
+    uid = str(user_id) if user_id is not None else None
+    if uid and nickname:
+        msg = f"连接成功：{nickname}（{uid}）"
+    elif uid:
+        msg = f"连接成功（QQ {uid}）"
+    else:
+        msg = "连接成功"
+    return NapCatTestResponse(ok=True, message=msg, user_id=uid, nickname=nickname)
+
+
 def _role_label(role: str) -> str:
     mapping = {"owner": "群主", "admin": "管理员", "member": "成员"}
     return mapping.get(role, role or "成员")
@@ -85,10 +135,12 @@ def list_groups(
             continue
         member_count = item.get("member_count")
         max_member_count = item.get("max_member_count")
+        raw_name = str(item.get("group_name") or item.get("group_memo") or "")
+        group_name = sanitize_qq_display_text(raw_name) or str(gid)
         groups.append(
             NapCatGroupOut(
                 group_id=str(gid),
-                group_name=str(item.get("group_name") or item.get("group_memo") or gid),
+                group_name=group_name,
                 member_count=int(member_count) if member_count is not None else None,
                 max_member_count=(
                     int(max_member_count) if max_member_count is not None else None
@@ -143,10 +195,10 @@ def list_group_members(
         members.append(
             NapCatGroupMemberOut(
                 user_id=qq,
-                nickname=str(item.get("nickname") or ""),
-                card=str(item.get("card") or ""),
+                nickname=sanitize_qq_display_text(item.get("nickname")),
+                card=sanitize_qq_display_text(item.get("card")),
                 role=_role_label(role),
-                title=str(item.get("title") or ""),
+                title=sanitize_qq_display_text(item.get("title")),
                 site_member=(
                     NapCatSiteMemberOut(
                         id=site.id,

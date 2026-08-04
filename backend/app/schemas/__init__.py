@@ -71,6 +71,8 @@ class UserAdminUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     password: str | None = Field(default=None, min_length=8, max_length=72)
     steam_id: str | None = Field(default=None, max_length=512)
+    role: str | None = Field(default=None, description="user | admin")
+    is_admin: bool | None = None
 
 
 class MemberProfileOut(BaseModel):

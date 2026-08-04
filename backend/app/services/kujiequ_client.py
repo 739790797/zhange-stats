@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.core.timeutil import now_naive, today
-from app.services.checkin_common import CheckinResult
+from app.services.checkin_common import CheckinResult, is_placeholder_awards, prefer_richer_awards
 
 logger = logging.getLogger(__name__)
 
@@ -319,7 +319,16 @@ def _format_goods_rows(rows: list[Any]) -> str | None:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        name = str(row.get("goodsName") or "").strip() or "奖励"
+        name = str(
+            row.get("goodsName")
+            or row.get("goods_name")
+            or row.get("name")
+            or row.get("itemName")
+            or ""
+        ).strip()
+        # 缺物品名时不要用「奖励」占位，交给调用方走领取记录补全
+        if not name:
+            continue
         num = row.get("goodsNum")
         if num is None:
             num = row.get("gainValue")
@@ -584,8 +593,12 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
     payload = data.get("data") or {}
     if isinstance(payload, dict):
         awards = _awards_from_sign_payload(payload)
-    if not awards:
-        awards = _game_awards_from_records(creds, role)
+    # 签到响应常缺 goodsName；一律再用领取记录补全，并取更完整一侧
+    recorded = _game_awards_from_records(creds, role)
+    if is_placeholder_awards(awards):
+        awards = recorded
+    else:
+        awards = prefer_richer_awards(awards, recorded)
     return CheckinResult(
         game_code=f"game_{role.game_id}",
         game_name=role.game_name,

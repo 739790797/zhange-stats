@@ -21,6 +21,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   fetchMemberProfile,
   fetchMyProfile,
+  startQqOAuthBind,
   startSteamOpenIdBind,
   unbindQq,
   unbindSkland,
@@ -35,7 +36,6 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
-import { QqLoginButton } from "@/components/QqLoginButton";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
 import { useAuthStore } from "@/stores/authStore";
@@ -223,6 +223,15 @@ export default function ProfileSettingsPage() {
       window.location.href = url;
     },
     onError: (e: unknown) => message.error(apiError(e, "无法跳转 Steam 登录")),
+  });
+
+  const startQqBind = useMutation({
+    mutationFn: async () =>
+      startQqOAuthBind(isAdminEdit ? targetMemberId : undefined),
+    onSuccess: ({ url }) => {
+      window.location.href = url;
+    },
+    onError: (e: unknown) => message.error(apiError(e, "无法跳转 QQ 绑定")),
   });
 
   const unbindSteam = useMutation({
@@ -539,8 +548,8 @@ export default function ProfileSettingsPage() {
             borderBottom: "1px solid rgba(0,0,0,0.06)",
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <Space size={8} align="center">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Space size={8} align="center" wrap={false}>
               {qqBound && data?.qq_avatar_url ? (
                 <Avatar size={28} src={data.qq_avatar_url}>
                   Q
@@ -548,29 +557,28 @@ export default function ProfileSettingsPage() {
               ) : null}
               <Typography.Text strong>QQ</Typography.Text>
               {qqBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-            </Space>
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+              <Typography.Text
+                type="secondary"
+                style={{
+                  fontSize: 13,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
                 {qqBound
                   ? `昵称：${data?.qq_nickname || "已绑定"}`
                   : "绑定后可在登录页使用 QQ 登录"}
               </Typography.Text>
-            </div>
-            <div style={{ marginTop: 10, maxWidth: 320 }}>
-              <Typography.Text
-                type="secondary"
-                style={{ fontSize: 12, display: "block", marginBottom: 4 }}
-              >
-                QQ 号（用于群成员匹配与后续按群统计；与 QQ 互联绑定独立）
-              </Typography.Text>
-              <Space.Compact style={{ width: "100%" }}>
+              <Space.Compact style={{ width: 220, flex: "0 0 auto" }}>
                 <Input
                   value={qqNumberDraft}
                   onChange={(e) => setQqNumberDraft(e.target.value)}
-                  placeholder="5–12 位数字"
+                  placeholder="QQ 号 5–12 位"
                   disabled={!!errMsg || !data || saveQqNumber.isPending}
                   maxLength={12}
                   inputMode="numeric"
+                  title="用于群成员匹配；与 QQ 互联绑定独立"
                 />
                 <Button
                   loading={saveQqNumber.isPending}
@@ -584,17 +592,18 @@ export default function ProfileSettingsPage() {
                   保存
                 </Button>
               </Space.Compact>
-            </div>
+            </Space>
           </div>
           <Space>
             {qqBound ? (
               <>
-                <QqLoginButton
-                  mode="bind"
-                  dividerText={null}
-                  memberId={isAdminEdit ? targetMemberId : undefined}
+                <Button
+                  loading={startQqBind.isPending}
                   disabled={!!errMsg}
-                />
+                  onClick={() => startQqBind.mutate()}
+                >
+                  换绑
+                </Button>
                 <Popconfirm
                   title="确认解除 QQ 绑定？"
                   okText="确定"
@@ -607,12 +616,14 @@ export default function ProfileSettingsPage() {
                 </Popconfirm>
               </>
             ) : (
-              <QqLoginButton
-                mode="bind"
-                dividerText={null}
-                memberId={isAdminEdit ? targetMemberId : undefined}
+              <Button
+                type="primary"
+                loading={startQqBind.isPending}
                 disabled={!!errMsg}
-              />
+                onClick={() => startQqBind.mutate()}
+              >
+                绑定
+              </Button>
             )}
           </Space>
         </div>

@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Form, Input, Space, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { fetchMe, register, sendRegisterCode } from "@/api/client";
+import { fetchMe, formatRequestError, register, sendRegisterCode } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { QqLoginButton } from "@/components/QqLoginButton";
 import { useAuthStore } from "@/stores/authStore";
@@ -36,13 +36,7 @@ export default function RegisterPage() {
       setCountdown(60);
     } catch (e: unknown) {
       if (e && typeof e === "object" && "errorFields" in e) return;
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      setError(String(detail || "发送验证码失败"));
+      setError(formatRequestError(e, "发送验证码失败"));
     } finally {
       setSending(false);
     }
@@ -73,13 +67,7 @@ export default function RegisterPage() {
       message.success(res.message || "注册成功");
       navigate("/", { replace: true });
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      setError(String(detail || "注册失败"));
+      setError(formatRequestError(e, "注册失败"));
     } finally {
       setLoading(false);
     }

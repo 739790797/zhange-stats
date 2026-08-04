@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { fetchMe, login } from "@/api/client";
+import { fetchMe, formatRequestError, login } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { QqLoginButton } from "@/components/QqLoginButton";
@@ -78,22 +78,7 @@ export default function LoginPage() {
         state: !user.email ? { promptCompleteProfile: true } : undefined,
       });
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string }; status?: number } })
-          .response?.data?.detail;
-      const status =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { status?: number } }).response?.status;
-      if (status === 403) {
-        setError(String(detail || "请先完成邮箱验证"));
-      } else {
-        setError(String(detail || "账号或密码错误"));
-      }
+      setError(formatRequestError(e, "账号或密码错误"));
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Table,
   Tag,
@@ -26,7 +27,7 @@ type UserFormValues = {
   email: string;
   display_name: string;
   password?: string;
-  steam_id?: string;
+  role?: "admin" | "user";
 };
 
 type BindPlatform = {
@@ -109,7 +110,6 @@ export default function UserManagementPage() {
         email: values.email.trim(),
         display_name: values.display_name.trim(),
         password: values.password || "",
-        steam_id: values.steam_id?.trim() || null,
       }),
     onSuccess: () => {
       message.success("用户已添加");
@@ -140,11 +140,11 @@ export default function UserManagementPage() {
         email?: string;
         display_name?: string;
         password?: string;
-        steam_id?: string | null;
+        role?: "admin" | "user";
       } = {
         email: values.email.trim(),
         display_name: values.display_name.trim(),
-        steam_id: values.steam_id?.trim() || null,
+        role: values.role === "admin" ? "admin" : "user",
       };
       if (values.password?.trim()) {
         payload.password = values.password.trim();
@@ -191,7 +191,7 @@ export default function UserManagementPage() {
       email: row.email || "",
       display_name: row.display_name || "",
       password: "",
-      steam_id: row.steam_id || "",
+      role: row.role === "admin" || row.is_admin ? "admin" : "user",
     });
   };
 
@@ -207,7 +207,7 @@ export default function UserManagementPage() {
         }}
       >
         <Typography.Text type="secondary">
-          管理员可添加、编辑普通用户；系统仅保留一名管理员。绑定由用户在个人中心自行完成。
+          管理员可添加、编辑用户并设置角色（普通用户 / 管理员，可多名）。绑定由用户在个人中心自行完成。
         </Typography.Text>
         <Button type="primary" onClick={() => setCreateOpen(true)}>
           添加用户
@@ -317,9 +317,6 @@ export default function UserManagementPage() {
           >
             <Input.Password placeholder="初始密码" autoComplete="new-password" />
           </Form.Item>
-          <Form.Item name="steam_id" label="Steam ID">
-            <Input placeholder="可选" />
-          </Form.Item>
         </Form>
       </Modal>
 
@@ -381,8 +378,22 @@ export default function UserManagementPage() {
               autoComplete="new-password"
             />
           </Form.Item>
-          <Form.Item name="steam_id" label="Steam ID">
-            <Input placeholder="可选，清空则解除绑定" />
+          <Form.Item
+            name="role"
+            label="角色"
+            rules={[{ required: true, message: "请选择角色" }]}
+            extra={
+              editing && currentUser?.id === editing.id
+                ? "不能将自己的角色改为普通用户"
+                : undefined
+            }
+          >
+            <Select
+              options={[
+                { value: "user", label: "普通用户" },
+                { value: "admin", label: "管理员" },
+              ]}
+            />
           </Form.Item>
         </Form>
       </Modal>

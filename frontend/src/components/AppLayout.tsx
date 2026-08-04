@@ -6,13 +6,13 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import {
   Avatar,
-  Dropdown,
+  Button,
   Layout,
   Menu,
   Tag,
+  Tooltip,
   Typography,
   theme,
-  type MenuProps,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -35,6 +35,7 @@ const leafKeys = [
   "/taygedo",
   "/exilium",
   "/kujiequ",
+  "/profile",
 ];
 
 export function AppLayout() {
@@ -103,6 +104,7 @@ export function AppLayout() {
 
   const selected = useMemo(() => {
     if (location.pathname.startsWith("/settings")) return "/settings";
+    if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
     if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
@@ -121,15 +123,6 @@ export function AppLayout() {
   const isAdmin = Boolean(user?.is_admin);
 
   const items = [
-    ...(isAdmin
-      ? [
-          {
-            key: "/settings",
-            icon: <ControlOutlined />,
-            label: <Link to="/settings/users">系统管理</Link>,
-          },
-        ]
-      : []),
     {
       key: "/steam",
       icon: <PlatformIcon name="steam" />,
@@ -157,6 +150,23 @@ export function AppLayout() {
     },
   ];
 
+  const bottomItems = [
+    ...(isAdmin
+      ? [
+          {
+            key: "/settings",
+            icon: <ControlOutlined />,
+            label: <Link to="/settings/users">系统管理</Link>,
+          },
+        ]
+      : []),
+    {
+      key: "/profile",
+      icon: <UserOutlined />,
+      label: <Link to="/profile">个人中心</Link>,
+    },
+  ];
+
   const displayName =
     profileQuery.data?.display_name ||
     profileQuery.data?.nickname ||
@@ -167,25 +177,10 @@ export function AppLayout() {
     profileQuery.data?.avatar_url || user?.avatar_url || undefined;
   const roleLabel = isAdmin ? "管理员" : null;
 
-  const accountMenuItems: MenuProps["items"] = [
-    {
-      key: "profile",
-      icon: <UserOutlined />,
-      label: "个人中心",
-      onClick: () => navigate("/profile"),
-    },
-    { type: "divider" as const },
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: "退出登录",
-      danger: true,
-      onClick: () => {
-        logout();
-        navigate("/login");
-      },
-    },
-  ];
+  const onLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -247,35 +242,32 @@ export function AppLayout() {
           <div
             style={{
               borderTop: "1px solid rgba(255,255,255,0.08)",
-              padding: "12px 10px",
               flexShrink: 0,
             }}
           >
-            <Dropdown
-              menu={{ items: accountMenuItems }}
-              trigger={["click"]}
-              placement="topLeft"
-            >
-              <button
-                type="button"
+            <Menu
+              theme="dark"
+              mode="inline"
+              className="sider-menu"
+              selectedKeys={
+                selected === "/profile" || selected === "/settings"
+                  ? [selected]
+                  : []
+              }
+              items={bottomItems}
+              style={{
+                background: "#1a2332",
+                borderInlineEnd: "none",
+              }}
+            />
+            <div style={{ padding: "4px 10px 12px" }}>
+              <div
                 style={{
-                  width: "100%",
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
+                  gap: 8,
                   padding: "8px 10px",
-                  border: "none",
                   borderRadius: 8,
-                  background: "transparent",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  color: "#fff",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
                 }}
               >
                 <Avatar size={36} src={avatarUrl}>
@@ -311,10 +303,19 @@ export function AppLayout() {
                     </Tag>
                   ) : null}
                 </div>
-              </button>
-            </Dropdown>
-            <div style={{ marginTop: 8, paddingBottom: 2 }}>
-              <AppVersion light />
+                <Tooltip title="退出登录">
+                  <Button
+                    type="text"
+                    className="sider-logout-btn"
+                    icon={<LogoutOutlined />}
+                    aria-label="退出登录"
+                    onClick={onLogout}
+                  />
+                </Tooltip>
+              </div>
+              <div style={{ marginTop: 4, paddingBottom: 2 }}>
+                <AppVersion light />
+              </div>
             </div>
           </div>
         </div>

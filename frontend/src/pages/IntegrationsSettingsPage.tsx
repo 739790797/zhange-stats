@@ -3,6 +3,7 @@ import { Button, Form, Input, Space, Typography, message } from "antd";
 import { useEffect } from "react";
 import {
   fetchIntegrationsSettings,
+  testNapCatConnection,
   updateIntegrationsSettings,
 } from "@/api/client";
 
@@ -50,6 +51,31 @@ export default function IntegrationsSettingsPage() {
         (e as { response?: { data?: { detail?: string } } }).response?.data
           ?.detail;
       message.error(String(detail || "保存失败"));
+    },
+  });
+
+  const testNapcat = useMutation({
+    mutationFn: async () => {
+      const values = form.getFieldsValue();
+      const base_url = (values.napcat_base_url || "").trim();
+      const token = (values.napcat_token || "").trim();
+      return testNapCatConnection({
+        base_url,
+        token: token || null,
+      });
+    },
+    onSuccess: (res) => {
+      if (res.ok) message.success(res.message);
+      else message.warning(res.message);
+    },
+    onError: (e: unknown) => {
+      const detail =
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { data?: { detail?: string } } }).response?.data
+          ?.detail;
+      message.error(String(detail || "测试失败"));
     },
   });
 
@@ -145,6 +171,14 @@ export default function IntegrationsSettingsPage() {
             style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             保存
+          </Button>
+          <Button
+            size="large"
+            htmlType="button"
+            loading={testNapcat.isPending}
+            onClick={() => testNapcat.mutate()}
+          >
+            测试
           </Button>
         </Space>
       </Form>

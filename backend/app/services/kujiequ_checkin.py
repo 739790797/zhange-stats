@@ -20,7 +20,7 @@ from app.services.checkin_common import (
     load_day_checkin_results,
     results_to_api,
     summarize_results,
-    upsert_day_checkin_logs,
+    upsert_and_reload_day_results,
 )
 from app.services.kujiequ_client import (
     KujiequApiError,
@@ -164,18 +164,17 @@ def query_today_for_bind(
         raise KujiequApiError(friendly_error_message(exc.message), code=exc.code) from exc
     _save_creds(bind, working)
     now = now_naive()
-    if results:
-        upsert_day_checkin_logs(
-            db,
-            KujiequCheckinLog,
-            member_id=bind.member_id,
-            bind_id=bind.id,
-            checkin_date=checkin_date,
-            results=results,
-            now=now,
-        )
+    merged = upsert_and_reload_day_results(
+        db,
+        KujiequCheckinLog,
+        member_id=bind.member_id,
+        bind_id=bind.id,
+        checkin_date=checkin_date,
+        results=results,
+        now=now,
+    )
     db.commit()
-    return day_results_payload(results)
+    return day_results_payload(merged)
 
 
 def run_checkin_for_bind(
@@ -216,22 +215,21 @@ def run_checkin_for_bind(
     bind.last_checkin_ok = ok
     bind.last_checkin_summary = summary
     bind.updated_at = now
-    if results:
-        upsert_day_checkin_logs(
-            db,
-            KujiequCheckinLog,
-            member_id=bind.member_id,
-            bind_id=bind.id,
-            checkin_date=checkin_date,
-            results=results,
-            now=now,
-        )
+    merged = upsert_and_reload_day_results(
+        db,
+        KujiequCheckinLog,
+        member_id=bind.member_id,
+        bind_id=bind.id,
+        checkin_date=checkin_date,
+        results=results,
+        now=now,
+    )
     db.commit()
     return {
         "skipped": False,
         "ok": ok,
         "summary": summary,
-        "results": results_to_api(results),
+        "results": results_to_api(merged),
     }
 
 

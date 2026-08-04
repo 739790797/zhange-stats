@@ -21,7 +21,7 @@ from app.services.checkin_common import (
     load_day_checkin_results,
     results_to_api,
     summarize_results,
-    upsert_day_checkin_logs,
+    upsert_and_reload_day_results,
 )
 from app.services.skland_client import (
     SklandApiError,
@@ -278,8 +278,8 @@ def query_today_for_bind(
         raise SklandApiError(friendly_error_message(exc.message)) from exc
     results = sort_skland_results(results)
     now = now_naive()
-    if results:
-        upsert_day_checkin_logs(
+    merged = sort_skland_results(
+        upsert_and_reload_day_results(
             db,
             SklandCheckinLog,
             member_id=bind.member_id,
@@ -288,8 +288,9 @@ def query_today_for_bind(
             results=results,
             now=now,
         )
-        db.commit()
-    return day_results_payload(results)
+    )
+    db.commit()
+    return day_results_payload(merged)
 
 
 def query_today_for_member(
@@ -406,8 +407,8 @@ def run_checkin_for_bind(
     bind.last_checkin_ok = ok
     bind.last_checkin_summary = summary
     bind.updated_at = now
-    if results:
-        upsert_day_checkin_logs(
+    merged = sort_skland_results(
+        upsert_and_reload_day_results(
             db,
             SklandCheckinLog,
             member_id=bind.member_id,
@@ -416,13 +417,14 @@ def run_checkin_for_bind(
             results=results,
             now=now,
         )
+    )
     db.commit()
 
     return {
         "skipped": False,
         "summary": summary,
         "ok": ok,
-        "results": results_to_api(results),
+        "results": results_to_api(merged),
     }
 
 
