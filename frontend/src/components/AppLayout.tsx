@@ -85,19 +85,28 @@ export function AppLayout() {
   }, [profileQuery.data, setUser]);
 
   useEffect(() => {
+    // 等 /auth/me 返回后再判断，避免 zustand 水合 / 首屏时 email 暂空误弹「完善账号」
+    if (!meQuery.isSuccess) {
+      return;
+    }
     const state = location.state as { promptCompleteProfile?: boolean } | null;
     const force = Boolean(state?.promptCompleteProfile);
     if (force) {
       navigate(location.pathname, { replace: true, state: {} });
     }
-    const email = meQuery.data?.email ?? user?.email;
+    const email = meQuery.data.email ?? user?.email ?? null;
+    if (email) {
+      setCompleteOpen(false);
+      return;
+    }
     if (force || shouldPromptCompleteProfile(email)) {
-      if (!email) setCompleteOpen(true);
+      setCompleteOpen(true);
     }
   }, [
     location.pathname,
     location.state,
-    meQuery.data?.email,
+    meQuery.data,
+    meQuery.isSuccess,
     navigate,
     user?.email,
   ]);

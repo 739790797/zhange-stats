@@ -16,7 +16,7 @@ import {
   message,
 } from "antd";
 import type { UploadProps } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   fetchMemberProfile,
@@ -47,7 +47,6 @@ let handledQqBindQuery: string | null = null;
 type ProfilePayload = {
   display_name?: string;
   steam_id?: string | null;
-  qq_number?: string | null;
 };
 
 function apiError(e: unknown, fallback: string) {
@@ -57,6 +56,30 @@ function apiError(e: unknown, fallback: string) {
     "response" in e &&
     (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
   return String(detail || (e as Error)?.message || fallback);
+}
+
+/** 绑定行标题：名称定宽，状态标签纵向对齐 */
+function BindStatusTitle({
+  name,
+  bound,
+  leading,
+}: {
+  name: string;
+  bound: boolean;
+  leading?: ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {leading}
+      <Typography.Text
+        strong
+        style={{ width: "3.75em", flex: "0 0 3.75em", lineHeight: "22px" }}
+      >
+        {name}
+      </Typography.Text>
+      {bound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+    </div>
+  );
 }
 
 export default function ProfileSettingsPage() {
@@ -73,7 +96,6 @@ export default function ProfileSettingsPage() {
   const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
   const [kujiequModalOpen, setKujiequModalOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
-  const [qqNumberDraft, setQqNumberDraft] = useState("");
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -193,7 +215,6 @@ export default function ProfileSettingsPage() {
   useEffect(() => {
     if (!data) return;
     setNameDraft(data.display_name || data.nickname || "");
-    setQqNumberDraft(data.qq_number || "");
   }, [data]);
 
   const saveName = useMutation({
@@ -202,16 +223,6 @@ export default function ProfileSettingsPage() {
       message.success("显示名称已更新");
       invalidateProfile();
       applyProfileLocally(profile);
-    },
-    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
-  });
-
-  const saveQqNumber = useMutation({
-    mutationFn: async (qqNumber: string) =>
-      saveProfilePatch({ qq_number: qqNumber.trim() || null }),
-    onSuccess: () => {
-      message.success("QQ 号已更新");
-      invalidateProfile();
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
@@ -481,28 +492,30 @@ export default function ProfileSettingsPage() {
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <Space size={8} align="center">
-              {steamBound ? (
-                <Avatar size={28} src={data?.steam_avatar_url || undefined}>
-                  S
-                </Avatar>
-              ) : null}
-              <Typography.Text strong>Steam</Typography.Text>
-              {steamBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-            </Space>
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                {steamBound
-                  ? `${data?.steam_persona_name || "已绑定"} · SteamID：${data?.steam_id}${
-                      data?.steam_friends_public === false
-                        ? " · 好友列表未公开（日历只能看自己）"
-                        : data?.steam_friends_public
-                          ? " · 好友列表已同步"
-                          : ""
-                    }`
-                  : "通过 Steam 登录确认归属；请公开资料与好友列表，日历仅对 Steam 好友可见"}
-              </Typography.Text>
-            </div>
+            <BindStatusTitle
+              name="Steam"
+              bound={steamBound}
+              leading={
+                steamBound ? (
+                  <Avatar size={28} src={data?.steam_avatar_url || undefined}>
+                    S
+                  </Avatar>
+                ) : null
+              }
+            />
+            {steamBound ? (
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {`${data?.steam_persona_name || "已绑定"} · SteamID：${data?.steam_id}${
+                    data?.steam_friends_public === false
+                      ? " · 好友列表未公开（日历只能看自己）"
+                      : data?.steam_friends_public
+                        ? " · 好友列表已同步"
+                        : ""
+                  }`}
+                </Typography.Text>
+              </div>
+            ) : null}
           </div>
           <Space>
             {steamBound ? (
@@ -548,51 +561,25 @@ export default function ProfileSettingsPage() {
             borderBottom: "1px solid rgba(0,0,0,0.06)",
           }}
         >
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Space size={8} align="center" wrap={false}>
-              {qqBound && data?.qq_avatar_url ? (
-                <Avatar size={28} src={data.qq_avatar_url}>
-                  Q
-                </Avatar>
-              ) : null}
-              <Typography.Text strong>QQ</Typography.Text>
-              {qqBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-              <Typography.Text
-                type="secondary"
-                style={{
-                  fontSize: 13,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {qqBound
-                  ? `昵称：${data?.qq_nickname || "已绑定"}`
-                  : "绑定后可在登录页使用 QQ 登录"}
-              </Typography.Text>
-              <Space.Compact style={{ width: 220, flex: "0 0 auto" }}>
-                <Input
-                  value={qqNumberDraft}
-                  onChange={(e) => setQqNumberDraft(e.target.value)}
-                  placeholder="QQ 号 5–12 位"
-                  disabled={!!errMsg || !data || saveQqNumber.isPending}
-                  maxLength={12}
-                  inputMode="numeric"
-                  title="用于群成员匹配；与 QQ 互联绑定独立"
-                />
-                <Button
-                  loading={saveQqNumber.isPending}
-                  disabled={
-                    !!errMsg ||
-                    !data ||
-                    (qqNumberDraft.trim() || "") === (data?.qq_number || "")
-                  }
-                  onClick={() => saveQqNumber.mutate(qqNumberDraft)}
-                >
-                  保存
-                </Button>
-              </Space.Compact>
-            </Space>
+          <div style={{ minWidth: 0 }}>
+            <BindStatusTitle
+              name="QQ"
+              bound={qqBound}
+              leading={
+                qqBound && data?.qq_avatar_url ? (
+                  <Avatar size={28} src={data.qq_avatar_url}>
+                    Q
+                  </Avatar>
+                ) : null
+              }
+            />
+            {qqBound ? (
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {`昵称：${data?.qq_nickname || "已绑定"}`}
+                </Typography.Text>
+              </div>
+            ) : null}
           </div>
           <Space>
             {qqBound ? (
@@ -639,17 +626,7 @@ export default function ProfileSettingsPage() {
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <Space size={8} align="center">
-                <Typography.Text strong>森空岛</Typography.Text>
-                {sklandBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-              </Space>
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {sklandBound
-                    ? `自动签到已${data?.skland_auto_checkin ? "开启" : "关闭"} · 可在「森空岛」页手动签到`
-                    : "扫码 / 短信 / 密码登录鹰角通行证，用于明日方舟 / 终末地每日签到"}
-                </Typography.Text>
-              </div>
+              <BindStatusTitle name="森空岛" bound={sklandBound} />
             </div>
             <Space>
               {sklandBound ? (
@@ -697,19 +674,7 @@ export default function ProfileSettingsPage() {
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <Space size={8} align="center">
-                <Typography.Text strong>塔吉多</Typography.Text>
-                {taygedoBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-              </Space>
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {taygedoBound
-                    ? `自动签到已${
-                        data?.taygedo_auto_checkin ? "开启" : "关闭"
-                      } · 可在「塔吉多」页手动签到`
-                    : "手机号验证码或密码登录，用于异环每日签到"}
-                </Typography.Text>
-              </div>
+              <BindStatusTitle name="塔吉多" bound={taygedoBound} />
             </div>
             <Space>
               {taygedoBound ? (
@@ -757,19 +722,7 @@ export default function ProfileSettingsPage() {
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <Space size={8} align="center">
-                <Typography.Text strong>追放</Typography.Text>
-                {exiliumBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-              </Space>
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {exiliumBound
-                    ? `自动签到已${
-                        data?.exilium_auto_checkin ? "开启" : "关闭"
-                      } · 可在「追放」页手动签到`
-                    : "官方社区账号密码或手机验证码，用于每日签到"}
-                </Typography.Text>
-              </div>
+              <BindStatusTitle name="追放" bound={exiliumBound} />
             </div>
             <Space>
               {exiliumBound ? (
@@ -817,19 +770,7 @@ export default function ProfileSettingsPage() {
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <Space size={8} align="center">
-                <Typography.Text strong>库街区</Typography.Text>
-                {kujiequBound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
-              </Space>
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {kujiequBound
-                    ? `自动签到已${
-                        data?.kujiequ_auto_checkin ? "开启" : "关闭"
-                      } · 可在「库街区」页手动签到`
-                    : "手机号短信验证码绑定，用于社区与鸣潮/战双签到"}
-                </Typography.Text>
-              </div>
+              <BindStatusTitle name="库街区" bound={kujiequBound} />
             </div>
             <Space>
               {kujiequBound ? (
