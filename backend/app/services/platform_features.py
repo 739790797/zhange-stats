@@ -57,14 +57,14 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "children": [
                     {
                         "id": "skland.arknights.box_sync",
-                        "name": "用户干员box",
+                        "name": "干员练度更新",
                         "kind": "job",
                         "job_id": "arknights_box_sync",
                         "schedule": "cron",
                     },
                     {
                         "id": "skland.arknights.catalog_sync",
-                        "name": "开源图鉴同步",
+                        "name": "游戏资源更新",
                         "kind": "job",
                         "job_id": "arknights_catalog_sync",
                         "schedule": "cron",
@@ -171,7 +171,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "taygedo": "塔吉多",
     "exilium": "追放",
     "kujiequ": "库街区",
-    "arknights_box": "用户干员box",
+    "arknights_box": "干员练度更新",
 }
 
 

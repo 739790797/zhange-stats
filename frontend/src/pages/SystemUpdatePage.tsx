@@ -7,6 +7,7 @@ import {
   fetchUpdateStatus,
   triggerUpdate,
 } from "@/api/client";
+import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 
 async function waitForNewVersion(previous: string, timeoutMs = 180_000) {
@@ -114,6 +115,10 @@ export default function SystemUpdatePage() {
 
   return (
     <div>
+      <PageHeader
+        title="系统更新"
+        subtitle="检查镜像版本并一键更新生产部署。"
+      />
       {checkHardError ? (
         <Alert
           type="error"

@@ -7,12 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, exilium, jobs, kujiequ, members, napcat, profile, skland, steam, taygedo, update
+from app.api import auth, exilium, jobs, kujiequ, members, napcat, profile, setup, skland, steam, taygedo, update
 from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
+from app.core.setup_middleware import SetupRequiredMiddleware
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
 from app.models import kujiequ as _kujiequ  # noqa: F401
@@ -27,10 +28,9 @@ from app.models import steam_friend as _steam_friend  # noqa: F401
 from app.models import system_config as _system_config  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
-from app.services.member_sync import sync_users_and_members
-from app.services.scheduler_runtime import register_scheduler_jobs
 from app.services.seed import seed_data
-from app.services.security_bootstrap import warn_if_weak_admin_password
+from app.services.scheduler_runtime import register_scheduler_jobs
+from app.services.member_sync import sync_users_and_members
 
 scheduler = BackgroundScheduler()
 
@@ -47,13 +47,15 @@ def _ensure_upload_root() -> Path:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    warn_if_weak_admin_password()
     run_migrations()
     _ensure_upload_root()
     db = SessionLocal()
     try:
         ensure_beijing_time_storage(db, engine)
         seed_data(db)
+        from app.services.security_bootstrap import check_admin_password_health
+
+        check_admin_password_health(db)
         sync_users_and_members(db)
         register_scheduler_jobs(scheduler, db, run_steam_once=True)
     finally:
@@ -85,8 +87,10 @@ else:
     _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
 
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
+app.add_middleware(SetupRequiredMiddleware)
 
 api = APIRouter(prefix="/api")
+api.include_router(setup.router)
 api.include_router(auth.router)
 api.include_router(members.router)
 api.include_router(profile.router)

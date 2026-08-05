@@ -40,13 +40,13 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = "123456"
     ADMIN_DISPLAY_NAME: str = "管理员"
     ADMIN_EMAIL: str = "admin@localhost"
-    # 仅当显式开启时，启动才把种子管理员密码重置为 ADMIN_PASSWORD
-    RESET_ADMIN_PASSWORD: bool = False
-    # development | production（production 下弱口令默认拒绝启动）
+    # 默认走安装向导；仅 CI/脚本可设 true 用上面 ADMIN_* 自动种子
+    ALLOW_ENV_ADMIN_SEED: bool = False
+    # development | production（production 下弱口令默认拒绝启动；也可在安全设置覆盖）
     APP_ENV: str = "development"
-    # 弱口令时拒绝启动；未显式设置时：production 默认拒绝，development 仅 WARNING
+    # 遗留：未写入库策略前作为默认；新部署请在管理端「安全设置」配置
     REJECT_WEAK_ADMIN_PASSWORD: bool | None = None
-    # 仅当显式开启时，启动才把其它管理员降级为普通用户
+    # 遗留：仅作库策略初始默认；请在「安全设置」开关
     ENFORCE_SINGLE_ADMIN: bool = False
 
     # 可选 Redis（限流跨实例）；留空则进程内滑动窗口

@@ -9,6 +9,7 @@ from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
 from app.models.user import User
 from app.services.auth_config import (
+    enforce_single_admin_if_needed,
     load_auth_config,
     public_auth_config,
     save_auth_config,
@@ -95,13 +96,34 @@ class IntegrationsUpdate(BaseModel):
     clear_napcat_token: bool = False
 
 
+class AuthAdminBrief(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    email: str | None = None
+    weak_password: bool = False
+
+
 class AuthSettingsOut(BaseModel):
     access_token_expire_minutes: int
     access_token_expire_days: float
+    min_password_length: int = 8
+    reject_weak_admin_password: bool | None = None
+    reject_weak_admin_password_effective: bool = False
+    enforce_single_admin: bool = False
+    app_env: str = "development"
+    is_production: bool = False
+    admins: list[AuthAdminBrief] = Field(default_factory=list)
+    weak_password_checked: bool = False
 
 
 class AuthSettingsUpdate(BaseModel):
-    access_token_expire_minutes: int = Field(default=60 * 24 * 30, ge=5, le=60 * 24 * 365)
+    access_token_expire_minutes: int | None = Field(
+        default=None, ge=5, le=60 * 24 * 365
+    )
+    min_password_length: int | None = Field(default=None, ge=6, le=72)
+    reject_weak_admin_password: bool | None = None
+    enforce_single_admin: bool | None = None
 
 
 def _integrations_out(db: Session, request: Request) -> dict:
@@ -195,20 +217,30 @@ def update_integrations(
 
 @router.get("/auth", response_model=AuthSettingsOut)
 def get_auth_settings(
+    check_weak: bool = False,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> dict:
-    return public_auth_config(load_auth_config(db))
+    # check_weak 会触发 bcrypt 字典探测；首屏默认跳过，由前端异步/手动开启
+    return public_auth_config(
+        load_auth_config(db),
+        db=db,
+        check_weak_passwords=check_weak,
+    )
 
 
 @router.put("/auth", response_model=AuthSettingsOut)
 def update_auth_settings(
     body: AuthSettingsUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    current: User = Depends(require_admin),
 ) -> dict:
-    saved = save_auth_config(db, body.model_dump())
-    return public_auth_config(saved)
+    payload = body.model_dump(exclude_unset=True)
+    saved = save_auth_config(db, payload)
+    if saved.get("enforce_single_admin"):
+        enforce_single_admin_if_needed(db, keep_user_id=current.id)
+        db.commit()
+    return public_auth_config(saved, db=db, check_weak_passwords=False)
 
 
 class PlatformFeatureNodeOut(BaseModel):

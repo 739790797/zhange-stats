@@ -1,56 +1,99 @@
-"""弱口令检测。"""
+"""弱口令体检：有管理员时检查；无管理员等待向导。"""
 
 from app.core.config import get_settings
-from app.services.security_bootstrap import warn_if_weak_admin_password
+from app.core.security import hash_password
+from app.models.user import User, UserRole
+from app.services.password_policy import PasswordPolicyError, is_weak_password, validate_password
+from app.services.security_bootstrap import check_admin_password_health
 
 
-def test_warn_weak_password_in_development(monkeypatch) -> None:
-    get_settings.cache_clear()
-    monkeypatch.setenv("ADMIN_PASSWORD", "123456")
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.delenv("REJECT_WEAK_ADMIN_PASSWORD", raising=False)
-    get_settings.cache_clear()
-    warn_if_weak_admin_password()  # 仅 warning
-    get_settings.cache_clear()
-
-
-def test_reject_weak_password_explicit(monkeypatch) -> None:
-    get_settings.cache_clear()
-    monkeypatch.setenv("ADMIN_PASSWORD", "123456")
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("REJECT_WEAK_ADMIN_PASSWORD", "true")
-    get_settings.cache_clear()
+def test_validate_password_rejects_short() -> None:
     try:
-        warn_if_weak_admin_password()
+        validate_password("short", min_length=8)
         raised = False
-    except RuntimeError:
+    except PasswordPolicyError:
         raised = True
-    finally:
-        get_settings.cache_clear()
     assert raised
 
 
-def test_production_defaults_to_reject(monkeypatch) -> None:
+def test_is_weak_common() -> None:
+    assert is_weak_password("123456")
+    assert is_weak_password("goodpass1", username="goodpass1")
+    assert not is_weak_password("Str0ng-Enough!")
+
+
+def test_no_admin_awaits_setup(monkeypatch) -> None:
     get_settings.cache_clear()
-    monkeypatch.setenv("ADMIN_PASSWORD", "123456")
+    monkeypatch.setenv("APP_ENV", "production")
+    get_settings.cache_clear()
+
+    class _Q:
+        def filter(self, *_a, **_k):
+            return self
+
+        def count(self):
+            return 0
+
+        def all(self):
+            return []
+
+    class DummySession:
+        def query(self, *_a, **_k):
+            return _Q()
+
+    # 无管理员：不因生产环境抛错
+    check_admin_password_health(DummySession())  # type: ignore[arg-type]
+    get_settings.cache_clear()
+
+
+def test_check_rejects_weak_admin_in_db(monkeypatch) -> None:
+    get_settings.cache_clear()
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.delenv("REJECT_WEAK_ADMIN_PASSWORD", raising=False)
     get_settings.cache_clear()
+
+    admin = User(
+        id=1,
+        username="admin",
+        email="a@b.c",
+        display_name="管理员",
+        password_hash=hash_password("123456"),
+        role=UserRole.admin,
+        email_verified=True,
+    )
+
+    class _Q:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def filter(self, *_a, **_k):
+            return self
+
+        def order_by(self, *_a, **_k):
+            return self
+
+        def all(self):
+            return self._rows
+
+        def count(self):
+            return len(self._rows)
+
+        def first(self):
+            return None
+
+    class DummySession:
+        def query(self, model):
+            name = getattr(model, "__name__", "")
+            if name == "SystemConfig":
+                return _Q([])
+            return _Q([admin])
+
     try:
-        warn_if_weak_admin_password()
+        check_admin_password_health(DummySession())  # type: ignore[arg-type]
         raised = False
-    except RuntimeError:
+    except RuntimeError as exc:
         raised = True
+        assert "弱口令" in str(exc)
     finally:
         get_settings.cache_clear()
     assert raised
-
-
-def test_production_can_explicitly_allow_warn_only(monkeypatch) -> None:
-    get_settings.cache_clear()
-    monkeypatch.setenv("ADMIN_PASSWORD", "123456")
-    monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("REJECT_WEAK_ADMIN_PASSWORD", "false")
-    get_settings.cache_clear()
-    warn_if_weak_admin_password()  # 显式关闭拒绝
-    get_settings.cache_clear()

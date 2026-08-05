@@ -20,14 +20,14 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "arknights_box_sync",
-        "name": "用户干员box",
+        "name": "干员练度更新",
         "description": "按绑定用户同步森空岛干员练度快照（技能 / 模组等）",
         "kind": "cron",
         "platform": "arknights_box",
     },
     {
         "id": "arknights_catalog_sync",
-        "name": "开源图鉴同步",
+        "name": "游戏资源更新",
         "description": "从 yuanyan3060/ArknightsGameResource 同步 character_table",
         "kind": "cron",
         "platform": "arknights_catalog",

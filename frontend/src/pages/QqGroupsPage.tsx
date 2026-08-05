@@ -4,6 +4,7 @@ import { Alert, Button, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 import {
   fetchIntegrationsSettings,
@@ -174,30 +175,23 @@ export default function QqGroupsPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography.Text type="secondary">
-          数据来自 NapCat；站内匹配依据成员资料中的 QQ 号。
-          {selectedGroup && membersQuery.data
-            ? ` 当前群站内用户 ${membersQuery.data.site_bound_count}/${membersQuery.data.members.length}`
-            : null}
-        </Typography.Text>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => void refresh()}
-          loading={groupsQuery.isFetching || membersQuery.isFetching}
-        >
-          刷新
-        </Button>
-      </div>
+      <PageHeader
+        title="QQ群"
+        subtitle={
+          selectedGroup && membersQuery.data
+            ? `数据来自 NapCat；站内匹配依据成员资料中的 QQ 号。当前群站内用户 ${membersQuery.data.site_bound_count}/${membersQuery.data.members.length}`
+            : "数据来自 NapCat；站内匹配依据成员资料中的 QQ 号。"
+        }
+        extra={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => void refresh()}
+            loading={groupsQuery.isFetching || membersQuery.isFetching}
+          >
+            刷新
+          </Button>
+        }
+      />
 
       {groupsError ? (
         <Alert

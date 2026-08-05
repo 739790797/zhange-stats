@@ -92,7 +92,7 @@ def list_user_checkin_tasks(
     platform: str | None = Query(default=None),
     member_id: int | None = Query(default=None, ge=1),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=20, ge=1, le=500),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> UserCheckinTasksPageOut:

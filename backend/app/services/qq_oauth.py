@@ -196,14 +196,26 @@ def exchange_code_for_profile(code: str, *, backend: str | None = None) -> QqPro
     if not access_token:
         raise QqOAuthError("QQ 未返回 access_token")
 
-    me_qs = urllib.parse.urlencode(
-        {"access_token": access_token, "fmt": "json", "unionid": "1"}
-    )
+    # 先取 openid（绑定/登录必需）；unionid 需在 QQ 互联「应用接口」单独开通，
+    # 未开通时 QQ 会返回 100048 CompanyID not set，不能因此阻断整条流程。
+    me_qs = urllib.parse.urlencode({"access_token": access_token, "fmt": "json"})
     me = _parse_jsonp_or_json(_http_get_text(f"{OPENID_URL}?{me_qs}"))
     openid = str(me.get("openid") or "").strip()
     if not openid:
         raise QqOAuthError("QQ 未返回 openid")
+
     unionid = str(me.get("unionid") or "").strip() or None
+    if not unionid:
+        try:
+            union_qs = urllib.parse.urlencode(
+                {"access_token": access_token, "fmt": "json", "unionid": "1"}
+            )
+            union_me = _parse_jsonp_or_json(
+                _http_get_text(f"{OPENID_URL}?{union_qs}")
+            )
+            unionid = str(union_me.get("unionid") or "").strip() or None
+        except QqOAuthError as exc:
+            logger.info("qq unionid unavailable (openid-only bind): %s", exc.message)
 
     info_qs = urllib.parse.urlencode(
         {

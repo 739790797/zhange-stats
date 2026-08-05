@@ -1,8 +1,15 @@
 import {
   CalendarOutlined,
-  ControlOutlined,
+  CloudDownloadOutlined,
+  KeyOutlined,
+  LockOutlined,
   LogoutOutlined,
+  MailOutlined,
+  ScheduleOutlined,
+  SettingOutlined,
+  TeamOutlined,
   UserOutlined,
+  UsergroupAddOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -35,8 +42,51 @@ import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
+const ADMIN_NAV = [
+  {
+    key: "/settings/users",
+    label: "用户管理",
+    icon: <TeamOutlined />,
+  },
+  {
+    key: "/settings/auth",
+    label: "安全设置",
+    icon: <LockOutlined />,
+  },
+  {
+    key: "/settings/integrations",
+    label: "集成密钥",
+    icon: <KeyOutlined />,
+  },
+  {
+    key: "/settings/qq-groups",
+    label: "QQ群",
+    icon: <UsergroupAddOutlined />,
+  },
+  {
+    key: "/settings/email",
+    label: "邮箱设置",
+    icon: <MailOutlined />,
+  },
+  {
+    key: "/settings/task-config",
+    label: "任务配置",
+    icon: <SettingOutlined />,
+  },
+  {
+    key: "/settings/jobs",
+    label: "任务调度",
+    icon: <ScheduleOutlined />,
+  },
+  {
+    key: "/settings/update",
+    label: "系统更新",
+    icon: <CloudDownloadOutlined />,
+  },
+] as const;
+
 const leafKeys = [
-  "/settings",
+  ...ADMIN_NAV.map((item) => item.key),
   "/steam",
   "/skland",
   "/taygedo",
@@ -126,8 +176,17 @@ export function AppLayout() {
   ]);
 
   const selected = useMemo(() => {
-    if (location.pathname.startsWith("/settings")) return "/settings";
-    if (/^\/members\/\d+\/profile/.test(location.pathname)) return "/settings";
+    if (/^\/members\/\d+\/profile/.test(location.pathname)) {
+      return "/settings/users";
+    }
+    if (location.pathname.startsWith("/settings/")) {
+      const hit = ADMIN_NAV.find(
+        (item) =>
+          location.pathname === item.key ||
+          location.pathname.startsWith(`${item.key}/`),
+      );
+      if (hit) return hit.key;
+    }
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
@@ -171,13 +230,11 @@ export function AppLayout() {
   ];
 
   const adminItems = isAdmin
-    ? [
-        {
-          key: "/settings",
-          icon: <ControlOutlined />,
-          label: <Link to="/settings/users">系统管理</Link>,
-        },
-      ]
+    ? ADMIN_NAV.map((item) => ({
+        key: item.key,
+        icon: item.icon,
+        label: <Link to={item.key}>{item.label}</Link>,
+      }))
     : [];
 
   const menuItems = [

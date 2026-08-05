@@ -10,6 +10,9 @@ export {
   verifyEmail,
   resendCode,
   fetchMe,
+  fetchPasswordPolicy,
+  changeOwnPassword,
+  changeOwnUsername,
   startQqOAuthLogin,
   exchangeQqTicket,
 } from "./authApi";
@@ -76,6 +79,9 @@ export {
   fetchUpdateStatus,
   triggerUpdate,
 } from "./settingsApi";
+
+export { fetchSetupStatus, completeSetupAdmin } from "./setupApi";
+export type { SetupStatus, SetupAdminResult } from "./setupApi";
 
 export {
   fetchSklandStatus,

@@ -92,3 +92,12 @@ a {
 .day-window-picker .ant-picker-input > input {
   text-align: center;
 }
+
+/* 任务调度：用户分组行整行灰底（含右侧 fixed 操作列） */
+.ant-table-wrapper tr.jobs-user-group-row > td {
+  background: rgba(26, 35, 50, 0.04) !important;
+}
+
+.ant-table-wrapper tr.jobs-user-group-row > td.ant-table-cell-fix-sticky {
+  background: rgba(26, 35, 50, 0.04) !important;
+}

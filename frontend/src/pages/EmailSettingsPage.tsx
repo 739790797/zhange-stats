@@ -17,6 +17,7 @@ import {
   testEmailSettings,
   updateEmailSettings,
 } from "@/api/client";
+import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 
 type FormValues = {
@@ -97,6 +98,7 @@ export default function EmailSettingsPage() {
 
   return (
     <div>
+      <PageHeader title="邮箱设置" subtitle="注册验证码与系统通知所用的 SMTP 配置。" />
       <Form
         form={form}
         layout="vertical"

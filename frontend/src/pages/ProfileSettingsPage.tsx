@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Upload, message } from "antd";
 import type { UploadProps } from "antd";
-import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   fetchMemberProfile,
@@ -51,7 +50,6 @@ export default function ProfileSettingsPage() {
   const showTaygedo = isFeatureOn(featuresQuery.data, "taygedo");
   const showExilium = isFeatureOn(featuresQuery.data, "exilium");
   const showKujiequ = isFeatureOn(featuresQuery.data, "kujiequ");
-  const [nameDraft, setNameDraft] = useState("");
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -103,21 +101,6 @@ export default function ProfileSettingsPage() {
       steam_id: profile.steam_id ?? null,
     });
   };
-
-  useEffect(() => {
-    if (!data) return;
-    setNameDraft(data.display_name || data.nickname || "");
-  }, [data]);
-
-  const saveName = useMutation({
-    mutationFn: async (name: string) => saveProfilePatch({ display_name: name }),
-    onSuccess: (profile) => {
-      message.success("显示名称已更新");
-      invalidateProfile();
-      applyProfileLocally(profile);
-    },
-    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
-  });
 
   const startSteamBind = useMutation({
     mutationFn: async () =>
@@ -253,7 +236,7 @@ export default function ProfileSettingsPage() {
         subtitle={
           isAdminEdit
             ? `正在编辑：${subjectLabel}（管理员代操作：需用目标 Steam 账号完成登录）`
-            : "绑定 Steam / 森空岛；头像可自行上传"
+            : "绑定平台账号；可修改登录密码与头像"
         }
         extra={
           isAdminEdit ? <Link to="/settings/users">返回用户管理</Link> : undefined
@@ -278,12 +261,10 @@ export default function ProfileSettingsPage() {
         errMsg={errMsg}
         data={data}
         displayName={displayName}
-        nameDraft={nameDraft}
-        onNameDraftChange={setNameDraft}
-        saveNamePending={saveName.isPending}
-        onSaveName={() => saveName.mutate(nameDraft.trim())}
         beforeUpload={beforeUpload}
         uploadAvatarPending={uploadAvatar.isPending}
+        showAccountActions={!isAdminEdit}
+        onUsernameChanged={invalidateProfile}
       />
 
       <PlatformBindsSection

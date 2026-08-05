@@ -9,7 +9,6 @@ import {
   Space,
   Table,
   Tag,
-  Typography,
   message,
 } from "antd";
 import { useMemo, useState } from "react";
@@ -22,6 +21,7 @@ import {
   updateUser,
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
+import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
@@ -177,22 +177,15 @@ export default function UserManagementPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 16,
-          gap: 16,
-        }}
-      >
-        <Typography.Text type="secondary">
-          管理员可添加、编辑用户并设置角色（普通用户 / 管理员，可多名）。绑定由用户在个人中心自行完成。
-        </Typography.Text>
-        <Button type="primary" onClick={() => setCreateOpen(true)}>
-          添加用户
-        </Button>
-      </div>
+      <PageHeader
+        title="用户管理"
+        subtitle="添加、编辑用户并设置角色。绑定由用户在个人中心自行完成；口令策略与管理员安全状态见「安全设置」。"
+        extra={
+          <Button type="primary" onClick={() => setCreateOpen(true)}>
+            添加用户
+          </Button>
+        }
+      />
       <Table
         rowKey="id"
         loading={isLoading}

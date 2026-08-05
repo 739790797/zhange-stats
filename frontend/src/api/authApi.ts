@@ -83,6 +83,38 @@ export async function fetchMe() {
   return data;
 }
 
+export async function fetchPasswordPolicy() {
+  const { data } = await client.get<{ min_password_length: number }>(
+    "/auth/password-policy",
+  );
+  return data;
+}
+
+export async function changeOwnPassword(payload: {
+  current_password: string;
+  new_password: string;
+}) {
+  const { data } = await client.post<{ ok: boolean; message: string }>(
+    "/auth/change-password",
+    payload,
+  );
+  return data;
+}
+
+export async function changeOwnUsername(payload: {
+  new_username: string;
+  current_password: string;
+}) {
+  const { data } = await client.post<{
+    ok: boolean;
+    message: string;
+    access_token: string;
+    token_type: string;
+    username: string;
+  }>("/auth/change-username", payload);
+  return data;
+}
+
 export async function startQqOAuthLogin() {
   const { data } = await client.get<{ url: string }>("/auth/qq/oauth/start");
   return data;

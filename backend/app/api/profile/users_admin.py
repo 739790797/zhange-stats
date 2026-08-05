@@ -23,6 +23,12 @@ from app.schemas import (
     UserAdminUpdate,
     UserBrief,
 )
+from app.services.auth_config import (
+    enforce_single_admin_if_needed,
+    get_min_password_length,
+    load_auth_config,
+)
+from app.services.password_policy import PasswordPolicyError, validate_password
 from app.services.avatar_store import (
     delete_avatar_file,
     is_custom_avatar_url,
@@ -109,11 +115,19 @@ def create_user(
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="该邮箱已被注册")
 
+    try:
+        password = validate_password(
+            body.password,
+            min_length=get_min_password_length(db),
+        )
+    except PasswordPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     user = User(
         username=_gen_username(db),
         email=email,
         display_name=display_name,
-        password_hash=hash_password(body.password),
+        password_hash=hash_password(password),
         role=UserRole.user,
         email_verified=True,
     )
@@ -172,7 +186,15 @@ def update_user(
         member.nickname = name
 
     if "password" in data and data["password"]:
-        user.password_hash = hash_password(data["password"])
+        try:
+            password = validate_password(
+                data["password"],
+                username=user.username,
+                min_length=get_min_password_length(db),
+            )
+        except PasswordPolicyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        user.password_hash = hash_password(password)
 
     if "steam_id" in data:
         _set_steam_id(db, member, data["steam_id"])
@@ -190,6 +212,7 @@ def update_user(
     if target_role is not None:
         currently_admin = _is_admin_user(user)
         becoming_user = target_role == UserRole.user and currently_admin
+        becoming_admin = target_role == UserRole.admin and not currently_admin
         if becoming_user:
             if user.id == current.id:
                 raise HTTPException(
@@ -203,6 +226,8 @@ def update_user(
                     detail="系统至少保留一名管理员",
                 )
         user.apply_role(target_role)
+        if becoming_admin and load_auth_config(db).get("enforce_single_admin"):
+            enforce_single_admin_if_needed(db, keep_user_id=user.id)
 
     db.commit()
     user = (

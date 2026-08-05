@@ -18,6 +18,7 @@ import {
   updatePlatformFeatures,
   type PlatformFeatureNode,
 } from "@/api/client";
+import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon, featureIconName } from "@/components/PlatformIcon";
 
 type DraftFlags = Record<string, boolean>;
@@ -263,45 +264,38 @@ export default function TaskConfigPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <Typography.Text type="secondary">
-          控制各平台可用性及其子游戏 / 任务。关闭平台后，侧栏、绑定、接口与调度将一并停用。
-        </Typography.Text>
-        <Space>
-          <Button
-            icon={<ReloadOutlined />}
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            刷新
-          </Button>
-          <Button
-            type="primary"
-            loading={save.isPending}
-            disabled={!flags || !jobs}
-            onClick={() => {
-              if (!flags || !jobs || !query.data?.tree) return;
-              const reserved = collectReservedIds(query.data.tree);
-              const features: DraftFlags = {};
-              for (const [id, on] of Object.entries(flags)) {
-                if (!reserved.has(id)) features[id] = on;
-              }
-              save.mutate({ features, jobs });
-            }}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
-          >
-            保存并应用
-          </Button>
-        </Space>
-      </div>
+      <PageHeader
+        title="任务配置"
+        subtitle="控制各平台可用性及其子游戏 / 任务。关闭平台后，侧栏、绑定、接口与调度将一并停用。"
+        extra={
+          <Space>
+            <Button
+              icon={<ReloadOutlined />}
+              loading={query.isFetching}
+              onClick={() => void query.refetch()}
+            >
+              刷新
+            </Button>
+            <Button
+              type="primary"
+              loading={save.isPending}
+              disabled={!flags || !jobs}
+              onClick={() => {
+                if (!flags || !jobs || !query.data?.tree) return;
+                const reserved = collectReservedIds(query.data.tree);
+                const features: DraftFlags = {};
+                for (const [id, on] of Object.entries(flags)) {
+                  if (!reserved.has(id)) features[id] = on;
+                }
+                save.mutate({ features, jobs });
+              }}
+              style={{ background: "#1a2332", borderColor: "#1a2332" }}
+            >
+              保存并应用
+            </Button>
+          </Space>
+        }
+      />
 
       {query.isError ? (
         <Alert

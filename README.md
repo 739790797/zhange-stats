@@ -32,10 +32,10 @@ CREATE DATABASE zhange_stats_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 ```
 
 ```bash
-cp .env.example .env   # 至少填 DATABASE_URL、ADMIN_*；JWT 密钥自动生成
+cp .env.example .env   # 至少填 DATABASE_URL；JWT 密钥自动生成
 ```
 
-邮件 SMTP、Steam/QQ 密钥、登录有效期、签到与轮询调度：登录管理员后在 **系统管理** 配置（写入 `system_configs`，无需再写进 `.env`）。
+首次打开站点会进入 **安装向导** 创建管理员。邮件 SMTP、Steam/QQ 密钥、登录有效期 / 口令策略、签到与轮询调度：登录后在侧栏 **管理** 配置（写入 `system_configs`）。CI 可用 `ALLOW_ENV_ADMIN_SEED=true` + `ADMIN_*` 跳过向导。
 
 ```bash
 # 后端
@@ -130,7 +130,7 @@ arknights_operators · arknights_catalog_meta
 - 登录以邮箱为主，也支持 QQ 登录一键开号（回调只带一次性 `ticket`，前端再换 JWT）；无邮箱时可稍后完善
 - 默认 JWT 有效期 **24 小时**（`ACCESS_TOKEN_EXPIRE_MINUTES` 或管理端「安全」可调；库内已存配置优先生效）
 - JWT 目前存前端 `localStorage`（zustand persist）。后续若迁 **httpOnly Cookie**：需后端 `Set-Cookie`（`Secure`/`SameSite`）、登录/登出/QQ 换票改写、CSRF 策略，以及 SPA 同域部署前提；在完成 CSRF 方案前保持 Bearer header，避免半吊子改造扩大攻击面。
-- 生产设置 `APP_ENV=production`（Docker 镜像默认已设）：弱口令默认**拒绝启动**。本地 `development` 仅 WARNING；可用 `REJECT_WEAK_ADMIN_PASSWORD=true/false` 显式覆盖。
+- 生产设置 `APP_ENV=production`（Docker 镜像默认已设）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖，或遗留 env `REJECT_WEAK_ADMIN_PASSWORD`。
 - 限流默认进程内；多实例可设 `REDIS_URL`（需 `redis` 包，已列入 requirements）。
 - 站内头像/昵称与 Steam 头像/昵称分离；Steam 页统计使用后者
 - Steam 隐私过严时可能跳过本轮状态；未返回过久会超时收尾会话

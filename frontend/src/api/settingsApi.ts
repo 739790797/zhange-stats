@@ -112,9 +112,25 @@ export interface IntegrationsSettings {
   napcat_configured: boolean;
 }
 
+export interface AuthAdminBrief {
+  id: number;
+  username: string;
+  display_name: string;
+  email?: string | null;
+  weak_password: boolean;
+}
+
 export interface AuthSettings {
   access_token_expire_minutes: number;
   access_token_expire_days: number;
+  min_password_length: number;
+  reject_weak_admin_password: boolean | null;
+  reject_weak_admin_password_effective: boolean;
+  enforce_single_admin: boolean;
+  app_env: string;
+  is_production: boolean;
+  admins: AuthAdminBrief[];
+  weak_password_checked?: boolean;
 }
 
 export interface UpdateCheckResult {
@@ -265,13 +281,18 @@ export async function updateIntegrationsSettings(payload: {
   return data;
 }
 
-export async function fetchAuthSettings() {
-  const { data } = await client.get<AuthSettings>("/settings/auth");
+export async function fetchAuthSettings(params?: { check_weak?: boolean }) {
+  const { data } = await client.get<AuthSettings>("/settings/auth", {
+    params: params?.check_weak ? { check_weak: true } : undefined,
+  });
   return data;
 }
 
 export async function updateAuthSettings(payload: {
-  access_token_expire_minutes: number;
+  access_token_expire_minutes?: number;
+  min_password_length?: number;
+  reject_weak_admin_password?: boolean | null;
+  enforce_single_admin?: boolean;
 }) {
   const { data } = await client.put<AuthSettings>("/settings/auth", payload);
   return data;
