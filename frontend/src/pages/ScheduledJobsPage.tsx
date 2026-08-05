@@ -128,7 +128,6 @@ export default function ScheduledJobsPage() {
     mutationFn: ({
       jobId,
       member_id,
-      taskKey,
     }: {
       jobId: string;
       member_id?: number | null;
