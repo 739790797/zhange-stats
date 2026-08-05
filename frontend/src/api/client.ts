@@ -328,11 +328,18 @@ export interface ScheduledJobLastRun {
   message?: string | null;
 }
 
+export interface JobExecutor {
+  id: string;
+  name: string;
+}
+
 export interface ScheduledJob {
   id: string;
   name: string;
   description: string;
   kind?: string;
+  platform?: string | null;
+  executor_id?: string;
   registered: boolean;
   scheduler_running: boolean;
   trigger_type?: string | null;
@@ -348,9 +355,109 @@ export interface ScheduledJob {
 export interface ScheduledJobsResponse {
   scheduler_running: boolean;
   timezone: string;
-  steam_fake_poll?: boolean;
-  steam_fake_available?: boolean;
+  platforms?: JobExecutor[];
+  executors?: JobExecutor[];
   jobs: ScheduledJob[];
+}
+
+export interface PlatformFeatureNode {
+  id: string;
+  name: string;
+  kind: string;
+  enabled: boolean;
+  effective: boolean;
+  parent_effective: boolean;
+  reserved?: boolean;
+  job_id?: string | null;
+  schedule?: string | null;
+  interval_minutes?: number | null;
+  hour?: number | null;
+  minute?: number | null;
+  children?: PlatformFeatureNode[];
+}
+
+export interface PlatformFeaturesResponse {
+  /** 库内原始开关（节点自身） */
+  raw: Record<string, boolean>;
+  /** 含祖先的生效开关 */
+  effective: Record<string, boolean>;
+  tree: PlatformFeatureNode[];
+}
+
+export interface JobRunRecord {
+  id: number;
+  job_key: string;
+  status: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  message?: string | null;
+  stats?: Record<string, unknown> | null;
+}
+
+export interface JobRunsPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: JobRunRecord[];
+}
+
+export interface JobTriggerResult {
+  accepted: boolean;
+  job_id: string;
+  message: string;
+}
+
+export interface CheckinLogItem {
+  id: number;
+  platform: string;
+  member_id: number;
+  user_label?: string | null;
+  game_code: string;
+  game_name: string;
+  role_uid: string;
+  role_name?: string | null;
+  status: string;
+  message?: string | null;
+  awards_text?: string | null;
+  checkin_date: string;
+  checked_at?: string | null;
+}
+
+export interface CheckinLogsPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: CheckinLogItem[];
+}
+
+export interface JobMemberOption {
+  member_id: number;
+  user_id?: number | null;
+  label: string;
+}
+
+export interface UserCheckinTask {
+  task_key: string;
+  job_id: string;
+  platform: string;
+  platform_name: string;
+  member_id: number;
+  user_label: string;
+  auto_checkin: boolean;
+  checkin_hour: number;
+  checkin_minute: number;
+  last_checkin_at?: string | null;
+  last_checkin_date?: string | null;
+  last_checkin_ok?: boolean | null;
+  last_checkin_summary?: string | null;
+  bound_at?: string | null;
+}
+
+export interface UserCheckinTasksPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: UserCheckinTask[];
 }
 
 export interface IntegrationsSettings {
@@ -383,21 +490,111 @@ export async function fetchScheduledJobs() {
   return data;
 }
 
-export async function updateScheduledJobs(payload: {
-  jobs: Record<
+export async function fetchPlatformFeaturesEffective() {
+  const { data } = await client.get<Record<string, boolean>>(
+    "/settings/platform-features/effective",
+  );
+  return data;
+}
+
+export async function fetchPlatformFeaturesAdmin() {
+  const { data } = await client.get<PlatformFeaturesResponse>(
+    "/settings/platform-features",
+  );
+  return data;
+}
+
+export async function updatePlatformFeatures(payload: {
+  features: Record<string, boolean>;
+  jobs?: Record<
     string,
     {
-      enabled?: boolean;
       interval_minutes?: number;
       hour?: number;
       minute?: number;
     }
   >;
-  steam_fake_poll?: boolean;
 }) {
-  const { data } = await client.put<ScheduledJobsResponse>(
-    "/settings/jobs",
+  const { data } = await client.put<PlatformFeaturesResponse>(
+    "/settings/platform-features",
     payload,
+  );
+  return data;
+}
+
+export async function triggerScheduledJob(
+  jobId: string,
+  payload?: { member_id?: number | null },
+) {
+  const { data } = await client.post<JobTriggerResult>(
+    `/settings/jobs/${encodeURIComponent(jobId)}/trigger`,
+    payload || {},
+  );
+  return data;
+}
+
+export async function fetchJobRuns(
+  jobId: string,
+  params?: { page?: number; page_size?: number },
+) {
+  const { data } = await client.get<JobRunsPage>(
+    `/settings/jobs/${encodeURIComponent(jobId)}/runs`,
+    { params },
+  );
+  return data;
+}
+
+export async function fetchJobCheckinLogs(params?: {
+  platform?: string | null;
+  member_id?: number | null;
+  page?: number;
+  page_size?: number;
+}) {
+  const { data } = await client.get<CheckinLogsPage>(
+    "/settings/jobs/checkin-logs",
+    { params },
+  );
+  return data;
+}
+
+export async function fetchJobFilterMembers() {
+  const { data } = await client.get<JobMemberOption[]>("/settings/jobs/members");
+  return data;
+}
+
+export async function fetchUserCheckinTasks(params?: {
+  platform?: string | null;
+  member_id?: number | null;
+  page?: number;
+  page_size?: number;
+}) {
+  const { data } = await client.get<UserCheckinTasksPage>(
+    "/settings/jobs/user-tasks",
+    { params },
+  );
+  return data;
+}
+
+export async function fetchMyDailyTasks(params?: {
+  platform?: string | null;
+  page?: number;
+  page_size?: number;
+}) {
+  const { data } = await client.get<UserCheckinTasksPage>(
+    "/profile/daily-tasks",
+    { params },
+  );
+  return data;
+}
+
+export async function fetchMyDailyTaskLogs(params?: {
+  platform?: string | null;
+  page?: number;
+  page_size?: number;
+}) {
+  const { data } = await client.get<CheckinLogsPage>(
+    "/profile/daily-task-logs",
+    { params },
   );
   return data;
 }
@@ -691,7 +888,11 @@ export async function unbindSkland() {
   return data;
 }
 
-export async function updateSklandBind(payload: { auto_checkin: boolean }) {
+export async function updateSklandBind(payload: {
+  auto_checkin?: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
   const { data } = await client.patch<SklandStatus>("/skland/bind", payload);
   return data;
 }
@@ -764,7 +965,11 @@ export async function unbindTaygedo() {
   return data;
 }
 
-export async function updateTaygedoBind(payload: { auto_checkin: boolean }) {
+export async function updateTaygedoBind(payload: {
+  auto_checkin?: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
   const { data } = await client.patch<TaygedoStatus>("/taygedo/bind", payload);
   return data;
 }
@@ -813,7 +1018,11 @@ export async function unbindExilium() {
   return data;
 }
 
-export async function updateExiliumBind(payload: { auto_checkin: boolean }) {
+export async function updateExiliumBind(payload: {
+  auto_checkin?: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
   const { data } = await client.patch<ExiliumStatus>("/exilium/bind", payload);
   return data;
 }
@@ -857,7 +1066,11 @@ export async function unbindKujiequ() {
   return data;
 }
 
-export async function updateKujiequBind(payload: { auto_checkin: boolean }) {
+export async function updateKujiequBind(payload: {
+  auto_checkin?: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
   const { data } = await client.patch<KujiequStatus>("/kujiequ/bind", payload);
   return data;
 }

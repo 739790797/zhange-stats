@@ -4,6 +4,7 @@ import {
   Alert,
   Avatar,
   Button,
+  Card,
   DatePicker,
   Empty,
   Radio,
@@ -20,6 +21,7 @@ import {
   fetchSteamDay,
   fetchSteamNow,
   fetchSteamAppStore,
+  startSteamOpenIdBind,
   triggerSteamPoll,
 } from "@/api/client";
 import type {
@@ -1044,6 +1046,7 @@ function TimelineChart({
 export default function SteamCalendarPage() {
   const queryClient = useQueryClient();
   const isAdmin = useAuthStore((s) => s.user?.is_admin);
+  const steamBound = Boolean(useAuthStore((s) => s.user?.steam_id));
   const [granularity, setGranularity] = useState<Granularity>("day");
   const [anchor, setAnchor] = useState(() => nowBeijing().startOf("day"));
   /** 日视图：0=自然日 00:00–24:00；12=跨夜窗 12:00–次日 12:00 */
@@ -1073,7 +1076,7 @@ export default function SteamCalendarPage() {
         ? { start: dayQueryDate, end: dayQueryEnd }
         : null;
 
-  const timelineEnabled = Boolean(timelineRange?.start);
+  const timelineEnabled = steamBound && Boolean(timelineRange?.start);
 
   const {
     data: timelineRaw,
@@ -1123,6 +1126,7 @@ export default function SteamCalendarPage() {
     queryFn: () => fetchSteamNow(),
     refetchInterval: 60_000,
     staleTime: 30_000,
+    enabled: steamBound,
   });
 
   useEffect(() => {
@@ -1147,6 +1151,22 @@ export default function SteamCalendarPage() {
       queryClient.invalidateQueries({ queryKey: ["steam-now"] });
     },
     onError: () => message.error("轮询请求失败"),
+  });
+
+  const startSteamBind = useMutation({
+    mutationFn: () => startSteamOpenIdBind(),
+    onSuccess: ({ url }) => {
+      window.location.href = url;
+    },
+    onError: (e: unknown) => {
+      const detail =
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { data?: { detail?: string } } }).response?.data
+          ?.detail;
+      message.error(String(detail || (e as Error)?.message || "无法跳转 Steam 登录"));
+    },
   });
 
   const shift = (dir: -1 | 1) => {
@@ -1193,13 +1213,8 @@ export default function SteamCalendarPage() {
     <div>
       <PageHeader
         title="Steam"
-        subtitle={
-          isAdmin
-            ? "管理员可见全部成员 · 日/周时间轴"
-            : "仅显示你与 Steam 好友 · 日/周时间轴"
-        }
         extra={
-          isAdmin ? (
+          isAdmin && steamBound ? (
             <Button loading={poll.isPending} onClick={() => poll.mutate()}>
               立即轮询
             </Button>
@@ -1207,102 +1222,135 @@ export default function SteamCalendarPage() {
         }
       />
 
-      {timelineData?.visibility?.hint && (
-        <Alert
-          type={
-            timelineData.visibility.friends_list_public === false
-              ? "warning"
-              : "info"
-          }
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={timelineData.visibility.hint}
-        />
-      )}
-
-      {nowPlaying && nowPlaying.length > 0 ? (
-        <NowPlayingPanel items={nowPlaying} />
-      ) : null}
-
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Radio.Group
-          value={granularity}
-          onChange={(e) => {
-            setGranularity(e.target.value);
-            setDayStartHour(0);
+      {!steamBound ? (
+        <div
+          style={{
+            maxWidth: 560,
+            margin: "0 auto",
+            padding: "8px 0 48px",
           }}
-          optionType="button"
-          options={[
-            { label: "日", value: "day" },
-            { label: "周", value: "week" },
-            { label: "月", value: "month" },
-            { label: "年", value: "year" },
-          ]}
-        />
-        {!isPendingGranularity && (
-          <>
-            <Button onClick={() => shift(-1)}>
-              {granularity === "day" ? "向前12小时" : "上一段"}
+        >
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="尚未绑定 Steam"
+            description="绑定后可查看自己与 Steam 好友的游玩时间轴。"
+          />
+          <Card>
+            <Button
+              type="primary"
+              size="large"
+              block
+              loading={startSteamBind.isPending}
+              onClick={() => startSteamBind.mutate()}
+            >
+              绑定 Steam 账号
             </Button>
-            {granularity === "week" ? (
-              <DatePicker
-                picker="week"
-                locale={datePickerLocale}
-                value={anchor}
-                allowClear={false}
-                onChange={(d) =>
-                  d &&
-                  setAnchor(
-                    parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"),
-                  )
-                }
-                style={{ width: 180 }}
-              />
-            ) : (
-              <DatePicker
-                className="day-window-picker"
-                locale={datePickerLocale}
-                value={anchor}
-                allowClear={false}
-                format={(value) => {
-                  const start = value.startOf("day");
-                  if (dayStartHour === 12) {
-                    const a = start.hour(12);
-                    const b = start.add(1, "day").hour(12);
-                    return `${a.format("YYYY-MM-DD HH:mm")} ~ ${b.format("YYYY-MM-DD HH:mm")}`;
-                  }
-                  return `${start.format("YYYY-MM-DD")} 00:00 ~ ${start.format("YYYY-MM-DD")} 24:00`;
-                }}
-                onChange={(d) => {
-                  if (!d) return;
-                  setDayStartHour(0);
-                  setAnchor(parseBeijing(d.format("YYYY-MM-DD")).startOf("day"));
-                }}
-                style={{ width: 320 }}
-              />
+          </Card>
+        </div>
+      ) : (
+        <>
+          {timelineData?.visibility?.hint && (
+            <Alert
+              type={
+                timelineData.visibility.friends_list_public === false
+                  ? "warning"
+                  : "info"
+              }
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={timelineData.visibility.hint}
+            />
+          )}
+
+          {nowPlaying && nowPlaying.length > 0 ? (
+            <NowPlayingPanel items={nowPlaying} />
+          ) : null}
+
+          <Space style={{ marginBottom: 16 }} wrap>
+            <Radio.Group
+              value={granularity}
+              onChange={(e) => {
+                setGranularity(e.target.value);
+                setDayStartHour(0);
+              }}
+              optionType="button"
+              options={[
+                { label: "日", value: "day" },
+                { label: "周", value: "week" },
+                { label: "月", value: "month" },
+                { label: "年", value: "year" },
+              ]}
+            />
+            {!isPendingGranularity && (
+              <>
+                <Button onClick={() => shift(-1)}>
+                  {granularity === "day" ? "向前12小时" : "上一段"}
+                </Button>
+                {granularity === "week" ? (
+                  <DatePicker
+                    picker="week"
+                    locale={datePickerLocale}
+                    value={anchor}
+                    allowClear={false}
+                    onChange={(d) =>
+                      d &&
+                      setAnchor(
+                        parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"),
+                      )
+                    }
+                    style={{ width: 180 }}
+                  />
+                ) : (
+                  <DatePicker
+                    className="day-window-picker"
+                    locale={datePickerLocale}
+                    value={anchor}
+                    allowClear={false}
+                    format={(value) => {
+                      const start = value.startOf("day");
+                      if (dayStartHour === 12) {
+                        const a = start.hour(12);
+                        const b = start.add(1, "day").hour(12);
+                        return `${a.format("YYYY-MM-DD HH:mm")} ~ ${b.format("YYYY-MM-DD HH:mm")}`;
+                      }
+                      return `${start.format("YYYY-MM-DD")} 00:00 ~ ${start.format("YYYY-MM-DD")} 24:00`;
+                    }}
+                    onChange={(d) => {
+                      if (!d) return;
+                      setDayStartHour(0);
+                      setAnchor(
+                        parseBeijing(d.format("YYYY-MM-DD")).startOf("day"),
+                      );
+                    }}
+                    style={{ width: 320 }}
+                  />
+                )}
+                <Button onClick={() => shift(1)}>
+                  {granularity === "day" ? "向后12小时" : "下一段"}
+                </Button>
+              </>
             )}
-            <Button onClick={() => shift(1)}>
-              {granularity === "day" ? "向后12小时" : "下一段"}
-            </Button>
-          </>
-        )}
-      </Space>
+          </Space>
 
-      {(granularity === "day" || granularity === "week") && (
-        <TimelineChart
-          rows={timelineData?.timeline ?? []}
-          gamesLegend={timelineData?.games_legend ?? []}
-          loading={timelineLoading || timelineFetching}
-          spanSeconds={spanSeconds}
-          rangeStart={timelineStart}
-        />
-      )}
+          {(granularity === "day" || granularity === "week") && (
+            <TimelineChart
+              rows={timelineData?.timeline ?? []}
+              gamesLegend={timelineData?.games_legend ?? []}
+              loading={timelineLoading || timelineFetching}
+              spanSeconds={spanSeconds}
+              rangeStart={timelineStart}
+            />
+          )}
 
-      {granularity === "month" && (
-        <Empty description="月统计待开发" style={{ marginTop: 48 }} />
-      )}
-      {granularity === "year" && (
-        <Empty description="年统计待开发" style={{ marginTop: 48 }} />
+          {granularity === "month" && (
+            <Empty description="月统计待开发" style={{ marginTop: 48 }} />
+          )}
+          {granularity === "year" && (
+            <Empty description="年统计待开发" style={{ marginTop: 48 }} />
+          )}
+        </>
       )}
     </div>
   );

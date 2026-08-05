@@ -139,7 +139,9 @@ class SklandBindSmsRequest(BaseModel):
 
 
 class SklandBindUpdate(BaseModel):
-    auto_checkin: bool
+    auto_checkin: bool | None = None
+    checkin_hour: int | None = Field(default=None, ge=0, le=23)
+    checkin_minute: int | None = Field(default=None, ge=0, le=59)
 
 
 class SklandRoleOut(BaseModel):
@@ -383,6 +385,8 @@ SklandCheckinResponse = CheckinResponse
 class SklandStatusOut(BaseModel):
     bound: bool
     auto_checkin: bool | None = None
+    checkin_hour: int | None = None
+    checkin_minute: int | None = None
     bound_at: datetime | None = None
     last_checkin_at: datetime | None = None
     last_checkin_date: str | None = None
@@ -437,7 +441,9 @@ class TaygedoBindJsonRequest(BaseModel):
 
 
 class TaygedoBindUpdate(BaseModel):
-    auto_checkin: bool
+    auto_checkin: bool | None = None
+    checkin_hour: int | None = Field(default=None, ge=0, le=23)
+    checkin_minute: int | None = Field(default=None, ge=0, le=59)
 
 
 class TaygedoRoleOut(BaseModel):
@@ -456,6 +462,8 @@ TaygedoCheckinResponse = CheckinResponse
 class TaygedoStatusOut(BaseModel):
     bound: bool
     auto_checkin: bool | None = None
+    checkin_hour: int | None = None
+    checkin_minute: int | None = None
     phone_mask: str | None = None
     bound_at: datetime | None = None
     last_checkin_at: datetime | None = None
@@ -492,7 +500,9 @@ class ExiliumBindSmsRequest(BaseModel):
 
 
 class ExiliumBindUpdate(BaseModel):
-    auto_checkin: bool
+    auto_checkin: bool | None = None
+    checkin_hour: int | None = Field(default=None, ge=0, le=23)
+    checkin_minute: int | None = Field(default=None, ge=0, le=59)
 
 
 class ExiliumRoleOut(BaseModel):
@@ -510,6 +520,8 @@ ExiliumCheckinResponse = CheckinResponse
 class ExiliumStatusOut(BaseModel):
     bound: bool
     auto_checkin: bool | None = None
+    checkin_hour: int | None = None
+    checkin_minute: int | None = None
     phone_mask: str | None = None
     bound_at: datetime | None = None
     last_checkin_at: datetime | None = None
@@ -546,7 +558,9 @@ class KujiequBindSmsRequest(BaseModel):
 
 
 class KujiequBindUpdate(BaseModel):
-    auto_checkin: bool
+    auto_checkin: bool | None = None
+    checkin_hour: int | None = Field(default=None, ge=0, le=23)
+    checkin_minute: int | None = Field(default=None, ge=0, le=59)
 
 
 class KujiequRoleOut(BaseModel):
@@ -565,6 +579,8 @@ KujiequCheckinResponse = CheckinResponse
 class KujiequStatusOut(BaseModel):
     bound: bool
     auto_checkin: bool | None = None
+    checkin_hour: int | None = None
+    checkin_minute: int | None = None
     phone_mask: str | None = None
     bound_at: datetime | None = None
     last_checkin_at: datetime | None = None

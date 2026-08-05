@@ -8,7 +8,8 @@ const TAB_ITEMS = [
   { key: "/settings/qq-groups", label: "QQ群" },
   { key: "/settings/auth", label: "安全设置" },
   { key: "/settings/email", label: "邮箱设置" },
-  { key: "/settings/jobs", label: "定时任务" },
+  { key: "/settings/task-config", label: "任务配置" },
+  { key: "/settings/jobs", label: "任务调度" },
   { key: "/settings/update", label: "系统更新" },
 ];
 

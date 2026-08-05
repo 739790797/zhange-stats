@@ -148,10 +148,28 @@ def unbind_taygedo(db: Session, member: Member) -> None:
 
 
 def set_auto_checkin(db: Session, member: Member, enabled: bool) -> TaygedoBind:
+    return update_bind_prefs(db, member, auto_checkin=bool(enabled))
+
+
+def update_bind_prefs(
+    db: Session,
+    member: Member,
+    *,
+    auto_checkin: bool | None = None,
+    checkin_hour: int | None = None,
+    checkin_minute: int | None = None,
+) -> TaygedoBind:
+    from app.services.checkin_schedule import clamp_checkin_hour, clamp_checkin_minute
+
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
-    bind.auto_checkin = bool(enabled)
+    if auto_checkin is not None:
+        bind.auto_checkin = bool(auto_checkin)
+    if checkin_hour is not None:
+        bind.checkin_hour = clamp_checkin_hour(checkin_hour)
+    if checkin_minute is not None:
+        bind.checkin_minute = clamp_checkin_minute(checkin_minute)
     bind.updated_at = now_naive()
     db.commit()
     db.refresh(bind)
@@ -393,13 +411,28 @@ def run_checkin_for_member(
     return run_checkin_for_bind(db, bind, force=force)
 
 
-def run_taygedo_checkin_job(db: Session) -> dict[str, Any]:
-    binds = (
+def run_taygedo_checkin_job(
+    db: Session,
+    *,
+    due_only: bool = False,
+    member_id: int | None = None,
+) -> dict[str, Any]:
+    from app.core.timeutil import now as now_beijing
+
+    q = (
         db.query(TaygedoBind)
         .options(joinedload(TaygedoBind.member))
         .filter(TaygedoBind.auto_checkin.is_(True))
-        .all()
     )
+    if member_id is not None:
+        q = q.filter(TaygedoBind.member_id == int(member_id))
+    elif due_only:
+        t = now_beijing()
+        q = q.filter(
+            TaygedoBind.checkin_hour == t.hour,
+            TaygedoBind.checkin_minute == t.minute,
+        )
+    binds = q.all()
     stats: dict[str, Any] = {"total": len(binds), "ok": 0, "failed": 0, "skipped": 0}
     for bind in binds:
         try:
@@ -417,7 +450,7 @@ def run_taygedo_checkin_job(db: Session) -> dict[str, Any]:
     return stats
 
 
-def checkin_job_wrapper() -> None:
+def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
     from app.core.database import SessionLocal
 
     if not _job_lock.acquire(blocking=False):
@@ -429,7 +462,7 @@ def checkin_job_wrapper() -> None:
     db.commit()
     db.refresh(job)
     try:
-        stats = run_taygedo_checkin_job(db)
+        stats = run_taygedo_checkin_job(db, due_only=due_only, member_id=member_id)
         job.status = "ok"
         job.message = (
             f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "

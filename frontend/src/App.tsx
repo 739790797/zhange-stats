@@ -8,6 +8,7 @@ import AuthSettingsPage from "@/pages/AuthSettingsPage";
 import IntegrationsSettingsPage from "@/pages/IntegrationsSettingsPage";
 import LoginPage from "@/pages/LoginPage";
 import MemberDetailPage from "@/pages/MemberDetailPage";
+import MyDailyPage from "@/pages/MyDailyPage";
 import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
 import RegisterPage from "@/pages/RegisterPage";
 import SklandPage from "@/pages/SklandPage";
@@ -18,9 +19,12 @@ import KujiequPage from "@/pages/KujiequPage";
 import SystemAdminPage from "@/pages/SystemAdminPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
+import TaskConfigPage from "@/pages/TaskConfigPage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import QqGroupsPage from "@/pages/QqGroupsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import { HomeRedirect } from "@/components/HomeRedirect";
+import { PlatformRoute } from "@/components/PlatformRoute";
 
 export default function App() {
   return (
@@ -61,15 +65,58 @@ export default function App() {
               </PrivateRoute>
             }
           >
-            <Route path="/" element={<Navigate to="/steam" replace />} />
-            <Route path="/steam" element={<SteamCalendarPage />} />
-            <Route path="/friends" element={<Navigate to="/steam" replace />} />
-            <Route path="/skland" element={<SklandPage />} />
-            <Route path="/taygedo" element={<TaygedoPage />} />
-            <Route path="/exilium" element={<ExiliumPage />} />
-            <Route path="/kujiequ" element={<KujiequPage />} />
-            <Route path="/members" element={<Navigate to="/steam" replace />} />
-            <Route path="/members/:id" element={<MemberDetailPage />} />
+            <Route path="/" element={<HomeRedirect />} />
+            <Route
+              path="/steam"
+              element={
+                <PlatformRoute featureId="steam">
+                  <SteamCalendarPage />
+                </PlatformRoute>
+              }
+            />
+            <Route path="/friends" element={<HomeRedirect />} />
+            <Route
+              path="/skland"
+              element={
+                <PlatformRoute featureId="skland">
+                  <SklandPage />
+                </PlatformRoute>
+              }
+            />
+            <Route
+              path="/taygedo"
+              element={
+                <PlatformRoute featureId="taygedo">
+                  <TaygedoPage />
+                </PlatformRoute>
+              }
+            />
+            <Route
+              path="/exilium"
+              element={
+                <PlatformRoute featureId="exilium">
+                  <ExiliumPage />
+                </PlatformRoute>
+              }
+            />
+            <Route
+              path="/kujiequ"
+              element={
+                <PlatformRoute featureId="kujiequ">
+                  <KujiequPage />
+                </PlatformRoute>
+              }
+            />
+            <Route path="/members" element={<HomeRedirect />} />
+            <Route
+              path="/members/:id"
+              element={
+                <PlatformRoute featureId="steam">
+                  <MemberDetailPage />
+                </PlatformRoute>
+              }
+            />
+            <Route path="/daily" element={<MyDailyPage />} />
             <Route path="/profile" element={<ProfileSettingsPage />} />
             <Route
               path="/settings"
@@ -88,11 +135,12 @@ export default function App() {
               <Route path="qq-groups" element={<QqGroupsPage />} />
               <Route path="auth" element={<AuthSettingsPage />} />
               <Route path="email" element={<EmailSettingsPage />} />
+              <Route path="task-config" element={<TaskConfigPage />} />
               <Route path="jobs" element={<ScheduledJobsPage />} />
               <Route path="update" element={<SystemUpdatePage />} />
             </Route>
           </Route>
-          <Route path="*" element={<Navigate to="/steam" replace />} />
+          <Route path="*" element={<HomeRedirect />} />
         </Routes>
       </BrowserRouter>
     </ConfigProvider>

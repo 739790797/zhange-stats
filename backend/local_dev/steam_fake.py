@@ -1,12 +1,7 @@
 """本地/开发假 Steam 数据与假轮询（不访问 Steam presence API）。
 
-启用：系统管理 → 定时任务 →「本地假监控」（或 .env STEAM_FAKE_POLL=true 冷启动默认）。
+仅供 CLI 灌数（见 local_dev/README.md）；管理端假监控入口已移除。
 只伪造用户在线/游玩轨迹；游戏 icon / 商店信息等仍走真实请求链路。
-
-启动时幂等补齐演示账号 / 好友 / 游戏缓存 / 历史；调度器持续写入监控数据。
-状态优先从库内未结束的 play_session / presence_segment 恢复，避免重启服务时
-每次都「重新开一局」导致时间轴碎片化。
-历史按作息类别生成（大学生 / 上班族 / 游戏主播），默认覆盖「上个月 1 日～今天」。
 """
 
 
@@ -902,6 +897,83 @@ def wipe_non_admin_users(db: Session) -> dict[str, int]:
 
     with _state_lock:
         _member_state.clear()
+
+    db.commit()
+    return deleted
+
+
+def wipe_fake_users(db: Session) -> dict[str, int]:
+    """仅删除 FAKE_USERS（user_a～user_z）及其 Steam 历史 / 好友边；不影响真实用户。"""
+    usernames = [u[0] for u in FAKE_USERS]
+    steam_ids = {u[2] for u in FAKE_USERS}
+
+    users = db.query(User).filter(User.username.in_(usernames)).all()
+    user_ids = [u.id for u in users]
+
+    member_q = db.query(Member)
+    if user_ids:
+        members = member_q.filter(
+            (Member.user_id.in_(user_ids)) | (Member.steam_id.in_(steam_ids))
+        ).all()
+    else:
+        members = member_q.filter(Member.steam_id.in_(steam_ids)).all()
+    member_ids = [m.id for m in members]
+
+    deleted = {
+        "users": 0,
+        "members": 0,
+        "play_sessions": 0,
+        "presence_segments": 0,
+        "friend_edges": 0,
+        "friend_edges_inbound": 0,
+        "job_runs": 0,
+    }
+
+    if member_ids:
+        deleted["play_sessions"] = (
+            db.query(PlaySession)
+            .filter(PlaySession.member_id.in_(member_ids))
+            .delete(synchronize_session=False)
+        )
+        deleted["presence_segments"] = (
+            db.query(PresenceSegment)
+            .filter(PresenceSegment.member_id.in_(member_ids))
+            .delete(synchronize_session=False)
+        )
+        deleted["friend_edges"] = (
+            db.query(SteamFriendEdge)
+            .filter(SteamFriendEdge.member_id.in_(member_ids))
+            .delete(synchronize_session=False)
+        )
+        deleted["members"] = (
+            db.query(Member)
+            .filter(Member.id.in_(member_ids))
+            .delete(synchronize_session=False)
+        )
+
+    # 其他成员指向演示 SteamID 的好友缓存
+    deleted["friend_edges_inbound"] = (
+        db.query(SteamFriendEdge)
+        .filter(SteamFriendEdge.friend_steam_id.in_(steam_ids))
+        .delete(synchronize_session=False)
+    )
+
+    if user_ids:
+        deleted["users"] = (
+            db.query(User)
+            .filter(User.id.in_(user_ids))
+            .delete(synchronize_session=False)
+        )
+
+    deleted["job_runs"] = (
+        db.query(JobRun)
+        .filter(JobRun.message.like(f"{FAKE_JOB_MESSAGE_PREFIX}%"))
+        .delete(synchronize_session=False)
+    )
+
+    with _state_lock:
+        for sid in steam_ids:
+            _member_state.pop(sid, None)
 
     db.commit()
     return deleted

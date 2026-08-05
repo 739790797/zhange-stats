@@ -115,10 +115,28 @@ def unbind_kujiequ(db: Session, member: Member) -> None:
 
 
 def set_auto_checkin(db: Session, member: Member, enabled: bool) -> KujiequBind:
+    return update_bind_prefs(db, member, auto_checkin=bool(enabled))
+
+
+def update_bind_prefs(
+    db: Session,
+    member: Member,
+    *,
+    auto_checkin: bool | None = None,
+    checkin_hour: int | None = None,
+    checkin_minute: int | None = None,
+) -> KujiequBind:
+    from app.services.checkin_schedule import clamp_checkin_hour, clamp_checkin_minute
+
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
-    bind.auto_checkin = bool(enabled)
+    if auto_checkin is not None:
+        bind.auto_checkin = bool(auto_checkin)
+    if checkin_hour is not None:
+        bind.checkin_hour = clamp_checkin_hour(checkin_hour)
+    if checkin_minute is not None:
+        bind.checkin_minute = clamp_checkin_minute(checkin_minute)
     bind.updated_at = now_naive()
     db.commit()
     db.refresh(bind)
@@ -242,7 +260,49 @@ def run_checkin_for_member(
     return run_checkin_for_bind(db, bind, force=force)
 
 
-def checkin_job_wrapper() -> None:
+def run_kujiequ_checkin_job(
+    db: Session,
+    *,
+    due_only: bool = False,
+    member_id: int | None = None,
+) -> dict[str, Any]:
+    from app.core.timeutil import now as now_beijing
+
+    q = (
+        db.query(KujiequBind)
+        .options(joinedload(KujiequBind.member))
+        .filter(KujiequBind.auto_checkin.is_(True))
+    )
+    if member_id is not None:
+        q = q.filter(KujiequBind.member_id == int(member_id))
+    elif due_only:
+        t = now_beijing()
+        q = q.filter(
+            KujiequBind.checkin_hour == t.hour,
+            KujiequBind.checkin_minute == t.minute,
+        )
+    binds = q.all()
+    stats: dict[str, Any] = {"total": len(binds), "ok": 0, "failed": 0, "skipped": 0}
+    for bind in binds:
+        try:
+            result = run_checkin_for_bind(db, bind, force=False)
+            if result.get("skipped"):
+                stats["skipped"] += 1
+            elif result.get("ok"):
+                stats["ok"] += 1
+            else:
+                stats["failed"] += 1
+        except Exception:  # noqa: BLE001
+            stats["failed"] += 1
+            logger.exception(
+                "kujiequ auto checkin failed member_id=%s",
+                bind.member_id,
+            )
+            db.rollback()
+    return stats
+
+
+def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
     from app.core.database import SessionLocal
 
     if not _job_lock.acquire(blocking=False):
@@ -254,31 +314,13 @@ def checkin_job_wrapper() -> None:
     db.commit()
     db.refresh(run)
     try:
-        binds = (
-            db.query(KujiequBind)
-            .options(joinedload(KujiequBind.member))
-            .filter(KujiequBind.auto_checkin.is_(True))
-            .all()
+        stats = run_kujiequ_checkin_job(db, due_only=due_only, member_id=member_id)
+        run.status = "ok" if stats["failed"] == 0 else "error"
+        run.message = (
+            f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
+            f"跳过 {stats['skipped']}（共 {stats['total']}）"
         )
-        ok_n = 0
-        fail_n = 0
-        for bind in binds:
-            try:
-                result = run_checkin_for_bind(db, bind, force=False)
-                if result.get("ok") or result.get("skipped"):
-                    ok_n += 1
-                else:
-                    fail_n += 1
-            except Exception as exc:  # noqa: BLE001
-                fail_n += 1
-                logger.exception(
-                    "kujiequ auto checkin failed member_id=%s: %s",
-                    bind.member_id,
-                    exc,
-                )
-                db.rollback()
-        run.status = "ok" if fail_n == 0 else "error"
-        run.message = f"完成 {ok_n}，失败 {fail_n}，共 {len(binds)}"
+        run.stats = stats
         run.finished_at = now_naive()
         db.commit()
     except Exception as exc:  # noqa: BLE001

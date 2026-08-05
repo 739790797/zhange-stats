@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.platform_deps import require_feature
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
@@ -28,13 +29,17 @@ from app.services.kujiequ_checkin import (
     preview_roles,
     query_today_for_bind,
     run_checkin_for_member,
-    set_auto_checkin,
     unbind_kujiequ,
+    update_bind_prefs,
 )
 from app.services.kujiequ_client import KujiequApiError, send_sms_captcha
 from app.services.member_sync import ensure_user_member
 
-router = APIRouter(prefix="/kujiequ", tags=["kujiequ"])
+router = APIRouter(
+    prefix="/kujiequ",
+    tags=["kujiequ"],
+    dependencies=[Depends(require_feature("kujiequ"))],
+)
 
 
 def _member_or_404(db: Session, user: User) -> Member:
@@ -85,6 +90,8 @@ def kujiequ_status(
     return KujiequStatusOut(
         bound=True,
         auto_checkin=bool(bind.auto_checkin),
+        checkin_hour=int(bind.checkin_hour),
+        checkin_minute=int(bind.checkin_minute),
         phone_mask=bind.phone_mask,
         bound_at=bind.bound_at,
         last_checkin_at=bind.last_checkin_at,
@@ -167,7 +174,11 @@ def kujiequ_unbind(
     return KujiequStatusOut(bound=False)
 
 
-@router.patch("/bind", response_model=KujiequStatusOut)
+@router.patch(
+    "/bind",
+    response_model=KujiequStatusOut,
+    dependencies=[Depends(require_feature("kujiequ.checkin"))],
+)
 def kujiequ_patch_bind(
     payload: KujiequBindUpdate,
     db: Session = Depends(get_db),
@@ -175,14 +186,23 @@ def kujiequ_patch_bind(
 ):
     member = _member_or_404(db, user)
     try:
-        if payload.auto_checkin is not None:
-            set_auto_checkin(db, member, payload.auto_checkin)
+        update_bind_prefs(
+            db,
+            member,
+            auto_checkin=payload.auto_checkin,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
     except KujiequApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return kujiequ_status(db=db, user=user, include_roles=True)
 
 
-@router.post("/checkin", response_model=KujiequCheckinResponse)
+@router.post(
+    "/checkin",
+    response_model=KujiequCheckinResponse,
+    dependencies=[Depends(require_feature("kujiequ.checkin"))],
+)
 def kujiequ_checkin(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),

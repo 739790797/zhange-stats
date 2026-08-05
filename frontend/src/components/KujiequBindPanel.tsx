@@ -36,9 +36,7 @@ export function KujiequBindPanel({
   return (
     <PhoneAuthBindTemplate
       title={title}
-      description="使用手机号短信验证码登录库街区。发送验证码时如需人机验证，将弹出官方极验（滑块/点选）。绑定后可自动完成社区与鸣潮 / 战双签到。"
       modes={["sms"]}
-      defaultMode="sms"
       onSendSms={async (phone) => {
         let data = await sendKujiequSms(phone);
         if (data.need_geetest) {

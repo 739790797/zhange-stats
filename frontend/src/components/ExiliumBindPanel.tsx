@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Input, Space, Typography, message } from "antd";
+import { Input, Space, message } from "antd";
 import { useState } from "react";
 import {
   bindExiliumPassword,
@@ -45,22 +45,13 @@ export function ExiliumBindPanel({
   return (
     <PhoneAuthBindTemplate
       title={title}
-      description={
-        <>
-          使用追放官方社区（
-          <Typography.Link href="https://gf2-bbs.exiliumgf.com/" target="_blank">
-            gf2-bbs.exiliumgf.com
-          </Typography.Link>
-          ）账号绑定：支持手机号验证码，或手机号 / 邮箱 + 密码。绑定后可自动每日签到。
-        </>
-      }
       modes={["sms", "password"]}
-      defaultMode="password"
       accountPlaceholder="手机号（短信）或手机号/邮箱（密码）"
       smsExtra={
         graphImage ? (
           <Space.Compact style={{ width: "100%" }}>
             <Input
+              size="large"
               placeholder="图形验证码"
               value={graphCode}
               onChange={(e) => setGraphCode(e.target.value)}
@@ -75,8 +66,8 @@ export function ExiliumBindPanel({
                 setGraphCode("");
               }}
               style={{
-                height: 32,
-                width: 100,
+                height: 40,
+                width: 108,
                 objectFit: "contain",
                 cursor: "pointer",
                 background: "#f5f5f5",

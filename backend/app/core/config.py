@@ -48,8 +48,6 @@ class Settings(BaseSettings):
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
     STEAM_POLL_ENABLED: bool = True
-    # 本地开发：假 Steam 监控（不调 API；与真实轮询互斥）。优先读系统管理配置
-    STEAM_FAKE_POLL: bool = False
     # 可选手动覆盖 OAuth 回调基址；留空则从请求 Host / Origin / X-Forwarded-* 推断
     PUBLIC_BACKEND_URL: str = ""
     PUBLIC_FRONTEND_URL: str = ""
@@ -70,6 +68,10 @@ class Settings(BaseSettings):
     ARKNIGHTS_BOX_SYNC_ENABLED: bool = True
     ARKNIGHTS_BOX_SYNC_HOUR: int = 0
     ARKNIGHTS_BOX_SYNC_MINUTE: int = 20
+    # 明日方舟开源图鉴（ArknightsGameResource character_table，默认 04:00）
+    ARKNIGHTS_CATALOG_SYNC_ENABLED: bool = True
+    ARKNIGHTS_CATALOG_SYNC_HOUR: int = 4
+    ARKNIGHTS_CATALOG_SYNC_MINUTE: int = 0
     # 塔吉多每日签到（异环）
     TAYGEDO_CHECKIN_ENABLED: bool = True
     TAYGEDO_CHECKIN_HOUR: int = 0

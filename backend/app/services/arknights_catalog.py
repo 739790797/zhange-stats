@@ -191,3 +191,37 @@ def sync_from_upstream(db: Session) -> dict[str, Any]:
         "source_version": version or None,
         "synced_at": now.isoformat() if now else None,
     }
+
+
+CATALOG_JOB_KEY = "arknights_catalog_sync"
+
+
+def catalog_sync_job_wrapper() -> None:
+    """定时从 ArknightsGameResource 同步干员图鉴。"""
+    from app.core.database import SessionLocal
+    from app.models.job_run import JobRun
+
+    db = SessionLocal()
+    job = JobRun(job_key=CATALOG_JOB_KEY, status="running")
+    db.add(job)
+    db.commit()
+    try:
+        result = sync_from_upstream(db)
+        job.status = "ok"
+        job.message = json.dumps(
+            {
+                "operator_count": result.get("operator_count"),
+                "source_version": result.get("source_version"),
+            },
+            ensure_ascii=False,
+        )
+        job.finished_at = now_naive()
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("arknights catalog sync job failed")
+        job.status = "error"
+        job.message = str(exc)
+        job.finished_at = now_naive()
+        db.commit()
+    finally:
+        db.close()

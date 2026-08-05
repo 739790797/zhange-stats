@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
-from app.core.local_dev_hooks import import_steam_fake
+from app.core.platform_deps import require_feature
 from app.models.user import User
 from app.schemas import (
     MemberPlayStatsResponse,
@@ -18,7 +18,6 @@ from app.schemas import (
     SteamOverviewResponse,
     SteamPollResult,
 )
-from app.services.dev_config import is_steam_fake_poll
 from app.services.steam_friends import list_viewer_steam_friends
 from app.services.steam_game_names import get_store_card, resolve_app_icons
 from app.services.steam_poller import run_steam_presence_poll
@@ -30,7 +29,11 @@ from app.services.steam_stats import (
     list_now_playing,
 )
 
-router = APIRouter(prefix="/steam", tags=["steam"])
+router = APIRouter(
+    prefix="/steam",
+    tags=["steam"],
+    dependencies=[Depends(require_feature("steam"))],
+)
 
 
 @router.get("/friends", response_model=SteamFriendsResponse)
@@ -147,12 +150,4 @@ def steam_poll(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> dict:
-    if is_steam_fake_poll(db):
-        steam_fake = import_steam_fake()
-        if steam_fake is None:
-            raise HTTPException(
-                status_code=503,
-                detail="本地假监控已开启但 local_dev.steam_fake 不可用",
-            )
-        return steam_fake.run_fake_steam_presence_poll(db)
     return run_steam_presence_poll(db)

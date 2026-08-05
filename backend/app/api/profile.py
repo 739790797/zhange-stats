@@ -187,6 +187,13 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _require_steam_feature(db: Session) -> None:
+    from app.services.platform_features import is_feature_enabled
+
+    if not is_feature_enabled(db, "steam"):
+        raise HTTPException(status_code=403, detail="该功能未启用")
+
+
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
     """绑定或解绑 Steam；仅同步 Steam 专用昵称/头像，不改站内身份。"""
     from app.services.steam_friends import clear_member_friends, sync_member_friends
@@ -194,6 +201,7 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
 
     value = (steam_id or "").strip() or None
     if not value:
+        # 解绑在平台关闭时仍允许，便于清理
         member.steam_id = None
         member.steam_friends_public = None
         member.steam_friends_synced_at = None
@@ -201,6 +209,8 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         member.steam_avatar_url = None
         clear_member_friends(db, member.id)
         return None
+
+    _require_steam_feature(db)
 
     try:
         profile = require_public_steam_profile(value)
@@ -475,13 +485,57 @@ def get_my_profile(
     return _profile_from_member(member)
 
 
+@router.get("/profile/daily-tasks")
+def list_my_daily_tasks(
+    platform: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """当前用户已绑定平台的日常任务（只读，仅本人）。"""
+    from app.api.jobs import query_user_checkin_tasks
+
+    member = ensure_user_member(db, user)
+    return query_user_checkin_tasks(
+        db,
+        platform=platform,
+        member_id=member.id,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/profile/daily-task-logs")
+def list_my_daily_task_logs(
+    platform: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """当前用户日常任务执行记录（只读，仅本人）。"""
+    from app.api.jobs import query_checkin_logs
+
+    member = ensure_user_member(db, user)
+    return query_checkin_logs(
+        db,
+        platform=platform,
+        member_id=member.id,
+        page=page,
+        page_size=page_size,
+    )
+
+
 @router.post("/profile/steam/preview", response_model=SteamBindPreviewResponse)
 def preview_steam_bind(
     body: SteamBindPreviewRequest,
+    db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> SteamBindPreviewResponse:
     from app.services.steam_bind import lookup_steam_profile
 
+    _require_steam_feature(db)
     try:
         profile = lookup_steam_profile(body.steam_input)
     except ValueError as exc:
@@ -515,6 +569,7 @@ def steam_openid_start(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SteamOpenIdStartResponse:
+    _require_steam_feature(db)
     backend = resolve_backend_base(request)
     if not backend:
         raise HTTPException(
@@ -605,6 +660,7 @@ def steam_openid_callback(
     )
 
     try:
+        _require_steam_feature(db)
         persona = _set_steam_id(db, member, steam_id)
         db.commit()
     except HTTPException as exc:

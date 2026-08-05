@@ -16,6 +16,7 @@ JOB_IDS = (
     "steam_presence",
     "skland_checkin",
     "arknights_box_sync",
+    "arknights_catalog_sync",
     "taygedo_checkin",
     "exilium_checkin",
     "kujiequ_checkin",
@@ -59,6 +60,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(s.ARKNIGHTS_BOX_SYNC_ENABLED),
             "hour": _clamp_hour(s.ARKNIGHTS_BOX_SYNC_HOUR),
             "minute": _clamp_minute(s.ARKNIGHTS_BOX_SYNC_MINUTE),
+        },
+        "arknights_catalog_sync": {
+            "enabled": bool(s.ARKNIGHTS_CATALOG_SYNC_ENABLED),
+            "hour": _clamp_hour(s.ARKNIGHTS_CATALOG_SYNC_HOUR),
+            "minute": _clamp_minute(s.ARKNIGHTS_CATALOG_SYNC_MINUTE),
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),
@@ -121,7 +127,12 @@ def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
     return out
 
 
-def save_scheduler_config(db: Session, payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def save_scheduler_config(
+    db: Session,
+    payload: dict[str, Any],
+    *,
+    commit: bool = True,
+) -> dict[str, dict[str, Any]]:
     current = load_scheduler_config(db)
     jobs_in = payload.get("jobs") if isinstance(payload.get("jobs"), dict) else payload
     if not isinstance(jobs_in, dict):
@@ -146,5 +157,8 @@ def save_scheduler_config(db: Session, payload: dict[str, Any]) -> dict[str, dic
         row.value = raw
     else:
         db.add(SystemConfig(key=SCHEDULER_CONFIG_KEY, value=raw))
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return next_cfg

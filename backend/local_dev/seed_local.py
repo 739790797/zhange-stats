@@ -1,16 +1,12 @@
-"""本地库：可选清空非 admin 用户后，灌入假数据（用户A～Z）。
+"""本地库：可选清空非 admin / 仅清演示假用户，或灌入假数据（用户A～Z）。
 
 用法（仓库 backend 目录）:
+  .venv\\Scripts\\python.exe -m local_dev.seed_local --purge-fake
   .venv\\Scripts\\python.exe -m local_dev.seed_local
   .venv\\Scripts\\python.exe -m local_dev.seed_local --wipe
   .venv\\Scripts\\python.exe -m local_dev.seed_local --reseed-history
 
-也可在系统管理 → 定时任务开启「本地假监控」，启动后端时自动补齐。
 登录示例: user_a / demopass123
-
-作息：
-  用户A–I 大学生｜用户J–R 上班族｜用户S–Z 游戏主播
-历史默认：上个月 1 日～今天
 """
 
 from __future__ import annotations
@@ -29,12 +25,18 @@ from local_dev.steam_fake import (
     FAKE_PASSWORD,
     ensure_local_fake_data,
     regenerate_fake_history,
+    wipe_fake_users,
     wipe_non_admin_users,
 )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="本地假数据种子")
+    parser.add_argument(
+        "--purge-fake",
+        action="store_true",
+        help="仅删除演示假用户 user_a～user_z 及其 Steam 历史（不重建）",
+    )
     parser.add_argument(
         "--wipe",
         action="store_true",
@@ -49,6 +51,10 @@ def main() -> int:
 
     db = SessionLocal()
     try:
+        if args.purge_fake:
+            wiped = wipe_fake_users(db)
+            print("已清空演示假用户及 Steam 历史:", wiped)
+            return 0
         if args.wipe:
             wiped = wipe_non_admin_users(db)
             print("已清空非 admin 用户数据:", wiped)
@@ -62,7 +68,6 @@ def main() -> int:
         print("  用户名: user_a … user_z（显示名：用户A～用户Z）")
         print("  作息:   A–I 大学生 / J–R 上班族 / S–Z 游戏主播")
         print(f"  密码:   {FAKE_PASSWORD}")
-        print("假监控: 系统管理 → 定时任务 → 开启「本地假监控」并保存。")
         return 0
     except Exception:
         db.rollback()

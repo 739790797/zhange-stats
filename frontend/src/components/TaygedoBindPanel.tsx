@@ -32,9 +32,7 @@ export function TaygedoBindPanel({
   return (
     <PhoneAuthBindTemplate
       title={title}
-      description="使用手机号验证码或密码登录塔吉多账号。通常单设备在线，App 重新登录后站内凭证会失效，需重新绑定。"
       modes={["sms", "password"]}
-      defaultMode="sms"
       onPhoneChange={(next, prev) => {
         if (deviceIdRef.current && next.trim() !== prev.trim()) {
           deviceIdRef.current = "";

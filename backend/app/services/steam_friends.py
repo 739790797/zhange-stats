@@ -12,16 +12,12 @@ from app.core.timeutil import ensure, now_naive
 from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.steam_friend import SteamFriendEdge
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.services.adapters.steam import SteamAdapter
 from app.services.member_sync import ensure_user_member
 from app.services.steam_game_names import display_name_for
 
 logger = logging.getLogger(__name__)
-
-
-def _is_admin_user(user: User) -> bool:
-    return bool(user.is_admin) or user.role == UserRole.admin
 
 FRIENDS_SYNC_TTL = timedelta(hours=6)
 # 好友页自动同步冷却；手动刷新不受此限制
@@ -141,17 +137,8 @@ def ensure_friends_fresh(
 
 
 def visible_member_ids_for_user(db: Session, user: User) -> set[int]:
-    """当前用户在 Steam 日历等场景可见的成员 ID（自己 + Steam 好友；管理员看全部）。"""
+    """当前用户在 Steam 日历等场景可见的成员 ID（自己 + Steam 好友）。"""
     member = ensure_user_member(db, user)
-    if _is_admin_user(user):
-        rows = (
-            db.query(Member.id)
-            .filter(Member.user_id.isnot(None))
-            .all()
-        )
-        db.flush()
-        return {r[0] for r in rows} or {member.id}
-
     visible = {member.id}
     steam_id = (member.steam_id or "").strip()
     if not steam_id:
@@ -403,12 +390,9 @@ def visibility_meta(
     bound = bool((member.steam_id or "").strip())
     friends_public = member.steam_friends_public
     friend_count = max(0, len(ids) - 1)
-    is_admin = _is_admin_user(user)
 
     hint: str | None = None
-    if is_admin:
-        hint = None
-    elif not bound:
+    if not bound:
         hint = "绑定 Steam 后，只能看到自己与 Steam 好友的游玩数据"
     elif friends_public is False:
         hint = (
@@ -419,7 +403,7 @@ def visibility_meta(
         hint = "当前没有站内 Steam 好友，日历仅显示你自己的数据"
 
     return {
-        "mode": "admin_all" if is_admin else "steam_friends",
+        "mode": "steam_friends",
         "self_member_id": member.id,
         "steam_bound": bound,
         "friends_list_public": friends_public,

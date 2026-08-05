@@ -9,7 +9,11 @@ import {
   startSklandQrBind,
 } from "@/api/client";
 import type { SklandQrStart } from "@/api/types";
-import { PhoneAuthBindTemplate } from "@/components/PhoneAuthBindTemplate";
+import {
+  PhoneAuthBindTemplate,
+  preferredPhoneAuthMode,
+  type PhoneAuthMode,
+} from "@/components/PhoneAuthBindTemplate";
 
 function apiError(e: unknown, fallback: string) {
   const detail =
@@ -26,22 +30,25 @@ function apiError(e: unknown, fallback: string) {
   return msg || fallback;
 }
 
+const SKLAND_MODES: PhoneAuthMode[] = ["qr", "sms", "password"];
+
 export function SklandBindPanel({
   title = "绑定森空岛",
-  defaultMode = "qr",
   onSuccess,
 }: {
   title?: string;
-  defaultMode?: "qr" | "sms" | "password";
+  /** @deprecated 已忽略；默认始终按 扫码 > 短信 > 密码 */
+  defaultMode?: PhoneAuthMode;
   onSuccess?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const resolvedDefault = preferredPhoneAuthMode(SKLAND_MODES);
   const [qr, setQr] = useState<SklandQrStart | null>(null);
   const [qrHint, setQrHint] = useState("请使用森空岛 App 扫码");
   const [qrLoading, setQrLoading] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const qrDone = useRef(false);
-  const modeRef = useRef<"qr" | "sms" | "password">(defaultMode);
+  const modeRef = useRef<PhoneAuthMode>(resolvedDefault);
 
   const clearPollTimer = () => {
     if (pollTimer.current != null) {
@@ -61,21 +68,23 @@ export function SklandBindPanel({
     onSuccess?.();
   };
 
+  const QR_HINT_WAITING = "请使用森空岛 App 扫码，并在手机上确认登录";
+
   const startQrSession = async () => {
     clearPollTimer();
     setQrLoading(true);
-    setQrHint("请使用森空岛 App 扫码");
+    setQrHint(QR_HINT_WAITING);
     qrDone.current = false;
     try {
       const session = await startSklandQrBind();
       setQr(session);
-      setQrHint("请使用森空岛 App 扫码，并在手机上确认登录");
+      setQrHint(QR_HINT_WAITING);
       pollTimer.current = window.setInterval(async () => {
         if (qrDone.current || modeRef.current !== "qr") return;
         try {
           const poll = await pollSklandQrBind(session.scan_id);
+          // waiting：保持引导文案，不展示上游「未扫码」等状态原句
           if (poll.status === "waiting") {
-            setQrHint(poll.message || "等待扫码…");
             return;
           }
           if (poll.status === "scanned") {
@@ -106,7 +115,7 @@ export function SklandBindPanel({
   };
 
   useEffect(() => {
-    if (defaultMode === "qr") void startQrSession();
+    if (resolvedDefault === "qr") void startQrSession();
     return () => clearPollTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -114,9 +123,7 @@ export function SklandBindPanel({
   return (
     <PhoneAuthBindTemplate
       title={title}
-      description="支持扫码、短信验证码或账号密码登录鹰角通行证，用于明日方舟 / 终末地签到。"
-      modes={["qr", "sms", "password"]}
-      defaultMode={defaultMode}
+      modes={SKLAND_MODES}
       onModeChange={(mode) => {
         modeRef.current = mode;
         if (mode === "qr") {

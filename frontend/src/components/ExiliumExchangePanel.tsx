@@ -251,7 +251,7 @@ export function ExiliumExchangePanel() {
           description={
             tokenBroken
               ? statusQuery.data?.token_error || "请重新绑定后再兑换。"
-              : "绑定后可查看积分并兑换官方社区物品。"
+              : undefined
           }
         />
         <Card>

@@ -8,12 +8,14 @@ import {
   Space,
   Switch,
   Tag,
+  TimePicker,
   Typography,
   message,
 } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import dayjs, { type Dayjs } from "dayjs";
 import { PageHeader } from "@/components/PageHeader";
 import {
   checkinStatusLabel,
@@ -45,6 +47,8 @@ export interface CheckinPageResultItem {
 export interface CheckinPageStatus {
   bound: boolean;
   auto_checkin?: boolean | null;
+  checkin_hour?: number | null;
+  checkin_minute?: number | null;
   phone_mask?: string | null;
   last_checkin_date?: string | null;
   last_checkin_ok?: boolean | null;
@@ -64,10 +68,9 @@ export interface CheckinPageResponse {
 
 export interface CheckinPageTemplateProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   /** 绑定源名称，如「森空岛」「塔吉多」 */
   bindName: string;
-  bindDescription: ReactNode;
   /** 未绑定 / 凭证失效时展示的页内绑定区（替代跳转个人中心） */
   bindPanel?: ReactNode;
   statusQueryKey: string[];
@@ -77,10 +80,18 @@ export interface CheckinPageTemplateProps {
   ) => Promise<CheckinPageStatus>;
   triggerCheckin: () => Promise<CheckinPageResponse>;
   updateBind: (payload: {
-    auto_checkin: boolean;
-  }) => Promise<{ auto_checkin?: boolean | null }>;
+    auto_checkin?: boolean;
+    checkin_hour?: number;
+    checkin_minute?: number;
+  }) => Promise<{
+    auto_checkin?: boolean | null;
+    checkin_hour?: number | null;
+    checkin_minute?: number | null;
+  }>;
   /** 是否展示 phone_mask（塔吉多） */
   showPhoneMask?: boolean;
+  /** 嵌入平台页 Tabs 时隐藏外层标题区 */
+  contentOnly?: boolean;
 }
 
 function apiError(e: unknown, fallback: string) {
@@ -129,7 +140,6 @@ export function CheckinPageTemplate({
   title,
   subtitle,
   bindName,
-  bindDescription,
   bindPanel,
   statusQueryKey,
   fetchStatus,
@@ -137,7 +147,7 @@ export function CheckinPageTemplate({
   updateBind,
   showPhoneMask = false,
   contentOnly = false,
-}: CheckinPageTemplateProps & { contentOnly?: boolean }) {
+}: CheckinPageTemplateProps) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -195,9 +205,31 @@ export function CheckinPageTemplate({
     onError: (e: unknown) => message.error(apiError(e, "更新失败")),
   });
 
+  const saveSchedule = useMutation({
+    mutationFn: (value: Dayjs) =>
+      updateBind({
+        checkin_hour: value.hour(),
+        checkin_minute: value.minute(),
+      }),
+    onSuccess: () => {
+      message.success("签到时间已保存");
+      queryClient.invalidateQueries({ queryKey: statusQueryKey });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  });
+
+  const scheduleValue = (() => {
+    const h = statusQuery.data?.checkin_hour;
+    const m = statusQuery.data?.checkin_minute;
+    if (h == null || m == null) return dayjs().hour(0).minute(5).second(0);
+    return dayjs().hour(h).minute(m).second(0);
+  })();
+
   const bound = Boolean(statusQuery.data?.bound);
   const todayResults = statusQuery.data?.today_results || [];
   const tokenBroken = bound && statusQuery.data?.token_ok === false;
+  const needsBind =
+    (!bound || tokenBroken) && Boolean(bindPanel) && !statusQuery.isLoading;
 
   const statusCard = (
     <Card
@@ -251,13 +283,25 @@ export function CheckinPageTemplate({
                 </Typography.Text>
               ) : null}
             </Space>
-            <Space>
+            <Space wrap>
               <Typography.Text>每日自动签到</Typography.Text>
               <Switch
                 checked={Boolean(statusQuery.data?.auto_checkin)}
                 loading={toggleAuto.isPending}
                 onChange={(v) => toggleAuto.mutate(v)}
               />
+              <Typography.Text type="secondary">每天</Typography.Text>
+              <TimePicker
+                format="HH:mm"
+                allowClear={false}
+                value={scheduleValue}
+                disabled={!statusQuery.data?.auto_checkin}
+                needConfirm={false}
+                onChange={(v) => {
+                  if (v) saveSchedule.mutate(v);
+                }}
+              />
+              <Typography.Text type="secondary">（北京时间）</Typography.Text>
             </Space>
           </div>
 
@@ -322,6 +366,33 @@ export function CheckinPageTemplate({
     return statusCard;
   }
 
+  const bindBlock = needsBind ? (
+    <div
+      style={{
+        maxWidth: 560,
+        margin: "0 auto",
+        padding: "8px 0 48px",
+      }}
+    >
+      <Alert
+        type={tokenBroken ? "warning" : "info"}
+        showIcon
+        style={{ marginBottom: 16 }}
+        message={
+          tokenBroken
+            ? `${bindName}凭证可能已失效`
+            : `尚未绑定${bindName}`
+        }
+        description={
+          tokenBroken
+            ? statusQuery.data?.token_error || "请重新绑定后再试。"
+            : undefined
+        }
+      />
+      <Card>{bindPanel}</Card>
+    </div>
+  ) : null;
+
   return (
     <div>
       <PageHeader
@@ -340,31 +411,7 @@ export function CheckinPageTemplate({
         }
       />
 
-      {!bound && !statusQuery.isLoading ? (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={`尚未绑定${bindName}`}
-          description={bindDescription}
-        />
-      ) : null}
-
-      {tokenBroken ? (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={`${bindName}凭证可能已失效`}
-          description={statusQuery.data?.token_error || "请重新绑定后再试。"}
-        />
-      ) : null}
-
-      {(!bound || tokenBroken) && bindPanel && !statusQuery.isLoading ? (
-        <Card style={{ marginBottom: 24 }}>{bindPanel}</Card>
-      ) : null}
-
-      {statusCard}
+      {needsBind ? bindBlock : statusCard}
     </div>
   );
 }

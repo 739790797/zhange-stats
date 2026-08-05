@@ -21,6 +21,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   fetchMemberProfile,
   fetchMyProfile,
+  fetchPlatformFeaturesEffective,
   startQqOAuthBind,
   startSteamOpenIdBind,
   unbindQq,
@@ -38,6 +39,7 @@ import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
+import { isFeatureOn } from "@/lib/platformFeatures";
 import { useAuthStore } from "@/stores/authStore";
 
 /** 避免 React StrictMode 双次挂载导致绑定回跳提示重复弹出 */
@@ -91,6 +93,16 @@ export default function ProfileSettingsPage() {
   const queryClient = useQueryClient();
   const setUser = useAuthStore((s) => s.setUser);
   const authUser = useAuthStore((s) => s.user);
+  const featuresQuery = useQuery({
+    queryKey: ["platform-features-effective"],
+    queryFn: fetchPlatformFeaturesEffective,
+    staleTime: 30_000,
+  });
+  const showSteam = isFeatureOn(featuresQuery.data, "steam");
+  const showSkland = isFeatureOn(featuresQuery.data, "skland");
+  const showTaygedo = isFeatureOn(featuresQuery.data, "taygedo");
+  const showExilium = isFeatureOn(featuresQuery.data, "exilium");
+  const showKujiequ = isFeatureOn(featuresQuery.data, "kujiequ");
   const [sklandModalOpen, setSklandModalOpen] = useState(false);
   const [taygedoModalOpen, setTaygedoModalOpen] = useState(false);
   const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
@@ -475,12 +487,10 @@ export default function ProfileSettingsPage() {
             </Descriptions>
           </div>
         </Space>
-        <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          站内头像与昵称可自行修改；Steam 页统计仍使用 Steam 头像与昵称。
-        </Typography.Paragraph>
       </Card>
 
       <Card title="账号绑定" loading={isLoading && !errMsg}>
+        {showSteam ? (
         <div
           style={{
             display: "flex",
@@ -550,6 +560,7 @@ export default function ProfileSettingsPage() {
             )}
           </Space>
         </div>
+        ) : null}
 
         <div
           style={{
@@ -615,7 +626,7 @@ export default function ProfileSettingsPage() {
           </Space>
         </div>
 
-        {!isAdminEdit ? (
+        {!isAdminEdit && showSkland ? (
           <div
             style={{
               display: "flex",
@@ -662,7 +673,7 @@ export default function ProfileSettingsPage() {
           </div>
         ) : null}
 
-        {!isAdminEdit ? (
+        {!isAdminEdit && showTaygedo ? (
           <div
             style={{
               display: "flex",
@@ -710,7 +721,7 @@ export default function ProfileSettingsPage() {
           </div>
         ) : null}
 
-        {!isAdminEdit ? (
+        {!isAdminEdit && showExilium ? (
           <div
             style={{
               display: "flex",
@@ -758,7 +769,7 @@ export default function ProfileSettingsPage() {
           </div>
         ) : null}
 
-        {!isAdminEdit ? (
+        {!isAdminEdit && showKujiequ ? (
           <div
             style={{
               display: "flex",

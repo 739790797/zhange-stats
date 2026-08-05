@@ -1,4 +1,5 @@
 import {
+  CalendarOutlined,
   ControlOutlined,
   LogoutOutlined,
   UserOutlined,
@@ -16,7 +17,7 @@ import {
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { fetchMe, fetchMyProfile } from "@/api/client";
+import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import {
@@ -24,6 +25,11 @@ import {
   shouldPromptCompleteProfile,
 } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import {
+  PLATFORM_NAV,
+  firstEnabledPlatformPath,
+  isFeatureOn,
+} from "@/lib/platformFeatures";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
@@ -35,6 +41,7 @@ const leafKeys = [
   "/taygedo",
   "/exilium",
   "/kujiequ",
+  "/daily",
   "/profile",
 ];
 
@@ -46,6 +53,12 @@ export function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const { token } = theme.useToken();
   const [completeOpen, setCompleteOpen] = useState(false);
+
+  const featuresQuery = useQuery({
+    queryKey: ["platform-features-effective"],
+    queryFn: fetchPlatformFeaturesEffective,
+    staleTime: 30_000,
+  });
 
   const meQuery = useQuery({
     queryKey: ["auth-me"],
@@ -114,6 +127,7 @@ export function AppLayout() {
   const selected = useMemo(() => {
     if (location.pathname.startsWith("/settings")) return "/settings";
     if (location.pathname.startsWith("/profile")) return "/profile";
+    if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
     if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
@@ -130,34 +144,41 @@ export function AppLayout() {
   }, [location.pathname]);
 
   const isAdmin = Boolean(user?.is_admin);
+  const features = featuresQuery.data;
 
-  const items = [
-    {
-      key: "/steam",
-      icon: <PlatformIcon name="steam" />,
-      label: <Link to="/steam">Steam</Link>,
-    },
-    {
-      key: "/skland",
-      icon: <PlatformIcon name="skland" />,
-      label: <Link to="/skland">森空岛</Link>,
-    },
-    {
-      key: "/taygedo",
-      icon: <PlatformIcon name="taygedo" />,
-      label: <Link to="/taygedo">塔吉多</Link>,
-    },
-    {
-      key: "/exilium",
-      icon: <PlatformIcon name="exilium" />,
-      label: <Link to="/exilium">追放</Link>,
-    },
-    {
-      key: "/kujiequ",
-      icon: <PlatformIcon name="kujiequ" />,
-      label: <Link to="/kujiequ">库街区</Link>,
-    },
-  ];
+  const items = PLATFORM_NAV.filter((item) =>
+    isFeatureOn(features, item.featureId),
+  ).map((item) => ({
+    key: item.path,
+    icon: <PlatformIcon name={item.icon} />,
+    label: <Link to={item.path}>{item.label}</Link>,
+  }));
+
+  useEffect(() => {
+    if (featuresQuery.isLoading) return;
+    const hit = PLATFORM_NAV.find(
+      (item) =>
+        location.pathname === item.path ||
+        location.pathname.startsWith(`${item.path}/`) ||
+        (item.path === "/steam" && location.pathname.startsWith("/members")),
+    );
+    if (!hit) return;
+    if (
+      featuresQuery.isError ||
+      !isFeatureOn(features, hit.featureId)
+    ) {
+      navigate(
+        firstEnabledPlatformPath(featuresQuery.isError ? null : features),
+        { replace: true },
+      );
+    }
+  }, [
+    features,
+    featuresQuery.isError,
+    featuresQuery.isLoading,
+    location.pathname,
+    navigate,
+  ]);
 
   const bottomItems = [
     ...(isAdmin
@@ -169,6 +190,11 @@ export function AppLayout() {
           },
         ]
       : []),
+    {
+      key: "/daily",
+      icon: <CalendarOutlined />,
+      label: <Link to="/daily">我的日常</Link>,
+    },
     {
       key: "/profile",
       icon: <UserOutlined />,
@@ -259,7 +285,9 @@ export function AppLayout() {
               mode="inline"
               className="sider-menu"
               selectedKeys={
-                selected === "/profile" || selected === "/settings"
+                selected === "/profile" ||
+                selected === "/settings" ||
+                selected === "/daily"
                   ? [selected]
                   : []
               }

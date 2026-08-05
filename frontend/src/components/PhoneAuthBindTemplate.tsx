@@ -10,11 +10,30 @@ const MODE_LABEL: Record<PhoneAuthMode, string> = {
   password: "账号密码",
 };
 
+/** 默认选中优先级：扫码 > 短信验证码 > 账号密码 */
+export const PHONE_AUTH_MODE_PRIORITY: PhoneAuthMode[] = [
+  "qr",
+  "sms",
+  "password",
+];
+
+export function preferredPhoneAuthMode(modes: PhoneAuthMode[]): PhoneAuthMode {
+  return (
+    PHONE_AUTH_MODE_PRIORITY.find((m) => modes.includes(m)) ?? modes[0]
+  );
+}
+
+function orderedPhoneAuthModes(modes: PhoneAuthMode[]): PhoneAuthMode[] {
+  return PHONE_AUTH_MODE_PRIORITY.filter((m) => modes.includes(m));
+}
+
+/** 与登录页一致：Ant Design large = 40px 高 */
+const CONTROL_SIZE = "large" as const;
+
 export function PhoneAuthBindTemplate({
   title,
   description,
   modes,
-  defaultMode,
   submitText = "登录并绑定",
   qrPanel,
   accountPlaceholder = "手机号",
@@ -26,8 +45,9 @@ export function PhoneAuthBindTemplate({
   onBindPassword,
 }: {
   title?: string;
-  description: ReactNode;
+  description?: ReactNode;
   modes: PhoneAuthMode[];
+  /** @deprecated 已忽略；始终按 扫码 > 短信 > 密码 选中 */
   defaultMode?: PhoneAuthMode;
   submitText?: string;
   /** 扫码模式内容；仅当 modes 含 qr 时使用 */
@@ -43,8 +63,8 @@ export function PhoneAuthBindTemplate({
   onBindSms: (phone: string, code: string) => Promise<void>;
   onBindPassword: (phone: string, password: string) => Promise<void>;
 }) {
-  const initial =
-    defaultMode && modes.includes(defaultMode) ? defaultMode : modes[0];
+  const modeOptions = orderedPhoneAuthModes(modes);
+  const initial = preferredPhoneAuthMode(modeOptions);
   const [mode, setMode] = useState<PhoneAuthMode>(initial);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -83,32 +103,52 @@ export function PhoneAuthBindTemplate({
   };
 
   return (
-    <div>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
       {title ? (
-        <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+        <Typography.Title
+          level={5}
+          style={{ marginTop: 0, marginBottom: description ? 8 : 16 }}
+        >
           {title}
-        </Typography.Text>
+        </Typography.Title>
       ) : null}
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        {description}
-      </Typography.Paragraph>
-      {/* Align with Login/Register (~420px); avoid full-bleed inputs in wide cards */}
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        {modes.length > 1 ? (
+      {description ? (
+        <Typography.Paragraph
+          type="secondary"
+          style={{ marginBottom: 16, textAlign: "center", maxWidth: 420 }}
+        >
+          {description}
+        </Typography.Paragraph>
+      ) : null}
+
+      {/* 与登录页同宽约 360–420；large 控件对齐 Ant Design 登录表单规范 */}
+      <div style={{ width: "100%", maxWidth: 360 }}>
+        {modeOptions.length > 1 ? (
           <Segmented
             block
-            style={{ marginBottom: 12 }}
+            size={CONTROL_SIZE}
+            style={{ marginBottom: 16 }}
             value={mode}
             onChange={(v) => changeMode(v as PhoneAuthMode)}
-            options={modes.map((m) => ({ label: MODE_LABEL[m], value: m }))}
+            options={modeOptions.map((m) => ({
+              label: MODE_LABEL[m],
+              value: m,
+            }))}
           />
         ) : null}
 
         {mode === "qr" ? (
           qrPanel
         ) : (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
             <Input
+              size={CONTROL_SIZE}
               placeholder={accountPlaceholder}
               value={phone}
               onChange={(e) => {
@@ -123,6 +163,7 @@ export function PhoneAuthBindTemplate({
                 {smsExtra}
                 <Space.Compact style={{ width: "100%" }}>
                   <Input
+                    size={CONTROL_SIZE}
                     placeholder="短信验证码"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
@@ -130,6 +171,7 @@ export function PhoneAuthBindTemplate({
                     inputMode="numeric"
                   />
                   <Button
+                    size={CONTROL_SIZE}
                     loading={sendingSms}
                     disabled={smsCooldown > 0 || sendingSms}
                     onClick={async () => {
@@ -153,7 +195,11 @@ export function PhoneAuthBindTemplate({
                           (e as { response?: { data?: { detail?: string } } })
                             .response?.data?.detail;
                         message.error(
-                          String(detail || (e as Error)?.message || "发送验证码失败"),
+                          String(
+                            detail ||
+                              (e as Error)?.message ||
+                              "发送验证码失败",
+                          ),
                         );
                       } finally {
                         setSendingSms(false);
@@ -165,6 +211,7 @@ export function PhoneAuthBindTemplate({
                 </Space.Compact>
                 <Button
                   type="primary"
+                  size={CONTROL_SIZE}
                   block
                   loading={binding}
                   onClick={async () => {
@@ -183,7 +230,9 @@ export function PhoneAuthBindTemplate({
                         (e as { response?: { data?: { detail?: string } } })
                           .response?.data?.detail;
                       message.error(
-                        String(detail || (e as Error)?.message || "绑定失败"),
+                        String(
+                          detail || (e as Error)?.message || "绑定失败",
+                        ),
                       );
                     } finally {
                       setBinding(false);
@@ -196,6 +245,7 @@ export function PhoneAuthBindTemplate({
             ) : (
               <>
                 <Input.Password
+                  size={CONTROL_SIZE}
                   placeholder="密码"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -203,6 +253,7 @@ export function PhoneAuthBindTemplate({
                 />
                 <Button
                   type="primary"
+                  size={CONTROL_SIZE}
                   block
                   loading={binding}
                   onClick={async () => {
@@ -221,7 +272,9 @@ export function PhoneAuthBindTemplate({
                         (e as { response?: { data?: { detail?: string } } })
                           .response?.data?.detail;
                       message.error(
-                        String(detail || (e as Error)?.message || "绑定失败"),
+                        String(
+                          detail || (e as Error)?.message || "绑定失败",
+                        ),
                       );
                     } finally {
                       setBinding(false);

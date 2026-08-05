@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.platform_deps import require_feature
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
@@ -31,12 +32,16 @@ from app.services.taygedo_checkin import (
     preview_roles,
     query_today_for_bind,
     run_checkin_for_member,
-    set_auto_checkin,
     unbind_taygedo,
+    update_bind_prefs,
 )
 from app.services.taygedo_client import TaygedoApiError, send_sms_captcha
 
-router = APIRouter(prefix="/taygedo", tags=["taygedo"])
+router = APIRouter(
+    prefix="/taygedo",
+    tags=["taygedo"],
+    dependencies=[Depends(require_feature("taygedo"))],
+)
 
 
 def _member_or_404(db: Session, user: User) -> Member:
@@ -87,6 +92,8 @@ def taygedo_status(
     return TaygedoStatusOut(
         bound=True,
         auto_checkin=bool(bind.auto_checkin),
+        checkin_hour=int(bind.checkin_hour),
+        checkin_minute=int(bind.checkin_minute),
         phone_mask=bind.phone_mask,
         bound_at=bind.bound_at,
         last_checkin_at=bind.last_checkin_at,
@@ -179,7 +186,11 @@ def taygedo_unbind(
     return TaygedoStatusOut(bound=False)
 
 
-@router.patch("/bind", response_model=TaygedoStatusOut)
+@router.patch(
+    "/bind",
+    response_model=TaygedoStatusOut,
+    dependencies=[Depends(require_feature("taygedo.checkin"))],
+)
 def taygedo_update_bind(
     payload: TaygedoBindUpdate,
     db: Session = Depends(get_db),
@@ -187,13 +198,23 @@ def taygedo_update_bind(
 ):
     member = _member_or_404(db, user)
     try:
-        set_auto_checkin(db, member, payload.auto_checkin)
+        update_bind_prefs(
+            db,
+            member,
+            auto_checkin=payload.auto_checkin,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
     except TaygedoApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return taygedo_status(db=db, user=user, include_roles=False)
 
 
-@router.post("/checkin", response_model=TaygedoCheckinResponse)
+@router.post(
+    "/checkin",
+    response_model=TaygedoCheckinResponse,
+    dependencies=[Depends(require_feature("taygedo.checkin"))],
+)
 def taygedo_checkin_now(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),

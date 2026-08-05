@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.platform_deps import require_feature
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
@@ -36,8 +37,8 @@ from app.services.exilium_checkin import (
     query_today_for_bind,
     run_checkin_for_member,
     run_exchange_for_member,
-    set_auto_checkin,
     unbind_exilium,
+    update_bind_prefs,
 )
 from app.services.exilium_client import (
     ExiliumApiError,
@@ -46,7 +47,11 @@ from app.services.exilium_client import (
 )
 from app.services.member_sync import ensure_user_member
 
-router = APIRouter(prefix="/exilium", tags=["exilium"])
+router = APIRouter(
+    prefix="/exilium",
+    tags=["exilium"],
+    dependencies=[Depends(require_feature("exilium"))],
+)
 
 
 def _member_or_404(db: Session, user: User) -> Member:
@@ -97,6 +102,8 @@ def exilium_status(
     return ExiliumStatusOut(
         bound=True,
         auto_checkin=bool(bind.auto_checkin),
+        checkin_hour=int(bind.checkin_hour),
+        checkin_minute=int(bind.checkin_minute),
         phone_mask=bind.phone_mask,
         bound_at=bind.bound_at,
         last_checkin_at=bind.last_checkin_at,
@@ -181,7 +188,11 @@ def exilium_unbind(
     return ExiliumStatusOut(bound=False)
 
 
-@router.patch("/bind", response_model=ExiliumStatusOut)
+@router.patch(
+    "/bind",
+    response_model=ExiliumStatusOut,
+    dependencies=[Depends(require_feature("exilium.checkin"))],
+)
 def exilium_update_bind(
     payload: ExiliumBindUpdate,
     db: Session = Depends(get_db),
@@ -189,13 +200,23 @@ def exilium_update_bind(
 ):
     member = _member_or_404(db, user)
     try:
-        set_auto_checkin(db, member, payload.auto_checkin)
+        update_bind_prefs(
+            db,
+            member,
+            auto_checkin=payload.auto_checkin,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
     except ExiliumApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return exilium_status(db=db, user=user, include_roles=False)
 
 
-@router.post("/checkin", response_model=ExiliumCheckinResponse)
+@router.post(
+    "/checkin",
+    response_model=ExiliumCheckinResponse,
+    dependencies=[Depends(require_feature("exilium.checkin"))],
+)
 def exilium_checkin_now(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -213,7 +234,11 @@ def exilium_checkin_now(
     )
 
 
-@router.get("/exchange", response_model=ExiliumExchangeShopOut)
+@router.get(
+    "/exchange",
+    response_model=ExiliumExchangeShopOut,
+    dependencies=[Depends(require_feature("exilium.exchange"))],
+)
 def exilium_exchange_shop(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -229,7 +254,11 @@ def exilium_exchange_shop(
     )
 
 
-@router.post("/exchange", response_model=ExiliumExchangeResultOut)
+@router.post(
+    "/exchange",
+    response_model=ExiliumExchangeResultOut,
+    dependencies=[Depends(require_feature("exilium.exchange"))],
+)
 def exilium_do_exchange(
     payload: ExiliumExchangeRequest,
     db: Session = Depends(get_db),
@@ -249,7 +278,11 @@ def exilium_do_exchange(
     )
 
 
-@router.get("/score-logs", response_model=ExiliumScoreLogOut)
+@router.get(
+    "/score-logs",
+    response_model=ExiliumScoreLogOut,
+    dependencies=[Depends(require_feature("exilium.exchange"))],
+)
 def exilium_score_logs(
     page: int = Query(default=1, ge=1, le=1000),
     page_size: int = Query(default=50, ge=1, le=100),

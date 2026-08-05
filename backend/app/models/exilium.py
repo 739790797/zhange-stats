@@ -19,6 +19,8 @@ class ExiliumBind(Base):
     credentials_enc: Mapped[str] = mapped_column(Text, nullable=False)
     phone_mask: Mapped[str | None] = mapped_column(String(64), nullable=True)
     auto_checkin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    checkin_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    checkin_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     last_checkin_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

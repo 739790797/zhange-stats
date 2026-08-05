@@ -268,6 +268,8 @@ export interface SklandCheckinLog {
 export interface SklandStatus {
   bound: boolean;
   auto_checkin?: boolean | null;
+  checkin_hour?: number | null;
+  checkin_minute?: number | null;
   bound_at?: string | null;
   last_checkin_at?: string | null;
   last_checkin_date?: string | null;
@@ -341,6 +343,8 @@ export interface TaygedoCheckinLog {
 export interface TaygedoStatus {
   bound: boolean;
   auto_checkin?: boolean | null;
+  checkin_hour?: number | null;
+  checkin_minute?: number | null;
   phone_mask?: string | null;
   bound_at?: string | null;
   last_checkin_at?: string | null;
@@ -385,6 +389,8 @@ export interface ExiliumRole {
 export interface ExiliumStatus {
   bound: boolean;
   auto_checkin?: boolean | null;
+  checkin_hour?: number | null;
+  checkin_minute?: number | null;
   phone_mask?: string | null;
   bound_at?: string | null;
   last_checkin_at?: string | null;

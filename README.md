@@ -1,14 +1,15 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.1.20** — 个人中心绑定区精简；修复邮箱账号误弹「完善账号」。
+**v0.1.21** — 任务配置与我的日常；Steam 仅好友可见；绑定默认扫码/短信优先；签到时段自设。
 
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户；支持 QQ 互联登录 / 绑定
-- Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力）
+- Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；仅自己与 Steam 好友）
+- 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
 - 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / 系统更新
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
-- 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存
+- 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（异环）
 - 追放社区绑定、签到、每日任务与积分兑换
 - 库街区绑定与每日自动签到（社区 + 鸣潮 / 战双）
@@ -51,7 +52,7 @@ cd frontend && npm install && npm run dev
 - API：http://127.0.0.1:8000/docs · 前端：http://127.0.0.1:5173  
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
 - 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地 `data/`、`uploads/`；Docker 挂载 `./data`）。  
-- 本地假监控：管理员在 **系统管理 → 定时任务** 开启（见 `backend/local_dev/README.md`）
+- 平台可用性：管理员在 **系统管理 → 任务配置** 按平台 / 游戏 / 任务级联开关
 
 ## Docker
 
@@ -64,7 +65,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.20` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.1.21` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。
 
@@ -89,6 +90,7 @@ users 1 ── 1 members ── * play_sessions / presence_segments / steam_frie
                       └── 0..1 skland_binds ── * skland_checkin_logs
                                          └── * endfield_box_raws
                       └── 0..1 taygedo_binds ── * taygedo_checkin_logs
+                      └── 0..1 exilium_binds ── * exilium_checkin_logs
                       └── 0..1 kujiequ_binds ── * kujiequ_checkin_logs
 system_configs · register_challenges · job_runs · steam_apps
 ```
@@ -100,15 +102,17 @@ system_configs · register_challenges · job_runs · steam_apps
 | `steam_friend_edges` | 好友缓存（日历仅好友可见） |
 | `play_sessions` | 游戏中会话（热力） |
 | `presence_segments` | 离线/在线/游戏中（日时间轴） |
-| `skland_binds` | 森空岛凭证（加密）与自动签到开关 |
+| `skland_binds` | 森空岛凭证（加密）、自动签到开关、用户自设 `checkin_hour` / `checkin_minute` |
 | `skland_checkin_logs` | 森空岛角色签到记录 |
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
-| `taygedo_binds` | 塔吉多凭证（加密）与自动签到开关 |
+| `taygedo_binds` | 塔吉多凭证（加密）、自动签到开关、用户自设签到时间 |
 | `taygedo_checkin_logs` | 塔吉多 / 异环签到记录 |
-| `kujiequ_binds` | 库街区凭证（加密）与自动签到开关 |
+| `exilium_binds` | 追放社区凭证（加密）、自动签到开关、用户自设签到时间 |
+| `exilium_checkin_logs` | 追放社区签到记录 |
+| `kujiequ_binds` | 库街区凭证（加密）、自动签到开关、用户自设签到时间 |
 | `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录 |
 | `job_runs` | 轮询 / 签到任务日志 |
-| `system_configs` | 系统配置（如 SMTP） |
+| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度等） |
 | `register_challenges` | 注册验证码 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
 

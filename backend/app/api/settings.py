@@ -1,9 +1,11 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_admin
+from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
 from app.models.user import User
 from app.services.auth_config import (
@@ -22,7 +24,16 @@ from app.services.integrations_config import (
     public_integrations,
     save_integrations,
 )
+from app.services.platform_features import (
+    JOB_FEATURE_IDS,
+    build_feature_tree,
+    effective_features,
+    is_feature_enabled_from_flags,
+    load_feature_flags,
+    save_feature_flags,
+)
 from app.services.qq_oauth import qq_redirect_uri
+from app.services.scheduler_config import save_scheduler_config
 from app.services.scheduler_runtime import register_scheduler_jobs
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -198,3 +209,106 @@ def update_auth_settings(
 ) -> dict:
     saved = save_auth_config(db, body.model_dump())
     return public_auth_config(saved)
+
+
+class PlatformFeatureNodeOut(BaseModel):
+    id: str
+    name: str
+    kind: str
+    enabled: bool
+    effective: bool
+    parent_effective: bool = True
+    reserved: bool = False
+    job_id: str | None = None
+    schedule: str | None = None
+    interval_minutes: int | None = None
+    hour: int | None = None
+    minute: int | None = None
+    children: list["PlatformFeatureNodeOut"] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+PlatformFeatureNodeOut.model_rebuild()
+
+
+class PlatformFeaturesOut(BaseModel):
+    raw: dict[str, bool]
+    effective: dict[str, bool]
+    tree: list[PlatformFeatureNodeOut]
+
+
+class PlatformFeatureJobUpdate(BaseModel):
+    interval_minutes: int | None = Field(default=None, ge=1, le=1440)
+    hour: int | None = Field(default=None, ge=0, le=23)
+    minute: int | None = Field(default=None, ge=0, le=59)
+
+
+class PlatformFeaturesUpdate(BaseModel):
+    features: dict[str, bool] = Field(default_factory=dict)
+    jobs: dict[str, PlatformFeatureJobUpdate] = Field(default_factory=dict)
+
+
+def _platform_features_payload(db: Session) -> dict[str, Any]:
+    return {
+        "raw": load_feature_flags(db),
+        "effective": effective_features(db),
+        "tree": build_feature_tree(db),
+    }
+
+
+@router.get("/platform-features", response_model=PlatformFeaturesOut)
+def get_platform_features_admin(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> dict[str, Any]:
+    """管理端：完整树 + raw / effective 开关。"""
+    return _platform_features_payload(db)
+
+
+@router.get("/platform-features/effective", response_model=dict[str, bool])
+def get_platform_features_effective(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    """登录用户可见的生效功能开关（侧栏 / 页面用）。"""
+    return effective_features(db)
+
+
+@router.put("/platform-features", response_model=PlatformFeaturesOut)
+def update_platform_features(
+    body: PlatformFeaturesUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> dict[str, Any]:
+    from app.main import scheduler
+
+    try:
+        flags = (
+            save_feature_flags(db, body.features, commit=False)
+            if body.features
+            else load_feature_flags(db)
+        )
+
+        job_payload: dict[str, Any] = {}
+        for job_id, item in body.jobs.items():
+            data = item.model_dump(exclude_none=True)
+            # 系统级 enabled 只由功能开关决定，忽略客户端传入
+            data.pop("enabled", None)
+            if data:
+                job_payload[job_id] = data
+
+        for job_id, feature_id in JOB_FEATURE_IDS.items():
+            entry = job_payload.setdefault(job_id, {})
+            entry["enabled"] = is_feature_enabled_from_flags(flags, feature_id)
+
+        if job_payload:
+            save_scheduler_config(db, {"jobs": job_payload}, commit=False)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    register_scheduler_jobs(scheduler, db, run_steam_once=False)
+    return _platform_features_payload(db)

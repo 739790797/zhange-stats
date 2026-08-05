@@ -28,10 +28,7 @@ from app.models import system_config as _system_config  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
 from app.services.member_sync import sync_users_and_members
-from app.services.scheduler_runtime import (
-    ensure_local_fake_data_if_needed,
-    register_scheduler_jobs,
-)
+from app.services.scheduler_runtime import register_scheduler_jobs
 from app.services.seed import seed_data
 
 scheduler = BackgroundScheduler()
@@ -56,7 +53,6 @@ async def lifespan(_: FastAPI):
         ensure_beijing_time_storage(db, engine)
         seed_data(db)
         sync_users_and_members(db)
-        ensure_local_fake_data_if_needed(db)
         register_scheduler_jobs(scheduler, db, run_steam_once=True)
     finally:
         db.close()

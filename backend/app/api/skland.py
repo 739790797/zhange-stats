@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
+from app.core.platform_deps import require_feature
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
@@ -68,7 +69,11 @@ from app.services.skland_checkin import (
 from app.services.skland_client import SklandApiError
 from app.services.skland_qr import poll_qr_bind, start_qr_bind
 
-router = APIRouter(prefix="/skland", tags=["skland"])
+router = APIRouter(
+    prefix="/skland",
+    tags=["skland"],
+    dependencies=[Depends(require_feature("skland"))],
+)
 
 
 def _member_or_404(db: Session, user: User) -> Member:
@@ -129,6 +134,8 @@ def skland_status(
     return SklandStatusOut(
         bound=True,
         auto_checkin=bool(bind.auto_checkin),
+        checkin_hour=int(bind.checkin_hour),
+        checkin_minute=int(bind.checkin_minute),
         bound_at=bind.bound_at,
         last_checkin_at=bind.last_checkin_at,
         last_checkin_date=bind.last_checkin_date.isoformat()
@@ -154,7 +161,11 @@ def skland_logs(
     return []
 
 
-@router.get("/arknights/box", response_model=ArknightsBoxOut)
+@router.get(
+    "/arknights/box",
+    response_model=ArknightsBoxOut,
+    dependencies=[Depends(require_feature("skland.arknights"))],
+)
 def skland_arknights_box(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -311,7 +322,11 @@ def _endfield_box_out(box, role, roles, synced_at, stale: bool) -> EndfieldBoxOu
     )
 
 
-@router.get("/endfield/box", response_model=EndfieldBoxOut)
+@router.get(
+    "/endfield/box",
+    response_model=EndfieldBoxOut,
+    dependencies=[Depends(require_feature("skland.endfield"))],
+)
 def skland_endfield_box(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -329,7 +344,11 @@ def skland_endfield_box(
     return _endfield_box_out(box, role, roles, synced_at, stale)
 
 
-@router.get("/arknights/catalog", response_model=ArknightsCatalogOut)
+@router.get(
+    "/arknights/catalog",
+    response_model=ArknightsCatalogOut,
+    dependencies=[Depends(require_feature("skland.arknights"))],
+)
 def skland_arknights_catalog(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -360,7 +379,11 @@ def skland_arknights_catalog(
     )
 
 
-@router.post("/arknights/catalog/sync", response_model=ArknightsCatalogSyncOut)
+@router.post(
+    "/arknights/catalog/sync",
+    response_model=ArknightsCatalogSyncOut,
+    dependencies=[Depends(require_feature("skland.arknights"))],
+)
 def skland_arknights_catalog_sync(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
@@ -380,6 +403,7 @@ def skland_arknights_catalog_sync(
 @router.get(
     "/arknights/box/compare-candidates",
     response_model=list[ArknightsCompareCandidateOut],
+    dependencies=[Depends(require_feature("skland.arknights"))],
 )
 def skland_arknights_compare_candidates(
     db: Session = Depends(get_db),
@@ -391,7 +415,11 @@ def skland_arknights_compare_candidates(
     return [ArknightsCompareCandidateOut(**r) for r in rows]
 
 
-@router.get("/arknights/box/compare", response_model=ArknightsBoxCompareOut)
+@router.get(
+    "/arknights/box/compare",
+    response_model=ArknightsBoxCompareOut,
+    dependencies=[Depends(require_feature("skland.arknights"))],
+)
 def skland_arknights_box_compare(
     member_ids: str = Query(..., description="逗号分隔的成员 id，最多 5 人"),
     role_uids: str | None = Query(
@@ -572,7 +600,11 @@ def skland_unbind(
     return SklandStatusOut(bound=False)
 
 
-@router.patch("/bind", response_model=SklandStatusOut)
+@router.patch(
+    "/bind",
+    response_model=SklandStatusOut,
+    dependencies=[Depends(require_feature("skland.checkin"))],
+)
 def skland_update_bind(
     payload: SklandBindUpdate,
     db: Session = Depends(get_db),
@@ -580,13 +612,25 @@ def skland_update_bind(
 ):
     member = _member_or_404(db, user)
     try:
-        set_auto_checkin(db, member, payload.auto_checkin)
+        from app.services.skland_checkin import update_bind_prefs
+
+        update_bind_prefs(
+            db,
+            member,
+            auto_checkin=payload.auto_checkin,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return skland_status(db=db, user=user, include_roles=False)
 
 
-@router.post("/checkin", response_model=SklandCheckinResponse)
+@router.post(
+    "/checkin",
+    response_model=SklandCheckinResponse,
+    dependencies=[Depends(require_feature("skland.checkin"))],
+)
 def skland_checkin_now(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
