@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiError } from "@/lib/apiError";
 import {
   Alert,
   Button,
@@ -19,92 +20,19 @@ import type {
   EndfieldEquip,
   EndfieldSkill,
 } from "@/api/types";
-
-const RARITY_COLOR: Record<number, string> = {
-  6: "#f5a623",
-  5: "#9b59d0",
-  4: "#49b3e6",
-  3: "#7dce82",
-};
-
-const SKILL_COLS: { key: string; label: string; match: string[] }[] = [
-  {
-    key: "normal_attack",
-    label: "普攻",
-    match: ["skill_type_normal_attack", "normal_attack"],
-  },
-  {
-    key: "normal_skill",
-    label: "战技",
-    match: ["normal_skill", "skill_type_normal_skill"],
-  },
-  {
-    key: "combo_skill",
-    label: "连携技",
-    match: ["combo_skill", "skill_type_combo_skill"],
-  },
-  {
-    key: "ultimate_skill",
-    label: "终结技",
-    match: ["ultimate_skill", "skill_type_ultimate_skill"],
-  },
-];
-
-/** 按干员属性统一技能底色（同角色四技能同色，对齐小黑盒） */
-const PROPERTY_SKILL_BG: Record<string, string> = {
-  灼热: "#c45c3e",
-  寒冷: "#5b9fd4",
-  自然: "#7cb342",
-  电磁: "#d4a017",
-  物理: "#8a9099",
-};
-
-const EQUIP_SLOTS: { slot: string; label: string }[] = [
-  { slot: "bodyEquip", label: "护甲" },
-  { slot: "armEquip", label: "护手" },
-  { slot: "firstAccessory", label: "配件·一" },
-  { slot: "secondAccessory", label: "配件·二" },
-];
-
-const ROW_GRID =
-  "minmax(160px, 1.2fr) minmax(120px, 0.9fr) repeat(4, minmax(64px, 0.55fr)) 24px";
-
-function skillBgForChar(char: EndfieldChar) {
-  return PROPERTY_SKILL_BG[char.property_name || ""] || "#8a9099";
-}
-
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
-
-function formatSyncedAt(iso?: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("zh-CN", { hour12: false });
-}
-
-function formatOwnTs(ts?: number | null) {
-  if (!ts) return null;
-  const ms = ts > 1e12 ? ts : ts * 1000;
-  const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("zh-CN");
-}
-
-function isLimited(labelType?: string) {
-  const t = (labelType || "").toLowerCase();
-  return t.includes("up") || t.includes("limit");
-}
-
-function skillByType(skills: EndfieldSkill[], match: string[]) {
-  return skills.find((s) => match.includes(s.skill_type)) || null;
-}
+import {
+  EQUIP_SLOTS,
+  RARITY_COLOR,
+  ROW_GRID,
+  SKILL_COLS,
+} from "./endfield/constants";
+import {
+  formatOwnTs,
+  formatSyncedAt,
+  isLimited,
+  skillBgForChar,
+  skillByType,
+} from "./endfield/helpers";
 
 function IconImg({
   src,

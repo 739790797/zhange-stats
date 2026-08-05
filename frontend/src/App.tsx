@@ -119,6 +119,14 @@ export default function App() {
             <Route path="/daily" element={<MyDailyPage />} />
             <Route path="/profile" element={<ProfileSettingsPage />} />
             <Route
+              path="/members/:id/profile"
+              element={
+                <AdminRoute>
+                  <ProfileSettingsPage />
+                </AdminRoute>
+              }
+            />
+            <Route
               path="/settings"
               element={
                 <AdminRoute>

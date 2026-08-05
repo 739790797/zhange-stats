@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiError } from "@/lib/apiError";
 import {
   Alert,
   Button,
@@ -94,14 +95,6 @@ export interface CheckinPageTemplateProps {
   contentOnly?: boolean;
 }
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 function StatusTag({
   status,

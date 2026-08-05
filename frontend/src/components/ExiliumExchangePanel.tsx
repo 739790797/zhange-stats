@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiError } from "@/lib/apiError";
 import {
   Alert,
   Button,
@@ -24,14 +25,6 @@ const CYCLE_LABEL: Record<string, string> = {
   life: "终生限购",
 };
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 function formatRemain(seconds: number | null | undefined) {
   if (seconds == null || seconds < 0) return null;

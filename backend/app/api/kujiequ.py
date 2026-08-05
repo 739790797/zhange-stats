@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.platform_checkin import (
+    build_checkin_response,
+    build_checkin_status,
+    raise_api_error,
+)
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_user_member
 from app.core.platform_deps import require_feature
 from app.models.member import Member
 from app.models.user import User
@@ -33,7 +38,6 @@ from app.services.kujiequ_checkin import (
     update_bind_prefs,
 )
 from app.services.kujiequ_client import KujiequApiError, send_sms_captcha
-from app.services.member_sync import ensure_user_member
 
 router = APIRouter(
     prefix="/kujiequ",
@@ -42,68 +46,29 @@ router = APIRouter(
 )
 
 
-def _member_or_404(db: Session, user: User) -> Member:
-    member = ensure_user_member(db, user)
-    if member is None:
-        raise HTTPException(status_code=400, detail="用户尚未关联成员档案")
-    return member
-
-
 @router.get("/status", response_model=KujiequStatusOut)
 def kujiequ_status(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
     include_roles: bool = Query(default=True),
     force: bool = Query(default=False),
 ):
-    member = _member_or_404(db, user)
+    _ = user
     bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        return KujiequStatusOut(bound=False)
-
-    roles: list[KujiequRoleOut] = []
-    today_results: list[KujiequCheckinResultItem] = []
-    token_ok: bool | None = None
-    token_error: str | None = None
-    summary = bind.last_checkin_summary
-
-    try:
-        live = query_today_for_bind(db, bind, force=force)
-        today_results = [
-            KujiequCheckinResultItem(**r) for r in (live.get("results") or [])
-        ]
-        token_ok = True
-        if live.get("summary"):
-            summary = str(live["summary"])
-    except KujiequApiError as exc:
-        token_ok = False
-        token_error = exc.message
-
-    if include_roles and token_ok is not False:
-        try:
-            roles = [KujiequRoleOut(**r) for r in preview_roles(db, member)]
-        except KujiequApiError as exc:
-            token_ok = False
-            token_error = token_error or exc.message
-            roles = []
-
-    return KujiequStatusOut(
-        bound=True,
-        auto_checkin=bool(bind.auto_checkin),
-        checkin_hour=int(bind.checkin_hour),
-        checkin_minute=int(bind.checkin_minute),
-        phone_mask=bind.phone_mask,
-        bound_at=bind.bound_at,
-        last_checkin_at=bind.last_checkin_at,
-        last_checkin_date=bind.last_checkin_date.isoformat()
-        if bind.last_checkin_date
-        else None,
-        last_checkin_ok=bind.last_checkin_ok,
-        last_checkin_summary=summary,
-        token_ok=token_ok,
-        token_error=token_error,
-        roles=roles,
-        today_results=today_results,
+    return build_checkin_status(
+        db=db,
+        member=member,
+        bind=bind,
+        status_cls=KujiequStatusOut,
+        role_cls=KujiequRoleOut,
+        result_cls=KujiequCheckinResultItem,
+        query_today=query_today_for_bind,
+        preview_roles=preview_roles,
+        api_error_cls=KujiequApiError,
+        include_roles=include_roles,
+        force=force,
+        extra_fields={"phone_mask": bind.phone_mask if bind else None},
     )
 
 
@@ -122,13 +87,13 @@ def kujiequ_bind_token(
     payload: KujiequBindTokenRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
 ):
-    member = _member_or_404(db, user)
     try:
         bind_with_token(db, member, payload.token)
     except KujiequApiError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
-    return kujiequ_status(db=db, user=user, include_roles=True)
+        raise_api_error(exc, KujiequApiError)
+    return kujiequ_status(db=db, user=user, member=member, include_roles=True)
 
 
 @router.post("/bind/sms/send", response_model=KujiequBindSmsSendResponse)
@@ -136,12 +101,13 @@ def kujiequ_bind_sms_send(
     payload: KujiequBindSmsSendRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
 ):
-    _member_or_404(db, user)
+    _ = (db, user, member)
     try:
         result = send_sms_captcha(payload.phone, payload.gee_test_data)
     except KujiequApiError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
+        raise_api_error(exc, KujiequApiError)
     return KujiequBindSmsSendResponse(
         ok=result.ok,
         message=result.message,
@@ -155,21 +121,20 @@ def kujiequ_bind_sms(
     payload: KujiequBindSmsRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
 ):
-    member = _member_or_404(db, user)
     try:
         bind_with_sms(db, member, payload.phone, payload.captcha)
     except KujiequApiError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
-    return kujiequ_status(db=db, user=user, include_roles=True)
+        raise_api_error(exc, KujiequApiError)
+    return kujiequ_status(db=db, user=user, member=member, include_roles=True)
 
 
 @router.delete("/bind", response_model=KujiequStatusOut)
 def kujiequ_unbind(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
 ):
-    member = _member_or_404(db, user)
     unbind_kujiequ(db, member)
     return KujiequStatusOut(bound=False)
 
@@ -183,8 +148,8 @@ def kujiequ_patch_bind(
     payload: KujiequBindUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
 ):
-    member = _member_or_404(db, user)
     try:
         update_bind_prefs(
             db,
@@ -194,8 +159,8 @@ def kujiequ_patch_bind(
             checkin_minute=payload.checkin_minute,
         )
     except KujiequApiError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
-    return kujiequ_status(db=db, user=user, include_roles=True)
+        raise_api_error(exc, KujiequApiError)
+    return kujiequ_status(db=db, user=user, member=member, include_roles=True)
 
 
 @router.post(
@@ -205,16 +170,14 @@ def kujiequ_patch_bind(
 )
 def kujiequ_checkin(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
 ):
-    member = _member_or_404(db, user)
     try:
         result = run_checkin_for_member(db, member, force=True)
     except KujiequApiError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
-    return KujiequCheckinResponse(
-        skipped=bool(result.get("skipped")),
-        ok=result.get("ok"),
-        summary=str(result.get("summary") or ""),
-        results=[KujiequCheckinResultItem(**r) for r in (result.get("results") or [])],
+        raise_api_error(exc, KujiequApiError)
+    return build_checkin_response(
+        out=result,
+        response_cls=KujiequCheckinResponse,
+        result_cls=KujiequCheckinResultItem,
     )

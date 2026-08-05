@@ -25,6 +25,7 @@ import {
   shouldPromptCompleteProfile,
 } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { isAdminUser } from "@/lib/isAdminUser";
 import {
   PLATFORM_NAV,
   firstEnabledPlatformPath,
@@ -126,6 +127,7 @@ export function AppLayout() {
 
   const selected = useMemo(() => {
     if (location.pathname.startsWith("/settings")) return "/settings";
+    if (/^\/members\/\d+\/profile/.test(location.pathname)) return "/settings";
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
@@ -137,16 +139,17 @@ export function AppLayout() {
         key === "/steam"
           ? location.pathname === "/steam" ||
             location.pathname === "/" ||
-            location.pathname.startsWith("/members")
+            (location.pathname.startsWith("/members") &&
+              !location.pathname.endsWith("/profile"))
           : location.pathname.startsWith(key),
       ) || "/steam"
     );
   }, [location.pathname]);
 
-  const isAdmin = Boolean(user?.is_admin);
+  const isAdmin = isAdminUser(user);
   const features = featuresQuery.data;
 
-  const items = PLATFORM_NAV.filter((item) =>
+  const platformItems = PLATFORM_NAV.filter((item) =>
     isFeatureOn(features, item.featureId),
   ).map((item) => ({
     key: item.path,
@@ -154,13 +157,49 @@ export function AppLayout() {
     label: <Link to={item.path}>{item.label}</Link>,
   }));
 
+  const mineItems = [
+    {
+      key: "/daily",
+      icon: <CalendarOutlined />,
+      label: <Link to="/daily">我的日常</Link>,
+    },
+    {
+      key: "/profile",
+      icon: <UserOutlined />,
+      label: <Link to="/profile">个人中心</Link>,
+    },
+  ];
+
+  const adminItems = isAdmin
+    ? [
+        {
+          key: "/settings",
+          icon: <ControlOutlined />,
+          label: <Link to="/settings/users">系统管理</Link>,
+        },
+      ]
+    : [];
+
+  const menuItems = [
+    ...(platformItems.length
+      ? [{ type: "group" as const, label: "平台", children: platformItems }]
+      : []),
+    { type: "group" as const, label: "我的", children: mineItems },
+    ...(adminItems.length
+      ? [{ type: "group" as const, label: "管理", children: adminItems }]
+      : []),
+  ];
+
   useEffect(() => {
     if (featuresQuery.isLoading) return;
+    if (/^\/members\/\d+\/profile/.test(location.pathname)) return;
     const hit = PLATFORM_NAV.find(
       (item) =>
         location.pathname === item.path ||
         location.pathname.startsWith(`${item.path}/`) ||
-        (item.path === "/steam" && location.pathname.startsWith("/members")),
+        (item.path === "/steam" &&
+          location.pathname.startsWith("/members") &&
+          !location.pathname.endsWith("/profile")),
     );
     if (!hit) return;
     if (
@@ -179,28 +218,6 @@ export function AppLayout() {
     location.pathname,
     navigate,
   ]);
-
-  const bottomItems = [
-    ...(isAdmin
-      ? [
-          {
-            key: "/settings",
-            icon: <ControlOutlined />,
-            label: <Link to="/settings/users">系统管理</Link>,
-          },
-        ]
-      : []),
-    {
-      key: "/daily",
-      icon: <CalendarOutlined />,
-      label: <Link to="/daily">我的日常</Link>,
-    },
-    {
-      key: "/profile",
-      icon: <UserOutlined />,
-      label: <Link to="/profile">个人中心</Link>,
-    },
-  ];
 
   const displayName =
     profileQuery.data?.display_name ||
@@ -264,7 +281,7 @@ export function AppLayout() {
             mode="inline"
             className="sider-menu"
             selectedKeys={[selected]}
-            items={items}
+            items={menuItems}
             style={{
               background: "#1a2332",
               borderInlineEnd: "none",
@@ -280,23 +297,6 @@ export function AppLayout() {
               flexShrink: 0,
             }}
           >
-            <Menu
-              theme="dark"
-              mode="inline"
-              className="sider-menu"
-              selectedKeys={
-                selected === "/profile" ||
-                selected === "/settings" ||
-                selected === "/daily"
-                  ? [selected]
-                  : []
-              }
-              items={bottomItems}
-              style={{
-                background: "#1a2332",
-                borderInlineEnd: "none",
-              }}
-            />
             <div style={{ padding: "4px 10px 12px" }}>
               <div
                 style={{

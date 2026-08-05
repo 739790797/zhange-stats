@@ -34,6 +34,11 @@ class User(Base):
 
     member = relationship("Member", back_populates="user", uselist=False)
 
+    @property
+    def is_admin_user(self) -> bool:
+        """读权限单一入口：role 为准，is_admin 为旧库兼容。"""
+        return self.role == UserRole.admin or bool(self.is_admin)
+
     def apply_role(self, role: UserRole) -> None:
         self.role = role
         self.is_admin = role == UserRole.admin

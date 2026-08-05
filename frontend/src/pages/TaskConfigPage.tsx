@@ -1,5 +1,6 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiError } from "@/lib/apiError";
 import {
   Alert,
   Button,
@@ -25,14 +26,6 @@ type DraftJobs = Record<
   { interval_minutes?: number; hour?: number; minute?: number }
 >;
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 function collectFlags(nodes: PlatformFeatureNode[], out: DraftFlags = {}) {
   for (const node of nodes) {

@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
-from app.models.user import User, UserRole
+from app.models.member import Member
+from app.models.user import User
+from app.services.member_sync import ensure_user_member
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -34,9 +36,19 @@ def get_current_user(
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
-    if not user.is_admin and user.role != UserRole.admin:
+    if not user.is_admin_user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="需要管理员权限",
         )
     return user
+
+
+def require_user_member(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Member:
+    member = ensure_user_member(db, user)
+    if member is None:
+        raise HTTPException(status_code=400, detail="用户尚未关联成员档案")
+    return member

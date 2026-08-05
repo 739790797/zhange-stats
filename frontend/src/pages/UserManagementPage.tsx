@@ -13,6 +13,7 @@ import {
   message,
 } from "antd";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   createUser,
   deleteUser,
@@ -21,6 +22,7 @@ import {
   updateUser,
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
+import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 
 type UserFormValues = {
@@ -74,6 +76,7 @@ function BindStatusTags({
 }
 
 export default function UserManagementPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const [createOpen, setCreateOpen] = useState(false);
@@ -191,7 +194,7 @@ export default function UserManagementPage() {
       email: row.email || "",
       display_name: row.display_name || "",
       password: "",
-      role: row.role === "admin" || row.is_admin ? "admin" : "user",
+      role: isAdminUser(row) ? "admin" : "user",
     });
   };
 
@@ -244,15 +247,23 @@ export default function UserManagementPage() {
           },
           {
             title: "操作",
-            width: 140,
+            width: 200,
             render: (_, row) => {
               const isSelf = row.id === currentUser?.id;
-              const isAdmin = row.role === "admin" || row.is_admin;
+              const isAdmin = isAdminUser(row);
               return (
                 <Space>
                   <Button type="link" onClick={() => openEdit(row)}>
                     编辑
                   </Button>
+                  {row.member_id != null ? (
+                    <Button
+                      type="link"
+                      onClick={() => navigate(`/members/${row.member_id}/profile`)}
+                    >
+                      资料
+                    </Button>
+                  ) : null}
                   <Popconfirm
                     title="确认删除该用户？"
                     description="将同步删除对应成员及其游玩记录"

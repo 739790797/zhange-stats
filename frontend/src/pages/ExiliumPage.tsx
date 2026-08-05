@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Tabs, message } from "antd";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { apiError } from "@/lib/apiError";
 import {
   fetchExiliumStatus,
   fetchPlatformFeaturesEffective,
@@ -16,14 +17,6 @@ import { isFeatureOn } from "@/lib/platformFeatures";
 
 type TabKey = "checkin" | "exchange";
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 export default function ExiliumPage() {
   const [tab, setTab] = useState<TabKey>("checkin");

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Tabs, message } from "antd";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { apiError } from "@/lib/apiError";
 import {
   fetchPlatformFeaturesEffective,
   fetchSklandStatus,
@@ -17,14 +18,6 @@ import { isFeatureOn } from "@/lib/platformFeatures";
 
 type TabKey = "checkin" | "arknights" | "endfield";
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 export default function SklandPage() {
   const [tab, setTab] = useState<TabKey>("checkin");

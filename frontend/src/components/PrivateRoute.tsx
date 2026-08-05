@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 
 export function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!token) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
-  if (!user?.is_admin) {
+  if (!isAdminUser(user)) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

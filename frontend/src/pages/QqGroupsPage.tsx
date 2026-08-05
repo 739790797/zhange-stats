@@ -4,6 +4,7 @@ import { Alert, Button, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiError } from "@/lib/apiError";
 import {
   fetchIntegrationsSettings,
   fetchNapCatGroupMembers,
@@ -12,14 +13,6 @@ import {
   type NapCatGroupMember,
 } from "@/api/client";
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 export default function QqGroupsPage() {
   const queryClient = useQueryClient();

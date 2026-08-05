@@ -1,5 +1,6 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
+import { apiError } from "@/lib/apiError";
 import {
   Alert,
   Button,
@@ -24,14 +25,6 @@ const PLATFORM_LABELS: Record<string, string> = {
   kujiequ: "库街区",
 };
 
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return String(detail || (e as Error)?.message || fallback);
-}
 
 function runStatusTag(status?: string | null) {
   if (!status) return <Typography.Text type="secondary">-</Typography.Text>;

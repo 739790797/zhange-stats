@@ -14,21 +14,7 @@ import {
   preferredPhoneAuthMode,
   type PhoneAuthMode,
 } from "@/components/PhoneAuthBindTemplate";
-
-function apiError(e: unknown, fallback: string) {
-  const detail =
-    e &&
-    typeof e === "object" &&
-    "response" in e &&
-    (e as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  if (detail) return String(detail);
-  const msg = String((e as Error)?.message || "");
-  // axios 在连不上代理/后端时常见文案，避免误以为是「二维码本身坏了」
-  if (/network error/i.test(msg) || msg.includes("Failed to fetch")) {
-    return "无法连接后端（开发服务可能已停或端口不对），请刷新页面或重启前后端";
-  }
-  return msg || fallback;
-}
+import { apiError } from "@/lib/apiError";
 
 const SKLAND_MODES: PhoneAuthMode[] = ["qr", "sms", "password"];
 

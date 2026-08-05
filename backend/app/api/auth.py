@@ -138,7 +138,7 @@ def _user_out(user: User) -> UserOut:
         email=user.email,
         display_name=user.display_name,
         role=user.role.value if isinstance(user.role, UserRole) else str(user.role),
-        is_admin=bool(user.is_admin) or user.role == UserRole.admin,
+        is_admin=user.is_admin_user,
         email_verified=bool(user.email_verified),
         avatar_url=member.avatar_url if member else None,
         steam_id=member.steam_id if member else None,
