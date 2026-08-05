@@ -5,6 +5,7 @@ import {
   linkExistingAccount,
   sendBindEmailCode,
 } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
 
 const SKIP_KEY = "zhange-skip-complete-profile";
@@ -50,13 +51,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
       setCountdown(60);
     } catch (e: unknown) {
       if (e && typeof e === "object" && "errorFields" in e) return;
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "发送验证码失败"));
+      message.error(apiError(e, "发送验证码失败"));
     } finally {
       setSending(false);
     }
@@ -79,13 +74,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
       sessionStorage.removeItem(SKIP_KEY);
       onCompleted();
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "完善失败"));
+      message.error(apiError(e, "完善失败"));
     } finally {
       setSaving(false);
     }
@@ -103,13 +92,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
       sessionStorage.removeItem(SKIP_KEY);
       onCompleted();
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "合并失败"));
+      message.error(apiError(e, "合并失败"));
     } finally {
       setLinking(false);
     }

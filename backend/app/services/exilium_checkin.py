@@ -15,6 +15,7 @@ from app.models.exilium import ExiliumBind, ExiliumCheckinLog
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.services.checkin_common import (
+    apply_bind_last_checkin,
     day_results_payload,
     load_day_checkin_results,
     results_to_api,
@@ -292,11 +293,9 @@ def run_checkin_for_bind(
         and result.status == "already"
     )
     now = now_naive()
-    bind.last_checkin_at = now
-    bind.last_checkin_date = checkin_date
-    bind.last_checkin_ok = ok
-    bind.last_checkin_summary = summary
-    bind.updated_at = now
+    apply_bind_last_checkin(
+        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    )
     merged = upsert_and_reload_day_results(
         db,
         ExiliumCheckinLog,

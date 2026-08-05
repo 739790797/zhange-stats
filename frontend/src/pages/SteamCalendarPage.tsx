@@ -15,6 +15,7 @@ import { SteamBindEntry } from "@/components/steam/SteamBindEntry";
 import { TimelineControls } from "@/components/steam/TimelineControls";
 import { clipTimelineToNoonWindow } from "@/components/steam/timelineUtils";
 import { PageHeader } from "@/components/PageHeader";
+import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { rememberSteamIcons } from "@/lib/steamIconCache";
 import { nowBeijing, parseBeijing } from "@/lib/time";
@@ -137,13 +138,7 @@ export default function SteamCalendarPage() {
       window.location.href = url;
     },
     onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || (e as Error)?.message || "无法跳转 Steam 登录"));
+      message.error(apiError(e, "无法跳转 Steam 登录"));
     },
   });
 

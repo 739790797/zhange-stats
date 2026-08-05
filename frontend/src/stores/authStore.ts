@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { User } from "@/api/types";
 
+/**
+ * Token 存 localStorage（XSS 可读）。迁 httpOnly Cookie 需后端 Set-Cookie + CSRF，
+ * 见仓库 README「说明」；完成前保持 Authorization Bearer。
+ */
 interface AuthState {
   token: string | null;
   user: User | null;

@@ -22,6 +22,7 @@ import {
   updateUser,
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
+import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -120,15 +121,7 @@ export default function UserManagementPage() {
       createForm.resetFields();
       invalidate();
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "添加失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "添加失败")),
   });
 
   const saveUser = useMutation({
@@ -160,15 +153,7 @@ export default function UserManagementPage() {
       editForm.resetFields();
       invalidate();
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "保存失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   const removeUser = useMutation({
@@ -177,15 +162,7 @@ export default function UserManagementPage() {
       message.success("用户已删除");
       invalidate();
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "删除失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "删除失败")),
   });
 
   const openEdit = (row: UserBrief) => {

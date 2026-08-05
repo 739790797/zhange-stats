@@ -17,6 +17,7 @@ import {
   testEmailSettings,
   updateEmailSettings,
 } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 
 type FormValues = {
   enabled: boolean;
@@ -76,15 +77,7 @@ export default function EmailSettingsPage() {
       message.success("邮箱设置已保存");
       queryClient.invalidateQueries({ queryKey: ["email-settings"] });
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "保存失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   const test = useMutation({
@@ -99,15 +92,7 @@ export default function EmailSettingsPage() {
       else message.warning(res.message);
       setTestOpen(false);
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "测试失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "测试失败")),
   });
 
   return (

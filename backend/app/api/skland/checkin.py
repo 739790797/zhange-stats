@@ -1,7 +1,7 @@
 """森空岛：绑定状态、签到、绑定/解绑。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.platform_checkin import build_checkin_response, build_checkin_status
@@ -9,6 +9,7 @@ from app.api.skland.helpers import _member_or_404
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_user_member
 from app.core.platform_deps import require_feature
+from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
@@ -86,7 +87,7 @@ def skland_logs(
     user: User = Depends(get_current_user),
     limit: int = Query(default=30, ge=1, le=100),
 ):
-    """已弃用：签到改为实时查询，不再返回历史记录。"""
+    """兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。"""
     _ = (db, user, limit)
     return []
 
@@ -122,10 +123,17 @@ def skland_bind_password(
 @router.post("/bind/sms/send", response_model=SklandBindSmsSendResponse)
 def skland_bind_sms_send(
     payload: SklandBindSmsSendRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     _member_or_404(db, user)
+    ip = client_ip(request)
+    platform_limiter.hit(f"skland-sms:ip:{ip}", limit=10, window_sec=600)
+    platform_limiter.hit(f"skland-sms:uid:{user.id}", limit=5, window_sec=600)
+    platform_limiter.hit(
+        f"skland-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
+    )
     try:
         send_skland_sms(payload.phone)
     except SklandApiError as exc:

@@ -56,7 +56,7 @@ export interface CheckinPageStatus {
   last_checkin_summary?: string | null;
   token_ok?: boolean | null;
   token_error?: string | null;
-  roles: CheckinPageRole[];
+  roles?: CheckinPageRole[];
   today_results?: CheckinPageResultItem[];
 }
 
@@ -64,7 +64,7 @@ export interface CheckinPageResponse {
   skipped: boolean;
   ok?: boolean | null;
   summary: string;
-  results: CheckinPageResultItem[];
+  results?: CheckinPageResultItem[];
 }
 
 export interface CheckinPageTemplateProps {
@@ -166,12 +166,13 @@ export function CheckinPageTemplate({
   const checkin = useMutation({
     mutationFn: triggerCheckin,
     onSuccess: (data) => {
+      const results = data.results ?? [];
       const allDone =
-        Boolean(data.results?.length) &&
-        data.results.every((r) => isCheckinSuccess(r.status));
+        Boolean(results.length) &&
+        results.every((r) => isCheckinSuccess(r.status));
       if (
         data.skipped ||
-        (allDone && data.results.every((r) => r.status === "already"))
+        (allDone && results.every((r) => r.status === "already"))
       ) {
         message.info("今日已签到");
       } else if (data.ok === false) {
@@ -242,6 +243,14 @@ export function CheckinPageTemplate({
         ) : null
       }
     >
+      {statusQuery.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          message={apiError(statusQuery.error, "加载签到状态失败")}
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
       {bound ? (
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
           <div

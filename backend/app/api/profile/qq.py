@@ -201,7 +201,6 @@ def qq_oauth_callback(
                     display_name=nick,
                     password_hash=hash_password(secrets.token_urlsafe(32)),
                     role=UserRole.user,
-                    is_admin=False,
                     email_verified=True,
                 )
                 db.add(user)
@@ -220,7 +219,11 @@ def qq_oauth_callback(
 
             db.commit()
             token = create_access_token(user.username)
-            params = {"qq_login": "ok", "access_token": token}
+            from app.services.oauth_ticket import issue_oauth_ticket
+
+            ticket = issue_oauth_ticket(db, token)
+            db.commit()
+            params = {"qq_login": "ok", "ticket": ticket}
             if member.qq_nickname:
                 params["name"] = member.qq_nickname
             if not user.email:

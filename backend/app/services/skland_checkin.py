@@ -16,11 +16,13 @@ from app.models.member import Member
 from app.models.skland import SklandBind, SklandCheckinLog
 from app.services.checkin_common import (
     CheckinResult,
+    apply_bind_last_checkin,
     day_results_payload,
     is_success_status,
     load_day_checkin_results,
     results_to_api,
     summarize_results,
+    today_done_from_logs,
     upsert_and_reload_day_results,
 )
 from app.services.skland_client import (
@@ -220,6 +222,14 @@ def get_endfield_box_for_member(
         try:
             raw = fetch_endfield_card_detail(session, role)
             raw_json = json.dumps(raw, ensure_ascii=False)
+            from app.services.raw_payload_monitor import note_raw_payload
+
+            note_raw_payload(
+                "endfield_box_raw",
+                raw_json,
+                member_id=member.id,
+                role_id=role.role_id,
+            )
             now = now_naive()
             if row is None:
                 row = EndfieldBoxRaw(
@@ -328,36 +338,22 @@ def run_checkin_for_bind(
 ) -> dict[str, Any]:
     """手动 / 自动签到；结果写入今日签到日志。"""
     checkin_date = today()
-    if (
-        not force
-        and bind.last_checkin_date == checkin_date
-        and bind.last_checkin_ok
-    ):
-        try:
-            live = query_today_for_bind(db, bind, force=False)
-            results = [
-                CheckinResult(
-                    game_code=str(r.get("game_code") or ""),
-                    game_name=str(r.get("game_name") or ""),
-                    role_uid=str(r.get("role_uid") or ""),
-                    role_name=str(r.get("role_name") or ""),
-                    channel_name=str(r.get("channel_name") or ""),
-                    status=str(r.get("status") or "pending"),
-                    message=str(r.get("message") or ""),
-                    awards_text=r.get("awards_text"),
-                )
-                for r in (live.get("results") or [])
-            ]
-            if results and all(is_success_status(r.status) for r in results):
-                return {
-                    "skipped": True,
-                    "ok": True,
-                    "reason": "today_done",
-                    "summary": live.get("summary") or "今日已签到",
-                    "results": live.get("results") or [],
-                }
-        except SklandApiError:
-            pass
+    if not force:
+        done = today_done_from_logs(
+            db,
+            SklandCheckinLog,
+            member_id=bind.member_id,
+            checkin_date=checkin_date,
+        )
+        if done is not None:
+            payload = day_results_payload(done)
+            return {
+                "skipped": True,
+                "ok": True,
+                "reason": "today_done",
+                "summary": payload.get("summary") or "今日已签到",
+                "results": payload.get("results") or [],
+            }
 
     session = _session_for_bind(bind)
     roles = list_roles(session)
@@ -420,11 +416,9 @@ def run_checkin_for_bind(
     results = sort_skland_results(results)
     ok, summary = _summarize(results)
     now = now_naive()
-    bind.last_checkin_at = now
-    bind.last_checkin_date = checkin_date
-    bind.last_checkin_ok = ok
-    bind.last_checkin_summary = summary
-    bind.updated_at = now
+    apply_bind_last_checkin(
+        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    )
     merged = sort_skland_results(
         upsert_and_reload_day_results(
             db,

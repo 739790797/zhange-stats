@@ -21,6 +21,7 @@ class TaygedoBind(Base):
     auto_checkin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     checkin_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     checkin_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    # 反规范化摘要：调度跳过 / 管理端任务列表；今日按角色详情以 logs 为准
     last_checkin_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -46,7 +47,7 @@ class TaygedoBind(Base):
 
 
 class TaygedoCheckinLog(Base):
-    """塔吉多 / 异环签到记录。"""
+    """塔吉多签到 / 状态查询记录（按「今日」缓存读优先，见 platform-raw-cache）。"""
 
     __tablename__ = "taygedo_checkin_logs"
     __table_args__ = (

@@ -16,11 +16,13 @@ from app.models.member import Member
 from app.models.taygedo import TaygedoBind, TaygedoCheckinLog
 from app.services.checkin_common import (
     CheckinResult,
+    apply_bind_last_checkin,
     day_results_payload,
     is_success_status,
     load_day_checkin_results,
     results_to_api,
     summarize_results,
+    today_done_from_logs,
     upsert_and_reload_day_results,
 )
 from app.services.taygedo_client import (
@@ -257,30 +259,26 @@ def run_checkin_for_bind(
     *,
     force: bool = False,
 ) -> dict[str, Any]:
-    """手动 / 自动签到：始终以官方为准；不写签到日志表。"""
+    """手动 / 自动签到；结果写入今日签到日志。"""
     from app.services.taygedo_client import list_checkin_targets
 
     checkin_date = today()
-    if (
-        not force
-        and bind.last_checkin_date == checkin_date
-        and bind.last_checkin_ok
-    ):
-        try:
-            live = query_today_for_bind(db, bind, force=False)
-            api_results = live.get("results") or []
-            if api_results and all(
-                is_success_status(str(r.get("status"))) for r in api_results
-            ):
-                return {
-                    "skipped": True,
-                    "ok": True,
-                    "reason": "today_done",
-                    "summary": live.get("summary") or "今日已签到",
-                    "results": api_results,
-                }
-        except TaygedoApiError:
-            pass
+    if not force:
+        done = today_done_from_logs(
+            db,
+            TaygedoCheckinLog,
+            member_id=bind.member_id,
+            checkin_date=checkin_date,
+        )
+        if done is not None:
+            payload = day_results_payload(done)
+            return {
+                "skipped": True,
+                "ok": True,
+                "reason": "today_done",
+                "summary": payload.get("summary") or "今日已签到",
+                "results": payload.get("results") or [],
+            }
 
     creds = _load_creds(bind)
     working, targets = list_checkin_targets(creds)
@@ -378,11 +376,9 @@ def run_checkin_for_bind(
     _save_creds(bind, working)
     ok, summary = _summarize(results)
     now = now_naive()
-    bind.last_checkin_at = now
-    bind.last_checkin_date = checkin_date
-    bind.last_checkin_ok = ok
-    bind.last_checkin_summary = summary
-    bind.updated_at = now
+    apply_bind_last_checkin(
+        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    )
     merged = upsert_and_reload_day_results(
         db,
         TaygedoCheckinLog,

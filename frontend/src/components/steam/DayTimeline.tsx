@@ -321,6 +321,3 @@ export function DayTimeline({
     </Spin>
   );
 }
-
-/** @deprecated 使用 DayTimeline */
-export const TimelineChart = DayTimeline;

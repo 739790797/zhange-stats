@@ -149,15 +149,16 @@ export function ArknightsBoxCompare() {
       return true;
     });
 
-    if (sortMode !== "level" || !compareQuery.data?.rows.length) {
+    if (sortMode !== "level" || !compareQuery.data?.rows?.length) {
       return catalog;
     }
+    const rows = compareQuery.data.rows;
     const keyRow =
-      compareQuery.data.rows.find((r) => r.member_id === selfId) ||
-      compareQuery.data.rows[0];
+      rows.find((r) => r.member_id === selfId) || rows[0];
+    const ownedMap = keyRow.owned ?? {};
     return [...catalog].sort((a, b) => {
-      const oa = keyRow.owned[a.char_id];
-      const ob = keyRow.owned[b.char_id];
+      const oa = ownedMap[a.char_id];
+      const ob = ownedMap[b.char_id];
       if (!oa && !ob) return 0;
       if (!oa) return 1;
       if (!ob) return -1;
@@ -233,7 +234,7 @@ export function ArknightsBoxCompare() {
             type="secondary"
             style={{ display: "block", marginBottom: 8 }}
           >
-            展示 {orderedOps.length} / {compareQuery.data.catalog.length} 名干员
+            展示 {orderedOps.length} / {(compareQuery.data.catalog ?? []).length} 名干员
             {compareQuery.data.catalog_version
               ? ` · 资源 ${compareQuery.data.catalog_version}`
               : ""}
@@ -242,7 +243,7 @@ export function ArknightsBoxCompare() {
             <SyncCompareBoard
               rows={displayRows}
               orderedOps={orderedOps}
-              catalog={compareQuery.data.catalog}
+              catalog={compareQuery.data.catalog ?? []}
               selfId={selfId}
               roleUidByMember={roleUidByMember}
               onRoleUidChange={updateRoleUid}

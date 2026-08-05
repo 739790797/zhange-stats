@@ -23,8 +23,6 @@ export function SklandBindPanel({
   onSuccess,
 }: {
   title?: string;
-  /** @deprecated 已忽略；默认始终按 扫码 > 短信 > 密码 */
-  defaultMode?: PhoneAuthMode;
   onSuccess?: () => void;
 }) {
   const queryClient = useQueryClient();

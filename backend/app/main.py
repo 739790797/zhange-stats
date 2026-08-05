@@ -30,6 +30,7 @@ from app.models import user as _user  # noqa: F401
 from app.services.member_sync import sync_users_and_members
 from app.services.scheduler_runtime import register_scheduler_jobs
 from app.services.seed import seed_data
+from app.services.security_bootstrap import warn_if_weak_admin_password
 
 scheduler = BackgroundScheduler()
 
@@ -46,6 +47,7 @@ def _ensure_upload_root() -> Path:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    warn_if_weak_admin_password()
     run_migrations()
     _ensure_upload_root()
     db = SessionLocal()
@@ -110,8 +112,26 @@ app.mount(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "version": settings.APP_VERSION}
+def health() -> dict:
+    """存活探测；含数据库连通性。"""
+    from sqlalchemy import text
+
+    db_ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:  # noqa: BLE001
+        db_ok = False
+
+    sched_ok = bool(scheduler.running) if scheduler else False
+    status = "ok" if db_ok else "degraded"
+    return {
+        "status": status,
+        "version": settings.APP_VERSION,
+        "database": "ok" if db_ok else "error",
+        "scheduler": "ok" if sched_ok else "stopped",
+    }
 
 
 _static_dir = Path(settings.STATIC_DIR).expanduser() if settings.STATIC_DIR else None

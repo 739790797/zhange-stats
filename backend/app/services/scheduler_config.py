@@ -20,6 +20,7 @@ JOB_IDS = (
     "taygedo_checkin",
     "exilium_checkin",
     "kujiequ_checkin",
+    "job_runs_prune",
 )
 
 
@@ -81,7 +82,20 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "hour": _clamp_hour(s.KUJIEQU_CHECKIN_HOUR),
             "minute": _clamp_minute(s.KUJIEQU_CHECKIN_MINUTE),
         },
+        "job_runs_prune": {
+            "enabled": True,
+            "hour": 3,
+            "minute": 30,
+            "retention_days": 90,
+        },
     }
+
+
+def _clamp_retention_days(value: Any, default: int = 90) -> int:
+    try:
+        return max(7, min(3650, int(value)))
+    except (TypeError, ValueError):
+        return default
 
 
 def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
@@ -96,6 +110,11 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
     else:
         out["hour"] = _clamp_hour(raw.get("hour", fallback.get("hour", 0)))
         out["minute"] = _clamp_minute(raw.get("minute", fallback.get("minute", 0)))
+    if job_id == "job_runs_prune":
+        out["retention_days"] = _clamp_retention_days(
+            raw.get("retention_days", fallback.get("retention_days", 90)),
+            90,
+        )
     return out
 
 

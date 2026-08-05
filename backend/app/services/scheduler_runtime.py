@@ -18,6 +18,7 @@ from app.services.arknights_catalog import (
 )
 from app.services.exilium_checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
 from app.services.integrations_config import get_steam_api_key
+from app.services.job_runs_prune import prune_job_wrapper
 from app.services.kujiequ_checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
@@ -59,6 +60,7 @@ CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., None]] = {
 SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     "arknights_box_sync": arknights_box_sync_job_wrapper,
     "arknights_catalog_sync": arknights_catalog_sync_job_wrapper,
+    "job_runs_prune": prune_job_wrapper,
 }
 
 CRON_JOB_HANDLERS = {
@@ -172,6 +174,9 @@ def register_scheduler_jobs(
             if not _job_feature_allowed(db, job_id):
                 continue
             job_cfg = cfg.get(job_id) or {}
+            # 维护任务默认可跑；scheduler_jobs.job_runs_prune.enabled=false 可关闭
+            if job_id == "job_runs_prune" and job_cfg.get("enabled") is False:
+                continue
             hour = max(0, min(23, int(job_cfg.get("hour", 0))))
             minute = max(0, min(59, int(job_cfg.get("minute", 0))))
             scheduler.add_job(

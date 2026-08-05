@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Form, InputNumber, Typography, message } from "antd";
 import { useEffect } from "react";
 import { fetchAuthSettings, updateAuthSettings } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 
 type FormValues = {
   access_token_expire_days: number;
@@ -19,7 +20,7 @@ export default function AuthSettingsPage() {
   useEffect(() => {
     if (!data) return;
     form.setFieldsValue({
-      access_token_expire_days: data.access_token_expire_days || 30,
+      access_token_expire_days: data.access_token_expire_days || 1,
     });
   }, [data, form]);
 
@@ -29,15 +30,7 @@ export default function AuthSettingsPage() {
       message.success("安全设置已保存（仅影响之后新登录的 token）");
       queryClient.invalidateQueries({ queryKey: ["auth-settings"] });
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "保存失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   return (

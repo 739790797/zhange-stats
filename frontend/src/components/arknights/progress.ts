@@ -16,7 +16,7 @@ export function computeRarityProgress(
     const r = op.rarity;
     if (r < 1 || r > 6) continue;
     totalBy[r] += 1;
-    if (row.owned[op.char_id]) ownedBy[r] += 1;
+    if (row.owned?.[op.char_id]) ownedBy[r] += 1;
   }
   return [6, 5, 4, 3, 2, 1].map((rarity) => ({
     rarity,

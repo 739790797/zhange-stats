@@ -1,6 +1,5 @@
 import { client } from "./http";
 import type {
-  TaygedoCheckinLog,
   TaygedoCheckinResponse,
   TaygedoStatus,
 } from "./types";
@@ -11,13 +10,6 @@ export async function fetchTaygedoStatus(includeRoles = true, force = false) {
       include_roles: includeRoles,
       ...(force ? { force: true } : {}),
     },
-  });
-  return data;
-}
-
-export async function fetchTaygedoLogs(limit = 30) {
-  const { data } = await client.get<TaygedoCheckinLog[]>("/taygedo/logs", {
-    params: { limit },
   });
   return data;
 }

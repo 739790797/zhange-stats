@@ -1,6 +1,6 @@
-"""本地/开发假 Steam 数据与假轮询（不访问 Steam presence API）。
+"""本地/开发假 Steam 演示数据（不访问 Steam presence API）。
 
-仅供 CLI 灌数（见 local_dev/README.md）；管理端假监控入口已移除。
+仅供 CLI 灌数（见 local_dev/README.md）；管理端假监控与假轮询已移除。
 只伪造用户在线/游玩轨迹；游戏 icon / 商店信息等仍走真实请求链路。
 """
 
@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import random
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from urllib.parse import quote
@@ -27,8 +26,6 @@ from app.models.register_challenge import RegisterChallenge
 from app.models.steam_app import SteamApp
 from app.models.steam_friend import SteamFriendEdge
 from app.models.user import User, UserRole
-from app.services.adapters.steam import SteamPresence
-from app.services.steam_poller import JOB_KEY, _apply_presence, _poll_lock
 
 logger = logging.getLogger(__name__)
 
@@ -204,15 +201,6 @@ _SURVIVAL = frozenset(
     }
 )
 
-# steam_id → 当前假状态（进程内缓存；重启后从 DB 恢复）
-_state_lock = threading.Lock()
-_member_state: dict[str, dict] = {}
-
-_PLAY_DURATION_MIN = timedelta(minutes=30)
-_PLAY_DURATION_MAX = timedelta(hours=4)
-_IDLE_DURATION_MIN = timedelta(minutes=15)
-_IDLE_DURATION_MAX = timedelta(hours=1)
-_MIN_CONTINUE = timedelta(minutes=5)
 
 
 @dataclass(frozen=True)
@@ -818,8 +806,6 @@ def wipe_steam_records(
         "play_sessions": pq.delete(synchronize_session=False),
         "presence_segments": sq.delete(synchronize_session=False),
     }
-    with _state_lock:
-        _member_state.clear()
     db.commit()
     return deleted
 
@@ -830,8 +816,7 @@ def wipe_non_admin_users(db: Session) -> dict[str, int]:
     keep_users = (
         db.query(User)
         .filter(
-            (User.is_admin.is_(True))
-            | (User.username == settings.ADMIN_USERNAME)
+            (User.username == settings.ADMIN_USERNAME)
             | (User.role == UserRole.admin)
         )
         .all()
@@ -894,9 +879,6 @@ def wipe_non_admin_users(db: Session) -> dict[str, int]:
     deleted["register_challenges"] = db.query(RegisterChallenge).delete(
         synchronize_session=False
     )
-
-    with _state_lock:
-        _member_state.clear()
 
     db.commit()
     return deleted
@@ -970,10 +952,6 @@ def wipe_fake_users(db: Session) -> dict[str, int]:
         .filter(JobRun.message.like(f"{FAKE_JOB_MESSAGE_PREFIX}%"))
         .delete(synchronize_session=False)
     )
-
-    with _state_lock:
-        for sid in steam_ids:
-            _member_state.pop(sid, None)
 
     db.commit()
     return deleted
@@ -1095,273 +1073,3 @@ def ensure_local_fake_data(
         "steam_apps": apps,
         "history_sessions": history,
     }
-
-
-def _new_member_state(
-    now: datetime,
-    *,
-    prefer_idle: bool = False,
-    persona: _PersonaProfile | None = None,
-) -> dict:
-    """生成一段状态：游玩 / 在线 / 离线。"""
-    roll = random.random()
-    if prefer_idle:
-        roll = 0.75 + random.random() * 0.25
-    # 主播更爱连玩
-    play_cut = 0.7 if persona and persona.key == "streamer" else 0.55
-    online_cut = 0.88 if persona and persona.key == "streamer" else 0.8
-    if roll < play_cut:
-        if persona is not None:
-            app_id, name = _pick_game_for_persona(persona, random)
-        else:
-            app_id, name = random.choice(FAKE_GAMES)
-        return {
-            "persona_state": 1,
-            "game_id": app_id,
-            "game_extra_info": name,
-            "until": now + _rand_duration(_PLAY_DURATION_MIN, _PLAY_DURATION_MAX),
-        }
-    if roll < online_cut:
-        return {
-            "persona_state": 1,
-            "game_id": None,
-            "game_extra_info": None,
-            "until": now + _rand_duration(_IDLE_DURATION_MIN, _IDLE_DURATION_MAX),
-        }
-    return {
-        "persona_state": 0,
-        "game_id": None,
-        "game_extra_info": None,
-        "until": now + _rand_duration(_IDLE_DURATION_MIN, _IDLE_DURATION_MAX),
-    }
-
-
-def _open_play(db: Session, member_id: int) -> PlaySession | None:
-    return (
-        db.query(PlaySession)
-        .filter(
-            PlaySession.member_id == member_id,
-            PlaySession.ended_at.is_(None),
-            PlaySession.source == "steam",
-        )
-        .order_by(PlaySession.started_at.desc())
-        .first()
-    )
-
-
-def _open_presence(db: Session, member_id: int) -> PresenceSegment | None:
-    return (
-        db.query(PresenceSegment)
-        .filter(
-            PresenceSegment.member_id == member_id,
-            PresenceSegment.ended_at.is_(None),
-            PresenceSegment.source == "steam",
-        )
-        .order_by(PresenceSegment.started_at.desc())
-        .first()
-    )
-
-
-def _hydrate_state_from_db(
-    db: Session, member: Member, now: datetime
-) -> dict | None:
-    """从库内未结束会话/状态恢复；过长则转为在线/离线，避免重启又开新游戏。"""
-    steam_id = (member.steam_id or "").strip()
-    if not steam_id:
-        return None
-
-    open_play = _open_play(db, member.id)
-    open_seg = _open_presence(db, member.id)
-
-    if open_play and (open_play.steam_app_id or "").strip():
-        started = to_naive(open_play.started_at)
-        key = f"play:{member.id}:{open_play.id}:{open_play.steam_app_id}"
-        planned = _stable_duration(key, _PLAY_DURATION_MIN, _PLAY_DURATION_MAX)
-        until = started + planned
-        if until > now + _MIN_CONTINUE:
-            return {
-                "persona_state": 1,
-                "game_id": open_play.steam_app_id,
-                "game_extra_info": open_play.game_name,
-                "until": until,
-            }
-        return {
-            "persona_state": 1,
-            "game_id": None,
-            "game_extra_info": None,
-            "until": now + _rand_duration(_IDLE_DURATION_MIN, _IDLE_DURATION_MAX),
-        }
-
-    if open_seg is not None:
-        started = to_naive(open_seg.started_at)
-        status = (open_seg.status or "").strip()
-        if status == "playing" and (open_seg.steam_app_id or "").strip():
-            key = f"pres:{member.id}:{open_seg.id}:{open_seg.steam_app_id}"
-            planned = _stable_duration(key, _PLAY_DURATION_MIN, _PLAY_DURATION_MAX)
-            until = started + planned
-            if until > now + _MIN_CONTINUE:
-                return {
-                    "persona_state": 1,
-                    "game_id": open_seg.steam_app_id,
-                    "game_extra_info": open_seg.game_name,
-                    "until": until,
-                }
-            return {
-                "persona_state": 1,
-                "game_id": None,
-                "game_extra_info": None,
-                "until": now + _rand_duration(_IDLE_DURATION_MIN, _IDLE_DURATION_MAX),
-            }
-        if status == "online":
-            key = f"online:{member.id}:{open_seg.id}"
-            planned = _stable_duration(key, _IDLE_DURATION_MIN, _IDLE_DURATION_MAX)
-            until = started + planned
-            if until <= now:
-                until = now + _MIN_CONTINUE
-            return {
-                "persona_state": 1,
-                "game_id": None,
-                "game_extra_info": None,
-                "until": until,
-            }
-        if status == "offline":
-            key = f"offline:{member.id}:{open_seg.id}"
-            planned = _stable_duration(key, _IDLE_DURATION_MIN, _IDLE_DURATION_MAX)
-            until = started + planned
-            if until <= now:
-                until = now + _MIN_CONTINUE
-            return {
-                "persona_state": 0,
-                "game_id": None,
-                "game_extra_info": None,
-                "until": until,
-            }
-
-    return None
-
-
-def _pick_next_state(
-    steam_id: str,
-    now: datetime | None = None,
-    *,
-    db: Session | None = None,
-    member: Member | None = None,
-) -> dict:
-    """到期前保持同一状态；内存为空时从 DB 恢复。"""
-    now = now or _now()
-    persona = _persona_for_member(member) if member is not None else None
-    with _state_lock:
-        cur = _member_state.get(steam_id)
-        until = cur.get("until") if cur else None
-        if cur is None and db is not None and member is not None:
-            hydrated = _hydrate_state_from_db(db, member, now)
-            if hydrated is not None:
-                _member_state[steam_id] = hydrated
-                cur = hydrated
-                until = cur.get("until")
-        if cur is None or until is None or now >= until:
-            was_playing = bool(cur and cur.get("game_id"))
-            cur = _new_member_state(
-                now, prefer_idle=was_playing, persona=persona
-            )
-            _member_state[steam_id] = cur
-        return {
-            "persona_state": cur["persona_state"],
-            "game_id": cur["game_id"],
-            "game_extra_info": cur["game_extra_info"],
-        }
-
-
-def run_fake_steam_presence_poll(db: Session) -> dict:
-    if not _poll_lock.acquire(blocking=False):
-        return {
-            "status": "skipped",
-            "message": "已有轮询在进行中",
-            "stats": {},
-        }
-    try:
-        return _run_fake_steam_presence_poll_locked(db)
-    finally:
-        _poll_lock.release()
-
-
-def _run_fake_steam_presence_poll_locked(db: Session) -> dict:
-    job = JobRun(job_key=JOB_KEY, status="running", started_at=_now())
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-
-    stats = {
-        "fake": True,
-        "members": 0,
-        "playing": 0,
-        "online": 0,
-        "offline": 0,
-        "opened": 0,
-        "continued": 0,
-        "closed": 0,
-        "presence_opened": 0,
-        "presence_continued": 0,
-        "presence_closed": 0,
-    }
-
-    try:
-        ensure_fake_steam_apps(db)
-        members = (
-            db.query(Member)
-            .options(joinedload(Member.user))
-            .filter(Member.steam_id.isnot(None), Member.steam_id != "")
-            .all()
-        )
-        demo_ids = {u[2] for u in FAKE_USERS}
-        targets = [m for m in members if m.steam_id in demo_ids] or members
-        stats["members"] = len(targets)
-        now = _now()
-
-        for member in targets:
-            assert member.steam_id
-            st = _pick_next_state(
-                member.steam_id, now, db=db, member=member
-            )
-            presence = SteamPresence(
-                steam_id=member.steam_id,
-                persona_name=member.steam_persona_name or member.nickname,
-                persona_state=st["persona_state"],
-                game_id=st["game_id"],
-                game_extra_info=st["game_extra_info"],
-                avatar_url=member.avatar_url,
-            )
-            _apply_presence(
-                db, member, presence, now, stats, fetch_missing=False
-            )
-
-        job.status = "ok"
-        job.message = (
-            f"{FAKE_JOB_MESSAGE_PREFIX} {stats['members']} 人，"
-            f"玩 {stats['playing']} / 在线 {stats['online']} / 离线 {stats['offline']}，"
-            f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}，"
-            f"状态开 {stats['presence_opened']} / 续 {stats['presence_continued']} / "
-            f"关 {stats['presence_closed']}"
-        )
-        job.stats = stats
-        job.finished_at = _now()
-        db.commit()
-        return {"status": job.status, "message": job.message, "stats": stats}
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("fake steam presence poll failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.stats = stats
-        job.finished_at = _now()
-        db.commit()
-        return {"status": job.status, "message": job.message, "stats": stats}
-
-
-def fake_poll_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-
-    db = SessionLocal()
-    try:
-        run_fake_steam_presence_poll(db)
-    finally:
-        db.close()

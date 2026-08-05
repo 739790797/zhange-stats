@@ -228,13 +228,7 @@ export default function ProfileSettingsPage() {
     return false;
   };
 
-  const errMsg =
-    isError && error && typeof error === "object" && "response" in error
-      ? String(
-          (error as { response?: { data?: { detail?: string } } }).response?.data
-            ?.detail || "加载失败",
-        )
-      : null;
+  const errMsg = isError ? apiError(error, "加载失败") : null;
 
   const steamBound = Boolean(data?.steam_id);
   const qqBound = Boolean(data?.qq_bound);

@@ -2,6 +2,7 @@ import { Divider, message } from "antd";
 import { useState, type CSSProperties } from "react";
 import { startQqOAuthBind, startQqOAuthLogin } from "@/api/client";
 import qqLoginBtn from "@/assets/qq_login_btn.png";
+import { apiError } from "@/lib/apiError";
 
 type Props = {
   /** login：未登录 QQ 登录；bind：个人中心绑定 QQ */
@@ -35,14 +36,8 @@ export function QqLoginButton({
           : await startQqOAuthLogin();
       window.location.href = url;
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
       message.error(
-        String(detail || (mode === "bind" ? "无法跳转 QQ 绑定" : "无法跳转 QQ 登录")),
+        apiError(e, mode === "bind" ? "无法跳转 QQ 绑定" : "无法跳转 QQ 登录"),
       );
       setLoading(false);
     }

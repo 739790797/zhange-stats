@@ -16,8 +16,11 @@ engine = create_engine(
 
 
 @event.listens_for(Engine, "connect")
-def _set_session_timezone(dbapi_conn, _connection_record) -> None:
-    """会话时区固定为北京，使 CURRENT_TIMESTAMP 与业务写入一致。"""
+def _set_session_timezone(dbapi_conn, connection_record) -> None:
+    """会话时区固定为北京，使 CURRENT_TIMESTAMP 与业务写入一致（仅 MySQL）。"""
+    dialect = getattr(getattr(connection_record, "dialect", None), "name", "") or ""
+    if dialect != "mysql":
+        return
     cursor = dbapi_conn.cursor()
     try:
         cursor.execute("SET time_zone = '+08:00'")

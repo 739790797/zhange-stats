@@ -79,7 +79,7 @@ export function SyncCompareBoard({
                 </Typography.Text>
               ) : (
                 orderedOps.map((op) => {
-                  const owned = row.owned[op.char_id];
+                  const owned = row.owned?.[op.char_id];
                   return owned ? (
                     <OwnedCard
                       key={op.char_id}

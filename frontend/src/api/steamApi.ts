@@ -1,48 +1,16 @@
 import { client } from "./http";
 import type {
-  Member,
   MemberPlayStats,
-  SteamCalendarData,
   SteamDayData,
-  SteamFriendsData,
   SteamNowItem,
-  SteamOverviewData,
   SteamPollResult,
   SteamAppStoreCard,
 } from "./types";
-
-export async function fetchSteamFriends(force = false) {
-  const { data } = await client.get<SteamFriendsData>("/steam/friends", {
-    params: { force },
-    timeout: 60000,
-  });
-  return data;
-}
-
-export async function fetchMembers() {
-  const { data } = await client.get<Member[]>("/members");
-  return data;
-}
-
-export async function fetchSteamOverview() {
-  const { data } = await client.get<SteamOverviewData>("/steam/overview");
-  return data;
-}
 
 export async function fetchMemberPlayStats(memberId: number) {
   const { data } = await client.get<MemberPlayStats>(
     `/steam/members/${memberId}`,
   );
-  return data;
-}
-
-export async function fetchSteamCalendar(params: {
-  granularity: string;
-  date: string;
-}) {
-  const { data } = await client.get<SteamCalendarData>("/steam/calendar", {
-    params,
-  });
   return data;
 }
 

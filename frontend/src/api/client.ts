@@ -1,4 +1,4 @@
-export { client, formatRequestError } from "./http";
+export { client } from "./http";
 
 export {
   login,
@@ -11,14 +11,11 @@ export {
   resendCode,
   fetchMe,
   startQqOAuthLogin,
+  exchangeQqTicket,
 } from "./authApi";
 
 export {
-  fetchSteamFriends,
-  fetchMembers,
-  fetchSteamOverview,
   fetchMemberPlayStats,
-  fetchSteamCalendar,
   fetchSteamDay,
   fetchSteamNow,
   fetchSteamAppStore,
@@ -32,28 +29,20 @@ export {
   updateUser,
   deleteUser,
   fetchMyProfile,
-  previewSteamBind,
   startSteamOpenIdBind,
   startQqOAuthBind,
   unbindQq,
   updateMyProfile,
   uploadMyAvatar,
   uploadMemberAvatar,
-  deleteMyAvatar,
   fetchMemberProfile,
   updateMemberProfile,
 } from "./usersApi";
 
 export type {
   EmailSettings,
-  ScheduledJobLastRun,
-  JobExecutor,
-  ScheduledJob,
-  ScheduledJobsResponse,
   PlatformFeatureNode,
   PlatformFeaturesResponse,
-  JobRunRecord,
-  JobRunsPage,
   JobTriggerResult,
   CheckinLogItem,
   CheckinLogsPage,
@@ -68,12 +57,10 @@ export type {
 
 export {
   fetchEmailSettings,
-  fetchScheduledJobs,
   fetchPlatformFeaturesEffective,
   fetchPlatformFeaturesAdmin,
   updatePlatformFeatures,
   triggerScheduledJob,
-  fetchJobRuns,
   fetchJobCheckinLogs,
   fetchJobFilterMembers,
   fetchUserCheckinTasks,
@@ -92,12 +79,9 @@ export {
 
 export {
   fetchSklandStatus,
-  fetchArknightsBox,
   fetchEndfieldBox,
   fetchArknightsCompareCandidates,
   fetchArknightsBoxCompare,
-  fetchSklandLogs,
-  bindSkland,
   bindSklandPassword,
   sendSklandSms,
   bindSklandSms,
@@ -110,7 +94,6 @@ export {
 
 export {
   fetchTaygedoStatus,
-  fetchTaygedoLogs,
   bindTaygedoPassword,
   sendTaygedoSms,
   bindTaygedoSms,

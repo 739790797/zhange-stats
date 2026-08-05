@@ -14,45 +14,6 @@ export interface EmailSettings {
   configured: boolean;
 }
 
-export interface ScheduledJobLastRun {
-  status?: string | null;
-  started_at?: string | null;
-  finished_at?: string | null;
-  message?: string | null;
-}
-
-export interface JobExecutor {
-  id: string;
-  name: string;
-}
-
-export interface ScheduledJob {
-  id: string;
-  name: string;
-  description: string;
-  kind?: string;
-  platform?: string | null;
-  executor_id?: string;
-  registered: boolean;
-  scheduler_running: boolean;
-  trigger_type?: string | null;
-  schedule?: string | null;
-  next_run_at?: string | null;
-  config_enabled?: boolean | null;
-  interval_minutes?: number | null;
-  hour?: number | null;
-  minute?: number | null;
-  last_run?: ScheduledJobLastRun | null;
-}
-
-export interface ScheduledJobsResponse {
-  scheduler_running: boolean;
-  timezone: string;
-  platforms?: JobExecutor[];
-  executors?: JobExecutor[];
-  jobs: ScheduledJob[];
-}
-
 export interface PlatformFeatureNode {
   id: string;
   name: string;
@@ -75,23 +36,6 @@ export interface PlatformFeaturesResponse {
   /** 含祖先的生效开关 */
   effective: Record<string, boolean>;
   tree: PlatformFeatureNode[];
-}
-
-export interface JobRunRecord {
-  id: number;
-  job_key: string;
-  status: string;
-  started_at?: string | null;
-  finished_at?: string | null;
-  message?: string | null;
-  stats?: Record<string, unknown> | null;
-}
-
-export interface JobRunsPage {
-  total: number;
-  page: number;
-  page_size: number;
-  items: JobRunRecord[];
 }
 
 export interface JobTriggerResult {
@@ -199,11 +143,6 @@ export async function fetchEmailSettings() {
   return data;
 }
 
-export async function fetchScheduledJobs() {
-  const { data } = await client.get<ScheduledJobsResponse>("/settings/jobs");
-  return data;
-}
-
 export async function fetchPlatformFeaturesEffective() {
   const { data } = await client.get<Record<string, boolean>>(
     "/settings/platform-features/effective",
@@ -243,17 +182,6 @@ export async function triggerScheduledJob(
   const { data } = await client.post<JobTriggerResult>(
     `/settings/jobs/${encodeURIComponent(jobId)}/trigger`,
     payload || {},
-  );
-  return data;
-}
-
-export async function fetchJobRuns(
-  jobId: string,
-  params?: { page?: number; page_size?: number },
-) {
-  const { data } = await client.get<JobRunsPage>(
-    `/settings/jobs/${encodeURIComponent(jobId)}/runs`,
-    { params },
   );
   return data;
 }

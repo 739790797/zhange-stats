@@ -3,8 +3,6 @@ type BrandLogoProps = {
   color?: string;
   title?: string;
   className?: string;
-  /** @deprecated 几何实心标不再使用描边宽度 */
-  strokeWidth?: number;
 };
 
 const VIEW_W = 529;

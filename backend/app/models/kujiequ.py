@@ -20,6 +20,7 @@ class KujiequBind(Base):
     auto_checkin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     checkin_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     checkin_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    # 反规范化摘要：调度跳过 / 管理端任务列表；今日按角色详情以 logs 为准
     last_checkin_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -45,7 +46,7 @@ class KujiequBind(Base):
 
 
 class KujiequCheckinLog(Base):
-    """库街区签到记录（保留表结构；运行时以实时查询为准）。"""
+    """库街区签到 / 状态查询记录（按「今日」缓存读优先，见 platform-raw-cache）。"""
 
     __tablename__ = "kujiequ_checkin_logs"
     __table_args__ = (

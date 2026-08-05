@@ -17,7 +17,6 @@ def seed_data(db: Session) -> None:
             display_name=settings.ADMIN_DISPLAY_NAME,
             password_hash=hash_password(settings.ADMIN_PASSWORD),
             role=UserRole.admin,
-            is_admin=True,
             email_verified=True,
         )
         db.add(admin)
@@ -42,10 +41,7 @@ def seed_data(db: Session) -> None:
     if settings.ENFORCE_SINGLE_ADMIN:
         extras = (
             db.query(User)
-            .filter(
-                User.id != admin.id,
-                (User.role == UserRole.admin) | (User.is_admin.is_(True)),
-            )
+            .filter(User.id != admin.id, User.role == UserRole.admin)
             .all()
         )
         for u in extras:

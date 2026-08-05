@@ -169,6 +169,42 @@ def load_day_checkin_results(
     ]
 
 
+def today_done_from_logs(
+    db: Any,
+    log_model: Any,
+    *,
+    member_id: int,
+    checkin_date: Any,
+) -> list[CheckinResult] | None:
+    """今日 logs 全部为成功态则返回结果，否则 None。调度跳过以 logs 为准。"""
+    cached = load_day_checkin_results(
+        db, log_model, member_id=member_id, checkin_date=checkin_date
+    )
+    if cached and all(is_success_status(r.status) for r in cached):
+        return cached
+    return None
+
+
+def apply_bind_last_checkin(
+    bind: Any,
+    *,
+    now: Any,
+    checkin_date: Any,
+    ok: bool,
+    summary: str,
+) -> None:
+    """写入 bind.last_checkin_*（反规范化：任务列表 / 兼容旧跳过逻辑）。
+
+    今日按角色详情只信 *_checkin_logs；status 查询路径不得调用本函数。
+    """
+    bind.last_checkin_at = now
+    bind.last_checkin_date = checkin_date
+    bind.last_checkin_ok = ok
+    bind.last_checkin_summary = summary
+    if hasattr(bind, "updated_at"):
+        bind.updated_at = now
+
+
 def upsert_day_checkin_logs(
     db: Any,
     log_model: Any,

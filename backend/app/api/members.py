@@ -6,7 +6,6 @@ from app.core.deps import get_current_user
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import MemberOut
-from app.services.member_sync import ensure_user_member
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -16,10 +15,7 @@ def list_members(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> list[Member]:
-    # 只返回已绑定用户的成员，与用户列表同步
-    for user in db.query(User).all():
-        ensure_user_member(db, user)
-    db.commit()
+    """只读列表。成员补齐依赖启动 sync_users_and_members / 登录懒加载 ensure_user_member。"""
     return (
         db.query(Member)
         .options(joinedload(Member.user))

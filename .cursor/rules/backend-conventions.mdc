@@ -1,0 +1,35 @@
+---
+description: 后端分层、upstream 拆分、checkin_common、限流与测试
+globs: backend/app/**/*.py
+alwaysApply: false
+---
+
+# 后端约定
+
+## 分层
+
+- `api/`：参数、依赖、HTTP 状态；**不**直接打第三方上游
+- `services/`：编排与业务；`models/`：表结构
+- 签到状态/upsert/`apply_bind_last_checkin` 走 `checkin_common`（摘要字段仅签到动作后写）
+
+## Upstream 客户端
+
+- `*_client.py`：认证、会话、通用 HTTP、常量
+- `*_attendance.py`：签到查询/执行
+- 可选 `*_boxes.py`：盒子 parse/fetch
+- 为兼容可从 `*_client` re-export；**新逻辑写进拆分模块**，勿继续胀单文件
+
+## 横切
+
+- 时间：`app.core.timeutil`（北京墙钟）
+- 密钥：`crypto_secret` Fernet
+- 限流：`auth_limiter` / `platform_limiter`（可选 `REDIS_URL`）
+- QQ 登录：一次性 ticket，勿把 JWT 放回调 query
+
+## 数据库
+
+改 `models/` → Alembic + README 表结构；勿扩 `schema_ensure`（见 `db-schema-readme.mdc`）。
+
+## 测试
+
+触及弱口令、限流、oauth ticket、`checkin_common`、health 等纯逻辑时，优先补 `backend/tests/`。

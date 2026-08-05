@@ -1,5 +1,5 @@
 import { client } from "./http";
-import type { MemberProfile, SteamBindPreview, UserBrief } from "./types";
+import type { MemberProfile, UserBrief } from "./types";
 
 export async function fetchUsers() {
   const { data } = await client.get<UserBrief[]>("/users");
@@ -37,13 +37,6 @@ export async function deleteUser(userId: number) {
 
 export async function fetchMyProfile() {
   const { data } = await client.get<MemberProfile>("/profile/me");
-  return data;
-}
-
-export async function previewSteamBind(steam_input: string) {
-  const { data } = await client.post<SteamBindPreview>("/profile/steam/preview", {
-    steam_input,
-  });
   return data;
 }
 
@@ -94,11 +87,6 @@ export async function uploadMemberAvatar(memberId: number, file: File) {
     form,
     { timeout: 30000 },
   );
-  return data;
-}
-
-export async function deleteMyAvatar() {
-  const { data } = await client.delete<MemberProfile>("/profile/me/avatar");
   return data;
 }
 

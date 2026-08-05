@@ -20,8 +20,6 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(128), unique=True, index=True, nullable=True)
     display_name: Mapped[str] = mapped_column(String(64), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    # 与 role 双写，兼容旧库 NOT NULL 的 is_admin 列
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
@@ -36,9 +34,8 @@ class User(Base):
 
     @property
     def is_admin_user(self) -> bool:
-        """读权限单一入口：role 为准，is_admin 为旧库兼容。"""
-        return self.role == UserRole.admin or bool(self.is_admin)
+        """权限唯一入口：仅看 role（API 的 is_admin 字段由此派生）。"""
+        return self.role == UserRole.admin
 
     def apply_role(self, role: UserRole) -> None:
         self.role = role
-        self.is_admin = role == UserRole.admin

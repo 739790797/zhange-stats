@@ -1,0 +1,36 @@
+---
+description: 前端目录、路由权限、Query/zustand、OpenAPI 类型约定
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# 前端约定
+
+## 目录
+
+- `pages/`：路由页；`components/`：可复用 UI
+- `api/`：`http.ts` + 域 `*Api.ts`；`client.ts` 再导出
+- `stores/authStore.ts`：仅 JWT + 用户（localStorage）
+- `lib/apiError.ts`：用户可见错误文案
+
+## 权限与路由
+
+- `PrivateRoute` 需登录；`AdminRoute` 看 `role === admin`（`is_admin` 仅派生展示）
+- `PlatformRoute` 受 `platform_features` 控制
+
+## 数据与 UI
+
+- 远端状态用 TanStack Query；勿把服务端列表塞进 zustand
+- UI 沿用 Ant Design；**新签到页**套 `CheckinPageTemplate`
+- 盒子/签到读库优先；刷新传 `force`（见 `platform-raw-cache`）
+
+## 类型
+
+- 优先 `import type { components } from "@/api/generated/schema"` 再 alias
+- 新增手写 `interface` 须因 OpenAPI 尚无对应 schema；能派生则不要复制字段
+
+## API 变更
+
+后端契约变更后：`npm run export:openapi && npm run gen:api`，提交 `generated/`。
+
+请求/错误边界见 `frontend-api-errors.mdc`。

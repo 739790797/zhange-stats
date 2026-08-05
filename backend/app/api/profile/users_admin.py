@@ -115,7 +115,6 @@ def create_user(
         display_name=display_name,
         password_hash=hash_password(body.password),
         role=UserRole.user,
-        is_admin=False,
         email_verified=True,
     )
     db.add(user)

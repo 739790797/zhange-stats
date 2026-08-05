@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.platform_checkin import (
@@ -13,6 +13,7 @@ from app.api.platform_checkin import (
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_user_member
 from app.core.platform_deps import require_feature
+from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
@@ -79,7 +80,7 @@ def taygedo_logs(
     user: User = Depends(get_current_user),
     limit: int = Query(default=30, ge=1, le=100),
 ):
-    """已弃用：签到改为实时查询，不再返回历史记录。"""
+    """兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。"""
     _ = (db, user, limit)
     return []
 
@@ -101,11 +102,18 @@ def taygedo_bind_password(
 @router.post("/bind/sms/send", response_model=TaygedoBindSmsSendResponse)
 def taygedo_bind_sms_send(
     payload: TaygedoBindSmsSendRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     member: Member = Depends(require_user_member),
 ):
     _ = (db, user, member)
+    ip = client_ip(request)
+    platform_limiter.hit(f"taygedo-sms:ip:{ip}", limit=10, window_sec=600)
+    platform_limiter.hit(f"taygedo-sms:uid:{user.id}", limit=5, window_sec=600)
+    platform_limiter.hit(
+        f"taygedo-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
+    )
     try:
         device_id = send_sms_captcha(payload.phone, payload.device_id)
     except TaygedoApiError as exc:

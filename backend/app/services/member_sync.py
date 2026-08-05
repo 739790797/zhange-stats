@@ -5,7 +5,6 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.models.member import Member
-from app.models.play_session import PlaySession
 from app.models.user import User
 
 
@@ -27,20 +26,7 @@ def ensure_user_member(db: Session, user: User) -> Member:
 
 
 def delete_member_cascade(db: Session, member: Member) -> None:
-    """删除成员及其关联的会话、状态、好友边。"""
-    from app.models.presence_segment import PresenceSegment
-    from app.models.steam_friend import SteamFriendEdge
-
-    mid = member.id
-    db.query(PlaySession).filter(PlaySession.member_id == mid).delete(
-        synchronize_session=False
-    )
-    db.query(PresenceSegment).filter(PresenceSegment.member_id == mid).delete(
-        synchronize_session=False
-    )
-    db.query(SteamFriendEdge).filter(SteamFriendEdge.member_id == mid).delete(
-        synchronize_session=False
-    )
+    """删除成员；关联表依赖 DB ON DELETE CASCADE（平台 bind/logs、Steam 时序与好友）。"""
     db.delete(member)
     db.flush()
 

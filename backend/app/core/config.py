@@ -32,8 +32,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "mysql+pymysql://root:password@127.0.0.1:3306/zhange_stats_dev"
     # 留空或保持占位值时，首次启动会自动生成并写入 DATA_DIR/.secret_key
     SECRET_KEY: str = DEFAULT_SECRET_KEY
-    # 默认 24 小时；生产可按需再缩短
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 默认 30 天
+    # 默认 24 小时；管理端可在 system_configs 再调（最长 1 年）
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     # 留空：本地 Vite 用 allow_origin_regex；生产同域一般无需 CORS
     CORS_ORIGINS: str = ""
     ADMIN_USERNAME: str = "admin"
@@ -42,8 +42,15 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@localhost"
     # 仅当显式开启时，启动才把种子管理员密码重置为 ADMIN_PASSWORD
     RESET_ADMIN_PASSWORD: bool = False
+    # development | production（production 下弱口令默认拒绝启动）
+    APP_ENV: str = "development"
+    # 弱口令时拒绝启动；未显式设置时：production 默认拒绝，development 仅 WARNING
+    REJECT_WEAK_ADMIN_PASSWORD: bool | None = None
     # 仅当显式开启时，启动才把其它管理员降级为普通用户
     ENFORCE_SINGLE_ADMIN: bool = False
+
+    # 可选 Redis（限流跨实例）；留空则进程内滑动窗口
+    REDIS_URL: str = ""
 
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
@@ -89,7 +96,7 @@ class Settings(BaseSettings):
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
     UPLOAD_DIR: str = "uploads"
 
-    # 邮件（不配置则验证码打印到服务端日志）
+    # 邮件（不配置则默认拒绝发码；本地可开 ALLOW_EMAIL_CODE_LOG 把验证码打到日志）
     SMTP_HOST: str = ""
     SMTP_PORT: int = 465
     SMTP_USER: str = ""
@@ -98,6 +105,8 @@ class Settings(BaseSettings):
     SMTP_USE_SSL: bool = True
     SMTP_STARTTLS: bool = False
     EMAIL_CODE_EXPIRE_MINUTES: int = 15
+    # 仅本地调试：SMTP 未配时允许把完整验证码写入日志/stdout
+    ALLOW_EMAIL_CODE_LOG: bool = False
 
     # 部署 / 在线更新（Docker 管理端手动更新始终可用）
     APP_VERSION: str = _read_version_file()
@@ -112,6 +121,17 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def is_production(self) -> bool:
+        return (self.APP_ENV or "").strip().lower() in ("production", "prod")
+
+    @property
+    def reject_weak_admin_password(self) -> bool:
+        """显式 REJECT_* 优先；否则 production 默认拒绝。"""
+        if self.REJECT_WEAK_ADMIN_PASSWORD is not None:
+            return bool(self.REJECT_WEAK_ADMIN_PASSWORD)
+        return self.is_production
 
 
 @lru_cache

@@ -96,12 +96,13 @@ export default function SklandPage() {
   const checkin = useMutation({
     mutationFn: triggerSklandCheckin,
     onSuccess: (data) => {
+      const results = data.results ?? [];
       const allDone =
-        Boolean(data.results?.length) &&
-        data.results.every((r) => isCheckinSuccess(r.status));
+        Boolean(results.length) &&
+        results.every((r) => isCheckinSuccess(r.status));
       if (
         data.skipped ||
-        (allDone && data.results.every((r) => r.status === "already"))
+        (allDone && results.every((r) => r.status === "already"))
       ) {
         message.info("今日已签到");
       } else if (data.ok === false) {

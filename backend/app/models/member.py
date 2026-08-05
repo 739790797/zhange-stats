@@ -40,10 +40,17 @@ class Member(Base):
     )
 
     user = relationship("User", back_populates="member")
-    play_sessions = relationship("PlaySession", back_populates="member")
-    presence_segments = relationship("PresenceSegment", back_populates="member")
+    play_sessions = relationship(
+        "PlaySession", back_populates="member", passive_deletes=True
+    )
+    presence_segments = relationship(
+        "PresenceSegment", back_populates="member", passive_deletes=True
+    )
     steam_friend_edges = relationship(
-        "SteamFriendEdge", back_populates="member", cascade="all, delete-orphan"
+        "SteamFriendEdge",
+        back_populates="member",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     skland_bind = relationship(
         "SklandBind",

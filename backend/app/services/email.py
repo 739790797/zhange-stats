@@ -1,4 +1,4 @@
-"""发送注册验证码邮件；未配置 / 未启用 SMTP 时写入日志。"""
+"""发送注册验证码邮件；未配置 SMTP 时默认拒绝（可开 ALLOW_EMAIL_CODE_LOG 仅本地调试）。"""
 
 from __future__ import annotations
 
@@ -10,10 +10,18 @@ from email.utils import formataddr
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.services.email_config import load_email_config, resolve_mail_from
 
 logger = logging.getLogger(__name__)
+
+
+def _mask_code(code: str) -> str:
+    raw = code or ""
+    if len(raw) <= 2:
+        return "*" * len(raw)
+    return ("*" * (len(raw) - 2)) + raw[-2:]
 
 
 def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
@@ -31,12 +39,21 @@ def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
     password = str(cfg.get("smtp_password") or "")
 
     if not enabled or not host or not mail_from:
-        # 仅开发兜底：完整验证码入日志，便于本地调试
+        settings = get_settings()
+        if settings.ALLOW_EMAIL_CODE_LOG:
+            # 仅显式开启时才输出完整验证码（本地调试）
+            logger.warning(
+                "[email-dev] 邮件未启用或未配置，验证码发给 %s → %s",
+                to_email,
+                code,
+            )
+            print(f"[战鸽数据] 邮箱验证码 {to_email}: {code}", flush=True)
+            return {"sent": False, "mode": "log"}
         logger.warning(
-            "[email-dev] 邮件未启用或未配置，验证码发给 %s → %s", to_email, code
+            "邮件未配置且未开启 ALLOW_EMAIL_CODE_LOG，无法发送验证码 to=%s",
+            to_email,
         )
-        print(f"[战鸽数据] 邮箱验证码 {to_email}: {code}", flush=True)
-        return {"sent": False, "mode": "log"}
+        return {"sent": False, "mode": "unavailable"}
 
     display_name = (cfg.get("display_name") or "").strip()
     from_header = formataddr((display_name, mail_from)) if display_name else mail_from
@@ -68,9 +85,9 @@ def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
         return {"sent": True, "mode": "smtp"}
     except Exception:  # noqa: BLE001
         logger.exception("发送验证邮件失败")
-        # 已启用 SMTP 时不把完整验证码打到日志，避免生产泄露
-        masked = ("*" * max(0, len(code) - 2)) + code[-2:]
-        logger.warning("[email-fallback] %s → %s（已脱敏）", to_email, masked)
+        logger.warning(
+            "[email-fallback] %s → %s（已脱敏）", to_email, _mask_code(code)
+        )
         return {"sent": False, "mode": "log"}
 
 
@@ -79,7 +96,7 @@ def send_verification_email(
 ) -> dict:
     """
     发送验证码。
-    返回 {"sent": bool, "mode": "smtp"|"log"}
+    返回 {"sent": bool, "mode": "smtp"|"log"|"unavailable"}
     """
     own_session = False
     if db is None:

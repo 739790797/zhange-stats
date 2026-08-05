@@ -1,7 +1,8 @@
 import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { fetchMe, formatRequestError, login } from "@/api/client";
+import { fetchMe, login, exchangeQqTicket } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { QqLoginButton } from "@/components/QqLoginButton";
@@ -23,25 +24,27 @@ export default function LoginPage() {
     if (!status) return;
     qqHandled.current = true;
 
-    const accessToken = searchParams.get("access_token");
+    const ticket = searchParams.get("ticket");
     const name = searchParams.get("name");
     const detail = searchParams.get("detail");
     const needCompleteFlag = searchParams.get("need_complete") === "1";
     const next = new URLSearchParams(searchParams);
     next.delete("qq_login");
-    next.delete("access_token");
+    next.delete("ticket");
+    next.delete("access_token"); // 兼容旧回调
     next.delete("name");
     next.delete("detail");
     next.delete("need_complete");
     setSearchParams(next, { replace: true });
 
-    if (status === "ok" && accessToken) {
+    if (status === "ok" && ticket) {
       setQqCompleting(true);
       void (async () => {
         try {
-          useAuthStore.setState({ token: accessToken });
+          const { access_token } = await exchangeQqTicket(ticket);
+          useAuthStore.setState({ token: access_token });
           const user = await fetchMe();
-          setAuth(accessToken, user);
+          setAuth(access_token, user);
           message.success(name ? `欢迎，${name}` : "QQ 登录成功");
           const needComplete = needCompleteFlag || !user.email;
           navigate("/", {
@@ -78,7 +81,7 @@ export default function LoginPage() {
         state: !user.email ? { promptCompleteProfile: true } : undefined,
       });
     } catch (e: unknown) {
-      setError(formatRequestError(e, "账号或密码错误"));
+      setError(apiError(e, "账号或密码错误"));
     } finally {
       setLoading(false);
     }

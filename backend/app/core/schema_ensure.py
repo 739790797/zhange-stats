@@ -150,21 +150,21 @@ def ensure_schema(engine: Engine) -> None:
                         "TINYINT(1) NOT NULL DEFAULT 0"
                     )
                 )
-                conn.execute(
-                    text(
-                        "UPDATE users SET email_verified=1 "
-                        "WHERE role='admin' OR is_admin=1"
+                if "is_admin" in columns:
+                    conn.execute(
+                        text(
+                            "UPDATE users SET email_verified=1 "
+                            "WHERE role='admin' OR is_admin=1"
+                        )
                     )
-                )
-            try:
-                conn.execute(
-                    text(
-                        "ALTER TABLE users MODIFY COLUMN is_admin "
-                        "TINYINT(1) NOT NULL DEFAULT 0"
+                else:
+                    conn.execute(
+                        text(
+                            "UPDATE users SET email_verified=1 WHERE role='admin'"
+                        )
                     )
-                )
-            except Exception:  # noqa: BLE001
-                pass
+            # is_admin 已由 Alembic 0019 删除；旧库 stamp 前若仍有列可保留，
+            # 不再强制 MODIFY。
             # 验证码已迁至 register_challenges
             _drop_columns(
                 conn,

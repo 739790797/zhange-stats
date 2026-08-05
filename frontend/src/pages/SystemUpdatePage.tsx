@@ -7,6 +7,7 @@ import {
   fetchUpdateStatus,
   triggerUpdate,
 } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 
 async function waitForNewVersion(previous: string, timeoutMs = 180_000) {
   const prev = previous.replace(/^v/i, "").trim();
@@ -84,7 +85,7 @@ export default function SystemUpdatePage() {
         message.success(`已更新到 v${next}`);
         window.location.reload();
       } catch (e: unknown) {
-        message.error(e instanceof Error ? e.message : "更新等待失败");
+        message.error(apiError(e, "更新等待失败"));
       } finally {
         setWaiting(false);
         queryClient.invalidateQueries({ queryKey: ["update-check"] });
@@ -93,13 +94,7 @@ export default function SystemUpdatePage() {
       }
     },
     onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "启动更新失败"));
+      message.error(apiError(e, "启动更新失败"));
     },
   });
 
@@ -113,13 +108,9 @@ export default function SystemUpdatePage() {
     status?.state === "pulling" ||
     status?.state === "recreating";
 
-  const checkHardError =
-    checkQuery.isError &&
-    ((checkQuery.error as { response?: { data?: { detail?: string } } })
-      ?.response?.data?.detail ||
-      (checkQuery.error instanceof Error
-        ? checkQuery.error.message
-        : "请稍后重试"));
+  const checkHardError = checkQuery.isError
+    ? apiError(checkQuery.error, "请稍后重试")
+    : null;
 
   return (
     <div>

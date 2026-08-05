@@ -1,19 +1,20 @@
 # syntax=docker/dockerfile:1
 
-ARG APP_VERSION=0.1.6
+ARG APP_VERSION=0.2.0
 
 FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.12-slim-bookworm AS runtime
-ARG APP_VERSION=0.1.6
+ARG APP_VERSION=0.2.0
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION} \
+    APP_ENV=production \
     STATIC_DIR=/app/static \
     DATA_DIR=/app/data \
     UPLOAD_DIR=/app/uploads \

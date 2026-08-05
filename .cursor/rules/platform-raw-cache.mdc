@@ -37,7 +37,9 @@ alwaysApply: false
 
 - **有今日记录就不再打官方**（含 `pending` / `already` / `ok`）；跨日自然失效。
 - 查询与真正签到成功后都要 upsert 日志；`awards_text` / `message` 一并落库。
-- `bind.last_checkin_*` 仍表示「最近一次签到动作」；今日展示以日志为准。
+- **职责划分**
+  - `*_checkin_logs`：今日按角色的权威详情（status / 奖励文案）；打开页与调度跳过均优先读它。
+  - `bind.last_checkin_*`：反规范化摘要，仅在**签到动作**后更新，供管理端任务列表与兼容展示；status 查询不得改写。
 - status 接口支持 `force`，前端提供刷新。
 
 ## 不要做的事

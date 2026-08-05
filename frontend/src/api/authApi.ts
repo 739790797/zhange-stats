@@ -1,11 +1,17 @@
 import { client } from "./http";
-import type { User } from "./types";
+import type { TokenResponse, User } from "./types";
+import type { components } from "./generated/schema";
+
+type RegisterResponse = components["schemas"]["RegisterResponse"];
+type BindEmailResponse = components["schemas"]["BindEmailResponse"];
+type LinkExistingAccountResponse =
+  components["schemas"]["LinkExistingAccountResponse"];
 
 export async function login(username: string, password: string) {
-  const { data } = await client.post<{ access_token: string; token_type: string }>(
-    "/auth/login",
-    { username, password },
-  );
+  const { data } = await client.post<TokenResponse>("/auth/login", {
+    username,
+    password,
+  });
   return data;
 }
 
@@ -14,31 +20,23 @@ export async function register(payload: {
   password: string;
   code: string;
 }) {
-  const { data } = await client.post<{
-    message: string;
-    email: string;
-    delivery?: string;
-    access_token?: string;
-    token_type?: string;
-  }>("/auth/register", payload);
+  const { data } = await client.post<RegisterResponse>("/auth/register", payload);
   return data;
 }
 
 export async function sendRegisterCode(email: string) {
-  const { data } = await client.post<{
-    message: string;
-    email: string;
-    delivery?: string;
-  }>("/auth/send-register-code", { email });
+  const { data } = await client.post<RegisterResponse>(
+    "/auth/send-register-code",
+    { email },
+  );
   return data;
 }
 
 export async function sendBindEmailCode(email: string) {
-  const { data } = await client.post<{
-    message: string;
-    email: string;
-    delivery?: string;
-  }>("/auth/send-bind-email-code", { email });
+  const { data } = await client.post<RegisterResponse>(
+    "/auth/send-bind-email-code",
+    { email },
+  );
   return data;
 }
 
@@ -47,10 +45,10 @@ export async function bindEmail(payload: {
   code: string;
   password?: string;
 }) {
-  const { data } = await client.post<{
-    message: string;
-    user: User;
-  }>("/auth/bind-email", payload);
+  const { data } = await client.post<BindEmailResponse>(
+    "/auth/bind-email",
+    payload,
+  );
   return data;
 }
 
@@ -58,12 +56,10 @@ export async function linkExistingAccount(payload: {
   email: string;
   password: string;
 }) {
-  const { data } = await client.post<{
-    message: string;
-    access_token: string;
-    token_type: string;
-    user: User;
-  }>("/auth/link-existing-account", payload);
+  const { data } = await client.post<LinkExistingAccountResponse>(
+    "/auth/link-existing-account",
+    payload,
+  );
   return data;
 }
 
@@ -76,11 +72,9 @@ export async function verifyEmail(email: string, code: string) {
 }
 
 export async function resendCode(email: string) {
-  const { data } = await client.post<{
-    message: string;
-    email: string;
-    delivery: string;
-  }>("/auth/resend-code", { email });
+  const { data } = await client.post<RegisterResponse>("/auth/resend-code", {
+    email,
+  });
   return data;
 }
 
@@ -91,5 +85,13 @@ export async function fetchMe() {
 
 export async function startQqOAuthLogin() {
   const { data } = await client.get<{ url: string }>("/auth/qq/oauth/start");
+  return data;
+}
+
+/** QQ 回调一次性 ticket → JWT（不经 URL 传递 access_token）。 */
+export async function exchangeQqTicket(ticket: string) {
+  const { data } = await client.post<TokenResponse>("/auth/qq/exchange", {
+    ticket,
+  });
   return data;
 }

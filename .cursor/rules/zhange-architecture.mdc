@@ -1,0 +1,21 @@
+---
+description: 战鸽数据架构索引：契约、签到、DB、前后端边界、安全
+alwaysApply: true
+---
+
+# 战鸽数据 · 架构索引
+
+改代码时遵守下表；细节见链接，勿重复发明。
+
+| 域 | 必须 | 禁止 | 详见 |
+|----|------|------|------|
+| 契约 | 改 FastAPI 路由/schema 后 `npm run export:openapi && npm run gen:api` 并提交 `generated/` | 只改手写 `types.ts` 当契约 | `frontend/src/api/generated/README.md` |
+| 签到/盒子 | 今日 `*_checkin_logs` / 盒子 raw 权威；打开页读库优先 | status 改 `last_checkin_*`；无 `force` 每次回源 | `.cursor/rules/platform-raw-cache.mdc` |
+| DB | Alembic 迁移 + 同步 README 表结构 | 往 `schema_ensure.py` 堆 ALTER | `.cursor/rules/db-schema-readme.mdc` |
+| 前端 API | 域 `*Api.ts`；用户可见错误用 `apiError` | 页面直连 axios；手拆 `detail` | `.cursor/rules/frontend-api-errors.mdc` |
+| 前端结构 | 签到套 `CheckinPageTemplate`；权限看 `role` | 新造平行请求层 | `.cursor/rules/frontend-conventions.mdc` |
+| 后端 | `api/` 薄、`services/` 厚；upstream 拆 client/attendance | 路由内打上游 HTTP | `.cursor/rules/backend-conventions.mdc` |
+| 时间 | `app.core.timeutil` 北京墙钟 | 业务层随意 `utcnow` | `backend/app/core/timeutil.py` |
+| 安全 | 凭证 Fernet；QQ 只发 ticket；生产 `APP_ENV=production` | JWT 进回调 URL；生产弱口令/明文验证码日志 | 根 `README.md`「说明」 |
+
+总入口：仓库根 `AGENTS.md`。

@@ -1,6 +1,7 @@
 import { Button, Input, Segmented, Space, Typography, message } from "antd";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { apiError } from "@/lib/apiError";
 
 export type PhoneAuthMode = "qr" | "sms" | "password";
 
@@ -47,8 +48,6 @@ export function PhoneAuthBindTemplate({
   title?: string;
   description?: ReactNode;
   modes: PhoneAuthMode[];
-  /** @deprecated 已忽略；始终按 扫码 > 短信 > 密码 选中 */
-  defaultMode?: PhoneAuthMode;
   submitText?: string;
   /** 扫码模式内容；仅当 modes 含 qr 时使用 */
   qrPanel?: ReactNode;
@@ -188,19 +187,7 @@ export function PhoneAuthBindTemplate({
                         startSmsCooldown(60);
                         message.success("验证码已发送");
                       } catch (e: unknown) {
-                        const detail =
-                          e &&
-                          typeof e === "object" &&
-                          "response" in e &&
-                          (e as { response?: { data?: { detail?: string } } })
-                            .response?.data?.detail;
-                        message.error(
-                          String(
-                            detail ||
-                              (e as Error)?.message ||
-                              "发送验证码失败",
-                          ),
-                        );
+                        message.error(apiError(e, "发送验证码失败"));
                       } finally {
                         setSendingSms(false);
                       }
@@ -223,17 +210,7 @@ export function PhoneAuthBindTemplate({
                     try {
                       await onBindSms(phone.trim(), code.trim());
                     } catch (e: unknown) {
-                      const detail =
-                        e &&
-                        typeof e === "object" &&
-                        "response" in e &&
-                        (e as { response?: { data?: { detail?: string } } })
-                          .response?.data?.detail;
-                      message.error(
-                        String(
-                          detail || (e as Error)?.message || "绑定失败",
-                        ),
-                      );
+                      message.error(apiError(e, "绑定失败"));
                     } finally {
                       setBinding(false);
                     }
@@ -265,17 +242,7 @@ export function PhoneAuthBindTemplate({
                     try {
                       await onBindPassword(phone.trim(), password);
                     } catch (e: unknown) {
-                      const detail =
-                        e &&
-                        typeof e === "object" &&
-                        "response" in e &&
-                        (e as { response?: { data?: { detail?: string } } })
-                          .response?.data?.detail;
-                      message.error(
-                        String(
-                          detail || (e as Error)?.message || "绑定失败",
-                        ),
-                      );
+                      message.error(apiError(e, "绑定失败"));
                     } finally {
                       setBinding(false);
                     }

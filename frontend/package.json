@@ -1,13 +1,16 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.1.21",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "test": "vitest run",
+    "preview": "vite preview",
+    "export:openapi": "cd ../backend && (if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe scripts\\export_openapi.py) else (python scripts\\export_openapi.py))",
+    "gen:api": "openapi-typescript ./src/api/generated/openapi.json -o ./src/api/generated/schema.d.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
@@ -25,8 +28,10 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.0.3",
+    "openapi-typescript": "^7.10.1",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "vitest": "^3.2.7"
   }
 }

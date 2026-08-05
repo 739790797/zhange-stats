@@ -12,7 +12,7 @@ from app.core.database import SessionLocal
 from app.models.system_config import SystemConfig
 
 AUTH_CONFIG_KEY = "auth_session"
-_DEFAULT_EXPIRE_MINUTES = 60 * 24 * 30  # 30 天
+_DEFAULT_EXPIRE_MINUTES = 60 * 24  # 24 小时
 _MIN_EXPIRE = 5
 _MAX_EXPIRE = 60 * 24 * 365  # 最长 1 年
 

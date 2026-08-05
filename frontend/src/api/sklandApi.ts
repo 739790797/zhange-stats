@@ -1,10 +1,8 @@
 import { client } from "./http";
 import type {
-  ArknightsBox,
   ArknightsBoxCompare,
   ArknightsCompareCandidate,
   EndfieldBox,
-  SklandCheckinLog,
   SklandCheckinResponse,
   SklandQrPoll,
   SklandQrStart,
@@ -17,14 +15,6 @@ export async function fetchSklandStatus(includeRoles = true, force = false) {
       include_roles: includeRoles,
       ...(force ? { force: true } : {}),
     },
-  });
-  return data;
-}
-
-export async function fetchArknightsBox(uid?: string) {
-  const { data } = await client.get<ArknightsBox>("/skland/arknights/box", {
-    params: uid ? { uid } : undefined,
-    timeout: 60000,
   });
   return data;
 }
@@ -67,18 +57,6 @@ export async function fetchArknightsBoxCompare(
       timeout: 120000,
     },
   );
-  return data;
-}
-
-export async function fetchSklandLogs(limit = 30) {
-  const { data } = await client.get<SklandCheckinLog[]>("/skland/logs", {
-    params: { limit },
-  });
-  return data;
-}
-
-export async function bindSkland(token: string) {
-  const { data } = await client.post<SklandStatus>("/skland/bind", { token });
   return data;
 }
 

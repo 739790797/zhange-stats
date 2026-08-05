@@ -1,5 +1,8 @@
-"""本地开发：假 Steam 监控与演示数据。
+"""本地开发：假 Steam 演示数据灌数（CLI）。
 
-在「系统管理 → 定时任务」开启本地假监控后，后端会加载假数据与假轮询。
-详见 README.md。
+管理端假监控已移除。灌数请用：
+
+  python -m local_dev.seed_local
+
+详见 local_dev/README.md。
 """

@@ -6,6 +6,7 @@ import {
   testNapCatConnection,
   updateIntegrationsSettings,
 } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 
 type FormValues = {
   steam_api_key?: string;
@@ -43,15 +44,7 @@ export default function IntegrationsSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["napcat-groups"] });
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "保存失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   const testNapcat = useMutation({
@@ -68,15 +61,7 @@ export default function IntegrationsSettingsPage() {
       if (res.ok) message.success(res.message);
       else message.warning(res.message);
     },
-    onError: (e: unknown) => {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      message.error(String(detail || "测试失败"));
-    },
+    onError: (e: unknown) => message.error(apiError(e, "测试失败")),
   });
 
   const callbackUrl = data?.qq_callback_url || "";

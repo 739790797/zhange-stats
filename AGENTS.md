@@ -1,0 +1,54 @@
+# 战鸽数据 · Agent 指南
+
+战鸽数据（Zhange Stats）：Steam 游玩统计 + 圈子成员 + 多平台签到/盒子。  
+栈：FastAPI + MySQL + APScheduler · React + Ant Design + TanStack Query。
+
+## 改代码前必读
+
+| 文档 | 用途 |
+|------|------|
+| [`.cursor/rules/zhange-architecture.mdc`](.cursor/rules/zhange-architecture.mdc) | 架构索引（Agent always-on） |
+| [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc) | 盒子 raw / 签到今日 logs |
+| [`.cursor/rules/db-schema-readme.mdc`](.cursor/rules/db-schema-readme.mdc) | Alembic + README 表结构 |
+| [`.cursor/rules/frontend-conventions.mdc`](.cursor/rules/frontend-conventions.mdc) | 前端约定 |
+| [`.cursor/rules/backend-conventions.mdc`](.cursor/rules/backend-conventions.mdc) | 后端约定 |
+| [`.cursor/rules/frontend-api-errors.mdc`](.cursor/rules/frontend-api-errors.mdc) | `apiError` / `*Api` 边界 |
+| [`docs/agent-governance-plan.md`](docs/agent-governance-plan.md) | 治理方案（已落地） |
+| 根 [`README.md`](README.md) | 部署、表总览、安全说明 |
+
+## 高频命令
+
+```bash
+# 前端（frontend/）
+npm ci --legacy-peer-deps
+npm run dev
+npm run lint && npm run build
+npm run export:openapi && npm run gen:api   # 改后端 API 后必做
+
+# 后端（backend/，激活 .venv）
+python -m pytest -q
+alembic revision --autogenerate -m "..."
+alembic upgrade head
+```
+
+## 禁止清单
+
+- 无 Alembic 改表；往 `schema_ensure.py` 堆新 `ALTER`
+- 签到 status 写 `bind.last_checkin_*`；打开页无缓存必打上游
+- 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
+- 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
+- 未做 CSRF 前半改 JWT httpOnly Cookie
+- 生产开启 `ALLOW_EMAIL_CODE_LOG`；生产使用默认弱 `ADMIN_PASSWORD`
+
+## PR 自检
+
+- [ ] 改 API：已 `export:openapi && gen:api`，generated 有 diff
+- [ ] 改模型：有 Alembic + README「数据库表结构」
+- [ ] 改签到/盒子：符合 raw / 今日 logs 权威
+- [ ] 改前端请求/报错：走 `*Api` + `apiError`
+- [ ] 改生产相关：核对 `APP_ENV` / 弱口令 / `REDIS_URL` / 邮件日志
+
+## CI
+
+PR/push：`frontend-quality`（lint+build）· `backend-tests`（pytest）· `openapi-drift`。  
+提交信息偏好 conventional commits（`feat` / `fix` / `chore` / `docs` / …）。

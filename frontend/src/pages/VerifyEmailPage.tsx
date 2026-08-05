@@ -2,6 +2,7 @@ import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
 import { useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { resendCode, verifyEmail } from "@/api/client";
+import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function VerifyEmailPage() {
@@ -29,13 +30,7 @@ export default function VerifyEmailPage() {
       message.success(res.message);
       navigate("/login", { replace: true });
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      setError(String(detail || "验证失败"));
+      setError(apiError(e, "验证失败"));
     } finally {
       setLoading(false);
     }
@@ -53,13 +48,7 @@ export default function VerifyEmailPage() {
       setHint(res.message);
       message.success(res.message);
     } catch (e: unknown) {
-      const detail =
-        e &&
-        typeof e === "object" &&
-        "response" in e &&
-        (e as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail;
-      setError(String(detail || "发送失败"));
+      setError(apiError(e, "发送失败"));
     } finally {
       setResending(false);
     }

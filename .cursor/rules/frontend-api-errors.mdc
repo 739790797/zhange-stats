@@ -1,0 +1,39 @@
+---
+description: 强制 apiError；禁止页面直连 axios；API 落 *Api.ts
+globs: frontend/src/pages/**/*.tsx,frontend/src/components/**/*.tsx,frontend/src/api/**/*.ts
+alwaysApply: false
+---
+
+# 前端 API 与错误处理
+
+## 必须
+
+- 用户可见失败文案：`apiError(e, "兜底文案")`（`@/lib/apiError`）
+- 新接口写在对应 `frontend/src/api/*Api.ts`，需要时由 `client.ts` 再导出
+- 本后端 HTTP 只用 `@/api/http` 的 `client`
+
+## 禁止
+
+- 页面/组件内 `axios.create` 或裸 `fetch` 调本后端（上传等特例须行内注释说明）
+- `catch` 里手拆 `e.response.data.detail` / `formatRequestError` 作为新代码默认路径
+- 在页面复制大型响应 interface（应 `components["schemas"][...]`）
+
+## 示例
+
+```tsx
+// ❌
+} catch (e: any) {
+  message.error(e?.response?.data?.detail || "失败");
+}
+
+// ✅
+import { apiError } from "@/lib/apiError";
+} catch (e) {
+  message.error(apiError(e, "失败"));
+}
+```
+
+```ts
+// ❌ 在 Page.tsx 里 client.get(...)
+// ✅ 在 steamApi.ts（等）封装后再给页面调用
+```

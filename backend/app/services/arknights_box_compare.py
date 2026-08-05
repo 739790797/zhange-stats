@@ -143,6 +143,14 @@ def _save_snapshot(db: Session, member_id: int, payload: dict[str, Any]) -> None
         .first()
     )
     blob = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    from app.services.raw_payload_monitor import note_raw_payload
+
+    note_raw_payload(
+        "arknights_box_snapshot",
+        blob,
+        member_id=member_id,
+        uid=uid,
+    )
     sync_day = today()
     synced = now_naive()
     if row is None:

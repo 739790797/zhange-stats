@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# 前端（战鸽数据）
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 18 + Vite 8 + Ant Design 5 + TanStack Query。开发时代理到后端 `http://127.0.0.1:8000`（见 `vite.config.ts`）。
 
-Currently, two official plugins are available:
+## 常用命令
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm ci --legacy-peer-deps   # 因 openapi-typescript 与 TS 6 peer 冲突
+npm run dev
+npm run lint
+npm run build
+npm run export:openapi      # 从后端导出 OpenAPI
+npm run gen:api             # 生成 src/api/generated/schema.d.ts
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## 目录要点
+
+- `src/pages`：路由页
+- `src/api`：axios + 按域 `*Api`；业务类型几乎均从 `generated/schema.d.ts` 派生；`formatDuration` 等工具仍在 `types.ts`
+- `src/lib/apiError` / `formatRequestError`：统一错误文案；`npm run test`（vitest）覆盖解析逻辑
+- `src/stores/authStore.ts`：仅存 JWT + 用户（localStorage）
+- 约定：仓库根 `AGENTS.md`；Cursor 规则 `frontend-conventions` / `frontend-api-errors`
+
+## 权限
+
+- `PrivateRoute`：需登录
+- `AdminRoute`：`role === admin`（或派生 `is_admin`）
+- `PlatformRoute`：受 `platform_features` 有效开关控制
