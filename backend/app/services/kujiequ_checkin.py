@@ -192,6 +192,11 @@ def query_today_for_bind(
         results=results,
         now=now,
     )
+    # 同步官方后刷新汇总，避免「我的日常」仍显示过期的「请求成功」
+    ok, summary = summarize_results(merged, empty_message="未找到可签到目标")
+    apply_bind_last_checkin(
+        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    )
     db.commit()
     return day_results_payload(merged)
 

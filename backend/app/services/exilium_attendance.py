@@ -12,10 +12,12 @@ from app.services.exilium_client import (
     ExiliumApiError,
     ExiliumCredentials,
     _http,
+    _to_int,
     enrich_user_info,
     friendly_error_message,
     list_score_logs,
     login_with_password,
+    mask_account,
 )
 
 logger = logging.getLogger(__name__)

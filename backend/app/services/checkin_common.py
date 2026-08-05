@@ -89,14 +89,16 @@ def awards_richness(text: str | None) -> tuple[int, int, int]:
 
 
 def prefer_richer_awards(current: str | None, incoming: str | None) -> str | None:
-    """合并奖励文案：保留更完整的一侧，避免同步用残缺结果覆盖签到明细。"""
-    if not (incoming or "").strip():
-        return current
-    if not (current or "").strip():
-        return incoming
-    if awards_richness(incoming) >= awards_richness(current):
-        return incoming
-    return current
+    """合并奖励文案：保留更完整的一侧；「奖励×N」占位视为无效，可被清空或升级。"""
+    cur = None if is_placeholder_awards(current) else (current or "").strip() or None
+    inc = None if is_placeholder_awards(incoming) else (incoming or "").strip() or None
+    if not inc:
+        return cur
+    if not cur:
+        return inc
+    if awards_richness(inc) >= awards_richness(cur):
+        return inc
+    return cur
 
 
 def status_label(status: str | None) -> str:

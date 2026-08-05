@@ -3,39 +3,74 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from app.core.timeutil import today
 from app.services.checkin_common import CheckinResult, is_placeholder_awards, prefer_richer_awards
 from app.services.kujiequ_client import (
-    API_BASE,
-    GAME_NAMES,
     GAME_PGR,
-    GAME_WW,
     GameRole,
     KujiequApiError,
     KujiequCredentials,
     _assert_ok,
     _ensure_device,
-    _headers,
     _post_form,
+    fetch_mine,
     list_all_game_roles,
 )
 
 logger = logging.getLogger(__name__)
 
-def _format_goods_rows(rows: list[Any]) -> str | None:
-    parts: list[str] = []
+# 接口偶发用「奖励」当物品名；与缺名同等处理
+_GENERIC_GOODS_NAMES = frozenset({"奖励", "reward", "签到奖励", "未知", "unknown"})
+_GENERIC_GOODS_NAMES_LOWER = frozenset(n.lower() for n in _GENERIC_GOODS_NAMES)
+
+
+def _goods_name(row: dict[str, Any]) -> str:
+    name = str(
+        row.get("goodsName")
+        or row.get("goods_name")
+        or row.get("typeName")
+        or row.get("name")
+        or row.get("itemName")
+        or row.get("title")
+        or ""
+    ).strip()
+    if not name or name in _GENERIC_GOODS_NAMES or name.lower() in _GENERIC_GOODS_NAMES_LOWER:
+        return ""
+    return name
+
+
+def _iter_goods_dicts(rows: list[Any]) -> list[dict[str, Any]]:
+    """摊平 todayList / 领取记录里可能嵌套的 goods 列表。"""
+    out: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
             continue
-        name = str(
-            row.get("goodsName")
-            or row.get("goods_name")
-            or row.get("name")
-            or row.get("itemName")
-            or ""
-        ).strip()
+        nested = (
+            row.get("goodsList")
+            or row.get("goods_list")
+            or row.get("awardList")
+            or row.get("awards")
+            or row.get("todayList")
+        )
+        if isinstance(nested, dict):
+            nested = [nested]
+        if isinstance(nested, list) and nested:
+            out.extend(_iter_goods_dicts(nested))
+            # 外层若自身也有名称/数量，一并保留
+            if _goods_name(row) or row.get("goodsNum") is not None:
+                out.append(row)
+        else:
+            out.append(row)
+    return out
+
+
+def _format_goods_rows(rows: list[Any]) -> str | None:
+    parts: list[str] = []
+    for row in _iter_goods_dicts(rows):
+        name = _goods_name(row)
         # 缺物品名时不要用「奖励」占位，交给调用方走领取记录补全
         if not name:
             continue
@@ -88,8 +123,28 @@ def _community_awards_from_tasks(creds: KujiequCredentials) -> str | None:
     return None
 
 
-def _game_awards_from_records(creds: KujiequCredentials, role: GameRole) -> str | None:
+def _game_awards_from_records(
+    creds: KujiequCredentials,
+    role: GameRole,
+    *,
+    retries: int = 0,
+    retry_delay_sec: float = 1.2,
+) -> str | None:
     """从游戏签到领取记录（queryRecordV2）按北京自然日取今日奖励。"""
+    last: str | None = None
+    attempts = max(1, retries + 1)
+    for i in range(attempts):
+        if i > 0:
+            time.sleep(retry_delay_sec)
+        last = _game_awards_from_records_once(creds, role)
+        if last and not is_placeholder_awards(last):
+            return last
+    return last
+
+
+def _game_awards_from_records_once(
+    creds: KujiequCredentials, role: GameRole
+) -> str | None:
     try:
         data = _post_form(
             "/encourage/signIn/queryRecordV2",
@@ -210,6 +265,9 @@ def do_community_sign_in(creds: KujiequCredentials) -> CheckinResult:
             extra = f"连签 {days} 天"
     if not awards:
         awards = _community_awards_from_tasks(creds)
+    # 「请求成功」是通用话术，不用作签到结论
+    if msg.strip() in ("请求成功", "success", "ok"):
+        msg = "签到成功"
     return CheckinResult(
         game_code="kujiequ",
         game_name="库街区",
@@ -256,7 +314,8 @@ def query_game_today(creds: KujiequCredentials, role: GameRole) -> CheckinResult
 
 def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
     creds = _ensure_device(creds)
-    month = f"{now_naive().month:02d}"
+    # 与 today() 同一时区（北京），避免月末边界错月
+    month = f"{today().month:02d}"
     data = _post_form(
         "/encourage/signIn/v2",
         {
@@ -274,9 +333,9 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
         code_i = int(code) if code is not None else None
     except (TypeError, ValueError):
         code_i = None
-    msg = str(data.get("msg") or "")
+    msg = str(data.get("msg") or "").strip()
     if code_i == 1511 or "重复" in msg:
-        awards = _game_awards_from_records(creds, role)
+        awards = _game_awards_from_records(creds, role, retries=1)
         return CheckinResult(
             game_code=f"game_{role.game_id}",
             game_name=role.game_name,
@@ -284,7 +343,7 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
             role_name=role.role_name,
             channel_name=role.server_name,
             status="already",
-            message=msg or "今日已签到",
+            message="今日已签到",
             awards_text=awards,
         )
     if code_i in (220, 401):
@@ -303,12 +362,27 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
     payload = data.get("data") or {}
     if isinstance(payload, dict):
         awards = _awards_from_sign_payload(payload)
-    # 签到响应常缺 goodsName；一律再用领取记录补全，并取更完整一侧
-    recorded = _game_awards_from_records(creds, role)
+    # 签到响应常缺 goodsName / 仅返回「奖励」；补查领取记录（可短重试）
+    recorded = _game_awards_from_records(creds, role, retries=2)
     if is_placeholder_awards(awards):
         awards = recorded
     else:
         awards = prefer_richer_awards(awards, recorded)
+
+    # 库街区常返回 msg=「请求成功」但实际未签；以 initSignInV2.isSigIn 为准
+    verified = query_game_today(creds, role)
+    if verified.status != "already":
+        return CheckinResult(
+            game_code=f"game_{role.game_id}",
+            game_name=role.game_name,
+            role_uid=role.role_id,
+            role_name=role.role_name,
+            channel_name=role.server_name,
+            status="error",
+            message="接口返回成功，但官方仍显示未签（请稍后重试或手动签到）",
+            awards_text=None,
+        )
+    awards = prefer_richer_awards(awards, verified.awards_text)
     return CheckinResult(
         game_code=f"game_{role.game_id}",
         game_name=role.game_name,
@@ -316,7 +390,7 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
         role_name=role.role_name,
         channel_name=role.server_name,
         status="ok",
-        message=msg or "签到成功",
+        message="签到成功",
         awards_text=awards,
     )
 

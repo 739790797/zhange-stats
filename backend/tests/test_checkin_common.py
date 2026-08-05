@@ -34,6 +34,9 @@ def test_placeholder_awards() -> None:
 def test_prefer_richer_awards() -> None:
     assert prefer_richer_awards("奖励×1", "源石×2") == "源石×2"
     assert prefer_richer_awards("源石×2", "奖励×1") == "源石×2"
+    # 占位视为无效：同步拿不到更好结果时清空，避免长期展示「奖励×N」
+    assert prefer_richer_awards("奖励 × 10", None) is None
+    assert prefer_richer_awards("奖励×2", "") is None
 
 
 def test_summarize_results() -> None:
