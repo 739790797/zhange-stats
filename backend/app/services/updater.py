@@ -233,11 +233,20 @@ def _ensure_update_runtime() -> str:
     """校验一键更新所需挂载，返回 compose 文件路径。"""
     settings = get_settings()
     compose_file = settings.UPDATE_COMPOSE_FILE.strip() or "/deploy/compose.yml"
-    if not Path(compose_file).is_file():
+    compose_path = Path(compose_file)
+    if not compose_path.is_file():
         raise RuntimeError(
             f"找不到 {compose_file}。请将宿主机 compose.yml 挂载到该路径"
             "（见仓库 compose.yml 的 volumes），并在宿主机执行一次"
             " docker compose up -d 使挂载生效。"
+        )
+    # compose.yml 内 env_file: .env 相对 compose 文件目录解析为 /deploy/.env
+    env_beside = compose_path.parent / ".env"
+    if not env_beside.is_file():
+        raise RuntimeError(
+            f"找不到 {env_beside}。请将宿主机 .env 挂载为 /deploy/.env:ro"
+            "（见仓库 compose.yml），在宿主机同步最新 compose.yml 后执行"
+            " docker compose up -d，再在网页点更新。"
         )
     if not Path("/var/run/docker.sock").exists():
         raise RuntimeError(
@@ -250,9 +259,12 @@ def _ensure_update_runtime() -> str:
 def _run_compose(args: list[str]) -> None:
     settings = get_settings()
     compose_file = _ensure_update_runtime()
+    project_dir = str(Path(compose_file).parent)
     cmd = [
         "docker",
         "compose",
+        "--project-directory",
+        project_dir,
         "-f",
         compose_file,
         "-p",

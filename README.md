@@ -69,7 +69,7 @@ docker compose pull && docker compose up -d
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。
 
-**管理端一键更新**：`app` 需挂载 `./compose.yml → /deploy/compose.yml` 与 `/var/run/docker.sock`（仓库 `compose.yml` 已配置）。Watchtower 只换镜像不改宿主机 compose，因此改挂载后须在生产同步最新 `compose.yml` 并执行一次 `docker compose up -d`，之后网页「系统更新」才可用。
+**管理端一键更新**：`app` 需挂载 `./compose.yml → /deploy/compose.yml`、`./.env → /deploy/.env` 与 `/var/run/docker.sock`（仓库 `compose.yml` 已配置）。Watchtower 只换镜像不改宿主机 compose，因此改挂载后须在生产**同步最新 `compose.yml`** 并执行一次 `docker compose up -d`，之后网页「系统更新」才可用。若报找不到 `/deploy/.env`，即是宿主机尚未按新 compose 挂载 `.env`。
 
 ## 目录
 

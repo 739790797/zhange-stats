@@ -13,7 +13,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.2.2}
+        APP_VERSION: ${APP_VERSION:-0.2.3}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -39,8 +39,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./data/uploads:/app/uploads
-      # 管理端「系统更新」：容器内 docker compose 需本文件 + docker.sock
+      # 管理端「系统更新」：容器内 docker compose 解析相对路径 .env / compose.yml
       - ./compose.yml:/deploy/compose.yml:ro
+      - ./.env:/deploy/.env:ro
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
