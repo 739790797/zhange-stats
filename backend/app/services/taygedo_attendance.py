@@ -281,6 +281,19 @@ def _list_game_rewards(
         return []
 
 
+def fetch_game_attendance_bundle(
+    creds: TaygedoCredentials, game_id: str, *, role_id: str
+) -> dict[str, Any]:
+    """拉取签到日历落库包：signin/state + sign/rewards。"""
+    state = _get_game_sign_state(creds, game_id)
+    if state is None:
+        raise TaygedoApiError("获取签到状态失败，请稍后重试")
+    rewards = _list_game_rewards(creds, game_id, role_id=role_id)
+    if not rewards:
+        raise TaygedoApiError("获取签到奖励日历失败，请稍后重试")
+    return {"state": state, "rewards": rewards}
+
+
 def _awards_from_claim_records(
     creds: TaygedoCredentials,
     game_id: str,

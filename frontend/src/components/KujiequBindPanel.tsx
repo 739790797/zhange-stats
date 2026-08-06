@@ -22,14 +22,13 @@ export function KujiequBindPanel({
     void prefetchGeetest4(KUJIEQU_GEETEST_CAPTCHA_ID);
   }, []);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["kujiequ-status"] });
-    queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-  };
-
-  const finishOk = () => {
+  const finishOk = async (status?: { bound?: boolean } | null) => {
     message.success("库街区绑定成功");
-    invalidate();
+    if (status?.bound) {
+      queryClient.setQueryData(["kujiequ-status"], status);
+    }
+    await queryClient.refetchQueries({ queryKey: ["kujiequ-status"] });
+    await queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     onSuccess?.();
   };
 
@@ -53,8 +52,8 @@ export function KujiequBindPanel({
         }
       }}
       onBindSms={async (phone, code) => {
-        await bindKujiequSms(phone, code);
-        finishOk();
+        const status = await bindKujiequSms(phone, code);
+        await finishOk(status);
       }}
       onBindPassword={async () => {
         throw new Error("库街区仅支持短信验证码绑定");

@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/setup/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Setup Status */
+        get: operations["get_setup_status_api_setup_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/setup/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Setup Admin */
+        post: operations["post_setup_admin_api_setup_admin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/send-register-code": {
         parameters: {
             query?: never;
@@ -203,6 +237,57 @@ export interface paths {
         get: operations["me_api_auth_me_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Password Policy */
+        get: operations["get_password_policy_api_auth_password_policy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change Password */
+        post: operations["change_password_api_auth_change_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/change-username": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change Username */
+        post: operations["change_username_api_auth_change_username_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1028,6 +1113,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skland/role-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Skland Update Role Pref */
+        patch: operations["skland_update_role_pref_api_skland_role_prefs_patch"];
+        trace?: never;
+    };
     "/api/skland/checkin": {
         parameters: {
             query?: never;
@@ -1039,6 +1141,26 @@ export interface paths {
         put?: never;
         /** Skland Checkin Now */
         post: operations["skland_checkin_now_api_skland_checkin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/attendance-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Arknights Attendance Calendar
+         * @description 明日方舟签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。
+         */
+        get: operations["skland_arknights_attendance_calendar_api_skland_arknights_attendance_calendar_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1288,6 +1410,23 @@ export interface paths {
         patch: operations["taygedo_update_bind_api_taygedo_bind_patch"];
         trace?: never;
     };
+    "/api/taygedo/role-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Taygedo Update Role Pref */
+        patch: operations["taygedo_update_role_pref_api_taygedo_role_prefs_patch"];
+        trace?: never;
+    };
     "/api/taygedo/checkin": {
         parameters: {
             query?: never;
@@ -1299,6 +1438,26 @@ export interface paths {
         put?: never;
         /** Taygedo Checkin Now */
         post: operations["taygedo_checkin_now_api_taygedo_checkin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taygedo/attendance-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Taygedo Attendance Calendar
+         * @description 异环 / 幻塔签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。
+         */
+        get: operations["taygedo_attendance_calendar_api_taygedo_attendance_calendar_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1409,6 +1568,23 @@ export interface paths {
         head?: never;
         /** Exilium Update Bind */
         patch: operations["exilium_update_bind_api_exilium_bind_patch"];
+        trace?: never;
+    };
+    "/api/exilium/role-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Exilium Update Role Pref */
+        patch: operations["exilium_update_role_pref_api_exilium_role_prefs_patch"];
         trace?: never;
     };
     "/api/exilium/checkin": {
@@ -1572,6 +1748,23 @@ export interface paths {
         patch: operations["kujiequ_patch_bind_api_kujiequ_bind_patch"];
         trace?: never;
     };
+    "/api/kujiequ/role-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Kujiequ Update Role Pref */
+        patch: operations["kujiequ_update_role_pref_api_kujiequ_role_prefs_patch"];
+        trace?: never;
+    };
     "/api/kujiequ/checkin": {
         parameters: {
             query?: never;
@@ -1640,57 +1833,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/update/check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Check Update */
-        get: operations["check_update_api_update_check_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/update/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Update Status */
-        get: operations["update_status_api_update_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/update/do": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Do Update */
-        post: operations["do_update_api_update_do_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -1698,7 +1840,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description 存活探测；含数据库连通性。
+         */
         get: operations["health_health_get"];
         put?: never;
         post?: never;
@@ -1712,6 +1857,58 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ArknightsAttendanceCalendarOut */
+        ArknightsAttendanceCalendarOut: {
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /** Channel Name */
+            channel_name: string;
+            /**
+             * Claimed Days
+             * @default 0
+             */
+            claimed_days: number;
+            /**
+             * Total Days
+             * @default 0
+             */
+            total_days: number;
+            /**
+             * Has Today Claim
+             * @default false
+             */
+            has_today_claim: boolean;
+            /**
+             * Progress Reliable
+             * @default true
+             */
+            progress_reliable: boolean;
+            /** Days */
+            days?: components["schemas"]["ArknightsAttendanceDayOut"][];
+            /** Roles */
+            roles?: components["schemas"]["SklandRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
+         * ArknightsAttendanceDayOut
+         * @description 签到周期第 N 天（非公历日期）。
+         */
+        ArknightsAttendanceDayOut: {
+            /** Day */
+            day: number;
+            /** Claimed */
+            claimed: boolean;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
+        };
         /** ArknightsBoxCompareOut */
         ArknightsBoxCompareOut: {
             /** Catalog */
@@ -1963,20 +2160,73 @@ export interface components {
             /** Equips */
             equips?: components["schemas"]["ArknightsCharEquipOut"][];
         };
+        /** AuthAdminBrief */
+        AuthAdminBrief: {
+            /** Id */
+            id: number;
+            /** Username */
+            username: string;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email?: string | null;
+            /**
+             * Weak Password
+             * @default false
+             */
+            weak_password: boolean;
+        };
         /** AuthSettingsOut */
         AuthSettingsOut: {
             /** Access Token Expire Minutes */
             access_token_expire_minutes: number;
             /** Access Token Expire Days */
             access_token_expire_days: number;
+            /**
+             * Min Password Length
+             * @default 8
+             */
+            min_password_length: number;
+            /** Reject Weak Admin Password */
+            reject_weak_admin_password?: boolean | null;
+            /**
+             * Reject Weak Admin Password Effective
+             * @default false
+             */
+            reject_weak_admin_password_effective: boolean;
+            /**
+             * Enforce Single Admin
+             * @default false
+             */
+            enforce_single_admin: boolean;
+            /**
+             * App Env
+             * @default development
+             */
+            app_env: string;
+            /**
+             * Is Production
+             * @default false
+             */
+            is_production: boolean;
+            /** Admins */
+            admins?: components["schemas"]["AuthAdminBrief"][];
+            /**
+             * Weak Password Checked
+             * @default false
+             */
+            weak_password_checked: boolean;
         };
         /** AuthSettingsUpdate */
         AuthSettingsUpdate: {
-            /**
-             * Access Token Expire Minutes
-             * @default 43200
-             */
-            access_token_expire_minutes: number;
+            /** Access Token Expire Minutes */
+            access_token_expire_minutes?: number | null;
+            /** Min Password Length */
+            min_password_length?: number | null;
+            /** Reject Weak Admin Password */
+            reject_weak_admin_password?: boolean | null;
+            /** Enforce Single Admin */
+            enforce_single_admin?: boolean | null;
         };
         /** BindEmailRequest */
         BindEmailRequest: {
@@ -2005,6 +2255,39 @@ export interface components {
         Body_upload_my_avatar_api_profile_me_avatar_post: {
             /** File */
             file: string;
+        };
+        /** ChangePasswordBody */
+        ChangePasswordBody: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /** ChangeUsernameBody */
+        ChangeUsernameBody: {
+            /** New Username */
+            new_username: string;
+            /** Current Password */
+            current_password: string;
+        };
+        /**
+         * CheckinAwardItem
+         * @description 结构化签到奖励（方舟可含 icon_url）。
+         */
+        CheckinAwardItem: {
+            /** Name */
+            name: string;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Resource Type */
+            resource_type?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
         };
         /** CheckinLogItemOut */
         CheckinLogItemOut: {
@@ -2063,6 +2346,8 @@ export interface components {
             message?: string | null;
             /** Awards Text */
             awards_text?: string | null;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
             /** Checkin Date */
             checkin_date: string;
             /**
@@ -2119,8 +2404,32 @@ export interface components {
             message: string;
             /** Awards Text */
             awards_text?: string | null;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
             /** Extra Text */
             extra_text?: string | null;
+            /**
+             * Auto Checkin
+             * @default false
+             */
+            auto_checkin: boolean;
+            /** Checkin Hour */
+            checkin_hour?: number | null;
+            /** Checkin Minute */
+            checkin_minute?: number | null;
+        };
+        /** CheckinRolePrefUpdate */
+        CheckinRolePrefUpdate: {
+            /** Game Code */
+            game_code: string;
+            /** Role Uid */
+            role_uid: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Checkin Hour */
+            checkin_hour?: number | null;
+            /** Checkin Minute */
+            checkin_minute?: number | null;
         };
         /** EmailSettingsOut */
         EmailSettingsOut: {
@@ -3124,6 +3433,14 @@ export interface components {
             /** Nickname */
             nickname?: string | null;
         };
+        /** PasswordPolicyOut */
+        PasswordPolicyOut: {
+            /**
+             * Min Password Length
+             * @default 8
+             */
+            min_password_length: number;
+        };
         /** PlatformFeatureJobUpdate */
         PlatformFeatureJobUpdate: {
             /** Interval Minutes */
@@ -3340,6 +3657,40 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** SetupAdminRequest */
+        SetupAdminRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Display Name */
+            display_name: string;
+            /** Password */
+            password: string;
+        };
+        /** SetupAdminResponse */
+        SetupAdminResponse: {
+            /** Message */
+            message: string;
+            /** Access Token */
+            access_token: string;
+            /**
+             * Token Type
+             * @default bearer
+             */
+            token_type: string;
+        };
+        /** SetupStatusOut */
+        SetupStatusOut: {
+            /** Needs Setup */
+            needs_setup: boolean;
+            /**
+             * Min Password Length
+             * @default 8
+             */
+            min_password_length: number;
         };
         /** SklandBindPasswordRequest */
         SklandBindPasswordRequest: {
@@ -3843,6 +4194,60 @@ export interface components {
             /** Hint */
             hint?: string | null;
         };
+        /** TaygedoAttendanceCalendarOut */
+        TaygedoAttendanceCalendarOut: {
+            /** Game Code */
+            game_code: string;
+            /** Game Name */
+            game_name: string;
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /**
+             * Claimed Days
+             * @default 0
+             */
+            claimed_days: number;
+            /**
+             * Total Days
+             * @default 0
+             */
+            total_days: number;
+            /**
+             * Has Today Claim
+             * @default false
+             */
+            has_today_claim: boolean;
+            /**
+             * Progress Reliable
+             * @default true
+             */
+            progress_reliable: boolean;
+            /** Days */
+            days?: components["schemas"]["TaygedoAttendanceDayOut"][];
+            /** Roles */
+            roles?: components["schemas"]["TaygedoRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
+         * TaygedoAttendanceDayOut
+         * @description 签到周期第 N 天（非公历日期）。
+         */
+        TaygedoAttendanceDayOut: {
+            /** Day */
+            day: number;
+            /** Claimed */
+            claimed: boolean;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
+        };
         /** TaygedoBindJsonRequest */
         TaygedoBindJsonRequest: {
             /** Credentials Json */
@@ -4135,6 +4540,59 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_setup_status_api_setup_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatusOut"];
+                };
+            };
+        };
+    };
+    post_setup_admin_api_setup_admin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupAdminRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     send_register_code_api_auth_send_register_code_post: {
         parameters: {
             query?: never;
@@ -4470,6 +4928,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    get_password_policy_api_auth_password_policy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordPolicyOut"];
+                };
+            };
+        };
+    };
+    change_password_api_auth_change_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_username_api_auth_change_username_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeUsernameBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5251,7 +5799,9 @@ export interface operations {
     };
     get_auth_settings_api_settings_auth_get: {
         parameters: {
-            query?: never;
+            query?: {
+                check_weak?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5265,6 +5815,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6138,6 +6697,39 @@ export interface operations {
             };
         };
     };
+    skland_update_role_pref_api_skland_role_prefs_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckinRolePrefUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SklandStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     skland_checkin_now_api_skland_checkin_post: {
         parameters: {
             query?: never;
@@ -6154,6 +6746,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+        };
+    };
+    skland_arknights_attendance_calendar_api_skland_arknights_attendance_calendar_get: {
+        parameters: {
+            query?: {
+                uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArknightsAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6563,6 +7187,39 @@ export interface operations {
             };
         };
     };
+    taygedo_update_role_pref_api_taygedo_role_prefs_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckinRolePrefUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaygedoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     taygedo_checkin_now_api_taygedo_checkin_post: {
         parameters: {
             query?: never;
@@ -6579,6 +7236,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+        };
+    };
+    taygedo_attendance_calendar_api_taygedo_attendance_calendar_get: {
+        parameters: {
+            query: {
+                game_code: string;
+                role_uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaygedoAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6775,6 +7465,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ExiliumBindUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExiliumStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exilium_update_role_pref_api_exilium_role_prefs_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckinRolePrefUpdate"];
             };
         };
         responses: {
@@ -7118,6 +7841,39 @@ export interface operations {
             };
         };
     };
+    kujiequ_update_role_pref_api_kujiequ_role_prefs_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckinRolePrefUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KujiequStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     kujiequ_checkin_api_kujiequ_checkin_post: {
         parameters: {
             query?: never;
@@ -7237,72 +7993,6 @@ export interface operations {
             };
         };
     };
-    check_update_api_update_check_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    update_status_api_update_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    do_update_api_update_do_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     health_health_get: {
         parameters: {
             query?: never;
@@ -7319,7 +8009,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: string;
+                        [key: string]: unknown;
                     };
                 };
             };

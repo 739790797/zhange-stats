@@ -61,6 +61,34 @@ REQUEST_TIMEOUT = 20
 GAME_ARKNIGHTS = "arknights"
 GAME_ENDFIELD = "endfield"
 
+
+def localize_endfield_server_name(name: str | None) -> str:
+    """终末地 serverName 展示中文化（China → 国服）。"""
+    raw = (name or "").strip()
+    if not raw:
+        return "未知渠道"
+    mapped = {
+        "china": "国服",
+        "cn": "国服",
+    }.get(raw.lower())
+    return mapped or raw
+
+
+def localize_arknights_channel_name(name: str | None) -> str:
+    """明日方舟渠道名展示：bilibili服 → B服。"""
+    raw = (name or "").strip()
+    if not raw:
+        return "未知渠道"
+    low = raw.lower().replace(" ", "")
+    if (
+        "bilibili" in low
+        or "哔哩" in raw
+        or low in ("b服", "bilibili服", "b站服")
+    ):
+        return "B服"
+    return raw
+
+
 GAME_META = {
     GAME_ARKNIGHTS: {
         "name": "明日方舟",

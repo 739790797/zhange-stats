@@ -18,7 +18,7 @@ class ExiliumBind(Base):
     # 加密 JSON：token / account_name / password / source / nickname / user_id
     credentials_enc: Mapped[str] = mapped_column(Text, nullable=False)
     phone_mask: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    auto_checkin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    auto_checkin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     checkin_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     checkin_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     # 反规范化摘要：调度跳过 / 管理端任务列表；今日按角色详情以 logs 为准

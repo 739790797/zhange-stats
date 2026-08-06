@@ -19,10 +19,38 @@ a {
   color: inherit;
 }
 
-/* 侧栏菜单：统一底色，选中项浅色 */
+/* 侧栏菜单：统一底色，选中项浅色；滚动条贴合深色侧栏 */
 .sider-menu.ant-menu-dark,
 .sider-menu.ant-menu-dark .ant-menu-sub.ant-menu-inline {
   background: #1a2332 !important;
+}
+
+.sider-menu {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.sider-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sider-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sider-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+
+.sider-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.sider-menu::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
 }
 
 .sider-menu.ant-menu-dark .ant-menu-item,

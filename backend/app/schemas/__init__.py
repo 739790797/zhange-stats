@@ -6,6 +6,7 @@ from app.schemas.checkin import (
     CheckinLogOut,
     CheckinResponse,
     CheckinResultItem,
+    CheckinRolePrefUpdate,
     SklandCheckinLogOut,
     SklandCheckinResponse,
     SklandCheckinResultItem,
@@ -50,6 +51,8 @@ from app.schemas.member import (
     UserBrief,
 )
 from app.schemas.skland import (
+    ArknightsAttendanceCalendarOut,
+    ArknightsAttendanceDayOut,
     ArknightsBoxCompareOut,
     ArknightsBoxOut,
     ArknightsCatalogOut,
@@ -105,6 +108,8 @@ from app.schemas.steam import (
     SteamVisibilityMeta,
 )
 from app.schemas.taygedo import (
+    TaygedoAttendanceCalendarOut,
+    TaygedoAttendanceDayOut,
     TaygedoBindJsonRequest,
     TaygedoBindPasswordRequest,
     TaygedoBindSmsRequest,
@@ -132,6 +137,7 @@ __all__ = [
     "QqOAuthStartResponse",
     "CheckinLogOut",
     "CheckinResultItem",
+    "CheckinRolePrefUpdate",
     "CheckinResponse",
     "SklandCheckinLogOut",
     "SklandCheckinResultItem",
@@ -160,6 +166,8 @@ __all__ = [
     "ArknightsCompareRowOut",
     "ArknightsBoxCompareOut",
     "ArknightsCompareCandidateOut",
+    "ArknightsAttendanceDayOut",
+    "ArknightsAttendanceCalendarOut",
     "SklandStatusOut",
     "SklandQrStartResponse",
     "SklandQrPollResponse",
@@ -174,6 +182,8 @@ __all__ = [
     "TaygedoCheckinResultItem",
     "TaygedoCheckinResponse",
     "TaygedoStatusOut",
+    "TaygedoAttendanceDayOut",
+    "TaygedoAttendanceCalendarOut",
     "ExiliumBindPasswordRequest",
     "ExiliumBindSmsSendRequest",
     "ExiliumBindSmsSendResponse",

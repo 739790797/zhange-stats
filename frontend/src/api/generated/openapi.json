@@ -6,6 +6,68 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/setup/status": {
+      "get": {
+        "tags": [
+          "setup"
+        ],
+        "summary": "Get Setup Status",
+        "operationId": "get_setup_status_api_setup_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatusOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/admin": {
+      "post": {
+        "tags": [
+          "setup"
+        ],
+        "summary": "Post Setup Admin",
+        "operationId": "post_setup_admin_api_setup_admin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupAdminRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupAdminResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/send-register-code": {
       "post": {
         "tags": [
@@ -433,6 +495,128 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/password-policy": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Password Policy",
+        "operationId": "get_password_policy_api_auth_password_policy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordPolicyOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change Password",
+        "operationId": "change_password_api_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Change Password Api Auth Change Password Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/change-username": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change Username",
+        "operationId": "change_username_api_auth_change_username_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeUsernameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Change Username Api Auth Change Username Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1706,6 +1890,23 @@
         ],
         "summary": "Get Auth Settings",
         "operationId": "get_auth_settings_api_settings_auth_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "check_weak",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Check Weak"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1716,13 +1917,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "put": {
         "tags": [
@@ -1730,15 +1936,20 @@
         ],
         "summary": "Update Auth Settings",
         "operationId": "update_auth_settings_api_settings_auth_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AuthSettingsUpdate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1761,12 +1972,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/settings/platform-features": {
@@ -2131,7 +2337,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 100,
+              "maximum": 500,
               "minimum": 1,
               "default": 20,
               "title": "Page Size"
@@ -3149,6 +3355,53 @@
         }
       }
     },
+    "/api/skland/role-prefs": {
+      "patch": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Update Role Pref",
+        "operationId": "skland_update_role_pref_api_skland_role_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinRolePrefUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SklandStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/skland/checkin": {
       "post": {
         "tags": [
@@ -3174,6 +3427,73 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/skland/arknights/attendance-calendar": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Arknights Attendance Calendar",
+        "description": "明日方舟签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。",
+        "operationId": "skland_arknights_attendance_calendar_api_skland_arknights_attendance_calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArknightsAttendanceCalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/skland/arknights/box": {
@@ -3824,6 +4144,52 @@
         ]
       }
     },
+    "/api/taygedo/role-prefs": {
+      "patch": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Update Role Pref",
+        "operationId": "taygedo_update_role_pref_api_taygedo_role_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinRolePrefUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaygedoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/taygedo/checkin": {
       "post": {
         "tags": [
@@ -3848,6 +4214,83 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/taygedo/attendance-calendar": {
+      "get": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Attendance Calendar",
+        "description": "异环 / 幻塔签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。",
+        "operationId": "taygedo_attendance_calendar_api_taygedo_attendance_calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "title": "Game Code"
+            }
+          },
+          {
+            "name": "role_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaygedoAttendanceCalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/exilium/status": {
@@ -4131,6 +4574,52 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ExiliumBindUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExiliumStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/exilium/role-prefs": {
+      "patch": {
+        "tags": [
+          "exilium"
+        ],
+        "summary": "Exilium Update Role Pref",
+        "operationId": "exilium_update_role_pref_api_exilium_role_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinRolePrefUpdate"
               }
             }
           },
@@ -4645,6 +5134,52 @@
         ]
       }
     },
+    "/api/kujiequ/role-prefs": {
+      "patch": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Update Role Pref",
+        "operationId": "kujiequ_update_role_pref_api_kujiequ_role_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinRolePrefUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KujiequStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/kujiequ/checkin": {
       "post": {
         "tags": [
@@ -4826,93 +5361,10 @@
         }
       }
     },
-    "/api/update/check": {
-      "get": {
-        "tags": [
-          "update"
-        ],
-        "summary": "Check Update",
-        "operationId": "check_update_api_update_check_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Check Update Api Update Check Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/update/status": {
-      "get": {
-        "tags": [
-          "update"
-        ],
-        "summary": "Update Status",
-        "operationId": "update_status_api_update_status_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Update Status Api Update Status Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/update/do": {
-      "post": {
-        "tags": [
-          "update"
-        ],
-        "summary": "Do Update",
-        "operationId": "do_update_api_update_do_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Do Update Api Update Do Post"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/health": {
       "get": {
         "summary": "Health",
+        "description": "存活探测；含数据库连通性。",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -4920,9 +5372,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Health Health Get"
                 }
@@ -4935,6 +5385,105 @@
   },
   "components": {
     "schemas": {
+      "ArknightsAttendanceCalendarOut": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name"
+          },
+          "claimed_days": {
+            "type": "integer",
+            "title": "Claimed Days",
+            "default": 0
+          },
+          "total_days": {
+            "type": "integer",
+            "title": "Total Days",
+            "default": 0
+          },
+          "has_today_claim": {
+            "type": "boolean",
+            "title": "Has Today Claim",
+            "default": false
+          },
+          "progress_reliable": {
+            "type": "boolean",
+            "title": "Progress Reliable",
+            "default": true
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ArknightsAttendanceDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/SklandRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid",
+          "role_name",
+          "channel_name"
+        ],
+        "title": "ArknightsAttendanceCalendarOut"
+      },
+      "ArknightsAttendanceDayOut": {
+        "properties": {
+          "day": {
+            "type": "integer",
+            "title": "Day"
+          },
+          "claimed": {
+            "type": "boolean",
+            "title": "Claimed"
+          },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "claimed"
+        ],
+        "title": "ArknightsAttendanceDayOut",
+        "description": "签到周期第 N 天（非公历日期）。"
+      },
       "ArknightsBoxCompareOut": {
         "properties": {
           "catalog": {
@@ -5610,6 +6159,45 @@
         "type": "object",
         "title": "ArknightsOwnedCharOut"
       },
+      "AuthAdminBrief": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "weak_password": {
+            "type": "boolean",
+            "title": "Weak Password",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name"
+        ],
+        "title": "AuthAdminBrief"
+      },
       "AuthSettingsOut": {
         "properties": {
           "access_token_expire_minutes": {
@@ -5619,6 +6207,54 @@
           "access_token_expire_days": {
             "type": "number",
             "title": "Access Token Expire Days"
+          },
+          "min_password_length": {
+            "type": "integer",
+            "title": "Min Password Length",
+            "default": 8
+          },
+          "reject_weak_admin_password": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Weak Admin Password"
+          },
+          "reject_weak_admin_password_effective": {
+            "type": "boolean",
+            "title": "Reject Weak Admin Password Effective",
+            "default": false
+          },
+          "enforce_single_admin": {
+            "type": "boolean",
+            "title": "Enforce Single Admin",
+            "default": false
+          },
+          "app_env": {
+            "type": "string",
+            "title": "App Env",
+            "default": "development"
+          },
+          "is_production": {
+            "type": "boolean",
+            "title": "Is Production",
+            "default": false
+          },
+          "admins": {
+            "items": {
+              "$ref": "#/components/schemas/AuthAdminBrief"
+            },
+            "type": "array",
+            "title": "Admins"
+          },
+          "weak_password_checked": {
+            "type": "boolean",
+            "title": "Weak Password Checked",
+            "default": false
           }
         },
         "type": "object",
@@ -5631,11 +6267,52 @@
       "AuthSettingsUpdate": {
         "properties": {
           "access_token_expire_minutes": {
-            "type": "integer",
-            "maximum": 525600.0,
-            "minimum": 5.0,
-            "title": "Access Token Expire Minutes",
-            "default": 43200
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 525600.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token Expire Minutes"
+          },
+          "min_password_length": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 72.0,
+                "minimum": 6.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Password Length"
+          },
+          "reject_weak_admin_password": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Weak Admin Password"
+          },
+          "enforce_single_admin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enforce Single Admin"
           }
         },
         "type": "object",
@@ -5719,6 +6396,102 @@
           "file"
         ],
         "title": "Body_upload_my_avatar_api_profile_me_avatar_post"
+      },
+      "ChangePasswordBody": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "maxLength": 72,
+            "minLength": 1,
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 72,
+            "minLength": 1,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordBody"
+      },
+      "ChangeUsernameBody": {
+        "properties": {
+          "new_username": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 3,
+            "title": "New Username"
+          },
+          "current_password": {
+            "type": "string",
+            "maxLength": 72,
+            "minLength": 1,
+            "title": "Current Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new_username",
+          "current_password"
+        ],
+        "title": "ChangeUsernameBody"
+      },
+      "CheckinAwardItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 1
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "resource_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Type"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CheckinAwardItem",
+        "description": "结构化签到奖励（方舟可含 icon_url）。"
       },
       "CheckinLogItemOut": {
         "properties": {
@@ -5894,6 +6667,13 @@
             ],
             "title": "Awards Text"
           },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
+          },
           "checkin_date": {
             "type": "string",
             "title": "Checkin Date"
@@ -6029,6 +6809,13 @@
             ],
             "title": "Awards Text"
           },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
+          },
           "extra_text": {
             "anyOf": [
               {
@@ -6039,6 +6826,33 @@
               }
             ],
             "title": "Extra Text"
+          },
+          "auto_checkin": {
+            "type": "boolean",
+            "title": "Auto Checkin",
+            "default": false
+          },
+          "checkin_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Hour"
+          },
+          "checkin_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Minute"
           }
         },
         "type": "object",
@@ -6052,6 +6866,59 @@
           "message"
         ],
         "title": "CheckinResultItem"
+      },
+      "CheckinRolePrefUpdate": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Game Code"
+          },
+          "role_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Role Uid"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "checkin_hour": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 23.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Hour"
+          },
+          "checkin_minute": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 59.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Minute"
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "role_uid",
+          "enabled"
+        ],
+        "title": "CheckinRolePrefUpdate"
       },
       "EmailSettingsOut": {
         "properties": {
@@ -8604,6 +9471,17 @@
         ],
         "title": "NapCatTestResponse"
       },
+      "PasswordPolicyOut": {
+        "properties": {
+          "min_password_length": {
+            "type": "integer",
+            "title": "Min Password Length",
+            "default": 8
+          }
+        },
+        "type": "object",
+        "title": "PasswordPolicyOut"
+      },
       "PlatformFeatureJobUpdate": {
         "properties": {
           "interval_minutes": {
@@ -9198,6 +10076,75 @@
           "email"
         ],
         "title": "SendRegisterCodeRequest"
+      },
+      "SetupAdminRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 72,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "display_name",
+          "password"
+        ],
+        "title": "SetupAdminRequest"
+      },
+      "SetupAdminResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "access_token"
+        ],
+        "title": "SetupAdminResponse"
+      },
+      "SetupStatusOut": {
+        "properties": {
+          "needs_setup": {
+            "type": "boolean",
+            "title": "Needs Setup"
+          },
+          "min_password_length": {
+            "type": "integer",
+            "title": "Min Password Length",
+            "default": 8
+          }
+        },
+        "type": "object",
+        "required": [
+          "needs_setup"
+        ],
+        "title": "SetupStatusOut"
       },
       "SklandBindPasswordRequest": {
         "properties": {
@@ -10772,6 +11719,110 @@
           "steam_bound"
         ],
         "title": "SteamVisibilityMeta"
+      },
+      "TaygedoAttendanceCalendarOut": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "title": "Game Code"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name"
+          },
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "claimed_days": {
+            "type": "integer",
+            "title": "Claimed Days",
+            "default": 0
+          },
+          "total_days": {
+            "type": "integer",
+            "title": "Total Days",
+            "default": 0
+          },
+          "has_today_claim": {
+            "type": "boolean",
+            "title": "Has Today Claim",
+            "default": false
+          },
+          "progress_reliable": {
+            "type": "boolean",
+            "title": "Progress Reliable",
+            "default": true
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TaygedoAttendanceDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/TaygedoRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "game_name",
+          "uid",
+          "role_name"
+        ],
+        "title": "TaygedoAttendanceCalendarOut"
+      },
+      "TaygedoAttendanceDayOut": {
+        "properties": {
+          "day": {
+            "type": "integer",
+            "title": "Day"
+          },
+          "claimed": {
+            "type": "boolean",
+            "title": "Claimed"
+          },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "claimed"
+        ],
+        "title": "TaygedoAttendanceDayOut",
+        "description": "签到周期第 N 天（非公历日期）。"
       },
       "TaygedoBindJsonRequest": {
         "properties": {

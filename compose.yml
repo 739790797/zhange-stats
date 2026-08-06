@@ -13,7 +13,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.2.3}
+        APP_VERSION: ${APP_VERSION:-0.2.4}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -24,12 +24,6 @@ services:
       STATIC_DIR: /app/static
       DATA_DIR: /app/data
       UPLOAD_DIR: /app/uploads
-      # 管理端「系统更新」拉镜像/重建；生产也可依赖下方 watchtower
-      UPDATE_REPO: ${UPDATE_REPO:-739790797/zhange-stats}
-      UPDATE_IMAGE: ${APP_IMAGE:-ghcr.io/739790797/zhange-stats}
-      UPDATE_COMPOSE_FILE: /deploy/compose.yml
-      UPDATE_COMPOSE_SERVICE: app
-      UPDATE_COMPOSE_PROJECT: zhange-stats
     labels:
       # 仅允许 Watchtower 管理本服务
       com.centurylinklabs.watchtower.enable: "true"
@@ -39,10 +33,6 @@ services:
     volumes:
       - ./data:/app/data
       - ./data/uploads:/app/uploads
-      # 管理端「系统更新」：容器内 docker compose 解析相对路径 .env / compose.yml
-      - ./compose.yml:/deploy/compose.yml:ro
-      - ./.env:/deploy/.env:ro
-      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 30s

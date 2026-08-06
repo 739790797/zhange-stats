@@ -18,14 +18,13 @@ export function TaygedoBindPanel({
   const queryClient = useQueryClient();
   const deviceIdRef = useRef("");
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["taygedo-status"] });
-    queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-  };
-
-  const finishOk = () => {
+  const finishOk = async (status?: { bound?: boolean } | null) => {
     message.success("塔吉多绑定成功");
-    invalidate();
+    if (status?.bound) {
+      queryClient.setQueryData(["taygedo-status"], status);
+    }
+    await queryClient.refetchQueries({ queryKey: ["taygedo-status"] });
+    await queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     onSuccess?.();
   };
 
@@ -46,12 +45,12 @@ export function TaygedoBindPanel({
         if (!deviceIdRef.current) {
           throw new Error("请先获取短信验证码");
         }
-        await bindTaygedoSms(phone, code, deviceIdRef.current);
-        finishOk();
+        const status = await bindTaygedoSms(phone, code, deviceIdRef.current);
+        await finishOk(status);
       }}
       onBindPassword={async (phone, password) => {
-        await bindTaygedoPassword(phone, password);
-        finishOk();
+        const status = await bindTaygedoPassword(phone, password);
+        await finishOk(status);
       }}
     />
   );

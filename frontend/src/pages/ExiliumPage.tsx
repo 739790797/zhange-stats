@@ -6,7 +6,7 @@ import {
   fetchExiliumStatus,
   fetchPlatformFeaturesEffective,
   triggerExiliumCheckin,
-  updateExiliumBind,
+  updateExiliumRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
@@ -55,7 +55,8 @@ export default function ExiliumPage() {
             statusQueryKey={["exilium-status"]}
             fetchStatus={fetchExiliumStatus}
             triggerCheckin={triggerExiliumCheckin}
-            updateBind={updateExiliumBind}
+            updateRolePref={updateExiliumRolePref}
+            platformIcon="exilium"
             showPhoneMask
           />
         ),

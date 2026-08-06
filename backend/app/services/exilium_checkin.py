@@ -71,7 +71,7 @@ def bind_with_password(db: Session, member: Member, account: str, password: str)
     creds = login_with_password(account, password)
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        bind = ExiliumBind(member_id=member.id, credentials_enc="", auto_checkin=True)
+        bind = ExiliumBind(member_id=member.id, credentials_enc="", auto_checkin=False)
         db.add(bind)
     _save_creds(bind, creds)
     db.commit()
@@ -84,7 +84,7 @@ def bind_with_sms(db: Session, member: Member, phone: str, captcha: str) -> Exil
     creds = login_with_sms(phone, captcha)
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        bind = ExiliumBind(member_id=member.id, credentials_enc="", auto_checkin=True)
+        bind = ExiliumBind(member_id=member.id, credentials_enc="", auto_checkin=False)
         db.add(bind)
     _save_creds(bind, creds)
     db.commit()
@@ -272,10 +272,26 @@ def run_checkin_for_bind(
     bind: ExiliumBind,
     *,
     force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
+    from app.services.checkin_role_prefs import matches_role_filter
+    from app.services.exilium_client import GAME_CODE
+
     checkin_date = today()
-    # 即使今日已签，仍走 checkin：会补跑每日任务（浏览/点赞/分享）
     creds = _load_creds(bind)
+    expected_uid = creds.user_id or creds.account_name or "-"
+    if role_keys is not None and not matches_role_filter(
+        GAME_CODE, expected_uid, role_keys
+    ):
+        return {
+            "skipped": True,
+            "ok": True,
+            "reason": "role_filtered",
+            "summary": "当前时间无需签到该角色",
+            "results": [],
+        }
+
+    # 即使今日已签，仍走 checkin：会补跑每日任务（浏览/点赞/分享）
     try:
         working, result = checkin(creds, force=force)
     except ExiliumApiError as exc:
@@ -330,26 +346,35 @@ def run_exilium_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.core.timeutil import now as now_beijing
-
-    q = (
-        db.query(ExiliumBind)
-        .options(joinedload(ExiliumBind.member))
-        .filter(ExiliumBind.auto_checkin.is_(True))
+    from app.services.checkin_role_prefs import (
+        PLATFORM_EXILIUM,
+        collect_checkin_job_targets,
     )
-    if member_id is not None:
-        q = q.filter(ExiliumBind.member_id == int(member_id))
-    elif due_only:
-        t = now_beijing()
-        q = q.filter(
-            ExiliumBind.checkin_hour == t.hour,
-            ExiliumBind.checkin_minute == t.minute,
-        )
-    binds = q.all()
-    stats: dict[str, Any] = {"total": len(binds), "ok": 0, "failed": 0, "skipped": 0}
-    for bind in binds:
+
+    targets = collect_checkin_job_targets(
+        db,
+        platform=PLATFORM_EXILIUM,
+        bind_model=ExiliumBind,
+        due_only=due_only,
+        member_id=member_id,
+    )
+    binds_by_member = {
+        b.member_id: b
+        for b in db.query(ExiliumBind)
+        .options(joinedload(ExiliumBind.member))
+        .filter(ExiliumBind.member_id.in_(list(targets.keys()) or [-1]))
+        .all()
+    }
+    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
+    for mid, role_keys in targets.items():
+        bind = binds_by_member.get(mid)
+        if bind is None:
+            continue
+        if role_keys is not None and len(role_keys) == 0:
+            stats["skipped"] += 1
+            continue
         try:
-            out = run_checkin_for_bind(db, bind, force=False)
+            out = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
             if out.get("skipped"):
                 stats["skipped"] += 1
             elif out.get("ok"):
@@ -357,7 +382,7 @@ def run_exilium_checkin_job(
             else:
                 stats["failed"] += 1
         except Exception:  # noqa: BLE001
-            logger.exception("exilium auto checkin failed member_id=%s", bind.member_id)
+            logger.exception("exilium auto checkin failed member_id=%s", mid)
             stats["failed"] += 1
             db.rollback()
     return stats

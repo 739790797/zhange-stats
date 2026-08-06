@@ -69,7 +69,7 @@ def _save_creds(bind: KujiequBind, creds: KujiequCredentials) -> None:
 def _upsert_bind(db: Session, member: Member, creds: KujiequCredentials) -> KujiequBind:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        bind = KujiequBind(member_id=member.id, credentials_enc="", auto_checkin=True)
+        bind = KujiequBind(member_id=member.id, credentials_enc="", auto_checkin=False)
         db.add(bind)
     _save_creds(bind, creds)
     db.commit()
@@ -206,6 +206,7 @@ def run_checkin_for_bind(
     bind: KujiequBind,
     *,
     force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     checkin_date = today()
     if not force:
@@ -214,9 +215,16 @@ def run_checkin_for_bind(
             KujiequCheckinLog,
             member_id=bind.member_id,
             checkin_date=checkin_date,
+            role_keys=role_keys,
         )
         if done is not None:
-            payload = day_results_payload(done)
+            full = load_day_checkin_results(
+                db,
+                KujiequCheckinLog,
+                member_id=bind.member_id,
+                checkin_date=checkin_date,
+            )
+            payload = day_results_payload(full or done)
             return {
                 "skipped": True,
                 "ok": True,
@@ -227,7 +235,7 @@ def run_checkin_for_bind(
 
     creds = _load_creds(bind)
     try:
-        working, results = run_all_checkins(creds)
+        working, results = run_all_checkins(creds, role_keys=role_keys)
     except KujiequApiError as exc:
         raise KujiequApiError(friendly_error_message(exc.message), code=exc.code) from exc
 
@@ -270,26 +278,35 @@ def run_kujiequ_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.core.timeutil import now as now_beijing
-
-    q = (
-        db.query(KujiequBind)
-        .options(joinedload(KujiequBind.member))
-        .filter(KujiequBind.auto_checkin.is_(True))
+    from app.services.checkin_role_prefs import (
+        PLATFORM_KUJIEQU,
+        collect_checkin_job_targets,
     )
-    if member_id is not None:
-        q = q.filter(KujiequBind.member_id == int(member_id))
-    elif due_only:
-        t = now_beijing()
-        q = q.filter(
-            KujiequBind.checkin_hour == t.hour,
-            KujiequBind.checkin_minute == t.minute,
-        )
-    binds = q.all()
-    stats: dict[str, Any] = {"total": len(binds), "ok": 0, "failed": 0, "skipped": 0}
-    for bind in binds:
+
+    targets = collect_checkin_job_targets(
+        db,
+        platform=PLATFORM_KUJIEQU,
+        bind_model=KujiequBind,
+        due_only=due_only,
+        member_id=member_id,
+    )
+    binds_by_member = {
+        b.member_id: b
+        for b in db.query(KujiequBind)
+        .options(joinedload(KujiequBind.member))
+        .filter(KujiequBind.member_id.in_(list(targets.keys()) or [-1]))
+        .all()
+    }
+    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
+    for mid, role_keys in targets.items():
+        bind = binds_by_member.get(mid)
+        if bind is None:
+            continue
+        if role_keys is not None and len(role_keys) == 0:
+            stats["skipped"] += 1
+            continue
         try:
-            result = run_checkin_for_bind(db, bind, force=False)
+            result = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
             if result.get("skipped"):
                 stats["skipped"] += 1
             elif result.get("ok"):
@@ -300,7 +317,7 @@ def run_kujiequ_checkin_job(
             stats["failed"] += 1
             logger.exception(
                 "kujiequ auto checkin failed member_id=%s",
-                bind.member_id,
+                mid,
             )
             db.rollback()
     return stats

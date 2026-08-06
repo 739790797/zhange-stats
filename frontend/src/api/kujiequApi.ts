@@ -48,6 +48,17 @@ export async function updateKujiequBind(payload: {
   return data;
 }
 
+export async function updateKujiequRolePref(payload: {
+  game_code: string;
+  role_uid: string;
+  enabled: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
+  const { data } = await client.patch<KujiequStatus>("/kujiequ/role-prefs", payload);
+  return data;
+}
+
 export async function triggerKujiequCheckin() {
   const { data } = await client.post<KujiequCheckinResponse>("/kujiequ/checkin");
   return data;

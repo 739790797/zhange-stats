@@ -1,13 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Tabs, message } from "antd";
+import { CalendarOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiError } from "@/lib/apiError";
 import {
   fetchPlatformFeaturesEffective,
   fetchSklandStatus,
   triggerSklandCheckin,
-  updateSklandBind,
+  updateSklandRolePref,
 } from "@/api/client";
+import {
+  ArknightsAttendanceCalendarButton,
+  isOfficialArknightsChannel,
+} from "@/components/ArknightsAttendanceCalendar";
 import { ArknightsBoxCompare } from "@/components/ArknightsBoxCompare";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { EndfieldBoxPanel } from "@/components/EndfieldBoxPanel";
@@ -58,7 +63,34 @@ export default function SklandPage() {
             statusQueryKey={["skland-status"]}
             fetchStatus={fetchSklandStatus}
             triggerCheckin={triggerSklandCheckin}
-            updateBind={updateSklandBind}
+            updateRolePref={updateSklandRolePref}
+            platformIcon="skland"
+            renderResultExtra={(row) => {
+              if (row.game_code !== "arknights") return null;
+              if (!row.role_uid) return null;
+              if (isOfficialArknightsChannel(row.channel_name)) {
+                return (
+                  <ArknightsAttendanceCalendarButton
+                    uid={row.role_uid}
+                    roleName={row.role_name}
+                    channelName={row.channel_name}
+                  />
+                );
+              }
+              // B 服等：上游不返回签到进度，置灰提示
+              return (
+                <Button
+                  type="link"
+                  size="small"
+                  disabled
+                  icon={<CalendarOutlined />}
+                  style={{ paddingInline: 4, height: "auto" }}
+                  title="该渠道森空岛未返回签到进度，暂不支持日历"
+                >
+                  签到日历（暂不支持）
+                </Button>
+              );
+            }}
           />
         ),
       });
@@ -111,6 +143,9 @@ export default function SklandPage() {
         message.success("签到完成");
       }
       queryClient.invalidateQueries({ queryKey: ["skland-status"] });
+      queryClient.invalidateQueries({
+        queryKey: ["arknights-attendance-calendar"],
+      });
       queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "签到失败")),

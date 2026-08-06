@@ -54,8 +54,6 @@ export type {
   UserCheckinTasksPage,
   IntegrationsSettings,
   AuthSettings,
-  UpdateCheckResult,
-  UpdateStatusResult,
 } from "./settingsApi";
 
 export {
@@ -75,9 +73,6 @@ export {
   updateAuthSettings,
   updateEmailSettings,
   testEmailSettings,
-  checkUpdate,
-  fetchUpdateStatus,
-  triggerUpdate,
 } from "./settingsApi";
 
 export { fetchSetupStatus, completeSetupAdmin } from "./setupApi";
@@ -88,11 +83,13 @@ export {
   fetchEndfieldBox,
   fetchArknightsCompareCandidates,
   fetchArknightsBoxCompare,
+  fetchArknightsAttendanceCalendar,
   bindSklandPassword,
   sendSklandSms,
   bindSklandSms,
   unbindSkland,
   updateSklandBind,
+  updateSklandRolePref,
   triggerSklandCheckin,
   startSklandQrBind,
   pollSklandQrBind,
@@ -105,7 +102,9 @@ export {
   bindTaygedoSms,
   unbindTaygedo,
   updateTaygedoBind,
+  updateTaygedoRolePref,
   triggerTaygedoCheckin,
+  fetchTaygedoAttendanceCalendar,
 } from "./taygedoApi";
 
 export {
@@ -115,6 +114,7 @@ export {
   bindExiliumSms,
   unbindExilium,
   updateExiliumBind,
+  updateExiliumRolePref,
   triggerExiliumCheckin,
   fetchExiliumExchange,
   exchangeExiliumItem,
@@ -126,6 +126,7 @@ export {
   bindKujiequSms,
   unbindKujiequ,
   updateKujiequBind,
+  updateKujiequRolePref,
   triggerKujiequCheckin,
 } from "./kujiequApi";
 

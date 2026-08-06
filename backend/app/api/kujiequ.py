@@ -17,6 +17,7 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    CheckinRolePrefUpdate,
     KujiequBindSmsRequest,
     KujiequBindSmsSendRequest,
     KujiequBindSmsSendResponse,
@@ -70,6 +71,7 @@ def kujiequ_status(
         include_roles=include_roles,
         force=force,
         extra_fields={"phone_mask": bind.phone_mask if bind else None},
+        role_pref_platform="kujiequ",
     )
 
 
@@ -170,6 +172,45 @@ def kujiequ_patch_bind(
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
     return kujiequ_status(db=db, user=user, member=member, include_roles=True)
+
+
+@router.patch(
+    "/role-prefs",
+    response_model=KujiequStatusOut,
+    dependencies=[Depends(require_feature("kujiequ.checkin"))],
+)
+def kujiequ_update_role_pref(
+    payload: CheckinRolePrefUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+):
+    from fastapi import HTTPException
+
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise HTTPException(status_code=400, detail="尚未绑定库街区")
+    if payload.enabled and (
+        payload.checkin_hour is None or payload.checkin_minute is None
+    ):
+        raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
+    try:
+        from app.services.checkin_role_prefs import PLATFORM_KUJIEQU, upsert_role_pref
+
+        upsert_role_pref(
+            db,
+            platform=PLATFORM_KUJIEQU,
+            member_id=member.id,
+            bind=bind,
+            game_code=payload.game_code,
+            role_uid=payload.role_uid,
+            enabled=payload.enabled,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return kujiequ_status(db=db, user=user, member=member, include_roles=False)
 
 
 @router.post(

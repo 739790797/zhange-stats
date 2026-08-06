@@ -1,7 +1,7 @@
 import {
   fetchKujiequStatus,
   triggerKujiequCheckin,
-  updateKujiequBind,
+  updateKujiequRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
@@ -15,7 +15,8 @@ export default function KujiequPage() {
       statusQueryKey={["kujiequ-status"]}
       fetchStatus={fetchKujiequStatus}
       triggerCheckin={triggerKujiequCheckin}
-      updateBind={updateKujiequBind}
+      updateRolePref={updateKujiequRolePref}
+      platformIcon="kujiequ"
     />
   );
 }

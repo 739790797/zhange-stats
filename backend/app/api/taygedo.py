@@ -17,6 +17,9 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    CheckinRolePrefUpdate,
+    TaygedoAttendanceCalendarOut,
+    TaygedoAttendanceDayOut,
     TaygedoBindJsonRequest,
     TaygedoBindPasswordRequest,
     TaygedoBindSmsRequest,
@@ -29,11 +32,13 @@ from app.schemas import (
     TaygedoRoleOut,
     TaygedoStatusOut,
 )
+from app.schemas.checkin import CheckinAwardItem
 from app.services.taygedo_checkin import (
     bind_with_credentials_json,
     bind_with_password,
     bind_with_sms,
     get_bind_for_member,
+    get_taygedo_attendance_calendar_for_member,
     preview_roles,
     query_today_for_bind,
     run_checkin_for_member,
@@ -71,6 +76,7 @@ def taygedo_status(
         include_roles=include_roles,
         force=force,
         extra_fields={"phone_mask": getattr(bind, "phone_mask", None) if bind else None},
+        role_pref_platform="taygedo",
     )
 
 
@@ -182,6 +188,47 @@ def taygedo_update_bind(
     return taygedo_status(db=db, user=user, member=member, include_roles=False)
 
 
+@router.patch(
+    "/role-prefs",
+    response_model=TaygedoStatusOut,
+    dependencies=[Depends(require_feature("taygedo.checkin"))],
+)
+def taygedo_update_role_pref(
+    payload: CheckinRolePrefUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+):
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
+    if payload.enabled and (
+        payload.checkin_hour is None or payload.checkin_minute is None
+    ):
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
+    try:
+        from app.services.checkin_role_prefs import PLATFORM_TAYGEDO, upsert_role_pref
+
+        upsert_role_pref(
+            db,
+            platform=PLATFORM_TAYGEDO,
+            member_id=member.id,
+            bind=bind,
+            game_code=payload.game_code,
+            role_uid=payload.role_uid,
+            enabled=payload.enabled,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
+    except ValueError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return taygedo_status(db=db, user=user, member=member, include_roles=False)
+
+
 @router.post(
     "/checkin",
     response_model=TaygedoCheckinResponse,
@@ -199,4 +246,64 @@ def taygedo_checkin_now(
         out=out,
         response_cls=TaygedoCheckinResponse,
         result_cls=TaygedoCheckinResultItem,
+    )
+
+
+@router.get(
+    "/attendance-calendar",
+    response_model=TaygedoAttendanceCalendarOut,
+    dependencies=[Depends(require_feature("taygedo.checkin"))],
+)
+def taygedo_attendance_calendar(
+    db: Session = Depends(get_db),
+    member: Member = Depends(require_user_member),
+    game_code: str = Query(..., min_length=1, max_length=32),
+    role_uid: str | None = Query(default=None, max_length=64),
+    force: bool = Query(default=False),
+):
+    """异环 / 幻塔签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。"""
+    try:
+        parsed, role, roles, synced_at, stale = (
+            get_taygedo_attendance_calendar_for_member(
+                db,
+                member,
+                game_code=game_code,
+                role_uid=role_uid,
+                force=force,
+            )
+        )
+    except TaygedoApiError as exc:
+        raise_api_error(exc, TaygedoApiError)
+
+    days = [
+        TaygedoAttendanceDayOut(
+            day=int(d["day"]),
+            claimed=bool(d["claimed"]),
+            awards=[CheckinAwardItem(**a) for a in (d.get("awards") or [])],
+        )
+        for d in (parsed.get("days") or [])
+        if isinstance(d, dict)
+    ]
+    return TaygedoAttendanceCalendarOut(
+        game_code=role.game_code,
+        game_name=role.game_name,
+        uid=role.role_id,
+        role_name=role.role_name,
+        claimed_days=int(parsed.get("claimed_days") or 0),
+        total_days=int(parsed.get("total_days") or 0),
+        has_today_claim=bool(parsed.get("has_today_claim")),
+        progress_reliable=bool(parsed.get("progress_reliable", True)),
+        days=days,
+        roles=[
+            TaygedoRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.role_id,
+                role_name=r.role_name,
+                channel_name=r.game_name,
+            )
+            for r in roles
+        ],
+        synced_at=synced_at.isoformat() if synced_at else None,
+        stale=stale,
     )

@@ -54,6 +54,7 @@ export interface CheckinLogItem {
   role_uid: string;
   role_name?: string | null;
   status: string;
+  status_label?: string | null;
   message?: string | null;
   awards_text?: string | null;
   checkin_date: string;
@@ -131,27 +132,6 @@ export interface AuthSettings {
   is_production: boolean;
   admins: AuthAdminBrief[];
   weak_password_checked?: boolean;
-}
-
-export interface UpdateCheckResult {
-  current_version: string;
-  latest_version: string | null;
-  has_update: boolean;
-  update_enabled: boolean;
-  image: string;
-  repo: string;
-  check_error?: string | null;
-}
-
-export interface UpdateStatusResult {
-  state: string;
-  message: string;
-  current_version: string;
-  target_version: string;
-  started_at: number | null;
-  finished_at: number | null;
-  error: string | null;
-  update_enabled: boolean;
 }
 
 export async function fetchEmailSettings() {
@@ -318,20 +298,5 @@ export async function testEmailSettings(to_email: string) {
     "/settings/email/test",
     { to_email },
   );
-  return data;
-}
-
-export async function checkUpdate() {
-  const { data } = await client.get<UpdateCheckResult>("/update/check");
-  return data;
-}
-
-export async function fetchUpdateStatus() {
-  const { data } = await client.get<UpdateStatusResult>("/update/status");
-  return data;
-}
-
-export async function triggerUpdate() {
-  const { data } = await client.post<UpdateStatusResult>("/update/do");
   return data;
 }

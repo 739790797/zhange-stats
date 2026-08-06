@@ -7,6 +7,12 @@ import urllib.parse
 from typing import Any
 
 from app.services.checkin_common import CheckinResult
+from app.services.skland_awards import (
+    arknights_awards_from_sign_resp,
+    awards_from_claim_records,
+    endfield_awards_from_sign_resp,
+    has_claim_today,
+)
 from app.services.skland_client import (
     ARKNIGHTS_ATTENDANCE_URL,
     BINDING_URL,
@@ -20,9 +26,12 @@ from app.services.skland_client import (
     SklandSession,
     _http_json,
     _signed_headers,
+    localize_arknights_channel_name,
+    localize_endfield_server_name,
 )
 
 logger = logging.getLogger(__name__)
+
 
 def fetch_binding_list(session: SklandSession) -> list[dict[str, Any]]:
     headers = _signed_headers(session, BINDING_URL, "get", None)
@@ -51,7 +60,7 @@ def _endfield_role_fields(item: dict[str, Any]) -> tuple[str | None, str | None,
         or item.get("nickname")
         or "未知角色"
     )
-    channel = (
+    channel = localize_endfield_server_name(
         default_role.get("serverName")
         or item.get("channelName")
         or item.get("serverName")
@@ -61,7 +70,7 @@ def _endfield_role_fields(item: dict[str, Any]) -> tuple[str | None, str | None,
         str(role_id) if role_id is not None else None,
         str(server_id) if server_id is not None else None,
         str(role_name),
-        str(channel),
+        channel,
     )
 
 
@@ -85,8 +94,13 @@ def _channel_sort_key(
     # 官服
     if mid == "1" or "官服" in name:
         return 0
-    # bilibili / 哔哩
-    if mid == "2" or "bilibili" in name.lower() or "哔哩" in name:
+    # bilibili / 哔哩 / B服
+    if (
+        mid == "2"
+        or "bilibili" in name.lower()
+        or "哔哩" in name
+        or "b服" in name.lower()
+    ):
         return 2
     return 1
 
@@ -132,7 +146,9 @@ def list_roles(session: SklandSession) -> list[SklandRole]:
                         game_name=meta["name"],
                         uid=uid,
                         role_name=str(item.get("nickName") or item.get("nickname") or "未知角色"),
-                        channel_name=str(item.get("channelName") or "未知渠道"),
+                        channel_name=localize_arknights_channel_name(
+                            str(item.get("channelName") or "未知渠道")
+                        ),
                         channel_master_id=str(item.get("channelMasterId") or "")
                         if item.get("channelMasterId") is not None
                         else None,
@@ -170,174 +186,33 @@ def _parse_status(resp: dict[str, Any]) -> tuple[str, str]:
     return "error", msg
 
 
-def _format_award_items(awards: list[Any]) -> str | None:
-    parts: list[str] = []
-    for a in awards:
-        if not isinstance(a, dict):
-            continue
-        res = a.get("resource") or {}
-        if not isinstance(res, dict):
-            res = {}
-        name = res.get("name") or a.get("name") or "奖励"
-        count = a.get("count") or res.get("count") or 1
-        parts.append(f"{name}x{count}")
-    return "、".join(parts) if parts else None
-
-
-def _arknights_awards(resp: dict[str, Any]) -> str | None:
-    awards = (resp.get("data") or {}).get("awards") or []
-    if not isinstance(awards, list):
-        return None
-    return _format_award_items(awards)
-
-
-def _endfield_awards(resp: dict[str, Any]) -> str | None:
-    data = resp.get("data") or {}
-    award_ids = data.get("awardIds") or []
-    resource_map = data.get("resourceInfoMap") or {}
-    if not award_ids:
-        # 部分终末地响应也直接带 awards
-        awards = data.get("awards") or []
-        if isinstance(awards, list):
-            return _format_award_items(awards)
-        return None
-    parts = []
-    for award in award_ids:
-        award_id = award.get("id") if isinstance(award, dict) else award
-        if award_id is None:
-            continue
-        key = str(award_id)
-        res = resource_map.get(key) or resource_map.get(award_id)
-        if not isinstance(res, dict):
-            continue
-        parts.append(f'{res.get("name", "奖励")}x{res.get("count", 1)}')
-    return "、".join(parts) if parts else None
-
-
-def _ts_is_beijing_day(ts: Any, day) -> bool:
-    try:
-        value = int(ts)
-    except (TypeError, ValueError):
-        return False
-    # 毫秒时间戳兜底
-    if value > 10_000_000_000:
-        value //= 1000
-    from datetime import datetime
-
-    from app.core.timeutil import BEIJING
-
-    return datetime.fromtimestamp(value, tz=BEIJING).date() == day
-
-
-def _award_text_from_resource(
-    resource_map: dict[str, Any],
-    resource_id: Any,
-    count: Any = 1,
-) -> str | None:
-    if resource_id is None:
-        return None
-    res = resource_map.get(str(resource_id))
-    if res is None and not isinstance(resource_id, str):
-        res = resource_map.get(resource_id)
-    if not isinstance(res, dict):
-        return None
-    name = res.get("name") or "奖励"
-    # 终末地等：数量常在 resourceInfoMap 里
-    raw_count = count if count is not None else res.get("count")
-    try:
-        qty = int(raw_count) if raw_count is not None else 1
-    except (TypeError, ValueError):
-        qty = 1
-    return f"{name}x{qty}"
-
-
-def _awards_from_status_items(
-    items: list[Any],
-    resource_map: dict[str, Any],
-    *,
-    require_done: bool = False,
-) -> str | None:
-    parts: list[str] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        if require_done and not item.get("done"):
-            continue
-        rid = (
-            item.get("resourceId")
-            or item.get("awardId")
-            or item.get("id")
-        )
-        text = _award_text_from_resource(
-            resource_map, rid, item.get("count")
-        )
-        if text:
-            parts.append(text)
-    return "、".join(parts) if parts else None
-
-
-def _awards_from_claim_records(resp: dict[str, Any], *, day) -> str | None:
-    """从领取记录中按北京自然日提取奖励（App「领取记录」同源）。
-
-    方舟 attendance GET：data.records[{ts, resourceId, type, count}]
-    终末地 attendance/record GET：data.records[{ts, awardId}] + resourceInfoMap
-
-    注意：calendar 下标是「本月第 N 次签到」，不是日历日期，禁止用来查今日奖励。
-    """
-    if resp.get("code") != 0:
-        return None
-    data = resp.get("data") or {}
-    if not isinstance(data, dict):
-        return None
-
-    resource_map = data.get("resourceInfoMap") or {}
-    if not isinstance(resource_map, dict):
-        resource_map = {}
-
-    records = data.get("records") or []
-    if not isinstance(records, list):
-        return None
-
-    parts: list[str] = []
-    for rec in records:
-        if not isinstance(rec, dict):
-            continue
-        if not _ts_is_beijing_day(rec.get("ts"), day):
-            continue
-        if isinstance(rec.get("awards"), list):
-            nested = _format_award_items(rec["awards"])
-            if nested:
-                parts.append(nested)
-            continue
-        rid = (
-            rec.get("awardId")
-            or rec.get("resourceId")
-            or rec.get("id")
-        )
-        text = _award_text_from_resource(resource_map, rid, rec.get("count"))
-        if text:
-            parts.append(text)
-    return "、".join(parts) if parts else None
-
-
 def _has_claim_today(resp: dict[str, Any], *, day) -> bool:
-    if resp.get("code") != 0:
-        return False
-    data = resp.get("data") or {}
-    if not isinstance(data, dict):
-        return False
-    records = data.get("records") or []
-    if not isinstance(records, list):
-        return False
-    return any(
-        isinstance(rec, dict) and _ts_is_beijing_day(rec.get("ts"), day)
-        for rec in records
-    )
+    return has_claim_today(resp, day=day)
+
+
+def _awards_from_claim_records(
+    resp: dict[str, Any], *, day, with_icons: bool = False
+) -> tuple[str | None, list[dict[str, Any]]]:
+    return awards_from_claim_records(resp, day=day, with_icons=with_icons)
+
+
+def _arknights_awards(
+    resp: dict[str, Any],
+) -> tuple[str | None, list[dict[str, Any]]]:
+    return arknights_awards_from_sign_resp(resp)
+
+
+def _endfield_awards(
+    resp: dict[str, Any],
+) -> tuple[str | None, list[dict[str, Any]]]:
+    return endfield_awards_from_sign_resp(resp)
 
 
 # 兼容旧名
-def _awards_from_calendar_get(resp: dict[str, Any], *, day) -> str | None:
-    return _awards_from_claim_records(resp, day=day)
+def _awards_from_calendar_get(
+    resp: dict[str, Any], *, day, with_icons: bool = False
+) -> tuple[str | None, list[dict[str, Any]]]:
+    return _awards_from_claim_records(resp, day=day, with_icons=with_icons)
 
 
 def friendly_error_message(msg: str) -> str:
@@ -374,7 +249,44 @@ def _resp_has_award_signal(resp: dict[str, Any]) -> bool:
     return isinstance(records, list) and bool(records)
 
 
-def fetch_today_awards(session: SklandSession, role: SklandRole) -> str | None:
+def _arknights_game_ids(role: SklandRole) -> list[str]:
+    """方舟 attendance 只用角色自身 channelMasterId，禁止回退到官服 1。
+
+    回退到 1 会把官服 records/奖励串到 B 服角色上。
+    """
+    mid = str(role.channel_master_id or "").strip()
+    if mid:
+        return [mid]
+    return ["1"]
+
+
+def fetch_arknights_attendance(
+    session: SklandSession, role: SklandRole
+) -> dict[str, Any]:
+    """GET 方舟签到（含 calendar + records）。"""
+    last_resp: dict[str, Any] | None = None
+    for game_id in _arknights_game_ids(role):
+        resp = _attendance_get(
+            session,
+            ARKNIGHTS_ATTENDANCE_URL,
+            {"uid": role.uid, "gameId": game_id},
+        )
+        last_resp = resp
+        if resp.get("code") != 0:
+            continue
+        data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+        if not isinstance(data, dict):
+            continue
+        if data.get("calendar") is not None or data.get("records"):
+            return resp
+    if last_resp is None:
+        raise SklandApiError("获取签到日历失败")
+    return last_resp
+
+
+def fetch_today_awards(
+    session: SklandSession, role: SklandRole
+) -> tuple[str | None, list[dict[str, Any]]]:
     """按领取记录（真实时间戳）读取今日奖励，不依赖签到日历下标。"""
     from app.core.timeutil import today
 
@@ -382,24 +294,19 @@ def fetch_today_awards(session: SklandSession, role: SklandRole) -> str | None:
     try:
         if role.game_code == GAME_ARKNIGHTS:
             # 方舟领取记录在 attendance GET 的 data.records
-            candidates: list[str] = []
-            if role.channel_master_id:
-                candidates.append(str(role.channel_master_id))
-            if "1" not in candidates:
-                candidates.append("1")
             last_resp: dict[str, Any] | None = None
-            for game_id in candidates:
+            for game_id in _arknights_game_ids(role):
                 resp = _attendance_get(
                     session,
                     ARKNIGHTS_ATTENDANCE_URL,
                     {"uid": role.uid, "gameId": game_id},
                 )
                 last_resp = resp
-                text = _awards_from_claim_records(resp, day=day)
+                text, items = _awards_from_claim_records(
+                    resp, day=day, with_icons=True
+                )
                 if text:
-                    return text
-                if _resp_has_award_signal(resp) and game_id != candidates[-1]:
-                    continue
+                    return text, items
             if last_resp is not None:
                 data = last_resp.get("data") if isinstance(last_resp.get("data"), dict) else {}
                 logger.warning(
@@ -408,11 +315,11 @@ def fetch_today_awards(session: SklandSession, role: SklandRole) -> str | None:
                     last_resp.get("code"),
                     len(data.get("records") or []) if isinstance(data, dict) else -1,
                 )
-            return None
+            return None, []
 
         if role.game_code == GAME_ENDFIELD:
             if not role.role_id or not role.server_id:
-                return None
+                return None, []
             resp = _attendance_get(
                 session,
                 ENDFIELD_ATTENDANCE_RECORD_URL,
@@ -423,14 +330,14 @@ def fetch_today_awards(session: SklandSession, role: SklandRole) -> str | None:
                     "serverId": str(role.server_id),
                 },
             )
-            return _awards_from_claim_records(resp, day=day)
+            return _awards_from_claim_records(resp, day=day, with_icons=False)
     except SklandApiError as exc:
         logger.warning("fetch today awards failed: %s", exc.message)
-        return None
+        return None, []
     except Exception:  # noqa: BLE001
         logger.exception("fetch today awards unexpected error")
-        return None
-    return None
+        return None, []
+    return None, []
 
 
 def _signed_today_from_resp(resp: dict[str, Any], *, day) -> bool:
@@ -443,16 +350,12 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
     from app.core.timeutil import today
 
     day = today()
-    awards: str | None = None
+    awards_text: str | None = None
+    awards_items: list[dict[str, Any]] = []
     signed = False
     try:
         if role.game_code == GAME_ARKNIGHTS:
-            candidates: list[str] = []
-            if role.channel_master_id:
-                candidates.append(str(role.channel_master_id))
-            if "1" not in candidates:
-                candidates.append("1")
-            for game_id in candidates:
+            for game_id in _arknights_game_ids(role):
                 resp = _attendance_get(
                     session,
                     ARKNIGHTS_ATTENDANCE_URL,
@@ -460,9 +363,11 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
                 )
                 if _has_claim_today(resp, day=day):
                     signed = True
-                text = _awards_from_claim_records(resp, day=day)
+                text, items = _awards_from_claim_records(
+                    resp, day=day, with_icons=True
+                )
                 if text:
-                    awards = text
+                    awards_text, awards_items = text, items
                     signed = True
                     break
                 if signed:
@@ -480,8 +385,10 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
                     },
                 )
                 signed = _has_claim_today(resp, day=day)
-                awards = _awards_from_claim_records(resp, day=day)
-                if awards:
+                awards_text, awards_items = _awards_from_claim_records(
+                    resp, day=day, with_icons=False
+                )
+                if awards_text:
                     signed = True
     except SklandApiError as exc:
         return CheckinResult(
@@ -502,8 +409,11 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
             role_name=role.role_name,
             channel_name=role.channel_name,
             status="already",
-            message=f"今日已签到，获得：{awards}" if awards else "今日已签到",
-            awards_text=awards,
+            message=(
+                f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
+            ),
+            awards_text=awards_text,
+            awards=awards_items or None,
         )
     return CheckinResult(
         game_code=role.game_code,
@@ -514,7 +424,6 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
         status="pending",
         message="今日尚未签到",
     )
-
 
 
 def query_today_all(session: SklandSession) -> list[CheckinResult]:
@@ -528,15 +437,17 @@ def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult
     headers = _signed_headers(session, ARKNIGHTS_ATTENDANCE_URL, "post", body)
     resp = _http_json("POST", ARKNIGHTS_ATTENDANCE_URL, headers=headers, body=body)
     status, message = _parse_status(resp)
-    awards = _arknights_awards(resp)
-    if status == "ok" and awards:
-        message = f"成功！获得：{awards}"
+    awards_text, awards_items = _arknights_awards(resp)
+    if status == "ok" and awards_text:
+        message = f"成功！获得：{awards_text}"
     elif status == "ok":
         message = "签到成功"
     elif status == "already":
-        if not awards:
-            awards = fetch_today_awards(session, role)
-        message = f"今日已签到，获得：{awards}" if awards else "今日已签到"
+        if not awards_text:
+            awards_text, awards_items = fetch_today_awards(session, role)
+        message = (
+            f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
+        )
     elif status == "error":
         message = _friendly_error_message(message)
     return CheckinResult(
@@ -547,7 +458,8 @@ def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult
         channel_name=role.channel_name,
         status=status,
         message=message,
-        awards_text=awards,
+        awards_text=awards_text,
+        awards=awards_items or None,
     )
 
 
@@ -581,15 +493,17 @@ def checkin_endfield(session: SklandSession, role: SklandRole) -> CheckinResult:
         resp = _http_json("POST", ENDFIELD_ATTENDANCE_URL, headers=headers2, body=None)
         status, message = _parse_status(resp)
 
-    awards = _endfield_awards(resp)
-    if status == "ok" and awards:
-        message = f"成功！获得：{awards}"
+    awards_text, awards_items = _endfield_awards(resp)
+    if status == "ok" and awards_text:
+        message = f"成功！获得：{awards_text}"
     elif status == "ok":
         message = "签到成功"
     elif status == "already":
-        if not awards:
-            awards = fetch_today_awards(session, role)
-        message = f"今日已签到，获得：{awards}" if awards else "今日已签到"
+        if not awards_text:
+            awards_text, awards_items = fetch_today_awards(session, role)
+        message = (
+            f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
+        )
     elif status == "error":
         message = _friendly_error_message(message)
     return CheckinResult(
@@ -600,7 +514,8 @@ def checkin_endfield(session: SklandSession, role: SklandRole) -> CheckinResult:
         channel_name=role.channel_name,
         status=status,
         message=message,
-        awards_text=awards,
+        awards_text=awards_text,
+        awards=awards_items or None,
     )
 
 
@@ -629,7 +544,9 @@ def checkin_all_roles(session: SklandSession) -> list[CheckinResult]:
         except SklandApiError as exc:
             msg = exc.message or ""
             already = "请勿重复签到" in msg or "重复签到" in msg
-            awards = fetch_today_awards(session, role) if already else None
+            awards_text, awards_items = (
+                fetch_today_awards(session, role) if already else (None, [])
+            )
             results.append(
                 CheckinResult(
                     game_code=role.game_code,
@@ -639,11 +556,16 @@ def checkin_all_roles(session: SklandSession) -> list[CheckinResult]:
                     channel_name=role.channel_name,
                     status="already" if already else "error",
                     message=(
-                        (f"今日已签到，获得：{awards}" if awards else "今日已签到")
+                        (
+                            f"今日已签到，获得：{awards_text}"
+                            if awards_text
+                            else "今日已签到"
+                        )
                         if already
                         else _friendly_error_message(msg)
                     ),
-                    awards_text=awards,
+                    awards_text=awards_text,
+                    awards=awards_items or None,
                 )
             )
         except Exception as exc:  # noqa: BLE001

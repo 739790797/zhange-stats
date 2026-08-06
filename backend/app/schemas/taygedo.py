@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas.checkin import CheckinLogOut, CheckinResultItem, CheckinResponse
+from app.schemas.checkin import CheckinAwardItem, CheckinLogOut, CheckinResultItem, CheckinResponse
 
 
 class TaygedoBindPasswordRequest(BaseModel):
@@ -65,3 +65,26 @@ class TaygedoStatusOut(BaseModel):
     roles: list[TaygedoRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
     today_logs: list[CheckinLogOut] = Field(default_factory=list)
+
+
+class TaygedoAttendanceDayOut(BaseModel):
+    """签到周期第 N 天（非公历日期）。"""
+
+    day: int
+    claimed: bool
+    awards: list[CheckinAwardItem] = Field(default_factory=list)
+
+
+class TaygedoAttendanceCalendarOut(BaseModel):
+    game_code: str
+    game_name: str
+    uid: str
+    role_name: str
+    claimed_days: int = 0
+    total_days: int = 0
+    has_today_claim: bool = False
+    progress_reliable: bool = True
+    days: list[TaygedoAttendanceDayOut] = Field(default_factory=list)
+    roles: list[TaygedoRoleOut] = Field(default_factory=list)
+    synced_at: str | None = None
+    stale: bool = False

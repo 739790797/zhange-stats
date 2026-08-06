@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas.checkin import CheckinLogOut, CheckinResultItem
+from app.schemas.checkin import CheckinAwardItem, CheckinLogOut, CheckinResultItem
 
 
 class SklandBindRequest(BaseModel):
@@ -259,4 +259,27 @@ class SklandQrPollResponse(BaseModel):
     bound: bool = False
     auto_checkin: bool | None = None
     roles: list[SklandRoleOut] = Field(default_factory=list)
+
+
+class ArknightsAttendanceDayOut(BaseModel):
+    """签到周期第 N 天（非公历日期）。"""
+
+    day: int
+    claimed: bool
+    awards: list[CheckinAwardItem] = Field(default_factory=list)
+
+
+class ArknightsAttendanceCalendarOut(BaseModel):
+    uid: str
+    role_name: str
+    channel_name: str
+    claimed_days: int = 0
+    total_days: int = 0
+    has_today_claim: bool = False
+    # 上游是否返回可信领取进度（B 服等常为 false）
+    progress_reliable: bool = True
+    days: list[ArknightsAttendanceDayOut] = Field(default_factory=list)
+    roles: list[SklandRoleOut] = Field(default_factory=list)
+    synced_at: str | None = None
+    stale: bool = False
 

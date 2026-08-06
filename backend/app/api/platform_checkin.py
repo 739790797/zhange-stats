@@ -39,11 +39,14 @@ def build_checkin_status(
     extra_fields: dict[str, Any] | None = None,
     serialize_role: Callable[[Any], RoleT] | None = None,
     soft_roles_on_none_ok: bool = False,
+    role_pref_platform: str | None = None,
 ) -> StatusT:
     """Assemble *StatusOut for a bound (or unbound) checkin platform.
 
     soft_roles_on_none_ok: when True (skland), only downgrade token_ok on role
     failure if token_ok is still None; otherwise always set token_ok False.
+
+    role_pref_platform: when set, seed/enrich today_results with per-role prefs.
     """
     if bind is None:
         return status_cls(bound=False)
@@ -56,7 +59,19 @@ def build_checkin_status(
 
     try:
         live = query_today(db, bind, force=force)
-        today_results = [result_cls(**r) for r in (live.get("results") or [])]
+        raw_results = list(live.get("results") or [])
+        if role_pref_platform and raw_results:
+            from app.services.checkin_role_prefs import attach_prefs_to_status_results
+
+            raw_results = attach_prefs_to_status_results(
+                db,
+                platform=role_pref_platform,
+                member_id=member.id,
+                bind=bind,
+                results=raw_results,
+            )
+            db.refresh(bind)
+        today_results = [result_cls(**r) for r in raw_results]
         token_ok = True
         if live.get("summary"):
             summary = str(live["summary"])

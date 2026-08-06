@@ -13,7 +13,7 @@ from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
 from app.models.job_run import JobRun
 from app.models.member import Member
-from app.models.taygedo import TaygedoBind, TaygedoCheckinLog
+from app.models.taygedo import TaygedoAttendanceRaw, TaygedoBind, TaygedoCheckinLog
 from app.services.checkin_common import (
     CheckinResult,
     apply_bind_last_checkin,
@@ -25,9 +25,13 @@ from app.services.checkin_common import (
     today_done_from_logs,
     upsert_and_reload_day_results,
 )
+from app.services.taygedo_calendar import parse_taygedo_attendance_calendar
 from app.services.taygedo_client import (
+    GAME_HT,
+    GAME_NTE,
     TaygedoApiError,
     TaygedoCredentials,
+    TaygedoRole,
     checkin_target,
     friendly_error_message,
     list_all_game_roles,
@@ -76,7 +80,7 @@ def bind_with_password(db: Session, member: Member, phone: str, password: str) -
 
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        bind = TaygedoBind(member_id=member.id, credentials_enc="", auto_checkin=True)
+        bind = TaygedoBind(member_id=member.id, credentials_enc="", auto_checkin=False)
         db.add(bind)
     _save_creds(bind, creds)
     db.commit()
@@ -96,7 +100,7 @@ def bind_with_sms(
 
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        bind = TaygedoBind(member_id=member.id, credentials_enc="", auto_checkin=True)
+        bind = TaygedoBind(member_id=member.id, credentials_enc="", auto_checkin=False)
         db.add(bind)
     _save_creds(bind, creds)
     db.commit()
@@ -118,7 +122,7 @@ def bind_with_credentials_json(db: Session, member: Member, raw_json: str) -> Ta
     creds = TaygedoCredentials.from_dict(payload)
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        bind = TaygedoBind(member_id=member.id, credentials_enc="", auto_checkin=True)
+        bind = TaygedoBind(member_id=member.id, credentials_enc="", auto_checkin=False)
         db.add(bind)
     _save_creds(bind, creds)
     db.commit()
@@ -253,13 +257,183 @@ def query_today_for_member(
     return query_today_for_bind(db, bind, force=force)
 
 
+_CALENDAR_GAMES = frozenset({GAME_NTE, GAME_HT})
+
+
+def _taygedo_today_log_hint(
+    db: Session, *, member_id: int, game_code: str, role_uid: str
+) -> bool:
+    from app.services.checkin_common import SUCCESS_STATUSES
+
+    row = (
+        db.query(TaygedoCheckinLog)
+        .filter(
+            TaygedoCheckinLog.member_id == member_id,
+            TaygedoCheckinLog.game_code == game_code,
+            TaygedoCheckinLog.role_uid == role_uid,
+            TaygedoCheckinLog.checkin_date == today(),
+            TaygedoCheckinLog.status.in_(tuple(SUCCESS_STATUSES)),
+        )
+        .one_or_none()
+    )
+    return row is not None
+
+
+def invalidate_taygedo_attendance_raws(
+    db: Session,
+    member_id: int,
+    *,
+    game_code: str | None = None,
+    role_uids: list[str] | None = None,
+) -> None:
+    """签到成功后丢弃日历 raw，下次打开页回源。"""
+    q = db.query(TaygedoAttendanceRaw).filter(
+        TaygedoAttendanceRaw.member_id == member_id
+    )
+    if game_code:
+        q = q.filter(TaygedoAttendanceRaw.game_code == game_code)
+    if role_uids:
+        q = q.filter(TaygedoAttendanceRaw.role_uid.in_(role_uids))
+    q.delete(synchronize_session=False)
+
+
+def get_taygedo_attendance_calendar_for_member(
+    db: Session,
+    member: Member,
+    *,
+    game_code: str,
+    role_uid: str | None = None,
+    force: bool = False,
+) -> tuple[dict[str, Any], TaygedoRole, list[TaygedoRole], datetime | None, bool]:
+    """读库二次加工异环/幻塔签到日历；无记录、跨月或 force 时回源落库。"""
+    from datetime import datetime
+
+    from app.core.timeutil import BEIJING, now as beijing_now
+    from app.services.raw_payload_monitor import note_raw_payload
+    from app.services.taygedo_attendance import fetch_game_attendance_bundle
+    from app.services.taygedo_client import ensure_access_token, list_game_roles
+
+    game_code = str(game_code or "").strip()
+    if game_code not in _CALENDAR_GAMES:
+        raise TaygedoApiError("仅异环 / 幻塔支持签到日历")
+
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise TaygedoApiError("尚未绑定塔吉多")
+
+    creds = _load_creds(bind)
+    try:
+        working = ensure_access_token(creds)
+        game_name = "异环" if game_code == GAME_NTE else "幻塔"
+        roles = list_game_roles(working, game_code, game_name)
+    except TaygedoApiError as exc:
+        raise TaygedoApiError(friendly_error_message(exc.message)) from exc
+    _save_creds(bind, working)
+    db.commit()
+
+    if not roles:
+        raise TaygedoApiError(f"未找到{game_name}绑定角色")
+
+    target_uid = str(role_uid or "").strip()
+    role = (
+        next((r for r in roles if r.role_id == target_uid), None)
+        if target_uid
+        else roles[0]
+    )
+    if role is None:
+        raise TaygedoApiError("角色不在当前塔吉多绑定列表中")
+
+    row = (
+        db.query(TaygedoAttendanceRaw)
+        .filter(
+            TaygedoAttendanceRaw.member_id == member.id,
+            TaygedoAttendanceRaw.game_code == game_code,
+            TaygedoAttendanceRaw.role_uid == role.role_id,
+        )
+        .one_or_none()
+    )
+
+    def _same_beijing_month(synced_at: datetime | None) -> bool:
+        if synced_at is None:
+            return False
+        now = beijing_now()
+        if synced_at.tzinfo is None:
+            synced = synced_at.replace(tzinfo=BEIJING)
+        else:
+            synced = synced_at.astimezone(BEIJING)
+        return (synced.year, synced.month) == (now.year, now.month)
+
+    stale = False
+    need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
+    if need_fetch:
+        try:
+            bundle = fetch_game_attendance_bundle(
+                working, game_code, role_id=role.role_id
+            )
+            raw_json = json.dumps(bundle, ensure_ascii=False)
+            note_raw_payload(
+                "taygedo_attendance_raw",
+                raw_json,
+                member_id=member.id,
+                uid=role.role_id,
+            )
+            synced = now_naive()
+            if row is None:
+                row = TaygedoAttendanceRaw(
+                    member_id=member.id,
+                    game_code=game_code,
+                    role_uid=role.role_id,
+                    role_name=role.role_name,
+                    game_name=role.game_name,
+                    raw_json=raw_json,
+                    synced_at=synced,
+                )
+                db.add(row)
+            else:
+                row.role_name = role.role_name
+                row.game_name = role.game_name
+                row.raw_json = raw_json
+                row.synced_at = synced
+            db.commit()
+            db.refresh(row)
+        except TaygedoApiError as exc:
+            if row is None:
+                raise TaygedoApiError(friendly_error_message(exc.message)) from exc
+            stale = True
+            logger.warning(
+                "taygedo attendance refresh failed member_id=%s game=%s role=%s: %s",
+                member.id,
+                game_code,
+                role.role_id,
+                exc.message,
+            )
+
+    try:
+        resp = json.loads(row.raw_json)
+    except json.JSONDecodeError as exc:
+        raise TaygedoApiError("签到日历数据损坏，请刷新重试") from exc
+    if not isinstance(resp, dict):
+        raise TaygedoApiError("签到日历数据格式异常，请刷新重试")
+
+    log_today = _taygedo_today_log_hint(
+        db, member_id=member.id, game_code=game_code, role_uid=role.role_id
+    )
+    parsed = parse_taygedo_attendance_calendar(
+        resp,
+        fallback_has_today=True if log_today else None,
+    )
+    return parsed, role, roles, row.synced_at, stale
+
+
 def run_checkin_for_bind(
     db: Session,
     bind: TaygedoBind,
     *,
     force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """手动 / 自动签到；结果写入今日签到日志。"""
+    from app.services.checkin_role_prefs import matches_role_filter
     from app.services.taygedo_client import list_checkin_targets
 
     checkin_date = today()
@@ -269,9 +443,16 @@ def run_checkin_for_bind(
             TaygedoCheckinLog,
             member_id=bind.member_id,
             checkin_date=checkin_date,
+            role_keys=role_keys,
         )
         if done is not None:
-            payload = day_results_payload(done)
+            full = load_day_checkin_results(
+                db,
+                TaygedoCheckinLog,
+                member_id=bind.member_id,
+                checkin_date=checkin_date,
+            )
+            payload = day_results_payload(full or done)
             return {
                 "skipped": True,
                 "ok": True,
@@ -283,6 +464,14 @@ def run_checkin_for_bind(
     creds = _load_creds(bind)
     working, targets = list_checkin_targets(creds)
     _save_creds(bind, working)
+
+    if role_keys is not None:
+        filtered = []
+        for game_code, role in targets:
+            role_uid = role.role_id if role else "-"
+            if matches_role_filter(game_code, role_uid, role_keys):
+                filtered.append((game_code, role))
+        targets = filtered
 
     if not targets:
         return {
@@ -388,6 +577,15 @@ def run_checkin_for_bind(
         results=results,
         now=now,
     )
+    cal_uids = [
+        r.role_uid
+        for r in results
+        if r.game_code in _CALENDAR_GAMES and is_success_status(r.status)
+    ]
+    if cal_uids:
+        invalidate_taygedo_attendance_raws(
+            db, bind.member_id, role_uids=cal_uids
+        )
     db.commit()
 
     return {
@@ -413,26 +611,35 @@ def run_taygedo_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.core.timeutil import now as now_beijing
-
-    q = (
-        db.query(TaygedoBind)
-        .options(joinedload(TaygedoBind.member))
-        .filter(TaygedoBind.auto_checkin.is_(True))
+    from app.services.checkin_role_prefs import (
+        PLATFORM_TAYGEDO,
+        collect_checkin_job_targets,
     )
-    if member_id is not None:
-        q = q.filter(TaygedoBind.member_id == int(member_id))
-    elif due_only:
-        t = now_beijing()
-        q = q.filter(
-            TaygedoBind.checkin_hour == t.hour,
-            TaygedoBind.checkin_minute == t.minute,
-        )
-    binds = q.all()
-    stats: dict[str, Any] = {"total": len(binds), "ok": 0, "failed": 0, "skipped": 0}
-    for bind in binds:
+
+    targets = collect_checkin_job_targets(
+        db,
+        platform=PLATFORM_TAYGEDO,
+        bind_model=TaygedoBind,
+        due_only=due_only,
+        member_id=member_id,
+    )
+    binds_by_member = {
+        b.member_id: b
+        for b in db.query(TaygedoBind)
+        .options(joinedload(TaygedoBind.member))
+        .filter(TaygedoBind.member_id.in_(list(targets.keys()) or [-1]))
+        .all()
+    }
+    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
+    for mid, role_keys in targets.items():
+        bind = binds_by_member.get(mid)
+        if bind is None:
+            continue
+        if role_keys is not None and len(role_keys) == 0:
+            stats["skipped"] += 1
+            continue
         try:
-            out = run_checkin_for_bind(db, bind, force=False)
+            out = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
             if out.get("skipped"):
                 stats["skipped"] += 1
             elif out.get("ok"):
@@ -440,7 +647,7 @@ def run_taygedo_checkin_job(
             else:
                 stats["failed"] += 1
         except Exception:  # noqa: BLE001
-            logger.exception("taygedo auto checkin failed member_id=%s", bind.member_id)
+            logger.exception("taygedo auto checkin failed member_id=%s", mid)
             stats["failed"] += 1
             db.rollback()
     return stats

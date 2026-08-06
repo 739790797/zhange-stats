@@ -7,13 +7,13 @@
 - 邮箱注册 / 登录（JWT）；管理员与普通用户；支持 QQ 互联登录 / 绑定
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；仅自己与 Steam 好友）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
-- 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / 系统更新
+- 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（异环）
 - 追放社区绑定、签到、每日任务与积分兑换
 - 库街区绑定与每日自动签到（社区 + 鸣潮 / 战双）
-- Docker 部署后由 **Watchtower** 自动拉取新镜像（无需管理端点更新）
+- Docker 部署后由 **Watchtower** 自动拉取新镜像
 
 ## 技术栈
 
@@ -69,8 +69,6 @@ docker compose pull && docker compose up -d
 
 **自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。
 
-**管理端一键更新**：`app` 需挂载 `./compose.yml → /deploy/compose.yml`、`./.env → /deploy/.env` 与 `/var/run/docker.sock`（仓库 `compose.yml` 已配置）。Watchtower 只换镜像不改宿主机 compose，因此改挂载后须在生产**同步最新 `compose.yml`** 并执行一次 `docker compose up -d`，之后网页「系统更新」才可用。若报找不到 `/deploy/.env`，即是宿主机尚未按新 compose 挂载 `.env`。
-
 ## 目录
 
 ```
@@ -88,11 +86,14 @@ zhange-stats/
 ```
 users 1 ── 1 members ── * play_sessions / presence_segments / steam_friend_edges
                       └── 0..1 skland_binds ── * skland_checkin_logs
+                                         └── * skland_attendance_raws
                                          └── * endfield_box_raws
                                          └── * arknights_box_snapshots
                       └── 0..1 taygedo_binds ── * taygedo_checkin_logs
+                                         └── * taygedo_attendance_raws
                       └── 0..1 exilium_binds ── * exilium_checkin_logs
                       └── 0..1 kujiequ_binds ── * kujiequ_checkin_logs
+                      └── * checkin_role_prefs（按平台/角色自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta
 ```
@@ -104,17 +105,20 @@ arknights_operators · arknights_catalog_meta
 | `steam_friend_edges` | 好友缓存（日历仅好友可见）；`member_id` ON DELETE CASCADE |
 | `play_sessions` | 游戏中会话（热力）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
 | `presence_segments` | 离线/在线/游戏中（日时间轴）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
-| `skland_binds` | 森空岛凭证（加密）、自动签到开关、用户自设 `checkin_hour` / `checkin_minute` |
-| `skland_checkin_logs` | 森空岛角色签到记录（按「今日」缓存读优先；超期由 `job_runs_prune` 清理） |
+| `skland_binds` | 森空岛凭证（加密）；`auto_checkin` 为各角色偏好派生摘要；`checkin_hour` / `checkin_minute` 仅作旧数据种子 |
+| `checkin_role_prefs` | 各平台按角色的自动签到开关与北京时间（`platform`+`game_code`+`role_uid`） |
+| `skland_checkin_logs` | 森空岛角色签到记录（按「今日」缓存读优先；含 `awards_text` / `awards_json`；超期由 `job_runs_prune` 清理） |
+| `skland_attendance_raws` | 明日方舟签到日历 GET attendance 原始 JSON（按 member+uid 最新一份；跨月或 force / 签到后回源） |
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
-| `taygedo_binds` | 塔吉多凭证（加密）、自动签到开关、用户自设签到时间 |
+| `taygedo_binds` | 塔吉多凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |
 | `taygedo_checkin_logs` | 塔吉多 / 异环签到记录 |
-| `exilium_binds` | 追放社区凭证（加密）、自动签到开关、用户自设签到时间 |
+| `taygedo_attendance_raws` | 异环 / 幻塔签到日历（signin/state + sign/rewards）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
+| `exilium_binds` | 追放社区凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |
 | `exilium_checkin_logs` | 追放社区签到记录 |
-| `kujiequ_binds` | 库街区凭证（加密）、自动签到开关、用户自设签到时间 |
+| `kujiequ_binds` | 库街区凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |
 | `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录 |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理 |
 | `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度等） |

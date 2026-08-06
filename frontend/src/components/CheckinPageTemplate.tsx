@@ -5,24 +5,25 @@ import {
   Button,
   Card,
   Empty,
-  List,
   Space,
   Switch,
-  Tag,
   TimePicker,
   Typography,
   message,
 } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
+import { isCheckinSuccess } from "@/lib/checkinStatus";
+import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
+import { CheckinStatusTag } from "@/components/CheckinStatusTag";
 import { PageHeader } from "@/components/PageHeader";
 import {
-  checkinStatusLabel,
-  checkinStatusTagColor,
-  isCheckinSuccess,
-} from "@/lib/checkinStatus";
+  PlatformIcon,
+  checkinGameIcon,
+  type PlatformIconName,
+} from "@/components/PlatformIcon";
 
 export interface CheckinPageRole {
   game_code: string;
@@ -42,7 +43,17 @@ export interface CheckinPageResultItem {
   status_label?: string | null;
   message: string;
   awards_text?: string | null;
+  awards?: Array<{
+    name: string;
+    count?: number;
+    resource_id?: string | null;
+    resource_type?: string | null;
+    icon_url?: string | null;
+  }> | null;
   extra_text?: string | null;
+  auto_checkin?: boolean | null;
+  checkin_hour?: number | null;
+  checkin_minute?: number | null;
 }
 
 export interface CheckinPageStatus {
@@ -67,6 +78,14 @@ export interface CheckinPageResponse {
   results?: CheckinPageResultItem[];
 }
 
+export interface CheckinRolePrefPayload {
+  game_code: string;
+  role_uid: string;
+  enabled: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}
+
 export interface CheckinPageTemplateProps {
   title: string;
   subtitle?: string;
@@ -80,34 +99,23 @@ export interface CheckinPageTemplateProps {
     force?: boolean,
   ) => Promise<CheckinPageStatus>;
   triggerCheckin: () => Promise<CheckinPageResponse>;
-  updateBind: (payload: {
-    auto_checkin?: boolean;
-    checkin_hour?: number;
-    checkin_minute?: number;
-  }) => Promise<{
-    auto_checkin?: boolean | null;
-    checkin_hour?: number | null;
-    checkin_minute?: number | null;
-  }>;
+  updateRolePref: (payload: CheckinRolePrefPayload) => Promise<CheckinPageStatus>;
   /** 是否展示 phone_mask（塔吉多） */
   showPhoneMask?: boolean;
   /** 嵌入平台页 Tabs 时隐藏外层标题区 */
   contentOnly?: boolean;
+  /** 未知 game_code 时的平台/社区图标回退 */
+  platformIcon?: PlatformIconName;
+  /** 今日签到每一行状态标签后的附加内容（如官服签到日历） */
+  renderResultExtra?: (row: CheckinPageResultItem) => ReactNode;
 }
 
+function toScheduleValue(hour: number, minute: number): Dayjs {
+  return dayjs().hour(hour).minute(minute).second(0).millisecond(0);
+}
 
-function StatusTag({
-  status,
-  statusLabel,
-}: {
-  status: string;
-  statusLabel?: string | null;
-}) {
-  return (
-    <Tag color={checkinStatusTagColor(status)}>
-      {checkinStatusLabel(status, statusLabel)}
-    </Tag>
-  );
+function snapMinute(minute: number): number {
+  return Math.max(0, Math.min(55, minute - (minute % 5)));
 }
 
 function awardsText(row: CheckinPageResultItem) {
@@ -129,6 +137,156 @@ function awardsText(row: CheckinPageResultItem) {
   return "-";
 }
 
+function AwardsBlock({ row }: { row: CheckinPageResultItem }) {
+  const text = awardsText(row);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <Typography.Text type="secondary">奖励：</Typography.Text>
+      <CheckinAwardsLine
+        awards={row.awards}
+        awardsText={text === "-" ? null : text}
+        fallback="-"
+      />
+    </div>
+  );
+}
+
+function rowKey(row: CheckinPageResultItem) {
+  return `${row.game_code || ""}::${row.role_uid || ""}`;
+}
+
+type GameGroup = {
+  game_code: string;
+  game_name: string;
+  items: CheckinPageResultItem[];
+};
+
+function groupTodayResults(rows: CheckinPageResultItem[]): GameGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, GameGroup>();
+  for (const row of rows) {
+    const code = row.game_code || "_";
+    let group = map.get(code);
+    if (!group) {
+      group = {
+        game_code: code,
+        game_name: row.game_name || row.game_code || "签到",
+        items: [],
+      };
+      map.set(code, group);
+      order.push(code);
+    } else if (!group.game_name && row.game_name) {
+      group.game_name = row.game_name;
+    }
+    group.items.push(row);
+  }
+  return order.map((c) => map.get(c)!);
+}
+
+function RoleAutoCheckinControls({
+  row,
+  saving,
+  onSave,
+}: {
+  row: CheckinPageResultItem;
+  saving: boolean;
+  onSave: (payload: CheckinRolePrefPayload) => Promise<void>;
+}) {
+  const gameCode = row.game_code || "";
+  const roleUid = row.role_uid || "";
+  const [enabled, setEnabled] = useState(Boolean(row.auto_checkin));
+  const [hour, setHour] = useState(row.checkin_hour ?? 0);
+  const [minute, setMinute] = useState(
+    row.checkin_minute != null ? snapMinute(row.checkin_minute) : 5,
+  );
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    const h = row.checkin_hour ?? 0;
+    const m = row.checkin_minute != null ? snapMinute(row.checkin_minute) : 5;
+    setEnabled(Boolean(row.auto_checkin));
+    setHour(h);
+    setMinute(m);
+    setEditing(false);
+  }, [row.auto_checkin, row.checkin_hour, row.checkin_minute, row.game_code, row.role_uid]);
+
+  const timeLocked = enabled && !editing;
+  const scheduleValue = toScheduleValue(hour, minute);
+
+  if (!gameCode || !roleUid) return null;
+
+  return (
+    <Space wrap size={8} style={{ marginTop: 0, justifyContent: "flex-end" }}>
+      <Typography.Text type="secondary">自动签到</Typography.Text>
+      <Switch
+        size="small"
+        checked={enabled}
+        loading={saving}
+        onChange={(v) => {
+          setEnabled(v);
+          if (!v) {
+            setEditing(false);
+            void onSave({
+              game_code: gameCode,
+              role_uid: roleUid,
+              enabled: false,
+              checkin_hour: hour,
+              checkin_minute: minute,
+            });
+          } else {
+            // 开启后进入编辑，时间需点「保存」才落库
+            setEditing(true);
+          }
+        }}
+      />
+      <TimePicker
+        size="small"
+        format="HH:mm"
+        allowClear={false}
+        showNow={false}
+        needConfirm={false}
+        minuteStep={5}
+        value={scheduleValue}
+        disabled={!enabled || timeLocked || saving}
+        style={{ width: 104 }}
+        onChange={(v) => {
+          if (!v) return;
+          // 仅填入本地时间，不请求保存
+          setHour(v.hour());
+          setMinute(snapMinute(v.minute()));
+        }}
+      />
+      {enabled && timeLocked ? (
+        <Button size="small" type="link" onClick={() => setEditing(true)}>
+          修改
+        </Button>
+      ) : null}
+      {enabled && editing ? (
+        <Button
+          size="small"
+          type="primary"
+          loading={saving}
+          onClick={() => {
+            void onSave({
+              game_code: gameCode,
+              role_uid: roleUid,
+              enabled: true,
+              checkin_hour: hour,
+              checkin_minute: minute,
+            })
+              .then(() => setEditing(false))
+              .catch(() => {
+                /* 错误由外层 message 处理 */
+              });
+          }}
+        >
+          保存
+        </Button>
+      ) : null}
+    </Space>
+  );
+}
+
 export function CheckinPageTemplate({
   title,
   subtitle,
@@ -137,12 +295,15 @@ export function CheckinPageTemplate({
   statusQueryKey,
   fetchStatus,
   triggerCheckin,
-  updateBind,
-  showPhoneMask = false,
+  updateRolePref,
+  showPhoneMask: _showPhoneMask = false,
   contentOnly = false,
+  platformIcon,
+  renderResultExtra,
 }: CheckinPageTemplateProps) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
@@ -185,39 +346,28 @@ export function CheckinPageTemplate({
       if (statusQueryKey[0] === "exilium-status") {
         queryClient.invalidateQueries({ queryKey: ["exilium-exchange"] });
       }
+      if (statusQueryKey[0] === "skland-status") {
+        queryClient.invalidateQueries({
+          queryKey: ["arknights-attendance-calendar"],
+        });
+      }
     },
     onError: (e: unknown) => message.error(apiError(e, "签到失败")),
   });
 
-  const toggleAuto = useMutation({
-    mutationFn: (enabled: boolean) => updateBind({ auto_checkin: enabled }),
-    onSuccess: (data) => {
-      message.success(data.auto_checkin ? "已开启每日自动签到" : "已关闭自动签到");
-      queryClient.invalidateQueries({ queryKey: statusQueryKey });
+  const saveRolePref = useMutation({
+    mutationFn: async (payload: CheckinRolePrefPayload) => {
+      setSavingKey(`${payload.game_code}::${payload.role_uid}`);
+      return updateRolePref(payload);
+    },
+    onSuccess: (data, payload) => {
+      message.success(payload.enabled ? "已保存自动签到设置" : "已关闭该角色自动签到");
+      queryClient.setQueryData(statusQueryKey, data);
       queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     },
-    onError: (e: unknown) => message.error(apiError(e, "更新失败")),
-  });
-
-  const saveSchedule = useMutation({
-    mutationFn: (value: Dayjs) =>
-      updateBind({
-        checkin_hour: value.hour(),
-        checkin_minute: value.minute(),
-      }),
-    onSuccess: () => {
-      message.success("签到时间已保存");
-      queryClient.invalidateQueries({ queryKey: statusQueryKey });
-    },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+    onSettled: () => setSavingKey(null),
   });
-
-  const scheduleValue = (() => {
-    const h = statusQuery.data?.checkin_hour;
-    const m = statusQuery.data?.checkin_minute;
-    if (h == null || m == null) return dayjs().hour(0).minute(5).second(0);
-    return dayjs().hour(h).minute(m).second(0);
-  })();
 
   const bound = Boolean(statusQuery.data?.bound);
   const todayResults = statusQuery.data?.today_results || [];
@@ -252,100 +402,101 @@ export function CheckinPageTemplate({
         />
       ) : null}
       {bound ? (
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 24,
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Space size={12} wrap>
-              <Tag color="success">已绑定</Tag>
-              {showPhoneMask && statusQuery.data?.phone_mask ? (
-                <Typography.Text type="secondary">
-                  {statusQuery.data.phone_mask}
-                </Typography.Text>
-              ) : null}
-              {statusQuery.data?.token_ok === true ? (
-                <Tag color="processing">凭证有效</Tag>
-              ) : statusQuery.data?.token_ok === false ? (
-                <Tag color="error">凭证失效</Tag>
-              ) : null}
-              {statusQuery.data?.last_checkin_date ? (
-                <Typography.Text type="secondary">
-                  最近签到：{statusQuery.data.last_checkin_date}
-                  {statusQuery.data.last_checkin_ok === true
-                    ? " · 成功"
-                    : statusQuery.data.last_checkin_ok === false
-                      ? " · 有失败"
-                      : ""}
-                </Typography.Text>
-              ) : null}
-            </Space>
-            <Space wrap>
-              <Typography.Text>每日自动签到</Typography.Text>
-              <Switch
-                checked={Boolean(statusQuery.data?.auto_checkin)}
-                loading={toggleAuto.isPending}
-                onChange={(v) => toggleAuto.mutate(v)}
-              />
-              <Typography.Text type="secondary">每天</Typography.Text>
-              <TimePicker
-                format="HH:mm"
-                allowClear={false}
-                value={scheduleValue}
-                disabled={!statusQuery.data?.auto_checkin}
-                needConfirm={false}
-                onChange={(v) => {
-                  if (v) saveSchedule.mutate(v);
-                }}
-              />
-              <Typography.Text type="secondary">（北京时间）</Typography.Text>
-            </Space>
-          </div>
-
-          <div>
-            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-              今日签到
-            </Typography.Text>
+        <div>
             {todayResults.length ? (
-              <List
-                size="small"
-                dataSource={todayResults}
-                renderItem={(row) => (
-                  <List.Item>
-                    <Space direction="vertical" size={2} style={{ width: "100%" }}>
-                      <Space wrap>
-                        <Tag>{row.game_name || row.game_code}</Tag>
-                        <span>
-                          {row.role_name || row.role_uid}
-                          {row.channel_name ? (
-                            <Typography.Text type="secondary">
-                              {" "}
-                              · {row.channel_name}
-                            </Typography.Text>
-                          ) : null}
-                        </span>
-                        <StatusTag
-                          status={row.status}
-                          statusLabel={row.status_label}
-                        />
-                      </Space>
-                      <Typography.Text type="secondary">
-                        奖励：{awardsText(row)}
-                      </Typography.Text>
-                      {row.extra_text ? (
-                        <Typography.Text type="secondary">
-                          {row.extra_text}
+              <Space direction="vertical" size={20} style={{ width: "100%" }}>
+                {groupTodayResults(todayResults).map((group) => {
+                  const iconName = checkinGameIcon(
+                    group.game_code,
+                    platformIcon,
+                  );
+                  return (
+                    <div key={group.game_code}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {iconName ? (
+                          <PlatformIcon name={iconName} size={22} />
+                        ) : null}
+                        <Typography.Text strong>
+                          {group.game_name}
                         </Typography.Text>
-                      ) : null}
-                    </Space>
-                  </List.Item>
-                )}
-              />
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "minmax(8rem, max-content) auto auto minmax(0, 1fr)",
+                          columnGap: 10,
+                          rowGap: 10,
+                          alignItems: "center",
+                          paddingLeft: 30,
+                        }}
+                      >
+                        {group.items.map((row, index) => (
+                          <div
+                            key={rowKey(row)}
+                            style={{ display: "contents" }}
+                          >
+                            <span style={{ whiteSpace: "nowrap" }}>
+                              {row.role_name || row.role_uid}
+                              {row.channel_name ? (
+                                <Typography.Text type="secondary">
+                                  {" "}
+                                  · {row.channel_name}
+                                </Typography.Text>
+                              ) : null}
+                            </span>
+                            <CheckinStatusTag
+                              status={row.status}
+                              statusLabel={row.status_label}
+                            />
+                            <span>
+                              {renderResultExtra?.(row) ?? null}
+                            </span>
+                            <div
+                              style={{
+                                justifySelf: "end",
+                                minWidth: 0,
+                              }}
+                            >
+                              <RoleAutoCheckinControls
+                                row={row}
+                                saving={savingKey === rowKey(row)}
+                                onSave={async (payload) => {
+                                  await saveRolePref.mutateAsync(payload);
+                                }}
+                              />
+                            </div>
+                            <div
+                              style={{
+                                gridColumn: "1 / -1",
+                                paddingBottom: 4,
+                                borderBottom:
+                                  index < group.items.length - 1
+                                    ? "1px solid rgba(0,0,0,0.06)"
+                                    : undefined,
+                              }}
+                            >
+                              <AwardsBlock row={row} />
+                              {row.extra_text ? (
+                                <Typography.Text type="secondary">
+                                  {row.extra_text}
+                                </Typography.Text>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </Space>
             ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -357,7 +508,6 @@ export function CheckinPageTemplate({
               />
             )}
           </div>
-        </Space>
       ) : (
         <Empty description="绑定后可在此查看签到记录" />
       )}

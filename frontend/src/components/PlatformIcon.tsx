@@ -38,6 +38,31 @@ export function featureIconName(featureId: string): PlatformIconName | null {
   return FEATURE_ICON_BY_ID[root] ?? null;
 }
 
+/** 签到结果 game_code → 游戏 / 社区 App 图标 */
+const CHECKIN_GAME_ICON: Record<string, PlatformIconName> = {
+  arknights: "arknights",
+  endfield: "endfield",
+  // 塔吉多
+  "1289": "exastris", // 异环
+  "1256": "tower", // 幻塔
+  app: "taygedo", // 塔吉多 APP 社区签到
+  // 库街区
+  kujiequ: "kujiequ", // 社区签到
+  game_2: "pgr", // 战双
+  game_3: "ww", // 鸣潮
+  // 追放社区
+  exilium_bbs: "exilium",
+};
+
+export function checkinGameIcon(
+  gameCode: string | null | undefined,
+  fallback?: PlatformIconName | null,
+): PlatformIconName | null {
+  const key = (gameCode || "").trim();
+  if (key && key in CHECKIN_GAME_ICON) return CHECKIN_GAME_ICON[key];
+  return fallback ?? null;
+}
+
 type PlatformIconProps = {
   name: PlatformIconName;
   size?: number;

@@ -19,7 +19,6 @@ import SteamCalendarPage from "@/pages/SteamCalendarPage";
 import TaygedoPage from "@/pages/TaygedoPage";
 import ExiliumPage from "@/pages/ExiliumPage";
 import KujiequPage from "@/pages/KujiequPage";
-import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import TaskConfigPage from "@/pages/TaskConfigPage";
 import UserManagementPage from "@/pages/UserManagementPage";
@@ -191,14 +190,6 @@ export default function App() {
                 element={
                   <AdminPage>
                     <ScheduledJobsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/update"
-                element={
-                  <AdminPage>
-                    <SystemUpdatePage />
                   </AdminPage>
                 }
               />

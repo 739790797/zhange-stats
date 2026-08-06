@@ -8,7 +8,7 @@ import {
   sendSklandSms,
   startSklandQrBind,
 } from "@/api/client";
-import type { SklandQrStart } from "@/api/types";
+import type { SklandQrStart, SklandStatus } from "@/api/types";
 import {
   PhoneAuthBindTemplate,
   preferredPhoneAuthMode,
@@ -17,6 +17,7 @@ import {
 import { apiError } from "@/lib/apiError";
 
 const SKLAND_MODES: PhoneAuthMode[] = ["qr", "sms", "password"];
+const STATUS_KEY = ["skland-status"] as const;
 
 export function SklandBindPanel({
   title = "绑定森空岛",
@@ -41,14 +42,16 @@ export function SklandBindPanel({
     }
   };
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["skland-status"] });
-    queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-  };
-
-  const finishOk = (msg = "森空岛绑定成功") => {
+  const finishOk = async (
+    status?: SklandStatus | null,
+    msg = "森空岛绑定成功",
+  ) => {
     message.success(msg);
-    invalidate();
+    if (status?.bound) {
+      queryClient.setQueryData(STATUS_KEY, status);
+    }
+    await queryClient.refetchQueries({ queryKey: STATUS_KEY });
+    await queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     onSuccess?.();
   };
 
@@ -78,7 +81,7 @@ export function SklandBindPanel({
           if (poll.status === "ok") {
             qrDone.current = true;
             clearPollTimer();
-            finishOk(poll.message || "森空岛绑定成功");
+            await finishOk(null, poll.message || "森空岛绑定成功");
             return;
           }
           if (poll.status === "expired" || poll.status === "error") {
@@ -120,12 +123,12 @@ export function SklandBindPanel({
         await sendSklandSms(phone);
       }}
       onBindSms={async (phone, code) => {
-        await bindSklandSms(phone, code);
-        finishOk();
+        const status = await bindSklandSms(phone, code);
+        await finishOk(status);
       }}
       onBindPassword={async (phone, password) => {
-        await bindSklandPassword(phone, password);
-        finishOk();
+        const status = await bindSklandPassword(phone, password);
+        await finishOk(status);
       }}
       qrPanel={
         <div style={{ textAlign: "center" }}>

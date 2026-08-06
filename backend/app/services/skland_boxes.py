@@ -24,6 +24,7 @@ from app.services.skland_client import (
     SklandSession,
     _http_json,
     _signed_headers,
+    localize_endfield_server_name,
 )
 
 def fetch_player_info(session: SklandSession, uid: str) -> dict[str, Any]:
@@ -595,9 +596,9 @@ def parse_endfield_box(
         server_id=server_id,
         name=str(base.get("name") or (role.role_name if role else "") or uid).strip(),
         level=_endfield_int(base.get("level"), 0),
-        server_name=str(
+        server_name=localize_endfield_server_name(
             base.get("serverName") or (role.channel_name if role else "") or ""
-        ).strip(),
+        ),
         avatar_url=str(base.get("avatarUrl") or "").strip() or None,
         char_count=char_num or len(chars),
         chars=chars,

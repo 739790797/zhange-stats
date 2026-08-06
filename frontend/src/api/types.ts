@@ -15,6 +15,8 @@ export type MemberProfile = components["schemas"]["MemberProfileOut"];
 /** 与后端 OpenAPI 平台状态 / 签到响应对齐。 */
 export type SklandStatus = components["schemas"]["SklandStatusOut"];
 export type TaygedoStatus = components["schemas"]["TaygedoStatusOut"];
+export type TaygedoAttendanceCalendar =
+  components["schemas"]["TaygedoAttendanceCalendarOut"];
 export type ExiliumStatus = components["schemas"]["ExiliumStatusOut"];
 export type KujiequStatus = components["schemas"]["KujiequStatusOut"];
 
@@ -29,6 +31,8 @@ export type SteamNowItem = components["schemas"]["SteamNowItem"];
 export type SteamPollResult = components["schemas"]["SteamPollResult"];
 export type EndfieldBox = components["schemas"]["EndfieldBoxOut"];
 export type ArknightsBoxCompare = components["schemas"]["ArknightsBoxCompareOut"];
+export type ArknightsAttendanceCalendar =
+  components["schemas"]["ArknightsAttendanceCalendarOut"];
 
 export type ArknightsOperator = components["schemas"]["ArknightsOperatorOut"];
 export type ArknightsOwnedChar = components["schemas"]["ArknightsOwnedCharOut"];

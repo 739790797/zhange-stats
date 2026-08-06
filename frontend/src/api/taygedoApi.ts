@@ -1,5 +1,6 @@
 import { client } from "./http";
 import type {
+  TaygedoAttendanceCalendar,
   TaygedoCheckinResponse,
   TaygedoStatus,
 } from "./types";
@@ -57,7 +58,37 @@ export async function updateTaygedoBind(payload: {
   return data;
 }
 
+export async function updateTaygedoRolePref(payload: {
+  game_code: string;
+  role_uid: string;
+  enabled: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
+  const { data } = await client.patch<TaygedoStatus>("/taygedo/role-prefs", payload);
+  return data;
+}
+
 export async function triggerTaygedoCheckin() {
   const { data } = await client.post<TaygedoCheckinResponse>("/taygedo/checkin");
+  return data;
+}
+
+export async function fetchTaygedoAttendanceCalendar(
+  gameCode: string,
+  roleUid?: string,
+  force = false,
+) {
+  const { data } = await client.get<TaygedoAttendanceCalendar>(
+    "/taygedo/attendance-calendar",
+    {
+      params: {
+        game_code: gameCode,
+        ...(roleUid ? { role_uid: roleUid } : {}),
+        ...(force ? { force: true } : {}),
+      },
+      timeout: 60000,
+    },
+  );
   return data;
 }

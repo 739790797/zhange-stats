@@ -1,6 +1,5 @@
 import {
   CalendarOutlined,
-  CloudDownloadOutlined,
   KeyOutlined,
   LockOutlined,
   LogoutOutlined,
@@ -77,11 +76,6 @@ const ADMIN_NAV = [
     key: "/settings/jobs",
     label: "任务调度",
     icon: <ScheduleOutlined />,
-  },
-  {
-    key: "/settings/update",
-    label: "系统更新",
-    icon: <CloudDownloadOutlined />,
   },
 ] as const;
 

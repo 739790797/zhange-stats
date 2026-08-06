@@ -423,7 +423,13 @@ def query_today_all(creds: KujiequCredentials) -> tuple[KujiequCredentials, list
     return creds, results
 
 
-def run_all_checkins(creds: KujiequCredentials) -> tuple[KujiequCredentials, list[CheckinResult]]:
+def run_all_checkins(
+    creds: KujiequCredentials,
+    *,
+    role_keys: set[tuple[str, str]] | None = None,
+) -> tuple[KujiequCredentials, list[CheckinResult]]:
+    from app.services.checkin_role_prefs import matches_role_filter
+
     creds = _ensure_device(creds)
     if not creds.user_id:
         mine = fetch_mine(creds)
@@ -431,24 +437,29 @@ def run_all_checkins(creds: KujiequCredentials) -> tuple[KujiequCredentials, lis
         creds.user_name = mine["user_name"] or creds.user_name
 
     results: list[CheckinResult] = []
-    try:
-        results.append(do_community_sign_in(creds))
-    except KujiequApiError as exc:
-        if exc.code in (220, 401):
-            raise
-        results.append(
-            CheckinResult(
-                game_code="kujiequ",
-                game_name="库街区",
-                role_uid=creds.user_id or "community",
-                role_name=creds.user_name or "社区账号",
-                channel_name="社区签到",
-                status="error",
-                message=exc.message,
+    community_uid = creds.user_id or "community"
+    if matches_role_filter("kujiequ", community_uid, role_keys):
+        try:
+            results.append(do_community_sign_in(creds))
+        except KujiequApiError as exc:
+            if exc.code in (220, 401):
+                raise
+            results.append(
+                CheckinResult(
+                    game_code="kujiequ",
+                    game_name="库街区",
+                    role_uid=community_uid,
+                    role_name=creds.user_name or "社区账号",
+                    channel_name="社区签到",
+                    status="error",
+                    message=exc.message,
+                )
             )
-        )
 
     for role in list_all_game_roles(creds):
+        game_code = f"game_{role.game_id}"
+        if not matches_role_filter(game_code, role.role_id, role_keys):
+            continue
         try:
             results.append(do_game_sign_in(creds, role))
         except KujiequApiError as exc:
@@ -456,7 +467,7 @@ def run_all_checkins(creds: KujiequCredentials) -> tuple[KujiequCredentials, lis
                 raise
             results.append(
                 CheckinResult(
-                    game_code=f"game_{role.game_id}",
+                    game_code=game_code,
                     game_name=role.game_name,
                     role_uid=role.role_id,
                     role_name=role.role_name,

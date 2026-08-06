@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, exilium, jobs, kujiequ, members, napcat, profile, setup, skland, steam, taygedo, update
+from app.api import auth, exilium, jobs, kujiequ, members, napcat, profile, setup, skland, steam, taygedo
 from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
@@ -102,7 +102,6 @@ api.include_router(taygedo.router)
 api.include_router(exilium.router)
 api.include_router(kujiequ.router)
 api.include_router(napcat.router)
-api.include_router(update.router)
 app.include_router(api)
 
 # 只挂载头像子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问

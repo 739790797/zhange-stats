@@ -13,6 +13,7 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    CheckinRolePrefUpdate,
     SklandBindPasswordRequest,
     SklandBindRequest,
     SklandBindSmsRequest,
@@ -78,6 +79,7 @@ def skland_status(
         force=force,
         serialize_role=_ser_role,
         soft_roles_on_none_ok=True,
+        role_pref_platform="skland",
     )
 
 
@@ -232,6 +234,43 @@ def skland_update_bind(
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return skland_status(db=db, user=user, member=_member_or_404(db, user), include_roles=False)
+
+
+@router.patch(
+    "/role-prefs",
+    response_model=SklandStatusOut,
+    dependencies=[Depends(require_feature("skland.checkin"))],
+)
+def skland_update_role_pref(
+    payload: CheckinRolePrefUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    member = _member_or_404(db, user)
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise HTTPException(status_code=400, detail="尚未绑定森空岛")
+    if payload.enabled and (
+        payload.checkin_hour is None or payload.checkin_minute is None
+    ):
+        raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
+    try:
+        from app.services.checkin_role_prefs import PLATFORM_SKLAND, upsert_role_pref
+
+        upsert_role_pref(
+            db,
+            platform=PLATFORM_SKLAND,
+            member_id=member.id,
+            bind=bind,
+            game_code=payload.game_code,
+            role_uid=payload.role_uid,
+            enabled=payload.enabled,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return skland_status(db=db, user=user, member=member, include_roles=False)
 
 
 @router.post(

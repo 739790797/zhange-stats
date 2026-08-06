@@ -1,5 +1,6 @@
 import { client } from "./http";
 import type {
+  ArknightsAttendanceCalendar,
   ArknightsBoxCompare,
   ArknightsCompareCandidate,
   EndfieldBox,
@@ -60,6 +61,23 @@ export async function fetchArknightsBoxCompare(
   return data;
 }
 
+export async function fetchArknightsAttendanceCalendar(
+  uid?: string,
+  force = false,
+) {
+  const { data } = await client.get<ArknightsAttendanceCalendar>(
+    "/skland/arknights/attendance-calendar",
+    {
+      params: {
+        ...(uid ? { uid } : {}),
+        ...(force ? { force: true } : {}),
+      },
+      timeout: 60000,
+    },
+  );
+  return data;
+}
+
 export async function bindSklandPassword(phone: string, password: string) {
   const { data } = await client.post<SklandStatus>("/skland/bind/password", {
     phone,
@@ -95,6 +113,17 @@ export async function updateSklandBind(payload: {
   checkin_minute?: number;
 }) {
   const { data } = await client.patch<SklandStatus>("/skland/bind", payload);
+  return data;
+}
+
+export async function updateSklandRolePref(payload: {
+  game_code: string;
+  role_uid: string;
+  enabled: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
+  const { data } = await client.patch<SklandStatus>("/skland/role-prefs", payload);
   return data;
 }
 

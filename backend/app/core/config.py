@@ -108,15 +108,9 @@ class Settings(BaseSettings):
     # 仅本地调试：SMTP 未配时允许把完整验证码写入日志/stdout
     ALLOW_EMAIL_CODE_LOG: bool = False
 
-    # 部署 / 在线更新（Docker 管理端手动更新始终可用）
+    # 部署版本号（镜像/本地 VERSION 文件）
     APP_VERSION: str = _read_version_file()
     STATIC_DIR: str = ""
-    UPDATE_REPO: str = "739790797/zhange-stats"
-    UPDATE_IMAGE: str = "ghcr.io/739790797/zhange-stats"
-    UPDATE_COMPOSE_FILE: str = "/deploy/compose.yml"
-    UPDATE_COMPOSE_SERVICE: str = "app"
-    UPDATE_COMPOSE_PROJECT: str = "zhange-stats"
-    UPDATE_GITHUB_TOKEN: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

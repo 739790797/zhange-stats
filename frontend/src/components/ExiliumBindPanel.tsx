@@ -29,16 +29,15 @@ export function ExiliumBindPanel({
   const [graphCode, setGraphCode] = useState("");
   const [graphImage, setGraphImage] = useState<string | null>(null);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["exilium-status"] });
-    queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-  };
-
-  const finishOk = () => {
+  const finishOk = async (status?: { bound?: boolean } | null) => {
     message.success("追放社区绑定成功");
     setGraphCode("");
     setGraphImage(null);
-    invalidate();
+    if (status?.bound) {
+      queryClient.setQueryData(["exilium-status"], status);
+    }
+    await queryClient.refetchQueries({ queryKey: ["exilium-status"] });
+    await queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     onSuccess?.();
   };
 
@@ -96,12 +95,12 @@ export function ExiliumBindPanel({
         setGraphCode("");
       }}
       onBindSms={async (phone, code) => {
-        await bindExiliumSms(phone, code);
-        finishOk();
+        const status = await bindExiliumSms(phone, code);
+        await finishOk(status);
       }}
       onBindPassword={async (account, password) => {
-        await bindExiliumPassword(account, password);
-        finishOk();
+        const status = await bindExiliumPassword(account, password);
+        await finishOk(status);
       }}
     />
   );

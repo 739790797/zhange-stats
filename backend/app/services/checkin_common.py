@@ -36,9 +36,11 @@ class CheckinResult:
     message: str
     awards_text: str | None = None
     extra_text: str | None = None
+    # 结构化奖励（可选；方舟可含 icon_url）
+    awards: list[dict[str, Any]] | None = None
 
     def to_api_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "game_code": self.game_code,
             "game_name": self.game_name,
             "role_uid": self.role_uid,
@@ -50,6 +52,9 @@ class CheckinResult:
             "awards_text": self.awards_text,
             "extra_text": self.extra_text,
         }
+        if self.awards:
+            out["awards"] = self.awards
+        return out
 
 
 def is_success_status(status: str | None) -> bool:
@@ -99,6 +104,52 @@ def prefer_richer_awards(current: str | None, incoming: str | None) -> str | Non
     if awards_richness(inc) >= awards_richness(cur):
         return inc
     return cur
+
+
+def prefer_richer_award_items(
+    current_text: str | None,
+    current_items: list[dict[str, Any]] | None,
+    incoming_text: str | None,
+    incoming_items: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """与 prefer_richer_awards 同步选择结构化奖励列表。"""
+    merged = prefer_richer_awards(current_text, incoming_text)
+    if merged is None:
+        return None
+    inc = None if is_placeholder_awards(incoming_text) else (incoming_text or "").strip() or None
+    if merged == inc and incoming_items:
+        return list(incoming_items)
+    if current_items:
+        return list(current_items)
+    if incoming_items:
+        return list(incoming_items)
+    return None
+
+
+def dumps_awards_json(awards: list[dict[str, Any]] | None) -> str | None:
+    if not awards:
+        return None
+    import json
+
+    return json.dumps(awards, ensure_ascii=False)
+
+
+def loads_awards_json(raw: str | None) -> list[dict[str, Any]] | None:
+    if not raw or not str(raw).strip():
+        return None
+    import json
+
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, list) or not data:
+        return None
+    out: list[dict[str, Any]] = []
+    for row in data:
+        if isinstance(row, dict) and row.get("name"):
+            out.append(row)
+    return out or None
 
 
 def status_label(status: str | None) -> str:
@@ -166,6 +217,7 @@ def load_day_checkin_results(
             status=str(row.status or "pending"),
             message=str(row.message or ""),
             awards_text=row.awards_text,
+            awards=loads_awards_json(getattr(row, "awards_json", None)),
         )
         for row in rows
     ]
@@ -177,14 +229,29 @@ def today_done_from_logs(
     *,
     member_id: int,
     checkin_date: Any,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> list[CheckinResult] | None:
-    """今日 logs 全部为成功态则返回结果，否则 None。调度跳过以 logs 为准。"""
+    """今日 logs 全部为成功态则返回结果，否则 None。调度跳过以 logs 为准。
+
+    role_keys: 仅检查这些 (game_code, role_uid)；为 None 时检查全日全部角色。
+    """
     cached = load_day_checkin_results(
         db, log_model, member_id=member_id, checkin_date=checkin_date
     )
-    if cached and all(is_success_status(r.status) for r in cached):
-        return cached
-    return None
+    if not cached:
+        return None
+    if role_keys is None:
+        if all(is_success_status(r.status) for r in cached):
+            return cached
+        return None
+    by_key = {(r.game_code, r.role_uid): r for r in cached}
+    selected: list[CheckinResult] = []
+    for key in role_keys:
+        row = by_key.get(key)
+        if row is None or not is_success_status(row.status):
+            return None
+        selected.append(row)
+    return selected if selected else None
 
 
 def apply_bind_last_checkin(
@@ -249,16 +316,33 @@ def upsert_day_checkin_logs(
                     awards_text=r.awards_text,
                     checkin_date=checkin_date,
                     checked_at=now,
+                    **(
+                        {"awards_json": dumps_awards_json(r.awards)}
+                        if hasattr(log_model, "awards_json")
+                        else {}
+                    ),
                 )
             )
         else:
             row.game_name = r.game_name or row.game_name
             row.role_name = r.role_name or row.role_name
             row.channel_name = r.channel_name or row.channel_name
-            row.status = r.status
-            row.message = message or None
+            # 上游残缺查询（如 B 服 GET 无 records）不得把已签降成未签
+            if not (
+                is_success_status(row.status) and r.status == STATUS_PENDING
+            ):
+                row.status = r.status
+            row.message = message or row.message
             # 奖励文案：同步残缺结果不得覆盖签到时已写入的完整明细
-            row.awards_text = prefer_richer_awards(row.awards_text, r.awards_text)
+            prev_text = row.awards_text
+            prev_items = loads_awards_json(getattr(row, "awards_json", None))
+            row.awards_text = prefer_richer_awards(prev_text, r.awards_text)
+            if hasattr(row, "awards_json"):
+                row.awards_json = dumps_awards_json(
+                    prefer_richer_award_items(
+                        prev_text, prev_items, r.awards_text, r.awards
+                    )
+                )
             row.checked_at = now
 
 

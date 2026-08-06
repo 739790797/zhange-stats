@@ -55,6 +55,17 @@ export async function updateExiliumBind(payload: {
   return data;
 }
 
+export async function updateExiliumRolePref(payload: {
+  game_code: string;
+  role_uid: string;
+  enabled: boolean;
+  checkin_hour?: number;
+  checkin_minute?: number;
+}) {
+  const { data } = await client.patch<ExiliumStatus>("/exilium/role-prefs", payload);
+  return data;
+}
+
 export async function triggerExiliumCheckin() {
   const { data } = await client.post<ExiliumCheckinResponse>("/exilium/checkin");
   return data;

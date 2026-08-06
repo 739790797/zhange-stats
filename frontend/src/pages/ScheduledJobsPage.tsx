@@ -16,6 +16,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import type { Key } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { CheckinStatusTag } from "@/components/CheckinStatusTag";
 import {
   fetchJobCheckinLogs,
   fetchJobFilterMembers,
@@ -56,18 +57,6 @@ type UserGroupRow = {
 };
 
 type ScheduleRow = UserGroupRow | TaskLeaf;
-
-function runStatusTag(status?: string | null) {
-  if (!status) return <Typography.Text type="secondary">-</Typography.Text>;
-  if (status === "ok" || status === "success") {
-    return <Tag color="success">成功</Tag>;
-  }
-  if (status === "running") return <Tag color="processing">运行中</Tag>;
-  if (status === "error" || status === "fail" || status === "failed") {
-    return <Tag color="error">失败</Tag>;
-  }
-  return <Tag>{status}</Tag>;
-}
 
 function formatCheckinTime(hour: number, minute: number) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
@@ -363,7 +352,9 @@ export default function ScheduledJobsPage() {
       title: "状态",
       dataIndex: "status",
       width: 90,
-      render: (v: string) => runStatusTag(v),
+      render: (v: string, row) => (
+        <CheckinStatusTag status={v} statusLabel={row.status_label} />
+      ),
     },
     {
       title: "摘要",
