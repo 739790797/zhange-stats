@@ -3,8 +3,11 @@
 from app.services.skland_awards import (
     arknights_awards_from_sign_resp,
     arknights_item_icon_url,
+    arknights_result_needs_award_icons,
+    enrich_arknights_award_icons,
     format_award_items,
 )
+from app.services.checkin_common import CheckinResult
 
 
 def test_arknights_item_icon_url() -> None:
@@ -70,3 +73,45 @@ def test_arknights_awards_from_sign_response() -> None:
     )
     assert text == "合成玉x80"
     assert items[0]["icon_url"]
+
+
+def test_enrich_arknights_award_icons() -> None:
+    enriched = enrich_arknights_award_icons(
+        [{"name": "合成玉", "count": 80, "resource_type": "DIAMOND_SHD"}]
+    )
+    assert enriched is not None
+    assert enriched[0]["icon_url"].endswith("/item/DIAMOND_SHD.png")
+
+
+def test_arknights_result_needs_award_icons() -> None:
+    bare = CheckinResult(
+        game_code="arknights",
+        game_name="明日方舟",
+        role_uid="1",
+        role_name="a",
+        channel_name="官服",
+        status="already",
+        message="今日已签到，获得：合成玉x80",
+        awards_text="合成玉x80",
+        awards=None,
+    )
+    assert arknights_result_needs_award_icons(bare) is True
+    with_icon = CheckinResult(
+        game_code="arknights",
+        game_name="明日方舟",
+        role_uid="1",
+        role_name="a",
+        channel_name="官服",
+        status="already",
+        message="今日已签到，获得：合成玉x80",
+        awards_text="合成玉x80",
+        awards=[
+            {
+                "name": "合成玉",
+                "count": 80,
+                "resource_type": "DIAMOND_SHD",
+                "icon_url": "https://example.com/x.png",
+            }
+        ],
+    )
+    assert arknights_result_needs_award_icons(with_icon) is False

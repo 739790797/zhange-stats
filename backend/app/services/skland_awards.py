@@ -80,6 +80,46 @@ def award_dict(
     return item
 
 
+def enrich_arknights_award_icons(
+    awards: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """为缺少 icon_url 的结构化奖励补上方舟物品图（不改写已有 URL）。"""
+    if not awards:
+        return awards
+    out: list[dict[str, Any]] = []
+    for raw in awards:
+        if not isinstance(raw, dict) or not raw.get("name"):
+            continue
+        item = dict(raw)
+        if not item.get("icon_url"):
+            icon = arknights_item_icon_url(
+                item.get("resource_type"),
+                resource_id=item.get("resource_id"),
+            )
+            if icon:
+                item["icon_url"] = icon
+        out.append(item)
+    return out or None
+
+
+def arknights_result_needs_award_icons(result: Any) -> bool:
+    """已签且有奖励文案，但结构化奖励缺图标 → 需要回源补全。"""
+    if getattr(result, "game_code", None) != "arknights":
+        return False
+    status = str(getattr(result, "status", "") or "")
+    if status not in ("ok", "already"):
+        return False
+    text = str(getattr(result, "awards_text", None) or "").strip()
+    if not text:
+        return False
+    awards = getattr(result, "awards", None) or []
+    if not isinstance(awards, list) or not awards:
+        return True
+    return not any(
+        isinstance(a, dict) and str(a.get("icon_url") or "").strip() for a in awards
+    )
+
+
 def format_award_items(
     awards: list[Any], *, with_icons: bool = False
 ) -> tuple[str | None, list[dict[str, Any]]]:

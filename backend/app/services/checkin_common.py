@@ -112,17 +112,38 @@ def prefer_richer_award_items(
     incoming_text: str | None,
     incoming_items: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
-    """与 prefer_richer_awards 同步选择结构化奖励列表。"""
+    """与 prefer_richer_awards 同步选择结构化奖励列表；同等文案时优先带图标。"""
     merged = prefer_richer_awards(current_text, incoming_text)
     if merged is None:
         return None
+
+    def _icon_score(items: list[dict[str, Any]] | None) -> int:
+        if not items:
+            return 0
+        return sum(
+            1
+            for a in items
+            if isinstance(a, dict) and str(a.get("icon_url") or "").strip()
+        )
+
+    cur_items = list(current_items) if current_items else None
+    inc_items = list(incoming_items) if incoming_items else None
     inc = None if is_placeholder_awards(incoming_text) else (incoming_text or "").strip() or None
-    if merged == inc and incoming_items:
-        return list(incoming_items)
-    if current_items:
-        return list(current_items)
-    if incoming_items:
-        return list(incoming_items)
+    if merged == inc and inc_items:
+        # 文案同等时若旧列表图标更多，保留旧列表
+        if (
+            cur_items
+            and awards_richness(current_text) == awards_richness(incoming_text)
+            and _icon_score(cur_items) > _icon_score(inc_items)
+        ):
+            return cur_items
+        return inc_items
+    if cur_items:
+        if inc_items and _icon_score(inc_items) > _icon_score(cur_items):
+            return inc_items
+        return cur_items
+    if inc_items:
+        return inc_items
     return None
 
 

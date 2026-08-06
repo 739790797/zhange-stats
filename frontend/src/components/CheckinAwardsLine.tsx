@@ -1,5 +1,6 @@
 import { Space, Typography } from "antd";
 import type { CSSProperties } from "react";
+import { GAME_RES } from "@/components/arknights/constants";
 
 export type CheckinAward = {
   name: string;
@@ -18,6 +19,17 @@ const iconStyle: CSSProperties = {
   background: "rgba(0,0,0,0.04)",
 };
 
+function resolveAwardIconUrl(a: CheckinAward): string | null {
+  const direct = (a.icon_url || "").trim();
+  if (direct) return direct;
+  // 方舟：resource_type 常即 iconId（如 DIAMOND_SHD）；后端未带 icon_url 时前端兜底
+  const key = String(a.resource_type || "").trim();
+  if (!key || key.includes("/") || key.includes("\\") || key.includes("..")) {
+    return null;
+  }
+  return `${GAME_RES}/item/${key}.png`;
+}
+
 /** 签到奖励展示：有 icon_url（方舟）时显示图标+名称×数量，否则回退文案 */
 export function CheckinAwardsLine({
   awards,
@@ -35,11 +47,12 @@ export function CheckinAwardsLine({
         {list.map((a, idx) => {
           const count = a.count ?? 1;
           const key = `${a.resource_id || a.resource_type || a.name}-${idx}`;
+          const iconUrl = resolveAwardIconUrl(a);
           return (
             <Space key={key} size={4}>
-              {a.icon_url ? (
+              {iconUrl ? (
                 <img
-                  src={a.icon_url}
+                  src={iconUrl}
                   alt={a.name}
                   width={20}
                   height={20}

@@ -431,7 +431,15 @@ def _session_for_bind(bind: SklandBind):
 def query_today_for_bind(
     db: Session, bind: SklandBind, *, force: bool = False
 ) -> dict[str, Any]:
-    """今日签到状态：有今日日志则读库；否则查官方并落库。"""
+    """今日签到状态：有今日日志则读库；否则查官方并落库。
+
+    方舟已签但缺结构化奖励图标时，即使无 force 也回源补全（旧日志仅有 awards_text）。
+    """
+    from app.services.skland_awards import (
+        arknights_result_needs_award_icons,
+        enrich_arknights_award_icons,
+    )
+
     checkin_date = today()
     if not force:
         cached = load_day_checkin_results(
@@ -441,13 +449,24 @@ def query_today_for_bind(
             checkin_date=checkin_date,
         )
         if cached is not None:
+            need_icons = False
             for r in cached:
-                if r.game_code == GAME_ENDFIELD:
-                    r.channel_name = localize_endfield_server_name(r.channel_name)
-                elif r.game_code == GAME_ARKNIGHTS:
-                    r.channel_name = localize_arknights_channel_name(r.channel_name)
-            cached = sort_skland_results(cached)
-            return day_results_payload(cached)
+                if r.game_code == GAME_ARKNIGHTS and r.awards:
+                    r.awards = enrich_arknights_award_icons(r.awards)
+                if arknights_result_needs_award_icons(r):
+                    need_icons = True
+            if not need_icons:
+                for r in cached:
+                    if r.game_code == GAME_ENDFIELD:
+                        r.channel_name = localize_endfield_server_name(
+                            r.channel_name
+                        )
+                    elif r.game_code == GAME_ARKNIGHTS:
+                        r.channel_name = localize_arknights_channel_name(
+                            r.channel_name
+                        )
+                cached = sort_skland_results(cached)
+                return day_results_payload(cached)
 
     session = _session_for_bind(bind)
     try:
