@@ -12446,6 +12446,50 @@
             "type": "integer",
             "title": "Checkin Minute"
           },
+          "game_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Code"
+          },
+          "game_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Name"
+          },
+          "role_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Uid"
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
+          },
           "last_checkin_at": {
             "anyOf": [
               {
@@ -12515,7 +12559,7 @@
           "checkin_minute"
         ],
         "title": "UserCheckinTaskOut",
-        "description": "用户 × 已绑定平台 = 一条签到任务。"
+        "description": "用户 × 平台 × 角色（或整平台回退）= 一条签到任务。"
       },
       "UserCheckinTasksPageOut": {
         "properties": {

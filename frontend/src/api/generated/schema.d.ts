@@ -4436,7 +4436,7 @@ export interface components {
         };
         /**
          * UserCheckinTaskOut
-         * @description 用户 × 已绑定平台 = 一条签到任务。
+         * @description 用户 × 平台 × 角色（或整平台回退）= 一条签到任务。
          */
         UserCheckinTaskOut: {
             /** Task Key */
@@ -4457,6 +4457,14 @@ export interface components {
             checkin_hour: number;
             /** Checkin Minute */
             checkin_minute: number;
+            /** Game Code */
+            game_code?: string | null;
+            /** Game Name */
+            game_name?: string | null;
+            /** Role Uid */
+            role_uid?: string | null;
+            /** Role Name */
+            role_name?: string | null;
             /** Last Checkin At */
             last_checkin_at?: string | null;
             /** Last Checkin Date */

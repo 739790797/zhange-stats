@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.jobs.catalog import JOB_CATALOG, _CHECKIN_PLATFORMS
+from app.api.jobs.catalog import JOB_CATALOG, CHECKIN_PLATFORM_ORDER, _CHECKIN_PLATFORMS
 from app.api.jobs.helpers import (
     _bind_model,
     _checkin_log_model,
@@ -24,8 +24,10 @@ from app.api.jobs.schemas import (
 from app.core.database import get_db
 from app.core.deps import require_admin
 from app.core.timeutil import BEIJING
+from app.models.checkin_role_pref import CheckinRolePref
 from app.models.member import Member
 from app.models.user import User
+from app.services.checkin_common import is_success_status, status_label
 from app.services.platform_features import CHECKIN_PLATFORM_FEATURES, PLATFORM_SHORT_NAMES, is_feature_enabled
 
 router = APIRouter()
@@ -114,15 +116,16 @@ def query_user_checkin_tasks(
     page: int = 1,
     page_size: int = 20,
 ) -> UserCheckinTasksPageOut:
-    """按平台 / 成员查询用户级日常任务（供管理端与「我的日常」复用）。"""
+    """按平台 / 成员列出角色级日常任务（无角色偏好时回退整平台一行）。"""
     if platform and platform not in _CHECKIN_PLATFORMS:
         raise HTTPException(status_code=400, detail="不支持的平台")
 
-    platforms = [platform] if platform else sorted(_CHECKIN_PLATFORMS)
+    platforms = [platform] if platform else list(CHECKIN_PLATFORM_ORDER)
     platforms = [
         p
         for p in platforms
-        if is_feature_enabled(db, p)
+        if p in _CHECKIN_PLATFORMS
+        and is_feature_enabled(db, p)
         and is_feature_enabled(db, CHECKIN_PLATFORM_FEATURES.get(p, p))
     ]
     job_by_platform = {
@@ -130,10 +133,12 @@ def query_user_checkin_tasks(
         for m in JOB_CATALOG
         if m.get("kind") == "user_schedule" and m.get("platform")
     }
+    platform_rank = {p: i for i, p in enumerate(CHECKIN_PLATFORM_ORDER)}
 
     items: list[UserCheckinTaskOut] = []
     for p in platforms:
         model = _bind_model(p)
+        log_model = _checkin_log_model(p)
         job_id = job_by_platform.get(p)
         if model is None or not job_id:
             continue
@@ -142,35 +147,84 @@ def query_user_checkin_tasks(
             q = q.filter(model.member_id == int(member_id))
         for bind in q.order_by(model.member_id.asc()).all():
             member = bind.member
-            items.append(
-                UserCheckinTaskOut(
-                    task_key=f"{p}:{bind.member_id}",
-                    job_id=job_id,
-                    platform=p,
-                    platform_name=PLATFORM_SHORT_NAMES.get(p, p),
-                    member_id=bind.member_id,
-                    user_label=_member_label(member)
-                    if member
-                    else f"member#{bind.member_id}",
-                    auto_checkin=bool(bind.auto_checkin),
-                    checkin_hour=int(bind.checkin_hour),
-                    checkin_minute=int(bind.checkin_minute),
-                    last_checkin_at=_fmt_dt(bind.last_checkin_at),
-                    last_checkin_date=bind.last_checkin_date.isoformat()
-                    if bind.last_checkin_date
-                    else None,
-                    last_checkin_ok=bind.last_checkin_ok,
-                    last_checkin_summary=bind.last_checkin_summary,
-                    bound_at=_fmt_dt(bind.bound_at),
-                )
+            user_label = (
+                _member_label(member) if member else f"member#{bind.member_id}"
             )
+            prefs = (
+                db.query(CheckinRolePref)
+                .filter(
+                    CheckinRolePref.platform == p,
+                    CheckinRolePref.member_id == int(bind.member_id),
+                )
+                .all()
+            )
+            log_meta = _role_log_meta(db, log_model, member_id=int(bind.member_id))
+
+            if prefs:
+                for pref in prefs:
+                    key = (str(pref.game_code), str(pref.role_uid))
+                    meta = log_meta.get(key) or {}
+                    game_name = str(meta.get("game_name") or pref.game_code)
+                    role_name = str(
+                        meta.get("role_name") or pref.role_uid or pref.game_code
+                    )
+                    items.append(
+                        UserCheckinTaskOut(
+                            task_key=f"{p}:{bind.member_id}:{pref.game_code}:{pref.role_uid}",
+                            job_id=job_id,
+                            platform=p,
+                            platform_name=PLATFORM_SHORT_NAMES.get(p, p),
+                            member_id=bind.member_id,
+                            user_label=user_label,
+                            auto_checkin=bool(pref.enabled),
+                            checkin_hour=int(pref.checkin_hour),
+                            checkin_minute=int(pref.checkin_minute),
+                            game_code=str(pref.game_code),
+                            game_name=game_name,
+                            role_uid=str(pref.role_uid),
+                            role_name=role_name,
+                            last_checkin_at=_fmt_dt(meta.get("checked_at")),
+                            last_checkin_date=(
+                                meta["checkin_date"].isoformat()
+                                if meta.get("checkin_date") is not None
+                                else None
+                            ),
+                            last_checkin_ok=meta.get("ok"),
+                            last_checkin_summary=meta.get("summary"),
+                            bound_at=_fmt_dt(bind.bound_at),
+                        )
+                    )
+            else:
+                # 尚未写出角色偏好：回退展示 bind 级摘要
+                items.append(
+                    UserCheckinTaskOut(
+                        task_key=f"{p}:{bind.member_id}",
+                        job_id=job_id,
+                        platform=p,
+                        platform_name=PLATFORM_SHORT_NAMES.get(p, p),
+                        member_id=bind.member_id,
+                        user_label=user_label,
+                        auto_checkin=bool(bind.auto_checkin),
+                        checkin_hour=int(bind.checkin_hour),
+                        checkin_minute=int(bind.checkin_minute),
+                        last_checkin_at=_fmt_dt(bind.last_checkin_at),
+                        last_checkin_date=bind.last_checkin_date.isoformat()
+                        if bind.last_checkin_date
+                        else None,
+                        last_checkin_ok=bind.last_checkin_ok,
+                        last_checkin_summary=bind.last_checkin_summary,
+                        bound_at=_fmt_dt(bind.bound_at),
+                    )
+                )
 
     items.sort(
         key=lambda t: (
+            platform_rank.get(t.platform, 99),
+            t.member_id,
+            t.game_code or "",
+            t.role_uid or "",
             t.checkin_hour,
             t.checkin_minute,
-            t.platform,
-            t.member_id,
         )
     )
     total = len(items)
@@ -181,6 +235,51 @@ def query_user_checkin_tasks(
         page_size=page_size,
         items=items[start : start + page_size],
     )
+
+
+def _role_log_meta(
+    db: Session,
+    log_model: Any | None,
+    *,
+    member_id: int,
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """每个角色最近一条签到日志的展示元数据。"""
+    if log_model is None:
+        return {}
+    rows = (
+        db.query(log_model)
+        .filter(log_model.member_id == int(member_id))
+        .order_by(desc(log_model.checked_at), desc(log_model.id))
+        .limit(80)
+        .all()
+    )
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (str(row.game_code or ""), str(row.role_uid or ""))
+        if not key[0] or not key[1] or key in out:
+            continue
+        summary = row.awards_text or row.message
+        status = str(row.status or "")
+        ok: bool | None
+        if is_success_status(status):
+            ok = True
+        elif status == "error":
+            ok = False
+        else:
+            ok = None
+        if summary and status:
+            label = status_label(status)
+            if label and label not in str(summary):
+                summary = f"{label} · {summary}"
+        out[key] = {
+            "game_name": row.game_name,
+            "role_name": row.role_name,
+            "checked_at": row.checked_at,
+            "checkin_date": row.checkin_date,
+            "ok": ok,
+            "summary": summary,
+        }
+    return out
 
 
 def query_checkin_logs(

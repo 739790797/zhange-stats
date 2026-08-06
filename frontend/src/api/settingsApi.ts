@@ -84,6 +84,10 @@ export interface UserCheckinTask {
   auto_checkin: boolean;
   checkin_hour: number;
   checkin_minute: number;
+  game_code?: string | null;
+  game_name?: string | null;
+  role_uid?: string | null;
+  role_name?: string | null;
   last_checkin_at?: string | null;
   last_checkin_date?: string | null;
   last_checkin_ok?: boolean | null;

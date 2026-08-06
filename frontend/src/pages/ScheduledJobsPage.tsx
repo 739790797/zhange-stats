@@ -15,8 +15,14 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import type { Key } from "react";
+import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { CheckinStatusTag } from "@/components/CheckinStatusTag";
+import {
+  CHECKIN_PLATFORM_LABELS,
+  buildCheckinTaskScheduleColumns,
+  platformRank,
+} from "@/components/checkinTaskDisplay";
 import {
   fetchJobCheckinLogs,
   fetchJobFilterMembers,
@@ -35,16 +41,27 @@ const PLATFORM_OPTIONS = [
   { value: "kujiequ", label: "库街区" },
 ];
 
-const PLATFORM_LABELS: Record<string, string> = {
-  skland: "森空岛",
-  taygedo: "塔吉多",
-  exilium: "追放",
-  kujiequ: "库街区",
+type RoleLeaf = UserCheckinTask & {
+  rowKey: string;
+  rowType: "role";
 };
 
-type TaskLeaf = UserCheckinTask & {
+type GameGroupRow = {
   rowKey: string;
-  rowType: "task";
+  rowType: "game";
+  platform: string;
+  game_code: string;
+  game_name: string;
+  children: RoleLeaf[];
+};
+
+type PlatformGroupRow = {
+  rowKey: string;
+  rowType: "platform";
+  platform: string;
+  platform_name: string;
+  member_id: number;
+  children: Array<GameGroupRow | RoleLeaf>;
 };
 
 type UserGroupRow = {
@@ -53,23 +70,83 @@ type UserGroupRow = {
   member_id: number;
   user_label: string;
   isSelf: boolean;
-  children: TaskLeaf[];
+  taskCount: number;
+  children: PlatformGroupRow[];
 };
 
-type ScheduleRow = UserGroupRow | TaskLeaf;
+type ScheduleRow = UserGroupRow | PlatformGroupRow | GameGroupRow | RoleLeaf;
 
-function formatCheckinTime(hour: number, minute: number) {
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+function countLeaves(nodes: Array<GameGroupRow | RoleLeaf>): number {
+  let n = 0;
+  for (const node of nodes) {
+    if (node.rowType === "role") n += 1;
+    else n += node.children.length;
+  }
+  return n;
 }
 
-function lastCheckinTag(task: UserCheckinTask) {
-  if (task.last_checkin_ok === true) {
-    return <Tag color="success">成功</Tag>;
+function buildPlatformTree(
+  tasks: UserCheckinTask[],
+  memberId: number,
+): PlatformGroupRow[] {
+  const byPlatform = new Map<string, UserCheckinTask[]>();
+  for (const task of tasks) {
+    const list = byPlatform.get(task.platform) || [];
+    list.push(task);
+    byPlatform.set(task.platform, list);
   }
-  if (task.last_checkin_ok === false) {
-    return <Tag color="error">失败</Tag>;
-  }
-  return <Tag>未执行</Tag>;
+
+  const platforms = [...byPlatform.keys()].sort(
+    (a, b) => platformRank(a) - platformRank(b),
+  );
+
+  return platforms.map((platform) => {
+    const list = byPlatform.get(platform) || [];
+    const withGame = list.filter((t) => t.game_code);
+    const legacy = list.filter((t) => !t.game_code);
+
+    const byGame = new Map<string, UserCheckinTask[]>();
+    for (const task of withGame) {
+      const gc = String(task.game_code);
+      const gList = byGame.get(gc) || [];
+      gList.push(task);
+      byGame.set(gc, gList);
+    }
+
+    const gameChildren: GameGroupRow[] = [...byGame.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([gameCode, roles]) => ({
+        rowKey: `game:${memberId}:${platform}:${gameCode}`,
+        rowType: "game" as const,
+        platform,
+        game_code: gameCode,
+        game_name: roles[0]?.game_name || gameCode,
+        children: roles
+          .slice()
+          .sort((a, b) => (a.role_uid || "").localeCompare(b.role_uid || ""))
+          .map((t) => ({
+            ...t,
+            rowKey: t.task_key,
+            rowType: "role" as const,
+          })),
+      }));
+
+    const legacyLeaves: RoleLeaf[] = legacy.map((t) => ({
+      ...t,
+      rowKey: t.task_key,
+      rowType: "role" as const,
+    }));
+
+    return {
+      rowKey: `platform:${memberId}:${platform}`,
+      rowType: "platform" as const,
+      platform,
+      platform_name:
+        CHECKIN_PLATFORM_LABELS[platform] || list[0]?.platform_name || platform,
+      member_id: memberId,
+      children: [...gameChildren, ...legacyLeaves],
+    };
+  });
 }
 
 function buildUserGroups(
@@ -85,26 +162,15 @@ function buildUserGroups(
 
   const groups: UserGroupRow[] = [];
   for (const [memberId, list] of byMember) {
-    const sorted = [...list].sort((a, b) => {
-      if (a.checkin_hour !== b.checkin_hour) {
-        return a.checkin_hour - b.checkin_hour;
-      }
-      if (a.checkin_minute !== b.checkin_minute) {
-        return a.checkin_minute - b.checkin_minute;
-      }
-      return a.platform.localeCompare(b.platform);
-    });
+    const children = buildPlatformTree(list, memberId);
     groups.push({
       rowKey: `user:${memberId}`,
       rowType: "user",
       member_id: memberId,
-      user_label: sorted[0]?.user_label || `member#${memberId}`,
+      user_label: list[0]?.user_label || `member#${memberId}`,
       isSelf: selfMemberId != null && memberId === selfMemberId,
-      children: sorted.map((t) => ({
-        ...t,
-        rowKey: t.task_key,
-        rowType: "task" as const,
-      })),
+      taskCount: countLeaves(children.flatMap((p) => p.children)),
+      children,
     });
   }
 
@@ -113,6 +179,20 @@ function buildUserGroups(
     return a.user_label.localeCompare(b.user_label, "zh-CN");
   });
   return groups;
+}
+
+function collectExpandKeys(groups: UserGroupRow[]): Key[] {
+  const keys: Key[] = [];
+  for (const user of groups) {
+    keys.push(user.rowKey);
+    for (const plat of user.children) {
+      keys.push(plat.rowKey);
+      for (const child of plat.children) {
+        if (child.rowType === "game") keys.push(child.rowKey);
+      }
+    }
+  }
+  return keys;
 }
 
 export default function ScheduledJobsPage() {
@@ -176,7 +256,7 @@ export default function ScheduledJobsPage() {
 
   const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
   useEffect(() => {
-    setExpandedKeys(pagedGroups.map((g) => g.rowKey));
+    setExpandedKeys(collectExpandKeys(pagedGroups));
   }, [pagedGroups]);
 
   const checkinLogsQuery = useQuery({
@@ -222,9 +302,9 @@ export default function ScheduledJobsPage() {
 
   const taskColumns: ColumnsType<ScheduleRow> = [
     {
-      title: "用户",
-      key: "user",
-      width: 180,
+      title: "用户 / 平台 / 游戏 / 角色",
+      key: "name",
+      width: 280,
       render: (_, row) => {
         if (row.rowType === "user") {
           return (
@@ -232,104 +312,100 @@ export default function ScheduledJobsPage() {
               <Typography.Text strong>{row.user_label}</Typography.Text>
               {row.isSelf ? <Tag color="blue">我</Tag> : null}
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {row.children.length} 个任务
+                {row.taskCount} 个任务
               </Typography.Text>
             </Space>
           );
         }
-        return null;
-      },
-    },
-    {
-      title: "平台",
-      key: "platform",
-      width: 140,
-      render: (_, row) => {
-        if (row.rowType !== "task") return null;
-        return PLATFORM_LABELS[row.platform] || row.platform_name || row.platform;
-      },
-    },
-    {
-      title: "签到时间",
-      key: "schedule",
-      width: 110,
-      render: (_, row) => {
-        if (row.rowType !== "task") return null;
-        return (
-          <Typography.Text>
-            {formatCheckinTime(row.checkin_hour, row.checkin_minute)}
-          </Typography.Text>
-        );
-      },
-    },
-    {
-      title: "自动签到",
-      key: "auto",
-      width: 100,
-      align: "center",
-      render: (_, row) => {
-        if (row.rowType !== "task") return null;
-        return row.auto_checkin ? (
-          <Tag color="success">开启</Tag>
-        ) : (
-          <Tag>关闭</Tag>
-        );
-      },
-    },
-    {
-      title: "上次签到",
-      key: "last",
-      width: 200,
-      render: (_, row) => {
-        if (row.rowType !== "task") return null;
-        return (
-          <div style={{ lineHeight: 1.45 }}>
-            {lastCheckinTag(row)}
-            <Typography.Text
-              type="secondary"
-              style={{ fontSize: 12, display: "block" }}
-            >
-              {row.last_checkin_at || row.last_checkin_date || "-"}
+        if (row.rowType === "platform") {
+          return (
+            <Typography.Text>
+              {CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name}
             </Typography.Text>
-          </div>
+          );
+        }
+        if (row.rowType === "game") {
+          return (
+            <Typography.Text style={{ paddingLeft: 4 }}>
+              {row.game_name}
+            </Typography.Text>
+          );
+        }
+        if (row.game_code) {
+          return (
+            <Typography.Text type="secondary" style={{ paddingLeft: 8 }}>
+              {row.role_name || row.role_uid}
+            </Typography.Text>
+          );
+        }
+        return (
+          <Typography.Text type="secondary">整平台（未配置角色）</Typography.Text>
         );
       },
     },
+    ...buildCheckinTaskScheduleColumns<ScheduleRow>({
+      isLeaf: (row) => row.rowType === "role",
+      getTask: (row) => row as RoleLeaf,
+    }),
     {
       title: "操作",
       key: "actions",
       width: 180,
       fixed: "right",
       render: (_, row) => {
-        if (row.rowType !== "task") return null;
-        return (
-          <Space size={4} wrap>
+        if (row.rowType === "role") {
+          return (
+            <Space size={4} wrap>
+              <Button
+                type="link"
+                size="small"
+                loading={triggeringKey === row.task_key}
+                onClick={() =>
+                  trigger.mutate({
+                    jobId: row.job_id,
+                    member_id: row.member_id,
+                    taskKey: row.task_key,
+                  })
+                }
+              >
+                执行一次
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                onClick={() => {
+                  setRunsPage(1);
+                  setRunsTask(row);
+                }}
+              >
+                执行记录
+              </Button>
+            </Space>
+          );
+        }
+        if (row.rowType === "platform") {
+          const firstRole = row.children
+            .flatMap((c) => (c.rowType === "game" ? c.children : [c]))
+            .find((r) => r.rowType === "role") as RoleLeaf | undefined;
+          if (!firstRole) return null;
+          return (
             <Button
               type="link"
               size="small"
-              loading={triggeringKey === row.task_key}
+              loading={triggeringKey === `plat:${row.rowKey}`}
               onClick={() =>
                 trigger.mutate({
-                  jobId: row.job_id,
+                  jobId: firstRole.job_id,
                   member_id: row.member_id,
-                  taskKey: row.task_key,
+                  taskKey: `plat:${row.rowKey}`,
                 })
               }
             >
               执行一次
             </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={() => {
-                setRunsPage(1);
-                setRunsTask(row);
-              }}
-            >
-              执行记录
-            </Button>
-          </Space>
-        );
+          );
+        }
+        return null;
       },
     },
   ];
@@ -368,7 +444,13 @@ export default function ScheduledJobsPage() {
     <div>
       <PageHeader
         title="任务调度"
-        subtitle="按用户查看签到任务状态与近期运行记录；当前登录用户排在最前。"
+        subtitle={
+          <>
+            按用户查看角色级签到任务（与「
+            <Link to="/daily">我的日常</Link>
+            」同一套数据）；当前登录用户排在最前。系统级开关与轮询间隔请到「任务配置」。
+          </>
+        }
       />
       <div
         style={{
@@ -409,7 +491,7 @@ export default function ScheduledJobsPage() {
             loading={membersQuery.isLoading}
           />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            系统级开关与轮询间隔请到「任务配置」
+            可按平台 / 用户筛选
           </Typography.Text>
         </Space>
         <Button
@@ -448,7 +530,7 @@ export default function ScheduledJobsPage() {
           },
         }}
         size="middle"
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1280 }}
         expandable={{
           expandedRowKeys: expandedKeys,
           onExpandedRowsChange: (keys) => setExpandedKeys([...keys]),
@@ -463,7 +545,11 @@ export default function ScheduledJobsPage() {
       <Modal
         title={
           runsTask
-            ? `执行记录 · ${runsTask.platform_name} · ${runsTask.user_label}`
+            ? `执行记录 · ${CHECKIN_PLATFORM_LABELS[runsTask.platform] || runsTask.platform_name} · ${runsTask.user_label}${
+                runsTask.role_name || runsTask.role_uid
+                  ? ` · ${runsTask.role_name || runsTask.role_uid}`
+                  : ""
+              }`
             : "执行记录"
         }
         open={Boolean(runsTask)}

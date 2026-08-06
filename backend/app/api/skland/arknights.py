@@ -240,7 +240,7 @@ def skland_arknights_compare_candidates(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """盒子对比可选成员（自己 + 可见好友，含是否已绑森空岛）。"""
+    """盒子对比可选成员（站内有明日方舟账号的用户）。"""
     _member_or_404(db, user)
     rows = list_compare_candidates(db, user)
     return [ArknightsCompareCandidateOut(**r) for r in rows]

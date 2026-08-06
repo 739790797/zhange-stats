@@ -81,7 +81,7 @@ export function AddCompareCard({
         <Select
           showSearch
           optionFilterProp="label"
-          placeholder="选择 Steam 好友"
+          placeholder="选择有明日方舟账号的用户"
           style={{ width: "100%" }}
           loading={loading}
           value={picked ?? undefined}
@@ -97,7 +97,7 @@ export function AddCompareCard({
           type="secondary"
           style={{ display: "block", marginTop: 10, fontSize: 12 }}
         >
-          需为 Steam 双向好友。添加后可在左侧切换渠道服。
+          可选站内已绑定森空岛且有明日方舟角色的用户。添加后可在左侧切换渠道服。
         </Typography.Text>
       </Modal>
     </>

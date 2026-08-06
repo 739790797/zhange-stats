@@ -63,5 +63,12 @@ JOB_CATALOG: list[dict[str, Any]] = [
 ]
 
 _CHECKIN_PLATFORMS = frozenset({"skland", "taygedo", "exilium", "kujiequ"})
+# 与侧栏平台菜单顺序一致（不含 Steam）
+CHECKIN_PLATFORM_ORDER: tuple[str, ...] = (
+    "skland",
+    "taygedo",
+    "exilium",
+    "kujiequ",
+)
 _KNOWN_JOB_IDS = {str(m["id"]) for m in JOB_CATALOG}
 _PLATFORM_TO_JOB = {str(m["platform"]): str(m["id"]) for m in JOB_CATALOG if m.get("platform")}

@@ -10,9 +10,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.timeutil import now_naive, today
 from app.models.arknights import ArknightsBoxSnapshot
+from app.models.checkin_role_pref import CheckinRolePref
 from app.models.job_run import JobRun
 from app.models.member import Member
-from app.models.skland import SklandBind
+from app.models.skland import SklandAttendanceRaw, SklandBind, SklandCheckinLog
 from app.models.user import User
 from app.services.arknights_catalog import (
     ArknightsCatalogError,
@@ -20,8 +21,7 @@ from app.services.arknights_catalog import (
     get_catalog_meta,
 )
 from app.services.skland_checkin import get_arknights_box_for_member, get_bind_for_member
-from app.services.skland_client import SklandApiError
-from app.services.steam_friends import visible_member_ids_for_user
+from app.services.skland_client import GAME_ARKNIGHTS, SklandApiError
 
 logger = logging.getLogger(__name__)
 
@@ -272,27 +272,69 @@ def fetch_member_owned_chars(
     return payload
 
 
+def _member_ids_with_arknights(db: Session) -> set[int]:
+    """站内可判定有明日方舟角色的成员（不依赖 Steam 好友）。"""
+    ids: set[int] = set()
+    for (mid,) in db.query(ArknightsBoxSnapshot.member_id).distinct():
+        if mid is not None:
+            ids.add(int(mid))
+    for (mid,) in (
+        db.query(SklandCheckinLog.member_id)
+        .filter(SklandCheckinLog.game_code == GAME_ARKNIGHTS)
+        .distinct()
+    ):
+        if mid is not None:
+            ids.add(int(mid))
+    for (mid,) in (
+        db.query(CheckinRolePref.member_id)
+        .filter(
+            CheckinRolePref.platform == "skland",
+            CheckinRolePref.game_code == GAME_ARKNIGHTS,
+        )
+        .distinct()
+    ):
+        if mid is not None:
+            ids.add(int(mid))
+    for (mid,) in db.query(SklandAttendanceRaw.member_id).distinct():
+        if mid is not None:
+            ids.add(int(mid))
+    return ids
+
+
+def _viewer_member_id(db: Session, viewer: User) -> int:
+    if viewer.member:
+        return int(viewer.member.id)
+    from app.services.member_sync import ensure_user_member
+
+    return int(ensure_user_member(db, viewer).id)
+
+
 def list_compare_candidates(db: Session, viewer: User) -> list[dict[str, Any]]:
-    """可见且可参与对比的成员（自己 + Steam 好友站内成员）。"""
-    visible = visible_member_ids_for_user(db, viewer)
-    if not visible:
+    """可选对比成员：站内已有明日方舟账号记录者（含自己）。"""
+    self_id = _viewer_member_id(db, viewer)
+    candidate_ids = _member_ids_with_arknights(db)
+    # 自己已绑森空岛即可出现在列表（即便尚未写出方舟日志/快照）
+    self_bind = (
+        db.query(SklandBind.id)
+        .filter(SklandBind.member_id == self_id)
+        .first()
+    )
+    if self_bind is not None:
+        candidate_ids.add(self_id)
+    if not candidate_ids:
         return []
+
     rows = (
         db.query(Member)
         .options(joinedload(Member.user), joinedload(Member.skland_bind))
-        .filter(Member.id.in_(visible), Member.user_id.isnot(None))
+        .filter(Member.id.in_(candidate_ids), Member.user_id.isnot(None))
         .all()
     )
-    self_id = None
-    if viewer.member:
-        self_id = viewer.member.id
-    else:
-        from app.services.member_sync import ensure_user_member
-
-        self_id = ensure_user_member(db, viewer).id
-
     out: list[dict[str, Any]] = []
     for m in rows:
+        # 仅展示仍绑定森空岛的成员；自己例外已在上面处理
+        if m.skland_bind is None and m.id != self_id:
+            continue
         nickname = (
             m.steam_persona_name
             or (m.user.display_name if m.user else None)
@@ -333,10 +375,20 @@ def build_box_compare(
         seen.add(mid)
         ordered_ids.append(mid)
 
-    visible = visible_member_ids_for_user(db, viewer)
+    self_id = _viewer_member_id(db, viewer)
+    allowed = _member_ids_with_arknights(db)
+    self_bind = (
+        db.query(SklandBind.id)
+        .filter(SklandBind.member_id == self_id)
+        .first()
+    )
+    if self_bind is not None:
+        allowed.add(self_id)
     for mid in ordered_ids:
-        if mid not in visible:
-            raise ArknightsCatalogError(f"无权查看成员 {mid} 的盒子（需为 Steam 好友）")
+        if mid not in allowed:
+            raise ArknightsCatalogError(
+                f"无权查看成员 {mid} 的盒子（需为站内有明日方舟账号的用户）"
+            )
 
     operators = ensure_catalog(db)
     meta = get_catalog_meta(db)

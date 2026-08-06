@@ -103,7 +103,7 @@ class JobMemberOptionOut(BaseModel):
 
 
 class UserCheckinTaskOut(BaseModel):
-    """用户 × 已绑定平台 = 一条签到任务。"""
+    """用户 × 平台 × 角色（或整平台回退）= 一条签到任务。"""
 
     task_key: str
     job_id: str
@@ -114,6 +114,11 @@ class UserCheckinTaskOut(BaseModel):
     auto_checkin: bool
     checkin_hour: int
     checkin_minute: int
+    # 角色级任务；旧「整平台」回退行时为空
+    game_code: str | None = None
+    game_name: str | None = None
+    role_uid: str | None = None
+    role_name: str | None = None
     last_checkin_at: str | None = None
     last_checkin_date: str | None = None
     last_checkin_ok: bool | None = None
