@@ -4,25 +4,29 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from typing import Any
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
-from app.core.timeutil import now_naive, today
-from app.models.job_run import JobRun
+from app.core.timeutil import now_naive
 from app.models.kujiequ import KujiequBind, KujiequCheckinLog
 from app.models.member import Member
-from app.services.checkin_common import (
-    apply_bind_last_checkin,
-    day_results_payload,
-    load_day_checkin_results,
-    results_to_api,
-    summarize_results,
-    today_done_from_logs,
-    upsert_and_reload_day_results,
+from app.services.checkin_adapter import CheckinAdapterBase, CheckinRunOutcome
+from app.services.checkin_common import CheckinResult
+from app.services.checkin_orchestrator import (
+    checkin_job_wrapper as _orch_job_wrapper,
 )
+from app.services.checkin_orchestrator import (
+    query_today_for_bind as _orch_query_today,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_for_bind as _orch_run_checkin,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_job as _orch_run_job,
+)
+from app.services.checkin_role_prefs import PLATFORM_KUJIEQU, RoleKey
 from app.services.kujiequ_client import (
     KujiequApiError,
     KujiequCredentials,
@@ -31,14 +35,13 @@ from app.services.kujiequ_client import (
     login_with_sms,
     login_with_token,
     mask_phone,
-    query_today_all,
+    query_today_all as kujiequ_query_today_all,
     run_all_checkins,
 )
 
 logger = logging.getLogger(__name__)
 
 JOB_KEY = "kujiequ_checkin"
-_job_lock = threading.Lock()
 
 
 def get_bind_for_member(db: Session, member_id: int) -> KujiequBind | None:
@@ -162,43 +165,52 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     ]
 
 
+class KujiequCheckinAdapter(CheckinAdapterBase):
+    platform = PLATFORM_KUJIEQU
+    job_key = JOB_KEY
+    bind_model = KujiequBind
+    log_model = KujiequCheckinLog
+    api_error_cls = KujiequApiError
+    empty_message = "未执行任何签到"
+
+    def get_bind(self, db: Session, member_id: int) -> KujiequBind | None:
+        return get_bind_for_member(db, member_id)
+
+    def load_session(self, db: Session, bind: KujiequBind) -> KujiequCredentials:
+        return _load_creds(bind)
+
+    def save_session(
+        self, db: Session, bind: KujiequBind, session: KujiequCredentials
+    ) -> None:
+        _save_creds(bind, session)
+
+    def query_today_all(
+        self, session: KujiequCredentials
+    ) -> tuple[KujiequCredentials, list[CheckinResult]]:
+        return kujiequ_query_today_all(session)
+
+    def run_checkins(
+        self,
+        session: KujiequCredentials,
+        *,
+        force: bool,
+        role_keys: set[RoleKey] | None,
+    ) -> CheckinRunOutcome:
+        _ = force
+        working, results = run_all_checkins(session, role_keys=role_keys)
+        return CheckinRunOutcome(session=working, results=results)
+
+    def friendly_error(self, message: str) -> str:
+        return friendly_error_message(message)
+
+
+kujiequ_adapter = KujiequCheckinAdapter()
+
+
 def query_today_for_bind(
     db: Session, bind: KujiequBind, *, force: bool = False
 ) -> dict[str, Any]:
-    checkin_date = today()
-    if not force:
-        cached = load_day_checkin_results(
-            db,
-            KujiequCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-        )
-        if cached is not None:
-            return day_results_payload(cached)
-
-    creds = _load_creds(bind)
-    try:
-        working, results = query_today_all(creds)
-    except KujiequApiError as exc:
-        raise KujiequApiError(friendly_error_message(exc.message), code=exc.code) from exc
-    _save_creds(bind, working)
-    now = now_naive()
-    merged = upsert_and_reload_day_results(
-        db,
-        KujiequCheckinLog,
-        member_id=bind.member_id,
-        bind_id=bind.id,
-        checkin_date=checkin_date,
-        results=results,
-        now=now,
-    )
-    # 同步官方后刷新汇总，避免「我的日常」仍显示过期的「请求成功」
-    ok, summary = summarize_results(merged, empty_message="未找到可签到目标")
-    apply_bind_last_checkin(
-        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
-    )
-    db.commit()
-    return day_results_payload(merged)
+    return _orch_query_today(kujiequ_adapter, db, bind, force=force)
 
 
 def run_checkin_for_bind(
@@ -208,68 +220,22 @@ def run_checkin_for_bind(
     force: bool = False,
     role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    checkin_date = today()
-    if not force:
-        done = today_done_from_logs(
-            db,
-            KujiequCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-            role_keys=role_keys,
-        )
-        if done is not None:
-            full = load_day_checkin_results(
-                db,
-                KujiequCheckinLog,
-                member_id=bind.member_id,
-                checkin_date=checkin_date,
-            )
-            payload = day_results_payload(full or done)
-            return {
-                "skipped": True,
-                "ok": True,
-                "reason": "today_done",
-                "summary": payload.get("summary") or "今日已签到",
-                "results": payload.get("results") or [],
-            }
-
-    creds = _load_creds(bind)
-    try:
-        working, results = run_all_checkins(creds, role_keys=role_keys)
-    except KujiequApiError as exc:
-        raise KujiequApiError(friendly_error_message(exc.message), code=exc.code) from exc
-
-    _save_creds(bind, working)
-    ok, summary = summarize_results(results, empty_message="未执行任何签到")
-    now = now_naive()
-    apply_bind_last_checkin(
-        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    return _orch_run_checkin(
+        kujiequ_adapter, db, bind, force=force, role_keys=role_keys
     )
-    merged = upsert_and_reload_day_results(
-        db,
-        KujiequCheckinLog,
-        member_id=bind.member_id,
-        bind_id=bind.id,
-        checkin_date=checkin_date,
-        results=results,
-        now=now,
-    )
-    db.commit()
-    return {
-        "skipped": False,
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(merged),
-    }
 
 
 def run_checkin_for_member(
-    db: Session, member: Member, *, force: bool = False
+    db: Session,
+    member: Member,
+    *,
+    force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
-    return run_checkin_for_bind(db, bind, force=force)
+    return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
 
 
 def run_kujiequ_checkin_job(
@@ -278,82 +244,10 @@ def run_kujiequ_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.services.checkin_role_prefs import (
-        PLATFORM_KUJIEQU,
-        collect_checkin_job_targets,
+    return _orch_run_job(
+        kujiequ_adapter, db, due_only=due_only, member_id=member_id
     )
-
-    targets = collect_checkin_job_targets(
-        db,
-        platform=PLATFORM_KUJIEQU,
-        bind_model=KujiequBind,
-        due_only=due_only,
-        member_id=member_id,
-    )
-    binds_by_member = {
-        b.member_id: b
-        for b in db.query(KujiequBind)
-        .options(joinedload(KujiequBind.member))
-        .filter(KujiequBind.member_id.in_(list(targets.keys()) or [-1]))
-        .all()
-    }
-    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
-    for mid, role_keys in targets.items():
-        bind = binds_by_member.get(mid)
-        if bind is None:
-            continue
-        if role_keys is not None and len(role_keys) == 0:
-            stats["skipped"] += 1
-            continue
-        try:
-            result = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
-            if result.get("skipped"):
-                stats["skipped"] += 1
-            elif result.get("ok"):
-                stats["ok"] += 1
-            else:
-                stats["failed"] += 1
-        except Exception:  # noqa: BLE001
-            stats["failed"] += 1
-            logger.exception(
-                "kujiequ auto checkin failed member_id=%s",
-                mid,
-            )
-            db.rollback()
-    return stats
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    from app.core.database import SessionLocal
-
-    if not _job_lock.acquire(blocking=False):
-        logger.warning("kujiequ checkin job already running, skip")
-        return
-    db = SessionLocal()
-    run = JobRun(job_key=JOB_KEY, status="running", message="库街区每日签到")
-    db.add(run)
-    db.commit()
-    db.refresh(run)
-    try:
-        stats = run_kujiequ_checkin_job(db, due_only=due_only, member_id=member_id)
-        run.status = "ok" if stats["failed"] == 0 else "error"
-        run.message = (
-            f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
-            f"跳过 {stats['skipped']}（共 {stats['total']}）"
-        )
-        run.stats = stats
-        run.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("kujiequ checkin job failed: %s", exc)
-        db.rollback()
-        try:
-            run.status = "error"
-            run.message = str(exc)[:300]
-            run.finished_at = now_naive()
-            db.commit()
-        except Exception:  # noqa: BLE001
-            db.rollback()
-    finally:
-        db.close()
-        _job_lock.release()
+    _orch_job_wrapper(kujiequ_adapter, due_only=due_only, member_id=member_id)

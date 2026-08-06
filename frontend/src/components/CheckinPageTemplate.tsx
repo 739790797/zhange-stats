@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Empty,
+  Modal,
   Space,
   Switch,
   TimePicker,
@@ -15,9 +16,15 @@ import { ReloadOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
-import { isCheckinSuccess } from "@/lib/checkinStatus";
+import {
+  checkinDialogTitle,
+  classifyCheckinDialog,
+  isCheckinSuccess,
+  type CheckinDialogKind,
+} from "@/lib/checkinStatus";
 import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import { CheckinStatusTag } from "@/components/CheckinStatusTag";
+import { isBilibiliArknightsChannel } from "@/components/ArknightsAttendanceCalendar";
 import { PageHeader } from "@/components/PageHeader";
 import {
   PlatformIcon,
@@ -54,6 +61,17 @@ export interface CheckinPageResultItem {
   auto_checkin?: boolean | null;
   checkin_hour?: number | null;
   checkin_minute?: number | null;
+  last_checkin_at?: string | null;
+  last_checkin_date?: string | null;
+  last_checkin_ok?: boolean | null;
+  last_checkin_summary?: string | null;
+  last_checkin_awards?: Array<{
+    name: string;
+    count?: number;
+    resource_id?: string | null;
+    resource_type?: string | null;
+    icon_url?: string | null;
+  }> | null;
 }
 
 export interface CheckinPageStatus {
@@ -86,6 +104,11 @@ export interface CheckinRolePrefPayload {
   checkin_minute?: number;
 }
 
+export interface CheckinNowPayload {
+  game_code: string;
+  role_uid: string;
+}
+
 export interface CheckinPageTemplateProps {
   title: string;
   subtitle?: string;
@@ -98,7 +121,7 @@ export interface CheckinPageTemplateProps {
     includeRoles?: boolean,
     force?: boolean,
   ) => Promise<CheckinPageStatus>;
-  triggerCheckin: () => Promise<CheckinPageResponse>;
+  triggerCheckin: (payload: CheckinNowPayload) => Promise<CheckinPageResponse>;
   updateRolePref: (payload: CheckinRolePrefPayload) => Promise<CheckinPageStatus>;
   /** 是否展示 phone_mask（塔吉多） */
   showPhoneMask?: boolean;
@@ -118,33 +141,29 @@ function snapMinute(minute: number): number {
   return Math.max(0, Math.min(55, minute - (minute % 5)));
 }
 
-function awardsText(row: CheckinPageResultItem) {
-  if (row.awards_text) return row.awards_text;
-  if (row.status === "error") return row.message || "-";
-  if (row.message && row.message.includes("获得：")) {
-    return row.message.split("获得：").slice(1).join("获得：") || "-";
+/** 仅已签展示今日奖励；B 服官方无领取记录时固定提示 */
+function TodayAwardsBlock({ row }: { row: CheckinPageResultItem }) {
+  if (!isCheckinSuccess(row.status)) return null;
+  if (
+    row.game_code === "arknights" &&
+    isBilibiliArknightsChannel(row.channel_name)
+  ) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <Typography.Text type="secondary">今日奖励：</Typography.Text>
+        <Typography.Text type="secondary">B服不支持查询</Typography.Text>
+      </div>
+    );
   }
-  // 追放等：message 形如「今日已签到：积分+40」/「签到成功：…」
-  if (row.message) {
-    for (const sep of ["：", ":"]) {
-      const idx = row.message.indexOf(sep);
-      if (idx >= 0) {
-        const rest = row.message.slice(idx + sep.length).trim();
-        if (rest) return rest;
-      }
-    }
-  }
-  return "-";
-}
-
-function AwardsBlock({ row }: { row: CheckinPageResultItem }) {
-  const text = awardsText(row);
+  const hasAwards =
+    Boolean(row.awards?.length) || Boolean((row.awards_text || "").trim());
+  if (!hasAwards) return null;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-      <Typography.Text type="secondary">奖励：</Typography.Text>
+      <Typography.Text type="secondary">今日奖励：</Typography.Text>
       <CheckinAwardsLine
         awards={row.awards}
-        awardsText={text === "-" ? null : text}
+        awardsText={row.awards_text}
         fallback="-"
       />
     </div>
@@ -216,7 +235,7 @@ function RoleAutoCheckinControls({
   if (!gameCode || !roleUid) return null;
 
   return (
-    <Space wrap size={8} style={{ marginTop: 0, justifyContent: "flex-end" }}>
+    <Space wrap size={8} style={{ marginTop: 0 }}>
       <Typography.Text type="secondary">自动签到</Typography.Text>
       <Switch
         size="small"
@@ -234,58 +253,67 @@ function RoleAutoCheckinControls({
               checkin_minute: minute,
             });
           } else {
-            // 开启后进入编辑，时间需点「保存」才落库
             setEditing(true);
           }
         }}
       />
-      <TimePicker
-        size="small"
-        format="HH:mm"
-        allowClear={false}
-        showNow={false}
-        needConfirm={false}
-        minuteStep={5}
-        value={scheduleValue}
-        disabled={!enabled || timeLocked || saving}
-        style={{ width: 104 }}
-        onChange={(v) => {
-          if (!v) return;
-          // 仅填入本地时间，不请求保存
-          setHour(v.hour());
-          setMinute(snapMinute(v.minute()));
-        }}
-      />
-      {enabled && timeLocked ? (
-        <Button size="small" type="link" onClick={() => setEditing(true)}>
-          修改
-        </Button>
-      ) : null}
-      {enabled && editing ? (
-        <Button
-          size="small"
-          type="primary"
-          loading={saving}
-          onClick={() => {
-            void onSave({
-              game_code: gameCode,
-              role_uid: roleUid,
-              enabled: true,
-              checkin_hour: hour,
-              checkin_minute: minute,
-            })
-              .then(() => setEditing(false))
-              .catch(() => {
-                /* 错误由外层 message 处理 */
-              });
-          }}
-        >
-          保存
-        </Button>
+      {enabled ? (
+        <>
+          <TimePicker
+            size="small"
+            format="HH:mm"
+            allowClear={false}
+            showNow={false}
+            needConfirm={false}
+            minuteStep={5}
+            value={scheduleValue}
+            disabled={timeLocked || saving}
+            style={{ width: 104 }}
+            onChange={(v) => {
+              if (!v) return;
+              setHour(v.hour());
+              setMinute(snapMinute(v.minute()));
+            }}
+          />
+          {timeLocked ? (
+            <Button size="small" type="link" onClick={() => setEditing(true)}>
+              修改
+            </Button>
+          ) : null}
+          {editing ? (
+            <Button
+              size="small"
+              type="primary"
+              loading={saving}
+              onClick={() => {
+                void onSave({
+                  game_code: gameCode,
+                  role_uid: roleUid,
+                  enabled: true,
+                  checkin_hour: hour,
+                  checkin_minute: minute,
+                })
+                  .then(() => setEditing(false))
+                  .catch(() => {
+                    /* 错误由外层 message 处理 */
+                  });
+              }}
+            >
+              保存
+            </Button>
+          ) : null}
+        </>
       ) : null}
     </Space>
   );
 }
+
+type CheckinDialogState = {
+  kind: CheckinDialogKind;
+  message: string;
+  awards?: CheckinPageResultItem["awards"];
+  awardsText?: string | null;
+};
 
 export function CheckinPageTemplate({
   title,
@@ -304,10 +332,13 @@ export function CheckinPageTemplate({
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [checkingKey, setCheckingKey] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<CheckinDialogState | null>(null);
 
+  // 展示路径始终回源官方，保证与官方一致
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
-    queryFn: () => fetchStatus(true, false),
+    queryFn: () => fetchStatus(true, true),
     retry: false,
   });
 
@@ -324,35 +355,65 @@ export function CheckinPageTemplate({
     }
   };
 
+  const refreshAfterCheckin = () => {
+    void queryClient.invalidateQueries({ queryKey: statusQueryKey });
+    void queryClient.invalidateQueries({ queryKey: ["profile-me"] });
+    if (statusQueryKey[0] === "exilium-status") {
+      void queryClient.invalidateQueries({ queryKey: ["exilium-exchange"] });
+    }
+    if (statusQueryKey[0] === "skland-status") {
+      void queryClient.invalidateQueries({
+        queryKey: ["arknights-attendance-calendar"],
+      });
+    }
+  };
+
   const checkin = useMutation({
-    mutationFn: triggerCheckin,
+    mutationFn: async (payload: CheckinNowPayload) => {
+      setCheckingKey(`${payload.game_code}::${payload.role_uid}`);
+      return triggerCheckin(payload);
+    },
     onSuccess: (data) => {
       const results = data.results ?? [];
-      const allDone =
-        Boolean(results.length) &&
-        results.every((r) => isCheckinSuccess(r.status));
-      if (
-        data.skipped ||
-        (allDone && results.every((r) => r.status === "already"))
-      ) {
-        message.info("今日已签到");
-      } else if (data.ok === false) {
-        message.warning("签到未全部成功，失败角色可再次尝试");
-      } else {
-        message.success("签到完成");
-      }
-      queryClient.invalidateQueries({ queryKey: statusQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-      if (statusQueryKey[0] === "exilium-status") {
-        queryClient.invalidateQueries({ queryKey: ["exilium-exchange"] });
-      }
-      if (statusQueryKey[0] === "skland-status") {
-        queryClient.invalidateQueries({
-          queryKey: ["arknights-attendance-calendar"],
-        });
-      }
+      const primary = results[0];
+      const kind = classifyCheckinDialog({
+        skipped: data.skipped,
+        ok: data.ok,
+        summary: data.summary,
+        status: primary?.status,
+        message: primary?.message || data.summary,
+      });
+      const body =
+        (primary?.message || "").trim() ||
+        (data.summary || "").trim() ||
+        checkinDialogTitle(kind);
+      setDialog({
+        kind,
+        message:
+          kind === "credential"
+            ? `${body}\n请重新绑定${bindName}后再试。`
+            : body,
+        awards: primary?.awards,
+        awardsText: primary?.awards_text,
+      });
+      refreshAfterCheckin();
     },
-    onError: (e: unknown) => message.error(apiError(e, "签到失败")),
+    onError: (e: unknown) => {
+      const msg = apiError(e, "签到失败");
+      const kind = classifyCheckinDialog({
+        ok: false,
+        status: "error",
+        message: msg,
+      });
+      setDialog({
+        kind,
+        message:
+          kind === "credential"
+            ? `${msg}\n请重新绑定${bindName}后再试。`
+            : msg,
+      });
+    },
+    onSettled: () => setCheckingKey(null),
   });
 
   const saveRolePref = useMutation({
@@ -385,7 +446,7 @@ export function CheckinPageTemplate({
           <Button
             size="small"
             icon={<ReloadOutlined />}
-            loading={refreshing}
+            loading={refreshing || statusQuery.isFetching}
             onClick={() => onRefreshStatus()}
           >
             同步官方
@@ -403,47 +464,60 @@ export function CheckinPageTemplate({
       ) : null}
       {bound ? (
         <div>
-            {todayResults.length ? (
-              <Space direction="vertical" size={20} style={{ width: "100%" }}>
-                {groupTodayResults(todayResults).map((group) => {
-                  const iconName = checkinGameIcon(
-                    group.game_code,
-                    platformIcon,
-                  );
-                  return (
-                    <div key={group.game_code}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 8,
-                        }}
-                      >
-                        {iconName ? (
-                          <PlatformIcon name={iconName} size={22} />
-                        ) : null}
-                        <Typography.Text strong>
-                          {group.game_name}
-                        </Typography.Text>
-                      </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "minmax(8rem, max-content) auto auto minmax(0, 1fr)",
-                          columnGap: 10,
-                          rowGap: 10,
-                          alignItems: "center",
-                          paddingLeft: 30,
-                        }}
-                      >
-                        {group.items.map((row, index) => (
+          {todayResults.length ? (
+            <Space direction="vertical" size={20} style={{ width: "100%" }}>
+              {groupTodayResults(todayResults).map((group) => {
+                const iconName = checkinGameIcon(
+                  group.game_code,
+                  platformIcon,
+                );
+                return (
+                  <div key={group.game_code}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {iconName ? (
+                        <PlatformIcon name={iconName} size={22} />
+                      ) : null}
+                      <Typography.Text strong>
+                        {group.game_name}
+                      </Typography.Text>
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        /* 角色 | 状态 | 附加(日历等，吸剩余宽) | 自动签到 | 签到 */
+                        gridTemplateColumns:
+                          "14rem max-content minmax(0, 1fr) max-content max-content",
+                        columnGap: 12,
+                        rowGap: 10,
+                        alignItems: "center",
+                        justifyItems: "start",
+                        paddingLeft: 30,
+                      }}
+                    >
+                      {group.items.map((row, index) => {
+                        const signed = isCheckinSuccess(row.status);
+                        const canCheckin =
+                          Boolean(row.game_code && row.role_uid) && !signed;
+                        return (
                           <div
                             key={rowKey(row)}
                             style={{ display: "contents" }}
                           >
-                            <span style={{ whiteSpace: "nowrap" }}>
+                            <span
+                              style={{
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: "100%",
+                              }}
+                            >
                               {row.role_name || row.role_uid}
                               {row.channel_name ? (
                                 <Typography.Text type="secondary">
@@ -456,22 +530,36 @@ export function CheckinPageTemplate({
                               status={row.status}
                               statusLabel={row.status_label}
                             />
-                            <span>
+                            <span style={{ minWidth: 0 }}>
                               {renderResultExtra?.(row) ?? null}
                             </span>
-                            <div
-                              style={{
-                                justifySelf: "end",
-                                minWidth: 0,
+                            <RoleAutoCheckinControls
+                              row={row}
+                              saving={savingKey === rowKey(row)}
+                              onSave={async (payload) => {
+                                await saveRolePref.mutateAsync(payload);
                               }}
-                            >
-                              <RoleAutoCheckinControls
-                                row={row}
-                                saving={savingKey === rowKey(row)}
-                                onSave={async (payload) => {
-                                  await saveRolePref.mutateAsync(payload);
-                                }}
-                              />
+                            />
+                            <div style={{ justifySelf: "start" }}>
+                              {canCheckin ? (
+                                <Button
+                                  type="primary"
+                                  size="small"
+                                  loading={checkingKey === rowKey(row)}
+                                  disabled={
+                                    Boolean(checkingKey) &&
+                                    checkingKey !== rowKey(row)
+                                  }
+                                  onClick={() =>
+                                    checkin.mutate({
+                                      game_code: row.game_code!,
+                                      role_uid: row.role_uid!,
+                                    })
+                                  }
+                                >
+                                  签到
+                                </Button>
+                              ) : null}
                             </div>
                             <div
                               style={{
@@ -483,7 +571,7 @@ export function CheckinPageTemplate({
                                     : undefined,
                               }}
                             >
-                              <AwardsBlock row={row} />
+                              <TodayAwardsBlock row={row} />
                               {row.extra_text ? (
                                 <Typography.Text type="secondary">
                                   {row.extra_text}
@@ -491,31 +579,73 @@ export function CheckinPageTemplate({
                               ) : null}
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </Space>
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  tokenBroken
-                    ? "无法查询今日状态"
-                    : "暂无今日结果，可点击立即签到或同步官方"
-                }
-              />
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </Space>
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                tokenBroken
+                  ? "无法查询今日状态"
+                  : "暂无今日结果，可点击同步官方或角色旁签到"
+              }
+            />
+          )}
+        </div>
       ) : (
-        <Empty description="绑定后可在此查看签到记录" />
+        <Empty description="绑定后可在此查看签到状态" />
       )}
     </Card>
   );
 
+  const resultModal = (
+    <Modal
+      open={Boolean(dialog)}
+      title={dialog ? checkinDialogTitle(dialog.kind) : undefined}
+      onCancel={() => setDialog(null)}
+      onOk={() => setDialog(null)}
+      cancelButtonProps={{ style: { display: "none" } }}
+      okText="知道了"
+      destroyOnClose
+    >
+      {dialog ? (
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}>
+            {dialog.message}
+          </Typography.Paragraph>
+          {dialog.kind === "success" || dialog.kind === "already" ? (
+            (dialog.awards?.length || (dialog.awardsText || "").trim()) ? (
+              <CheckinAwardsLine
+                awards={dialog.awards}
+                awardsText={dialog.awardsText}
+                fallback=""
+              />
+            ) : null
+          ) : null}
+          {dialog.kind === "credential" ? (
+            <Alert
+              type="warning"
+              showIcon
+              message={`请重新绑定${bindName}`}
+            />
+          ) : null}
+        </Space>
+      ) : null}
+    </Modal>
+  );
+
   if (contentOnly) {
-    return statusCard;
+    return (
+      <>
+        {statusCard}
+        {resultModal}
+      </>
+    );
   }
 
   const bindBlock = needsBind ? (
@@ -547,23 +677,9 @@ export function CheckinPageTemplate({
 
   return (
     <div>
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        extra={
-          bound && !tokenBroken ? (
-            <Button
-              type="primary"
-              loading={checkin.isPending}
-              onClick={() => checkin.mutate()}
-            >
-              立即签到
-            </Button>
-          ) : null
-        }
-      />
-
+      <PageHeader title={title} subtitle={subtitle} />
       {needsBind ? bindBlock : statusCard}
+      {resultModal}
     </div>
   );
 }

@@ -1,8 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Tabs, message } from "antd";
+import { useQuery } from "@tanstack/react-query";
+import { Alert, Button, Card, Tabs } from "antd";
 import { CalendarOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { apiError } from "@/lib/apiError";
 import {
   fetchPlatformFeaturesEffective,
   fetchSklandStatus,
@@ -18,7 +17,6 @@ import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { EndfieldBoxPanel } from "@/components/EndfieldBoxPanel";
 import { PageHeader } from "@/components/PageHeader";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
-import { isCheckinSuccess } from "@/lib/checkinStatus";
 import { isFeatureOn } from "@/lib/platformFeatures";
 
 type TabKey = "checkin" | "arknights" | "endfield";
@@ -26,7 +24,6 @@ type TabKey = "checkin" | "arknights" | "endfield";
 
 export default function SklandPage() {
   const [tab, setTab] = useState<TabKey>("checkin");
-  const queryClient = useQueryClient();
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -36,7 +33,7 @@ export default function SklandPage() {
 
   const statusQuery = useQuery({
     queryKey: ["skland-status"],
-    queryFn: () => fetchSklandStatus(true),
+    queryFn: () => fetchSklandStatus(true, true),
     retry: false,
   });
 
@@ -125,53 +122,13 @@ export default function SklandPage() {
     }
   }, [tab, tabItems]);
 
-  const checkin = useMutation({
-    mutationFn: triggerSklandCheckin,
-    onSuccess: (data) => {
-      const results = data.results ?? [];
-      const allDone =
-        Boolean(results.length) &&
-        results.every((r) => isCheckinSuccess(r.status));
-      if (
-        data.skipped ||
-        (allDone && results.every((r) => r.status === "already"))
-      ) {
-        message.info("今日已签到");
-      } else if (data.ok === false) {
-        message.warning("签到未全部成功，失败角色可再次尝试");
-      } else {
-        message.success("签到完成");
-      }
-      queryClient.invalidateQueries({ queryKey: ["skland-status"] });
-      queryClient.invalidateQueries({
-        queryKey: ["arknights-attendance-calendar"],
-      });
-      queryClient.invalidateQueries({ queryKey: ["profile-me"] });
-    },
-    onError: (e: unknown) => message.error(apiError(e, "签到失败")),
-  });
-
   const bound = Boolean(statusQuery.data?.bound);
   const tokenBroken = bound && statusQuery.data?.token_ok === false;
-  const canUse = bound && !tokenBroken;
   const needsBind = (!bound || tokenBroken) && !statusQuery.isLoading;
 
   return (
     <div>
-      <PageHeader
-        title="森空岛"
-        extra={
-          tab === "checkin" && showCheckin && canUse ? (
-            <Button
-              type="primary"
-              loading={checkin.isPending}
-              onClick={() => checkin.mutate()}
-            >
-              立即签到
-            </Button>
-          ) : null
-        }
-      />
+      <PageHeader title="森空岛" />
 
       {needsBind ? (
         <div

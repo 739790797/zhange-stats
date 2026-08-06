@@ -6,7 +6,11 @@ import logging
 import urllib.parse
 from typing import Any
 
-from app.services.checkin_common import CheckinResult
+from app.services.checkin_common import (
+    CheckinResult,
+    award_item,
+    awards_text_from_items,
+)
 from app.services.taygedo_client import (
     GAME_APP,
     GAME_APP_NAME,
@@ -95,49 +99,96 @@ def _is_already(msg: str) -> bool:
     return any(k in text for k in ("已签到", "重复签到", "签到过", "already"))
 
 
-def _item_award_text(item: dict[str, Any]) -> str | None:
+def _item_award_dict(item: dict[str, Any]) -> dict[str, Any] | None:
     name = item.get("name") or item.get("rewardName") or item.get("awardName")
+    nested = item.get("reward") or item.get("award") or item.get("item")
+    source = item
+    if not name and isinstance(nested, dict):
+        source = nested
+        name = nested.get("name")
     if not name:
-        nested = item.get("reward") or item.get("award") or item.get("item")
-        if isinstance(nested, dict):
-            name = nested.get("name")
-            num = nested.get("num") or nested.get("count") or item.get("num") or item.get("count")
-            if name:
-                return f"{name} x{num or 1}"
         return None
-    num = item.get("num") if item.get("num") is not None else item.get("count")
-    return f"{name} x{num or 1}"
+    num = source.get("num")
+    if num is None:
+        num = source.get("count")
+    if num is None:
+        num = item.get("num")
+    if num is None:
+        num = item.get("count")
+    try:
+        count = int(num) if num is not None else 1
+    except (TypeError, ValueError):
+        count = 1
+    rid = (
+        source.get("id")
+        or source.get("itemId")
+        or source.get("resourceId")
+        or item.get("id")
+        or item.get("itemId")
+        or item.get("resourceId")
+    )
+    rtype = (
+        source.get("type")
+        or source.get("resourceType")
+        or item.get("type")
+        or item.get("resourceType")
+    )
+    return award_item(name=str(name), count=count, resource_id=rid, resource_type=rtype)
 
 
-def _awards_from_sign_payload(data: dict[str, Any]) -> str | None:
+def _item_award_text(item: dict[str, Any]) -> str | None:
+    d = _item_award_dict(item)
+    if not d:
+        return None
+    return f"{d['name']} x{d['count']}"
+
+
+def _pack_awards(items: list[dict[str, Any]]) -> tuple[str | None, list[dict[str, Any]]]:
+    if not items:
+        return None, []
+    text = awards_text_from_items(items)
+    # 文案风格与旧逻辑兼容：空格 x
+    if text:
+        text = "、".join(
+            f"{a['name']} x{a['count']}" for a in items if a.get("name")
+        )
+    return text, items
+
+
+def _awards_from_sign_payload(
+    data: dict[str, Any],
+) -> tuple[str | None, list[dict[str, Any]]]:
     """从签到 POST 响应中提取当日奖励（优先于月历列表）。"""
     payload = data.get("data")
     if not isinstance(payload, dict):
-        return None
+        return None, []
+    items: list[dict[str, Any]] = []
     for key in ("rewards", "rewardList", "awards", "awardList", "items"):
         raw = payload.get(key)
         if isinstance(raw, list) and raw:
-            parts = []
             for item in raw:
                 if isinstance(item, dict):
-                    text = _item_award_text(item)
-                    if text:
-                        parts.append(text)
-            if parts:
-                return "、".join(parts)
+                    d = _item_award_dict(item)
+                    if d:
+                        items.append(d)
+            if items:
+                return _pack_awards(items)
         if isinstance(raw, dict):
-            text = _item_award_text(raw)
-            if text:
-                return text
-    # 单条 name/num
-    text = _item_award_text(payload)
-    if text:
-        return text
+            d = _item_award_dict(raw)
+            if d:
+                return _pack_awards([d])
+    d = _item_award_dict(payload)
+    if d:
+        return _pack_awards([d])
     name = payload.get("rewardName") or payload.get("awardName")
     if name:
         num = payload.get("num") or payload.get("count") or 1
-        return f"{name} x{num}"
-    return None
+        try:
+            count = int(num)
+        except (TypeError, ValueError):
+            count = 1
+        return _pack_awards([award_item(name=str(name), count=count)])
+    return None, []
 
 
 def _app_headers(creds: TaygedoCredentials) -> dict[str, str]:
@@ -195,7 +246,7 @@ def ensure_session(creds: TaygedoCredentials) -> TaygedoCredentials:
 
 def _app_awards_from_exp_records(
     creds: TaygedoCredentials, *, community_id: int = 1
-) -> str | None:
+) -> tuple[str | None, list[dict[str, Any]]]:
     """从经验领取记录里取今日签到奖励（type=3）。"""
     from app.core.timeutil import BEIJING, today
 
@@ -210,10 +261,10 @@ def _app_awards_from_exp_records(
             headers=_app_headers(creds),
         )
         if status != 200 or data.get("code") != 0:
-            return None
+            return None, []
         raw = data.get("data")
         records = raw if isinstance(raw, list) else []
-        parts: list[str] = []
+        items: list[dict[str, Any]] = []
         for rec in records:
             if not isinstance(rec, dict):
                 continue
@@ -233,13 +284,19 @@ def _app_awards_from_exp_records(
                 continue
             title = str(rec.get("title") or "签到奖励")
             num = rec.get("num")
-            if num is not None:
-                parts.append(f"{title}+{num}")
-            else:
-                parts.append(title)
-        return "、".join(parts) if parts else None
+            try:
+                count = int(num) if num is not None else 1
+            except (TypeError, ValueError):
+                count = 1
+            items.append(
+                award_item(name=title, count=count, resource_type="exp")
+            )
+        if not items:
+            return None, []
+        text = "、".join(f"{a['name']}+{a['count']}" for a in items)
+        return text, items
     except Exception:  # noqa: BLE001
-        return None
+        return None, []
 
 
 def _get_game_sign_state(creds: TaygedoCredentials, game_id: str) -> dict[str, Any] | None:
@@ -299,8 +356,8 @@ def _awards_from_claim_records(
     game_id: str,
     *,
     role_id: str | None = None,
-) -> str | None:
-    """尝试官方领取记录接口（按真实领取时间筛今日）。失败则返回 None。"""
+) -> tuple[str | None, list[dict[str, Any]]]:
+    """尝试官方领取记录接口（按真实领取时间筛今日）。失败则返回空。"""
     from app.core.timeutil import BEIJING, today
 
     day = today()
@@ -329,7 +386,7 @@ def _awards_from_claim_records(
             records = nested if isinstance(nested, list) else []
         else:
             continue
-        parts: list[str] = []
+        items: list[dict[str, Any]] = []
         for rec in records:
             if not isinstance(rec, dict):
                 continue
@@ -359,14 +416,14 @@ def _awards_from_claim_records(
                         break
             if not matched:
                 continue
-            text = _item_award_text(rec)
-            if not text and isinstance(rec.get("reward"), dict):
-                text = _item_award_text(rec["reward"])
-            if text:
-                parts.append(text)
-        if parts:
-            return "、".join(parts)
-    return None
+            d = _item_award_dict(rec)
+            if not d and isinstance(rec.get("reward"), dict):
+                d = _item_award_dict(rec["reward"])
+            if d:
+                items.append(d)
+        if items:
+            return _pack_awards(items)
+    return None, []
 
 
 def _awards_from_game_state(
@@ -375,42 +432,46 @@ def _awards_from_game_state(
     state: dict[str, Any],
     *,
     role_id: str | None = None,
-) -> str | None:
+) -> tuple[str | None, list[dict[str, Any]]]:
     """今日已签奖励：优先领取记录；否则用本月累计 days（第 N 次），禁止用日历日期。"""
-    claimed = _awards_from_claim_records(creds, game_id, role_id=role_id)
-    if claimed:
-        return claimed
+    claimed_text, claimed_items = _awards_from_claim_records(
+        creds, game_id, role_id=role_id
+    )
+    if claimed_text:
+        return claimed_text, claimed_items
 
     rewards = _list_game_rewards(creds, game_id, role_id=role_id)
     if not rewards:
-        return None
+        return None, []
     # 与社区工具一致：todaySign 后 rewards[days-1] 为当日格（本月第 N 次）
     try:
         day_idx = int(state.get("days") or 0) - 1
     except (TypeError, ValueError):
         day_idx = -1
     if day_idx < 0:
-        return None
+        return None, []
     if 0 <= day_idx < len(rewards):
-        return _item_award_text(rewards[day_idx])
-    return None
+        d = _item_award_dict(rewards[day_idx])
+        if d:
+            return _pack_awards([d])
+    return None, []
 
 
 def _fetch_rewards(
     creds: TaygedoCredentials, game_id: str, *, role_id: str | None = None
-) -> str | None:
+) -> tuple[str | None, list[dict[str, Any]]]:
     state = _get_game_sign_state(creds, game_id)
     if not state or not state.get("todaySign"):
-        return None
+        return None, []
     return _awards_from_game_state(creds, game_id, state, role_id=role_id)
 
 
 def fetch_today_awards(
     creds: TaygedoCredentials, *, game_code: str, role_id: str | None = None
-) -> str | None:
+) -> tuple[str | None, list[dict[str, Any]]]:
     """已签到时补读今日游戏奖励（不含社区）。"""
     if game_code == GAME_APP:
-        return None
+        return None, []
     return _fetch_rewards(creds, game_code, role_id=role_id)
 
 
@@ -419,7 +480,7 @@ def query_game_today(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinRes
     state = _get_game_sign_state(creds, role.game_code)
     channel = role.game_name
     if state and state.get("todaySign"):
-        awards = _awards_from_game_state(
+        awards_text, awards_items = _awards_from_game_state(
             creds, role.game_code, state, role_id=role.role_id
         )
         return CheckinResult(
@@ -429,8 +490,11 @@ def query_game_today(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinRes
             role_name=role.role_name,
             channel_name=channel,
             status="already",
-            message=f"今日已签到，获得：{awards}" if awards else "今日已签到",
-            awards_text=awards,
+            message=(
+                f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
+            ),
+            awards_text=awards_text,
+            awards=awards_items or None,
         )
     return CheckinResult(
         game_code=role.game_code,
@@ -475,9 +539,20 @@ def app_signin(creds: TaygedoCredentials) -> CheckinResult:
         payload = data.get("data") or {}
         exp = payload.get("exp")
         gold = payload.get("goldCoin")
-        awards = None
+        awards_text = None
+        awards_items: list[dict[str, Any]] = []
         if isinstance(exp, (int, float)) or isinstance(gold, (int, float)):
-            awards = f"经验+{exp or 0}、金币+{gold or 0}"
+            if isinstance(exp, (int, float)):
+                awards_items.append(
+                    award_item(name="经验", count=int(exp), resource_type="exp")
+                )
+            if isinstance(gold, (int, float)):
+                awards_items.append(
+                    award_item(name="金币", count=int(gold), resource_type="gold")
+                )
+            awards_text = "、".join(
+                f"{a['name']}+{a['count']}" for a in awards_items
+            )
         return CheckinResult(
             game_code=GAME_APP,
             game_name=GAME_APP_NAME,
@@ -485,11 +560,12 @@ def app_signin(creds: TaygedoCredentials) -> CheckinResult:
             role_name="社区账号",
             channel_name="塔吉多",
             status="ok",
-            message=f"签到成功{('，获得：' + awards) if awards else ''}",
-            awards_text=awards,
+            message=f"签到成功{('，获得：' + awards_text) if awards_text else ''}",
+            awards_text=awards_text,
+            awards=awards_items or None,
         )
     if _is_already(msg):
-        awards = _app_awards_from_exp_records(creds)
+        awards_text, awards_items = _app_awards_from_exp_records(creds)
         return CheckinResult(
             game_code=GAME_APP,
             game_name=GAME_APP_NAME,
@@ -497,8 +573,11 @@ def app_signin(creds: TaygedoCredentials) -> CheckinResult:
             role_name="社区账号",
             channel_name="塔吉多",
             status="already",
-            message=f"今日已签到，获得：{awards}" if awards else "今日已签到",
-            awards_text=awards,
+            message=(
+                f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
+            ),
+            awards_text=awards_text,
+            awards=awards_items or None,
         )
     return CheckinResult(
         game_code=GAME_APP,
@@ -533,7 +612,26 @@ def game_signin(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinResult:
     channel = role.game_name
     if status == 200 and data.get("code") == 0:
         # POST 成功后重读状态，用 days 对齐领取记录中的当日奖励
-        awards = _awards_from_sign_payload(data) or _fetch_rewards(
+        awards_text, awards_items = _awards_from_sign_payload(data)
+        if not awards_text:
+            awards_text, awards_items = _fetch_rewards(
+                creds, role.game_code, role_id=role.role_id
+            )
+        return CheckinResult(
+            game_code=role.game_code,
+            game_name=role.game_name,
+            role_uid=role.role_id,
+            role_name=role.role_name,
+            channel_name=channel,
+            status="ok",
+            message=(
+                f"签到成功{('，获得：' + awards_text) if awards_text else ''}"
+            ),
+            awards_text=awards_text,
+            awards=awards_items or None,
+        )
+    if _is_already(msg):
+        awards_text, awards_items = _fetch_rewards(
             creds, role.game_code, role_id=role.role_id
         )
         return CheckinResult(
@@ -542,21 +640,12 @@ def game_signin(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinResult:
             role_uid=role.role_id,
             role_name=role.role_name,
             channel_name=channel,
-            status="ok",
-            message=f"签到成功{('，获得：' + awards) if awards else ''}",
-            awards_text=awards,
-        )
-    if _is_already(msg):
-        awards = _fetch_rewards(creds, role.game_code, role_id=role.role_id)
-        return CheckinResult(
-            game_code=role.game_code,
-            game_name=role.game_name,
-            role_uid=role.role_id,
-            role_name=role.role_name,
-            channel_name=channel,
             status="already",
-            message=f"今日已签到{('，获得：' + awards) if awards else ''}",
-            awards_text=awards,
+            message=(
+                f"今日已签到{('，获得：' + awards_text) if awards_text else ''}"
+            ),
+            awards_text=awards_text,
+            awards=awards_items or None,
         )
     return CheckinResult(
         game_code=role.game_code,

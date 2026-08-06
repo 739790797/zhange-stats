@@ -2,6 +2,8 @@ import { Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { ReactNode } from "react";
 import type { UserCheckinTask } from "@/api/client";
+import { CheckinStatusTag } from "@/components/CheckinStatusTag";
+import { isCheckinSuccess } from "@/lib/checkinStatus";
 import { PLATFORM_NAV } from "@/lib/platformFeatures";
 
 /** 侧栏签到平台顺序（排除 Steam） */
@@ -31,17 +33,7 @@ export function autoEnabledTag(enabled: boolean | "partial") {
   return <Tag>关闭</Tag>;
 }
 
-export function lastResultTag(task: Pick<UserCheckinTask, "last_checkin_ok">) {
-  if (task.last_checkin_ok === true) {
-    return <Tag color="success">成功</Tag>;
-  }
-  if (task.last_checkin_ok === false) {
-    return <Tag color="error">失败</Tag>;
-  }
-  return <Tag>未执行</Tag>;
-}
-
-/** 角色级任务共用列：是否启用 / 计划时间 / 上次执行时间 / 结果 / 摘要 */
+/** 角色级任务共用列：启用 / 计划 / 今日签到 / 今日奖励（已签才展示） */
 export function buildCheckinTaskScheduleColumns<T>(options: {
   /** 仅叶子行（角色任务）渲染内容 */
   isLeaf: (row: T) => boolean;
@@ -67,38 +59,39 @@ export function buildCheckinTaskScheduleColumns<T>(options: {
       key: "schedule",
       width: 100,
       render: (_, row) =>
-        leaf(row, (t) => (
-          <Typography.Text>
-            {formatCheckinTime(t.checkin_hour, t.checkin_minute)}
-          </Typography.Text>
-        )),
+        leaf(row, (t) =>
+          t.auto_checkin ? (
+            <Typography.Text>
+              {formatCheckinTime(t.checkin_hour, t.checkin_minute)}
+            </Typography.Text>
+          ) : (
+            <Typography.Text type="secondary">-</Typography.Text>
+          ),
+        ),
     },
     {
-      title: "上次执行时间",
-      key: "last_at",
-      width: 170,
+      title: "今日签到",
+      key: "today_status",
+      width: 100,
+      align: "center",
       render: (_, row) =>
         leaf(row, (t) => (
-          <Typography.Text type="secondary">
-            {t.last_checkin_at || t.last_checkin_date || "-"}
-          </Typography.Text>
+          <CheckinStatusTag
+            status={t.today_status}
+            statusLabel={t.today_status_label}
+          />
         )),
     },
     {
-      title: "上次执行结果",
-      key: "last_status",
-      width: 110,
-      align: "center",
-      render: (_, row) => leaf(row, (t) => lastResultTag(t)),
-    },
-    {
-      title: "上次摘要",
-      key: "last_summary",
+      title: "今日奖励",
+      key: "today_summary",
       ellipsis: true,
       render: (_, row) =>
         leaf(row, (t) => (
           <Typography.Text type="secondary" ellipsis>
-            {t.last_checkin_summary || "-"}
+            {isCheckinSuccess(t.today_status)
+              ? t.today_awards_text || "-"
+              : "-"}
           </Typography.Text>
         )),
     },

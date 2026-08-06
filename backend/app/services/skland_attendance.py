@@ -6,7 +6,7 @@ import logging
 import urllib.parse
 from typing import Any
 
-from app.services.checkin_common import CheckinResult
+from app.services.checkin_common import CheckinResult, STATUS_UNKNOWN
 from app.services.skland_awards import (
     arknights_awards_from_sign_resp,
     awards_from_claim_records,
@@ -345,6 +345,18 @@ def _signed_today_from_resp(resp: dict[str, Any], *, day) -> bool:
     return _has_claim_today(resp, day=day)
 
 
+def _is_arknights_bilibili(role: SklandRole) -> bool:
+    mid = str(role.channel_master_id or "").strip()
+    if mid == "2":
+        return True
+    name = (role.channel_name or "").strip().lower()
+    return (
+        "bilibili" in name
+        or "哔哩" in (role.channel_name or "")
+        or "b服" in name
+    )
+
+
 def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
     """只读查询今日签到状态与奖励（领取记录，不 POST）。"""
     from app.core.timeutil import today
@@ -353,6 +365,7 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
     awards_text: str | None = None
     awards_items: list[dict[str, Any]] = []
     signed = False
+    saw_empty_bili_records = False
     try:
         if role.game_code == GAME_ARKNIGHTS:
             for game_id in _arknights_game_ids(role):
@@ -372,6 +385,13 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
                     break
                 if signed:
                     break
+                # B 服常见：code=0 但 records=[]，不能据此判「未签」
+                if (
+                    _is_arknights_bilibili(role)
+                    and resp.get("code") == 0
+                    and not _resp_has_award_signal(resp)
+                ):
+                    saw_empty_bili_records = True
         elif role.game_code == GAME_ENDFIELD:
             if role.role_id and role.server_id:
                 resp = _attendance_get(
@@ -415,6 +435,16 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
             awards_text=awards_text,
             awards=awards_items or None,
         )
+    if saw_empty_bili_records:
+        return CheckinResult(
+            game_code=role.game_code,
+            game_name=role.game_name,
+            role_uid=role.uid,
+            role_name=role.role_name,
+            channel_name=role.channel_name,
+            status=STATUS_UNKNOWN,
+            message="B服官方未返回领取记录，请点「立即签到」确认",
+        )
     return CheckinResult(
         game_code=role.game_code,
         game_name=role.game_name,
@@ -426,30 +456,26 @@ def query_role_today(session: SklandSession, role: SklandRole) -> CheckinResult:
     )
 
 
-def query_today_all(session: SklandSession) -> list[CheckinResult]:
-    return sort_skland_results(
+def query_today_all(session: SklandSession) -> tuple[SklandSession, list[CheckinResult]]:
+    results = sort_skland_results(
         [query_role_today(session, role) for role in list_roles(session)]
     )
+    return session, results
 
 
 def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult:
+    """方舟签到。成功态 message/awards_text 只保留 award，供执行记录使用。"""
     body = {"uid": role.uid, "gameId": role.channel_master_id}
     headers = _signed_headers(session, ARKNIGHTS_ATTENDANCE_URL, "post", body)
     resp = _http_json("POST", ARKNIGHTS_ATTENDANCE_URL, headers=headers, body=body)
-    status, message = _parse_status(resp)
+    status, raw_message = _parse_status(resp)
     awards_text, awards_items = _arknights_awards(resp)
-    if status == "ok" and awards_text:
-        message = f"成功！获得：{awards_text}"
-    elif status == "ok":
-        message = "签到成功"
-    elif status == "already":
-        if not awards_text:
-            awards_text, awards_items = fetch_today_awards(session, role)
-        message = (
-            f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
-        )
-    elif status == "error":
-        message = _friendly_error_message(message)
+    if status == "already" and not awards_text:
+        awards_text, awards_items = fetch_today_awards(session, role)
+    if status == "error":
+        message = _friendly_error_message(raw_message)
+    else:
+        message = awards_text or ""
     return CheckinResult(
         game_code=role.game_code,
         game_name=role.game_name,
@@ -556,13 +582,17 @@ def checkin_all_roles(session: SklandSession) -> list[CheckinResult]:
                     channel_name=role.channel_name,
                     status="already" if already else "error",
                     message=(
-                        (
-                            f"今日已签到，获得：{awards_text}"
-                            if awards_text
-                            else "今日已签到"
+                        (awards_text or "")
+                        if already and role.game_code == GAME_ARKNIGHTS
+                        else (
+                            (
+                                f"今日已签到，获得：{awards_text}"
+                                if awards_text
+                                else "今日已签到"
+                            )
+                            if already
+                            else _friendly_error_message(msg)
                         )
-                        if already
-                        else _friendly_error_message(msg)
                     ),
                     awards_text=awards_text,
                     awards=awards_items or None,

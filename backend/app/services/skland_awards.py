@@ -67,17 +67,21 @@ def award_dict(
     resource_type: Any = None,
     with_icon: bool = False,
 ) -> dict[str, Any]:
-    item: dict[str, Any] = {"name": name, "count": int(count)}
-    if resource_id is not None and str(resource_id).strip():
-        item["resource_id"] = str(resource_id).strip()
-    rtype = str(resource_type).strip() if resource_type is not None else ""
-    if rtype:
-        item["resource_type"] = rtype
+    from app.services.checkin_common import award_item
+
+    icon = None
     if with_icon:
-        icon = arknights_item_icon_url(rtype or None, resource_id=resource_id)
-        if icon:
-            item["icon_url"] = icon
-    return item
+        icon = arknights_item_icon_url(
+            str(resource_type).strip() if resource_type is not None else None,
+            resource_id=resource_id,
+        )
+    return award_item(
+        name=name,
+        count=count,
+        resource_id=resource_id,
+        resource_type=resource_type,
+        icon_url=icon,
+    )
 
 
 def enrich_arknights_award_icons(

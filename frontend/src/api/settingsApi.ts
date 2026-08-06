@@ -57,6 +57,13 @@ export interface CheckinLogItem {
   status_label?: string | null;
   message?: string | null;
   awards_text?: string | null;
+  awards?: Array<{
+    name: string;
+    count?: number;
+    resource_id?: string | null;
+    resource_type?: string | null;
+    icon_url?: string | null;
+  }> | null;
   checkin_date: string;
   checked_at?: string | null;
 }
@@ -92,6 +99,9 @@ export interface UserCheckinTask {
   last_checkin_date?: string | null;
   last_checkin_ok?: boolean | null;
   last_checkin_summary?: string | null;
+  today_status?: string | null;
+  today_status_label?: string | null;
+  today_awards_text?: string | null;
   bound_at?: string | null;
 }
 

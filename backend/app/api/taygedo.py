@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.platform_checkin import (
     build_checkin_response,
     build_checkin_status,
     raise_api_error,
+    role_keys_from_now_body,
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_user_member
@@ -17,6 +18,7 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    CheckinNowBody,
     CheckinRolePrefUpdate,
     TaygedoAttendanceCalendarOut,
     TaygedoAttendanceDayOut,
@@ -235,11 +237,15 @@ def taygedo_update_role_pref(
     dependencies=[Depends(require_feature("taygedo.checkin"))],
 )
 def taygedo_checkin_now(
+    body: CheckinNowBody | None = Body(default=None),
     db: Session = Depends(get_db),
     member: Member = Depends(require_user_member),
 ):
+    role_keys = role_keys_from_now_body(body)
     try:
-        out = run_checkin_for_member(db, member, force=True)
+        out = run_checkin_for_member(
+            db, member, force=True, role_keys=role_keys
+        )
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
     return build_checkin_response(

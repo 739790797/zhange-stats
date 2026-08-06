@@ -4,6 +4,7 @@ from app.schemas.auth import LoginRequest, TokenResponse, UserOut
 from app.schemas.base import OrmModel
 from app.schemas.checkin import (
     CheckinLogOut,
+    CheckinNowBody,
     CheckinResponse,
     CheckinResultItem,
     CheckinRolePrefUpdate,
@@ -137,6 +138,7 @@ __all__ = [
     "QqOAuthStartResponse",
     "CheckinLogOut",
     "CheckinResultItem",
+    "CheckinNowBody",
     "CheckinRolePrefUpdate",
     "CheckinResponse",
     "SklandCheckinLogOut",

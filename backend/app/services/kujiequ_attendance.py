@@ -7,7 +7,13 @@ import time
 from typing import Any
 
 from app.core.timeutil import today
-from app.services.checkin_common import CheckinResult, is_placeholder_awards, prefer_richer_awards
+from app.services.checkin_common import (
+    CheckinResult,
+    award_item,
+    is_placeholder_awards,
+    prefer_richer_awards,
+    prefer_richer_award_items,
+)
 from app.services.kujiequ_client import (
     GAME_PGR,
     GameRole,
@@ -67,27 +73,56 @@ def _iter_goods_dicts(rows: list[Any]) -> list[dict[str, Any]]:
     return out
 
 
-def _format_goods_rows(rows: list[Any]) -> str | None:
-    parts: list[str] = []
+def _goods_award_dict(row: dict[str, Any]) -> dict[str, Any] | None:
+    name = _goods_name(row)
+    if not name:
+        return None
+    num = row.get("goodsNum")
+    if num is None:
+        num = row.get("gainValue")
+    if num is None:
+        num = row.get("count")
+    try:
+        count = int(num) if num is not None else 1
+    except (TypeError, ValueError):
+        count = 1
+    rid = (
+        row.get("goodsId")
+        or row.get("goodsID")
+        or row.get("id")
+        or row.get("type")
+    )
+    rtype = row.get("typeName") or row.get("goodsType") or row.get("type")
+    return award_item(name=name, count=count, resource_id=rid, resource_type=rtype)
+
+
+def _format_goods_rows(
+    rows: list[Any],
+) -> tuple[str | None, list[dict[str, Any]]]:
+    items: list[dict[str, Any]] = []
     for row in _iter_goods_dicts(rows):
-        name = _goods_name(row)
-        # 缺物品名时不要用「奖励」占位，交给调用方走领取记录补全
-        if not name:
-            continue
-        num = row.get("goodsNum")
-        if num is None:
-            num = row.get("gainValue")
-        if num is not None:
-            parts.append(f"{name}×{num}" if name != "库洛币" else f"库洛币+{num}")
+        d = _goods_award_dict(row)
+        if d:
+            items.append(d)
+    if not items:
+        return None, []
+    parts: list[str] = []
+    for a in items:
+        name = str(a["name"])
+        count = int(a.get("count") or 1)
+        if name == "库洛币":
+            parts.append(f"库洛币+{count}")
         else:
-            parts.append(name)
-    return " · ".join(parts) if parts else None
+            parts.append(f"{name}×{count}")
+    return (" · ".join(parts) if parts else None), items
 
 
-def _community_awards_from_tasks(creds: KujiequCredentials) -> str | None:
+def _community_awards_from_tasks(
+    creds: KujiequCredentials,
+) -> tuple[str | None, list[dict[str, Any]]]:
     """从每日任务进度读取「用户签到」奖励（已签后 info 接口不含奖励）。"""
     if not creds.user_id:
-        return None
+        return None, []
     try:
         data = _post_form(
             "/encourage/level/getTaskProcess",
@@ -98,11 +133,11 @@ def _community_awards_from_tasks(creds: KujiequCredentials) -> str | None:
         _assert_ok(data)
     except KujiequApiError as exc:
         logger.warning("kujiequ task process failed: %s", exc.message)
-        return None
+        return None, []
     payload = data.get("data") or {}
     tasks = payload.get("dailyTask") if isinstance(payload, dict) else None
     if not isinstance(tasks, list):
-        return None
+        return None, []
     for task in tasks:
         if not isinstance(task, dict):
             continue
@@ -115,12 +150,17 @@ def _community_awards_from_tasks(creds: KujiequCredentials) -> str | None:
         except (TypeError, ValueError):
             continue
         if done < need:
-            return None
+            return None, []
         gold = task.get("gainGold")
         if gold is None:
-            return None
-        return f"库洛币+{gold}"
-    return None
+            return None, []
+        try:
+            count = int(gold)
+        except (TypeError, ValueError):
+            return None, []
+        item = award_item(name="库洛币", count=count, resource_type="gold")
+        return f"库洛币+{count}", [item]
+    return None, []
 
 
 def _game_awards_from_records(
@@ -129,22 +169,23 @@ def _game_awards_from_records(
     *,
     retries: int = 0,
     retry_delay_sec: float = 1.2,
-) -> str | None:
+) -> tuple[str | None, list[dict[str, Any]]]:
     """从游戏签到领取记录（queryRecordV2）按北京自然日取今日奖励。"""
-    last: str | None = None
+    last_text: str | None = None
+    last_items: list[dict[str, Any]] = []
     attempts = max(1, retries + 1)
     for i in range(attempts):
         if i > 0:
             time.sleep(retry_delay_sec)
-        last = _game_awards_from_records_once(creds, role)
-        if last and not is_placeholder_awards(last):
-            return last
-    return last
+        last_text, last_items = _game_awards_from_records_once(creds, role)
+        if last_text and not is_placeholder_awards(last_text):
+            return last_text, last_items
+    return last_text, last_items
 
 
 def _game_awards_from_records_once(
     creds: KujiequCredentials, role: GameRole
-) -> str | None:
+) -> tuple[str | None, list[dict[str, Any]]]:
     try:
         data = _post_form(
             "/encourage/signIn/queryRecordV2",
@@ -165,10 +206,10 @@ def _game_awards_from_records_once(
             role.role_id,
             exc.message,
         )
-        return None
+        return None, []
     rows = data.get("data") or []
     if not isinstance(rows, list):
-        return None
+        return None, []
     day = today().isoformat()
     todays = [
         r
@@ -178,22 +219,33 @@ def _game_awards_from_records_once(
     return _format_goods_rows(todays)
 
 
-def _awards_from_sign_payload(payload: dict[str, Any]) -> str | None:
+def _awards_from_sign_payload(
+    payload: dict[str, Any],
+) -> tuple[str | None, list[dict[str, Any]]]:
     """解析签到成功响应：社区 gainVoList / 游戏 todayList。"""
     gains = payload.get("gainVoList")
     if isinstance(gains, list) and gains:
+        items: list[dict[str, Any]] = []
         parts: list[str] = []
         for g in gains:
-            if isinstance(g, dict):
-                parts.append(f"库洛币+{g.get('gainValue') or '?'}")
-        if parts:
-            return " · ".join(parts)
+            if not isinstance(g, dict):
+                continue
+            try:
+                count = int(g.get("gainValue") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            items.append(
+                award_item(name="库洛币", count=count or 1, resource_type="gold")
+            )
+            parts.append(f"库洛币+{g.get('gainValue') or '?'}")
+        if items:
+            return " · ".join(parts), items
     today_list = payload.get("todayList")
     if isinstance(today_list, dict):
         today_list = [today_list]
     if isinstance(today_list, list) and today_list:
         return _format_goods_rows(today_list)
-    return None
+    return None, []
 
 
 def query_community_today(creds: KujiequCredentials) -> CheckinResult:
@@ -209,7 +261,9 @@ def query_community_today(creds: KujiequCredentials) -> CheckinResult:
     has = bool(payload.get("hasSignIn")) if isinstance(payload, dict) else False
     days = payload.get("continueDays") if isinstance(payload, dict) else None
     extra = f"连签 {days} 天" if days is not None else None
-    awards = _community_awards_from_tasks(creds) if has else None
+    awards_text, awards_items = (
+        _community_awards_from_tasks(creds) if has else (None, [])
+    )
     return CheckinResult(
         game_code="kujiequ",
         game_name="库街区",
@@ -218,7 +272,8 @@ def query_community_today(creds: KujiequCredentials) -> CheckinResult:
         channel_name="社区签到",
         status="already" if has else "pending",
         message="今日已签到" if has else "今日未签到",
-        awards_text=awards,
+        awards_text=awards_text,
+        awards=awards_items or None,
         extra_text=extra,
     )
 
@@ -248,6 +303,7 @@ def do_community_sign_in(creds: KujiequCredentials) -> CheckinResult:
             status="already",
             message=msg or "今日已签到",
             awards_text=info.awards_text,
+            awards=info.awards,
             extra_text=info.extra_text,
         )
     if code_i in (220, 401):
@@ -255,16 +311,17 @@ def do_community_sign_in(creds: KujiequCredentials) -> CheckinResult:
     if code_i != 200 and not data.get("success"):
         raise KujiequApiError(msg or "社区签到失败", code=code_i)
 
-    awards = None
+    awards_text: str | None = None
+    awards_items: list[dict[str, Any]] = []
     extra = None
     payload = data.get("data") or {}
     if isinstance(payload, dict):
-        awards = _awards_from_sign_payload(payload)
+        awards_text, awards_items = _awards_from_sign_payload(payload)
         days = payload.get("continueDays")
         if days is not None:
             extra = f"连签 {days} 天"
-    if not awards:
-        awards = _community_awards_from_tasks(creds)
+    if not awards_text:
+        awards_text, awards_items = _community_awards_from_tasks(creds)
     # 「请求成功」是通用话术，不用作签到结论
     if msg.strip() in ("请求成功", "success", "ok"):
         msg = "签到成功"
@@ -276,7 +333,8 @@ def do_community_sign_in(creds: KujiequCredentials) -> CheckinResult:
         channel_name="社区签到",
         status="ok",
         message=msg or "签到成功",
-        awards_text=awards,
+        awards_text=awards_text,
+        awards=awards_items or None,
         extra_text=extra,
     )
 
@@ -298,7 +356,9 @@ def query_game_today(creds: KujiequCredentials, role: GameRole) -> CheckinResult
     payload = data.get("data") or {}
     signed = bool(payload.get("isSigIn")) if isinstance(payload, dict) else False
     days = payload.get("sigInNum") if isinstance(payload, dict) else None
-    awards = _game_awards_from_records(creds, role) if signed else None
+    awards_text, awards_items = (
+        _game_awards_from_records(creds, role) if signed else (None, [])
+    )
     return CheckinResult(
         game_code=f"game_{role.game_id}",
         game_name=role.game_name,
@@ -307,7 +367,8 @@ def query_game_today(creds: KujiequCredentials, role: GameRole) -> CheckinResult
         channel_name=role.server_name,
         status="already" if signed else "pending",
         message="今日已签到" if signed else "今日未签到",
-        awards_text=awards,
+        awards_text=awards_text,
+        awards=awards_items or None,
         extra_text=f"本月已签 {days} 天" if days is not None else None,
     )
 
@@ -335,7 +396,9 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
         code_i = None
     msg = str(data.get("msg") or "").strip()
     if code_i == 1511 or "重复" in msg:
-        awards = _game_awards_from_records(creds, role, retries=1)
+        awards_text, awards_items = _game_awards_from_records(
+            creds, role, retries=1
+        )
         return CheckinResult(
             game_code=f"game_{role.game_id}",
             game_name=role.game_name,
@@ -344,7 +407,8 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
             channel_name=role.server_name,
             status="already",
             message="今日已签到",
-            awards_text=awards,
+            awards_text=awards_text,
+            awards=awards_items or None,
         )
     if code_i in (220, 401):
         raise KujiequApiError("登录已过期，请重新绑定", code=code_i)
@@ -358,16 +422,26 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
             status="error",
             message=msg or "游戏签到失败",
         )
-    awards = None
+    awards_text: str | None = None
+    awards_items: list[dict[str, Any]] = []
     payload = data.get("data") or {}
     if isinstance(payload, dict):
-        awards = _awards_from_sign_payload(payload)
+        awards_text, awards_items = _awards_from_sign_payload(payload)
     # 签到响应常缺 goodsName / 仅返回「奖励」；补查领取记录（可短重试）
-    recorded = _game_awards_from_records(creds, role, retries=2)
-    if is_placeholder_awards(awards):
-        awards = recorded
+    recorded_text, recorded_items = _game_awards_from_records(
+        creds, role, retries=2
+    )
+    if is_placeholder_awards(awards_text):
+        awards_text, awards_items = recorded_text, recorded_items
     else:
-        awards = prefer_richer_awards(awards, recorded)
+        merged_text = prefer_richer_awards(awards_text, recorded_text)
+        awards_items = (
+            prefer_richer_award_items(
+                awards_text, awards_items, recorded_text, recorded_items
+            )
+            or []
+        )
+        awards_text = merged_text
 
     # 库街区常返回 msg=「请求成功」但实际未签；以 initSignInV2.isSigIn 为准
     verified = query_game_today(creds, role)
@@ -382,7 +456,17 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
             message="接口返回成功，但官方仍显示未签（请稍后重试或手动签到）",
             awards_text=None,
         )
-    awards = prefer_richer_awards(awards, verified.awards_text)
+    prev_text, prev_items = awards_text, awards_items
+    awards_text = prefer_richer_awards(prev_text, verified.awards_text)
+    awards_items = (
+        prefer_richer_award_items(
+            prev_text,
+            prev_items,
+            verified.awards_text,
+            verified.awards,
+        )
+        or []
+    )
     return CheckinResult(
         game_code=f"game_{role.game_id}",
         game_name=role.game_name,
@@ -391,7 +475,8 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
         channel_name=role.server_name,
         status="ok",
         message="签到成功",
-        awards_text=awards,
+        awards_text=awards_text,
+        awards=awards_items or None,
     )
 
 

@@ -3410,6 +3410,23 @@
         ],
         "summary": "Skland Checkin Now",
         "operationId": "skland_checkin_now_api_skland_checkin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CheckinNowBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3417,6 +3434,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CheckinResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3616,7 +3643,7 @@
           "skland"
         ],
         "summary": "Skland Arknights Compare Candidates",
-        "description": "盒子对比可选成员（自己 + 可见好友，含是否已绑森空岛）。",
+        "description": "盒子对比可选成员（站内有明日方舟账号的用户）。",
         "operationId": "skland_arknights_compare_candidates_api_skland_arknights_box_compare_candidates_get",
         "responses": {
           "200": {
@@ -4197,6 +4224,23 @@
         ],
         "summary": "Taygedo Checkin Now",
         "operationId": "taygedo_checkin_now_api_taygedo_checkin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CheckinNowBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4204,6 +4248,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CheckinResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -4661,6 +4715,23 @@
         ],
         "summary": "Exilium Checkin Now",
         "operationId": "exilium_checkin_now_api_exilium_checkin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CheckinNowBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4668,6 +4739,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CheckinResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5187,6 +5268,23 @@
         ],
         "summary": "Kujiequ Checkin",
         "operationId": "kujiequ_checkin_api_kujiequ_checkin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CheckinNowBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5194,6 +5292,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CheckinResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -6545,6 +6653,11 @@
             "type": "string",
             "title": "Status"
           },
+          "status_label": {
+            "type": "string",
+            "title": "Status Label",
+            "default": ""
+          },
           "message": {
             "anyOf": [
               {
@@ -6566,6 +6679,13 @@
               }
             ],
             "title": "Awards Text"
+          },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
           },
           "checkin_date": {
             "type": "string",
@@ -6727,6 +6847,39 @@
         ],
         "title": "CheckinLogsPageOut"
       },
+      "CheckinNowBody": {
+        "properties": {
+          "game_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Code"
+          },
+          "role_uid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Uid"
+          }
+        },
+        "type": "object",
+        "title": "CheckinNowBody",
+        "description": "立即签到：可指定单个角色；省略则签该账号下全部角色。"
+      },
       "CheckinResponse": {
         "properties": {
           "skipped": {
@@ -6853,6 +7006,57 @@
               }
             ],
             "title": "Checkin Minute"
+          },
+          "last_checkin_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkin At"
+          },
+          "last_checkin_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkin Date"
+          },
+          "last_checkin_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkin Ok"
+          },
+          "last_checkin_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkin Summary"
+          },
+          "last_checkin_awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Last Checkin Awards"
           }
         },
         "type": "object",
@@ -12533,6 +12737,39 @@
               }
             ],
             "title": "Last Checkin Summary"
+          },
+          "today_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Today Status"
+          },
+          "today_status_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Today Status Label"
+          },
+          "today_awards_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Today Awards Text"
           },
           "bound_at": {
             "anyOf": [

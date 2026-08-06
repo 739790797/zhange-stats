@@ -3,30 +3,38 @@
 from __future__ import annotations
 
 import logging
-import threading
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
 from app.models.endfield import EndfieldBoxRaw
-from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.skland import SklandAttendanceRaw, SklandBind, SklandCheckinLog
-from app.services.checkin_common import (
-    CheckinResult,
-    apply_bind_last_checkin,
-    day_results_payload,
-    is_success_status,
-    load_day_checkin_results,
-    results_to_api,
-    summarize_results,
-    today_done_from_logs,
-    upsert_and_reload_day_results,
+from app.services.checkin_adapter import CheckinAdapterBase, CheckinRunOutcome
+from app.services.checkin_common import CheckinResult, is_success_status
+from app.services.checkin_orchestrator import (
+    checkin_job_wrapper as _orch_job_wrapper,
+)
+from app.services.checkin_orchestrator import (
+    query_today_for_bind as _orch_query_today,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_for_bind as _orch_run_checkin,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_job as _orch_run_job,
+)
+from app.services.checkin_role_prefs import (
+    PLATFORM_SKLAND,
+    RoleKey,
+    matches_role_filter,
 )
 from app.services.skland_client import (
+    GAME_ARKNIGHTS,
+    GAME_ENDFIELD,
     SklandApiError,
     SklandRole,
     checkin_role,
@@ -40,10 +48,8 @@ from app.services.skland_client import (
     normalize_hg_token,
     parse_endfield_box,
     query_role_today,
-    query_today_all,
+    query_today_all as skland_query_today_all,
     sort_skland_results,
-    GAME_ARKNIGHTS,
-    GAME_ENDFIELD,
 )
 from app.services.skland_calendar import parse_arknights_attendance_calendar
 from app.services.skland_attendance import fetch_arknights_attendance
@@ -51,7 +57,6 @@ from app.services.skland_attendance import fetch_arknights_attendance
 logger = logging.getLogger(__name__)
 
 JOB_KEY = "skland_checkin"
-_job_lock = threading.Lock()
 
 
 def get_bind_for_member(db: Session, member_id: int) -> SklandBind | None:
@@ -414,18 +419,192 @@ def get_endfield_box_for_member(
     return box, role, roles, row.synced_at, stale
 
 
-def _summarize(results: list[CheckinResult]) -> tuple[bool, str]:
-    return summarize_results(
-        results,
-        empty_message="未找到可签到的游戏角色（请确认已在森空岛绑定明日方舟 / 终末地）",
-    )
-
-
 def _session_for_bind(bind: SklandBind):
     token = decrypt_secret(bind.token_enc)
     if not token:
         raise SklandApiError("凭证已损坏，请重新绑定")
     return login_with_token(token)
+
+
+_EMPTY_ROLES_MSG = (
+    "未找到可签到的游戏角色（请确认已在森空岛绑定明日方舟 / 终末地）"
+)
+
+
+class SklandCheckinAdapter(CheckinAdapterBase):
+    platform = PLATFORM_SKLAND
+    job_key = JOB_KEY
+    bind_model = SklandBind
+    log_model = SklandCheckinLog
+    api_error_cls = SklandApiError
+    empty_message = _EMPTY_ROLES_MSG
+
+    def get_bind(self, db: Session, member_id: int) -> SklandBind | None:
+        return get_bind_for_member(db, member_id)
+
+    def load_session(self, db: Session, bind: SklandBind):
+        return _session_for_bind(bind)
+
+    def query_today_all(self, session) -> tuple[Any, list[CheckinResult]]:
+        return skland_query_today_all(session)
+
+    def run_checkins(
+        self,
+        session: Any,
+        *,
+        force: bool,
+        role_keys: set[RoleKey] | None,
+    ) -> CheckinRunOutcome:
+        roles = list_roles(session)
+        if role_keys is not None:
+            roles = [
+                r
+                for r in roles
+                if matches_role_filter(r.game_code, r.uid, role_keys)
+            ]
+        if not roles:
+            return CheckinRunOutcome(
+                session=session,
+                early_response={
+                    "skipped": False,
+                    "ok": False,
+                    "summary": _EMPTY_ROLES_MSG,
+                    "results": [],
+                },
+            )
+
+        results: list[CheckinResult] = []
+        for role in roles:
+            if not force:
+                probed = query_role_today(session, role)
+                if is_success_status(probed.status):
+                    if role.game_code == GAME_ARKNIGHTS:
+                        # 跳过执行时仍按「只写 award」落库，避免查询态 message 进执行记录
+                        results.append(
+                            CheckinResult(
+                                game_code=probed.game_code,
+                                game_name=probed.game_name,
+                                role_uid=probed.role_uid,
+                                role_name=probed.role_name,
+                                channel_name=probed.channel_name,
+                                status=probed.status,
+                                message=probed.awards_text or "",
+                                awards_text=probed.awards_text,
+                                awards=probed.awards,
+                            )
+                        )
+                    else:
+                        results.append(probed)
+                    continue
+            try:
+                result = checkin_role(session, role)
+            except SklandApiError as exc:
+                msg = exc.message or ""
+                already = "请勿重复签到" in msg or "重复签到" in msg
+                if already:
+                    result = query_role_today(session, role)
+                    if result.status == "pending":
+                        result = CheckinResult(
+                            game_code=role.game_code,
+                            game_name=role.game_name,
+                            role_uid=role.uid,
+                            role_name=role.role_name,
+                            channel_name=role.channel_name,
+                            status="already",
+                            message=(
+                                (result.awards_text or "")
+                                if role.game_code == GAME_ARKNIGHTS
+                                else "今日已签到"
+                            ),
+                            awards_text=result.awards_text,
+                            awards=result.awards,
+                        )
+                    elif (
+                        role.game_code == GAME_ARKNIGHTS
+                        and is_success_status(result.status)
+                    ):
+                        # 方舟执行落库只保留 award
+                        result = CheckinResult(
+                            game_code=result.game_code,
+                            game_name=result.game_name,
+                            role_uid=result.role_uid,
+                            role_name=result.role_name,
+                            channel_name=result.channel_name,
+                            status=result.status,
+                            message=result.awards_text or "",
+                            awards_text=result.awards_text,
+                            awards=result.awards,
+                        )
+                else:
+                    result = CheckinResult(
+                        game_code=role.game_code,
+                        game_name=role.game_name,
+                        role_uid=role.uid,
+                        role_name=role.role_name,
+                        channel_name=role.channel_name,
+                        status="error",
+                        message=friendly_error_message(msg),
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("skland checkin unexpected error")
+                result = CheckinResult(
+                    game_code=role.game_code,
+                    game_name=role.game_name,
+                    role_uid=role.uid,
+                    role_name=role.role_name,
+                    channel_name=role.channel_name,
+                    status="error",
+                    message=friendly_error_message(str(exc)),
+                )
+            results.append(result)
+        return CheckinRunOutcome(session=session, results=results)
+
+    def after_checkin(
+        self, db: Session, bind: SklandBind, results: list[CheckinResult]
+    ) -> None:
+        ak_uids = [
+            r.role_uid
+            for r in results
+            if r.game_code == GAME_ARKNIGHTS and is_success_status(r.status)
+        ]
+        if ak_uids:
+            invalidate_arknights_attendance_raws(
+                db, bind.member_id, uids=ak_uids
+            )
+
+    def friendly_error(self, message: str) -> str:
+        return friendly_error_message(message)
+
+    def prepare_cached_results(
+        self, results: list[CheckinResult]
+    ) -> list[CheckinResult] | None:
+        from app.services.skland_awards import (
+            arknights_result_needs_award_icons,
+            enrich_arknights_award_icons,
+        )
+
+        need_icons = False
+        for r in results:
+            if r.game_code == GAME_ARKNIGHTS and r.awards:
+                r.awards = enrich_arknights_award_icons(r.awards)
+            if arknights_result_needs_award_icons(r):
+                need_icons = True
+        if need_icons:
+            return None
+        for r in results:
+            if r.game_code == GAME_ENDFIELD:
+                r.channel_name = localize_endfield_server_name(r.channel_name)
+            elif r.game_code == GAME_ARKNIGHTS:
+                r.channel_name = localize_arknights_channel_name(r.channel_name)
+        return sort_skland_results(results)
+
+    def normalize_results(
+        self, results: list[CheckinResult]
+    ) -> list[CheckinResult]:
+        return sort_skland_results(results)
+
+
+skland_adapter = SklandCheckinAdapter()
 
 
 def query_today_for_bind(
@@ -435,59 +614,7 @@ def query_today_for_bind(
 
     方舟已签但缺结构化奖励图标时，即使无 force 也回源补全（旧日志仅有 awards_text）。
     """
-    from app.services.skland_awards import (
-        arknights_result_needs_award_icons,
-        enrich_arknights_award_icons,
-    )
-
-    checkin_date = today()
-    if not force:
-        cached = load_day_checkin_results(
-            db,
-            SklandCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-        )
-        if cached is not None:
-            need_icons = False
-            for r in cached:
-                if r.game_code == GAME_ARKNIGHTS and r.awards:
-                    r.awards = enrich_arknights_award_icons(r.awards)
-                if arknights_result_needs_award_icons(r):
-                    need_icons = True
-            if not need_icons:
-                for r in cached:
-                    if r.game_code == GAME_ENDFIELD:
-                        r.channel_name = localize_endfield_server_name(
-                            r.channel_name
-                        )
-                    elif r.game_code == GAME_ARKNIGHTS:
-                        r.channel_name = localize_arknights_channel_name(
-                            r.channel_name
-                        )
-                cached = sort_skland_results(cached)
-                return day_results_payload(cached)
-
-    session = _session_for_bind(bind)
-    try:
-        results = query_today_all(session)
-    except SklandApiError as exc:
-        raise SklandApiError(friendly_error_message(exc.message)) from exc
-    results = sort_skland_results(results)
-    now = now_naive()
-    merged = sort_skland_results(
-        upsert_and_reload_day_results(
-            db,
-            SklandCheckinLog,
-            member_id=bind.member_id,
-            bind_id=bind.id,
-            checkin_date=checkin_date,
-            results=results,
-            now=now,
-        )
-    )
-    db.commit()
-    return day_results_payload(merged)
+    return _orch_query_today(skland_adapter, db, bind, force=force)
 
 
 def query_today_for_member(
@@ -510,141 +637,22 @@ def run_checkin_for_bind(
 
     role_keys: 仅签这些 (game_code, role_uid)；None 表示全部（手动立即签到）。
     """
-    from app.services.checkin_role_prefs import matches_role_filter
-
-    checkin_date = today()
-    if not force:
-        done = today_done_from_logs(
-            db,
-            SklandCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-            role_keys=role_keys,
-        )
-        if done is not None:
-            # 部分角色跳过时仍返回全日缓存，便于前端展示
-            full = load_day_checkin_results(
-                db,
-                SklandCheckinLog,
-                member_id=bind.member_id,
-                checkin_date=checkin_date,
-            )
-            payload = day_results_payload(full or done)
-            return {
-                "skipped": True,
-                "ok": True,
-                "reason": "today_done",
-                "summary": payload.get("summary") or "今日已签到",
-                "results": payload.get("results") or [],
-            }
-
-    session = _session_for_bind(bind)
-    roles = list_roles(session)
-    if role_keys is not None:
-        roles = [
-            r
-            for r in roles
-            if matches_role_filter(r.game_code, r.uid, role_keys)
-        ]
-    if not roles:
-        return {
-            "skipped": False,
-            "ok": False,
-            "summary": "未找到可签到的游戏角色（请确认已在森空岛绑定明日方舟 / 终末地）",
-            "results": [],
-        }
-
-    results: list[CheckinResult] = []
-    for role in roles:
-        # 先查今日：已签则只补奖励，不 POST
-        if not force:
-            probed = query_role_today(session, role)
-            if is_success_status(probed.status):
-                results.append(probed)
-                continue
-        try:
-            result = checkin_role(session, role)
-        except SklandApiError as exc:
-            msg = exc.message or ""
-            already = "请勿重复签到" in msg or "重复签到" in msg
-            if already:
-                result = query_role_today(session, role)
-                if result.status == "pending":
-                    result = CheckinResult(
-                        game_code=role.game_code,
-                        game_name=role.game_name,
-                        role_uid=role.uid,
-                        role_name=role.role_name,
-                        channel_name=role.channel_name,
-                        status="already",
-                        message="今日已签到",
-                    )
-            else:
-                result = CheckinResult(
-                    game_code=role.game_code,
-                    game_name=role.game_name,
-                    role_uid=role.uid,
-                    role_name=role.role_name,
-                    channel_name=role.channel_name,
-                    status="error",
-                    message=friendly_error_message(msg),
-                )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("skland checkin unexpected error")
-            result = CheckinResult(
-                game_code=role.game_code,
-                game_name=role.game_name,
-                role_uid=role.uid,
-                role_name=role.role_name,
-                channel_name=role.channel_name,
-                status="error",
-                message=friendly_error_message(str(exc)),
-            )
-        results.append(result)
-
-    results = sort_skland_results(results)
-    ok, summary = _summarize(results)
-    now = now_naive()
-    apply_bind_last_checkin(
-        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    return _orch_run_checkin(
+        skland_adapter, db, bind, force=force, role_keys=role_keys
     )
-    merged = sort_skland_results(
-        upsert_and_reload_day_results(
-            db,
-            SklandCheckinLog,
-            member_id=bind.member_id,
-            bind_id=bind.id,
-            checkin_date=checkin_date,
-            results=results,
-            now=now,
-        )
-    )
-    ak_uids = [
-        r.role_uid
-        for r in results
-        if r.game_code == GAME_ARKNIGHTS and is_success_status(r.status)
-    ]
-    if ak_uids:
-        invalidate_arknights_attendance_raws(
-            db, bind.member_id, uids=ak_uids
-        )
-    db.commit()
-
-    return {
-        "skipped": False,
-        "summary": summary,
-        "ok": ok,
-        "results": results_to_api(merged),
-    }
 
 
 def run_checkin_for_member(
-    db: Session, member: Member, *, force: bool = False
+    db: Session,
+    member: Member,
+    *,
+    force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    return run_checkin_for_bind(db, bind, force=force)
+    return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
 
 
 def run_skland_checkin_job(
@@ -653,75 +661,10 @@ def run_skland_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.services.checkin_role_prefs import (
-        PLATFORM_SKLAND,
-        collect_checkin_job_targets,
+    return _orch_run_job(
+        skland_adapter, db, due_only=due_only, member_id=member_id
     )
-
-    targets = collect_checkin_job_targets(
-        db,
-        platform=PLATFORM_SKLAND,
-        bind_model=SklandBind,
-        due_only=due_only,
-        member_id=member_id,
-    )
-    binds_by_member = {
-        b.member_id: b
-        for b in db.query(SklandBind)
-        .options(joinedload(SklandBind.member))
-        .filter(SklandBind.member_id.in_(list(targets.keys()) or [-1]))
-        .all()
-    }
-    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
-    for mid, role_keys in targets.items():
-        bind = binds_by_member.get(mid)
-        if bind is None:
-            continue
-        if role_keys is not None and len(role_keys) == 0:
-            stats["skipped"] += 1
-            continue
-        try:
-            out = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
-            if out.get("skipped"):
-                stats["skipped"] += 1
-            elif out.get("ok"):
-                stats["ok"] += 1
-            else:
-                stats["failed"] += 1
-        except Exception:  # noqa: BLE001
-            logger.exception("skland auto checkin failed member_id=%s", mid)
-            stats["failed"] += 1
-            db.rollback()
-    return stats
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    from app.core.database import SessionLocal
-
-    if not _job_lock.acquire(blocking=False):
-        logger.info("skland checkin job already running, skip")
-        return
-    db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    try:
-        stats = run_skland_checkin_job(db, due_only=due_only, member_id=member_id)
-        job.status = "ok"
-        job.message = (
-            f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
-            f"跳过 {stats['skipped']}（共 {stats['total']}）"
-        )
-        job.stats = stats
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("skland checkin job crashed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()
-        _job_lock.release()
+    _orch_job_wrapper(skland_adapter, due_only=due_only, member_id=member_id)

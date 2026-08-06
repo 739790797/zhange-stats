@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.services.checkin_common import CheckinResult
+from app.services.checkin_common import CheckinResult, award_item
 from app.services.exilium_client import (
     GAME_CODE,
     GAME_NAME,
@@ -52,12 +52,32 @@ def sign_in(creds: ExiliumCredentials) -> CheckinResult:
     count = data.get("get_item_count")
     exp = data.get("get_exp")
     score = data.get("get_score")
+    awards_items: list[dict[str, Any]] = []
     parts: list[str] = []
     if item:
+        try:
+            qty = int(count) if count is not None else 1
+        except (TypeError, ValueError):
+            qty = 1
+        awards_items.append(award_item(name=item, count=qty))
         parts.append(f"{item}*{count}" if count is not None else item)
     if exp is not None:
+        try:
+            exp_i = int(exp)
+        except (TypeError, ValueError):
+            exp_i = 0
+        awards_items.append(
+            award_item(name="经验", count=exp_i, resource_type="exp")
+        )
         parts.append(f"经验+{exp}")
     if score is not None:
+        try:
+            score_i = int(score)
+        except (TypeError, ValueError):
+            score_i = 0
+        awards_items.append(
+            award_item(name="积分", count=score_i, resource_type="score")
+        )
         parts.append(f"积分+{score}")
     awards = "，".join(parts) if parts else None
     role_name = creds.nickname or mask_account(creds.account_name) or "社区账号"
@@ -70,17 +90,20 @@ def sign_in(creds: ExiliumCredentials) -> CheckinResult:
         status="ok",
         message="签到成功" + (f"：{awards}" if awards else ""),
         awards_text=awards,
+        awards=awards_items or None,
     )
 
 
-def _awards_from_score_log(creds: ExiliumCredentials) -> str | None:
+def _awards_from_score_log(
+    creds: ExiliumCredentials,
+) -> tuple[str | None, list[dict[str, Any]]]:
     """已签到时官方不再返回奖励明细，从积分变动记录（points_Log）补全。"""
     from app.core.timeutil import today as beijing_today
 
     try:
         data = list_score_logs(creds, page=1, page_size=30)
     except ExiliumApiError:
-        return None
+        return None, []
     day = beijing_today().isoformat()
     for row in data.get("list") or []:
         if not isinstance(row, dict):
@@ -92,8 +115,11 @@ def _awards_from_score_log(creds: ExiliumCredentials) -> str | None:
         if not log_time.startswith(day):
             continue
         score = _to_int(row.get("score"), 0)
-        return f"积分+{score}" if score else "签到奖励已发放"
-    return None
+        if score:
+            item = award_item(name="积分", count=score, resource_type="score")
+            return f"积分+{score}", [item]
+        return "签到奖励已发放", []
+    return None, []
 
 
 def _today_task_score_summary(creds: ExiliumCredentials) -> tuple[int, int]:
@@ -270,7 +296,7 @@ def _tasks_extra_from_score_log(creds: ExiliumCredentials) -> str | None:
 
 def _already_result(creds: ExiliumCredentials) -> CheckinResult:
     role_name = creds.nickname or mask_account(creds.account_name) or "社区账号"
-    awards = _awards_from_score_log(creds)
+    awards_text, awards_items = _awards_from_score_log(creds)
     return CheckinResult(
         game_code=GAME_CODE,
         game_name=GAME_NAME,
@@ -278,8 +304,9 @@ def _already_result(creds: ExiliumCredentials) -> CheckinResult:
         role_name=role_name,
         channel_name="官方社区",
         status="already",
-        message="今日已签到" + (f"：{awards}" if awards else ""),
-        awards_text=awards,
+        message="今日已签到" + (f"：{awards_text}" if awards_text else ""),
+        awards_text=awards_text,
+        awards=awards_items or None,
     )
 
 
@@ -304,7 +331,9 @@ def query_today(creds: ExiliumCredentials) -> tuple[ExiliumCredentials, list[Che
     return working, [result]
 
 
-def checkin(creds: ExiliumCredentials, *, force: bool = False) -> tuple[ExiliumCredentials, CheckinResult]:
+def checkin(
+    creds: ExiliumCredentials, *, force: bool = False
+) -> tuple[ExiliumCredentials, list[CheckinResult]]:
     _ = force
     working = ensure_session(creds)
     signed = get_sign_in_status(working)
@@ -329,5 +358,5 @@ def checkin(creds: ExiliumCredentials, *, force: bool = False) -> tuple[ExiliumC
                     status="error",
                     message=friendly_error_message(msg),
                 )
-                return working, result
-    return working, _attach_daily_tasks(working, result)
+                return working, [result]
+    return working, [_attach_daily_tasks(working, result)]

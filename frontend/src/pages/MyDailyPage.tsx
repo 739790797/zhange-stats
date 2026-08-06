@@ -18,6 +18,7 @@ import {
   type UserCheckinTask,
 } from "@/api/client";
 import { CheckinStatusTag } from "@/components/CheckinStatusTag";
+import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import {
   CHECKIN_PLATFORM_LABELS,
   CHECKIN_PLATFORM_ORDER,
@@ -267,7 +268,13 @@ export default function MyDailyPage() {
       title: "摘要",
       key: "summary",
       ellipsis: true,
-      render: (_, row) => row.awards_text || row.message || "-",
+      render: (_, row) => (
+        <CheckinAwardsLine
+          awards={row.awards}
+          awardsText={row.awards_text || null}
+          fallback="-"
+        />
+      ),
     },
   ];
 

@@ -12,8 +12,14 @@ STATUS_ALREADY = "already"
 STATUS_ERROR = "error"
 STATUS_SKIPPED = "skipped"
 STATUS_PENDING = "pending"
+# 上游查询残缺、无法判定已签/未签（如方舟 B 服 GET records 常为空）
+STATUS_UNKNOWN = "unknown"
 
 SUCCESS_STATUSES = frozenset({STATUS_OK, STATUS_ALREADY})
+
+# 今日 logs 来源：status=同步/查询缓存；action=真正执行签到
+LOG_SOURCE_STATUS = "status"
+LOG_SOURCE_ACTION = "action"
 
 # 展示文案：ok / already 统一为「已签」
 STATUS_LABELS: dict[str, str] = {
@@ -22,6 +28,7 @@ STATUS_LABELS: dict[str, str] = {
     STATUS_ERROR: "失败",
     STATUS_SKIPPED: "跳过",
     STATUS_PENDING: "未签",
+    STATUS_UNKNOWN: "待确认",
 }
 
 
@@ -32,7 +39,7 @@ class CheckinResult:
     role_uid: str
     role_name: str
     channel_name: str
-    status: str  # ok | already | error | skipped
+    status: str  # ok | already | error | skipped | pending | unknown
     message: str
     awards_text: str | None = None
     extra_text: str | None = None
@@ -77,6 +84,42 @@ def is_placeholder_awards(text: str | None) -> bool:
     # 多段里若全是占位也视为不完整
     parts = [p.strip() for p in re.split(r"[·，,、]", raw) if p.strip()]
     return bool(parts) and all(_PLACEHOLDER_AWARDS.fullmatch(p) for p in parts)
+
+
+def award_item(
+    *,
+    name: str,
+    count: int = 1,
+    resource_id: Any = None,
+    resource_type: Any = None,
+    icon_url: str | None = None,
+) -> dict[str, Any]:
+    """跨平台结构化奖励条目（落 awards_json / API awards）。"""
+    item: dict[str, Any] = {"name": str(name).strip() or "奖励", "count": int(count)}
+    if resource_id is not None and str(resource_id).strip():
+        item["resource_id"] = str(resource_id).strip()
+    rtype = str(resource_type).strip() if resource_type is not None else ""
+    if rtype:
+        item["resource_type"] = rtype
+    if icon_url and str(icon_url).strip():
+        item["icon_url"] = str(icon_url).strip()
+    return item
+
+
+def awards_text_from_items(items: list[dict[str, Any]] | None) -> str | None:
+    if not items:
+        return None
+    parts: list[str] = []
+    for a in items:
+        if not isinstance(a, dict) or not a.get("name"):
+            continue
+        name = str(a["name"]).strip()
+        try:
+            count = int(a.get("count") or 1)
+        except (TypeError, ValueError):
+            count = 1
+        parts.append(f"{name}x{count}")
+    return "、".join(parts) if parts else None
 
 
 def awards_richness(text: str | None) -> tuple[int, int, int]:
@@ -176,6 +219,54 @@ def loads_awards_json(raw: str | None) -> list[dict[str, Any]] | None:
 def status_label(status: str | None) -> str:
     key = (status or "").strip()
     return STATUS_LABELS.get(key, key or "-")
+
+
+def _is_bilibili_channel(channel_name: str | None) -> bool:
+    name = (channel_name or "").strip().lower()
+    if not name:
+        return False
+    return (
+        "bilibili" in name
+        or "哔哩" in (channel_name or "")
+        or "b服" in name
+        or "b 服" in name
+    )
+
+
+_QUERY_PENDING_MESSAGES = frozenset(
+    {
+        "今日尚未签到",
+        "今日未签到",
+        "尚未签到",
+    }
+)
+
+
+def display_checkin_awards_summary(
+    *,
+    awards_text: str | None,
+    message: str | None = None,
+    status: str | None = None,
+    channel_name: str | None = None,
+    game_code: str | None = None,
+) -> str | None:
+    """执行记录摘要：优先 award；B 服无奖固定提示；不回落查询态「尚未签到」。"""
+    del game_code  # 预留
+    text = (awards_text or "").strip()
+    if text:
+        return text
+    msg = (message or "").strip()
+    bili = _is_bilibili_channel(channel_name)
+    pending_like = msg in _QUERY_PENDING_MESSAGES or "尚未签到" in msg
+    if is_success_status(status):
+        if bili:
+            return "B服不支持查询"
+        if pending_like:
+            return None
+        if msg.startswith("今日已签到") or msg.startswith("签到成功") or "获得" in msg:
+            return msg
+        return None
+    return msg or None
 
 
 def summarize_results(results: list[CheckinResult], *, empty_message: str) -> tuple[bool, str]:
@@ -304,14 +395,34 @@ def upsert_day_checkin_logs(
     checkin_date: Any,
     results: list[CheckinResult],
     now: Any,
+    source: str = LOG_SOURCE_STATUS,
 ) -> None:
-    """按今日角色键 upsert 签到/查询结果。"""
+    """按今日角色键 upsert 签到/查询结果。
+
+    source=status：打开页/同步官方的查询缓存。
+    source=action：立即签到或调度真正执行。
+    已有 action 行不会被 status 写回降成 status。
+    """
+    source = (
+        LOG_SOURCE_ACTION
+        if source == LOG_SOURCE_ACTION
+        else LOG_SOURCE_STATUS
+    )
     for r in results:
         role_uid = str(r.role_uid or "-")
         game_code = str(r.game_code or "")
         message = r.message or ""
         if r.extra_text:
             message = f"{message}\n{r.extra_text}" if message else r.extra_text
+        # 明日方舟执行记录：成功态只落 award，不写状态句
+        awards_text = r.awards_text
+        if (
+            source == LOG_SOURCE_ACTION
+            and game_code == "arknights"
+            and is_success_status(r.status)
+        ):
+            awards_text = (r.awards_text or "").strip() or None
+            message = awards_text or ""
         row = (
             db.query(log_model)
             .filter(
@@ -322,49 +433,73 @@ def upsert_day_checkin_logs(
             )
             .one_or_none()
         )
+        extra: dict[str, Any] = {}
+        if hasattr(log_model, "awards_json"):
+            extra["awards_json"] = dumps_awards_json(r.awards)
         if row is None:
-            db.add(
-                log_model(
-                    member_id=member_id,
-                    bind_id=bind_id,
-                    game_code=game_code,
-                    game_name=r.game_name or game_code,
-                    role_uid=role_uid,
-                    role_name=r.role_name or None,
-                    channel_name=r.channel_name or None,
-                    status=r.status,
-                    message=message or None,
-                    awards_text=r.awards_text,
-                    checkin_date=checkin_date,
-                    checked_at=now,
-                    **(
-                        {"awards_json": dumps_awards_json(r.awards)}
-                        if hasattr(log_model, "awards_json")
-                        else {}
-                    ),
-                )
+            create_kw: dict[str, Any] = dict(
+                member_id=member_id,
+                bind_id=bind_id,
+                game_code=game_code,
+                game_name=r.game_name or game_code,
+                role_uid=role_uid,
+                role_name=r.role_name or None,
+                channel_name=r.channel_name or None,
+                status=r.status,
+                message=message or None,
+                awards_text=awards_text,
+                checkin_date=checkin_date,
+                checked_at=now,
+                **extra,
             )
+            if hasattr(log_model, "source"):
+                create_kw["source"] = source
+            db.add(log_model(**create_kw))
         else:
             row.game_name = r.game_name or row.game_name
             row.role_name = r.role_name or row.role_name
             row.channel_name = r.channel_name or row.channel_name
-            # 上游残缺查询（如 B 服 GET 无 records）不得把已签降成未签
-            if not (
-                is_success_status(row.status) and r.status == STATUS_PENDING
-            ):
+            # 上游残缺查询（如 B 服 GET 无 records）不得把已签降成未签/待确认
+            status_protected = is_success_status(row.status) and r.status in (
+                STATUS_PENDING,
+                STATUS_UNKNOWN,
+            )
+            if not status_protected:
                 row.status = r.status
-            row.message = message or row.message
+                # 状态被保护时，勿用「今日尚未签到」等查询文案覆盖执行摘要
+                row.message = message or row.message
             # 奖励文案：同步残缺结果不得覆盖签到时已写入的完整明细
             prev_text = row.awards_text
             prev_items = loads_awards_json(getattr(row, "awards_json", None))
-            row.awards_text = prefer_richer_awards(prev_text, r.awards_text)
-            if hasattr(row, "awards_json"):
-                row.awards_json = dumps_awards_json(
-                    prefer_richer_award_items(
-                        prev_text, prev_items, r.awards_text, r.awards
+            if (
+                source == LOG_SOURCE_ACTION
+                and game_code == "arknights"
+                and is_success_status(r.status)
+            ):
+                # 方舟执行：直接以本次 award 为准（可为空）
+                row.awards_text = awards_text
+                if hasattr(row, "awards_json"):
+                    row.awards_json = dumps_awards_json(r.awards)
+                row.message = awards_text or ""
+            else:
+                row.awards_text = prefer_richer_awards(prev_text, awards_text)
+                if hasattr(row, "awards_json"):
+                    row.awards_json = dumps_awards_json(
+                        prefer_richer_award_items(
+                            prev_text, prev_items, awards_text, r.awards
+                        )
                     )
-                )
-            row.checked_at = now
+            # action 优先：status 同步不得把已执行记录改回「仅查询」
+            if hasattr(row, "source"):
+                prev_source = str(getattr(row, "source", "") or LOG_SOURCE_STATUS)
+                if source == LOG_SOURCE_ACTION or prev_source != LOG_SOURCE_ACTION:
+                    row.source = source
+                if source == LOG_SOURCE_ACTION:
+                    row.checked_at = now
+                elif prev_source != LOG_SOURCE_ACTION:
+                    row.checked_at = now
+            else:
+                row.checked_at = now
 
 
 def upsert_and_reload_day_results(
@@ -376,6 +511,7 @@ def upsert_and_reload_day_results(
     checkin_date: Any,
     results: list[CheckinResult],
     now: Any,
+    source: str = LOG_SOURCE_STATUS,
 ) -> list[CheckinResult]:
     """写入并读回合并后的今日结果（供接口返回，避免带回残缺 awards）。"""
     if results:
@@ -387,6 +523,7 @@ def upsert_and_reload_day_results(
             checkin_date=checkin_date,
             results=results,
             now=now,
+            source=source,
         )
         db.flush()
     cached = load_day_checkin_results(

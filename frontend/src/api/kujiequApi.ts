@@ -59,7 +59,13 @@ export async function updateKujiequRolePref(payload: {
   return data;
 }
 
-export async function triggerKujiequCheckin() {
-  const { data } = await client.post<KujiequCheckinResponse>("/kujiequ/checkin");
+export async function triggerKujiequCheckin(payload?: {
+  game_code: string;
+  role_uid: string;
+}) {
+  const { data } = await client.post<KujiequCheckinResponse>(
+    "/kujiequ/checkin",
+    payload ?? {},
+  );
   return data;
 }

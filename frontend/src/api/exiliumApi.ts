@@ -66,8 +66,14 @@ export async function updateExiliumRolePref(payload: {
   return data;
 }
 
-export async function triggerExiliumCheckin() {
-  const { data } = await client.post<ExiliumCheckinResponse>("/exilium/checkin");
+export async function triggerExiliumCheckin(payload?: {
+  game_code: string;
+  role_uid: string;
+}) {
+  const { data } = await client.post<ExiliumCheckinResponse>(
+    "/exilium/checkin",
+    payload ?? {},
+  );
   return data;
 }
 

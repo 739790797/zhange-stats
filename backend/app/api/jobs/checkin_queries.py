@@ -27,7 +27,14 @@ from app.core.timeutil import BEIJING
 from app.models.checkin_role_pref import CheckinRolePref
 from app.models.member import Member
 from app.models.user import User
-from app.services.checkin_common import is_success_status, status_label
+from app.schemas.checkin import CheckinAwardItem
+from app.services.checkin_common import (
+    LOG_SOURCE_ACTION,
+    display_checkin_awards_summary,
+    is_success_status,
+    loads_awards_json,
+    status_label,
+)
 from app.services.platform_features import CHECKIN_PLATFORM_FEATURES, PLATFORM_SHORT_NAMES, is_feature_enabled
 
 router = APIRouter()
@@ -159,14 +166,25 @@ def query_user_checkin_tasks(
                 .all()
             )
             log_meta = _role_log_meta(db, log_model, member_id=int(bind.member_id))
+            today_meta = _role_today_status_meta(
+                db, log_model, member_id=int(bind.member_id)
+            )
 
             if prefs:
                 for pref in prefs:
                     key = (str(pref.game_code), str(pref.role_uid))
                     meta = log_meta.get(key) or {}
-                    game_name = str(meta.get("game_name") or pref.game_code)
+                    tmeta = today_meta.get(key) or {}
+                    game_name = str(
+                        tmeta.get("game_name")
+                        or meta.get("game_name")
+                        or pref.game_code
+                    )
                     role_name = str(
-                        meta.get("role_name") or pref.role_uid or pref.game_code
+                        tmeta.get("role_name")
+                        or meta.get("role_name")
+                        or pref.role_uid
+                        or pref.game_code
                     )
                     items.append(
                         UserCheckinTaskOut(
@@ -183,6 +201,9 @@ def query_user_checkin_tasks(
                             game_name=game_name,
                             role_uid=str(pref.role_uid),
                             role_name=role_name,
+                            today_status=tmeta.get("status"),
+                            today_status_label=tmeta.get("status_label"),
+                            today_awards_text=tmeta.get("awards_text"),
                             last_checkin_at=_fmt_dt(meta.get("checked_at")),
                             last_checkin_date=(
                                 meta["checkin_date"].isoformat()
@@ -237,19 +258,27 @@ def query_user_checkin_tasks(
     )
 
 
+def _action_only_filter(log_model: Any):
+    """执行记录 / 上次执行只认 source=action。"""
+    if hasattr(log_model, "source"):
+        return log_model.source == LOG_SOURCE_ACTION
+    return True
+
+
 def _role_log_meta(
     db: Session,
     log_model: Any | None,
     *,
     member_id: int,
 ) -> dict[tuple[str, str], dict[str, Any]]:
-    """每个角色最近一条签到日志的展示元数据。"""
+    """每个角色最近一条「真正执行」签到日志的展示元数据。"""
     if log_model is None:
         return {}
+    q = db.query(log_model).filter(log_model.member_id == int(member_id))
+    if hasattr(log_model, "source"):
+        q = q.filter(_action_only_filter(log_model))
     rows = (
-        db.query(log_model)
-        .filter(log_model.member_id == int(member_id))
-        .order_by(desc(log_model.checked_at), desc(log_model.id))
+        q.order_by(desc(log_model.checked_at), desc(log_model.id))
         .limit(80)
         .all()
     )
@@ -258,7 +287,13 @@ def _role_log_meta(
         key = (str(row.game_code or ""), str(row.role_uid or ""))
         if not key[0] or not key[1] or key in out:
             continue
-        summary = row.awards_text or row.message
+        summary = display_checkin_awards_summary(
+            awards_text=row.awards_text,
+            message=row.message,
+            status=str(row.status or ""),
+            channel_name=getattr(row, "channel_name", None),
+            game_code=str(row.game_code or ""),
+        )
         status = str(row.status or "")
         ok: bool | None
         if is_success_status(status):
@@ -267,10 +302,6 @@ def _role_log_meta(
             ok = False
         else:
             ok = None
-        if summary and status:
-            label = status_label(status)
-            if label and label not in str(summary):
-                summary = f"{label} · {summary}"
         out[key] = {
             "game_name": row.game_name,
             "role_name": row.role_name,
@@ -278,7 +309,79 @@ def _role_log_meta(
             "checkin_date": row.checkin_date,
             "ok": ok,
             "summary": summary,
+            "awards": loads_awards_json(getattr(row, "awards_json", None)) or [],
         }
+    return out
+
+
+def _role_today_status_meta(
+    db: Session,
+    log_model: Any | None,
+    *,
+    member_id: int,
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """今日签到状态（查询或执行写入的今日 logs，与是否执行无关）。"""
+    from app.core.timeutil import today
+
+    if log_model is None:
+        return {}
+    rows = (
+        db.query(log_model)
+        .filter(
+            log_model.member_id == int(member_id),
+            log_model.checkin_date == today(),
+        )
+        .all()
+    )
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (str(row.game_code or ""), str(row.role_uid or ""))
+        if not key[0] or not key[1]:
+            continue
+        out[key] = {
+            "status": str(row.status or ""),
+            "status_label": status_label(row.status),
+            "awards_text": display_checkin_awards_summary(
+                awards_text=row.awards_text,
+                message=row.message,
+                status=str(row.status or ""),
+                channel_name=getattr(row, "channel_name", None),
+                game_code=str(row.game_code or ""),
+            ),
+            "game_name": row.game_name,
+            "role_name": row.role_name,
+        }
+    return out
+
+
+def attach_last_checkin_to_result_dicts(
+    db: Session,
+    *,
+    platform: str,
+    member_id: int,
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """把任务页同源的上次执行字段挂到 status today_results。"""
+    if not results:
+        return results
+    meta = _role_log_meta(
+        db, _checkin_log_model(platform), member_id=int(member_id)
+    )
+    out: list[dict[str, Any]] = []
+    for r in results:
+        item = dict(r)
+        key = (str(item.get("game_code") or ""), str(item.get("role_uid") or ""))
+        m = meta.get(key) or {}
+        item["last_checkin_at"] = _fmt_dt(m.get("checked_at"))
+        item["last_checkin_date"] = (
+            m["checkin_date"].isoformat()
+            if m.get("checkin_date") is not None
+            else None
+        )
+        item["last_checkin_ok"] = m.get("ok")
+        item["last_checkin_summary"] = m.get("summary")
+        item["last_checkin_awards"] = m.get("awards") or []
+        out.append(item)
     return out
 
 
@@ -307,6 +410,8 @@ def query_checkin_logs(
         q = db.query(model)
         if member_id is not None:
             q = q.filter(model.member_id == int(member_id))
+        if hasattr(model, "source"):
+            q = q.filter(model.source == LOG_SOURCE_ACTION)
         total = int(q.count() or 0)
         rows = (
             q.order_by(desc(model.checked_at), desc(model.id))
@@ -326,6 +431,8 @@ def query_checkin_logs(
             q = db.query(model)
             if member_id is not None:
                 q = q.filter(model.member_id == int(member_id))
+            if hasattr(model, "source"):
+                q = q.filter(model.source == LOG_SOURCE_ACTION)
             total += int(q.count() or 0)
             for row in q.order_by(desc(model.checked_at), desc(model.id)).limit(
                 fetch_n
@@ -353,6 +460,19 @@ def query_checkin_logs(
     items = []
     for p, row in page_rows:
         member = members.get(row.member_id)
+        raw_awards = loads_awards_json(getattr(row, "awards_json", None)) or []
+        awards = [
+            CheckinAwardItem(**a) if isinstance(a, dict) else a for a in raw_awards
+        ]
+        # 过滤非法条目：CheckinAwardItem 需要 name
+        awards = [a for a in awards if getattr(a, "name", None)]
+        awards_display = display_checkin_awards_summary(
+            awards_text=row.awards_text,
+            message=row.message,
+            status=str(row.status or ""),
+            channel_name=getattr(row, "channel_name", None),
+            game_code=str(row.game_code or ""),
+        )
         items.append(
             CheckinLogItemOut(
                 id=row.id,
@@ -364,8 +484,10 @@ def query_checkin_logs(
                 role_uid=row.role_uid,
                 role_name=row.role_name,
                 status=row.status,
+                status_label=status_label(row.status),
                 message=row.message,
-                awards_text=row.awards_text,
+                awards_text=awards_display,
+                awards=awards,
                 checkin_date=row.checkin_date.isoformat()
                 if row.checkin_date
                 else "",

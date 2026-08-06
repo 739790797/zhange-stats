@@ -35,3 +35,10 @@ _tmp_*/
 frontend/public/brand/_preview/
 frontend/public/brand/_gen_from_original.py
 frontend/public/brand/_preview_render.cjs
+
+# local_dev：仅跟踪灌数 CLI；探测脚本 / 样例 JSON 不入库
+backend/local_dev/*
+!backend/local_dev/README.md
+!backend/local_dev/__init__.py
+!backend/local_dev/seed_local.py
+!backend/local_dev/steam_fake.py

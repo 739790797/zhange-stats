@@ -4,25 +4,39 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from typing import Any
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
-from app.core.timeutil import now_naive, today
+from app.core.timeutil import now_naive
 from app.models.exilium import ExiliumBind, ExiliumCheckinLog
-from app.models.job_run import JobRun
 from app.models.member import Member
-from app.services.checkin_common import (
-    apply_bind_last_checkin,
-    day_results_payload,
-    load_day_checkin_results,
-    results_to_api,
-    summarize_results,
-    upsert_and_reload_day_results,
+from app.services.checkin_adapter import (
+    CheckinAdapterBase,
+    CheckinRunOutcome,
+    SkipPolicy,
+)
+from app.services.checkin_common import CheckinResult
+from app.services.checkin_orchestrator import (
+    checkin_job_wrapper as _orch_job_wrapper,
+)
+from app.services.checkin_orchestrator import (
+    query_today_for_bind as _orch_query_today,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_for_bind as _orch_run_checkin,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_job as _orch_run_job,
+)
+from app.services.checkin_role_prefs import (
+    PLATFORM_EXILIUM,
+    RoleKey,
+    matches_role_filter,
 )
 from app.services.exilium_client import (
+    GAME_CODE,
     ExiliumApiError,
     ExiliumCredentials,
     checkin,
@@ -41,7 +55,6 @@ from app.services.exilium_client import (
 logger = logging.getLogger(__name__)
 
 JOB_KEY = "exilium_checkin"
-_job_lock = threading.Lock()
 
 
 def get_bind_for_member(db: Session, member_id: int) -> ExiliumBind | None:
@@ -233,38 +246,90 @@ def fetch_score_logs(
     return list_score_logs(working, page=page, page_size=page_size)
 
 
+class ExiliumCheckinAdapter(CheckinAdapterBase):
+    platform = PLATFORM_EXILIUM
+    job_key = JOB_KEY
+    bind_model = ExiliumBind
+    log_model = ExiliumCheckinLog
+    api_error_cls = ExiliumApiError
+    empty_message = "未执行签到"
+    skip_policy = SkipPolicy.ALWAYS_RUN
+
+    def get_bind(self, db: Session, member_id: int) -> ExiliumBind | None:
+        return get_bind_for_member(db, member_id)
+
+    def load_session(self, db: Session, bind: ExiliumBind) -> ExiliumCredentials:
+        return _load_creds(bind)
+
+    def save_session(
+        self, db: Session, bind: ExiliumBind, session: ExiliumCredentials
+    ) -> None:
+        _save_creds(bind, session)
+
+    def query_today_all(
+        self, session: ExiliumCredentials
+    ) -> tuple[ExiliumCredentials, list[CheckinResult]]:
+        return query_today(session)
+
+    def run_checkins(
+        self,
+        session: ExiliumCredentials,
+        *,
+        force: bool,
+        role_keys: set[RoleKey] | None,
+    ) -> CheckinRunOutcome:
+        expected_uid = session.user_id or session.account_name or "-"
+        if role_keys is not None and not matches_role_filter(
+            GAME_CODE, expected_uid, role_keys
+        ):
+            return CheckinRunOutcome(
+                session=session,
+                early_response={
+                    "skipped": True,
+                    "ok": True,
+                    "reason": "role_filtered",
+                    "summary": "当前时间无需签到该角色",
+                    "results": [],
+                },
+            )
+        # 即使今日已签，仍走 checkin：会补跑每日任务（浏览/点赞/分享）
+        working, results = checkin(session, force=force)
+        return CheckinRunOutcome(session=working, results=results)
+
+    def friendly_error(self, message: str) -> str:
+        return friendly_error_message(message)
+
+    def enrich_summary(self, summary: str, results: list[CheckinResult]) -> str:
+        extra_parts = [r.extra_text for r in results if r.extra_text]
+        if not extra_parts:
+            return summary
+        return f"{summary}\n" + "\n".join(extra_parts)
+
+    def mark_as_skipped(
+        self,
+        bind: ExiliumBind,
+        results: list[CheckinResult],
+        *,
+        force: bool,
+        checkin_date: Any,
+    ) -> bool:
+        if force or not results:
+            return False
+        result = results[0]
+        return bool(
+            bind.last_checkin_date == checkin_date
+            and bind.last_checkin_ok
+            and result.status == "already"
+        )
+
+
+exilium_adapter = ExiliumCheckinAdapter()
+
+
 def query_today_for_bind(
     db: Session, bind: ExiliumBind, *, force: bool = False
 ) -> dict[str, Any]:
-    checkin_date = today()
-    if not force:
-        cached = load_day_checkin_results(
-            db,
-            ExiliumCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-        )
-        if cached is not None:
-            return day_results_payload(cached)
-
-    creds = _load_creds(bind)
-    try:
-        working, results = query_today(creds)
-    except ExiliumApiError as exc:
-        raise ExiliumApiError(friendly_error_message(exc.message)) from exc
-    _save_creds(bind, working)
-    now = now_naive()
-    merged = upsert_and_reload_day_results(
-        db,
-        ExiliumCheckinLog,
-        member_id=bind.member_id,
-        bind_id=bind.id,
-        checkin_date=checkin_date,
-        results=results,
-        now=now,
-    )
-    db.commit()
-    return day_results_payload(merged)
+    return _orch_query_today(exilium_adapter, db, bind, force=force)
 
 
 def run_checkin_for_bind(
@@ -274,70 +339,22 @@ def run_checkin_for_bind(
     force: bool = False,
     role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    from app.services.checkin_role_prefs import matches_role_filter
-    from app.services.exilium_client import GAME_CODE
-
-    checkin_date = today()
-    creds = _load_creds(bind)
-    expected_uid = creds.user_id or creds.account_name or "-"
-    if role_keys is not None and not matches_role_filter(
-        GAME_CODE, expected_uid, role_keys
-    ):
-        return {
-            "skipped": True,
-            "ok": True,
-            "reason": "role_filtered",
-            "summary": "当前时间无需签到该角色",
-            "results": [],
-        }
-
-    # 即使今日已签，仍走 checkin：会补跑每日任务（浏览/点赞/分享）
-    try:
-        working, result = checkin(creds, force=force)
-    except ExiliumApiError as exc:
-        raise ExiliumApiError(friendly_error_message(exc.message)) from exc
-
-    _save_creds(bind, working)
-    results = [result]
-    ok, summary = summarize_results(results, empty_message="未执行签到")
-    if result.extra_text:
-        summary = f"{summary}\n{result.extra_text}"
-    already_done = (
-        not force
-        and bind.last_checkin_date == checkin_date
-        and bind.last_checkin_ok
-        and result.status == "already"
+    return _orch_run_checkin(
+        exilium_adapter, db, bind, force=force, role_keys=role_keys
     )
-    now = now_naive()
-    apply_bind_last_checkin(
-        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
-    )
-    merged = upsert_and_reload_day_results(
-        db,
-        ExiliumCheckinLog,
-        member_id=bind.member_id,
-        bind_id=bind.id,
-        checkin_date=checkin_date,
-        results=results,
-        now=now,
-    )
-    db.commit()
-
-    return {
-        "skipped": bool(already_done),
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(merged),
-    }
 
 
 def run_checkin_for_member(
-    db: Session, member: Member, *, force: bool = False
+    db: Session,
+    member: Member,
+    *,
+    force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
-    return run_checkin_for_bind(db, bind, force=force)
+    return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
 
 
 def run_exilium_checkin_job(
@@ -346,75 +363,10 @@ def run_exilium_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.services.checkin_role_prefs import (
-        PLATFORM_EXILIUM,
-        collect_checkin_job_targets,
+    return _orch_run_job(
+        exilium_adapter, db, due_only=due_only, member_id=member_id
     )
-
-    targets = collect_checkin_job_targets(
-        db,
-        platform=PLATFORM_EXILIUM,
-        bind_model=ExiliumBind,
-        due_only=due_only,
-        member_id=member_id,
-    )
-    binds_by_member = {
-        b.member_id: b
-        for b in db.query(ExiliumBind)
-        .options(joinedload(ExiliumBind.member))
-        .filter(ExiliumBind.member_id.in_(list(targets.keys()) or [-1]))
-        .all()
-    }
-    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
-    for mid, role_keys in targets.items():
-        bind = binds_by_member.get(mid)
-        if bind is None:
-            continue
-        if role_keys is not None and len(role_keys) == 0:
-            stats["skipped"] += 1
-            continue
-        try:
-            out = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
-            if out.get("skipped"):
-                stats["skipped"] += 1
-            elif out.get("ok"):
-                stats["ok"] += 1
-            else:
-                stats["failed"] += 1
-        except Exception:  # noqa: BLE001
-            logger.exception("exilium auto checkin failed member_id=%s", mid)
-            stats["failed"] += 1
-            db.rollback()
-    return stats
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    from app.core.database import SessionLocal
-
-    if not _job_lock.acquire(blocking=False):
-        logger.info("exilium checkin job already running, skip")
-        return
-    db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    try:
-        stats = run_exilium_checkin_job(db, due_only=due_only, member_id=member_id)
-        job.status = "ok"
-        job.message = (
-            f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
-            f"跳过 {stats['skipped']}（共 {stats['total']}）"
-        )
-        job.stats = stats
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("exilium checkin job crashed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()
-        _job_lock.release()
+    _orch_job_wrapper(exilium_adapter, due_only=due_only, member_id=member_id)

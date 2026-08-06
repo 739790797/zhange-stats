@@ -22,7 +22,7 @@ alwaysApply: false
 
 - 远端状态用 TanStack Query；勿把服务端列表塞进 zustand
 - UI 沿用 Ant Design；**新签到页**套 `CheckinPageTemplate`
-- 盒子/签到读库优先；刷新传 `force`（见 `platform-raw-cache`）
+- 盒子读库优先；**签到展示**打开页始终 `force` 回源（见 `platform-raw-cache`）
 
 ## 类型
 

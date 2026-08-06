@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.checkin import CheckinAwardItem
 from app.services.scheduler_runtime import APP_EXECUTOR_ID
 
 
@@ -83,8 +84,10 @@ class CheckinLogItemOut(BaseModel):
     role_uid: str
     role_name: str | None = None
     status: str
+    status_label: str = ""
     message: str | None = None
     awards_text: str | None = None
+    awards: list[CheckinAwardItem] = Field(default_factory=list)
     checkin_date: str
     checked_at: str | None = None
 
@@ -123,6 +126,10 @@ class UserCheckinTaskOut(BaseModel):
     last_checkin_date: str | None = None
     last_checkin_ok: bool | None = None
     last_checkin_summary: str | None = None
+    # 今日签到状态（查询缓存或执行结果，与「是否执行」独立）
+    today_status: str | None = None
+    today_status_label: str | None = None
+    today_awards_text: str | None = None
     bound_at: str | None = None
 
 

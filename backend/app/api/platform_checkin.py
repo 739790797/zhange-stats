@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models.member import Member
+from app.schemas.checkin import CheckinNowBody
 
 StatusT = TypeVar("StatusT", bound=BaseModel)
 RoleT = TypeVar("RoleT", bound=BaseModel)
@@ -21,6 +22,22 @@ def raise_api_error(exc: Exception, api_error_cls: type[Exception]) -> None:
         message = getattr(exc, "message", None) or str(exc)
         raise HTTPException(status_code=400, detail=message) from exc
     raise exc
+
+
+def role_keys_from_now_body(body: CheckinNowBody | None) -> set[tuple[str, str]] | None:
+    """Parse optional single-role target from CheckinNowBody."""
+    if body is None:
+        return None
+    gc = (body.game_code or "").strip()
+    uid = (body.role_uid or "").strip()
+    if gc and uid:
+        return {(gc, uid)}
+    if gc or uid:
+        raise HTTPException(
+            status_code=400,
+            detail="game_code 与 role_uid 需同时提供",
+        )
+    return None
 
 
 def build_checkin_status(
@@ -61,6 +78,7 @@ def build_checkin_status(
         live = query_today(db, bind, force=force)
         raw_results = list(live.get("results") or [])
         if role_pref_platform and raw_results:
+            from app.api.jobs.checkin_queries import attach_last_checkin_to_result_dicts
             from app.services.checkin_role_prefs import attach_prefs_to_status_results
 
             raw_results = attach_prefs_to_status_results(
@@ -68,6 +86,12 @@ def build_checkin_status(
                 platform=role_pref_platform,
                 member_id=member.id,
                 bind=bind,
+                results=raw_results,
+            )
+            raw_results = attach_last_checkin_to_result_dicts(
+                db,
+                platform=role_pref_platform,
+                member_id=member.id,
                 results=raw_results,
             )
             db.refresh(bind)

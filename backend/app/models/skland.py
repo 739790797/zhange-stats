@@ -75,6 +75,8 @@ class SklandCheckinLog(Base):
     awards_text: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # 结构化奖励 JSON：[{name,count,resource_type,icon_url?}, ...]
     awards_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # status=查询/同步缓存；action=真正执行签到（执行记录只看 action）
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="status")
     checkin_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     checked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

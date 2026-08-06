@@ -10,7 +10,8 @@ alwaysApply: false
 
 - `api/`：参数、依赖、HTTP 状态；**不**直接打第三方上游
 - `services/`：编排与业务；`models/`：表结构
-- 签到状态/upsert/`apply_bind_last_checkin` 走 `checkin_common`（摘要字段仅签到动作后写）
+- 签到：`checkin_orchestrator` + 各平台 `CheckinPlatformAdapter`；状态/upsert/`apply_bind_last_checkin` 走 `checkin_common`（摘要字段**仅签到动作**后写）
+- 新平台签到 checklist：实现 `*_client` / `*_attendance`（出口 `(session, list[CheckinResult])`）→ 实现 Adapter → 注册进 `checkin_registry.ADAPTERS` → prefs `PLATFORM_*` + Bind/Log/Alembic + API `build_checkin_status` + scheduler 挂 `checkin_job_wrapper`；**勿**再复制 `query_today_for_bind` / `run_checkin_for_bind` 骨架
 
 ## Upstream 客户端
 

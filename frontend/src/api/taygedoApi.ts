@@ -69,8 +69,14 @@ export async function updateTaygedoRolePref(payload: {
   return data;
 }
 
-export async function triggerTaygedoCheckin() {
-  const { data } = await client.post<TaygedoCheckinResponse>("/taygedo/checkin");
+export async function triggerTaygedoCheckin(payload?: {
+  game_code: string;
+  role_uid: string;
+}) {
+  const { data } = await client.post<TaygedoCheckinResponse>(
+    "/taygedo/checkin",
+    payload ?? {},
+  );
   return data;
 }
 

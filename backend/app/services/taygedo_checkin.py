@@ -4,26 +4,32 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from typing import Any
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
-from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.taygedo import TaygedoAttendanceRaw, TaygedoBind, TaygedoCheckinLog
-from app.services.checkin_common import (
-    CheckinResult,
-    apply_bind_last_checkin,
-    day_results_payload,
-    is_success_status,
-    load_day_checkin_results,
-    results_to_api,
-    summarize_results,
-    today_done_from_logs,
-    upsert_and_reload_day_results,
+from app.services.checkin_adapter import CheckinAdapterBase, CheckinRunOutcome
+from app.services.checkin_common import CheckinResult, is_success_status
+from app.services.checkin_orchestrator import (
+    checkin_job_wrapper as _orch_job_wrapper,
+)
+from app.services.checkin_orchestrator import (
+    query_today_for_bind as _orch_query_today,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_for_bind as _orch_run_checkin,
+)
+from app.services.checkin_orchestrator import (
+    run_checkin_job as _orch_run_job,
+)
+from app.services.checkin_role_prefs import (
+    PLATFORM_TAYGEDO,
+    RoleKey,
+    matches_role_filter,
 )
 from app.services.taygedo_calendar import parse_taygedo_attendance_calendar
 from app.services.taygedo_client import (
@@ -38,15 +44,13 @@ from app.services.taygedo_client import (
     login_with_password,
     login_with_sms,
     mask_phone,
-    query_today_all,
+    query_today_all as taygedo_query_today_all,
     refresh_access_token,
 )
 
 logger = logging.getLogger(__name__)
 
 JOB_KEY = "taygedo_checkin"
-_job_lock = threading.Lock()
-
 
 def get_bind_for_member(db: Session, member_id: int) -> TaygedoBind | None:
     return db.query(TaygedoBind).filter(TaygedoBind.member_id == member_id).one_or_none()
@@ -209,43 +213,163 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     return out
 
 
-def _summarize(results: list[CheckinResult]) -> tuple[bool, str]:
-    return summarize_results(results, empty_message="未执行任何签到")
+_CALENDAR_GAMES = frozenset({GAME_NTE, GAME_HT})
+
+
+class TaygedoCheckinAdapter(CheckinAdapterBase):
+    platform = PLATFORM_TAYGEDO
+    job_key = JOB_KEY
+    bind_model = TaygedoBind
+    log_model = TaygedoCheckinLog
+    api_error_cls = TaygedoApiError
+    empty_message = "未执行任何签到"
+
+    def get_bind(self, db: Session, member_id: int) -> TaygedoBind | None:
+        return get_bind_for_member(db, member_id)
+
+    def load_session(self, db: Session, bind: TaygedoBind) -> TaygedoCredentials:
+        return _load_creds(bind)
+
+    def save_session(
+        self, db: Session, bind: TaygedoBind, session: TaygedoCredentials
+    ) -> None:
+        _save_creds(bind, session)
+
+    def query_today_all(
+        self, session: TaygedoCredentials
+    ) -> tuple[TaygedoCredentials, list[CheckinResult]]:
+        return taygedo_query_today_all(session)
+
+    def run_checkins(
+        self,
+        session: TaygedoCredentials,
+        *,
+        force: bool,
+        role_keys: set[RoleKey] | None,
+    ) -> CheckinRunOutcome:
+        from app.services.taygedo_client import list_checkin_targets
+
+        working, targets = list_checkin_targets(session)
+
+        if role_keys is not None:
+            filtered = []
+            for game_code, role in targets:
+                role_uid = role.role_id if role else "-"
+                if matches_role_filter(game_code, role_uid, role_keys):
+                    filtered.append((game_code, role))
+            targets = filtered
+
+        if not targets:
+            return CheckinRunOutcome(
+                session=working,
+                early_response={
+                    "skipped": False,
+                    "ok": False,
+                    "summary": "未找到可签到目标",
+                    "results": [],
+                },
+            )
+
+        live_working, live_results = taygedo_query_today_all(working)
+        working = live_working
+        live_map = {(r.game_code, r.role_uid): r for r in live_results}
+
+        results: list[CheckinResult] = []
+        for game_code, role in targets:
+            role_uid = role.role_id if role else "-"
+            probed = live_map.get((game_code, role_uid))
+            if (
+                not force
+                and probed is not None
+                and is_success_status(probed.status)
+            ):
+                results.append(probed)
+                continue
+
+            try:
+                result = checkin_target(working, game_code=game_code, role=role)
+            except TaygedoApiError as exc:
+                if "登录" in (exc.message or "") or exc.code in (401, 402):
+                    try:
+                        working = refresh_access_token(working)
+                        result = checkin_target(
+                            working, game_code=game_code, role=role
+                        )
+                    except TaygedoApiError as exc2:
+                        result = _taygedo_error_result(
+                            game_code, role, role_uid, exc2.message or ""
+                        )
+                    else:
+                        results.append(result)
+                        continue
+                else:
+                    result = _taygedo_error_result(
+                        game_code, role, role_uid, exc.message or ""
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("taygedo checkin unexpected error")
+                game_name = role.game_name if role else game_code
+                role_name = role.role_name if role else "-"
+                channel = role.game_name if role else game_code
+                result = CheckinResult(
+                    game_code=game_code,
+                    game_name=game_name,
+                    role_uid=role_uid,
+                    role_name=role_name,
+                    channel_name=channel,
+                    status="error",
+                    message=friendly_error_message(str(exc)),
+                )
+            results.append(result)
+
+        return CheckinRunOutcome(session=working, results=results)
+
+    def after_checkin(
+        self, db: Session, bind: TaygedoBind, results: list[CheckinResult]
+    ) -> None:
+        cal_uids = [
+            r.role_uid
+            for r in results
+            if r.game_code in _CALENDAR_GAMES and is_success_status(r.status)
+        ]
+        if cal_uids:
+            invalidate_taygedo_attendance_raws(
+                db, bind.member_id, role_uids=cal_uids
+            )
+
+    def friendly_error(self, message: str) -> str:
+        return friendly_error_message(message)
+
+
+def _taygedo_error_result(
+    game_code: str,
+    role: TaygedoRole | None,
+    role_uid: str,
+    msg: str,
+) -> CheckinResult:
+    already = any(k in msg for k in ("已签到", "重复签到", "签到过", "already"))
+    game_name = role.game_name if role else game_code
+    role_name = role.role_name if role else "-"
+    channel = role.game_name if role else game_code
+    return CheckinResult(
+        game_code=game_code,
+        game_name=game_name,
+        role_uid=role_uid,
+        role_name=role_name,
+        channel_name=channel,
+        status="already" if already else "error",
+        message=("今日已签到" if already else friendly_error_message(msg)),
+    )
+
+
+taygedo_adapter = TaygedoCheckinAdapter()
 
 
 def query_today_for_bind(
     db: Session, bind: TaygedoBind, *, force: bool = False
 ) -> dict[str, Any]:
     """今日签到状态：有今日日志则读库；否则查官方并落库。"""
-    checkin_date = today()
-    if not force:
-        cached = load_day_checkin_results(
-            db,
-            TaygedoCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-        )
-        if cached is not None:
-            return day_results_payload(cached)
-
-    creds = _load_creds(bind)
-    try:
-        working, results = query_today_all(creds)
-    except TaygedoApiError as exc:
-        raise TaygedoApiError(friendly_error_message(exc.message)) from exc
-    _save_creds(bind, working)
-    now = now_naive()
-    merged = upsert_and_reload_day_results(
-        db,
-        TaygedoCheckinLog,
-        member_id=bind.member_id,
-        bind_id=bind.id,
-        checkin_date=checkin_date,
-        results=results,
-        now=now,
-    )
-    db.commit()
-    return day_results_payload(merged)
+    return _orch_query_today(taygedo_adapter, db, bind, force=force)
 
 
 def query_today_for_member(
@@ -255,9 +379,6 @@ def query_today_for_member(
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
     return query_today_for_bind(db, bind, force=force)
-
-
-_CALENDAR_GAMES = frozenset({GAME_NTE, GAME_HT})
 
 
 def _taygedo_today_log_hint(
@@ -433,176 +554,22 @@ def run_checkin_for_bind(
     role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """手动 / 自动签到；结果写入今日签到日志。"""
-    from app.services.checkin_role_prefs import matches_role_filter
-    from app.services.taygedo_client import list_checkin_targets
-
-    checkin_date = today()
-    if not force:
-        done = today_done_from_logs(
-            db,
-            TaygedoCheckinLog,
-            member_id=bind.member_id,
-            checkin_date=checkin_date,
-            role_keys=role_keys,
-        )
-        if done is not None:
-            full = load_day_checkin_results(
-                db,
-                TaygedoCheckinLog,
-                member_id=bind.member_id,
-                checkin_date=checkin_date,
-            )
-            payload = day_results_payload(full or done)
-            return {
-                "skipped": True,
-                "ok": True,
-                "reason": "today_done",
-                "summary": payload.get("summary") or "今日已签到",
-                "results": payload.get("results") or [],
-            }
-
-    creds = _load_creds(bind)
-    working, targets = list_checkin_targets(creds)
-    _save_creds(bind, working)
-
-    if role_keys is not None:
-        filtered = []
-        for game_code, role in targets:
-            role_uid = role.role_id if role else "-"
-            if matches_role_filter(game_code, role_uid, role_keys):
-                filtered.append((game_code, role))
-        targets = filtered
-
-    if not targets:
-        return {
-            "skipped": False,
-            "ok": False,
-            "summary": "未找到可签到目标",
-            "results": [],
-        }
-
-    # 先查官方今日状态；已签则跳过 POST（与森空岛一致）
-    live_working, live_results = query_today_all(working)
-    working = live_working
-    live_map = {(r.game_code, r.role_uid): r for r in live_results}
-
-    results: list[CheckinResult] = []
-    for game_code, role in targets:
-        role_uid = role.role_id if role else "-"
-        probed = live_map.get((game_code, role_uid))
-        if (
-            not force
-            and probed is not None
-            and is_success_status(probed.status)
-        ):
-            results.append(probed)
-            continue
-
-        try:
-            result = checkin_target(working, game_code=game_code, role=role)
-        except TaygedoApiError as exc:
-            if "登录" in (exc.message or "") or exc.code in (401, 402):
-                try:
-                    working = refresh_access_token(working)
-                    result = checkin_target(working, game_code=game_code, role=role)
-                except TaygedoApiError as exc2:
-                    msg = exc2.message or ""
-                    already = any(
-                        k in msg for k in ("已签到", "重复签到", "签到过", "already")
-                    )
-                    game_name = role.game_name if role else game_code
-                    role_name = role.role_name if role else "-"
-                    channel = role.game_name if role else game_code
-                    result = CheckinResult(
-                        game_code=game_code,
-                        game_name=game_name,
-                        role_uid=role_uid,
-                        role_name=role_name,
-                        channel_name=channel,
-                        status="already" if already else "error",
-                        message=(
-                            "今日已签到"
-                            if already
-                            else friendly_error_message(msg)
-                        ),
-                    )
-                else:
-                    results.append(result)
-                    continue
-            else:
-                msg = exc.message or ""
-                already = any(k in msg for k in ("已签到", "重复签到", "签到过", "already"))
-                game_name = role.game_name if role else game_code
-                role_name = role.role_name if role else "-"
-                channel = role.game_name if role else game_code
-                result = CheckinResult(
-                    game_code=game_code,
-                    game_name=game_name,
-                    role_uid=role_uid,
-                    role_name=role_name,
-                    channel_name=channel,
-                    status="already" if already else "error",
-                    message=(
-                        "今日已签到" if already else friendly_error_message(msg)
-                    ),
-                )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("taygedo checkin unexpected error")
-            game_name = role.game_name if role else game_code
-            role_name = role.role_name if role else "-"
-            channel = role.game_name if role else game_code
-            result = CheckinResult(
-                game_code=game_code,
-                game_name=game_name,
-                role_uid=role_uid,
-                role_name=role_name,
-                channel_name=channel,
-                status="error",
-                message=friendly_error_message(str(exc)),
-            )
-        results.append(result)
-
-    _save_creds(bind, working)
-    ok, summary = _summarize(results)
-    now = now_naive()
-    apply_bind_last_checkin(
-        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
+    return _orch_run_checkin(
+        taygedo_adapter, db, bind, force=force, role_keys=role_keys
     )
-    merged = upsert_and_reload_day_results(
-        db,
-        TaygedoCheckinLog,
-        member_id=bind.member_id,
-        bind_id=bind.id,
-        checkin_date=checkin_date,
-        results=results,
-        now=now,
-    )
-    cal_uids = [
-        r.role_uid
-        for r in results
-        if r.game_code in _CALENDAR_GAMES and is_success_status(r.status)
-    ]
-    if cal_uids:
-        invalidate_taygedo_attendance_raws(
-            db, bind.member_id, role_uids=cal_uids
-        )
-    db.commit()
-
-    return {
-        "skipped": False,
-        "ok": ok,
-        "summary": summary,
-        "results": results_to_api(merged),
-    }
 
 
 def run_checkin_for_member(
-    db: Session, member: Member, *, force: bool = False
+    db: Session,
+    member: Member,
+    *,
+    force: bool = False,
+    role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
-    return run_checkin_for_bind(db, bind, force=force)
+    return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
 
 
 def run_taygedo_checkin_job(
@@ -611,75 +578,10 @@ def run_taygedo_checkin_job(
     due_only: bool = False,
     member_id: int | None = None,
 ) -> dict[str, Any]:
-    from app.services.checkin_role_prefs import (
-        PLATFORM_TAYGEDO,
-        collect_checkin_job_targets,
+    return _orch_run_job(
+        taygedo_adapter, db, due_only=due_only, member_id=member_id
     )
-
-    targets = collect_checkin_job_targets(
-        db,
-        platform=PLATFORM_TAYGEDO,
-        bind_model=TaygedoBind,
-        due_only=due_only,
-        member_id=member_id,
-    )
-    binds_by_member = {
-        b.member_id: b
-        for b in db.query(TaygedoBind)
-        .options(joinedload(TaygedoBind.member))
-        .filter(TaygedoBind.member_id.in_(list(targets.keys()) or [-1]))
-        .all()
-    }
-    stats: dict[str, Any] = {"total": len(targets), "ok": 0, "failed": 0, "skipped": 0}
-    for mid, role_keys in targets.items():
-        bind = binds_by_member.get(mid)
-        if bind is None:
-            continue
-        if role_keys is not None and len(role_keys) == 0:
-            stats["skipped"] += 1
-            continue
-        try:
-            out = run_checkin_for_bind(db, bind, force=False, role_keys=role_keys)
-            if out.get("skipped"):
-                stats["skipped"] += 1
-            elif out.get("ok"):
-                stats["ok"] += 1
-            else:
-                stats["failed"] += 1
-        except Exception:  # noqa: BLE001
-            logger.exception("taygedo auto checkin failed member_id=%s", mid)
-            stats["failed"] += 1
-            db.rollback()
-    return stats
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    from app.core.database import SessionLocal
-
-    if not _job_lock.acquire(blocking=False):
-        logger.info("taygedo checkin job already running, skip")
-        return
-    db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    try:
-        stats = run_taygedo_checkin_job(db, due_only=due_only, member_id=member_id)
-        job.status = "ok"
-        job.message = (
-            f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
-            f"跳过 {stats['skipped']}（共 {stats['total']}）"
-        )
-        job.stats = stats
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("taygedo checkin job crashed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()
-        _job_lock.release()
+    _orch_job_wrapper(taygedo_adapter, due_only=due_only, member_id=member_id)

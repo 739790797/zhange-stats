@@ -1,10 +1,14 @@
 """森空岛：绑定状态、签到、绑定/解绑。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api.platform_checkin import build_checkin_response, build_checkin_status
+from app.api.platform_checkin import (
+    build_checkin_response,
+    build_checkin_status,
+    role_keys_from_now_body,
+)
 from app.api.skland.helpers import _member_or_404
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_user_member
@@ -13,6 +17,7 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
 from app.schemas import (
+    CheckinNowBody,
     CheckinRolePrefUpdate,
     SklandBindPasswordRequest,
     SklandBindRequest,
@@ -279,12 +284,16 @@ def skland_update_role_pref(
     dependencies=[Depends(require_feature("skland.checkin"))],
 )
 def skland_checkin_now(
+    body: CheckinNowBody | None = Body(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     member = _member_or_404(db, user)
+    role_keys = role_keys_from_now_body(body)
     try:
-        out = run_checkin_for_member(db, member, force=True)
+        out = run_checkin_for_member(
+            db, member, force=True, role_keys=role_keys
+        )
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return build_checkin_response(

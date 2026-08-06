@@ -127,8 +127,14 @@ export async function updateSklandRolePref(payload: {
   return data;
 }
 
-export async function triggerSklandCheckin() {
-  const { data } = await client.post<SklandCheckinResponse>("/skland/checkin");
+export async function triggerSklandCheckin(payload?: {
+  game_code: string;
+  role_uid: string;
+}) {
+  const { data } = await client.post<SklandCheckinResponse>(
+    "/skland/checkin",
+    payload ?? {},
+  );
   return data;
 }
 

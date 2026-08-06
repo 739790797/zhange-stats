@@ -11,7 +11,7 @@
 | [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc) | 盒子 raw / 签到今日 logs |
 | [`.cursor/rules/db-schema-readme.mdc`](.cursor/rules/db-schema-readme.mdc) | Alembic + README 表结构 |
 | [`.cursor/rules/frontend-conventions.mdc`](.cursor/rules/frontend-conventions.mdc) | 前端约定 |
-| [`.cursor/rules/backend-conventions.mdc`](.cursor/rules/backend-conventions.mdc) | 后端约定 |
+| [`.cursor/rules/backend-conventions.mdc`](.cursor/rules/backend-conventions.mdc) | 后端约定（含新平台签到 Adapter checklist） |
 | [`.cursor/rules/frontend-api-errors.mdc`](.cursor/rules/frontend-api-errors.mdc) | `apiError` / `*Api` 边界 |
 | [`docs/agent-governance-plan.md`](docs/agent-governance-plan.md) | 治理方案（已落地） |
 | 根 [`README.md`](README.md) | 部署、表总览、安全说明 |
@@ -34,7 +34,8 @@ alembic upgrade head
 ## 禁止清单
 
 - 无 Alembic 改表；往 `schema_ensure.py` 堆新 `ALTER`
-- 签到 status 写 `bind.last_checkin_*`；打开页无缓存必打上游
+- 签到 status 写 `bind.last_checkin_*`；签到展示打开页不 force 回源；用户侧展示执行记录
+- 新签到平台复制整份 `*_checkin` 编排（应实现 Adapter + 注册表）
 - 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
 - 未做 CSRF 前半改 JWT httpOnly Cookie
@@ -44,7 +45,7 @@ alembic upgrade head
 
 - [ ] 改 API：已 `export:openapi && gen:api`，generated 有 diff
 - [ ] 改模型：有 Alembic + README「数据库表结构」
-- [ ] 改签到/盒子：符合 raw / 今日 logs 权威
+- [ ] 改签到/盒子：盒子符合 raw 读库优先；签到展示始终 force 回源、不展示执行记录
 - [ ] 改前端请求/报错：走 `*Api` + `apiError`
 - [ ] 改生产相关：核对 `APP_ENV` / 弱口令 / `REDIS_URL` / 邮件日志
 

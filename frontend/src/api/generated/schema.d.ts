@@ -1236,7 +1236,7 @@ export interface paths {
         };
         /**
          * Skland Arknights Compare Candidates
-         * @description 盒子对比可选成员（自己 + 可见好友，含是否已绑森空岛）。
+         * @description 盒子对比可选成员（站内有明日方舟账号的用户）。
          */
         get: operations["skland_arknights_compare_candidates_api_skland_arknights_box_compare_candidates_get"];
         put?: never;
@@ -2309,10 +2309,17 @@ export interface components {
             role_name?: string | null;
             /** Status */
             status: string;
+            /**
+             * Status Label
+             * @default
+             */
+            status_label: string;
             /** Message */
             message?: string | null;
             /** Awards Text */
             awards_text?: string | null;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
             /** Checkin Date */
             checkin_date: string;
             /** Checked At */
@@ -2367,6 +2374,16 @@ export interface components {
             /** Items */
             items?: components["schemas"]["CheckinLogItemOut"][];
         };
+        /**
+         * CheckinNowBody
+         * @description 立即签到：可指定单个角色；省略则签该账号下全部角色。
+         */
+        CheckinNowBody: {
+            /** Game Code */
+            game_code?: string | null;
+            /** Role Uid */
+            role_uid?: string | null;
+        };
         /** CheckinResponse */
         CheckinResponse: {
             /**
@@ -2417,6 +2434,16 @@ export interface components {
             checkin_hour?: number | null;
             /** Checkin Minute */
             checkin_minute?: number | null;
+            /** Last Checkin At */
+            last_checkin_at?: string | null;
+            /** Last Checkin Date */
+            last_checkin_date?: string | null;
+            /** Last Checkin Ok */
+            last_checkin_ok?: boolean | null;
+            /** Last Checkin Summary */
+            last_checkin_summary?: string | null;
+            /** Last Checkin Awards */
+            last_checkin_awards?: components["schemas"]["CheckinAwardItem"][];
         };
         /** CheckinRolePrefUpdate */
         CheckinRolePrefUpdate: {
@@ -4473,6 +4500,12 @@ export interface components {
             last_checkin_ok?: boolean | null;
             /** Last Checkin Summary */
             last_checkin_summary?: string | null;
+            /** Today Status */
+            today_status?: string | null;
+            /** Today Status Label */
+            today_status_label?: string | null;
+            /** Today Awards Text */
+            today_awards_text?: string | null;
             /** Bound At */
             bound_at?: string | null;
         };
@@ -6745,7 +6778,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckinNowBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -6754,6 +6791,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7235,7 +7281,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckinNowBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7244,6 +7294,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7536,7 +7595,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckinNowBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7545,6 +7608,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7889,7 +7961,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckinNowBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7898,6 +7974,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

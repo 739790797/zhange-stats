@@ -46,6 +46,12 @@ class CheckinResultItem(BaseModel):
     auto_checkin: bool = False
     checkin_hour: int | None = None
     checkin_minute: int | None = None
+    # 与「我的日常」任务行同源：该角色最近一次签到日志
+    last_checkin_at: str | None = None
+    last_checkin_date: str | None = None
+    last_checkin_ok: bool | None = None
+    last_checkin_summary: str | None = None
+    last_checkin_awards: list[CheckinAwardItem] = Field(default_factory=list)
 
 
 class CheckinRolePrefUpdate(BaseModel):
@@ -54,6 +60,13 @@ class CheckinRolePrefUpdate(BaseModel):
     enabled: bool
     checkin_hour: int | None = Field(default=None, ge=0, le=23)
     checkin_minute: int | None = Field(default=None, ge=0, le=59)
+
+
+class CheckinNowBody(BaseModel):
+    """立即签到：可指定单个角色；省略则签该账号下全部角色。"""
+
+    game_code: str | None = Field(default=None, min_length=1, max_length=32)
+    role_uid: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class CheckinResponse(BaseModel):
