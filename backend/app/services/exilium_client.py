@@ -165,6 +165,21 @@ def _http(
     body: dict[str, Any] | None = None,
     timeout: int = REQUEST_TIMEOUT,
 ) -> dict[str, Any]:
+    data_out, _full = _http_full(
+        method, path, token=token, body=body, timeout=timeout
+    )
+    return data_out
+
+
+def _http_full(
+    method: str,
+    path: str,
+    *,
+    token: str | None = None,
+    body: dict[str, Any] | None = None,
+    timeout: int = REQUEST_TIMEOUT,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """返回 (业务 data, 完整上游 JSON envelope)。"""
     url = path if path.startswith("http") else f"{API_BASE}{path}"
     headers = dict(COMMON_HEADERS)
     data = None
@@ -210,7 +225,9 @@ def _http(
     if status >= 400:
         raise ExiliumApiError(f"HTTP {status}", code=status)
     data_out = payload.get("data")
-    return data_out if isinstance(data_out, dict) else {"_raw": data_out}
+    if not isinstance(data_out, dict):
+        data_out = {"_raw": data_out}
+    return data_out, payload
 
 
 def login_with_password(account: str, password: str) -> ExiliumCredentials:

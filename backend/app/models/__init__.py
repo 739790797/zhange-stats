@@ -1,7 +1,9 @@
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.arknights import ArknightsBoxSnapshot, ArknightsCatalogMeta, ArknightsOperator
+from app.models.arknights_rogue import ArknightsRogueRaw
 from app.models.endfield import EndfieldBoxRaw
+from app.models.exastris import ExastrisBoxRaw
 from app.models.oauth_ticket import OAuthExchangeTicket
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -13,7 +15,12 @@ from app.models.steam_friend import SteamFriendEdge
 from app.models.system_config import SystemConfig
 from app.models.taygedo import TaygedoAttendanceRaw, TaygedoBind, TaygedoCheckinLog
 from app.models.exilium import ExiliumBind, ExiliumCheckinLog
-from app.models.kujiequ import KujiequBind, KujiequCheckinLog
+from app.models.kujiequ import (
+    KujiequAttendanceRaw,
+    KujiequBind,
+    KujiequCheckinLog,
+    KujiequWwBoxRaw,
+)
 from app.models.user import User
 
 __all__ = [
@@ -37,9 +44,13 @@ __all__ = [
     "ExiliumCheckinLog",
     "KujiequBind",
     "KujiequCheckinLog",
+    "KujiequAttendanceRaw",
+    "KujiequWwBoxRaw",
     "CheckinRolePref",
     "ArknightsOperator",
     "ArknightsCatalogMeta",
     "ArknightsBoxSnapshot",
+    "ArknightsRogueRaw",
     "EndfieldBoxRaw",
+    "ExastrisBoxRaw",
 ]

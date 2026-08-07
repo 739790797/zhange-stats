@@ -1,15 +1,20 @@
 import { client } from "./http";
+import type { components } from "./generated/schema";
 import type {
+  ExastrisBox,
   TaygedoAttendanceCalendar,
   TaygedoCheckinResponse,
+  TaygedoExchangeResult,
+  TaygedoExchangeShop,
   TaygedoStatus,
 } from "./types";
 
-export async function fetchTaygedoStatus(includeRoles = true, force = false) {
+/** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
+export async function fetchTaygedoStatus(includeRoles = true, force = true) {
   const { data } = await client.get<TaygedoStatus>("/taygedo/status", {
     params: {
       include_roles: includeRoles,
-      ...(force ? { force: true } : {}),
+      force,
     },
   });
   return data;
@@ -58,21 +63,16 @@ export async function updateTaygedoBind(payload: {
   return data;
 }
 
-export async function updateTaygedoRolePref(payload: {
-  game_code: string;
-  role_uid: string;
-  enabled: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
+export async function updateTaygedoRolePref(
+  payload: components["schemas"]["CheckinRolePrefUpdate"],
+) {
   const { data } = await client.patch<TaygedoStatus>("/taygedo/role-prefs", payload);
   return data;
 }
 
-export async function triggerTaygedoCheckin(payload?: {
-  game_code: string;
-  role_uid: string;
-}) {
+export async function triggerTaygedoCheckin(
+  payload?: components["schemas"]["CheckinNowBody"],
+) {
   const { data } = await client.post<TaygedoCheckinResponse>(
     "/taygedo/checkin",
     payload ?? {},
@@ -91,10 +91,46 @@ export async function fetchTaygedoAttendanceCalendar(
       params: {
         game_code: gameCode,
         ...(roleUid ? { role_uid: roleUid } : {}),
-        ...(force ? { force: true } : {}),
+        force,
       },
       timeout: 60000,
     },
+  );
+  return data;
+}
+
+export async function fetchExastrisBox(uid?: string, force = false) {
+  const { data } = await client.get<ExastrisBox>("/taygedo/exastris/box", {
+    params: {
+      ...(uid ? { uid } : {}),
+      force,
+    },
+    timeout: 60000,
+  });
+  return data;
+}
+
+export async function fetchTaygedoExchange(tab?: string | null) {
+  const { data } = await client.get<TaygedoExchangeShop>("/taygedo/exchange", {
+    params: tab ? { tab } : undefined,
+    timeout: 60000,
+  });
+  return data;
+}
+
+export async function exchangeTaygedoItem(payload: {
+  goods_id: string;
+  game_id: string;
+  role_id: string;
+}) {
+  const { data } = await client.post<TaygedoExchangeResult>(
+    "/taygedo/exchange",
+    {
+      goods_id: payload.goods_id,
+      game_id: payload.game_id,
+      role_id: payload.role_id,
+    },
+    { timeout: 60000 },
   );
   return data;
 }

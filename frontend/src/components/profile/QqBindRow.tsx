@@ -1,5 +1,6 @@
-import { Avatar, Button, Popconfirm, Space, Typography } from "antd";
+import { Avatar, Button, Popconfirm, Typography } from "antd";
 import type { MemberProfile } from "@/api/types";
+import { BindActionSlots } from "@/components/profile/BindActionSlots";
 import { BindStatusTitle } from "@/components/profile/BindStatusTitle";
 
 type QqBindRowProps = {
@@ -52,38 +53,33 @@ export function QqBindRow({
           </div>
         ) : null}
       </div>
-      <Space>
-        {qqBound ? (
-          <>
-            <Button
-              loading={startBindPending}
-              disabled={!!errMsg}
-              onClick={onStartBind}
-            >
-              换绑
-            </Button>
+      <BindActionSlots
+        primary={
+          <Button
+            block
+            type={qqBound ? "default" : "primary"}
+            loading={startBindPending}
+            disabled={!!errMsg}
+            onClick={onStartBind}
+          >
+            {qqBound ? "换绑" : "绑定"}
+          </Button>
+        }
+        danger={
+          qqBound ? (
             <Popconfirm
               title="确认解除 QQ 绑定？"
               okText="确定"
               cancelText="取消"
               onConfirm={onUnbind}
             >
-              <Button danger loading={unbindPending} disabled={!!errMsg}>
+              <Button block danger loading={unbindPending} disabled={!!errMsg}>
                 解绑
               </Button>
             </Popconfirm>
-          </>
-        ) : (
-          <Button
-            type="primary"
-            loading={startBindPending}
-            disabled={!!errMsg}
-            onClick={onStartBind}
-          >
-            绑定
-          </Button>
-        )}
-      </Space>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

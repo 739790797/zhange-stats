@@ -8,14 +8,15 @@ import {
   Modal,
   Space,
   Switch,
+  Tag,
   TimePicker,
   Typography,
   message,
 } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import dayjs, { type Dayjs } from "dayjs";
+import type { components } from "@/api/generated/schema";
 import {
   checkinDialogTitle,
   classifyCheckinDialog,
@@ -31,49 +32,19 @@ import {
   checkinGameIcon,
   type PlatformIconName,
 } from "@/components/PlatformIcon";
+import {
+  communityGameRank,
+  displayCheckinChannelName,
+} from "@/components/checkinTaskDisplay";
 
-export interface CheckinPageRole {
-  game_code: string;
-  game_name: string;
-  uid: string;
-  role_name: string;
-  channel_name: string;
-}
+/** 四平台 RoleOut 字段一致，用森空岛 schema 代表 */
+export type CheckinPageRole = components["schemas"]["SklandRoleOut"];
+export type CheckinPageResultItem = components["schemas"]["CheckinResultItem"];
+export type CheckinPageResponse = components["schemas"]["CheckinResponse"];
+export type CheckinRolePrefPayload = components["schemas"]["CheckinRolePrefUpdate"];
+export type CheckinNowPayload = components["schemas"]["CheckinNowBody"];
 
-export interface CheckinPageResultItem {
-  game_code?: string;
-  game_name?: string;
-  role_uid?: string;
-  role_name?: string;
-  channel_name?: string;
-  status: string;
-  status_label?: string | null;
-  message: string;
-  awards_text?: string | null;
-  awards?: Array<{
-    name: string;
-    count?: number;
-    resource_id?: string | null;
-    resource_type?: string | null;
-    icon_url?: string | null;
-  }> | null;
-  extra_text?: string | null;
-  auto_checkin?: boolean | null;
-  checkin_hour?: number | null;
-  checkin_minute?: number | null;
-  last_checkin_at?: string | null;
-  last_checkin_date?: string | null;
-  last_checkin_ok?: boolean | null;
-  last_checkin_summary?: string | null;
-  last_checkin_awards?: Array<{
-    name: string;
-    count?: number;
-    resource_id?: string | null;
-    resource_type?: string | null;
-    icon_url?: string | null;
-  }> | null;
-}
-
+/** 模板共用状态面（各平台 *StatusOut 超集的结构子集） */
 export interface CheckinPageStatus {
   bound: boolean;
   auto_checkin?: boolean | null;
@@ -89,26 +60,6 @@ export interface CheckinPageStatus {
   today_results?: CheckinPageResultItem[];
 }
 
-export interface CheckinPageResponse {
-  skipped: boolean;
-  ok?: boolean | null;
-  summary: string;
-  results?: CheckinPageResultItem[];
-}
-
-export interface CheckinRolePrefPayload {
-  game_code: string;
-  role_uid: string;
-  enabled: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}
-
-export interface CheckinNowPayload {
-  game_code: string;
-  role_uid: string;
-}
-
 export interface CheckinPageTemplateProps {
   title: string;
   subtitle?: string;
@@ -117,6 +68,7 @@ export interface CheckinPageTemplateProps {
   /** 未绑定 / 凭证失效时展示的页内绑定区（替代跳转个人中心） */
   bindPanel?: ReactNode;
   statusQueryKey: string[];
+  /** 打开页应 force=true；模板内固定 fetchStatus(true, true)。*Api 须显式传 force，见 frontend-conventions。 */
   fetchStatus: (
     includeRoles?: boolean,
     force?: boolean,
@@ -141,32 +93,55 @@ function snapMinute(minute: number): number {
   return Math.max(0, Math.min(55, minute - (minute % 5)));
 }
 
-/** 仅已签展示今日奖励；B 服官方无领取记录时固定提示 */
+/** 仅已签展示签到奖励；B 服优先展示签到 POST 落库的 awards，无则提示不可查询 */
 function TodayAwardsBlock({ row }: { row: CheckinPageResultItem }) {
   if (!isCheckinSuccess(row.status)) return null;
-  if (
-    row.game_code === "arknights" &&
-    isBilibiliArknightsChannel(row.channel_name)
-  ) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        <Typography.Text type="secondary">今日奖励：</Typography.Text>
-        <Typography.Text type="secondary">B服不支持查询</Typography.Text>
-      </div>
-    );
-  }
   const hasAwards =
     Boolean(row.awards?.length) || Boolean((row.awards_text || "").trim());
+  const biliAk =
+    row.game_code === "arknights" &&
+    isBilibiliArknightsChannel(row.channel_name);
+  if (biliAk && !hasAwards) {
+    return (
+      <>
+        <Typography.Text type="secondary">签到奖励：</Typography.Text>
+        <Typography.Text type="secondary">B服不支持查询</Typography.Text>
+      </>
+    );
+  }
   if (!hasAwards) return null;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-      <Typography.Text type="secondary">今日奖励：</Typography.Text>
+    <>
+      <Typography.Text type="secondary">签到奖励：</Typography.Text>
       <CheckinAwardsLine
         awards={row.awards}
         awardsText={row.awards_text}
         fallback="-"
       />
-    </div>
+    </>
+  );
+}
+
+/** 「标签：内容」拆成两列，与签到奖励对齐 */
+function ExtraTextRows({ text }: { text: string }) {
+  const lines = text
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return (
+    <>
+      {lines.map((line) => {
+        const idx = line.indexOf("：");
+        const label = idx > 0 ? line.slice(0, idx + 1) : "";
+        const value = idx > 0 ? line.slice(idx + 1).trim() : line;
+        return (
+          <Fragment key={line}>
+            <Typography.Text type="secondary">{label || null}</Typography.Text>
+            <Typography.Text type="secondary">{value}</Typography.Text>
+          </Fragment>
+        );
+      })}
+    </>
   );
 }
 
@@ -199,7 +174,12 @@ function groupTodayResults(rows: CheckinPageResultItem[]): GameGroup[] {
     }
     group.items.push(row);
   }
-  return order.map((c) => map.get(c)!);
+  return order
+    .map((c) => map.get(c)!)
+    .sort(
+      (a, b) =>
+        communityGameRank(a.game_code) - communityGameRank(b.game_code),
+    );
 }
 
 function RoleAutoCheckinControls({
@@ -330,7 +310,6 @@ export function CheckinPageTemplate({
   renderResultExtra,
 }: CheckinPageTemplateProps) {
   const queryClient = useQueryClient();
-  const [refreshing, setRefreshing] = useState(false);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [checkingKey, setCheckingKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<CheckinDialogState | null>(null);
@@ -342,19 +321,6 @@ export function CheckinPageTemplate({
     retry: false,
   });
 
-  const onRefreshStatus = async () => {
-    setRefreshing(true);
-    try {
-      const data = await fetchStatus(true, true);
-      queryClient.setQueryData(statusQueryKey, data);
-      message.success("已从官方同步今日签到状态");
-    } catch (e: unknown) {
-      message.error(apiError(e, "同步失败"));
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   const refreshAfterCheckin = () => {
     void queryClient.invalidateQueries({ queryKey: statusQueryKey });
     void queryClient.invalidateQueries({ queryKey: ["profile-me"] });
@@ -365,6 +331,12 @@ export function CheckinPageTemplate({
       void queryClient.invalidateQueries({
         queryKey: ["arknights-attendance-calendar"],
       });
+    }
+    if (statusQueryKey[0] === "kujiequ-status") {
+      void queryClient.invalidateQueries({
+        queryKey: ["kujiequ-attendance-calendar"],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["kujiequ-exchange"] });
     }
   };
 
@@ -441,18 +413,6 @@ export function CheckinPageTemplate({
       title="签到状态"
       loading={statusQuery.isLoading}
       style={{ marginBottom: contentOnly ? 0 : 24 }}
-      extra={
-        bound && !tokenBroken ? (
-          <Button
-            size="small"
-            icon={<ReloadOutlined />}
-            loading={refreshing || statusQuery.isFetching}
-            onClick={() => onRefreshStatus()}
-          >
-            同步官方
-          </Button>
-        ) : null
-      }
     >
       {statusQuery.isError ? (
         <Alert
@@ -491,9 +451,9 @@ export function CheckinPageTemplate({
                     <div
                       style={{
                         display: "grid",
-                        /* 角色 | 状态 | 附加(日历等，吸剩余宽) | 自动签到 | 签到 */
+                        /* 角色 | 区服 | 状态 | 附加(日历等，吸剩余宽) | 自动签到 | 签到 */
                         gridTemplateColumns:
-                          "14rem max-content minmax(0, 1fr) max-content max-content",
+                          "14rem max-content max-content minmax(0, 1fr) max-content max-content",
                         columnGap: 12,
                         rowGap: 10,
                         alignItems: "center",
@@ -502,9 +462,13 @@ export function CheckinPageTemplate({
                       }}
                     >
                       {group.items.map((row, index) => {
+                        const autoOn = Boolean(row.auto_checkin);
                         const signed = isCheckinSuccess(row.status);
                         const canCheckin =
                           Boolean(row.game_code && row.role_uid) && !signed;
+                        const channelLabel = displayCheckinChannelName(
+                          row.channel_name,
+                        );
                         return (
                           <div
                             key={rowKey(row)}
@@ -519,19 +483,24 @@ export function CheckinPageTemplate({
                               }}
                             >
                               {row.role_name || row.role_uid}
-                              {row.channel_name ? (
-                                <Typography.Text type="secondary">
-                                  {" "}
-                                  · {row.channel_name}
-                                </Typography.Text>
-                              ) : null}
                             </span>
-                            <CheckinStatusTag
-                              status={row.status}
-                              statusLabel={row.status_label}
-                            />
+                            {channelLabel ? (
+                              <Tag>{channelLabel}</Tag>
+                            ) : (
+                              <span />
+                            )}
+                            {autoOn ? (
+                              <CheckinStatusTag
+                                status={row.status}
+                                statusLabel={row.status_label}
+                              />
+                            ) : (
+                              <Tag>关闭</Tag>
+                            )}
                             <span style={{ minWidth: 0 }}>
-                              {renderResultExtra?.(row) ?? null}
+                              {autoOn
+                                ? (renderResultExtra?.(row) ?? null)
+                                : null}
                             </span>
                             <RoleAutoCheckinControls
                               row={row}
@@ -565,17 +534,20 @@ export function CheckinPageTemplate({
                               style={{
                                 gridColumn: "1 / -1",
                                 paddingBottom: 4,
+                                display: "grid",
+                                gridTemplateColumns: "max-content 1fr",
+                                columnGap: 8,
+                                rowGap: 2,
+                                alignItems: "baseline",
                                 borderBottom:
                                   index < group.items.length - 1
                                     ? "1px solid rgba(0,0,0,0.06)"
                                     : undefined,
                               }}
                             >
-                              <TodayAwardsBlock row={row} />
-                              {row.extra_text ? (
-                                <Typography.Text type="secondary">
-                                  {row.extra_text}
-                                </Typography.Text>
+                              {autoOn ? <TodayAwardsBlock row={row} /> : null}
+                              {autoOn && row.extra_text ? (
+                                <ExtraTextRows text={row.extra_text} />
                               ) : null}
                             </div>
                           </div>
@@ -590,9 +562,15 @@ export function CheckinPageTemplate({
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
-                tokenBroken
-                  ? "无法查询今日状态"
-                  : "暂无今日结果，可点击同步官方或角色旁签到"
+                tokenBroken ? (
+                  "无法查询今日状态"
+                ) : (
+                  <span>
+                    暂无已加入本站的角色。请到{" "}
+                    <Link to="/daily">我的日常</Link>{" "}
+                    同步并勾选要加入的角色。
+                  </span>
+                )
               }
             />
           )}

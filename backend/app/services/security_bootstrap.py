@@ -1,4 +1,4 @@
-"""启动时检测管理员弱口令（查库）。无管理员时等待安装向导，不因种子口令阻断。"""
+"""启动时安全体检：弱口令、生产环境危险开关等。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.services.auth_config import (
     effective_reject_weak_admin_password,
     load_auth_config,
@@ -14,6 +15,16 @@ from app.services.password_policy import list_admins_with_weak_password
 from app.services.setup import needs_setup
 
 logger = logging.getLogger("zhange.security")
+
+
+def check_email_code_log_policy() -> None:
+    """生产环境禁止 ALLOW_EMAIL_CODE_LOG（明文验证码进日志/stdout）。"""
+    settings = get_settings()
+    if settings.is_production and settings.ALLOW_EMAIL_CODE_LOG:
+        raise RuntimeError(
+            "生产环境禁止 ALLOW_EMAIL_CODE_LOG=true（验证码会写入日志）。"
+            "请关闭该开关并配置 SMTP。"
+        )
 
 
 def warn_if_weak_admin_password(db: Session | None = None) -> None:

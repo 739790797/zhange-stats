@@ -107,8 +107,19 @@ def enrich_arknights_award_icons(
 
 
 def arknights_result_needs_award_icons(result: Any) -> bool:
-    """已签且有奖励文案，但结构化奖励缺图标 → 需要回源补全。"""
+    """已签且有奖励文案，但结构化奖励缺图标 → 需要回源补全。
+
+    B 服 GET records 常空，回源补不了图标，勿强制刷新。
+    """
     if getattr(result, "game_code", None) != "arknights":
+        return False
+    channel = str(getattr(result, "channel_name", None) or "").strip().lower()
+    if (
+        "bilibili" in channel
+        or "哔哩" in str(getattr(result, "channel_name", None) or "")
+        or "b服" in channel
+        or "b 服" in channel
+    ):
         return False
     status = str(getattr(result, "status", "") or "")
     if status not in ("ok", "already"):

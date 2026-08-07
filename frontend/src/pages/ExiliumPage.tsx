@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Tabs } from "antd";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   fetchExiliumStatus,
   fetchPlatformFeaturesEffective,
@@ -10,25 +9,20 @@ import {
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { ExiliumExchangePanel } from "@/components/ExiliumExchangePanel";
-import { PageHeader } from "@/components/PageHeader";
+import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
+import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
 
 type TabKey = "checkin" | "exchange";
 
-
 export default function ExiliumPage() {
-  const [tab, setTab] = useState<TabKey>("checkin");
+  // 角色树挂在页面级：绑定成功后会卸载 BindPanel，弹窗不能跟它一起卸掉
+  const rolePicker = useRoleMembershipPicker("exilium");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
     staleTime: 30_000,
-  });
-
-  const statusQuery = useQuery({
-    queryKey: ["exilium-status"],
-    queryFn: () => fetchExiliumStatus(true, true),
-    retry: false,
   });
 
   const featuresReady =
@@ -62,67 +56,34 @@ export default function ExiliumPage() {
     if (showExchange) {
       items.push({
         key: "exchange",
-        label: "积分兑换",
+        label: "兑换",
         children: <ExiliumExchangePanel />,
       });
     }
     return items;
   }, [showCheckin, showExchange]);
 
-  useEffect(() => {
-    if (!tabItems.length) return;
-    if (!tabItems.some((item) => item.key === tab)) {
-      setTab(tabItems[0].key);
-    }
-  }, [tab, tabItems]);
-
-  const bound = Boolean(statusQuery.data?.bound);
-  const tokenBroken = bound && statusQuery.data?.token_ok === false;
-  const needsBind = (!bound || tokenBroken) && !statusQuery.isLoading;
-
   return (
-    <div>
-      <PageHeader title="追放" />
-
-      {needsBind ? (
-        <div
-          style={{
-            maxWidth: 560,
-            margin: "0 auto",
-            padding: "8px 0 48px",
+    <PlatformFeatureTabsPage
+      title="追放"
+      bindName="追放"
+      unboundMessage="尚未绑定追放社区"
+      statusQueryKey={["exilium-status"]}
+      fetchStatus={() => fetchExiliumStatus(true, true)}
+      bindPanel={
+        <ExiliumBindPanel
+          title="绑定追放社区账号"
+          openRolePickerOnBind={false}
+          onSuccess={() => {
+            window.setTimeout(() => rolePicker.openPicker(), 0);
           }}
-        >
-          <Alert
-            type={tokenBroken ? "warning" : "info"}
-            showIcon
-            style={{ marginBottom: 16 }}
-            message={
-              tokenBroken ? "追放凭证可能已失效" : "尚未绑定追放社区"
-            }
-            description={
-              tokenBroken
-                ? statusQuery.data?.token_error || "请重新绑定后再试。"
-                : undefined
-            }
-          />
-          <Card>
-            <ExiliumBindPanel title="绑定追放社区账号" />
-          </Card>
-        </div>
-      ) : !featuresReady ? null : tabItems.length ? (
-        <Tabs
-          activeKey={tab}
-          onChange={(k) => setTab(k as TabKey)}
-          items={tabItems}
         />
-      ) : (
-        <Alert
-          type="info"
-          showIcon
-          message="追放子功能均未启用"
-          description="请联系管理员在「任务配置」中开启签到或积分兑换。"
-        />
-      )}
-    </div>
+      }
+      rolePickerModal={rolePicker.modal}
+      featuresReady={featuresReady}
+      tabItems={tabItems}
+      emptyFeaturesMessage="追放子功能均未启用"
+      emptyFeaturesDescription="请联系管理员在「任务配置」中开启签到或兑换。"
+    />
   );
 }

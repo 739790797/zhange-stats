@@ -17,6 +17,8 @@ GRANT_URL = "https://as.hypergryph.com/user/oauth2/v2/grant"
 CRED_URL = "https://zonai.skland.com/api/v1/user/auth/generate_cred_by_code"
 BINDING_URL = "https://zonai.skland.com/api/v1/game/player/binding"
 PLAYER_INFO_URL = "https://zonai.skland.com/api/v1/game/player/info"
+TEENAGER_URL = "https://zonai.skland.com/api/v1/user/teenager"
+ARKNIGHTS_ROGUE_URL = "https://zonai.skland.com/api/v1/game/arknights/rogue"
 ARKNIGHTS_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/attendance"
 CHAR_AVATAR_CDN = (
     "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar"
@@ -114,6 +116,7 @@ class SklandApiError(Exception):
 class SklandSession:
     cred: str
     sign_token: str
+    user_id: str | None = None
 
 
 @dataclass
@@ -558,9 +561,38 @@ def login_with_token(hg_token: str) -> SklandSession:
     data = cred_resp.get("data") or {}
     cred = data.get("cred")
     sign_token = data.get("token")
+    user_id = data.get("userId")
     if not cred or not sign_token:
         raise SklandApiError("Cred / 签名 Token 缺失")
-    return SklandSession(cred=str(cred), sign_token=str(sign_token))
+    return SklandSession(
+        cred=str(cred),
+        sign_token=str(sign_token),
+        user_id=str(user_id).strip() if user_id else None,
+    )
+
+
+def ensure_skland_user_id(session: SklandSession) -> str:
+    """保证 session.user_id 可用（cred 响应或 /user/teenager）。"""
+    if session.user_id:
+        return session.user_id
+    headers = _signed_headers(session, TEENAGER_URL, "get", None)
+    resp = _http_json("GET", TEENAGER_URL, headers=headers)
+    if resp.get("code") != 0:
+        raise SklandApiError(
+            resp.get("message") or "获取森空岛 userId 失败",
+            code=resp.get("code"),
+        )
+    data = resp.get("data") or {}
+    teen = data.get("teenager") if isinstance(data.get("teenager"), dict) else data
+    uid = None
+    if isinstance(teen, dict):
+        uid = teen.get("userId") or teen.get("user_id")
+    if not uid:
+        uid = data.get("userId")
+    if not uid:
+        raise SklandApiError("森空岛 userId 为空")
+    session.user_id = str(uid).strip()
+    return session.user_id
 
 
 

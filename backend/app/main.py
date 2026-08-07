@@ -15,6 +15,7 @@ from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
 from app.core.setup_middleware import SetupRequiredMiddleware
 from app.models import arknights as _arknights  # noqa: F401
+from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
 from app.models import kujiequ as _kujiequ  # noqa: F401
 from app.models import job_run as _job_run  # noqa: F401
@@ -53,8 +54,12 @@ async def lifespan(_: FastAPI):
     try:
         ensure_beijing_time_storage(db, engine)
         seed_data(db)
-        from app.services.security_bootstrap import check_admin_password_health
+        from app.services.security_bootstrap import (
+            check_admin_password_health,
+            check_email_code_log_policy,
+        )
 
+        check_email_code_log_policy()
         check_admin_password_health(db)
         sync_users_and_members(db)
         register_scheduler_jobs(scheduler, db, run_steam_once=True)
@@ -115,8 +120,9 @@ app.mount(
 
 
 @app.get("/health")
-def health() -> dict:
-    """存活探测；含数据库连通性。"""
+def health():
+    """存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。"""
+    from fastapi.responses import JSONResponse
     from sqlalchemy import text
 
     db_ok = False
@@ -129,12 +135,13 @@ def health() -> dict:
 
     sched_ok = bool(scheduler.running) if scheduler else False
     status = "ok" if db_ok else "degraded"
-    return {
+    body = {
         "status": status,
         "version": settings.APP_VERSION,
         "database": "ok" if db_ok else "error",
         "scheduler": "ok" if sched_ok else "stopped",
     }
+    return JSONResponse(content=body, status_code=200 if db_ok else 503)
 
 
 _static_dir = Path(settings.STATIC_DIR).expanduser() if settings.STATIC_DIR else None

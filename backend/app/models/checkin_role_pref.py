@@ -9,7 +9,7 @@ from app.core.database import Base
 
 
 class CheckinRolePref(Base):
-    """按角色的自动签到开关与时间（北京墙钟）。"""
+    """按角色的「加入本站」与自动签到开关/时间（北京墙钟）。"""
 
     __tablename__ = "checkin_role_prefs"
     __table_args__ = (
@@ -29,6 +29,8 @@ class CheckinRolePref(Base):
     )
     game_code: Mapped[str] = mapped_column(String(32), nullable=False)
     role_uid: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 是否加入本站（签到页展示 / 可手动签）；与 enabled 解耦
+    included: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     checkin_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
     checkin_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)

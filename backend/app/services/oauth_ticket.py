@@ -1,4 +1,4 @@
-"""一次性 OAuth 换票（避免 JWT 出现在回调 URL）。"""
+"""一次性 OAuth 换票（避免 JWT 出现在回调 URL）。落库 access_token 经 Fernet 加密。"""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, to_naive
 from app.models.oauth_ticket import OAuthExchangeTicket
 
@@ -19,7 +20,7 @@ def issue_oauth_ticket(db: Session, access_token: str) -> str:
     db.add(
         OAuthExchangeTicket(
             code=code,
-            access_token=access_token,
+            access_token=encrypt_secret(access_token),
             expires_at=now_naive() + timedelta(seconds=TICKET_TTL_SECONDS),
         )
     )
@@ -39,9 +40,11 @@ def consume_oauth_ticket(db: Session, code: str) -> str:
         db.delete(row)
         db.flush()
         raise ValueError("换票码已过期，请重新登录")
-    token = row.access_token
+    token = decrypt_secret(row.access_token)
     db.delete(row)
     db.flush()
+    if not token:
+        raise ValueError("换票码无效或已使用")
     return token
 
 

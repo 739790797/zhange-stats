@@ -42,7 +42,7 @@ GAME_HT = "1256"
 GAME_HT_NAME = "幻塔"
 GAME_APP = "app"
 GAME_APP_NAME = "塔吉多 APP"
-# 游戏签到目标（不含社区）
+# 异环 / 幻塔游戏签到目标（社区 APP 另计）
 GAME_SIGN_IDS: tuple[tuple[str, str], ...] = (
     (GAME_NTE, GAME_NTE_NAME),
     (GAME_HT, GAME_HT_NAME),
@@ -519,15 +519,22 @@ def list_all_game_roles(creds: TaygedoCredentials) -> list[TaygedoRole]:
 
 # 签到逻辑拆至 taygedo_attendance，此处再导出保持原 import 路径兼容
 from app.services.taygedo_attendance import (  # noqa: E402
+    ShopGoods,
     app_signin,
     checkin_all,
     checkin_target,
     ensure_session,
+    exchange_shop_goods,
     fetch_today_awards,
     friendly_error_message,
     game_signin,
+    get_shop_goods_detail,
+    get_user_coin_state,
     is_auth_failure,
     list_checkin_targets,
+    list_shop_goods,
+    query_app_today,
     query_game_today,
     query_today_all,
+    sort_taygedo_results,
 )

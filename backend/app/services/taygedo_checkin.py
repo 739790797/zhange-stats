@@ -12,7 +12,11 @@ from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
 from app.models.member import Member
 from app.models.taygedo import TaygedoAttendanceRaw, TaygedoBind, TaygedoCheckinLog
-from app.services.checkin_adapter import CheckinAdapterBase, CheckinRunOutcome
+from app.services.checkin_adapter import (
+    CheckinAdapterBase,
+    CheckinRunOutcome,
+    SkipPolicy,
+)
 from app.services.checkin_common import CheckinResult, is_success_status
 from app.services.checkin_orchestrator import (
     checkin_job_wrapper as _orch_job_wrapper,
@@ -33,19 +37,27 @@ from app.services.checkin_role_prefs import (
 )
 from app.services.taygedo_calendar import parse_taygedo_attendance_calendar
 from app.services.taygedo_client import (
+    GAME_APP,
+    GAME_APP_NAME,
     GAME_HT,
+    GAME_HT_NAME,
     GAME_NTE,
+    GAME_NTE_NAME,
     TaygedoApiError,
     TaygedoCredentials,
     TaygedoRole,
     checkin_target,
+    exchange_shop_goods,
     friendly_error_message,
+    get_user_coin_state,
     list_all_game_roles,
+    list_shop_goods,
     login_with_password,
     login_with_sms,
     mask_phone,
     query_today_all as taygedo_query_today_all,
     refresh_access_token,
+    sort_taygedo_results,
 )
 
 logger = logging.getLogger(__name__)
@@ -187,6 +199,7 @@ def update_bind_prefs(
 
 
 def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
+    """探测可加入角色：社区账号 + 异环 / 幻塔游戏角色。"""
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
@@ -199,7 +212,15 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
         _save_creds(bind, working)
         db.commit()
 
-    out: list[dict[str, str]] = []
+    out: list[dict[str, str]] = [
+        {
+            "game_code": GAME_APP,
+            "game_name": GAME_APP_NAME,
+            "uid": working.uid,
+            "role_name": "社区账号",
+            "channel_name": "社区",
+        }
+    ]
     for r in roles:
         out.append(
             {
@@ -214,6 +235,138 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
 
 
 _CALENDAR_GAMES = frozenset({GAME_NTE, GAME_HT})
+_GAME_NAMES = {
+    GAME_NTE: GAME_NTE_NAME,
+    GAME_HT: GAME_HT_NAME,
+}
+
+
+def _session_for_bind(db: Session, bind: TaygedoBind) -> TaygedoCredentials:
+    from app.services.taygedo_client import ensure_session
+
+    creds = _load_creds(bind)
+    working = ensure_session(creds)
+    if (
+        working.access_token != creds.access_token
+        or working.refresh_token != creds.refresh_token
+    ):
+        _save_creds(bind, working)
+        db.commit()
+    return working
+
+
+def fetch_exchange_shop(
+    db: Session, member: Member, *, tab: str | None = None
+) -> dict[str, Any]:
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise TaygedoApiError("尚未绑定塔吉多")
+    working = _session_for_bind(db, bind)
+    goods, tabs = list_shop_goods(working, tab=str(tab or "all").strip() or "all")
+    coin_state: dict[str, Any] = {}
+    try:
+        coin_state = get_user_coin_state(working)
+    except TaygedoApiError:
+        pass
+    try:
+        gold = int(coin_state.get("total") or 0)
+    except (TypeError, ValueError):
+        gold = 0
+    try:
+        today_get = int(coin_state.get("todayGet") or 0)
+    except (TypeError, ValueError):
+        today_get = 0
+    try:
+        today_total = int(coin_state.get("todayTotal") or 0)
+    except (TypeError, ValueError):
+        today_total = 0
+    roles = list_all_game_roles(working)
+    _save_creds(bind, working)
+    db.commit()
+    return {
+        "gold": gold,
+        "today_get": today_get,
+        "today_total": today_total,
+        "tabs": tabs,
+        "items": [item.to_dict() for item in goods],
+        "roles": [
+            {
+                "game_id": r.game_code,
+                "game_name": r.game_name or _GAME_NAMES.get(r.game_code, r.game_code),
+                "role_id": r.role_id,
+                "role_name": r.role_name,
+            }
+            for r in roles
+        ],
+    }
+
+
+def run_exchange_for_member(
+    db: Session,
+    member: Member,
+    *,
+    goods_id: str,
+    game_id: str,
+    role_id: str,
+) -> dict[str, Any]:
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise TaygedoApiError("尚未绑定塔吉多")
+    working = _session_for_bind(db, bind)
+    goods_id = str(goods_id or "").strip()
+    game_id = str(game_id or "").strip()
+    role_id = str(role_id or "").strip()
+    if not goods_id or not game_id or not role_id:
+        raise TaygedoApiError("兑换参数不完整")
+
+    shop_items, _tabs = list_shop_goods(working, tab="all", count=50)
+    target = next((i for i in shop_items if i.goods_id == goods_id), None)
+    if target is None:
+        raise TaygedoApiError("兑换物品不存在或已下架")
+    if not target.can_exchange:
+        raise TaygedoApiError("该商品当前不可兑换")
+
+    roles = list_all_game_roles(working)
+    role = next(
+        (
+            r
+            for r in roles
+            if r.role_id == role_id and str(r.game_code) == game_id
+        ),
+        None,
+    )
+    if role is None:
+        raise TaygedoApiError("角色不在当前塔吉多绑定列表中")
+
+    coin_before = get_user_coin_state(working)
+    try:
+        gold_before = int(coin_before.get("total") or 0)
+    except (TypeError, ValueError):
+        gold_before = 0
+    if gold_before < target.price:
+        raise TaygedoApiError(
+            f"塔塔币不足（需要 {target.price}，当前 {gold_before}）"
+        )
+
+    exchange_shop_goods(
+        working,
+        goods_id=target.goods_id,
+        game_id=game_id,
+        role_id=role_id,
+    )
+    coin_after = get_user_coin_state(working)
+    try:
+        gold_after = int(coin_after.get("total") or 0)
+    except (TypeError, ValueError):
+        gold_after = None
+    _save_creds(bind, working)
+    db.commit()
+    return {
+        "ok": True,
+        "message": f"已兑换 {target.name}，请到游戏或社区查看",
+        "gold": gold_after,
+        "item": target.to_dict(),
+    }
 
 
 class TaygedoCheckinAdapter(CheckinAdapterBase):
@@ -223,6 +376,8 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
     log_model = TaygedoCheckinLog
     api_error_cls = TaygedoApiError
     empty_message = "未执行任何签到"
+    # 即使今日已签，仍补跑社区每日任务
+    skip_policy = SkipPolicy.ALWAYS_RUN
 
     def get_bind(self, db: Session, member_id: int) -> TaygedoBind | None:
         return get_bind_for_member(db, member_id)
@@ -240,6 +395,16 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
     ) -> tuple[TaygedoCredentials, list[CheckinResult]]:
         return taygedo_query_today_all(session)
 
+    def prepare_cached_results(
+        self, results: list[CheckinResult]
+    ) -> list[CheckinResult] | None:
+        return sort_taygedo_results(results)
+
+    def normalize_results(
+        self, results: list[CheckinResult]
+    ) -> list[CheckinResult]:
+        return sort_taygedo_results(results)
+
     def run_checkins(
         self,
         session: TaygedoCredentials,
@@ -254,7 +419,7 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
         if role_keys is not None:
             filtered = []
             for game_code, role in targets:
-                role_uid = role.role_id if role else "-"
+                role_uid = role.role_id if role else working.uid
                 if matches_role_filter(game_code, role_uid, role_keys):
                     filtered.append((game_code, role))
             targets = filtered
@@ -276,10 +441,12 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
 
         results: list[CheckinResult] = []
         for game_code, role in targets:
-            role_uid = role.role_id if role else "-"
+            role_uid = role.role_id if role else working.uid
             probed = live_map.get((game_code, role_uid))
+            # 社区 APP 即使已签也走 checkin_target，以补跑每日任务
             if (
                 not force
+                and game_code != GAME_APP
                 and probed is not None
                 and is_success_status(probed.status)
             ):
@@ -308,17 +475,8 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
                     )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("taygedo checkin unexpected error")
-                game_name = role.game_name if role else game_code
-                role_name = role.role_name if role else "-"
-                channel = role.game_name if role else game_code
-                result = CheckinResult(
-                    game_code=game_code,
-                    game_name=game_name,
-                    role_uid=role_uid,
-                    role_name=role_name,
-                    channel_name=channel,
-                    status="error",
-                    message=friendly_error_message(str(exc)),
+                result = _taygedo_error_result(
+                    game_code, role, role_uid, str(exc)
                 )
             results.append(result)
 
@@ -337,6 +495,16 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
                 db, bind.member_id, role_uids=cal_uids
             )
 
+    def enrich_summary(self, summary: str, results: list[CheckinResult]) -> str:
+        extra_parts = [
+            r.extra_text
+            for r in results
+            if r.extra_text and r.game_code == GAME_APP
+        ]
+        if not extra_parts:
+            return summary
+        return f"{summary}\n" + "\n".join(extra_parts)
+
     def friendly_error(self, message: str) -> str:
         return friendly_error_message(message)
 
@@ -348,9 +516,18 @@ def _taygedo_error_result(
     msg: str,
 ) -> CheckinResult:
     already = any(k in msg for k in ("已签到", "重复签到", "签到过", "already"))
-    game_name = role.game_name if role else game_code
-    role_name = role.role_name if role else "-"
-    channel = role.game_name if role else game_code
+    if role is not None:
+        game_name = role.game_name
+        role_name = role.role_name
+        channel = role.game_name
+    elif game_code == GAME_APP:
+        game_name = GAME_APP_NAME
+        role_name = "社区账号"
+        channel = "社区"
+    else:
+        game_name = game_code
+        role_name = "-"
+        channel = game_code
     return CheckinResult(
         game_code=game_code,
         game_name=game_name,

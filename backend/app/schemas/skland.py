@@ -283,3 +283,67 @@ class ArknightsAttendanceCalendarOut(BaseModel):
     synced_at: str | None = None
     stale: bool = False
 
+
+class ArknightsRogueTopicOut(BaseModel):
+    topic_id: str
+    name: str
+    selected: bool = False
+    pic: str | None = None
+
+
+class ArknightsRogueCharOut(BaseModel):
+    char_id: str
+    name: str
+    rarity: int = 0
+    level: int = 0
+    evolve_phase: int = 0
+    profession: str = ""
+
+
+class ArknightsRogueRecordOut(BaseModel):
+    record_id: str
+    mode: str = ""
+    mode_grade: int = 0
+    success: bool = False
+    score: int = 0
+    ending_text: str = ""
+    start_ts: str = ""
+    end_ts: str = ""
+    zone_count: int = 0
+    node_count: int = 0
+    relic_count: int = 0
+    band_name: str = ""
+    last_stage: str = ""
+    is_collect: bool = False
+    squad: list[ArknightsRogueCharOut] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class ArknightsRogueOverviewOut(BaseModel):
+    mode: str = ""
+    mode_grade: int = 0
+    score: int = 0
+    bp_level: int = 0
+    medal_current: int = 0
+    medal_count: int = 0
+    clear_difficulty: str = ""
+    clear_grade: int = 0
+    invest: int = 0
+    relic: int = 0
+    game_count: int = 0
+
+
+class ArknightsRogueOut(BaseModel):
+    uid: str
+    role_name: str
+    channel_name: str
+    topic_id: str
+    topic_name: str
+    topics: list[ArknightsRogueTopicOut] = Field(default_factory=list)
+    overview: ArknightsRogueOverviewOut
+    records: list[ArknightsRogueRecordOut] = Field(default_factory=list)
+    favour_records: list[ArknightsRogueRecordOut] = Field(default_factory=list)
+    roles: list[SklandRoleOut] = Field(default_factory=list)
+    synced_at: str | None = None
+    stale: bool = False
+

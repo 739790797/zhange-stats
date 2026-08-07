@@ -27,7 +27,12 @@ class _FakeApiError(Exception):
         self.code = code
 
 
-def _result(status: str = "ok") -> CheckinResult:
+def _result(
+    status: str = "ok",
+    *,
+    upstream_request: str | None = None,
+    upstream_response: str | None = None,
+) -> CheckinResult:
     return CheckinResult(
         game_code="g",
         game_name="G",
@@ -37,6 +42,8 @@ def _result(status: str = "ok") -> CheckinResult:
         status=status,
         message="m",
         awards_text="奖励×1",
+        upstream_request=upstream_request,
+        upstream_response=upstream_response,
     )
 
 
@@ -75,7 +82,16 @@ class _FakeAdapter(CheckinAdapterBase):
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
         self.runs += 1
-        return CheckinRunOutcome(session=session, results=[_result("ok")])
+        return CheckinRunOutcome(
+            session=session,
+            results=[
+                _result(
+                    "ok",
+                    upstream_request="POST https://example.test/sign\n{}",
+                    upstream_response='{"code":0}',
+                )
+            ],
+        )
 
     def friendly_error(self, message: str) -> str:
         return f"友好:{message}"
@@ -149,6 +165,40 @@ def test_skip_policy_always_run_ignores_logs(monkeypatch) -> None:
     assert out["ok"] is True
     assert adapter.runs == 1
     assert adapter.saved
+    assert out["exchanges"]
+    assert out["exchanges"][0]["upstream_response"] == '{"code":0}'
+    # 用户侧 results 不含 upstream
+    assert "upstream_response" not in (out["results"][0] or {})
+
+
+def test_skip_returns_empty_exchanges(monkeypatch) -> None:
+    adapter = _FakeAdapter()
+    bind = SimpleNamespace(member_id=1, id=10)
+    done = [_result("already")]
+
+    monkeypatch.setattr(
+        "app.services.checkin_orchestrator.today_done_from_logs",
+        lambda *a, **k: done,
+    )
+    monkeypatch.setattr(
+        "app.services.checkin_orchestrator.load_day_checkin_results",
+        lambda *a, **k: done,
+    )
+    monkeypatch.setattr(
+        "app.services.checkin_orchestrator.day_results_payload",
+        lambda results: {
+            "summary": "今日已签到",
+            "results": [r.to_api_dict() for r in results],
+            "ok": True,
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.checkin_orchestrator.today",
+        lambda: date(2026, 8, 6),
+    )
+
+    out = run_checkin_for_bind(adapter, MagicMock(), bind, force=False)
+    assert out["exchanges"] == []
 
 
 def test_query_today_uses_cache(monkeypatch) -> None:

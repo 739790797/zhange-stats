@@ -40,8 +40,8 @@ def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
 
     if not enabled or not host or not mail_from:
         settings = get_settings()
-        if settings.ALLOW_EMAIL_CODE_LOG:
-            # 仅显式开启时才输出完整验证码（本地调试）
+        # 生产环境即使误开 ALLOW_EMAIL_CODE_LOG 也不输出明文验证码
+        if settings.ALLOW_EMAIL_CODE_LOG and not settings.is_production:
             logger.warning(
                 "[email-dev] 邮件未启用或未配置，验证码发给 %s → %s",
                 to_email,

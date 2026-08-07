@@ -109,9 +109,12 @@ platform_limiter = auth_limiter
 
 
 def client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip() or "unknown"
+    from app.core.config import get_settings
+
+    if get_settings().TRUST_X_FORWARDED_FOR:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip() or "unknown"
     if request.client and request.client.host:
         return request.client.host
     return "unknown"

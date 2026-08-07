@@ -88,3 +88,77 @@ class TaygedoAttendanceCalendarOut(BaseModel):
     roles: list[TaygedoRoleOut] = Field(default_factory=list)
     synced_at: str | None = None
     stale: bool = False
+
+
+class ExastrisCharOut(BaseModel):
+    char_id: str
+    name: str
+    quality: str = ""
+    element_type: str = ""
+    group_type: str = ""
+    awaken_lev: int = 0
+    portrait_url: str | None = None
+    element_icon_url: str | None = None
+
+
+class ExastrisBoxOut(BaseModel):
+    uid: str
+    role_id: str = ""
+    role_name: str = ""
+    game_code: str = "1289"
+    game_name: str = "异环"
+    char_count: int = 0
+    chars: list[ExastrisCharOut] = Field(default_factory=list)
+    roles: list[TaygedoRoleOut] = Field(default_factory=list)
+    synced_at: str | None = None
+    stale: bool = False
+
+
+class TaygedoExchangeItemOut(BaseModel):
+    goods_id: str
+    name: str
+    cover: str = ""
+    price: int = 0
+    exchange_num: int = 0
+    cycle_limit: int = 0
+    cycle_type: int = 0
+    stock: int = -1
+    stock_limited: bool = False
+    tab: str = ""
+    state: int = 0
+    game_id: str = ""
+    can_exchange: bool = False
+
+
+class TaygedoExchangeTabOut(BaseModel):
+    tab: str
+    name: str = ""
+
+
+class TaygedoExchangeRoleOut(BaseModel):
+    game_id: str
+    game_name: str = ""
+    role_id: str
+    role_name: str = ""
+
+
+class TaygedoExchangeShopOut(BaseModel):
+    gold: int = 0
+    today_get: int = 0
+    today_total: int = 0
+    tabs: list[TaygedoExchangeTabOut] = Field(default_factory=list)
+    items: list[TaygedoExchangeItemOut] = Field(default_factory=list)
+    roles: list[TaygedoExchangeRoleOut] = Field(default_factory=list)
+
+
+class TaygedoExchangeRequest(BaseModel):
+    goods_id: str = Field(min_length=1, max_length=64)
+    game_id: str = Field(min_length=1, max_length=32)
+    role_id: str = Field(min_length=1, max_length=64)
+
+
+class TaygedoExchangeResultOut(BaseModel):
+    ok: bool = True
+    message: str = ""
+    gold: int | None = None
+    item: TaygedoExchangeItemOut | None = None

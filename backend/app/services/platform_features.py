@@ -90,10 +90,14 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "job_id": "taygedo_checkin",
             },
             {
+                "id": "taygedo.exchange",
+                "name": "兑换",
+                "kind": "feature",
+            },
+            {
                 "id": "taygedo.exastris",
                 "name": "异环",
                 "kind": "game",
-                "reserved": True,
             },
             {
                 "id": "taygedo.tower",
@@ -116,7 +120,7 @@ FEATURE_TREE: list[dict[str, Any]] = [
             },
             {
                 "id": "exilium.exchange",
-                "name": "积分兑换",
+                "name": "兑换",
                 "kind": "feature",
             },
         ],
@@ -133,10 +137,14 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "job_id": "kujiequ_checkin",
             },
             {
+                "id": "kujiequ.exchange",
+                "name": "兑换",
+                "kind": "feature",
+            },
+            {
                 "id": "kujiequ.ww",
                 "name": "鸣潮",
                 "kind": "game",
-                "reserved": True,
             },
             {
                 "id": "kujiequ.pgr",

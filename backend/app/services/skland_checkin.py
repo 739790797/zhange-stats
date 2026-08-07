@@ -52,7 +52,10 @@ from app.services.skland_client import (
     sort_skland_results,
 )
 from app.services.skland_calendar import parse_arknights_attendance_calendar
-from app.services.skland_attendance import fetch_arknights_attendance
+from app.services.skland_attendance import (
+    _is_arknights_bilibili,
+    fetch_arknights_attendance,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +66,26 @@ def get_bind_for_member(db: Session, member_id: int) -> SklandBind | None:
     return db.query(SklandBind).filter(SklandBind.member_id == member_id).one_or_none()
 
 
+def _looks_like_skland_auth_error(message: str | None) -> bool:
+    text = (message or "").strip()
+    if not text:
+        return False
+    low = text.lower()
+    return any(
+        k in text
+        for k in ("未登录", "登录", "凭证", "cred", "token", "授权", "过期", "失效")
+    ) or "unauthorized" in low
+
+
 def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
+    from app.services.skland_session_cache import (
+        invalidate_skland_session,
+        put_cached_skland_session,
+    )
+
     token = normalize_hg_token(raw_token)
+    # 换票前先清缓存，避免旧 cred 与并发 status 交错
+    invalidate_skland_session(member.id)
     session = login_with_token(token)
     list_roles(session)
 
@@ -81,6 +102,7 @@ def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
     bind.updated_at = now_naive()
     db.commit()
     db.refresh(bind)
+    put_cached_skland_session(member.id, token, session)
     _maybe_checkin_after_bind(db, bind)
     return bind
 
@@ -120,11 +142,14 @@ def send_skland_sms(phone: str) -> None:
 
 
 def unbind_skland(db: Session, member: Member) -> None:
+    from app.services.skland_session_cache import invalidate_skland_session
+
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         return
     db.delete(bind)
     db.commit()
+    invalidate_skland_session(member.id)
 
 
 def set_auto_checkin(db: Session, member: Member, enabled: bool) -> SklandBind:
@@ -160,11 +185,8 @@ def preview_roles(db: Session, member: Member) -> list[SklandRole]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    token = decrypt_secret(bind.token_enc)
-    if not token:
-        raise SklandApiError("凭证已损坏，请重新绑定")
-    session = login_with_token(token)
-    return list_roles(session)
+    # 复用会话缓存，避免绑定后立刻再 grant 一次把刚写入的 cred 顶掉
+    return list_roles(_session_for_bind(bind))
 
 
 def get_arknights_box_for_member(db: Session, member: Member, uid: str | None = None):
@@ -419,11 +441,126 @@ def get_endfield_box_for_member(
     return box, role, roles, row.synced_at, stale
 
 
-def _session_for_bind(bind: SklandBind):
+def get_arknights_rogue_for_member(
+    db: Session,
+    member: Member,
+    uid: str | None = None,
+    *,
+    topic_id: str | None = None,
+    force: bool = False,
+):
+    """读库二次加工方舟肉鸽；无记录或 force 时回源落库。"""
+    import json
+
+    from app.models.arknights_rogue import ArknightsRogueRaw
+    from app.services.skland_rogue import (
+        DEFAULT_TOPIC_ID,
+        fetch_arknights_rogue,
+        normalize_topic_id,
+        parse_arknights_rogue,
+    )
+    from app.services.skland_session_cache import put_cached_skland_session
+
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise SklandApiError("尚未绑定森空岛")
+    session = _session_for_bind(bind)
+    roles = [r for r in list_roles(session) if r.game_code == GAME_ARKNIGHTS]
+    if not roles:
+        raise SklandApiError("未找到明日方舟绑定角色")
+    target_uid = str(uid or "").strip()
+    role = None
+    if target_uid:
+        role = next((r for r in roles if r.uid == target_uid), None)
+    else:
+        role = roles[0]
+    if role is None:
+        raise SklandApiError("UID 不在当前明日方舟绑定列表中")
+
+    topic = normalize_topic_id(topic_id) if topic_id else DEFAULT_TOPIC_ID
+    row = (
+        db.query(ArknightsRogueRaw)
+        .filter(
+            ArknightsRogueRaw.member_id == member.id,
+            ArknightsRogueRaw.uid == str(role.uid),
+            ArknightsRogueRaw.topic_id == topic,
+        )
+        .one_or_none()
+    )
+    stale = False
+    if force or row is None:
+        try:
+            raw = fetch_arknights_rogue(session, uid=str(role.uid), topic_id=topic)
+            # user_id 可能在本次拉取中补齐，写回会话缓存
+            token = decrypt_secret(bind.token_enc)
+            if token and session.user_id:
+                put_cached_skland_session(member.id, token, session)
+            raw_json = json.dumps(raw, ensure_ascii=False)
+            from app.services.raw_payload_monitor import note_raw_payload
+
+            note_raw_payload(
+                "arknights_rogue_raw",
+                raw_json,
+                member_id=member.id,
+                uid=role.uid,
+                topic_id=topic,
+            )
+            now = now_naive()
+            if row is None:
+                row = ArknightsRogueRaw(
+                    member_id=member.id,
+                    uid=str(role.uid),
+                    topic_id=topic,
+                    raw_json=raw_json,
+                    synced_at=now,
+                )
+                db.add(row)
+            else:
+                row.raw_json = raw_json
+                row.synced_at = now
+            db.commit()
+            db.refresh(row)
+        except SklandApiError:
+            if row is None:
+                raise
+            stale = True
+            logger.exception(
+                "arknights rogue refresh failed member_id=%s uid=%s topic=%s",
+                member.id,
+                role.uid,
+                topic,
+            )
+
+    try:
+        raw_obj = json.loads(row.raw_json)
+    except json.JSONDecodeError as exc:
+        raise SklandApiError("肉鸽数据损坏，请刷新重试") from exc
+    if not isinstance(raw_obj, dict):
+        raise SklandApiError("肉鸽数据格式异常，请刷新重试")
+
+    box = parse_arknights_rogue(raw_obj, topic_id=topic)
+    return box, role, roles, row.synced_at, stale
+
+
+def _session_for_bind(bind: SklandBind, *, bypass_cache: bool = False):
+    from app.services.skland_session_cache import (
+        get_cached_skland_session,
+        invalidate_skland_session,
+        put_cached_skland_session,
+    )
+
     token = decrypt_secret(bind.token_enc)
     if not token:
         raise SklandApiError("凭证已损坏，请重新绑定")
-    return login_with_token(token)
+    if not bypass_cache:
+        cached = get_cached_skland_session(bind.member_id, token)
+        if cached is not None:
+            return cached
+    else:
+        invalidate_skland_session(bind.member_id)
+    session = login_with_token(token)
+    put_cached_skland_session(bind.member_id, token, session)
+    return session
 
 
 _EMPTY_ROLES_MSG = (
@@ -502,8 +639,10 @@ class SklandCheckinAdapter(CheckinAdapterBase):
                 msg = exc.message or ""
                 already = "请勿重复签到" in msg or "重复签到" in msg
                 if already:
-                    result = query_role_today(session, role)
-                    if result.status == "pending":
+                    # B 服方舟：GET records 常空，重复签到不再回源补奖
+                    if role.game_code == GAME_ARKNIGHTS and _is_arknights_bilibili(
+                        role
+                    ):
                         result = CheckinResult(
                             game_code=role.game_code,
                             game_name=role.game_name,
@@ -511,30 +650,44 @@ class SklandCheckinAdapter(CheckinAdapterBase):
                             role_name=role.role_name,
                             channel_name=role.channel_name,
                             status="already",
-                            message=(
-                                (result.awards_text or "")
-                                if role.game_code == GAME_ARKNIGHTS
-                                else "今日已签到"
-                            ),
-                            awards_text=result.awards_text,
-                            awards=result.awards,
+                            message="",
+                            awards_text=None,
+                            awards=None,
                         )
-                    elif (
-                        role.game_code == GAME_ARKNIGHTS
-                        and is_success_status(result.status)
-                    ):
-                        # 方舟执行落库只保留 award
-                        result = CheckinResult(
-                            game_code=result.game_code,
-                            game_name=result.game_name,
-                            role_uid=result.role_uid,
-                            role_name=result.role_name,
-                            channel_name=result.channel_name,
-                            status=result.status,
-                            message=result.awards_text or "",
-                            awards_text=result.awards_text,
-                            awards=result.awards,
-                        )
+                    else:
+                        result = query_role_today(session, role)
+                        if result.status == "pending":
+                            result = CheckinResult(
+                                game_code=role.game_code,
+                                game_name=role.game_name,
+                                role_uid=role.uid,
+                                role_name=role.role_name,
+                                channel_name=role.channel_name,
+                                status="already",
+                                message=(
+                                    (result.awards_text or "")
+                                    if role.game_code == GAME_ARKNIGHTS
+                                    else "今日已签到"
+                                ),
+                                awards_text=result.awards_text,
+                                awards=result.awards,
+                            )
+                        elif (
+                            role.game_code == GAME_ARKNIGHTS
+                            and is_success_status(result.status)
+                        ):
+                            # 方舟执行落库只保留 award
+                            result = CheckinResult(
+                                game_code=result.game_code,
+                                game_name=result.game_name,
+                                role_uid=result.role_uid,
+                                role_name=result.role_name,
+                                channel_name=result.channel_name,
+                                status=result.status,
+                                message=result.awards_text or "",
+                                awards_text=result.awards_text,
+                                awards=result.awards,
+                            )
                 else:
                     result = CheckinResult(
                         game_code=role.game_code,
@@ -610,11 +763,23 @@ skland_adapter = SklandCheckinAdapter()
 def query_today_for_bind(
     db: Session, bind: SklandBind, *, force: bool = False
 ) -> dict[str, Any]:
-    """今日签到状态：有今日日志则读库；否则查官方并落库。
+    """今日签到状态（编排层）。
 
-    方舟已签但缺结构化奖励图标时，即使无 force 也回源补全（旧日志仅有 awards_text）。
+    用户展示路径应传 force=True（打开页始终回源官方）；force=False 时调度可读今日
+    logs 成功态短路。方舟已签但缺结构化奖励图标时，prepare_cached_results 会强制回源补全。
+
+    缓存 cred 失效但 hg token 仍可用时：清缓存并强制换票重试一次。
     """
-    return _orch_query_today(skland_adapter, db, bind, force=force)
+    try:
+        return _orch_query_today(skland_adapter, db, bind, force=force)
+    except SklandApiError as exc:
+        if not _looks_like_skland_auth_error(exc.message):
+            raise
+        from app.services.skland_session_cache import invalidate_skland_session
+
+        invalidate_skland_session(bind.member_id)
+        _session_for_bind(bind, bypass_cache=True)
+        return _orch_query_today(skland_adapter, db, bind, force=True)
 
 
 def query_today_for_member(

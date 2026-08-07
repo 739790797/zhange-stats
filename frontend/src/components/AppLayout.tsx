@@ -84,8 +84,8 @@ const leafKeys = [
   "/steam",
   "/skland",
   "/taygedo",
-  "/exilium",
   "/kujiequ",
+  "/exilium",
   "/daily",
   "/profile",
 ];

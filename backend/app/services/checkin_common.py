@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -32,6 +33,34 @@ STATUS_LABELS: dict[str, str] = {
 }
 
 
+def format_upstream_request(
+    method: str,
+    url: str,
+    body: Any = None,
+) -> str:
+    """管理端排障用：METHOD URL + body（不含敏感头）。"""
+    lines = [f"{(method or 'GET').upper()} {url}".rstrip()]
+    if body is None:
+        return lines[0]
+    if isinstance(body, (dict, list)):
+        lines.append(json.dumps(body, ensure_ascii=False, indent=2))
+    else:
+        text = str(body).strip()
+        if text:
+            lines.append(text)
+    return "\n".join(lines)
+
+
+def format_upstream_response(payload: Any) -> str | None:
+    """管理端排障用：上游 HTTP body 原文（优先 pretty JSON）。"""
+    if payload is None:
+        return None
+    if isinstance(payload, (dict, list)):
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+    text = str(payload).strip()
+    return text or None
+
+
 @dataclass
 class CheckinResult:
     game_code: str
@@ -45,6 +74,9 @@ class CheckinResult:
     extra_text: str | None = None
     # 结构化奖励（可选；方舟可含 icon_url）
     awards: list[dict[str, Any]] | None = None
+    # 管理端排障：上游 HTTP 原文（不进用户侧 to_api_dict）
+    upstream_request: str | None = None
+    upstream_response: str | None = None
 
     def to_api_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -73,6 +105,10 @@ _PLACEHOLDER_AWARDS = re.compile(
     r"^(?:奖励|reward)(?:\s*[×xX*＊]\s*\d+)?$",
     re.IGNORECASE,
 )
+# 塔吉多等：经验流水把浏览/点赞任务误当成「今日奖励」
+_TASK_EXP_AWARD_POLLUTION = re.compile(r"(点赞帖子|浏览帖子|分享帖子)")
+# 旧版误用经验「签到奖励+N」；应被任务中心「塔塔币+N」覆盖
+_WEAK_EXP_SIGNIN_AWARDS = re.compile(r"^签到奖励")
 
 
 def is_placeholder_awards(text: str | None) -> bool:
@@ -84,6 +120,43 @@ def is_placeholder_awards(text: str | None) -> bool:
     # 多段里若全是占位也视为不完整
     parts = [p.strip() for p in re.split(r"[·，,、]", raw) if p.strip()]
     return bool(parts) and all(_PLACEHOLDER_AWARDS.fullmatch(p) for p in parts)
+
+
+def is_polluted_task_exp_awards(text: str | None) -> bool:
+    """任务经验误入奖励文案（点赞/浏览帖子刷屏）视为无效，允许被清空或覆盖。"""
+    raw = (text or "").strip()
+    return bool(raw) and bool(_TASK_EXP_AWARD_POLLUTION.search(raw))
+
+
+def is_weak_exp_signin_awards(text: str | None) -> bool:
+    """经验流水里的「签到奖励」弱于官方塔塔币签到奖励。"""
+    raw = (text or "").strip()
+    return bool(raw) and bool(_WEAK_EXP_SIGNIN_AWARDS.match(raw))
+
+
+def _awards_items_polluted(items: list[dict[str, Any]] | None) -> bool:
+    if not items:
+        return False
+    for a in items:
+        if not isinstance(a, dict):
+            continue
+        name = str(a.get("name") or "")
+        if _TASK_EXP_AWARD_POLLUTION.search(name):
+            return True
+    return False
+
+
+def _awards_items_weak_exp_signin(items: list[dict[str, Any]] | None) -> bool:
+    if not items:
+        return False
+    names = [
+        str(a.get("name") or "")
+        for a in items
+        if isinstance(a, dict) and a.get("name")
+    ]
+    if not names:
+        return False
+    return all(n == "签到奖励" or n == "签到" for n in names)
 
 
 def award_item(
@@ -137,9 +210,27 @@ def awards_richness(text: str | None) -> tuple[int, int, int]:
 
 
 def prefer_richer_awards(current: str | None, incoming: str | None) -> str | None:
-    """合并奖励文案：保留更完整的一侧；「奖励×N」占位视为无效，可被清空或升级。"""
-    cur = None if is_placeholder_awards(current) else (current or "").strip() or None
-    inc = None if is_placeholder_awards(incoming) else (incoming or "").strip() or None
+    """合并奖励文案：保留更完整的一侧；占位 / 任务经验污染视为无效，可被清空或升级。"""
+    cur_raw = (current or "").strip() or None
+    inc_raw = (incoming or "").strip() or None
+    cur = (
+        None
+        if (
+            is_placeholder_awards(cur_raw)
+            or is_polluted_task_exp_awards(cur_raw)
+            or is_weak_exp_signin_awards(cur_raw)
+        )
+        else cur_raw
+    )
+    inc = (
+        None
+        if (
+            is_placeholder_awards(inc_raw)
+            or is_polluted_task_exp_awards(inc_raw)
+            or is_weak_exp_signin_awards(inc_raw)
+        )
+        else inc_raw
+    )
     if not inc:
         return cur
     if not cur:
@@ -156,6 +247,24 @@ def prefer_richer_award_items(
     incoming_items: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
     """与 prefer_richer_awards 同步选择结构化奖励列表；同等文案时优先带图标。"""
+    # 污染 / 弱经验签到条目视为无效，避免盖住任务中心塔塔币
+    if _awards_items_polluted(current_items) or _awards_items_weak_exp_signin(
+        current_items
+    ):
+        current_items = None
+        if is_polluted_task_exp_awards(current_text) or is_weak_exp_signin_awards(
+            current_text
+        ):
+            current_text = None
+    if _awards_items_polluted(incoming_items) or _awards_items_weak_exp_signin(
+        incoming_items
+    ):
+        incoming_items = None
+        if is_polluted_task_exp_awards(incoming_text) or is_weak_exp_signin_awards(
+            incoming_text
+        ):
+            incoming_text = None
+
     merged = prefer_richer_awards(current_text, incoming_text)
     if merged is None:
         return None
@@ -171,7 +280,15 @@ def prefer_richer_award_items(
 
     cur_items = list(current_items) if current_items else None
     inc_items = list(incoming_items) if incoming_items else None
-    inc = None if is_placeholder_awards(incoming_text) else (incoming_text or "").strip() or None
+    inc = (
+        None
+        if (
+            is_placeholder_awards(incoming_text)
+            or is_polluted_task_exp_awards(incoming_text)
+            or is_weak_exp_signin_awards(incoming_text)
+        )
+        else (incoming_text or "").strip() or None
+    )
     if merged == inc and inc_items:
         # 文案同等时若旧列表图标更多，保留旧列表
         if (
@@ -468,27 +585,23 @@ def upsert_day_checkin_logs(
                 row.status = r.status
                 # 状态被保护时，勿用「今日尚未签到」等查询文案覆盖执行摘要
                 row.message = message or row.message
-            # 奖励文案：同步残缺结果不得覆盖签到时已写入的完整明细
+            # 奖励文案：同步残缺 / B 服「已签」空 awards 不得覆盖此前 POST 落库的明细
             prev_text = row.awards_text
             prev_items = loads_awards_json(getattr(row, "awards_json", None))
+            row.awards_text = prefer_richer_awards(prev_text, awards_text)
+            if hasattr(row, "awards_json"):
+                row.awards_json = dumps_awards_json(
+                    prefer_richer_award_items(
+                        prev_text, prev_items, awards_text, r.awards
+                    )
+                )
             if (
                 source == LOG_SOURCE_ACTION
                 and game_code == "arknights"
                 and is_success_status(r.status)
             ):
-                # 方舟执行：直接以本次 award 为准（可为空）
-                row.awards_text = awards_text
-                if hasattr(row, "awards_json"):
-                    row.awards_json = dumps_awards_json(r.awards)
-                row.message = awards_text or ""
-            else:
-                row.awards_text = prefer_richer_awards(prev_text, awards_text)
-                if hasattr(row, "awards_json"):
-                    row.awards_json = dumps_awards_json(
-                        prefer_richer_award_items(
-                            prev_text, prev_items, awards_text, r.awards
-                        )
-                    )
+                # 方舟执行摘要只保留 award（合并后），不写「今日已签到」等状态句
+                row.message = row.awards_text or ""
             # action 优先：status 同步不得把已执行记录改回「仅查询」
             if hasattr(row, "source"):
                 prev_source = str(getattr(row, "source", "") or LOG_SOURCE_STATUS)
@@ -513,7 +626,11 @@ def upsert_and_reload_day_results(
     now: Any,
     source: str = LOG_SOURCE_STATUS,
 ) -> list[CheckinResult]:
-    """写入并读回合并后的今日结果（供接口返回，避免带回残缺 awards）。"""
+    """写入并读回合并后的今日结果（供接口返回，避免带回残缺 awards）。
+
+    logs 无独立 extra_text 列（写入时并入 message）；读回后从现场 results
+    按角色键回填，避免追放每日任务等展示字段丢失。
+    """
     if results:
         upsert_day_checkin_logs(
             db,
@@ -532,7 +649,21 @@ def upsert_and_reload_day_results(
         member_id=member_id,
         checkin_date=checkin_date,
     )
-    return cached if cached is not None else results
+    if cached is None:
+        return results
+    extras = {
+        (str(r.game_code or ""), str(r.role_uid or "")): r.extra_text
+        for r in results
+        if r.extra_text
+    }
+    if not extras:
+        return cached
+    for row in cached:
+        key = (str(row.game_code or ""), str(row.role_uid or ""))
+        text = extras.get(key)
+        if text:
+            row.extra_text = text
+    return cached
 
 
 def log_row_to_api(

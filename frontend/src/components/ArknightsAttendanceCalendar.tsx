@@ -16,7 +16,7 @@ import { fetchArknightsAttendanceCalendar } from "@/api/client";
 import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import { apiError } from "@/lib/apiError";
 
-/** 仅官服有签到进度；B 服上游不返回 records/done。 */
+/** 仅官服有可信签到进度；B 服上游不返回 records/done。 */
 export function isOfficialArknightsChannel(
   channelName?: string | null,
 ): boolean {
@@ -26,7 +26,7 @@ export function isOfficialArknightsChannel(
   return n.includes("官方") || n.includes("官服");
 }
 
-/** 方舟 B 服：领取记录为空，无法查询今日奖励。 */
+/** 方舟 B 服：领取记录为空，无法查询签到奖励。 */
 export function isBilibiliArknightsChannel(
   channelName?: string | null,
 ): boolean {
@@ -40,7 +40,7 @@ export function isBilibiliArknightsChannel(
   );
 }
 
-/** 官服行内「签到日历」按钮；点击弹窗展示。 */
+/** 行内「签到日历」按钮；点击弹窗展示。B 服可看奖励表，进度可能不可信。 */
 export function ArknightsAttendanceCalendarButton({
   uid,
   roleName,
@@ -53,6 +53,7 @@ export function ArknightsAttendanceCalendarButton({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const bili = isBilibiliArknightsChannel(channelName);
 
   const query = useQuery({
     queryKey: ["arknights-attendance-calendar", uid],
@@ -76,6 +77,7 @@ export function ArknightsAttendanceCalendarButton({
 
   const titleName = roleName || uid;
   const titleChannel = channelName ? `（${channelName}）` : "";
+  const progressReliable = query.data?.progress_reliable !== false;
 
   return (
     <>
@@ -130,15 +132,32 @@ export function ArknightsAttendanceCalendarButton({
                 message="官方同步失败，正在显示缓存"
               />
             ) : null}
+            {!progressReliable ? (
+              <Alert
+                type="info"
+                showIcon
+                message={
+                  bili
+                    ? "B 服可展示本周期奖励一览；森空岛未返回签到进度，格子不点亮「已签」。"
+                    : "该渠道未返回可信签到进度，仅展示奖励一览。"
+                }
+              />
+            ) : null}
             <Space wrap size={8}>
-              <Tag color="blue">
-                已签 {query.data.claimed_days}/{query.data.total_days} 天
-              </Tag>
-              {query.data.has_today_claim ? (
-                <Tag color="success">今日已领</Tag>
+              {progressReliable ? (
+                <Tag color="blue">
+                  已签 {query.data.claimed_days}/{query.data.total_days} 天
+                </Tag>
               ) : (
-                <Tag>今日未领</Tag>
+                <Tag color="blue">共 {query.data.total_days} 天奖励</Tag>
               )}
+              {progressReliable ? (
+                query.data.has_today_claim ? (
+                  <Tag color="success">今日已领</Tag>
+                ) : (
+                  <Tag>今日未领</Tag>
+                )
+              ) : null}
             </Space>
             <Typography.Paragraph
               type="secondary"
@@ -155,40 +174,45 @@ export function ArknightsAttendanceCalendarButton({
                 overflow: "auto",
               }}
             >
-              {query.data.days.map((day) => (
-                <div
-                  key={day.day}
-                  style={{
-                    border:
-                      "1px solid var(--ant-color-border-secondary, #f0f0f0)",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    background: day.claimed
-                      ? "rgba(82, 196, 26, 0.06)"
-                      : "transparent",
-                    opacity: day.claimed ? 1 : 0.85,
-                  }}
-                >
-                  <Space
+              {query.data.days.map((day) => {
+                const showClaimed = progressReliable && day.claimed;
+                return (
+                  <div
+                    key={day.day}
                     style={{
-                      width: "100%",
-                      justifyContent: "space-between",
+                      border:
+                        "1px solid var(--ant-color-border-secondary, #f0f0f0)",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      background: showClaimed
+                        ? "rgba(82, 196, 26, 0.06)"
+                        : "transparent",
+                      opacity: progressReliable ? (showClaimed ? 1 : 0.85) : 1,
                     }}
-                    size={4}
                   >
-                    <Typography.Text strong>第 {day.day} 天</Typography.Text>
-                    <Tag
-                      color={day.claimed ? "success" : "default"}
-                      style={{ marginInlineEnd: 0 }}
+                    <Space
+                      style={{
+                        width: "100%",
+                        justifyContent: "space-between",
+                      }}
+                      size={4}
                     >
-                      {day.claimed ? "已签" : "未签"}
-                    </Tag>
-                  </Space>
-                  <div style={{ marginTop: 8 }}>
-                    <CheckinAwardsLine awards={day.awards} fallback="—" />
+                      <Typography.Text strong>第 {day.day} 天</Typography.Text>
+                      {progressReliable ? (
+                        <Tag
+                          color={day.claimed ? "success" : "default"}
+                          style={{ marginInlineEnd: 0 }}
+                        >
+                          {day.claimed ? "已签" : "未签"}
+                        </Tag>
+                      ) : null}
+                    </Space>
+                    <div style={{ marginTop: 8 }}>
+                      <CheckinAwardsLine awards={day.awards} fallback="—" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Space>
         )}

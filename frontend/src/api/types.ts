@@ -30,6 +30,11 @@ export type KujiequCheckinResponse = CheckinResponse;
 export type SteamNowItem = components["schemas"]["SteamNowItem"];
 export type SteamPollResult = components["schemas"]["SteamPollResult"];
 export type EndfieldBox = components["schemas"]["EndfieldBoxOut"];
+export type ExastrisBox = components["schemas"]["ExastrisBoxOut"];
+export type ExastrisChar = components["schemas"]["ExastrisCharOut"];
+export type ArknightsRogue = components["schemas"]["ArknightsRogueOut"];
+export type ArknightsRogueRecord =
+  components["schemas"]["ArknightsRogueRecordOut"];
 export type ArknightsBoxCompare = components["schemas"]["ArknightsBoxCompareOut"];
 export type ArknightsAttendanceCalendar =
   components["schemas"]["ArknightsAttendanceCalendarOut"];
@@ -60,6 +65,29 @@ export type ExiliumExchangeShop =
   components["schemas"]["ExiliumExchangeShopOut"];
 export type ExiliumExchangeResult =
   components["schemas"]["ExiliumExchangeResultOut"];
+
+export type KujiequExchangeItem =
+  components["schemas"]["KujiequExchangeItemOut"];
+export type KujiequExchangeShop =
+  components["schemas"]["KujiequExchangeShopOut"];
+export type KujiequExchangeResult =
+  components["schemas"]["KujiequExchangeResultOut"];
+export type KujiequExchangeRole =
+  components["schemas"]["KujiequExchangeRoleOut"];
+
+export type TaygedoExchangeItem =
+  components["schemas"]["TaygedoExchangeItemOut"];
+export type TaygedoExchangeShop =
+  components["schemas"]["TaygedoExchangeShopOut"];
+export type TaygedoExchangeResult =
+  components["schemas"]["TaygedoExchangeResultOut"];
+export type TaygedoExchangeRole =
+  components["schemas"]["TaygedoExchangeRoleOut"];
+
+export type KujiequAttendanceCalendar =
+  components["schemas"]["KujiequAttendanceCalendarOut"];
+export type WwBox = components["schemas"]["WwBoxOut"];
+export type WwBoxItem = components["schemas"]["WwBoxItemOut"];
 
 /** 与后端 OpenAPI `MemberPlayStatsResponse` 对齐。 */
 export type MemberPlayStats = components["schemas"]["MemberPlayStatsResponse"];

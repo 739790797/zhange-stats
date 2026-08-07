@@ -14,6 +14,7 @@
 | [`.cursor/rules/backend-conventions.mdc`](../.cursor/rules/backend-conventions.mdc) | 后端域规范 |
 | [`.cursor/rules/frontend-api-errors.mdc`](../.cursor/rules/frontend-api-errors.mdc) | apiError / `*Api` 边界 |
 | [`.cursor/rules/platform-raw-cache.mdc`](../.cursor/rules/platform-raw-cache.mdc) | 已有：平台 raw / 签到 |
+| [`.cursor/rules/skland-upstream.mdc`](../.cursor/rules/skland-upstream.mdc) | 森空岛官服/B服、补奖、cred（2026-08-07） |
 | [`.cursor/rules/db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | 已有：Alembic |
 
 以下为原始方案正文（归档备查）。

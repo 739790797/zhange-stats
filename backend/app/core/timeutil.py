@@ -1,7 +1,10 @@
 """项目统一时间：业务与展示一律使用北京时间（Asia/Shanghai）。
 
 约定：
-- 业务库 DATETIME 存北京墙钟（无 tzinfo）
+- **写入**：业务库 DATETIME 存北京墙钟（无 tzinfo），统一用 `now_naive()` / `to_naive()`
+- **读取**：用 `ensure()` / `to_naive()` 规范为北京；勿直接依赖驱动返回的 tzinfo
+- **列定义**：历史模型多为 `DateTime(timezone=True)`（MySQL 仍常按无时区存）；
+  勿仅因 ORM 标注而改写业务层为 aware UTC。改列类型须 Alembic + 全量读写审计
 - JWT 等少数协议字段仍用 UTC（见 security / openid）
 """
 

@@ -103,3 +103,48 @@ def test_upsert_status_then_action_keeps_action_source() -> None:
         source=LOG_SOURCE_STATUS,
     )
     assert row.source == LOG_SOURCE_ACTION
+
+
+def test_arknights_action_already_empty_keeps_prior_awards() -> None:
+    """B 服重复签到常无 awards：不得冲掉此前 POST 落库的奖励。"""
+    row = _FakeLog(
+        member_id=1,
+        bind_id=1,
+        game_code="arknights",
+        game_name="明日方舟",
+        role_uid="1",
+        role_name="r",
+        channel_name="B服",
+        status="ok",
+        message="合成玉x80",
+        awards_text="合成玉x80",
+        awards_json='[{"name":"合成玉","count":80}]',
+        checkin_date=date(2026, 8, 6),
+        checked_at=date(2026, 8, 6),
+        source=LOG_SOURCE_ACTION,
+    )
+    empty_already = CheckinResult(
+        game_code="arknights",
+        game_name="明日方舟",
+        role_uid="1",
+        role_name="r",
+        channel_name="B服",
+        status="already",
+        message="",
+        awards_text=None,
+        awards=None,
+    )
+    upsert_day_checkin_logs(
+        _FakeDb(existing=row),
+        _FakeLog,
+        member_id=1,
+        bind_id=1,
+        checkin_date=date(2026, 8, 6),
+        results=[empty_already],
+        now=date(2026, 8, 6),
+        source=LOG_SOURCE_ACTION,
+    )
+    assert row.status == "already"
+    assert row.awards_text == "合成玉x80"
+    assert row.message == "合成玉x80"
+    assert "合成玉" in (row.awards_json or "")

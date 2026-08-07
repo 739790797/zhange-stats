@@ -6,6 +6,13 @@ from typing import Any
 
 
 def _reward_award(item: dict[str, Any]) -> dict[str, Any]:
+    """与今日奖励同源：走 _item_award_dict，保证 icon_url 一致。"""
+    # 延迟导入，避免 taygedo_client ↔ attendance ↔ calendar 循环依赖
+    from app.services.taygedo_attendance import _item_award_dict
+
+    parsed = _item_award_dict(item)
+    if parsed:
+        return parsed
     name = str(
         item.get("name")
         or item.get("rewardName")
@@ -16,11 +23,7 @@ def _reward_award(item: dict[str, Any]) -> dict[str, Any]:
         count = int(item.get("num") if item.get("num") is not None else item.get("count") or 1)
     except (TypeError, ValueError):
         count = 1
-    out: dict[str, Any] = {"name": name, "count": count}
-    icon = item.get("icon") or item.get("iconUrl") or item.get("icon_url")
-    if isinstance(icon, str) and icon.strip():
-        out["icon_url"] = icon.strip()
-    return out
+    return {"name": name, "count": count}
 
 
 def parse_taygedo_attendance_calendar(

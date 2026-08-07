@@ -1,0 +1,20 @@
+{
+  "records": [
+    {
+      "rogueId": "rogue_1",
+      "relicCnt": 86,
+      "bank": {
+        "current": 798,
+        "record": 798
+      }
+    },
+    {
+      "rogueId": "rogue_2",
+      "relicCnt": 0,
+      "bank": {
+        "current": 0,
+        "record": 0
+      }
+    }
+  ]
+}

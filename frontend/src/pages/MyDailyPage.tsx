@@ -1,31 +1,20 @@
-import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { apiError } from "@/lib/apiError";
-import {
-  Alert,
-  Button,
-  Modal,
-  Table,
-  Typography,
-} from "antd";
+import { Alert, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState, type Key } from "react";
-import { Link } from "react-router-dom";
 import {
-  fetchMyDailyTaskLogs,
   fetchMyDailyTasks,
-  type CheckinLogItem,
   type UserCheckinTask,
 } from "@/api/client";
-import { CheckinStatusTag } from "@/components/CheckinStatusTag";
-import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
+import { PageHeader } from "@/components/PageHeader";
 import {
   CHECKIN_PLATFORM_LABELS,
   CHECKIN_PLATFORM_ORDER,
+  CheckinTreeNameLabel,
   buildCheckinTaskScheduleColumns,
+  communityGameRank,
 } from "@/components/checkinTaskDisplay";
-import { isAdminUser } from "@/lib/isAdminUser";
-import { useAuthStore } from "@/stores/authStore";
 
 type RoleLeaf = UserCheckinTask & {
   rowKey: string;
@@ -82,8 +71,12 @@ function buildDailyTree(tasks: UserCheckinTask[]): PlatformGroupRow[] {
       byGame.set(gc, gList);
     }
 
-    const gameChildren: GameGroupRow[] = [...byGame.entries()].map(
-      ([gameCode, roles]) => ({
+    const gameChildren: GameGroupRow[] = [...byGame.entries()]
+      .sort(
+        ([a], [b]) =>
+          communityGameRank(a) - communityGameRank(b) || a.localeCompare(b),
+      )
+      .map(([gameCode, roles]) => ({
         rowKey: `game:${platform}:${gameCode}`,
         rowType: "game" as const,
         platform,
@@ -94,8 +87,7 @@ function buildDailyTree(tasks: UserCheckinTask[]): PlatformGroupRow[] {
           rowKey: t.task_key,
           rowType: "role" as const,
         })),
-      }),
-    );
+      }));
 
     const legacyLeaves: RoleLeaf[] = legacy.map((t) => ({
       ...t,
@@ -114,11 +106,6 @@ function buildDailyTree(tasks: UserCheckinTask[]): PlatformGroupRow[] {
 }
 
 export default function MyDailyPage() {
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = isAdminUser(user);
-  const [runsTask, setRunsTask] = useState<UserCheckinTask | null>(null);
-  const [runsPage, setRunsPage] = useState(1);
-  const [runsPageSize, setRunsPageSize] = useState(20);
   const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
 
   const tasksQuery = useQuery({
@@ -126,21 +113,24 @@ export default function MyDailyPage() {
     queryFn: async () => {
       const pageSize = 100;
       const first = await fetchMyDailyTasks({ page: 1, page_size: pageSize });
-      const items = [...first.items];
-      const totalPages = Math.max(1, Math.ceil(first.total / pageSize));
+      const items = [...(first.items || [])];
+      const totalPages = Math.max(1, Math.ceil((first.total || 0) / pageSize));
       for (let p = 2; p <= totalPages; p += 1) {
         const next = await fetchMyDailyTasks({ page: p, page_size: pageSize });
-        items.push(...next.items);
+        items.push(...(next.items || []));
       }
       return { ...first, items, page: 1, page_size: items.length };
     },
     refetchInterval: 30_000,
   });
 
-  const treeData = useMemo(
-    () => buildDailyTree(tasksQuery.data?.items || []),
-    [tasksQuery.data?.items],
-  );
+  const treeData = useMemo(() => {
+    // 只读展示已加入本站的角色（角色管理在个人中心）
+    const included = (tasksQuery.data?.items || []).filter(
+      (t) => t.included !== false,
+    );
+    return buildDailyTree(included);
+  }, [tasksQuery.data?.items]);
 
   useEffect(() => {
     const keys: Key[] = [];
@@ -153,22 +143,6 @@ export default function MyDailyPage() {
     setExpandedKeys(keys);
   }, [treeData]);
 
-  const checkinLogsQuery = useQuery({
-    queryKey: [
-      "my-daily-task-logs",
-      runsTask?.platform || "",
-      runsPage,
-      runsPageSize,
-    ],
-    queryFn: () =>
-      fetchMyDailyTaskLogs({
-        platform: runsTask!.platform,
-        page: runsPage,
-        page_size: runsPageSize,
-      }),
-    enabled: Boolean(runsTask),
-  });
-
   const taskColumns: ColumnsType<DailyRow> = [
     {
       title: "平台 / 游戏 / 角色",
@@ -177,16 +151,25 @@ export default function MyDailyPage() {
       render: (_, row) => {
         if (row.rowType === "platform") {
           return (
-            <Typography.Text strong>
-              {CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name}
-            </Typography.Text>
+            <CheckinTreeNameLabel
+              kind="platform"
+              platform={row.platform}
+              label={
+                CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name
+              }
+              strong
+            />
           );
         }
         if (row.rowType === "game") {
           return (
-            <Typography.Text style={{ paddingLeft: 4 }}>
-              {row.game_name}
-            </Typography.Text>
+            <CheckinTreeNameLabel
+              kind="game"
+              platform={row.platform}
+              gameCode={row.game_code}
+              label={row.game_name}
+              style={{ paddingLeft: 4 }}
+            />
           );
         }
         if (row.game_code) {
@@ -205,112 +188,11 @@ export default function MyDailyPage() {
       isLeaf: (row) => row.rowType === "role",
       getTask: (row) => row as RoleLeaf,
     }),
-    {
-      title: "操作",
-      key: "actions",
-      width: 110,
-      fixed: "right",
-      render: (_, row) => {
-        if (row.rowType === "game") return null;
-        const task: UserCheckinTask =
-          row.rowType === "platform"
-            ? {
-                task_key: row.rowKey,
-                job_id: "",
-                platform: row.platform,
-                platform_name: row.platform_name,
-                member_id: 0,
-                user_label: "",
-                auto_checkin: false,
-                checkin_hour: 0,
-                checkin_minute: 0,
-              }
-            : row;
-        return (
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              setRunsPage(1);
-              setRunsTask(task);
-            }}
-          >
-            执行记录
-          </Button>
-        );
-      },
-    },
-  ];
-
-  const checkinColumns: ColumnsType<CheckinLogItem> = [
-    {
-      title: "时间",
-      dataIndex: "checked_at",
-      width: 170,
-      render: (v?: string | null) => v || "-",
-    },
-    {
-      title: "角色",
-      key: "role",
-      width: 200,
-      render: (_, row) =>
-        `${row.role_name || row.role_uid}（${row.game_name || row.game_code}）`,
-    },
-    {
-      title: "状态",
-      dataIndex: "status",
-      width: 90,
-      render: (v: string, row) => (
-        <CheckinStatusTag status={v} statusLabel={row.status_label} />
-      ),
-    },
-    {
-      title: "摘要",
-      key: "summary",
-      ellipsis: true,
-      render: (_, row) => (
-        <CheckinAwardsLine
-          awards={row.awards}
-          awardsText={row.awards_text || null}
-          fallback="-"
-        />
-      ),
-    },
   ];
 
   return (
     <div>
-      <Typography.Title level={4} style={{ marginTop: 0, marginBottom: 8 }}>
-        我的日常
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        按平台 → 游戏 → 角色查看是否启用与计划时间。修改请到各平台签到页。
-        {isAdmin ? (
-          <>
-            {" "}
-            管理端可在{" "}
-            <Link to="/settings/jobs">任务调度</Link>{" "}
-            查看全部用户（同一套角色任务数据）。
-          </>
-        ) : null}
-      </Typography.Paragraph>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <Button
-          icon={<ReloadOutlined />}
-          loading={tasksQuery.isFetching}
-          onClick={() => void tasksQuery.refetch()}
-        >
-          刷新
-        </Button>
-      </div>
+      <PageHeader title="我的日常" />
 
       {tasksQuery.isError ? (
         <Alert
@@ -331,58 +213,11 @@ export default function MyDailyPage() {
           expandedRowKeys: expandedKeys,
           onExpandedRowsChange: (keys) => setExpandedKeys([...keys]),
         }}
-        locale={{ emptyText: "暂无已绑定的日常任务平台" }}
+        locale={{ emptyText: "暂无已加入本站的角色" }}
         pagination={false}
         size="middle"
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1000 }}
       />
-
-      <Modal
-        title={
-          runsTask
-            ? `执行记录 · ${CHECKIN_PLATFORM_LABELS[runsTask.platform] || runsTask.platform_name}${
-                runsTask.role_name || runsTask.role_uid
-                  ? ` · ${runsTask.role_name || runsTask.role_uid}`
-                  : ""
-              }`
-            : "执行记录"
-        }
-        open={Boolean(runsTask)}
-        onCancel={() => setRunsTask(null)}
-        footer={null}
-        width={960}
-        destroyOnClose
-      >
-        <Table
-          rowKey={(row) => `${row.platform}-${row.id}`}
-          loading={checkinLogsQuery.isLoading || checkinLogsQuery.isFetching}
-          columns={checkinColumns}
-          dataSource={
-            runsTask?.role_uid
-              ? (checkinLogsQuery.data?.items || []).filter(
-                  (row) =>
-                    row.role_uid === runsTask.role_uid &&
-                    (!runsTask.game_code ||
-                      row.game_code === runsTask.game_code),
-                )
-              : checkinLogsQuery.data?.items || []
-          }
-          size="small"
-          pagination={{
-            current: runsPage,
-            pageSize: runsPageSize,
-            total: runsTask?.role_uid
-              ? undefined
-              : checkinLogsQuery.data?.total || 0,
-            showSizeChanger: true,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (nextPage, nextSize) => {
-              setRunsPage(nextPage);
-              setRunsPageSize(nextSize);
-            },
-          }}
-        />
-      </Modal>
     </div>
   );
 }

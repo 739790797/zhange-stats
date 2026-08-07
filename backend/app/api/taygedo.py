@@ -6,8 +6,11 @@ from fastapi import APIRouter, Body, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.platform_checkin import (
+    apply_role_membership_replace,
+    apply_role_pref_update,
     build_checkin_response,
     build_checkin_status,
+    build_role_membership_tree,
     raise_api_error,
     role_keys_from_now_body,
 )
@@ -20,6 +23,10 @@ from app.models.user import User
 from app.schemas import (
     CheckinNowBody,
     CheckinRolePrefUpdate,
+    ExastrisBoxOut,
+    ExastrisCharOut,
+    RoleMembershipReplaceBody,
+    RoleMembershipTreeOut,
     TaygedoAttendanceCalendarOut,
     TaygedoAttendanceDayOut,
     TaygedoBindJsonRequest,
@@ -31,19 +38,28 @@ from app.schemas import (
     TaygedoCheckinLogOut,
     TaygedoCheckinResponse,
     TaygedoCheckinResultItem,
+    TaygedoExchangeItemOut,
+    TaygedoExchangeRequest,
+    TaygedoExchangeResultOut,
+    TaygedoExchangeRoleOut,
+    TaygedoExchangeShopOut,
+    TaygedoExchangeTabOut,
     TaygedoRoleOut,
     TaygedoStatusOut,
 )
 from app.schemas.checkin import CheckinAwardItem
+from app.services.taygedo_boxes import get_exastris_box_for_member
 from app.services.taygedo_checkin import (
     bind_with_credentials_json,
     bind_with_password,
     bind_with_sms,
+    fetch_exchange_shop,
     get_bind_for_member,
     get_taygedo_attendance_calendar_for_member,
     preview_roles,
     query_today_for_bind,
     run_checkin_for_member,
+    run_exchange_for_member,
     unbind_taygedo,
     update_bind_prefs,
 )
@@ -62,7 +78,10 @@ def taygedo_status(
     user: User = Depends(get_current_user),
     member: Member = Depends(require_user_member),
     include_roles: bool = Query(default=True),
-    force: bool = Query(default=False),
+    force: bool = Query(
+        default=True,
+        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+    ),
 ):
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
@@ -204,30 +223,66 @@ def taygedo_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
-    if payload.enabled and (
-        payload.checkin_hour is None or payload.checkin_minute is None
-    ):
-        from fastapi import HTTPException
+    from app.services.checkin_role_prefs import PLATFORM_TAYGEDO
 
-        raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
-    try:
-        from app.services.checkin_role_prefs import PLATFORM_TAYGEDO, upsert_role_pref
+    apply_role_pref_update(
+        db=db,
+        platform=PLATFORM_TAYGEDO,
+        member_id=member.id,
+        bind=bind,
+        payload=payload,
+    )
+    return taygedo_status(db=db, user=user, member=member, include_roles=False)
 
-        upsert_role_pref(
-            db,
-            platform=PLATFORM_TAYGEDO,
-            member_id=member.id,
-            bind=bind,
-            game_code=payload.game_code,
-            role_uid=payload.role_uid,
-            enabled=payload.enabled,
-            checkin_hour=payload.checkin_hour,
-            checkin_minute=payload.checkin_minute,
-        )
-    except ValueError as exc:
-        from fastapi import HTTPException
 
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+@router.get(
+    "/role-tree",
+    response_model=RoleMembershipTreeOut,
+    dependencies=[Depends(require_feature("taygedo.checkin"))],
+)
+def taygedo_role_tree(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+):
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
+    from app.services.checkin_role_prefs import PLATFORM_TAYGEDO
+
+    return build_role_membership_tree(
+        db=db,
+        platform=PLATFORM_TAYGEDO,
+        member_id=member.id,
+        preview_roles=preview_roles,
+        member=member,
+        api_error_cls=TaygedoApiError,
+    )
+
+
+@router.put(
+    "/role-memberships",
+    response_model=TaygedoStatusOut,
+    dependencies=[Depends(require_feature("taygedo.checkin"))],
+)
+def taygedo_replace_role_memberships(
+    body: RoleMembershipReplaceBody,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+):
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
+    from app.services.checkin_role_prefs import PLATFORM_TAYGEDO
+
+    apply_role_membership_replace(
+        db=db,
+        platform=PLATFORM_TAYGEDO,
+        member_id=member.id,
+        bind=bind,
+        body=body,
+    )
     return taygedo_status(db=db, user=user, member=member, include_roles=False)
 
 
@@ -252,6 +307,71 @@ def taygedo_checkin_now(
         out=out,
         response_cls=TaygedoCheckinResponse,
         result_cls=TaygedoCheckinResultItem,
+    )
+
+
+@router.get(
+    "/exchange",
+    response_model=TaygedoExchangeShopOut,
+    dependencies=[Depends(require_feature("taygedo.exchange"))],
+)
+def taygedo_exchange_shop(
+    tab: str | None = Query(default=None, max_length=32),
+    db: Session = Depends(get_db),
+    member: Member = Depends(require_user_member),
+):
+    try:
+        data = fetch_exchange_shop(db, member, tab=tab)
+    except TaygedoApiError as exc:
+        raise_api_error(exc, TaygedoApiError)
+    return TaygedoExchangeShopOut(
+        gold=int(data.get("gold") or 0),
+        today_get=int(data.get("today_get") or 0),
+        today_total=int(data.get("today_total") or 0),
+        tabs=[
+            TaygedoExchangeTabOut(**t)
+            for t in (data.get("tabs") or [])
+            if isinstance(t, dict)
+        ],
+        items=[
+            TaygedoExchangeItemOut(**item)
+            for item in (data.get("items") or [])
+            if isinstance(item, dict)
+        ],
+        roles=[
+            TaygedoExchangeRoleOut(**r)
+            for r in (data.get("roles") or [])
+            if isinstance(r, dict)
+        ],
+    )
+
+
+@router.post(
+    "/exchange",
+    response_model=TaygedoExchangeResultOut,
+    dependencies=[Depends(require_feature("taygedo.exchange"))],
+)
+def taygedo_do_exchange(
+    payload: TaygedoExchangeRequest,
+    db: Session = Depends(get_db),
+    member: Member = Depends(require_user_member),
+):
+    try:
+        out = run_exchange_for_member(
+            db,
+            member,
+            goods_id=payload.goods_id,
+            game_id=payload.game_id,
+            role_id=payload.role_id,
+        )
+    except TaygedoApiError as exc:
+        raise_api_error(exc, TaygedoApiError)
+    item = out.get("item")
+    return TaygedoExchangeResultOut(
+        ok=bool(out.get("ok")),
+        message=str(out.get("message") or ""),
+        gold=out.get("gold"),
+        item=TaygedoExchangeItemOut(**item) if isinstance(item, dict) else None,
     )
 
 
@@ -313,3 +433,60 @@ def taygedo_attendance_calendar(
         synced_at=synced_at.isoformat() if synced_at else None,
         stale=stale,
     )
+
+
+def _exastris_box_out(box, _role, roles, synced_at, stale: bool) -> ExastrisBoxOut:
+    return ExastrisBoxOut(
+        uid=box.uid,
+        role_id=box.role_id,
+        role_name=box.role_name,
+        game_code=box.game_code,
+        game_name=box.game_name,
+        char_count=box.char_count,
+        chars=[
+            ExastrisCharOut(
+                char_id=c.char_id,
+                name=c.name,
+                quality=c.quality,
+                element_type=c.element_type,
+                group_type=c.group_type,
+                awaken_lev=c.awaken_lev,
+                portrait_url=c.portrait_url,
+                element_icon_url=c.element_icon_url,
+            )
+            for c in box.chars
+        ],
+        roles=[
+            TaygedoRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.role_id,
+                role_name=r.role_name,
+                channel_name=r.game_name,
+            )
+            for r in roles
+        ],
+        synced_at=synced_at.isoformat() if synced_at else None,
+        stale=stale,
+    )
+
+
+@router.get(
+    "/exastris/box",
+    response_model=ExastrisBoxOut,
+    dependencies=[Depends(require_feature("taygedo.exastris"))],
+)
+def taygedo_exastris_box(
+    db: Session = Depends(get_db),
+    member: Member = Depends(require_user_member),
+    uid: str | None = Query(default=None, max_length=64),
+    force: bool = Query(default=False),
+):
+    """异环角色盒子：默认读库二次加工；force 或首次回源落库。"""
+    try:
+        box, role, roles, synced_at, stale = get_exastris_box_for_member(
+            db, member, uid, force=force
+        )
+    except TaygedoApiError as exc:
+        raise_api_error(exc, TaygedoApiError)
+    return _exastris_box_out(box, role, roles, synced_at, stale)

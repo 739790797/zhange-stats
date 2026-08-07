@@ -13,4 +13,5 @@
 
 ## 与手写类型的关系
 
-**契约源是本目录的 `schema.d.ts`。** `frontend/src/api/types.ts` 中业务类型已几乎全部派生自 `components["schemas"]`；`settingsApi` / NapCat / 签到页模板 props 等少数适配层仍可手写，并随契约补齐后迁移。
+**契约源是本目录的 `schema.d.ts`。** `frontend/src/api/types.ts` 与域 `*Api.ts`（含 settings / NapCat / setup）业务类型应派生自 `components["schemas"]`；页面本地 FormValues 可手写。
+

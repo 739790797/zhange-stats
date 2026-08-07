@@ -13,18 +13,29 @@ alwaysApply: false
 - 签到：`checkin_orchestrator` + 各平台 `CheckinPlatformAdapter`；状态/upsert/`apply_bind_last_checkin` 走 `checkin_common`（摘要字段**仅签到动作**后写）
 - 新平台签到 checklist：实现 `*_client` / `*_attendance`（出口 `(session, list[CheckinResult])`）→ 实现 Adapter → 注册进 `checkin_registry.ADAPTERS` → prefs `PLATFORM_*` + Bind/Log/Alembic + API `build_checkin_status` + scheduler 挂 `checkin_job_wrapper`；**勿**再复制 `query_today_for_bind` / `run_checkin_for_bind` 骨架
 
+### Adapter 可选钩子（按需实现，勿抬进 orchestrator）
+
+| 钩子 / 能力 | 何时需要 | 参考 |
+|-------------|----------|------|
+| `prepare_cached_results` → `None` | logs 命中但展示不完整（如缺 icon）须强制回源 | `SklandCheckinAdapter`（B服豁免） |
+| 短时 session / cred 缓存 | 换票贵或上游限频 | `skland_session_cache` + `ephemeral_kv` |
+| 鉴权失败 retry 一次 | 缓存票失效常见 | `skland_checkin.query_today_for_bind` 外包层 |
+| `STATUS_UNKNOWN` | 上游查询不可信，勿当 `pending`（未签） | 森空岛 B服；见 `skland-upstream.mdc` |
+
+渠道/上游语义分裂留在该平台 `*_attendance`，**不要**为单一平台改公共编排。
+
 ## Upstream 客户端
 
 - `*_client.py`：认证、会话、通用 HTTP、常量
 - `*_attendance.py`：签到查询/执行
-- 可选 `*_boxes.py`：盒子 parse/fetch
+- 可选 `*_boxes.py` / 旁路 raw（日历、肉鸽等）：parse/fetch，模式同盒子
 - 为兼容可从 `*_client` re-export；**新逻辑写进拆分模块**，勿继续胀单文件
 
 ## 横切
 
 - 时间：`app.core.timeutil`（北京墙钟）
 - 密钥：`crypto_secret` Fernet
-- 限流：`auth_limiter` / `platform_limiter`（可选 `REDIS_URL`）
+- 限流 + 短时 KV（扫码 / 森空岛 cred）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 README「部署形态」）
 - QQ 登录：一次性 ticket，勿把 JWT 放回调 query
 
 ## 数据库
@@ -33,4 +44,5 @@ alwaysApply: false
 
 ## 测试
 
-触及弱口令、限流、oauth ticket、`checkin_common`、health 等纯逻辑时，优先补 `backend/tests/`。
+触及弱口令、限流、oauth ticket、`checkin_common`、health 等纯逻辑时，优先补 `backend/tests/`。  
+改平台渠道语义（尤其森空岛官/B服）：**先补 `test_skland_*` / 对应平台测，再改 attendance**。

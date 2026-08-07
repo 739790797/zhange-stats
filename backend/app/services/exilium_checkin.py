@@ -184,7 +184,7 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
             "role_name": working.nickname
             or mask_account(working.account_name)
             or "社区账号",
-            "channel_name": "官方社区",
+            "channel_name": "社区",
         }
     ]
 

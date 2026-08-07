@@ -1,16 +1,16 @@
-"""森空岛 App 扫码登录会话（内存态，绑定到当前用户）。"""
+"""森空岛 App 扫码登录会话（短 TTL；Redis 可用时跨实例，否则进程内）。"""
 
 from __future__ import annotations
 
 import base64
 import io
-import threading
+import json
 import time
 import uuid
-from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.core.ephemeral_kv import ephemeral_delete, ephemeral_get, ephemeral_set
 from app.models.member import Member
 from app.services.skland_checkin import bind_skland
 from app.services.skland_client import (
@@ -21,31 +21,36 @@ from app.services.skland_client import (
 )
 
 QR_TTL_SECONDS = 180
+_KEY_PREFIX = "skland:qr:"
 
 
-@dataclass
-class _PendingQr:
-    user_id: int
-    member_id: int
-    device_id: str
-    scan_url: str
-    created_at: float
-    completed: bool = False
+def _qr_key(scan_id: str) -> str:
+    return f"{_KEY_PREFIX}{scan_id}"
 
 
-_lock = threading.Lock()
-_pending: dict[str, _PendingQr] = {}
+def _load_pending(scan_id: str) -> dict | None:
+    raw = ephemeral_get(_qr_key(scan_id))
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        ephemeral_delete(_qr_key(scan_id))
+        return None
+    if not isinstance(data, dict):
+        ephemeral_delete(_qr_key(scan_id))
+        return None
+    return data
 
 
-def _purge_expired(now: float | None = None) -> None:
-    ts = now if now is not None else time.time()
-    dead = [
-        sid
-        for sid, row in _pending.items()
-        if row.completed or ts - row.created_at > QR_TTL_SECONDS + 30
-    ]
-    for sid in dead:
-        _pending.pop(sid, None)
+def _save_pending(scan_id: str, data: dict, *, remaining_ttl: int | None = None) -> None:
+    ttl = remaining_ttl if remaining_ttl is not None else QR_TTL_SECONDS
+    ttl = max(1, int(ttl))
+    ephemeral_set(
+        _qr_key(scan_id),
+        json.dumps(data, separators=(",", ":")),
+        ttl_sec=ttl,
+    )
 
 
 def qr_image_data_url(content: str) -> str:
@@ -64,15 +69,19 @@ def qr_image_data_url(content: str) -> str:
 def start_qr_bind(*, user_id: int, member: Member) -> dict:
     device_id = uuid.uuid4().hex
     session = create_scan_login(device_id)
-    with _lock:
-        _purge_expired()
-        _pending[session.scan_id] = _PendingQr(
-            user_id=user_id,
-            member_id=member.id,
-            device_id=device_id,
-            scan_url=session.scan_url,
-            created_at=time.time(),
-        )
+    created_at = time.time()
+    _save_pending(
+        session.scan_id,
+        {
+            "user_id": int(user_id),
+            "member_id": int(member.id),
+            "device_id": device_id,
+            "scan_url": session.scan_url,
+            "created_at": created_at,
+            "completed": False,
+        },
+        remaining_ttl=QR_TTL_SECONDS + 30,
+    )
     return {
         "scan_id": session.scan_id,
         "scan_url": session.scan_url,
@@ -82,39 +91,36 @@ def start_qr_bind(*, user_id: int, member: Member) -> dict:
 
 
 def poll_qr_bind(db: Session, *, user_id: int, member: Member, scan_id: str) -> dict:
-    with _lock:
-        _purge_expired()
-        pending = _pending.get(scan_id)
-
+    pending = _load_pending(scan_id)
     if pending is None:
         return {
             "status": "expired",
             "message": "二维码已失效，请刷新后重试",
         }
-    if pending.user_id != user_id or pending.member_id != member.id:
+    if int(pending.get("user_id") or 0) != user_id or int(
+        pending.get("member_id") or 0
+    ) != member.id:
         raise SklandApiError("无权使用该扫码会话")
-    if pending.completed:
+    if pending.get("completed"):
         return {"status": "ok", "message": "绑定成功"}
 
-    if time.time() - pending.created_at > QR_TTL_SECONDS:
-        with _lock:
-            _pending.pop(scan_id, None)
+    created_at = float(pending.get("created_at") or 0)
+    age = time.time() - created_at
+    if age > QR_TTL_SECONDS:
+        ephemeral_delete(_qr_key(scan_id))
         return {"status": "expired", "message": "二维码已过期，请刷新"}
 
-    poll = poll_scan_status(pending.device_id, scan_id)
+    device_id = str(pending.get("device_id") or "")
+    poll = poll_scan_status(device_id, scan_id)
     if poll.status != "ready" or not poll.scan_code:
         return {
             "status": poll.status,
             "message": poll.message,
         }
 
-    token = token_by_scan_code(pending.device_id, poll.scan_code)
+    token = token_by_scan_code(device_id, poll.scan_code)
     bind_skland(db, member, token)
-    with _lock:
-        row = _pending.get(scan_id)
-        if row is not None:
-            row.completed = True
-            _pending.pop(scan_id, None)
+    ephemeral_delete(_qr_key(scan_id))
     return {
         "status": "ok",
         "message": "扫码绑定成功",

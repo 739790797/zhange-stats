@@ -6,11 +6,12 @@ alwaysApply: false
 
 # 平台数据：Raw 落库 + 二次加工
 
-适用于森空岛 / 终末地 / 塔吉多 / 库街区 / 追放等绑定后拉游戏数据的能力。
+适用于森空岛 / 终末地 / 塔吉多 / 库街区 / 追放等绑定后拉游戏数据的能力。  
+森空岛官服/B服、补奖、cred 等垂直坑见 `skland-upstream.mdc`。
 
-## 养成 / 盒子（跨日可缓存）
+## 养成 / 盒子 / 旁路 raw（跨日可缓存）
 
-参考：`endfield_box_raws` + `parse_endfield_box` + `GET /skland/endfield/box`。
+参考：`endfield_box_raws` + `parse_endfield_box`；同类还有 `arknights_rogue_raws`、`skland_attendance_raws`（日历）等。
 
 ```
 上游 ──(回源)──► raw_json 落库 ──(parse)──► *Out ──► 前端
@@ -27,7 +28,7 @@ alwaysApply: false
 参考：各平台已有 `*_checkin_logs`（按 `member_id + checkin_date + game_code + role_uid` 唯一）。
 
 ```
-打开签到页 / 同步官方 / 签到后刷新
+打开签到页 / 签到后刷新
         │
         ▼
   始终查官方（force）→ upsert 今日日志 → 返回展示
@@ -38,9 +39,10 @@ alwaysApply: false
 ### 产品语义（单轴）
 
 - **今日是否已签** = 官方今日领取/签到结果；打开页**始终回源**，不为展示走「有今日 logs 就短路」。
-- **已签**才展示今日奖励；未签 / 待确认不展示奖励。
+- 四平台 `GET …/status` 的 `force` **默认 true**（契约层保证）；调度走 service 层 `force=False`，不经过该 HTTP 默认。
+- **已签**才展示今日奖励；未签 / 待确认（`unknown`）不展示奖励。
 - **行内签到**弹窗回执（成功 / 失败 / 请勿重复签到 / 未知错误）；**不展示执行记录**（无上次执行 / 已执行叙事）。
-- 定时任务照常跑，**无需为展示设计**。
+- 定时任务照常跑，**无需为展示设计**；签到页不提供单独的「同步官方」按钮（进页即回源）。
 
 ### 落库职责
 
@@ -54,9 +56,10 @@ alwaysApply: false
 - 只更新 bind 摘要却不写按角色的今日日志
 - 前端直连上游
 - 用户侧展示「执行记录 / 上次执行」作为签到心智
+- 把不可信上游查询标成 `pending`（未签）；应 `unknown`（见森空岛 B服）
 
 ## Checklist
 
-**盒子**：`*_raws` + fetch/parse + 读库 API + 刷新  
+**盒子 / 旁路 raw**：`*_raws` + fetch/parse + 读库 API + 刷新（含 endfield box、arknights rogue、attendance calendar 等）  
 **签到展示**：打开页 force 回源 → upsert → 展示；已签展示奖励；签到弹窗回执  
 **签到调度**：可读今日 logs 成功态跳过

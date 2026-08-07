@@ -21,8 +21,21 @@ alwaysApply: false
 ## 数据与 UI
 
 - 远端状态用 TanStack Query；勿把服务端列表塞进 zustand
-- UI 沿用 Ant Design；**新签到页**套 `CheckinPageTemplate`
+- UI 沿用 Ant Design
+- **新签到内容**套 `CheckinPageTemplate`（`contentOnly` 嵌入平台 Tabs）
+- **新兑换内容**套 `ExchangePageTemplate` + `ExchangeGoodsCard`（商品字段/确认流由平台注入）
+- **平台页外壳**套 `PlatformFeatureTabsPage`（绑定门禁 + feature Tabs）
 - 盒子读库优先；**签到展示**打开页始终 `force` 回源（见 `platform-raw-cache`）
+- 平台积分/代币兑换：页签与任务配置统一称 **「兑换」**（勿写「库洛币兑换」「积分兑换」等）；面板标题用「兑换商城」，货币名仅在余额/消耗文案中出现
+
+### `force` 传参（签到 status）
+
+四平台 `GET …/status` 后端 **`force` 默认 true**。前端 `fetch*Status`：
+
+- **必须显式把 `force` 放进 query**（`force: true | false`），禁止 `...(force ? { force: true } : {})` 省略——省略时后端仍按默认 true，与 JS 默认 `false` 语义错位。
+- `fetch*Status` 的 JS 默认应为 **`force = true`**（对齐契约与展示路径）。
+- 调度/读 logs 的调用方须显式传 `force: false`（若走 HTTP；通常调度在 service 层不经此 API）。
+- 盒子 / 日历 / rogue 等 raw 接口后端默认 `force=false`；同样建议显式传 `force`，避免歧义。
 
 ## 类型
 

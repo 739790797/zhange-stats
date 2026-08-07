@@ -10,12 +10,14 @@ alwaysApply: true
 | 域 | 必须 | 禁止 | 详见 |
 |----|------|------|------|
 | 契约 | 改 FastAPI 路由/schema 后 `npm run export:openapi && npm run gen:api` 并提交 `generated/` | 只改手写 `types.ts` 当契约 | `frontend/src/api/generated/README.md` |
-| 签到/盒子 | 盒子 raw 读库优先；签到**展示**打开页始终 force 回源；编排走 `checkin_orchestrator` + Adapter | status 改 `last_checkin_*`；签到页展示执行记录；新平台抄整份编排 | `.cursor/rules/platform-raw-cache.mdc`、`backend-conventions.mdc` |
+| 签到/盒子 | 盒子/旁路 raw 读库优先；签到**展示**打开页始终 force 回源；编排走 `checkin_orchestrator` + Adapter | status 改 `last_checkin_*`；签到页展示执行记录；新平台抄整份编排 | `.cursor/rules/platform-raw-cache.mdc`、`backend-conventions.mdc` |
+| 森空岛上游 | 官/B 渠道语义、补奖、`unknown`、cred 缓存按上游规则 | B服当未签；`gameId` 回退官服；B服 GET 补奖 | `.cursor/rules/skland-upstream.mdc` |
 | DB | Alembic 迁移 + 同步 README 表结构 | 往 `schema_ensure.py` 堆 ALTER | `.cursor/rules/db-schema-readme.mdc` |
-| 前端 API | 域 `*Api.ts`；用户可见错误用 `apiError` | 页面直连 axios；手拆 `detail` | `.cursor/rules/frontend-api-errors.mdc` |
-| 前端结构 | 签到套 `CheckinPageTemplate`；权限看 `role` | 新造平行请求层 | `.cursor/rules/frontend-conventions.mdc` |
+| 前端 API | 域 `*Api.ts`；用户可见错误用 `apiError`；status **显式传** `force` | 页面直连 axios；手拆 `detail`；省略 force 参数 | `.cursor/rules/frontend-api-errors.mdc`、`frontend-conventions.mdc` |
+| 前端结构 | 签到套 `CheckinPageTemplate`；兑换套 `ExchangePageTemplate`；平台页套 `PlatformFeatureTabsPage`；权限看 `role` | 新造平行请求层 / 复制整页外壳 | `.cursor/rules/frontend-conventions.mdc` |
 | 后端 | `api/` 薄、`services/` 厚；upstream 拆 client/attendance | 路由内打上游 HTTP | `.cursor/rules/backend-conventions.mdc` |
 | 时间 | `app.core.timeutil` 北京墙钟 | 业务层随意 `utcnow` | `backend/app/core/timeutil.py` |
-| 安全 | 凭证 Fernet；QQ 只发 ticket；生产 `APP_ENV=production` | JWT 进回调 URL；生产弱口令/明文验证码日志 | 根 `README.md`「说明」 |
+| 安全 | 凭证 Fernet；QQ 只发 ticket；生产 `APP_ENV=production`；`ALLOW_EMAIL_CODE_LOG` 生产启动硬拒绝 | JWT 进回调 URL；生产弱口令 | 根 `README.md`「说明」 |
+| 短时 KV | 多实例共享 `REDIS_URL`（扫码 / 森空岛 cred / 限流） | 无共享 Redis 水平扩 app | `README.md`「部署形态」、`backend-conventions.mdc` |
 
 总入口：仓库根 `AGENTS.md`。

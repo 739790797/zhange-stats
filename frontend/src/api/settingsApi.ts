@@ -1,152 +1,23 @@
 import { client } from "./http";
+import type { components } from "./generated/schema";
 
-export interface EmailSettings {
-  enabled: boolean;
-  smtp_user: string;
-  smtp_from: string;
-  smtp_password?: string;
-  smtp_password_set: boolean;
-  display_name: string;
-  smtp_host: string;
-  smtp_port: number;
-  encryption: "SSL" | "STARTTLS" | "NONE" | string;
-  code_expire_minutes: number;
-  configured: boolean;
-}
-
-export interface PlatformFeatureNode {
-  id: string;
-  name: string;
-  kind: string;
-  enabled: boolean;
-  effective: boolean;
-  parent_effective: boolean;
-  reserved?: boolean;
-  job_id?: string | null;
-  schedule?: string | null;
-  interval_minutes?: number | null;
-  hour?: number | null;
-  minute?: number | null;
-  children?: PlatformFeatureNode[];
-}
-
-export interface PlatformFeaturesResponse {
-  /** 库内原始开关（节点自身） */
-  raw: Record<string, boolean>;
-  /** 含祖先的生效开关 */
-  effective: Record<string, boolean>;
-  tree: PlatformFeatureNode[];
-}
-
-export interface JobTriggerResult {
-  accepted: boolean;
-  job_id: string;
-  message: string;
-}
-
-export interface CheckinLogItem {
-  id: number;
-  platform: string;
-  member_id: number;
-  user_label?: string | null;
-  game_code: string;
-  game_name: string;
-  role_uid: string;
-  role_name?: string | null;
-  status: string;
-  status_label?: string | null;
-  message?: string | null;
-  awards_text?: string | null;
-  awards?: Array<{
-    name: string;
-    count?: number;
-    resource_id?: string | null;
-    resource_type?: string | null;
-    icon_url?: string | null;
-  }> | null;
-  checkin_date: string;
-  checked_at?: string | null;
-}
-
-export interface CheckinLogsPage {
-  total: number;
-  page: number;
-  page_size: number;
-  items: CheckinLogItem[];
-}
-
-export interface JobMemberOption {
-  member_id: number;
-  user_id?: number | null;
-  label: string;
-}
-
-export interface UserCheckinTask {
-  task_key: string;
-  job_id: string;
-  platform: string;
-  platform_name: string;
-  member_id: number;
-  user_label: string;
-  auto_checkin: boolean;
-  checkin_hour: number;
-  checkin_minute: number;
-  game_code?: string | null;
-  game_name?: string | null;
-  role_uid?: string | null;
-  role_name?: string | null;
-  last_checkin_at?: string | null;
-  last_checkin_date?: string | null;
-  last_checkin_ok?: boolean | null;
-  last_checkin_summary?: string | null;
-  today_status?: string | null;
-  today_status_label?: string | null;
-  today_awards_text?: string | null;
-  bound_at?: string | null;
-}
-
-export interface UserCheckinTasksPage {
-  total: number;
-  page: number;
-  page_size: number;
-  items: UserCheckinTask[];
-}
-
-export interface IntegrationsSettings {
-  steam_api_key?: string;
-  steam_api_key_set: boolean;
-  qq_app_id: string;
-  qq_app_key?: string;
-  qq_app_key_set: boolean;
-  qq_configured: boolean;
-  steam_configured: boolean;
-  qq_callback_url?: string;
-  napcat_base_url?: string;
-  napcat_token?: string;
-  napcat_token_set: boolean;
-  napcat_configured: boolean;
-}
-
-export interface AuthAdminBrief {
-  id: number;
-  username: string;
-  display_name: string;
-  email?: string | null;
-  weak_password: boolean;
-}
-
-export interface AuthSettings {
-  access_token_expire_minutes: number;
-  access_token_expire_days: number;
-  min_password_length: number;
-  reject_weak_admin_password: boolean | null;
-  reject_weak_admin_password_effective: boolean;
-  enforce_single_admin: boolean;
-  app_env: string;
-  is_production: boolean;
-  admins: AuthAdminBrief[];
-  weak_password_checked?: boolean;
-}
+export type EmailSettings = components["schemas"]["EmailSettingsOut"];
+export type EmailSettingsUpdate = components["schemas"]["EmailSettingsUpdate"];
+export type PlatformFeatureNode = components["schemas"]["PlatformFeatureNodeOut"];
+export type PlatformFeaturesResponse = components["schemas"]["PlatformFeaturesOut"];
+export type PlatformFeaturesUpdate = components["schemas"]["PlatformFeaturesUpdate"];
+export type JobTriggerResult = components["schemas"]["JobTriggerOut"];
+export type JobTriggerRequest = components["schemas"]["JobTriggerRequest"];
+export type CheckinLogItem = components["schemas"]["CheckinLogItemOut"];
+export type CheckinLogsPage = components["schemas"]["CheckinLogsPageOut"];
+export type JobMemberOption = components["schemas"]["JobMemberOptionOut"];
+export type UserCheckinTask = components["schemas"]["UserCheckinTaskOut"];
+export type UserCheckinTasksPage = components["schemas"]["UserCheckinTasksPageOut"];
+export type IntegrationsSettings = components["schemas"]["IntegrationsOut"];
+export type IntegrationsUpdate = components["schemas"]["IntegrationsUpdate"];
+export type AuthSettings = components["schemas"]["AuthSettingsOut"];
+export type AuthSettingsUpdate = components["schemas"]["AuthSettingsUpdate"];
+export type AuthAdminBrief = components["schemas"]["AuthAdminBrief"];
 
 export async function fetchEmailSettings() {
   const { data } = await client.get<EmailSettings>("/settings/email");
@@ -167,17 +38,7 @@ export async function fetchPlatformFeaturesAdmin() {
   return data;
 }
 
-export async function updatePlatformFeatures(payload: {
-  features: Record<string, boolean>;
-  jobs?: Record<
-    string,
-    {
-      interval_minutes?: number;
-      hour?: number;
-      minute?: number;
-    }
-  >;
-}) {
+export async function updatePlatformFeatures(payload: PlatformFeaturesUpdate) {
   const { data } = await client.put<PlatformFeaturesResponse>(
     "/settings/platform-features",
     payload,
@@ -187,7 +48,7 @@ export async function updatePlatformFeatures(payload: {
 
 export async function triggerScheduledJob(
   jobId: string,
-  payload?: { member_id?: number | null },
+  payload?: JobTriggerRequest | null,
 ) {
   const { data } = await client.post<JobTriggerResult>(
     `/settings/jobs/${encodeURIComponent(jobId)}/trigger`,
@@ -258,16 +119,7 @@ export async function fetchIntegrationsSettings() {
   return data;
 }
 
-export async function updateIntegrationsSettings(payload: {
-  steam_api_key?: string | null;
-  qq_app_id?: string | null;
-  qq_app_key?: string | null;
-  clear_steam_api_key?: boolean;
-  clear_qq_app_key?: boolean;
-  napcat_base_url?: string | null;
-  napcat_token?: string | null;
-  clear_napcat_token?: boolean;
-}) {
+export async function updateIntegrationsSettings(payload: IntegrationsUpdate) {
   const { data } = await client.put<IntegrationsSettings>(
     "/settings/integrations",
     payload,
@@ -282,27 +134,12 @@ export async function fetchAuthSettings(params?: { check_weak?: boolean }) {
   return data;
 }
 
-export async function updateAuthSettings(payload: {
-  access_token_expire_minutes?: number;
-  min_password_length?: number;
-  reject_weak_admin_password?: boolean | null;
-  enforce_single_admin?: boolean;
-}) {
+export async function updateAuthSettings(payload: AuthSettingsUpdate) {
   const { data } = await client.put<AuthSettings>("/settings/auth", payload);
   return data;
 }
 
-export async function updateEmailSettings(payload: {
-  enabled: boolean;
-  smtp_user: string;
-  smtp_from: string;
-  smtp_password?: string | null;
-  display_name: string;
-  smtp_host: string;
-  smtp_port: number;
-  encryption: string;
-  code_expire_minutes: number;
-}) {
+export async function updateEmailSettings(payload: EmailSettingsUpdate) {
   const { data } = await client.put<EmailSettings>("/settings/email", payload);
   return data;
 }
@@ -310,7 +147,7 @@ export async function updateEmailSettings(payload: {
 export async function testEmailSettings(to_email: string) {
   const { data } = await client.post<{ ok: boolean; message: string }>(
     "/settings/email/test",
-    { to_email },
+    { to_email } satisfies components["schemas"]["EmailTestRequest"],
   );
   return data;
 }

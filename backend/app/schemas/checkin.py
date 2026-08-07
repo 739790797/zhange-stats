@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class CheckinAwardItem(BaseModel):
-    """结构化签到奖励（方舟可含 icon_url）。"""
+    """结构化签到奖励；有 icon_url 时前端应展示图标。"""
 
     name: str
     count: int = 1
@@ -43,6 +43,7 @@ class CheckinResultItem(BaseModel):
     awards_text: str | None = None
     awards: list[CheckinAwardItem] = Field(default_factory=list)
     extra_text: str | None = None
+    included: bool = False
     auto_checkin: bool = False
     checkin_hour: int | None = None
     checkin_minute: int | None = None
@@ -57,9 +58,34 @@ class CheckinResultItem(BaseModel):
 class CheckinRolePrefUpdate(BaseModel):
     game_code: str = Field(min_length=1, max_length=32)
     role_uid: str = Field(min_length=1, max_length=64)
-    enabled: bool
+    enabled: bool | None = None
+    included: bool | None = None
     checkin_hour: int | None = Field(default=None, ge=0, le=23)
     checkin_minute: int | None = Field(default=None, ge=0, le=59)
+
+
+class RoleMembershipItem(BaseModel):
+    game_code: str = Field(min_length=1, max_length=32)
+    role_uid: str = Field(min_length=1, max_length=64)
+    included: bool = True
+
+
+class RoleMembershipReplaceBody(BaseModel):
+    roles: list[RoleMembershipItem] = Field(default_factory=list)
+
+
+class RoleMembershipNodeOut(BaseModel):
+    game_code: str
+    game_name: str
+    role_uid: str
+    role_name: str
+    channel_name: str = ""
+    included: bool = False
+
+
+class RoleMembershipTreeOut(BaseModel):
+    platform: str
+    roles: list[RoleMembershipNodeOut] = Field(default_factory=list)
 
 
 class CheckinNowBody(BaseModel):

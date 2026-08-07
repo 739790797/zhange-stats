@@ -1,0 +1,28 @@
+---
+description: 森空岛上游语义：官服/B服、补奖、unknown、cred 缓存、日历
+globs: backend/app/services/skland*.py,backend/app/api/skland/**/*.py,backend/tests/test_skland*.py,frontend/src/api/sklandApi.ts,frontend/src/components/Skland*.tsx,frontend/src/components/arknights/**/*.tsx,frontend/src/pages/SklandPage.tsx
+alwaysApply: false
+---
+
+# 森空岛上游语义（勿当「普通签到平台」改）
+
+通用签到/盒子约定见 `platform-raw-cache.mdc`。本文件只锁**渠道分裂与凭证**坑。
+
+## 渠道（方舟）
+
+- `channelMasterId`：`1`=官服，`2`=B服（bilibili）。attendance **禁止**回退到官服 `1`。
+- **官服**：GET records 可信；`already` / 请勿重复签到后可用 GET 补今日 awards。
+- **B服**：GET records 空不可当「未签」→ `STATUS_UNKNOWN`（待确认）；**禁止** already 后再 GET 补奖；只信 POST awards；缺 icon **勿**因补 icon 强制回源。
+- 日历：`_calendar_progress_reliable` — records 空且无显式 claimed 时，不把「全未签」当真。
+
+## Cred / 扫码
+
+- `skland_session_cache`：只缓存 cred/sign_token，TTL ~20min，bind/unbind 失效。
+- 鉴权类错误：invalidate → 换票 → `force=True` 再查一次（仅森空岛）。
+- 扫码 pending 与 cred 共用 `ephemeral_kv`；**多实例必须共享 Redis**（见 `backend-conventions` / README）。
+
+## 改 attendance / Adapter 前
+
+1. **先写或扩** `backend/tests/test_skland_*.py`（尤其 `test_skland_bili_status`、`test_skland_session_auth_retry`），再改行为。
+2. 官服与 B服分支分开断言；勿用「修官服」顺手改 B服补奖路径。
+3. 空 awards 不得覆盖历史富奖励（`prefer_richer_awards` / `test_checkin_log_source`）。

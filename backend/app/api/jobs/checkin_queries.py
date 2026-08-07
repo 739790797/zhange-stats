@@ -39,6 +39,15 @@ from app.services.platform_features import CHECKIN_PLATFORM_FEATURES, PLATFORM_S
 
 router = APIRouter()
 
+# 各平台「社区」签到 game_code：用户任务树内排最前
+_COMMUNITY_GAME_CODES = frozenset({"app", "kujiequ", "exilium_bbs"})
+
+
+def _game_code_sort_key(game_code: str | None) -> tuple[int, str]:
+    code = str(game_code or "")
+    if code in _COMMUNITY_GAME_CODES:
+        return (0, code)
+    return (1, code)
 
 @router.get("/jobs/checkin-logs", response_model=CheckinLogsPageOut)
 def list_checkin_logs(
@@ -194,9 +203,12 @@ def query_user_checkin_tasks(
                             platform_name=PLATFORM_SHORT_NAMES.get(p, p),
                             member_id=bind.member_id,
                             user_label=user_label,
-                            auto_checkin=bool(pref.enabled),
-                            checkin_hour=int(pref.checkin_hour),
-                            checkin_minute=int(pref.checkin_minute),
+                            included=bool(getattr(pref, "included", True)),
+                            auto_checkin=bool(pref.enabled) and bool(
+                                getattr(pref, "included", True)
+                            ),
+                            checkin_hour=int(pref.checkin_hour or 0),
+                            checkin_minute=int(pref.checkin_minute or 0),
                             game_code=str(pref.game_code),
                             game_name=game_name,
                             role_uid=str(pref.role_uid),
@@ -204,6 +216,11 @@ def query_user_checkin_tasks(
                             today_status=tmeta.get("status"),
                             today_status_label=tmeta.get("status_label"),
                             today_awards_text=tmeta.get("awards_text"),
+                            today_awards=[
+                                CheckinAwardItem(**a)
+                                for a in (tmeta.get("awards") or [])
+                                if isinstance(a, dict) and a.get("name")
+                            ],
                             last_checkin_at=_fmt_dt(meta.get("checked_at")),
                             last_checkin_date=(
                                 meta["checkin_date"].isoformat()
@@ -225,6 +242,7 @@ def query_user_checkin_tasks(
                         platform_name=PLATFORM_SHORT_NAMES.get(p, p),
                         member_id=bind.member_id,
                         user_label=user_label,
+                        included=True,
                         auto_checkin=bool(bind.auto_checkin),
                         checkin_hour=int(bind.checkin_hour),
                         checkin_minute=int(bind.checkin_minute),
@@ -242,7 +260,7 @@ def query_user_checkin_tasks(
         key=lambda t: (
             platform_rank.get(t.platform, 99),
             t.member_id,
-            t.game_code or "",
+            _game_code_sort_key(t.game_code),
             t.role_uid or "",
             t.checkin_hour,
             t.checkin_minute,
@@ -348,6 +366,7 @@ def _role_today_status_meta(
                 channel_name=getattr(row, "channel_name", None),
                 game_code=str(row.game_code or ""),
             ),
+            "awards": loads_awards_json(getattr(row, "awards_json", None)) or [],
             "game_name": row.game_name,
             "role_name": row.role_name,
         }

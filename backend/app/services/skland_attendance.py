@@ -6,7 +6,12 @@ import logging
 import urllib.parse
 from typing import Any
 
-from app.services.checkin_common import CheckinResult, STATUS_UNKNOWN
+from app.services.checkin_common import (
+    CheckinResult,
+    STATUS_UNKNOWN,
+    format_upstream_request,
+    format_upstream_response,
+)
 from app.services.skland_awards import (
     arknights_awards_from_sign_resp,
     awards_from_claim_records,
@@ -464,13 +469,25 @@ def query_today_all(session: SklandSession) -> tuple[SklandSession, list[Checkin
 
 
 def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult:
-    """方舟签到。成功态 message/awards_text 只保留 award，供执行记录使用。"""
-    body = {"uid": role.uid, "gameId": role.channel_master_id}
+    """方舟签到。成功态 message/awards_text 只保留 award，供执行记录使用。
+
+    gameId 用绑定 channelMasterId（官服=1，B服=2）。
+    B 服奖励只信本次 POST data.awards（GET records 常为空，不做回源补奖）。
+    """
+    game_id = str(role.channel_master_id or "").strip() or "1"
+    body = {"uid": role.uid, "gameId": game_id}
     headers = _signed_headers(session, ARKNIGHTS_ATTENDANCE_URL, "post", body)
     resp = _http_json("POST", ARKNIGHTS_ATTENDANCE_URL, headers=headers, body=body)
+    upstream_req = format_upstream_request("POST", ARKNIGHTS_ATTENDANCE_URL, body)
+    upstream_resp = format_upstream_response(resp)
     status, raw_message = _parse_status(resp)
     awards_text, awards_items = _arknights_awards(resp)
-    if status == "already" and not awards_text:
+    # 官服「已签」响应常无 awards，可 GET records 补；B 服 GET 无用，跳过
+    if (
+        status == "already"
+        and not awards_text
+        and not _is_arknights_bilibili(role)
+    ):
         awards_text, awards_items = fetch_today_awards(session, role)
     if status == "error":
         message = _friendly_error_message(raw_message)
@@ -486,6 +503,8 @@ def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult
         message=message,
         awards_text=awards_text,
         awards=awards_items or None,
+        upstream_request=upstream_req,
+        upstream_response=upstream_resp,
     )
 
 
@@ -510,6 +529,7 @@ def checkin_endfield(session: SklandSession, role: SklandRole) -> CheckinResult:
     }
     headers = _signed_headers(session, ENDFIELD_ATTENDANCE_URL, "post", body)
     resp = _http_json("POST", ENDFIELD_ATTENDANCE_URL, headers=headers, body=body)
+    upstream_req = format_upstream_request("POST", ENDFIELD_ATTENDANCE_URL, body)
     status, message = _parse_status(resp)
 
     if status == "error" and ("参数" in message or "sign" in message.lower()):
@@ -517,8 +537,14 @@ def checkin_endfield(session: SklandSession, role: SklandRole) -> CheckinResult:
         headers2 = _signed_headers(session, ENDFIELD_ATTENDANCE_URL, "post", None)
         headers2["sk-game-role"] = role_str
         resp = _http_json("POST", ENDFIELD_ATTENDANCE_URL, headers=headers2, body=None)
+        upstream_req = format_upstream_request(
+            "POST",
+            ENDFIELD_ATTENDANCE_URL,
+            {"_note": "empty body", "sk-game-role": role_str},
+        )
         status, message = _parse_status(resp)
 
+    upstream_resp = format_upstream_response(resp)
     awards_text, awards_items = _endfield_awards(resp)
     if status == "ok" and awards_text:
         message = f"成功！获得：{awards_text}"
@@ -542,6 +568,8 @@ def checkin_endfield(session: SklandSession, role: SklandRole) -> CheckinResult:
         message=message,
         awards_text=awards_text,
         awards=awards_items or None,
+        upstream_request=upstream_req,
+        upstream_response=upstream_resp,
     )
 
 
@@ -570,9 +598,13 @@ def checkin_all_roles(session: SklandSession) -> list[CheckinResult]:
         except SklandApiError as exc:
             msg = exc.message or ""
             already = "请勿重复签到" in msg or "重复签到" in msg
-            awards_text, awards_items = (
-                fetch_today_awards(session, role) if already else (None, [])
-            )
+            # B 服方舟：重复签到也不 GET 补奖（只信此前 POST 落库的 awards）
+            if already and not (
+                role.game_code == GAME_ARKNIGHTS and _is_arknights_bilibili(role)
+            ):
+                awards_text, awards_items = fetch_today_awards(session, role)
+            else:
+                awards_text, awards_items = None, []
             results.append(
                 CheckinResult(
                     game_code=role.game_code,

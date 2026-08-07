@@ -45,9 +45,9 @@ const CHECKIN_GAME_ICON: Record<string, PlatformIconName> = {
   // 塔吉多
   "1289": "exastris", // 异环
   "1256": "tower", // 幻塔
-  app: "taygedo", // 塔吉多 APP 社区签到
+  app: "taygedo", // 塔吉多 APP 社区
   // 库街区
-  kujiequ: "kujiequ", // 社区签到
+  kujiequ: "kujiequ", // 社区
   game_2: "pgr", // 战双
   game_3: "ww", // 鸣潮
   // 追放社区

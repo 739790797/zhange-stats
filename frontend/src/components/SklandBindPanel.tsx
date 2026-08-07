@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   bindSklandPassword,
   bindSklandSms,
+  fetchSklandStatus,
   pollSklandQrBind,
   sendSklandSms,
   startSklandQrBind,
@@ -14,6 +15,7 @@ import {
   preferredPhoneAuthMode,
   type PhoneAuthMode,
 } from "@/components/PhoneAuthBindTemplate";
+import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { apiError } from "@/lib/apiError";
 
 const SKLAND_MODES: PhoneAuthMode[] = ["qr", "sms", "password"];
@@ -22,11 +24,15 @@ const STATUS_KEY = ["skland-status"] as const;
 export function SklandBindPanel({
   title = "绑定森空岛",
   onSuccess,
+  openRolePickerOnBind = true,
 }: {
   title?: string;
   onSuccess?: () => void;
+  /** 绑定成功后是否在本组件内打开角色树；个人中心由父级托管时应为 false */
+  openRolePickerOnBind?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { openPicker, modal } = useRoleMembershipPicker("skland");
   const resolvedDefault = preferredPhoneAuthMode(SKLAND_MODES);
   const [qr, setQr] = useState<SklandQrStart | null>(null);
   const [qrHint, setQrHint] = useState("请使用森空岛 App 扫码");
@@ -46,13 +52,28 @@ export function SklandBindPanel({
     status?: SklandStatus | null,
     msg = "森空岛绑定成功",
   ) => {
-    message.success(msg);
-    if (status?.bound) {
-      queryClient.setQueryData(STATUS_KEY, status);
+    // 取消进行中的 status，避免「绑定前失效态」晚到覆盖「绑定成功」结果
+    await queryClient.cancelQueries({ queryKey: STATUS_KEY });
+    let next = status;
+    // 无状态、或绑定接口返回的 token_ok=false：再拉一次权威 status
+    if (!next?.bound || next.token_ok === false) {
+      next = await fetchSklandStatus(true, true);
     }
-    await queryClient.refetchQueries({ queryKey: STATUS_KEY });
+    if (next?.bound) {
+      queryClient.setQueryData(STATUS_KEY, next);
+    }
+    if (next?.bound && next.token_ok === false) {
+      message.warning(
+        next.token_error || "绑定已写入，但凭证校验未通过，请稍后刷新或重试",
+      );
+    } else {
+      message.success(msg);
+    }
     await queryClient.invalidateQueries({ queryKey: ["profile-me"] });
     onSuccess?.();
+    if (openRolePickerOnBind && next?.bound && next.token_ok !== false) {
+      openPicker();
+    }
   };
 
   const QR_HINT_WAITING = "请使用森空岛 App 扫码，并在手机上确认登录";
@@ -70,7 +91,6 @@ export function SklandBindPanel({
         if (qrDone.current || modeRef.current !== "qr") return;
         try {
           const poll = await pollSklandQrBind(session.scan_id);
-          // waiting：保持引导文案，不展示上游「未扫码」等状态原句
           if (poll.status === "waiting") {
             return;
           }
@@ -108,65 +128,68 @@ export function SklandBindPanel({
   }, []);
 
   return (
-    <PhoneAuthBindTemplate
-      title={title}
-      modes={SKLAND_MODES}
-      onModeChange={(mode) => {
-        modeRef.current = mode;
-        if (mode === "qr") {
-          void startQrSession();
-        } else {
-          clearPollTimer();
+    <>
+      <PhoneAuthBindTemplate
+        title={title}
+        modes={SKLAND_MODES}
+        onModeChange={(mode) => {
+          modeRef.current = mode;
+          if (mode === "qr") {
+            void startQrSession();
+          } else {
+            clearPollTimer();
+          }
+        }}
+        onSendSms={async (phone) => {
+          await sendSklandSms(phone);
+        }}
+        onBindSms={async (phone, code) => {
+          const status = await bindSklandSms(phone, code);
+          await finishOk(status);
+        }}
+        onBindPassword={async (phone, password) => {
+          const status = await bindSklandPassword(phone, password);
+          await finishOk(status);
+        }}
+        qrPanel={
+          <div style={{ textAlign: "center" }}>
+            <div
+              style={{
+                width: 220,
+                height: 220,
+                margin: "0 auto 12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#fafafa",
+                border: "1px solid rgba(0,0,0,0.06)",
+                borderRadius: 8,
+              }}
+            >
+              {qrLoading ? (
+                <Spin tip="生成中" />
+              ) : qr?.qr_image ? (
+                <img
+                  src={qr.qr_image}
+                  alt="森空岛登录二维码"
+                  width={200}
+                  height={200}
+                  style={{ display: "block" }}
+                />
+              ) : (
+                <Typography.Text type="secondary">二维码不可用</Typography.Text>
+              )}
+            </div>
+            <Typography.Text type="secondary">{qrHint}</Typography.Text>
+            <div style={{ marginTop: 12 }}>
+              <Button onClick={() => void startQrSession()} loading={qrLoading}>
+                刷新二维码
+              </Button>
+            </div>
+          </div>
         }
-      }}
-      onSendSms={async (phone) => {
-        await sendSklandSms(phone);
-      }}
-      onBindSms={async (phone, code) => {
-        const status = await bindSklandSms(phone, code);
-        await finishOk(status);
-      }}
-      onBindPassword={async (phone, password) => {
-        const status = await bindSklandPassword(phone, password);
-        await finishOk(status);
-      }}
-      qrPanel={
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              width: 220,
-              height: 220,
-              margin: "0 auto 12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "#fafafa",
-              border: "1px solid rgba(0,0,0,0.06)",
-              borderRadius: 8,
-            }}
-          >
-            {qrLoading ? (
-              <Spin tip="生成中" />
-            ) : qr?.qr_image ? (
-              <img
-                src={qr.qr_image}
-                alt="森空岛登录二维码"
-                width={200}
-                height={200}
-                style={{ display: "block" }}
-              />
-            ) : (
-              <Typography.Text type="secondary">二维码不可用</Typography.Text>
-            )}
-          </div>
-          <Typography.Text type="secondary">{qrHint}</Typography.Text>
-          <div style={{ marginTop: 12 }}>
-            <Button onClick={() => void startQrSession()} loading={qrLoading}>
-              刷新二维码
-            </Button>
-          </div>
-        </div>
-      }
-    />
+      />
+      {modal}
+    </>
   );
 }

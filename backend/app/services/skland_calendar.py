@@ -273,9 +273,9 @@ def parse_arknights_attendance_calendar(
     claimed_by_records = count_claims_this_month(records, now=now)
     reliable = _calendar_progress_reliable(cells, records)
 
-    from app.core.timeutil import today as beijing_today
+    from app.core.timeutil import ensure, today as beijing_today
 
-    day = beijing_today()
+    day = ensure(now).date() if now is not None else beijing_today()
     has_today = any(
         isinstance(rec, dict) and ts_is_beijing_day(rec.get("ts"), day)
         for rec in records

@@ -5,8 +5,11 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.platform_checkin import (
+    apply_role_membership_replace,
+    apply_role_pref_update,
     build_checkin_response,
     build_checkin_status,
+    build_role_membership_tree,
     role_keys_from_now_body,
 )
 from app.api.skland.helpers import _member_or_404
@@ -19,6 +22,8 @@ from app.models.user import User
 from app.schemas import (
     CheckinNowBody,
     CheckinRolePrefUpdate,
+    RoleMembershipReplaceBody,
+    RoleMembershipTreeOut,
     SklandBindPasswordRequest,
     SklandBindRequest,
     SklandBindSmsRequest,
@@ -56,7 +61,10 @@ def skland_status(
     user: User = Depends(get_current_user),
     member: Member = Depends(require_user_member),
     include_roles: bool = Query(default=True),
-    force: bool = Query(default=False),
+    force: bool = Query(
+        default=True,
+        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+    ),
 ):
     _ = user
     bind = get_bind_for_member(db, member.id)
@@ -255,26 +263,67 @@ def skland_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定森空岛")
-    if payload.enabled and (
-        payload.checkin_hour is None or payload.checkin_minute is None
-    ):
-        raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
-    try:
-        from app.services.checkin_role_prefs import PLATFORM_SKLAND, upsert_role_pref
+    from app.services.checkin_role_prefs import PLATFORM_SKLAND
 
-        upsert_role_pref(
-            db,
-            platform=PLATFORM_SKLAND,
-            member_id=member.id,
-            bind=bind,
-            game_code=payload.game_code,
-            role_uid=payload.role_uid,
-            enabled=payload.enabled,
-            checkin_hour=payload.checkin_hour,
-            checkin_minute=payload.checkin_minute,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    apply_role_pref_update(
+        db=db,
+        platform=PLATFORM_SKLAND,
+        member_id=member.id,
+        bind=bind,
+        payload=payload,
+    )
+    return skland_status(db=db, user=user, member=member, include_roles=False)
+
+
+@router.get(
+    "/role-tree",
+    response_model=RoleMembershipTreeOut,
+    dependencies=[Depends(require_feature("skland.checkin"))],
+)
+def skland_role_tree(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    member = _member_or_404(db, user)
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise HTTPException(status_code=400, detail="尚未绑定森空岛")
+    from app.services.checkin_role_prefs import PLATFORM_SKLAND
+    from app.services.skland_client import SklandApiError
+
+    return build_role_membership_tree(
+        db=db,
+        platform=PLATFORM_SKLAND,
+        member_id=member.id,
+        preview_roles=preview_roles,
+        member=member,
+        api_error_cls=SklandApiError,
+    )
+
+
+@router.put(
+    "/role-memberships",
+    response_model=SklandStatusOut,
+    dependencies=[Depends(require_feature("skland.checkin"))],
+)
+def skland_replace_role_memberships(
+    body: RoleMembershipReplaceBody,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    member = _member_or_404(db, user)
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise HTTPException(status_code=400, detail="尚未绑定森空岛")
+    from app.services.checkin_role_prefs import PLATFORM_SKLAND
+
+    apply_role_membership_replace(
+        db=db,
+        platform=PLATFORM_SKLAND,
+        member_id=member.id,
+        bind=bind,
+        body=body,
+    )
     return skland_status(db=db, user=user, member=member, include_roles=False)
 
 

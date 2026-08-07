@@ -22,6 +22,11 @@ from app.schemas import (
     ArknightsCompareRowOut,
     ArknightsOperatorOut,
     ArknightsOwnedCharOut,
+    ArknightsRogueCharOut,
+    ArknightsRogueOut,
+    ArknightsRogueOverviewOut,
+    ArknightsRogueRecordOut,
+    ArknightsRogueTopicOut,
     SklandRoleOut,
 )
 from app.schemas.checkin import CheckinAwardItem
@@ -39,6 +44,7 @@ from app.services.arknights_catalog import (
 from app.services.skland_checkin import (
     get_arknights_attendance_calendar_for_member,
     get_arknights_box_for_member,
+    get_arknights_rogue_for_member,
 )
 from app.services.skland_client import SklandApiError
 
@@ -100,17 +106,124 @@ def skland_arknights_attendance_calendar(
     )
 
 
+def _rogue_record_out(rec) -> ArknightsRogueRecordOut:
+    return ArknightsRogueRecordOut(
+        record_id=rec.record_id,
+        mode=rec.mode,
+        mode_grade=rec.mode_grade,
+        success=rec.success,
+        score=rec.score,
+        ending_text=rec.ending_text,
+        start_ts=rec.start_ts,
+        end_ts=rec.end_ts,
+        zone_count=rec.zone_count,
+        node_count=rec.node_count,
+        relic_count=rec.relic_count,
+        band_name=rec.band_name,
+        last_stage=rec.last_stage,
+        is_collect=rec.is_collect,
+        squad=[
+            ArknightsRogueCharOut(
+                char_id=c.char_id,
+                name=c.name,
+                rarity=c.rarity,
+                level=c.level,
+                evolve_phase=c.evolve_phase,
+                profession=c.profession,
+            )
+            for c in rec.squad
+        ],
+        tags=list(rec.tags or []),
+    )
+
+
+@router.get(
+    "/arknights/rogue",
+    response_model=ArknightsRogueOut,
+    dependencies=[Depends(require_feature("skland.arknights"))],
+)
+def skland_arknights_rogue(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    uid: str | None = Query(default=None, max_length=32),
+    topic_id: str | None = Query(
+        default=None,
+        max_length=32,
+        description="主题 id（rogue_1…）或中文名；默认界园",
+    ),
+    force: bool = Query(default=False),
+):
+    """明日方舟肉鸽战绩：默认读库；force 或首次回源落库。"""
+    member = _member_or_404(db, user)
+    try:
+        box, role, roles, synced_at, stale = get_arknights_rogue_for_member(
+            db, member, uid, topic_id=topic_id, force=force
+        )
+    except SklandApiError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+    ov = box.overview
+    return ArknightsRogueOut(
+        uid=role.uid,
+        role_name=role.role_name,
+        channel_name=role.channel_name,
+        topic_id=box.topic_id,
+        topic_name=box.topic_name,
+        topics=[
+            ArknightsRogueTopicOut(
+                topic_id=t.topic_id,
+                name=t.name,
+                selected=t.selected,
+                pic=t.pic,
+            )
+            for t in box.topics
+        ],
+        overview=ArknightsRogueOverviewOut(
+            mode=ov.mode,
+            mode_grade=ov.mode_grade,
+            score=ov.score,
+            bp_level=ov.bp_level,
+            medal_current=ov.medal_current,
+            medal_count=ov.medal_count,
+            clear_difficulty=ov.clear_difficulty,
+            clear_grade=ov.clear_grade,
+            invest=ov.invest,
+            relic=ov.relic,
+            game_count=ov.game_count,
+        ),
+        records=[_rogue_record_out(r) for r in box.records],
+        favour_records=[_rogue_record_out(r) for r in box.favour_records],
+        roles=[
+            SklandRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.uid,
+                role_name=r.role_name,
+                channel_name=r.channel_name,
+            )
+            for r in roles
+        ],
+        synced_at=synced_at.isoformat() if synced_at else None,
+        stale=stale,
+    )
+
+
 @router.get(
     "/arknights/box",
     response_model=ArknightsBoxOut,
     dependencies=[Depends(require_feature("skland.arknights"))],
+    deprecated=True,
 )
 def skland_arknights_box(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     uid: str | None = Query(default=None, max_length=32),
 ):
-    """明日方舟干员盒子（森空岛 player/info）。"""
+    """明日方舟干员盒子（每次直连上游 player/info）。
+
+    **已废弃**：前端个人盒已移除，圈子对比请用 `/arknights/box/compare`（日更快照）。
+    本端点无 raw 落库、无 force/stale；保留仅为兼容旧客户端。需要个人盒时应对齐
+    endfield_box_raws 模式再恢复产品入口。
+    """
     member = _member_or_404(db, user)
     try:
         box, role, roles = get_arknights_box_for_member(db, member, uid)

@@ -12,7 +12,7 @@ class OAuthExchangeTicket(Base):
     __tablename__ = "oauth_exchange_tickets"
 
     code: Mapped[str] = mapped_column(String(64), primary_key=True)
-    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)  # Fernet enc:v1:…
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

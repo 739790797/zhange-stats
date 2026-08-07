@@ -45,7 +45,10 @@ class SklandBind(Base):
 
 
 class SklandCheckinLog(Base):
-    """森空岛签到 / 状态查询记录（按「今日」缓存读优先，见 platform-raw-cache）。"""
+    """森空岛签到 / 状态查询记录（按角色+日唯一）。
+
+    用户展示打开页始终 force 回源后 upsert；调度可用今日成功态跳过（见 platform-raw-cache）。
+    """
 
     __tablename__ = "skland_checkin_logs"
     __table_args__ = (

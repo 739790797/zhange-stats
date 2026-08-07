@@ -1130,6 +1130,40 @@ export interface paths {
         patch: operations["skland_update_role_pref_api_skland_role_prefs_patch"];
         trace?: never;
     };
+    "/api/skland/role-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Skland Role Tree */
+        get: operations["skland_role_tree_api_skland_role_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/role-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Skland Replace Role Memberships */
+        put: operations["skland_replace_role_memberships_api_skland_role_memberships_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skland/checkin": {
         parameters: {
             query?: never;
@@ -1167,6 +1201,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skland/arknights/rogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Arknights Rogue
+         * @description 明日方舟肉鸽战绩：默认读库；force 或首次回源落库。
+         */
+        get: operations["skland_arknights_rogue_api_skland_arknights_rogue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skland/arknights/box": {
         parameters: {
             query?: never;
@@ -1176,7 +1230,12 @@ export interface paths {
         };
         /**
          * Skland Arknights Box
-         * @description 明日方舟干员盒子（森空岛 player/info）。
+         * @deprecated
+         * @description 明日方舟干员盒子（每次直连上游 player/info）。
+         *
+         *     **已废弃**：前端个人盒已移除，圈子对比请用 `/arknights/box/compare`（日更快照）。
+         *     本端点无 raw 落库、无 force/stale；保留仅为兼容旧客户端。需要个人盒时应对齐
+         *     endfield_box_raws 模式再恢复产品入口。
          */
         get: operations["skland_arknights_box_api_skland_arknights_box_get"];
         put?: never;
@@ -1427,6 +1486,40 @@ export interface paths {
         patch: operations["taygedo_update_role_pref_api_taygedo_role_prefs_patch"];
         trace?: never;
     };
+    "/api/taygedo/role-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Taygedo Role Tree */
+        get: operations["taygedo_role_tree_api_taygedo_role_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taygedo/role-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Taygedo Replace Role Memberships */
+        put: operations["taygedo_replace_role_memberships_api_taygedo_role_memberships_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/taygedo/checkin": {
         parameters: {
             query?: never;
@@ -1438,6 +1531,24 @@ export interface paths {
         put?: never;
         /** Taygedo Checkin Now */
         post: operations["taygedo_checkin_now_api_taygedo_checkin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taygedo/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Taygedo Exchange Shop */
+        get: operations["taygedo_exchange_shop_api_taygedo_exchange_get"];
+        put?: never;
+        /** Taygedo Do Exchange */
+        post: operations["taygedo_do_exchange_api_taygedo_exchange_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1456,6 +1567,26 @@ export interface paths {
          * @description 异环 / 幻塔签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。
          */
         get: operations["taygedo_attendance_calendar_api_taygedo_attendance_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taygedo/exastris/box": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Taygedo Exastris Box
+         * @description 异环角色盒子：默认读库二次加工；force 或首次回源落库。
+         */
+        get: operations["taygedo_exastris_box_api_taygedo_exastris_box_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1585,6 +1716,40 @@ export interface paths {
         head?: never;
         /** Exilium Update Role Pref */
         patch: operations["exilium_update_role_pref_api_exilium_role_prefs_patch"];
+        trace?: never;
+    };
+    "/api/exilium/role-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exilium Role Tree */
+        get: operations["exilium_role_tree_api_exilium_role_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/exilium/role-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Exilium Replace Role Memberships */
+        put: operations["exilium_replace_role_memberships_api_exilium_role_memberships_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/exilium/checkin": {
@@ -1765,6 +1930,40 @@ export interface paths {
         patch: operations["kujiequ_update_role_pref_api_kujiequ_role_prefs_patch"];
         trace?: never;
     };
+    "/api/kujiequ/role-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kujiequ Role Tree */
+        get: operations["kujiequ_role_tree_api_kujiequ_role_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kujiequ/role-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Kujiequ Replace Role Memberships */
+        put: operations["kujiequ_replace_role_memberships_api_kujiequ_role_memberships_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kujiequ/checkin": {
         parameters: {
             query?: never;
@@ -1776,6 +1975,64 @@ export interface paths {
         put?: never;
         /** Kujiequ Checkin */
         post: operations["kujiequ_checkin_api_kujiequ_checkin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kujiequ/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kujiequ Exchange Shop */
+        get: operations["kujiequ_exchange_shop_api_kujiequ_exchange_get"];
+        put?: never;
+        /** Kujiequ Do Exchange */
+        post: operations["kujiequ_do_exchange_api_kujiequ_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kujiequ/attendance-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kujiequ Attendance Calendar
+         * @description 鸣潮 / 战双签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。
+         */
+        get: operations["kujiequ_attendance_calendar_api_kujiequ_attendance_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kujiequ/ww/box": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kujiequ Ww Box
+         * @description 鸣潮资料卡（roleBox）：默认读库二次加工；force 或首次回源落库。
+         */
+        get: operations["kujiequ_ww_box_api_kujiequ_ww_box_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1842,7 +2099,7 @@ export interface paths {
         };
         /**
          * Health
-         * @description 存活探测；含数据库连通性。
+         * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。
          */
         get: operations["health_health_get"];
         put?: never;
@@ -2160,6 +2417,208 @@ export interface components {
             /** Equips */
             equips?: components["schemas"]["ArknightsCharEquipOut"][];
         };
+        /** ArknightsRogueCharOut */
+        ArknightsRogueCharOut: {
+            /** Char Id */
+            char_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Rarity
+             * @default 0
+             */
+            rarity: number;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+            /**
+             * Evolve Phase
+             * @default 0
+             */
+            evolve_phase: number;
+            /**
+             * Profession
+             * @default
+             */
+            profession: string;
+        };
+        /** ArknightsRogueOut */
+        ArknightsRogueOut: {
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /** Channel Name */
+            channel_name: string;
+            /** Topic Id */
+            topic_id: string;
+            /** Topic Name */
+            topic_name: string;
+            /** Topics */
+            topics?: components["schemas"]["ArknightsRogueTopicOut"][];
+            overview: components["schemas"]["ArknightsRogueOverviewOut"];
+            /** Records */
+            records?: components["schemas"]["ArknightsRogueRecordOut"][];
+            /** Favour Records */
+            favour_records?: components["schemas"]["ArknightsRogueRecordOut"][];
+            /** Roles */
+            roles?: components["schemas"]["SklandRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /** ArknightsRogueOverviewOut */
+        ArknightsRogueOverviewOut: {
+            /**
+             * Mode
+             * @default
+             */
+            mode: string;
+            /**
+             * Mode Grade
+             * @default 0
+             */
+            mode_grade: number;
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /**
+             * Bp Level
+             * @default 0
+             */
+            bp_level: number;
+            /**
+             * Medal Current
+             * @default 0
+             */
+            medal_current: number;
+            /**
+             * Medal Count
+             * @default 0
+             */
+            medal_count: number;
+            /**
+             * Clear Difficulty
+             * @default
+             */
+            clear_difficulty: string;
+            /**
+             * Clear Grade
+             * @default 0
+             */
+            clear_grade: number;
+            /**
+             * Invest
+             * @default 0
+             */
+            invest: number;
+            /**
+             * Relic
+             * @default 0
+             */
+            relic: number;
+            /**
+             * Game Count
+             * @default 0
+             */
+            game_count: number;
+        };
+        /** ArknightsRogueRecordOut */
+        ArknightsRogueRecordOut: {
+            /** Record Id */
+            record_id: string;
+            /**
+             * Mode
+             * @default
+             */
+            mode: string;
+            /**
+             * Mode Grade
+             * @default 0
+             */
+            mode_grade: number;
+            /**
+             * Success
+             * @default false
+             */
+            success: boolean;
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /**
+             * Ending Text
+             * @default
+             */
+            ending_text: string;
+            /**
+             * Start Ts
+             * @default
+             */
+            start_ts: string;
+            /**
+             * End Ts
+             * @default
+             */
+            end_ts: string;
+            /**
+             * Zone Count
+             * @default 0
+             */
+            zone_count: number;
+            /**
+             * Node Count
+             * @default 0
+             */
+            node_count: number;
+            /**
+             * Relic Count
+             * @default 0
+             */
+            relic_count: number;
+            /**
+             * Band Name
+             * @default
+             */
+            band_name: string;
+            /**
+             * Last Stage
+             * @default
+             */
+            last_stage: string;
+            /**
+             * Is Collect
+             * @default false
+             */
+            is_collect: boolean;
+            /** Squad */
+            squad?: components["schemas"]["ArknightsRogueCharOut"][];
+            /** Tags */
+            tags?: string[];
+        };
+        /** ArknightsRogueTopicOut */
+        ArknightsRogueTopicOut: {
+            /** Topic Id */
+            topic_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Selected
+             * @default false
+             */
+            selected: boolean;
+            /** Pic */
+            pic?: string | null;
+        };
         /** AuthAdminBrief */
         AuthAdminBrief: {
             /** Id */
@@ -2272,7 +2731,7 @@ export interface components {
         };
         /**
          * CheckinAwardItem
-         * @description 结构化签到奖励（方舟可含 icon_url）。
+         * @description 结构化签到奖励；有 icon_url 时前端应展示图标。
          */
         CheckinAwardItem: {
             /** Name */
@@ -2426,6 +2885,11 @@ export interface components {
             /** Extra Text */
             extra_text?: string | null;
             /**
+             * Included
+             * @default false
+             */
+            included: boolean;
+            /**
              * Auto Checkin
              * @default false
              */
@@ -2452,7 +2916,9 @@ export interface components {
             /** Role Uid */
             role_uid: string;
             /** Enabled */
-            enabled: boolean;
+            enabled?: boolean | null;
+            /** Included */
+            included?: boolean | null;
             /** Checkin Hour */
             checkin_hour?: number | null;
             /** Checkin Minute */
@@ -2746,6 +3212,78 @@ export interface components {
             gem_name: string;
             /** Gem Icon Url */
             gem_icon_url?: string | null;
+        };
+        /** ExastrisBoxOut */
+        ExastrisBoxOut: {
+            /** Uid */
+            uid: string;
+            /**
+             * Role Id
+             * @default
+             */
+            role_id: string;
+            /**
+             * Role Name
+             * @default
+             */
+            role_name: string;
+            /**
+             * Game Code
+             * @default 1289
+             */
+            game_code: string;
+            /**
+             * Game Name
+             * @default 异环
+             */
+            game_name: string;
+            /**
+             * Char Count
+             * @default 0
+             */
+            char_count: number;
+            /** Chars */
+            chars?: components["schemas"]["ExastrisCharOut"][];
+            /** Roles */
+            roles?: components["schemas"]["TaygedoRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /** ExastrisCharOut */
+        ExastrisCharOut: {
+            /** Char Id */
+            char_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Quality
+             * @default
+             */
+            quality: string;
+            /**
+             * Element Type
+             * @default
+             */
+            element_type: string;
+            /**
+             * Group Type
+             * @default
+             */
+            group_type: string;
+            /**
+             * Awaken Lev
+             * @default 0
+             */
+            awaken_lev: number;
+            /** Portrait Url */
+            portrait_url?: string | null;
+            /** Element Icon Url */
+            element_icon_url?: string | null;
         };
         /** ExecutorOut */
         ExecutorOut: {
@@ -3094,6 +3632,31 @@ export interface components {
             /** Items */
             items?: components["schemas"]["JobRunOut"][];
         };
+        /**
+         * JobTriggerExchangeOut
+         * @description 管理端排障：单次上游 HTTP 原文。
+         */
+        JobTriggerExchangeOut: {
+            /**
+             * Game Code
+             * @default
+             */
+            game_code: string;
+            /**
+             * Role Uid
+             * @default
+             */
+            role_uid: string;
+            /**
+             * Status
+             * @default
+             */
+            status: string;
+            /** Upstream Request */
+            upstream_request?: string | null;
+            /** Upstream Response */
+            upstream_response?: string | null;
+        };
         /** JobTriggerOut */
         JobTriggerOut: {
             /**
@@ -3108,11 +3671,75 @@ export interface components {
              * @default 已提交执行
              */
             message: string;
+            /** Ok */
+            ok?: boolean | null;
+            /** Summary */
+            summary?: string | null;
+            /** Exchanges */
+            exchanges?: components["schemas"]["JobTriggerExchangeOut"][];
         };
         /** JobTriggerRequest */
         JobTriggerRequest: {
             /** Member Id */
             member_id?: number | null;
+            /** Game Code */
+            game_code?: string | null;
+            /** Role Uid */
+            role_uid?: string | null;
+        };
+        /** KujiequAttendanceCalendarOut */
+        KujiequAttendanceCalendarOut: {
+            /** Game Code */
+            game_code: string;
+            /** Game Name */
+            game_name: string;
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /**
+             * Claimed Days
+             * @default 0
+             */
+            claimed_days: number;
+            /**
+             * Total Days
+             * @default 0
+             */
+            total_days: number;
+            /**
+             * Has Today Claim
+             * @default false
+             */
+            has_today_claim: boolean;
+            /**
+             * Progress Reliable
+             * @default true
+             */
+            progress_reliable: boolean;
+            /** Days */
+            days?: components["schemas"]["KujiequAttendanceDayOut"][];
+            /** Roles */
+            roles?: components["schemas"]["KujiequRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
+         * KujiequAttendanceDayOut
+         * @description 签到周期第 N 天（非公历日期）。
+         */
+        KujiequAttendanceDayOut: {
+            /** Day */
+            day: number;
+            /** Claimed */
+            claimed: boolean;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
         };
         /** KujiequBindSmsRequest */
         KujiequBindSmsRequest: {
@@ -3161,6 +3788,136 @@ export interface components {
             checkin_hour?: number | null;
             /** Checkin Minute */
             checkin_minute?: number | null;
+        };
+        /** KujiequExchangeItemOut */
+        KujiequExchangeItemOut: {
+            /** Commodity Code */
+            commodity_code: string;
+            /** Commodity Name */
+            commodity_name: string;
+            /**
+             * Commodity Price
+             * @default 0
+             */
+            commodity_price: number;
+            /**
+             * Commodity Type
+             * @default 0
+             */
+            commodity_type: number;
+            /**
+             * Commodity Status
+             * @default 0
+             */
+            commodity_status: number;
+            /**
+             * Game Id
+             * @default 0
+             */
+            game_id: number;
+            /**
+             * Game Name
+             * @default
+             */
+            game_name: string;
+            /**
+             * Picture Url
+             * @default
+             */
+            picture_url: string;
+            /**
+             * Commodity Desc
+             * @default
+             */
+            commodity_desc: string;
+            /**
+             * Commodity Limit
+             * @default 0
+             */
+            commodity_limit: number;
+            /**
+             * Current User Limit Buy
+             * @default 0
+             */
+            current_user_limit_buy: number;
+            /**
+             * Total Stock
+             * @default 0
+             */
+            total_stock: number;
+            /**
+             * Total Surplus Stock
+             * @default 0
+             */
+            total_surplus_stock: number;
+            /**
+             * Is Sellout
+             * @default false
+             */
+            is_sellout: boolean;
+            /**
+             * Can Exchange
+             * @default false
+             */
+            can_exchange: boolean;
+            /** Sale Time Ms */
+            sale_time_ms?: number | null;
+            /** Off Shelve Time Ms */
+            off_shelve_time_ms?: number | null;
+        };
+        /** KujiequExchangeRequest */
+        KujiequExchangeRequest: {
+            /** Commodity Code */
+            commodity_code: string;
+            /** Game Id */
+            game_id: number;
+            /** Role Id */
+            role_id?: string | null;
+        };
+        /** KujiequExchangeResultOut */
+        KujiequExchangeResultOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Gold */
+            gold?: number | null;
+            item?: components["schemas"]["KujiequExchangeItemOut"] | null;
+        };
+        /** KujiequExchangeRoleOut */
+        KujiequExchangeRoleOut: {
+            /** Game Id */
+            game_id: number;
+            /**
+             * Game Name
+             * @default
+             */
+            game_name: string;
+            /** Role Id */
+            role_id: string;
+            /**
+             * Role Name
+             * @default
+             */
+            role_name: string;
+        };
+        /** KujiequExchangeShopOut */
+        KujiequExchangeShopOut: {
+            /**
+             * Gold
+             * @default 0
+             */
+            gold: number;
+            /** Items */
+            items?: components["schemas"]["KujiequExchangeItemOut"][];
+            /** Roles */
+            roles?: components["schemas"]["KujiequExchangeRoleOut"][];
         };
         /** KujiequRoleOut */
         KujiequRoleOut: {
@@ -3590,6 +4347,51 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** RoleMembershipItem */
+        RoleMembershipItem: {
+            /** Game Code */
+            game_code: string;
+            /** Role Uid */
+            role_uid: string;
+            /**
+             * Included
+             * @default true
+             */
+            included: boolean;
+        };
+        /** RoleMembershipNodeOut */
+        RoleMembershipNodeOut: {
+            /** Game Code */
+            game_code: string;
+            /** Game Name */
+            game_name: string;
+            /** Role Uid */
+            role_uid: string;
+            /** Role Name */
+            role_name: string;
+            /**
+             * Channel Name
+             * @default
+             */
+            channel_name: string;
+            /**
+             * Included
+             * @default false
+             */
+            included: boolean;
+        };
+        /** RoleMembershipReplaceBody */
+        RoleMembershipReplaceBody: {
+            /** Roles */
+            roles?: components["schemas"]["RoleMembershipItem"][];
+        };
+        /** RoleMembershipTreeOut */
+        RoleMembershipTreeOut: {
+            /** Platform */
+            platform: string;
+            /** Roles */
+            roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
         /** ScheduledJobLastRunOut */
         ScheduledJobLastRunOut: {
@@ -4322,6 +5124,144 @@ export interface components {
             /** Checkin Minute */
             checkin_minute?: number | null;
         };
+        /** TaygedoExchangeItemOut */
+        TaygedoExchangeItemOut: {
+            /** Goods Id */
+            goods_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Cover
+             * @default
+             */
+            cover: string;
+            /**
+             * Price
+             * @default 0
+             */
+            price: number;
+            /**
+             * Exchange Num
+             * @default 0
+             */
+            exchange_num: number;
+            /**
+             * Cycle Limit
+             * @default 0
+             */
+            cycle_limit: number;
+            /**
+             * Cycle Type
+             * @default 0
+             */
+            cycle_type: number;
+            /**
+             * Stock
+             * @default -1
+             */
+            stock: number;
+            /**
+             * Stock Limited
+             * @default false
+             */
+            stock_limited: boolean;
+            /**
+             * Tab
+             * @default
+             */
+            tab: string;
+            /**
+             * State
+             * @default 0
+             */
+            state: number;
+            /**
+             * Game Id
+             * @default
+             */
+            game_id: string;
+            /**
+             * Can Exchange
+             * @default false
+             */
+            can_exchange: boolean;
+        };
+        /** TaygedoExchangeRequest */
+        TaygedoExchangeRequest: {
+            /** Goods Id */
+            goods_id: string;
+            /** Game Id */
+            game_id: string;
+            /** Role Id */
+            role_id: string;
+        };
+        /** TaygedoExchangeResultOut */
+        TaygedoExchangeResultOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Gold */
+            gold?: number | null;
+            item?: components["schemas"]["TaygedoExchangeItemOut"] | null;
+        };
+        /** TaygedoExchangeRoleOut */
+        TaygedoExchangeRoleOut: {
+            /** Game Id */
+            game_id: string;
+            /**
+             * Game Name
+             * @default
+             */
+            game_name: string;
+            /** Role Id */
+            role_id: string;
+            /**
+             * Role Name
+             * @default
+             */
+            role_name: string;
+        };
+        /** TaygedoExchangeShopOut */
+        TaygedoExchangeShopOut: {
+            /**
+             * Gold
+             * @default 0
+             */
+            gold: number;
+            /**
+             * Today Get
+             * @default 0
+             */
+            today_get: number;
+            /**
+             * Today Total
+             * @default 0
+             */
+            today_total: number;
+            /** Tabs */
+            tabs?: components["schemas"]["TaygedoExchangeTabOut"][];
+            /** Items */
+            items?: components["schemas"]["TaygedoExchangeItemOut"][];
+            /** Roles */
+            roles?: components["schemas"]["TaygedoExchangeRoleOut"][];
+        };
+        /** TaygedoExchangeTabOut */
+        TaygedoExchangeTabOut: {
+            /** Tab */
+            tab: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
         /** TaygedoRoleOut */
         TaygedoRoleOut: {
             /** Game Code */
@@ -4478,6 +5418,11 @@ export interface components {
             member_id: number;
             /** User Label */
             user_label: string;
+            /**
+             * Included
+             * @default true
+             */
+            included: boolean;
             /** Auto Checkin */
             auto_checkin: boolean;
             /** Checkin Hour */
@@ -4506,6 +5451,8 @@ export interface components {
             today_status_label?: string | null;
             /** Today Awards Text */
             today_awards_text?: string | null;
+            /** Today Awards */
+            today_awards?: components["schemas"]["CheckinAwardItem"][];
             /** Bound At */
             bound_at?: string | null;
         };
@@ -4571,6 +5518,202 @@ export interface components {
             email: string;
             /** Code */
             code: string;
+        };
+        /** WwBoxItemOut */
+        WwBoxItemOut: {
+            /** Name */
+            name: string;
+            /**
+             * Num
+             * @default 0
+             */
+            num: number;
+            /** Icon Url */
+            icon_url?: string | null;
+        };
+        /** WwBoxOut */
+        WwBoxOut: {
+            /** Uid */
+            uid: string;
+            /**
+             * Role Id
+             * @default
+             */
+            role_id: string;
+            /**
+             * Role Name
+             * @default
+             */
+            role_name: string;
+            /**
+             * Server Id
+             * @default
+             */
+            server_id: string;
+            /**
+             * Server Name
+             * @default
+             */
+            server_name: string;
+            /**
+             * Game Code
+             * @default 3
+             */
+            game_code: string;
+            /**
+             * Game Name
+             * @default 鸣潮
+             */
+            game_name: string;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+            /**
+             * World Level
+             * @default 0
+             */
+            world_level: number;
+            /**
+             * Active Days
+             * @default 0
+             */
+            active_days: number;
+            /**
+             * Role Num
+             * @default 0
+             */
+            role_num: number;
+            /**
+             * Achievement Count
+             * @default 0
+             */
+            achievement_count: number;
+            /**
+             * Achievement Star
+             * @default 0
+             */
+            achievement_star: number;
+            /**
+             * Energy
+             * @default 0
+             */
+            energy: number;
+            /**
+             * Max Energy
+             * @default 0
+             */
+            max_energy: number;
+            /**
+             * Store Energy
+             * @default 0
+             */
+            store_energy: number;
+            /**
+             * Store Energy Limit
+             * @default 0
+             */
+            store_energy_limit: number;
+            /**
+             * Store Energy Title
+             * @default
+             */
+            store_energy_title: string;
+            /** Store Energy Icon Url */
+            store_energy_icon_url?: string | null;
+            /**
+             * Liveness
+             * @default 0
+             */
+            liveness: number;
+            /**
+             * Liveness Max
+             * @default 0
+             */
+            liveness_max: number;
+            /**
+             * Small Count
+             * @default 0
+             */
+            small_count: number;
+            /**
+             * Big Count
+             * @default 0
+             */
+            big_count: number;
+            /**
+             * Sound Box
+             * @default 0
+             */
+            sound_box: number;
+            /**
+             * Weekly Inst Count
+             * @default 0
+             */
+            weekly_inst_count: number;
+            /**
+             * Weekly Inst Limit
+             * @default 0
+             */
+            weekly_inst_limit: number;
+            /**
+             * Weekly Inst Title
+             * @default
+             */
+            weekly_inst_title: string;
+            /** Weekly Inst Icon Url */
+            weekly_inst_icon_url?: string | null;
+            /**
+             * Rouge Score
+             * @default 0
+             */
+            rouge_score: number;
+            /**
+             * Rouge Score Limit
+             * @default 0
+             */
+            rouge_score_limit: number;
+            /**
+             * Rouge Title
+             * @default
+             */
+            rouge_title: string;
+            /** Rouge Icon Url */
+            rouge_icon_url?: string | null;
+            /** Treasure Boxes */
+            treasure_boxes?: components["schemas"]["WwBoxItemOut"][];
+            /** Phantom Boxes */
+            phantom_boxes?: components["schemas"]["WwBoxItemOut"][];
+            /**
+             * Calabash Level
+             * @default 0
+             */
+            calabash_level: number;
+            /**
+             * Calabash Unlock
+             * @default 0
+             */
+            calabash_unlock: number;
+            /**
+             * Calabash Max
+             * @default 0
+             */
+            calabash_max: number;
+            /**
+             * Calabash Cost
+             * @default 0
+             */
+            calabash_cost: number;
+            /** Roles */
+            roles?: components["schemas"]["KujiequRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
         };
     };
     responses: never;
@@ -6443,6 +7586,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_roles?: boolean;
+                /** @description 展示路径默认回源官方；传 false 仅供内部/排障读今日 logs */
                 force?: boolean;
             };
             header?: never;
@@ -6771,6 +7915,59 @@ export interface operations {
             };
         };
     };
+    skland_role_tree_api_skland_role_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMembershipTreeOut"];
+                };
+            };
+        };
+    };
+    skland_replace_role_memberships_api_skland_role_memberships_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMembershipReplaceBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SklandStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     skland_checkin_now_api_skland_checkin_post: {
         parameters: {
             query?: never;
@@ -6823,6 +8020,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArknightsAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skland_arknights_rogue_api_skland_arknights_rogue_get: {
+        parameters: {
+            query?: {
+                uid?: string | null;
+                /** @description 主题 id（rogue_1…）或中文名；默认界园 */
+                topic_id?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArknightsRogueOut"];
                 };
             };
             /** @description Validation Error */
@@ -6997,6 +8228,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_roles?: boolean;
+                /** @description 展示路径默认回源官方；传 false 仅供内部/排障读今日 logs */
                 force?: boolean;
             };
             header?: never;
@@ -7274,6 +8506,59 @@ export interface operations {
             };
         };
     };
+    taygedo_role_tree_api_taygedo_role_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMembershipTreeOut"];
+                };
+            };
+        };
+    };
+    taygedo_replace_role_memberships_api_taygedo_role_memberships_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMembershipReplaceBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaygedoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     taygedo_checkin_now_api_taygedo_checkin_post: {
         parameters: {
             query?: never;
@@ -7294,6 +8579,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    taygedo_exchange_shop_api_taygedo_exchange_get: {
+        parameters: {
+            query?: {
+                tab?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaygedoExchangeShopOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    taygedo_do_exchange_api_taygedo_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaygedoExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaygedoExchangeResultOut"];
                 };
             };
             /** @description Validation Error */
@@ -7340,10 +8689,43 @@ export interface operations {
             };
         };
     };
+    taygedo_exastris_box_api_taygedo_exastris_box_get: {
+        parameters: {
+            query?: {
+                uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExastrisBoxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     exilium_status_api_exilium_status_get: {
         parameters: {
             query?: {
                 include_roles?: boolean;
+                /** @description 展示路径默认回源官方；传 false 仅供内部/排障读今日 logs */
                 force?: boolean;
             };
             header?: never;
@@ -7588,6 +8970,59 @@ export interface operations {
             };
         };
     };
+    exilium_role_tree_api_exilium_role_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMembershipTreeOut"];
+                };
+            };
+        };
+    };
+    exilium_replace_role_memberships_api_exilium_role_memberships_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMembershipReplaceBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExiliumStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     exilium_checkin_now_api_exilium_checkin_post: {
         parameters: {
             query?: never;
@@ -7710,6 +9145,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_roles?: boolean;
+                /** @description 展示路径默认回源官方；传 false 仅供内部/排障读今日 logs */
                 force?: boolean;
             };
             header?: never;
@@ -7954,6 +9390,59 @@ export interface operations {
             };
         };
     };
+    kujiequ_role_tree_api_kujiequ_role_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMembershipTreeOut"];
+                };
+            };
+        };
+    };
+    kujiequ_replace_role_memberships_api_kujiequ_role_memberships_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMembershipReplaceBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KujiequStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     kujiequ_checkin_api_kujiequ_checkin_post: {
         parameters: {
             query?: never;
@@ -7974,6 +9463,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kujiequ_exchange_shop_api_kujiequ_exchange_get: {
+        parameters: {
+            query?: {
+                game_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KujiequExchangeShopOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kujiequ_do_exchange_api_kujiequ_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KujiequExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KujiequExchangeResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kujiequ_attendance_calendar_api_kujiequ_attendance_calendar_get: {
+        parameters: {
+            query: {
+                game_code: string;
+                role_uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KujiequAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kujiequ_ww_box_api_kujiequ_ww_box_get: {
+        parameters: {
+            query?: {
+                uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WwBoxOut"];
                 };
             };
             /** @description Validation Error */
@@ -8101,9 +9719,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": unknown;
                 };
             };
         };

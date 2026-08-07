@@ -23,14 +23,18 @@ function resolveAwardIconUrl(a: CheckinAward): string | null {
   const direct = (a.icon_url || "").trim();
   if (direct) return direct;
   // 方舟：resource_type 常即 iconId（如 DIAMOND_SHD）；后端未带 icon_url 时前端兜底
+  // 追放等平台的 score/exp 等小写类型不是图床 id，勿拼假 URL（破图会把文案顶开）
   const key = String(a.resource_type || "").trim();
   if (!key || key.includes("/") || key.includes("\\") || key.includes("..")) {
+    return null;
+  }
+  if (!/^[A-Z][A-Z0-9_]*$/.test(key)) {
     return null;
   }
   return `${GAME_RES}/item/${key}.png`;
 }
 
-/** 签到奖励展示：有 icon_url（方舟）时显示图标+名称×数量，否则回退文案 */
+/** 签到奖励展示：有 icon_url（或可解析图标）时显示图标+名称×数量，否则回退文案 */
 export function CheckinAwardsLine({
   awards,
   awardsText,
@@ -42,6 +46,14 @@ export function CheckinAwardsLine({
 }) {
   const list = (awards || []).filter((a) => a?.name);
   if (list.length) {
+    const withIcons = list.some((a) => resolveAwardIconUrl(a));
+    if (!withIcons) {
+      return (
+        <Typography.Text type="secondary">
+          {list.map((a) => `${a.name}×${a.count ?? 1}`).join(" · ")}
+        </Typography.Text>
+      );
+    }
     return (
       <Space size={10} wrap>
         {list.map((a, idx) => {

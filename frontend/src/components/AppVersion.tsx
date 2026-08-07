@@ -3,10 +3,13 @@ import { Typography } from "antd";
 
 async function fetchAppVersion(): Promise<string> {
   const res = await fetch("/health", { cache: "no-store" });
-  if (!res.ok) return "";
-  const data = (await res.json()) as { version?: string };
-  const v = (data.version || "").replace(/^v/i, "").trim();
-  return v;
+  // degraded 时后端返回 503，仍带 version 字段
+  try {
+    const data = (await res.json()) as { version?: string };
+    return (data.version || "").replace(/^v/i, "").trim();
+  } catch {
+    return "";
+  }
 }
 
 /** 展示当前运行中的应用版本（来自 /health） */

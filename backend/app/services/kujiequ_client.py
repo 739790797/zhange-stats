@@ -130,6 +130,7 @@ def _post_form(
     *,
     token: str | None = None,
     creds: KujiequCredentials | None = None,
+    headers: dict[str, str] | None = None,
     timeout: int = 25,
 ) -> dict[str, Any]:
     url = f"{API_BASE}{path}"
@@ -139,7 +140,7 @@ def _post_form(
     req = urllib.request.Request(
         url,
         data=body,
-        headers=_headers(token, creds=creds),
+        headers=headers if headers is not None else _headers(token, creds=creds),
         method="POST",
     )
     try:
@@ -311,6 +312,225 @@ def list_all_game_roles(creds: KujiequCredentials) -> list[GameRole]:
     return roles
 
 
+@dataclass
+class CommodityItem:
+    commodity_code: str
+    commodity_name: str
+    commodity_price: int
+    commodity_type: int
+    commodity_status: int
+    game_id: int
+    game_name: str
+    picture_url: str = ""
+    commodity_desc: str = ""
+    commodity_limit: int = 0
+    current_user_limit_buy: int = 0
+    total_stock: int = 0
+    total_surplus_stock: int = 0
+    is_sellout: bool = False
+    sale_time_ms: int | None = None
+    off_shelve_time_ms: int | None = None
+
+    @property
+    def can_exchange(self) -> bool:
+        # 官方在售常见 commodityStatus=1；0 亦视为可兑；2 未开兑 / 3·4 下架
+        if self.commodity_status not in (0, 1):
+            return False
+        if self.is_sellout:
+            return False
+        if self.commodity_type == 2:
+            return False
+        if self.commodity_limit > 0 and self.current_user_limit_buy <= 0:
+            return False
+        # 仅有总库存跟踪时 surplus==0 才是售罄；stock=0 且 surplus=0 常见于不限库存
+        if self.total_surplus_stock == 0 and self.total_stock > 0:
+            return False
+        return True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "commodity_code": self.commodity_code,
+            "commodity_name": self.commodity_name,
+            "commodity_price": self.commodity_price,
+            "commodity_type": self.commodity_type,
+            "commodity_status": self.commodity_status,
+            "game_id": self.game_id,
+            "game_name": self.game_name,
+            "picture_url": self.picture_url,
+            "commodity_desc": self.commodity_desc,
+            "commodity_limit": self.commodity_limit,
+            "current_user_limit_buy": self.current_user_limit_buy,
+            "total_stock": self.total_stock,
+            "total_surplus_stock": self.total_surplus_stock,
+            "is_sellout": self.is_sellout,
+            "can_exchange": self.can_exchange,
+            "sale_time_ms": self.sale_time_ms,
+            "off_shelve_time_ms": self.off_shelve_time_ms,
+        }
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def get_total_gold(creds: KujiequCredentials) -> int:
+    creds = _ensure_device(creds)
+    data = _post_form(
+        "/encourage/gold/getTotalGold",
+        {},
+        token=creds.token,
+        creds=creds,
+    )
+    _assert_ok(data)
+    payload = data.get("data") or {}
+    if not isinstance(payload, dict):
+        return 0
+    return _to_int(payload.get("goldNum"), 0)
+
+
+def _parse_commodity(row: dict[str, Any]) -> CommodityItem | None:
+    code = str(row.get("commodityCode") or row.get("commodity_code") or "").strip()
+    name = str(row.get("commodityName") or row.get("commodity_name") or "").strip()
+    if not code or not name:
+        return None
+    game_id = _to_int(row.get("gameId") or row.get("game_id"), 0)
+    return CommodityItem(
+        commodity_code=code,
+        commodity_name=name,
+        commodity_price=_to_int(row.get("commodityPrice") or row.get("commodity_price"), 0),
+        commodity_type=_to_int(row.get("commodityType") or row.get("commodity_type"), 0),
+        commodity_status=_to_int(
+            row.get("commodityStatus") or row.get("commodity_status"), 0
+        ),
+        game_id=game_id,
+        game_name=str(
+            row.get("gameName")
+            or row.get("game_name")
+            or GAME_NAMES.get(game_id)
+            or (f"游戏{game_id}" if game_id else "库街区")
+        ).strip(),
+        picture_url=str(row.get("pictureUrl") or row.get("picture_url") or "").strip(),
+        commodity_desc=str(
+            row.get("commodityDesc") or row.get("commodity_desc") or ""
+        ).strip(),
+        commodity_limit=_to_int(
+            row.get("commodityLimit") or row.get("commodity_limit"), 0
+        ),
+        current_user_limit_buy=_to_int(
+            row.get("currentUserLimitBuy") or row.get("current_user_limit_buy"),
+            0,
+        ),
+        total_stock=_to_int(row.get("totalStock") or row.get("total_stock"), 0),
+        total_surplus_stock=_to_int(
+            row.get("totalSurplusStock") or row.get("total_surplus_stock"), 0
+        ),
+        is_sellout=bool(row.get("isSellout") or row.get("is_sellout")),
+        sale_time_ms=(
+            _to_int(row.get("saleTime") or row.get("sale_time"), 0) or None
+        ),
+        off_shelve_time_ms=(
+            _to_int(row.get("offShelveTime") or row.get("off_shelve_time"), 0)
+            or None
+        ),
+    )
+
+
+def list_commodities(
+    creds: KujiequCredentials,
+    *,
+    game_id: int | None = None,
+    page_size: int = 20,
+    max_pages: int = 5,
+) -> list[CommodityItem]:
+    """兑换商城商品列表。game_id 为空时合并战双/鸣潮/社区常见分区。"""
+    creds = _ensure_device(creds)
+    game_ids = [int(game_id)] if game_id is not None else [GAME_PGR, GAME_WW, 0]
+    seen: set[str] = set()
+    out: list[CommodityItem] = []
+    for gid in game_ids:
+        for page in range(1, max_pages + 1):
+            try:
+                data = _post_form(
+                    "/encourage/commodity/list",
+                    {
+                        "gameId": gid,
+                        "pageIndex": page,
+                        "pageSize": page_size,
+                    },
+                    token=creds.token,
+                    creds=creds,
+                )
+                _assert_ok(data)
+            except KujiequApiError as exc:
+                if exc.code in (220, 401):
+                    raise
+                logger.warning(
+                    "kujiequ commodity list gameId=%s page=%s failed: %s",
+                    gid,
+                    page,
+                    exc.message,
+                )
+                break
+            payload = data.get("data") or {}
+            rows = (
+                payload.get("commodityList")
+                if isinstance(payload, dict)
+                else None
+            )
+            if not isinstance(rows, list) or not rows:
+                break
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                item = _parse_commodity(row)
+                if item is None or item.commodity_code in seen:
+                    continue
+                seen.add(item.commodity_code)
+                out.append(item)
+            if len(rows) < page_size:
+                break
+    return out
+
+
+def exchange_commodity(
+    creds: KujiequCredentials,
+    *,
+    commodity_code: str,
+    game_id: int,
+    commodity_num: int = 1,
+    role_id: str | None = None,
+) -> dict[str, Any]:
+    """兑换虚拟商品（实物需地址/极验，本站不支持）。
+
+    上游 /encourage/order/create 对战双/鸣潮商品强制校验 roleId，缺省返回「角色信息不全」。
+    """
+    creds = _ensure_device(creds)
+    code = (commodity_code or "").strip()
+    if not code:
+        raise KujiequApiError("缺少商品代码")
+    rid = str(role_id or "").strip()
+    if int(game_id) in (GAME_PGR, GAME_WW) and not rid:
+        raise KujiequApiError("请选择接收角色")
+    form: dict[str, Any] = {
+        "commodityCode": code,
+        "commodityNum": max(1, int(commodity_num)),
+        "gameId": int(game_id),
+    }
+    if rid:
+        form["roleId"] = rid
+    data = _post_form(
+        "/encourage/order/create",
+        form,
+        token=creds.token,
+        creds=creds,
+    )
+    _assert_ok(data)
+    payload = data.get("data")
+    return payload if isinstance(payload, dict) else {}
+
 
 # 签到逻辑拆至 kujiequ_attendance，此处再导出保持原 import 路径兼容
 from app.services.kujiequ_attendance import (  # noqa: E402
@@ -321,4 +541,5 @@ from app.services.kujiequ_attendance import (  # noqa: E402
     query_game_today,
     query_today_all,
     run_all_checkins,
+    sort_kujiequ_results,
 )

@@ -84,6 +84,7 @@ export {
   fetchArknightsCompareCandidates,
   fetchArknightsBoxCompare,
   fetchArknightsAttendanceCalendar,
+  fetchArknightsRogue,
   bindSklandPassword,
   sendSklandSms,
   bindSklandSms,
@@ -105,6 +106,9 @@ export {
   updateTaygedoRolePref,
   triggerTaygedoCheckin,
   fetchTaygedoAttendanceCalendar,
+  fetchExastrisBox,
+  fetchTaygedoExchange,
+  exchangeTaygedoItem,
 } from "./taygedoApi";
 
 export {
@@ -128,7 +132,17 @@ export {
   updateKujiequBind,
   updateKujiequRolePref,
   triggerKujiequCheckin,
+  fetchKujiequExchange,
+  exchangeKujiequItem,
+  fetchKujiequAttendanceCalendar,
+  fetchWwBox,
 } from "./kujiequApi";
+
+export {
+  fetchRoleMembershipTree,
+  replaceRoleMemberships,
+} from "./roleMembershipApi";
+export type { CheckinPlatformKey } from "./roleMembershipApi";
 
 export type {
   NapCatGroup,

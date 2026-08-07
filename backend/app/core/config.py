@@ -51,6 +51,8 @@ class Settings(BaseSettings):
 
     # 可选 Redis（限流跨实例）；留空则进程内滑动窗口
     REDIS_URL: str = ""
+    # 为 true 时限流信任 X-Forwarded-For 首段（仅置于受信反代后开启）
+    TRUST_X_FORWARDED_FOR: bool = False
 
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
@@ -105,7 +107,7 @@ class Settings(BaseSettings):
     SMTP_USE_SSL: bool = True
     SMTP_STARTTLS: bool = False
     EMAIL_CODE_EXPIRE_MINUTES: int = 15
-    # 仅本地调试：SMTP 未配时允许把完整验证码写入日志/stdout
+    # 仅本地调试：SMTP 未配时允许把完整验证码写入日志/stdout（生产启动会拒绝）
     ALLOW_EMAIL_CODE_LOG: bool = False
 
     # 部署版本号（镜像/本地 VERSION 文件）

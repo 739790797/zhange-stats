@@ -1,4 +1,5 @@
 import { client } from "./http";
+import type { components } from "./generated/schema";
 import type {
   ExiliumCheckinResponse,
   ExiliumExchangeResult,
@@ -7,11 +8,12 @@ import type {
   ExiliumStatus,
 } from "./types";
 
-export async function fetchExiliumStatus(includeRoles = true, force = false) {
+/** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
+export async function fetchExiliumStatus(includeRoles = true, force = true) {
   const { data } = await client.get<ExiliumStatus>("/exilium/status", {
     params: {
       include_roles: includeRoles,
-      ...(force ? { force: true } : {}),
+      force,
     },
   });
   return data;
@@ -55,21 +57,16 @@ export async function updateExiliumBind(payload: {
   return data;
 }
 
-export async function updateExiliumRolePref(payload: {
-  game_code: string;
-  role_uid: string;
-  enabled: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
+export async function updateExiliumRolePref(
+  payload: components["schemas"]["CheckinRolePrefUpdate"],
+) {
   const { data } = await client.patch<ExiliumStatus>("/exilium/role-prefs", payload);
   return data;
 }
 
-export async function triggerExiliumCheckin(payload?: {
-  game_code: string;
-  role_uid: string;
-}) {
+export async function triggerExiliumCheckin(
+  payload?: components["schemas"]["CheckinNowBody"],
+) {
   const { data } = await client.post<ExiliumCheckinResponse>(
     "/exilium/checkin",
     payload ?? {},

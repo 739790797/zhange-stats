@@ -9,7 +9,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models.member import Member
-from app.schemas.checkin import CheckinNowBody
+from app.schemas.checkin import (
+    CheckinNowBody,
+    CheckinRolePrefUpdate,
+    RoleMembershipNodeOut,
+    RoleMembershipReplaceBody,
+    RoleMembershipTreeOut,
+)
 
 StatusT = TypeVar("StatusT", bound=BaseModel)
 RoleT = TypeVar("RoleT", bound=BaseModel)
@@ -63,7 +69,8 @@ def build_checkin_status(
     soft_roles_on_none_ok: when True (skland), only downgrade token_ok on role
     failure if token_ok is still None; otherwise always set token_ok False.
 
-    role_pref_platform: when set, seed/enrich today_results with per-role prefs.
+    role_pref_platform: when set, seed/enrich today_results with per-role prefs
+    and filter to included roles only.
     """
     if bind is None:
         return status_cls(bound=False)
@@ -87,6 +94,7 @@ def build_checkin_status(
                 member_id=member.id,
                 bind=bind,
                 results=raw_results,
+                only_included=True,
             )
             raw_results = attach_last_checkin_to_result_dicts(
                 db,
@@ -153,4 +161,89 @@ def build_checkin_response(
         ok=out.get("ok"),
         summary=str(out.get("summary") or ""),
         results=[result_cls(**r) for r in out.get("results") or []],
+    )
+
+
+def apply_role_pref_update(
+    *,
+    db: Session,
+    platform: str,
+    member_id: int,
+    bind: Any,
+    payload: CheckinRolePrefUpdate,
+) -> None:
+    """Validate and upsert a single role pref (included / auto_checkin)."""
+    if payload.enabled is None and payload.included is None:
+        raise HTTPException(
+            status_code=400,
+            detail="请至少指定 included 或 enabled",
+        )
+    if payload.enabled and (
+        payload.checkin_hour is None or payload.checkin_minute is None
+    ):
+        raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
+    from app.services.checkin_role_prefs import upsert_role_pref
+
+    try:
+        upsert_role_pref(
+            db,
+            platform=platform,
+            member_id=member_id,
+            bind=bind,
+            game_code=payload.game_code,
+            role_uid=payload.role_uid,
+            enabled=payload.enabled,
+            included=payload.included,
+            checkin_hour=payload.checkin_hour,
+            checkin_minute=payload.checkin_minute,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def build_role_membership_tree(
+    *,
+    db: Session,
+    platform: str,
+    member_id: int,
+    preview_roles: Callable[..., list[Any]],
+    member: Member,
+    api_error_cls: type[Exception],
+) -> RoleMembershipTreeOut:
+    from app.services.checkin_role_prefs import (
+        build_membership_tree_from_roles,
+        load_pref_map,
+    )
+
+    try:
+        raw_roles = preview_roles(db, member)
+    except api_error_cls as exc:  # type: ignore[misc]
+        raise_api_error(exc, api_error_cls)
+        raise  # pragma: no cover
+    pref_map = load_pref_map(db, platform=platform, member_id=member_id)
+    nodes = build_membership_tree_from_roles(
+        platform=platform, roles=raw_roles, pref_map=pref_map
+    )
+    return RoleMembershipTreeOut(
+        platform=platform,
+        roles=[RoleMembershipNodeOut(**n) for n in nodes],
+    )
+
+
+def apply_role_membership_replace(
+    *,
+    db: Session,
+    platform: str,
+    member_id: int,
+    bind: Any,
+    body: RoleMembershipReplaceBody,
+) -> None:
+    from app.services.checkin_role_prefs import apply_role_memberships
+
+    apply_role_memberships(
+        db,
+        platform=platform,
+        member_id=member_id,
+        bind=bind,
+        roles=[r.model_dump() for r in body.roles],
     )

@@ -1,8 +1,10 @@
 import { client } from "./http";
+import type { components } from "./generated/schema";
 import type {
   ArknightsAttendanceCalendar,
   ArknightsBoxCompare,
   ArknightsCompareCandidate,
+  ArknightsRogue,
   EndfieldBox,
   SklandCheckinResponse,
   SklandQrPoll,
@@ -10,11 +12,12 @@ import type {
   SklandStatus,
 } from "./types";
 
-export async function fetchSklandStatus(includeRoles = true, force = false) {
+/** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
+export async function fetchSklandStatus(includeRoles = true, force = true) {
   const { data } = await client.get<SklandStatus>("/skland/status", {
     params: {
       include_roles: includeRoles,
-      ...(force ? { force: true } : {}),
+      force,
     },
   });
   return data;
@@ -24,7 +27,7 @@ export async function fetchEndfieldBox(uid?: string, force = false) {
   const { data } = await client.get<EndfieldBox>("/skland/endfield/box", {
     params: {
       ...(uid ? { uid } : {}),
-      ...(force ? { force: true } : {}),
+      force,
     },
     timeout: 60000,
   });
@@ -70,7 +73,26 @@ export async function fetchArknightsAttendanceCalendar(
     {
       params: {
         ...(uid ? { uid } : {}),
-        ...(force ? { force: true } : {}),
+        force,
+      },
+      timeout: 60000,
+    },
+  );
+  return data;
+}
+
+export async function fetchArknightsRogue(
+  uid?: string,
+  topicId?: string,
+  force = false,
+) {
+  const { data } = await client.get<ArknightsRogue>(
+    "/skland/arknights/rogue",
+    {
+      params: {
+        ...(uid ? { uid } : {}),
+        ...(topicId ? { topic_id: topicId } : {}),
+        force,
       },
       timeout: 60000,
     },
@@ -116,21 +138,16 @@ export async function updateSklandBind(payload: {
   return data;
 }
 
-export async function updateSklandRolePref(payload: {
-  game_code: string;
-  role_uid: string;
-  enabled: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
+export async function updateSklandRolePref(
+  payload: components["schemas"]["CheckinRolePrefUpdate"],
+) {
   const { data } = await client.patch<SklandStatus>("/skland/role-prefs", payload);
   return data;
 }
 
-export async function triggerSklandCheckin(payload?: {
-  game_code: string;
-  role_uid: string;
-}) {
+export async function triggerSklandCheckin(
+  payload?: components["schemas"]["CheckinNowBody"],
+) {
   const { data } = await client.post<SklandCheckinResponse>(
     "/skland/checkin",
     payload ?? {},

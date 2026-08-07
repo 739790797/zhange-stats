@@ -1,6 +1,12 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Modal } from "antd";
 import { useState } from "react";
+import {
+  fetchExiliumStatus,
+  fetchKujiequStatus,
+  fetchSklandStatus,
+  fetchTaygedoStatus,
+} from "@/api/client";
 import type { MemberProfile } from "@/api/types";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
@@ -9,6 +15,7 @@ import { QqBindRow } from "@/components/profile/QqBindRow";
 import { SteamBindRow } from "@/components/profile/SteamBindRow";
 import { SklandBindPanel } from "@/components/SklandBindPanel";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
+import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 
 type PlatformBindsSectionProps = {
   isLoading: boolean;
@@ -85,6 +92,72 @@ export function PlatformBindsSection({
   const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
   const [kujiequModalOpen, setKujiequModalOpen] = useState(false);
 
+  // 角色树挂在本区（不随绑定 Modal destroyOnClose 卸载），避免「弹一下就消失」
+  const sklandRoles = useRoleMembershipPicker("skland");
+  const taygedoRoles = useRoleMembershipPicker("taygedo");
+  const exiliumRoles = useRoleMembershipPicker("exilium");
+  const kujiequRoles = useRoleMembershipPicker("kujiequ");
+
+  // 本人个人中心：探测已绑定平台凭证（与签到页共用 queryKey）
+  const probeSelf = !isAdminEdit;
+  const sklandStatusQuery = useQuery({
+    queryKey: ["skland-status"],
+    queryFn: () => fetchSklandStatus(false, true),
+    enabled: probeSelf && showSkland && sklandBound,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const taygedoStatusQuery = useQuery({
+    queryKey: ["taygedo-status"],
+    queryFn: () => fetchTaygedoStatus(false, true),
+    enabled: probeSelf && showTaygedo && taygedoBound,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const exiliumStatusQuery = useQuery({
+    queryKey: ["exilium-status"],
+    queryFn: () => fetchExiliumStatus(false, true),
+    enabled: probeSelf && showExilium && exiliumBound,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const kujiequStatusQuery = useQuery({
+    queryKey: ["kujiequ-status"],
+    queryFn: () => fetchKujiequStatus(false, true),
+    enabled: probeSelf && showKujiequ && kujiequBound,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const sklandCredOk = !sklandBound
+    ? undefined
+    : sklandStatusQuery.isError
+      ? false
+      : sklandStatusQuery.data
+        ? sklandStatusQuery.data.token_ok !== false
+        : null;
+  const taygedoCredOk = !taygedoBound
+    ? undefined
+    : taygedoStatusQuery.isError
+      ? false
+      : taygedoStatusQuery.data
+        ? taygedoStatusQuery.data.token_ok !== false
+        : null;
+  const exiliumCredOk = !exiliumBound
+    ? undefined
+    : exiliumStatusQuery.isError
+      ? false
+      : exiliumStatusQuery.data
+        ? exiliumStatusQuery.data.token_ok !== false
+        : null;
+  const kujiequCredOk = !kujiequBound
+    ? undefined
+    : kujiequStatusQuery.isError
+      ? false
+      : kujiequStatusQuery.data
+        ? kujiequStatusQuery.data.token_ok !== false
+        : null;
+
   return (
     <>
       <Card title="账号绑定" loading={isLoading && !errMsg}>
@@ -114,10 +187,12 @@ export function PlatformBindsSection({
           <PlatformBindRow
             name="森空岛"
             bound={sklandBound}
+            credentialOk={sklandCredOk}
             errMsg={errMsg}
             unbindConfirmTitle="确认解除森空岛绑定？"
             unbindPending={unbindSklandPending}
             onOpenModal={() => setSklandModalOpen(true)}
+            onOpenRoles={() => sklandRoles.openPicker()}
             onUnbind={onUnbindSkland}
           />
         ) : null}
@@ -126,11 +201,13 @@ export function PlatformBindsSection({
           <PlatformBindRow
             name="塔吉多"
             bound={taygedoBound}
+            credentialOk={taygedoCredOk}
             errMsg={errMsg}
             borderTop
             unbindConfirmTitle="确认解除塔吉多绑定？"
             unbindPending={unbindTaygedoPending}
             onOpenModal={() => setTaygedoModalOpen(true)}
+            onOpenRoles={() => taygedoRoles.openPicker()}
             onUnbind={onUnbindTaygedo}
           />
         ) : null}
@@ -139,11 +216,13 @@ export function PlatformBindsSection({
           <PlatformBindRow
             name="追放"
             bound={exiliumBound}
+            credentialOk={exiliumCredOk}
             errMsg={errMsg}
             borderTop
             unbindConfirmTitle="确认解除追放社区绑定？"
             unbindPending={unbindExiliumPending}
             onOpenModal={() => setExiliumModalOpen(true)}
+            onOpenRoles={() => exiliumRoles.openPicker()}
             onUnbind={onUnbindExilium}
           />
         ) : null}
@@ -152,11 +231,13 @@ export function PlatformBindsSection({
           <PlatformBindRow
             name="库街区"
             bound={kujiequBound}
+            credentialOk={kujiequCredOk}
             errMsg={errMsg}
             borderTop
             unbindConfirmTitle="确认解除库街区绑定？"
             unbindPending={unbindKujiequPending}
             onOpenModal={() => setKujiequModalOpen(true)}
+            onOpenRoles={() => kujiequRoles.openPicker()}
             onUnbind={onUnbindKujiequ}
           />
         ) : null}
@@ -173,10 +254,13 @@ export function PlatformBindsSection({
         {sklandModalOpen && !isAdminEdit ? (
           <SklandBindPanel
             title=""
+            openRolePickerOnBind={false}
             onSuccess={() => {
               invalidateProfile();
               queryClient.invalidateQueries({ queryKey: ["skland-logs"] });
               setSklandModalOpen(false);
+              // 下一拍再开角色树，避免与绑定 Modal 关闭抢焦点
+              window.setTimeout(() => sklandRoles.openPicker(), 0);
             }}
           />
         ) : null}
@@ -193,10 +277,12 @@ export function PlatformBindsSection({
         {taygedoModalOpen && !isAdminEdit ? (
           <TaygedoBindPanel
             title=""
+            openRolePickerOnBind={false}
             onSuccess={() => {
               invalidateProfile();
               queryClient.invalidateQueries({ queryKey: ["taygedo-logs"] });
               setTaygedoModalOpen(false);
+              window.setTimeout(() => taygedoRoles.openPicker(), 0);
             }}
           />
         ) : null}
@@ -213,9 +299,11 @@ export function PlatformBindsSection({
         {exiliumModalOpen && !isAdminEdit ? (
           <ExiliumBindPanel
             title=""
+            openRolePickerOnBind={false}
             onSuccess={() => {
               invalidateProfile();
               setExiliumModalOpen(false);
+              window.setTimeout(() => exiliumRoles.openPicker(), 0);
             }}
           />
         ) : null}
@@ -232,13 +320,20 @@ export function PlatformBindsSection({
         {kujiequModalOpen && !isAdminEdit ? (
           <KujiequBindPanel
             title=""
+            openRolePickerOnBind={false}
             onSuccess={() => {
               invalidateProfile();
               setKujiequModalOpen(false);
+              window.setTimeout(() => kujiequRoles.openPicker(), 0);
             }}
           />
         ) : null}
       </Modal>
+
+      {sklandRoles.modal}
+      {taygedoRoles.modal}
+      {exiliumRoles.modal}
+      {kujiequRoles.modal}
     </>
   );
 }

@@ -31,6 +31,12 @@ _REQUIRED_TABLES = (
     "presence_segments",
     "steam_friend_edges",
     "steam_apps",
+    "skland_binds",
+    "taygedo_binds",
+    "exilium_binds",
+    "kujiequ_binds",
+    "checkin_role_prefs",
+    "oauth_exchange_tickets",
 )
 
 _REQUIRED_COLUMNS: dict[str, frozenset[str]] = {
@@ -42,6 +48,17 @@ _REQUIRED_COLUMNS: dict[str, frozenset[str]] = {
             "steam_friends_synced_at",
             "steam_persona_name",
             "user_id",
+        }
+    ),
+    "skland_binds": frozenset({"member_id", "cred_enc", "auto_checkin"}),
+    "checkin_role_prefs": frozenset(
+        {
+            "member_id",
+            "platform",
+            "game_code",
+            "role_uid",
+            "included",
+            "enabled",
         }
     ),
 }
@@ -104,6 +121,10 @@ def run_migrations() -> None:
     tables = set(inspector.get_table_names())
 
     if "alembic_version" not in tables and "users" in tables:
+        logger.warning(
+            "Legacy schema path: ensure_schema + stamp head. "
+            "New schema changes must use Alembic only; do not extend schema_ensure."
+        )
         logger.info(
             "Existing schema detected without alembic_version; "
             "aligning schema then stamping baseline as applied"

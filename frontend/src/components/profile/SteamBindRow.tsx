@@ -1,5 +1,6 @@
-import { Avatar, Button, Popconfirm, Space, Typography } from "antd";
+import { Avatar, Button, Popconfirm, Typography } from "antd";
 import type { MemberProfile } from "@/api/types";
+import { BindActionSlots } from "@/components/profile/BindActionSlots";
 import { BindStatusTitle } from "@/components/profile/BindStatusTitle";
 
 type SteamBindRowProps = {
@@ -58,38 +59,33 @@ export function SteamBindRow({
           </div>
         ) : null}
       </div>
-      <Space>
-        {steamBound ? (
-          <>
-            <Button
-              loading={startBindPending}
-              disabled={!!errMsg}
-              onClick={onStartBind}
-            >
-              换绑
-            </Button>
+      <BindActionSlots
+        primary={
+          <Button
+            block
+            type={steamBound ? "default" : "primary"}
+            loading={startBindPending}
+            disabled={!!errMsg}
+            onClick={onStartBind}
+          >
+            {steamBound ? "换绑" : "绑定"}
+          </Button>
+        }
+        danger={
+          steamBound ? (
             <Popconfirm
               title="确认解除 Steam 绑定？"
               okText="确定"
               cancelText="取消"
               onConfirm={onUnbind}
             >
-              <Button danger loading={unbindPending} disabled={!!errMsg}>
+              <Button block danger loading={unbindPending} disabled={!!errMsg}>
                 解绑
               </Button>
             </Popconfirm>
-          </>
-        ) : (
-          <Button
-            type="primary"
-            loading={startBindPending}
-            disabled={!!errMsg}
-            onClick={onStartBind}
-          >
-            绑定
-          </Button>
-        )}
-      </Space>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

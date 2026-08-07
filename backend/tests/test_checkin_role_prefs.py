@@ -32,17 +32,53 @@ def test_enrich_result_dicts_defaults_off() -> None:
         }
     ]
     out = enrich_result_dicts(results, {})
+    assert out[0]["included"] is False
     assert out[0]["auto_checkin"] is False
     assert out[0]["checkin_hour"] is None
 
 
 def test_enrich_result_dicts_from_pref() -> None:
-    pref = SimpleNamespace(enabled=True, checkin_hour=8, checkin_minute=30)
+    pref = SimpleNamespace(
+        included=True, enabled=True, checkin_hour=8, checkin_minute=30
+    )
     results = [{"game_code": "arknights", "role_uid": "u1", "status": "ok", "message": "x"}]
     out = enrich_result_dicts(results, {("arknights", "u1"): pref})  # type: ignore[arg-type]
+    assert out[0]["included"] is True
     assert out[0]["auto_checkin"] is True
     assert out[0]["checkin_hour"] == 8
     assert out[0]["checkin_minute"] == 30
+
+
+def test_filter_included_results() -> None:
+    from app.services.checkin_role_prefs import filter_included_results
+
+    rows = [
+        {"game_code": "a", "role_uid": "1", "included": True},
+        {"game_code": "a", "role_uid": "2", "included": False},
+    ]
+    assert filter_included_results(rows) == [rows[0]]
+
+
+def test_build_membership_tree_from_roles() -> None:
+    from app.services.checkin_role_prefs import build_membership_tree_from_roles
+
+    pref = SimpleNamespace(included=True)
+    nodes = build_membership_tree_from_roles(
+        platform="skland",
+        roles=[
+            {
+                "game_code": "arknights",
+                "game_name": "明日方舟",
+                "uid": "1",
+                "role_name": "A",
+                "channel_name": "官服",
+            }
+        ],
+        pref_map={("arknights", "1"): pref},  # type: ignore[arg-type]
+    )
+    assert len(nodes) == 1
+    assert nodes[0]["included"] is True
+    assert nodes[0]["role_uid"] == "1"
 
 
 def test_today_done_role_keys() -> None:

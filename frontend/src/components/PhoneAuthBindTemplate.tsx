@@ -101,6 +101,56 @@ export function PhoneAuthBindTemplate({
     onModeChange?.(next);
   };
 
+  const sendSms = async () => {
+    if (!phone.trim()) {
+      message.warning("请填写手机号");
+      return;
+    }
+    setSendingSms(true);
+    try {
+      const sent = await onSendSms(phone.trim());
+      if (sent === false) {
+        return;
+      }
+      startSmsCooldown(60);
+      message.success("验证码已发送");
+    } catch (e: unknown) {
+      message.error(apiError(e, "发送验证码失败"));
+    } finally {
+      setSendingSms(false);
+    }
+  };
+
+  const bindSms = async () => {
+    if (!phone.trim() || !code.trim()) {
+      message.warning("请填写手机号与验证码");
+      return;
+    }
+    setBinding(true);
+    try {
+      await onBindSms(phone.trim(), code.trim());
+    } catch (e: unknown) {
+      message.error(apiError(e, "绑定失败"));
+    } finally {
+      setBinding(false);
+    }
+  };
+
+  const bindPassword = async () => {
+    if (!phone.trim() || !password) {
+      message.warning("请填写手机号与密码");
+      return;
+    }
+    setBinding(true);
+    try {
+      await onBindPassword(phone.trim(), password);
+    } catch (e: unknown) {
+      message.error(apiError(e, "绑定失败"));
+    } finally {
+      setBinding(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -145,114 +195,80 @@ export function PhoneAuthBindTemplate({
         {mode === "qr" ? (
           qrPanel
         ) : (
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Input
-              size={CONTROL_SIZE}
-              placeholder={accountPlaceholder}
-              value={phone}
-              onChange={(e) => {
-                const next = e.target.value;
-                onPhoneChange?.(next, phone);
-                setPhone(next);
-              }}
-              autoComplete="username"
-            />
-            {mode === "sms" ? (
-              <>
-                {smsExtra}
-                <Space.Compact style={{ width: "100%" }}>
-                  <Input
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (binding) return;
+              if (mode === "sms") void bindSms();
+              else void bindPassword();
+            }}
+          >
+            <Space direction="vertical" size={16} style={{ width: "100%" }}>
+              <Input
+                size={CONTROL_SIZE}
+                placeholder={accountPlaceholder}
+                value={phone}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  onPhoneChange?.(next, phone);
+                  setPhone(next);
+                }}
+                autoComplete="username"
+              />
+              {mode === "sms" ? (
+                <>
+                  {smsExtra}
+                  <Space.Compact style={{ width: "100%" }}>
+                    <Input
+                      size={CONTROL_SIZE}
+                      placeholder="短信验证码"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                    />
+                    <Button
+                      size={CONTROL_SIZE}
+                      htmlType="button"
+                      loading={sendingSms}
+                      disabled={smsCooldown > 0 || sendingSms}
+                      onClick={() => void sendSms()}
+                    >
+                      {smsCooldown > 0 ? `${smsCooldown}s` : "获取验证码"}
+                    </Button>
+                  </Space.Compact>
+                  <Button
+                    type="primary"
                     size={CONTROL_SIZE}
-                    placeholder="短信验证码"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    autoComplete="one-time-code"
-                    inputMode="numeric"
+                    htmlType="submit"
+                    block
+                    loading={binding}
+                  >
+                    {submitText}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Input.Password
+                    size={CONTROL_SIZE}
+                    placeholder="密码"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                   />
                   <Button
+                    type="primary"
                     size={CONTROL_SIZE}
-                    loading={sendingSms}
-                    disabled={smsCooldown > 0 || sendingSms}
-                    onClick={async () => {
-                      if (!phone.trim()) {
-                        message.warning("请填写手机号");
-                        return;
-                      }
-                      setSendingSms(true);
-                      try {
-                        const sent = await onSendSms(phone.trim());
-                        if (sent === false) {
-                          return;
-                        }
-                        startSmsCooldown(60);
-                        message.success("验证码已发送");
-                      } catch (e: unknown) {
-                        message.error(apiError(e, "发送验证码失败"));
-                      } finally {
-                        setSendingSms(false);
-                      }
-                    }}
+                    htmlType="submit"
+                    block
+                    loading={binding}
                   >
-                    {smsCooldown > 0 ? `${smsCooldown}s` : "获取验证码"}
+                    {submitText}
                   </Button>
-                </Space.Compact>
-                <Button
-                  type="primary"
-                  size={CONTROL_SIZE}
-                  block
-                  loading={binding}
-                  onClick={async () => {
-                    if (!phone.trim() || !code.trim()) {
-                      message.warning("请填写手机号与验证码");
-                      return;
-                    }
-                    setBinding(true);
-                    try {
-                      await onBindSms(phone.trim(), code.trim());
-                    } catch (e: unknown) {
-                      message.error(apiError(e, "绑定失败"));
-                    } finally {
-                      setBinding(false);
-                    }
-                  }}
-                >
-                  {submitText}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Input.Password
-                  size={CONTROL_SIZE}
-                  placeholder="密码"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <Button
-                  type="primary"
-                  size={CONTROL_SIZE}
-                  block
-                  loading={binding}
-                  onClick={async () => {
-                    if (!phone.trim() || !password) {
-                      message.warning("请填写手机号与密码");
-                      return;
-                    }
-                    setBinding(true);
-                    try {
-                      await onBindPassword(phone.trim(), password);
-                    } catch (e: unknown) {
-                      message.error(apiError(e, "绑定失败"));
-                    } finally {
-                      setBinding(false);
-                    }
-                  }}
-                >
-                  {submitText}
-                </Button>
-              </>
-            )}
-          </Space>
+                </>
+              )}
+            </Space>
+          </form>
         )}
       </div>
     </div>

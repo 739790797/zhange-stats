@@ -49,12 +49,28 @@ class ScheduledJobsOut(BaseModel):
 
 class JobTriggerRequest(BaseModel):
     member_id: int | None = None
+    game_code: str | None = Field(default=None, min_length=1, max_length=32)
+    role_uid: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class JobTriggerExchangeOut(BaseModel):
+    """管理端排障：单次上游 HTTP 原文。"""
+
+    game_code: str = ""
+    role_uid: str = ""
+    status: str = ""
+    upstream_request: str | None = None
+    upstream_response: str | None = None
 
 
 class JobTriggerOut(BaseModel):
     accepted: bool = True
     job_id: str
     message: str = "已提交执行"
+    # 角色级同步执行时返回
+    ok: bool | None = None
+    summary: str | None = None
+    exchanges: list[JobTriggerExchangeOut] = Field(default_factory=list)
 
 
 class JobRunOut(BaseModel):
@@ -114,6 +130,7 @@ class UserCheckinTaskOut(BaseModel):
     platform_name: str
     member_id: int
     user_label: str
+    included: bool = True
     auto_checkin: bool
     checkin_hour: int
     checkin_minute: int
@@ -130,6 +147,7 @@ class UserCheckinTaskOut(BaseModel):
     today_status: str | None = None
     today_status_label: str | None = None
     today_awards_text: str | None = None
+    today_awards: list[CheckinAwardItem] = Field(default_factory=list)
     bound_at: str | None = None
 
 

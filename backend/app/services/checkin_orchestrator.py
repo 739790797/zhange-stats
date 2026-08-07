@@ -86,6 +86,26 @@ def query_today_for_bind(
     return day_results_payload(merged)
 
 
+def _exchanges_from_results(results: list[Any]) -> list[dict[str, Any]]:
+    """从现场 CheckinResult 提取上游 HTTP 原文（不落库）。"""
+    out: list[dict[str, Any]] = []
+    for r in results:
+        req = getattr(r, "upstream_request", None)
+        resp = getattr(r, "upstream_response", None)
+        if not req and not resp:
+            continue
+        out.append(
+            {
+                "game_code": str(getattr(r, "game_code", "") or ""),
+                "role_uid": str(getattr(r, "role_uid", "") or ""),
+                "status": str(getattr(r, "status", "") or ""),
+                "upstream_request": req,
+                "upstream_response": resp,
+            }
+        )
+    return out
+
+
 def run_checkin_for_bind(
     adapter: CheckinPlatformAdapter,
     db: Session,
@@ -118,6 +138,7 @@ def run_checkin_for_bind(
                 "reason": "today_done",
                 "summary": payload.get("summary") or "今日已签到",
                 "results": payload.get("results") or [],
+                "exchanges": [],
             }
 
     try:
@@ -130,10 +151,13 @@ def run_checkin_for_bind(
         raise  # pragma: no cover
 
     if outcome.early_response is not None:
-        return outcome.early_response
+        early = dict(outcome.early_response)
+        early.setdefault("exchanges", [])
+        return early
 
     adapter.save_session(db, bind, outcome.session)
     results = adapter.normalize_results(outcome.results)
+    exchanges = _exchanges_from_results(results)
     ok, summary = summarize_results(
         results, empty_message=adapter.empty_message
     )
@@ -164,6 +188,7 @@ def run_checkin_for_bind(
         "ok": ok,
         "summary": summary,
         "results": results_to_api(merged),
+        "exchanges": exchanges,
     }
 
 

@@ -2935,9 +2935,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
+              "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+              "default": true,
               "title": "Force"
-            }
+            },
+            "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs"
           }
         ],
         "responses": {
@@ -3402,6 +3404,80 @@
         ]
       }
     },
+    "/api/skland/role-tree": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Role Tree",
+        "operationId": "skland_role_tree_api_skland_role_tree_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembershipTreeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/skland/role-memberships": {
+      "put": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Replace Role Memberships",
+        "operationId": "skland_replace_role_memberships_api_skland_role_memberships_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMembershipReplaceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SklandStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/skland/checkin": {
       "post": {
         "tags": [
@@ -3523,6 +3599,92 @@
         }
       }
     },
+    "/api/skland/arknights/rogue": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Arknights Rogue",
+        "description": "明日方舟肉鸽战绩：默认读库；force 或首次回源落库。",
+        "operationId": "skland_arknights_rogue_api_skland_arknights_rogue_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uid"
+            }
+          },
+          {
+            "name": "topic_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "主题 id（rogue_1…）或中文名；默认界园",
+              "title": "Topic Id"
+            },
+            "description": "主题 id（rogue_1…）或中文名；默认界园"
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArknightsRogueOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/skland/arknights/box": {
       "get": {
         "tags": [
@@ -3530,8 +3692,9 @@
           "skland"
         ],
         "summary": "Skland Arknights Box",
-        "description": "明日方舟干员盒子（森空岛 player/info）。",
+        "description": "明日方舟干员盒子（每次直连上游 player/info）。\n\n**已废弃**：前端个人盒已移除，圈子对比请用 `/arknights/box/compare`（日更快照）。\n本端点无 raw 落库、无 force/stale；保留仅为兼容旧客户端。需要个人盒时应对齐\nendfield_box_raws 模式再恢复产品入口。",
         "operationId": "skland_arknights_box_api_skland_arknights_box_get",
+        "deprecated": true,
         "security": [
           {
             "HTTPBearer": []
@@ -3833,9 +3996,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
+              "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+              "default": true,
               "title": "Force"
-            }
+            },
+            "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs"
           }
         ],
         "responses": {
@@ -4217,6 +4382,78 @@
         ]
       }
     },
+    "/api/taygedo/role-tree": {
+      "get": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Role Tree",
+        "operationId": "taygedo_role_tree_api_taygedo_role_tree_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembershipTreeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/taygedo/role-memberships": {
+      "put": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Replace Role Memberships",
+        "operationId": "taygedo_replace_role_memberships_api_taygedo_role_memberships_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMembershipReplaceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaygedoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/taygedo/checkin": {
       "post": {
         "tags": [
@@ -4268,6 +4505,105 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/taygedo/exchange": {
+      "get": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Exchange Shop",
+        "operationId": "taygedo_exchange_shop_api_taygedo_exchange_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tab",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tab"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaygedoExchangeShopOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Do Exchange",
+        "operationId": "taygedo_do_exchange_api_taygedo_exchange_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaygedoExchangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaygedoExchangeResultOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/taygedo/attendance-calendar": {
@@ -4347,6 +4683,72 @@
         }
       }
     },
+    "/api/taygedo/exastris/box": {
+      "get": {
+        "tags": [
+          "taygedo"
+        ],
+        "summary": "Taygedo Exastris Box",
+        "description": "异环角色盒子：默认读库二次加工；force 或首次回源落库。",
+        "operationId": "taygedo_exastris_box_api_taygedo_exastris_box_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExastrisBoxOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/exilium/status": {
       "get": {
         "tags": [
@@ -4376,9 +4778,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
+              "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+              "default": true,
               "title": "Force"
-            }
+            },
+            "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs"
           }
         ],
         "responses": {
@@ -4708,6 +5112,78 @@
         ]
       }
     },
+    "/api/exilium/role-tree": {
+      "get": {
+        "tags": [
+          "exilium"
+        ],
+        "summary": "Exilium Role Tree",
+        "operationId": "exilium_role_tree_api_exilium_role_tree_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembershipTreeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/exilium/role-memberships": {
+      "put": {
+        "tags": [
+          "exilium"
+        ],
+        "summary": "Exilium Replace Role Memberships",
+        "operationId": "exilium_replace_role_memberships_api_exilium_role_memberships_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMembershipReplaceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExiliumStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/exilium/checkin": {
       "post": {
         "tags": [
@@ -4923,9 +5399,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
+              "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+              "default": true,
               "title": "Force"
-            }
+            },
+            "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs"
           }
         ],
         "responses": {
@@ -5261,6 +5739,78 @@
         ]
       }
     },
+    "/api/kujiequ/role-tree": {
+      "get": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Role Tree",
+        "operationId": "kujiequ_role_tree_api_kujiequ_role_tree_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembershipTreeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/kujiequ/role-memberships": {
+      "put": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Replace Role Memberships",
+        "operationId": "kujiequ_replace_role_memberships_api_kujiequ_role_memberships_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMembershipReplaceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KujiequStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/kujiequ/checkin": {
       "post": {
         "tags": [
@@ -5312,6 +5862,249 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/kujiequ/exchange": {
+      "get": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Exchange Shop",
+        "operationId": "kujiequ_exchange_shop_api_kujiequ_exchange_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 99,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Game Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KujiequExchangeShopOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Do Exchange",
+        "operationId": "kujiequ_do_exchange_api_kujiequ_exchange_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KujiequExchangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KujiequExchangeResultOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kujiequ/attendance-calendar": {
+      "get": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Attendance Calendar",
+        "description": "鸣潮 / 战双签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。",
+        "operationId": "kujiequ_attendance_calendar_api_kujiequ_attendance_calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "title": "Game Code"
+            }
+          },
+          {
+            "name": "role_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KujiequAttendanceCalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kujiequ/ww/box": {
+      "get": {
+        "tags": [
+          "kujiequ"
+        ],
+        "summary": "Kujiequ Ww Box",
+        "description": "鸣潮资料卡（roleBox）：默认读库二次加工；force 或首次回源落库。",
+        "operationId": "kujiequ_ww_box_api_kujiequ_ww_box_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WwBoxOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/napcat/test": {
@@ -5472,18 +6265,14 @@
     "/health": {
       "get": {
         "summary": "Health",
-        "description": "存活探测；含数据库连通性。",
+        "description": "存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。",
         "operationId": "health_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Health Health Get"
-                }
+                "schema": {}
               }
             }
           }
@@ -6267,6 +7056,312 @@
         "type": "object",
         "title": "ArknightsOwnedCharOut"
       },
+      "ArknightsRogueCharOut": {
+        "properties": {
+          "char_id": {
+            "type": "string",
+            "title": "Char Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "rarity": {
+            "type": "integer",
+            "title": "Rarity",
+            "default": 0
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          },
+          "evolve_phase": {
+            "type": "integer",
+            "title": "Evolve Phase",
+            "default": 0
+          },
+          "profession": {
+            "type": "string",
+            "title": "Profession",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_id",
+          "name"
+        ],
+        "title": "ArknightsRogueCharOut"
+      },
+      "ArknightsRogueOut": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name"
+          },
+          "topic_id": {
+            "type": "string",
+            "title": "Topic Id"
+          },
+          "topic_name": {
+            "type": "string",
+            "title": "Topic Name"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/ArknightsRogueTopicOut"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/ArknightsRogueOverviewOut"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/ArknightsRogueRecordOut"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "favour_records": {
+            "items": {
+              "$ref": "#/components/schemas/ArknightsRogueRecordOut"
+            },
+            "type": "array",
+            "title": "Favour Records"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/SklandRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid",
+          "role_name",
+          "channel_name",
+          "topic_id",
+          "topic_name",
+          "overview"
+        ],
+        "title": "ArknightsRogueOut"
+      },
+      "ArknightsRogueOverviewOut": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": ""
+          },
+          "mode_grade": {
+            "type": "integer",
+            "title": "Mode Grade",
+            "default": 0
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score",
+            "default": 0
+          },
+          "bp_level": {
+            "type": "integer",
+            "title": "Bp Level",
+            "default": 0
+          },
+          "medal_current": {
+            "type": "integer",
+            "title": "Medal Current",
+            "default": 0
+          },
+          "medal_count": {
+            "type": "integer",
+            "title": "Medal Count",
+            "default": 0
+          },
+          "clear_difficulty": {
+            "type": "string",
+            "title": "Clear Difficulty",
+            "default": ""
+          },
+          "clear_grade": {
+            "type": "integer",
+            "title": "Clear Grade",
+            "default": 0
+          },
+          "invest": {
+            "type": "integer",
+            "title": "Invest",
+            "default": 0
+          },
+          "relic": {
+            "type": "integer",
+            "title": "Relic",
+            "default": 0
+          },
+          "game_count": {
+            "type": "integer",
+            "title": "Game Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "ArknightsRogueOverviewOut"
+      },
+      "ArknightsRogueRecordOut": {
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "title": "Record Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": ""
+          },
+          "mode_grade": {
+            "type": "integer",
+            "title": "Mode Grade",
+            "default": 0
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": false
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score",
+            "default": 0
+          },
+          "ending_text": {
+            "type": "string",
+            "title": "Ending Text",
+            "default": ""
+          },
+          "start_ts": {
+            "type": "string",
+            "title": "Start Ts",
+            "default": ""
+          },
+          "end_ts": {
+            "type": "string",
+            "title": "End Ts",
+            "default": ""
+          },
+          "zone_count": {
+            "type": "integer",
+            "title": "Zone Count",
+            "default": 0
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count",
+            "default": 0
+          },
+          "relic_count": {
+            "type": "integer",
+            "title": "Relic Count",
+            "default": 0
+          },
+          "band_name": {
+            "type": "string",
+            "title": "Band Name",
+            "default": ""
+          },
+          "last_stage": {
+            "type": "string",
+            "title": "Last Stage",
+            "default": ""
+          },
+          "is_collect": {
+            "type": "boolean",
+            "title": "Is Collect",
+            "default": false
+          },
+          "squad": {
+            "items": {
+              "$ref": "#/components/schemas/ArknightsRogueCharOut"
+            },
+            "type": "array",
+            "title": "Squad"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_id"
+        ],
+        "title": "ArknightsRogueRecordOut"
+      },
+      "ArknightsRogueTopicOut": {
+        "properties": {
+          "topic_id": {
+            "type": "string",
+            "title": "Topic Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected",
+            "default": false
+          },
+          "pic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic_id",
+          "name"
+        ],
+        "title": "ArknightsRogueTopicOut"
+      },
       "AuthAdminBrief": {
         "properties": {
           "id": {
@@ -6599,7 +7694,7 @@
           "name"
         ],
         "title": "CheckinAwardItem",
-        "description": "结构化签到奖励（方舟可含 icon_url）。"
+        "description": "结构化签到奖励；有 icon_url 时前端应展示图标。"
       },
       "CheckinLogItemOut": {
         "properties": {
@@ -6980,6 +8075,11 @@
             ],
             "title": "Extra Text"
           },
+          "included": {
+            "type": "boolean",
+            "title": "Included",
+            "default": false
+          },
           "auto_checkin": {
             "type": "boolean",
             "title": "Auto Checkin",
@@ -7086,8 +8186,26 @@
             "title": "Role Uid"
           },
           "enabled": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Enabled"
+          },
+          "included": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included"
           },
           "checkin_hour": {
             "anyOf": [
@@ -7119,8 +8237,7 @@
         "type": "object",
         "required": [
           "game_code",
-          "role_uid",
-          "enabled"
+          "role_uid"
         ],
         "title": "CheckinRolePrefUpdate"
       },
@@ -7664,6 +8781,134 @@
         },
         "type": "object",
         "title": "EndfieldWeaponOut"
+      },
+      "ExastrisBoxOut": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id",
+            "default": ""
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name",
+            "default": ""
+          },
+          "game_code": {
+            "type": "string",
+            "title": "Game Code",
+            "default": "1289"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": "异环"
+          },
+          "char_count": {
+            "type": "integer",
+            "title": "Char Count",
+            "default": 0
+          },
+          "chars": {
+            "items": {
+              "$ref": "#/components/schemas/ExastrisCharOut"
+            },
+            "type": "array",
+            "title": "Chars"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/TaygedoRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid"
+        ],
+        "title": "ExastrisBoxOut"
+      },
+      "ExastrisCharOut": {
+        "properties": {
+          "char_id": {
+            "type": "string",
+            "title": "Char Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "quality": {
+            "type": "string",
+            "title": "Quality",
+            "default": ""
+          },
+          "element_type": {
+            "type": "string",
+            "title": "Element Type",
+            "default": ""
+          },
+          "group_type": {
+            "type": "string",
+            "title": "Group Type",
+            "default": ""
+          },
+          "awaken_lev": {
+            "type": "integer",
+            "title": "Awaken Lev",
+            "default": 0
+          },
+          "portrait_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portrait Url"
+          },
+          "element_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Element Icon Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_id",
+          "name"
+        ],
+        "title": "ExastrisCharOut"
       },
       "ExecutorOut": {
         "properties": {
@@ -8541,6 +9786,50 @@
         ],
         "title": "JobRunsPageOut"
       },
+      "JobTriggerExchangeOut": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "title": "Game Code",
+            "default": ""
+          },
+          "role_uid": {
+            "type": "string",
+            "title": "Role Uid",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": ""
+          },
+          "upstream_request": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upstream Request"
+          },
+          "upstream_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upstream Response"
+          }
+        },
+        "type": "object",
+        "title": "JobTriggerExchangeOut",
+        "description": "管理端排障：单次上游 HTTP 原文。"
+      },
       "JobTriggerOut": {
         "properties": {
           "accepted": {
@@ -8556,6 +9845,35 @@
             "type": "string",
             "title": "Message",
             "default": "已提交执行"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "exchanges": {
+            "items": {
+              "$ref": "#/components/schemas/JobTriggerExchangeOut"
+            },
+            "type": "array",
+            "title": "Exchanges"
           }
         },
         "type": "object",
@@ -8576,10 +9894,140 @@
               }
             ],
             "title": "Member Id"
+          },
+          "game_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Code"
+          },
+          "role_uid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Uid"
           }
         },
         "type": "object",
         "title": "JobTriggerRequest"
+      },
+      "KujiequAttendanceCalendarOut": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "title": "Game Code"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name"
+          },
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "claimed_days": {
+            "type": "integer",
+            "title": "Claimed Days",
+            "default": 0
+          },
+          "total_days": {
+            "type": "integer",
+            "title": "Total Days",
+            "default": 0
+          },
+          "has_today_claim": {
+            "type": "boolean",
+            "title": "Has Today Claim",
+            "default": false
+          },
+          "progress_reliable": {
+            "type": "boolean",
+            "title": "Progress Reliable",
+            "default": true
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/KujiequAttendanceDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/KujiequRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "game_name",
+          "uid",
+          "role_name"
+        ],
+        "title": "KujiequAttendanceCalendarOut"
+      },
+      "KujiequAttendanceDayOut": {
+        "properties": {
+          "day": {
+            "type": "integer",
+            "title": "Day"
+          },
+          "claimed": {
+            "type": "boolean",
+            "title": "Claimed"
+          },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "claimed"
+        ],
+        "title": "KujiequAttendanceDayOut",
+        "description": "签到周期第 N 天（非公历日期）。"
       },
       "KujiequBindSmsRequest": {
         "properties": {
@@ -8719,6 +10167,234 @@
         },
         "type": "object",
         "title": "KujiequBindUpdate"
+      },
+      "KujiequExchangeItemOut": {
+        "properties": {
+          "commodity_code": {
+            "type": "string",
+            "title": "Commodity Code"
+          },
+          "commodity_name": {
+            "type": "string",
+            "title": "Commodity Name"
+          },
+          "commodity_price": {
+            "type": "integer",
+            "title": "Commodity Price",
+            "default": 0
+          },
+          "commodity_type": {
+            "type": "integer",
+            "title": "Commodity Type",
+            "default": 0
+          },
+          "commodity_status": {
+            "type": "integer",
+            "title": "Commodity Status",
+            "default": 0
+          },
+          "game_id": {
+            "type": "integer",
+            "title": "Game Id",
+            "default": 0
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": ""
+          },
+          "picture_url": {
+            "type": "string",
+            "title": "Picture Url",
+            "default": ""
+          },
+          "commodity_desc": {
+            "type": "string",
+            "title": "Commodity Desc",
+            "default": ""
+          },
+          "commodity_limit": {
+            "type": "integer",
+            "title": "Commodity Limit",
+            "default": 0
+          },
+          "current_user_limit_buy": {
+            "type": "integer",
+            "title": "Current User Limit Buy",
+            "default": 0
+          },
+          "total_stock": {
+            "type": "integer",
+            "title": "Total Stock",
+            "default": 0
+          },
+          "total_surplus_stock": {
+            "type": "integer",
+            "title": "Total Surplus Stock",
+            "default": 0
+          },
+          "is_sellout": {
+            "type": "boolean",
+            "title": "Is Sellout",
+            "default": false
+          },
+          "can_exchange": {
+            "type": "boolean",
+            "title": "Can Exchange",
+            "default": false
+          },
+          "sale_time_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sale Time Ms"
+          },
+          "off_shelve_time_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Shelve Time Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commodity_code",
+          "commodity_name"
+        ],
+        "title": "KujiequExchangeItemOut"
+      },
+      "KujiequExchangeRequest": {
+        "properties": {
+          "commodity_code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Commodity Code"
+          },
+          "game_id": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Game Id"
+          },
+          "role_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commodity_code",
+          "game_id"
+        ],
+        "title": "KujiequExchangeRequest"
+      },
+      "KujiequExchangeResultOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "gold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gold"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KujiequExchangeItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "KujiequExchangeResultOut"
+      },
+      "KujiequExchangeRoleOut": {
+        "properties": {
+          "game_id": {
+            "type": "integer",
+            "title": "Game Id"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": ""
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_id",
+          "role_id"
+        ],
+        "title": "KujiequExchangeRoleOut"
+      },
+      "KujiequExchangeShopOut": {
+        "properties": {
+          "gold": {
+            "type": "integer",
+            "title": "Gold",
+            "default": 0
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KujiequExchangeItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/KujiequExchangeRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "title": "KujiequExchangeShopOut"
       },
       "KujiequRoleOut": {
         "properties": {
@@ -10025,6 +11701,104 @@
           "email"
         ],
         "title": "ResendCodeRequest"
+      },
+      "RoleMembershipItem": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Game Code"
+          },
+          "role_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Role Uid"
+          },
+          "included": {
+            "type": "boolean",
+            "title": "Included",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "role_uid"
+        ],
+        "title": "RoleMembershipItem"
+      },
+      "RoleMembershipNodeOut": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "title": "Game Code"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name"
+          },
+          "role_uid": {
+            "type": "string",
+            "title": "Role Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name",
+            "default": ""
+          },
+          "included": {
+            "type": "boolean",
+            "title": "Included",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "game_name",
+          "role_uid",
+          "role_name"
+        ],
+        "title": "RoleMembershipNodeOut"
+      },
+      "RoleMembershipReplaceBody": {
+        "properties": {
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleMembershipItem"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "title": "RoleMembershipReplaceBody"
+      },
+      "RoleMembershipTreeOut": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleMembershipNodeOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform"
+        ],
+        "title": "RoleMembershipTreeOut"
       },
       "ScheduledJobLastRunOut": {
         "properties": {
@@ -12182,6 +13956,233 @@
         "type": "object",
         "title": "TaygedoBindUpdate"
       },
+      "TaygedoExchangeItemOut": {
+        "properties": {
+          "goods_id": {
+            "type": "string",
+            "title": "Goods Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "cover": {
+            "type": "string",
+            "title": "Cover",
+            "default": ""
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price",
+            "default": 0
+          },
+          "exchange_num": {
+            "type": "integer",
+            "title": "Exchange Num",
+            "default": 0
+          },
+          "cycle_limit": {
+            "type": "integer",
+            "title": "Cycle Limit",
+            "default": 0
+          },
+          "cycle_type": {
+            "type": "integer",
+            "title": "Cycle Type",
+            "default": 0
+          },
+          "stock": {
+            "type": "integer",
+            "title": "Stock",
+            "default": -1
+          },
+          "stock_limited": {
+            "type": "boolean",
+            "title": "Stock Limited",
+            "default": false
+          },
+          "tab": {
+            "type": "string",
+            "title": "Tab",
+            "default": ""
+          },
+          "state": {
+            "type": "integer",
+            "title": "State",
+            "default": 0
+          },
+          "game_id": {
+            "type": "string",
+            "title": "Game Id",
+            "default": ""
+          },
+          "can_exchange": {
+            "type": "boolean",
+            "title": "Can Exchange",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "goods_id",
+          "name"
+        ],
+        "title": "TaygedoExchangeItemOut"
+      },
+      "TaygedoExchangeRequest": {
+        "properties": {
+          "goods_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Goods Id"
+          },
+          "game_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Game Id"
+          },
+          "role_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Role Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "goods_id",
+          "game_id",
+          "role_id"
+        ],
+        "title": "TaygedoExchangeRequest"
+      },
+      "TaygedoExchangeResultOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "gold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gold"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaygedoExchangeItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TaygedoExchangeResultOut"
+      },
+      "TaygedoExchangeRoleOut": {
+        "properties": {
+          "game_id": {
+            "type": "string",
+            "title": "Game Id"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": ""
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_id",
+          "role_id"
+        ],
+        "title": "TaygedoExchangeRoleOut"
+      },
+      "TaygedoExchangeShopOut": {
+        "properties": {
+          "gold": {
+            "type": "integer",
+            "title": "Gold",
+            "default": 0
+          },
+          "today_get": {
+            "type": "integer",
+            "title": "Today Get",
+            "default": 0
+          },
+          "today_total": {
+            "type": "integer",
+            "title": "Today Total",
+            "default": 0
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/components/schemas/TaygedoExchangeTabOut"
+            },
+            "type": "array",
+            "title": "Tabs"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaygedoExchangeItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/TaygedoExchangeRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "title": "TaygedoExchangeShopOut"
+      },
+      "TaygedoExchangeTabOut": {
+        "properties": {
+          "tab": {
+            "type": "string",
+            "title": "Tab"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "tab"
+        ],
+        "title": "TaygedoExchangeTabOut"
+      },
       "TaygedoRoleOut": {
         "properties": {
           "game_code": {
@@ -12638,6 +14639,11 @@
             "type": "string",
             "title": "User Label"
           },
+          "included": {
+            "type": "boolean",
+            "title": "Included",
+            "default": true
+          },
           "auto_checkin": {
             "type": "boolean",
             "title": "Auto Checkin"
@@ -12770,6 +14776,13 @@
               }
             ],
             "title": "Today Awards Text"
+          },
+          "today_awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Today Awards"
           },
           "bound_at": {
             "anyOf": [
@@ -12965,6 +14978,278 @@
           "code"
         ],
         "title": "VerifyEmailRequest"
+      },
+      "WwBoxItemOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "num": {
+            "type": "integer",
+            "title": "Num",
+            "default": 0
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "WwBoxItemOut"
+      },
+      "WwBoxOut": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id",
+            "default": ""
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name",
+            "default": ""
+          },
+          "server_id": {
+            "type": "string",
+            "title": "Server Id",
+            "default": ""
+          },
+          "server_name": {
+            "type": "string",
+            "title": "Server Name",
+            "default": ""
+          },
+          "game_code": {
+            "type": "string",
+            "title": "Game Code",
+            "default": "3"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": "鸣潮"
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          },
+          "world_level": {
+            "type": "integer",
+            "title": "World Level",
+            "default": 0
+          },
+          "active_days": {
+            "type": "integer",
+            "title": "Active Days",
+            "default": 0
+          },
+          "role_num": {
+            "type": "integer",
+            "title": "Role Num",
+            "default": 0
+          },
+          "achievement_count": {
+            "type": "integer",
+            "title": "Achievement Count",
+            "default": 0
+          },
+          "achievement_star": {
+            "type": "integer",
+            "title": "Achievement Star",
+            "default": 0
+          },
+          "energy": {
+            "type": "integer",
+            "title": "Energy",
+            "default": 0
+          },
+          "max_energy": {
+            "type": "integer",
+            "title": "Max Energy",
+            "default": 0
+          },
+          "store_energy": {
+            "type": "integer",
+            "title": "Store Energy",
+            "default": 0
+          },
+          "store_energy_limit": {
+            "type": "integer",
+            "title": "Store Energy Limit",
+            "default": 0
+          },
+          "store_energy_title": {
+            "type": "string",
+            "title": "Store Energy Title",
+            "default": ""
+          },
+          "store_energy_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Energy Icon Url"
+          },
+          "liveness": {
+            "type": "integer",
+            "title": "Liveness",
+            "default": 0
+          },
+          "liveness_max": {
+            "type": "integer",
+            "title": "Liveness Max",
+            "default": 0
+          },
+          "small_count": {
+            "type": "integer",
+            "title": "Small Count",
+            "default": 0
+          },
+          "big_count": {
+            "type": "integer",
+            "title": "Big Count",
+            "default": 0
+          },
+          "sound_box": {
+            "type": "integer",
+            "title": "Sound Box",
+            "default": 0
+          },
+          "weekly_inst_count": {
+            "type": "integer",
+            "title": "Weekly Inst Count",
+            "default": 0
+          },
+          "weekly_inst_limit": {
+            "type": "integer",
+            "title": "Weekly Inst Limit",
+            "default": 0
+          },
+          "weekly_inst_title": {
+            "type": "string",
+            "title": "Weekly Inst Title",
+            "default": ""
+          },
+          "weekly_inst_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekly Inst Icon Url"
+          },
+          "rouge_score": {
+            "type": "integer",
+            "title": "Rouge Score",
+            "default": 0
+          },
+          "rouge_score_limit": {
+            "type": "integer",
+            "title": "Rouge Score Limit",
+            "default": 0
+          },
+          "rouge_title": {
+            "type": "string",
+            "title": "Rouge Title",
+            "default": ""
+          },
+          "rouge_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rouge Icon Url"
+          },
+          "treasure_boxes": {
+            "items": {
+              "$ref": "#/components/schemas/WwBoxItemOut"
+            },
+            "type": "array",
+            "title": "Treasure Boxes"
+          },
+          "phantom_boxes": {
+            "items": {
+              "$ref": "#/components/schemas/WwBoxItemOut"
+            },
+            "type": "array",
+            "title": "Phantom Boxes"
+          },
+          "calabash_level": {
+            "type": "integer",
+            "title": "Calabash Level",
+            "default": 0
+          },
+          "calabash_unlock": {
+            "type": "integer",
+            "title": "Calabash Unlock",
+            "default": 0
+          },
+          "calabash_max": {
+            "type": "integer",
+            "title": "Calabash Max",
+            "default": 0
+          },
+          "calabash_cost": {
+            "type": "integer",
+            "title": "Calabash Cost",
+            "default": 0
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/KujiequRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid"
+        ],
+        "title": "WwBoxOut"
       }
     },
     "securitySchemes": {

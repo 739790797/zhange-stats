@@ -3,6 +3,8 @@
 #   docker compose pull && docker compose up -d
 #
 # 发版后 CI 推送 GHCR :latest；Watchtower 定时检测并自动拉取重建 app。
+# 请保持单 app 副本（调度/迁移/进程锁非多实例安全）；详见 README「部署形态」。
+# app 镜像 all-in-one：同容器内嵌 Redis（127.0.0.1，限流 + 扫码/cred 短时 KV）。
 
 name: zhange-stats
 
@@ -13,7 +15,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.2.7}
+        APP_VERSION: ${APP_VERSION:-0.2.8}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -24,6 +26,8 @@ services:
       STATIC_DIR: /app/static
       DATA_DIR: /app/data
       UPLOAD_DIR: /app/uploads
+      # 镜像默认已内嵌 Redis；若 .env 覆盖了 REDIS_URL 指向外部，入口会跳过本机 redis
+      EMBEDDED_REDIS: ${EMBEDDED_REDIS:-1}
     labels:
       # 仅允许 Watchtower 管理本服务
       com.centurylinklabs.watchtower.enable: "true"

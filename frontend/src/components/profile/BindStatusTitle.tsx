@@ -5,12 +5,24 @@ import type { ReactNode } from "react";
 export function BindStatusTitle({
   name,
   bound,
+  /** 已绑定时：false 表示凭证探测失败（失效） */
+  credentialOk,
   leading,
 }: {
   name: string;
   bound: boolean;
+  credentialOk?: boolean | null;
   leading?: ReactNode;
 }) {
+  let statusTag: ReactNode;
+  if (!bound) {
+    statusTag = <Tag>未绑定</Tag>;
+  } else if (credentialOk === false) {
+    statusTag = <Tag color="error">凭证失效</Tag>;
+  } else {
+    statusTag = <Tag color="success">已绑定</Tag>;
+  }
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       {leading}
@@ -20,7 +32,7 @@ export function BindStatusTitle({
       >
         {name}
       </Typography.Text>
-      {bound ? <Tag color="success">已绑定</Tag> : <Tag>未绑定</Tag>}
+      {statusTag}
     </div>
   );
 }

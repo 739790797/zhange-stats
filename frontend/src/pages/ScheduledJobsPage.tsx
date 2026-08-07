@@ -13,23 +13,28 @@ import {
   message,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useEffect, useMemo, useState } from "react";
-import type { Key } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type Key,
+  type ReactNode,
+} from "react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
-import { CheckinStatusTag } from "@/components/CheckinStatusTag";
-import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import {
   CHECKIN_PLATFORM_LABELS,
+  CheckinTreeNameLabel,
   buildCheckinTaskScheduleColumns,
+  communityGameRank,
   platformRank,
 } from "@/components/checkinTaskDisplay";
 import {
-  fetchJobCheckinLogs,
   fetchJobFilterMembers,
   fetchUserCheckinTasks,
   triggerScheduledJob,
-  type CheckinLogItem,
+  type JobTriggerResult,
   type UserCheckinTask,
 } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
@@ -77,6 +82,13 @@ type UserGroupRow = {
 
 type ScheduleRow = UserGroupRow | PlatformGroupRow | GameGroupRow | RoleLeaf;
 
+type ExchangeDialog = {
+  title: string;
+  summary?: string | null;
+  ok?: boolean | null;
+  exchanges: NonNullable<JobTriggerResult["exchanges"]>;
+};
+
 function countLeaves(nodes: Array<GameGroupRow | RoleLeaf>): number {
   let n = 0;
   for (const node of nodes) {
@@ -115,7 +127,10 @@ function buildPlatformTree(
     }
 
     const gameChildren: GameGroupRow[] = [...byGame.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(
+        ([a], [b]) =>
+          communityGameRank(a) - communityGameRank(b) || a.localeCompare(b),
+      )
       .map(([gameCode, roles]) => ({
         rowKey: `game:${memberId}:${platform}:${gameCode}`,
         rowType: "game" as const,
@@ -196,6 +211,18 @@ function collectExpandKeys(groups: UserGroupRow[]): Key[] {
   return keys;
 }
 
+const preStyle: CSSProperties = {
+  margin: 0,
+  padding: 12,
+  maxHeight: 320,
+  overflow: "auto",
+  background: "rgba(0,0,0,0.04)",
+  borderRadius: 6,
+  fontSize: 12,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-all",
+};
+
 export default function ScheduledJobsPage() {
   const queryClient = useQueryClient();
   const authUser = useAuthStore((s) => s.user);
@@ -204,9 +231,9 @@ export default function ScheduledJobsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [triggeringKey, setTriggeringKey] = useState<string | null>(null);
-  const [runsTask, setRunsTask] = useState<UserCheckinTask | null>(null);
-  const [runsPage, setRunsPage] = useState(1);
-  const [runsPageSize, setRunsPageSize] = useState(20);
+  const [exchangeDialog, setExchangeDialog] = useState<ExchangeDialog | null>(
+    null,
+  );
 
   const membersQuery = useQuery({
     queryKey: ["job-filter-members"],
@@ -229,8 +256,8 @@ export default function ScheduledJobsPage() {
         page: 1,
         page_size: pageSize,
       });
-      const items = [...first.items];
-      const totalPages = Math.max(1, Math.ceil(first.total / pageSize));
+      const items = [...(first.items || [])];
+      const totalPages = Math.max(1, Math.ceil((first.total || 0) / pageSize));
       for (let p = 2; p <= totalPages; p += 1) {
         const next = await fetchUserCheckinTasks({
           platform: platform || null,
@@ -238,17 +265,18 @@ export default function ScheduledJobsPage() {
           page: p,
           page_size: pageSize,
         });
-        items.push(...next.items);
+        items.push(...(next.items || []));
       }
       return { ...first, items, page: 1, page_size: items.length };
     },
     refetchInterval: 30_000,
   });
 
-  const userGroups = useMemo(
-    () => buildUserGroups(tasksQuery.data?.items || [], selfMemberId),
-    [tasksQuery.data?.items, selfMemberId],
-  );
+  const userGroups = useMemo(() => {
+    // 任务调度只展示已开启的自动签到任务
+    const enabled = (tasksQuery.data?.items || []).filter((t) => t.auto_checkin);
+    return buildUserGroups(enabled, selfMemberId);
+  }, [tasksQuery.data?.items, selfMemberId]);
 
   const pagedGroups = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -260,46 +288,110 @@ export default function ScheduledJobsPage() {
     setExpandedKeys(collectExpandKeys(pagedGroups));
   }, [pagedGroups]);
 
-  const checkinLogsQuery = useQuery({
-    queryKey: [
-      "job-checkin-logs",
-      runsTask?.platform || "",
-      runsTask?.member_id ?? null,
-      runsPage,
-      runsPageSize,
-    ],
-    queryFn: () =>
-      fetchJobCheckinLogs({
-        platform: runsTask!.platform,
-        member_id: runsTask!.member_id,
-        page: runsPage,
-        page_size: runsPageSize,
-      }),
-    enabled: Boolean(runsTask),
-  });
-
   const trigger = useMutation({
     mutationFn: ({
       jobId,
       member_id,
+      game_code,
+      role_uid,
     }: {
       jobId: string;
       member_id?: number | null;
+      game_code?: string | null;
+      role_uid?: string | null;
       taskKey?: string;
-    }) => triggerScheduledJob(jobId, { member_id }),
+      roleLabel?: string;
+    }) =>
+      triggerScheduledJob(jobId, {
+        member_id: member_id ?? null,
+        game_code: game_code || null,
+        role_uid: role_uid || null,
+      }),
     onMutate: ({ taskKey }) => {
       if (taskKey) setTriggeringKey(taskKey);
     },
-    onSuccess: (data) => {
-      message.success(data.message || "已提交执行");
+    onSuccess: (data, vars) => {
       void queryClient.invalidateQueries({ queryKey: ["user-checkin-tasks"] });
-      if (runsTask) {
-        void queryClient.invalidateQueries({ queryKey: ["job-checkin-logs"] });
+      const isRoleSync = Boolean(vars.game_code && vars.role_uid);
+      if (isRoleSync) {
+        setExchangeDialog({
+          title: vars.roleLabel
+            ? `执行原文 · ${vars.roleLabel}`
+            : "执行原文",
+          summary: data.summary || data.message,
+          ok: data.ok,
+          exchanges: data.exchanges || [],
+        });
+        return;
       }
+      message.success(data.message || "已提交执行");
     },
     onError: (e: unknown) => message.error(apiError(e, "执行失败")),
     onSettled: () => setTriggeringKey(null),
   });
+
+  const scheduleCols = buildCheckinTaskScheduleColumns<ScheduleRow>({
+    isLeaf: (row) => row.rowType === "role",
+    getTask: (row) => row as RoleLeaf,
+  });
+  const awardCol = scheduleCols.find((c) => c.key === "today_summary");
+  const beforeAwardCols = scheduleCols.filter((c) => c.key !== "today_summary");
+
+  const actionsCol: ColumnsType<ScheduleRow>[number] = {
+    title: "操作",
+    key: "actions",
+    width: 96,
+    render: (_, row) => {
+      // 固定宽度，避免 loading 图标把表格撑出横滚
+      const btnWrap = (node: ReactNode) => (
+        <div style={{ width: 80, whiteSpace: "nowrap" }}>{node}</div>
+      );
+      if (row.rowType === "role") {
+        return btnWrap(
+          <Button
+            type="link"
+            size="small"
+            loading={triggeringKey === row.task_key}
+            onClick={() =>
+              trigger.mutate({
+                jobId: row.job_id,
+                member_id: row.member_id,
+                game_code: row.game_code,
+                role_uid: row.role_uid,
+                taskKey: row.task_key,
+                roleLabel: row.role_name || row.role_uid || undefined,
+              })
+            }
+          >
+            执行一次
+          </Button>,
+        );
+      }
+      if (row.rowType === "platform") {
+        const firstRole = row.children
+          .flatMap((c) => (c.rowType === "game" ? c.children : [c]))
+          .find((r) => r.rowType === "role") as RoleLeaf | undefined;
+        if (!firstRole) return null;
+        return btnWrap(
+          <Button
+            type="link"
+            size="small"
+            loading={triggeringKey === `plat:${row.rowKey}`}
+            onClick={() =>
+              trigger.mutate({
+                jobId: firstRole.job_id,
+                member_id: row.member_id,
+                taskKey: `plat:${row.rowKey}`,
+              })
+            }
+          >
+            执行一次
+          </Button>,
+        );
+      }
+      return null;
+    },
+  };
 
   const taskColumns: ColumnsType<ScheduleRow> = [
     {
@@ -320,16 +412,24 @@ export default function ScheduledJobsPage() {
         }
         if (row.rowType === "platform") {
           return (
-            <Typography.Text>
-              {CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name}
-            </Typography.Text>
+            <CheckinTreeNameLabel
+              kind="platform"
+              platform={row.platform}
+              label={
+                CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name
+              }
+            />
           );
         }
         if (row.rowType === "game") {
           return (
-            <Typography.Text style={{ paddingLeft: 4 }}>
-              {row.game_name}
-            </Typography.Text>
+            <CheckinTreeNameLabel
+              kind="game"
+              platform={row.platform}
+              gameCode={row.game_code}
+              label={row.game_name}
+              style={{ paddingLeft: 4 }}
+            />
           );
         }
         if (row.game_code) {
@@ -344,108 +444,12 @@ export default function ScheduledJobsPage() {
         );
       },
     },
-    ...buildCheckinTaskScheduleColumns<ScheduleRow>({
-      isLeaf: (row) => row.rowType === "role",
-      getTask: (row) => row as RoleLeaf,
-    }),
-    {
-      title: "操作",
-      key: "actions",
-      width: 180,
-      fixed: "right",
-      render: (_, row) => {
-        if (row.rowType === "role") {
-          return (
-            <Space size={4} wrap>
-              <Button
-                type="link"
-                size="small"
-                loading={triggeringKey === row.task_key}
-                onClick={() =>
-                  trigger.mutate({
-                    jobId: row.job_id,
-                    member_id: row.member_id,
-                    taskKey: row.task_key,
-                  })
-                }
-              >
-                执行一次
-              </Button>
-              <Button
-                type="link"
-                size="small"
-                onClick={() => {
-                  setRunsPage(1);
-                  setRunsTask(row);
-                }}
-              >
-                执行记录
-              </Button>
-            </Space>
-          );
-        }
-        if (row.rowType === "platform") {
-          const firstRole = row.children
-            .flatMap((c) => (c.rowType === "game" ? c.children : [c]))
-            .find((r) => r.rowType === "role") as RoleLeaf | undefined;
-          if (!firstRole) return null;
-          return (
-            <Button
-              type="link"
-              size="small"
-              loading={triggeringKey === `plat:${row.rowKey}`}
-              onClick={() =>
-                trigger.mutate({
-                  jobId: firstRole.job_id,
-                  member_id: row.member_id,
-                  taskKey: `plat:${row.rowKey}`,
-                })
-              }
-            >
-              执行一次
-            </Button>
-          );
-        }
-        return null;
-      },
-    },
+    ...beforeAwardCols,
+    ...(awardCol ? [awardCol] : []),
+    actionsCol,
   ];
 
-  const checkinColumns: ColumnsType<CheckinLogItem> = [
-    {
-      title: "时间",
-      dataIndex: "checked_at",
-      width: 170,
-      render: (v?: string | null) => v || "-",
-    },
-    {
-      title: "角色",
-      key: "role",
-      width: 200,
-      render: (_, row) =>
-        `${row.role_name || row.role_uid}（${row.game_name || row.game_code}）`,
-    },
-    {
-      title: "状态",
-      dataIndex: "status",
-      width: 90,
-      render: (v: string, row) => (
-        <CheckinStatusTag status={v} statusLabel={row.status_label} />
-      ),
-    },
-    {
-      title: "摘要",
-      key: "summary",
-      ellipsis: true,
-      render: (_, row) => (
-        <CheckinAwardsLine
-          awards={row.awards}
-          awardsText={row.awards_text || null}
-          fallback="-"
-        />
-      ),
-    },
-  ];
+  const firstExchange = exchangeDialog?.exchanges?.[0];
 
   return (
     <div>
@@ -537,7 +541,6 @@ export default function ScheduledJobsPage() {
           },
         }}
         size="middle"
-        scroll={{ x: 1280 }}
         expandable={{
           expandedRowKeys: expandedKeys,
           onExpandedRowsChange: (keys) => setExpandedKeys([...keys]),
@@ -550,39 +553,89 @@ export default function ScheduledJobsPage() {
       />
 
       <Modal
-        title={
-          runsTask
-            ? `执行记录 · ${CHECKIN_PLATFORM_LABELS[runsTask.platform] || runsTask.platform_name} · ${runsTask.user_label}${
-                runsTask.role_name || runsTask.role_uid
-                  ? ` · ${runsTask.role_name || runsTask.role_uid}`
-                  : ""
-              }`
-            : "执行记录"
-        }
-        open={Boolean(runsTask)}
-        onCancel={() => setRunsTask(null)}
-        footer={null}
-        width={960}
+        open={Boolean(exchangeDialog)}
+        title={exchangeDialog?.title || "执行原文"}
+        onCancel={() => setExchangeDialog(null)}
+        onOk={() => setExchangeDialog(null)}
+        cancelButtonProps={{ style: { display: "none" } }}
+        okText="关闭"
+        width={720}
         destroyOnClose
       >
-        <Table
-          rowKey={(row) => `${row.platform}-${row.id}`}
-          loading={checkinLogsQuery.isLoading || checkinLogsQuery.isFetching}
-          columns={checkinColumns}
-          dataSource={checkinLogsQuery.data?.items || []}
-          size="small"
-          pagination={{
-            current: runsPage,
-            pageSize: runsPageSize,
-            total: checkinLogsQuery.data?.total || 0,
-            showSizeChanger: true,
-            showTotal: (t) => `共 ${t} 条`,
-            onChange: (nextPage, nextSize) => {
-              setRunsPage(nextPage);
-              setRunsPageSize(nextSize);
-            },
-          }}
-        />
+        {exchangeDialog ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            {exchangeDialog.summary ? (
+              <Alert
+                type={
+                  exchangeDialog.ok === false
+                    ? "error"
+                    : exchangeDialog.ok
+                      ? "success"
+                      : "info"
+                }
+                showIcon
+                message={exchangeDialog.summary}
+              />
+            ) : null}
+            {firstExchange ? (
+              <>
+                <div>
+                  <Space
+                    style={{
+                      width: "100%",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Typography.Text strong>请求</Typography.Text>
+                    {firstExchange.upstream_request ? (
+                      <Typography.Text
+                        copyable={{ text: firstExchange.upstream_request }}
+                        type="secondary"
+                        style={{ fontSize: 12 }}
+                      >
+                        复制
+                      </Typography.Text>
+                    ) : null}
+                  </Space>
+                  <pre style={preStyle}>
+                    {firstExchange.upstream_request || "（无请求原文）"}
+                  </pre>
+                </div>
+                <div>
+                  <Space
+                    style={{
+                      width: "100%",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Typography.Text strong>响应</Typography.Text>
+                    {firstExchange.upstream_response ? (
+                      <Typography.Text
+                        copyable={{ text: firstExchange.upstream_response }}
+                        type="secondary"
+                        style={{ fontSize: 12 }}
+                      >
+                        复制
+                      </Typography.Text>
+                    ) : null}
+                  </Space>
+                  <pre style={preStyle}>
+                    {firstExchange.upstream_response || "（无响应原文）"}
+                  </pre>
+                </div>
+              </>
+            ) : (
+              <Alert
+                type="warning"
+                showIcon
+                message="本次未捕获到上游 HTTP 原文"
+                description="可能未实际打到上游，或该平台未写入 exchange。"
+              />
+            )}
+          </Space>
+        ) : null}
       </Modal>
     </div>
   );

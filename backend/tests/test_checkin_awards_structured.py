@@ -48,16 +48,50 @@ def test_taygedo_item_award_nested() -> None:
     assert d["resource_id"] == "g"
 
 
+def test_taygedo_item_award_icon_url() -> None:
+    d = _item_award_dict(
+        {
+            "name": "井胃达人",
+            "num": 3,
+            "icon": "https://cdn.example.com/item.png",
+        }
+    )
+    assert d is not None
+    assert d["name"] == "井胃达人"
+    assert d["count"] == 3
+    assert d["icon_url"] == "https://cdn.example.com/item.png"
+
+
+def test_taygedo_sign_payload_keeps_icon() -> None:
+    text, items = _awards_from_sign_payload(
+        {
+            "code": 0,
+            "data": {
+                "rewards": [
+                    {
+                        "name": "井胃达人",
+                        "num": 3,
+                        "iconUrl": "https://cdn.example.com/j.png",
+                    }
+                ]
+            },
+        }
+    )
+    assert text == "井胃达人 x3"
+    assert items[0]["icon_url"] == "https://cdn.example.com/j.png"
+
+
 def test_exilium_sign_in_structured(monkeypatch) -> None:
-    def fake_http(*_a, **_k):
-        return {
+    def fake_http_full(*_a, **_k):
+        data = {
             "get_item_name": "补给箱",
             "get_item_count": 1,
             "get_exp": 10,
             "get_score": 20,
         }
+        return data, {"code": 0, "data": data}
 
-    monkeypatch.setattr("app.services.exilium_attendance._http", fake_http)
+    monkeypatch.setattr("app.services.exilium_attendance._http_full", fake_http_full)
     creds = ExiliumCredentials(
         token="t",
         account_name="u",

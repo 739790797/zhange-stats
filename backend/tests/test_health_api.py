@@ -16,10 +16,15 @@ def test_health_endpoint_shape() -> None:
             return await client.get("/health")
 
     resp = anyio.run(_call)
-    assert resp.status_code == 200
     data = resp.json()
     assert "status" in data
     assert "version" in data
     assert data["database"] in ("ok", "error")
     assert data["scheduler"] in ("ok", "stopped")
     assert data["status"] in ("ok", "degraded")
+    if data["status"] == "ok":
+        assert resp.status_code == 200
+        assert data["database"] == "ok"
+    else:
+        assert resp.status_code == 503
+        assert data["database"] == "error"

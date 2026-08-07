@@ -5,13 +5,20 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.services.checkin_common import CheckinResult, award_item
+from app.services.checkin_common import (
+    CheckinResult,
+    award_item,
+    format_upstream_request,
+    format_upstream_response,
+)
 from app.services.exilium_client import (
+    API_BASE,
     GAME_CODE,
     GAME_NAME,
     ExiliumApiError,
     ExiliumCredentials,
     _http,
+    _http_full,
     _to_int,
     enrich_user_info,
     friendly_error_message,
@@ -47,7 +54,14 @@ def get_sign_in_status(creds: ExiliumCredentials) -> bool:
 
 
 def sign_in(creds: ExiliumCredentials) -> CheckinResult:
-    data = _http("POST", "/community/task/sign_in", token=creds.token, body={})
+    body: dict[str, Any] = {}
+    data, full = _http_full(
+        "POST", "/community/task/sign_in", token=creds.token, body=body
+    )
+    upstream_req = format_upstream_request(
+        "POST", f"{API_BASE}/community/task/sign_in", body
+    )
+    upstream_resp = format_upstream_response(full)
     item = str(data.get("get_item_name") or "").strip()
     count = data.get("get_item_count")
     exp = data.get("get_exp")
@@ -86,11 +100,13 @@ def sign_in(creds: ExiliumCredentials) -> CheckinResult:
         game_name=GAME_NAME,
         role_uid=creds.user_id or creds.account_name or "-",
         role_name=role_name,
-        channel_name="官方社区",
+        channel_name="社区",
         status="ok",
         message="签到成功" + (f"：{awards}" if awards else ""),
         awards_text=awards,
         awards=awards_items or None,
+        upstream_request=upstream_req,
+        upstream_response=upstream_resp,
     )
 
 
@@ -302,7 +318,7 @@ def _already_result(creds: ExiliumCredentials) -> CheckinResult:
         game_name=GAME_NAME,
         role_uid=creds.user_id or creds.account_name or "-",
         role_name=role_name,
-        channel_name="官方社区",
+        channel_name="社区",
         status="already",
         message="今日已签到" + (f"：{awards_text}" if awards_text else ""),
         awards_text=awards_text,
@@ -323,7 +339,7 @@ def query_today(creds: ExiliumCredentials) -> tuple[ExiliumCredentials, list[Che
         game_name=GAME_NAME,
         role_uid=working.user_id or working.account_name or "-",
         role_name=role_name,
-        channel_name="官方社区",
+        channel_name="社区",
         status="pending",
         message="今日未签到",
         extra_text=_tasks_extra_from_score_log(working),
@@ -354,7 +370,7 @@ def checkin(
                     game_name=GAME_NAME,
                     role_uid=working.user_id or working.account_name or "-",
                     role_name=role_name,
-                    channel_name="官方社区",
+                    channel_name="社区",
                     status="error",
                     message=friendly_error_message(msg),
                 )

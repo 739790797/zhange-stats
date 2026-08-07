@@ -15,7 +15,7 @@ import {
 } from "./roleUidStorage";
 import { SyncCompareBoard } from "./SyncCompareBoard";
 
-/** 明日方舟页：多用户盒子横向对比（共用同一横向滚动） */
+/** 明日方舟页：善意多用户盒子对比（共用同一横向滚动） */
 export function ArknightsBoxCompare() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [initialized, setInitialized] = useState(false);
