@@ -212,21 +212,6 @@ export function PlatformBindsSection({
           />
         ) : null}
 
-        {!isAdminEdit && showExilium ? (
-          <PlatformBindRow
-            name="追放"
-            bound={exiliumBound}
-            credentialOk={exiliumCredOk}
-            errMsg={errMsg}
-            borderTop
-            unbindConfirmTitle="确认解除追放社区绑定？"
-            unbindPending={unbindExiliumPending}
-            onOpenModal={() => setExiliumModalOpen(true)}
-            onOpenRoles={() => exiliumRoles.openPicker()}
-            onUnbind={onUnbindExilium}
-          />
-        ) : null}
-
         {!isAdminEdit && showKujiequ ? (
           <PlatformBindRow
             name="库街区"
@@ -239,6 +224,21 @@ export function PlatformBindsSection({
             onOpenModal={() => setKujiequModalOpen(true)}
             onOpenRoles={() => kujiequRoles.openPicker()}
             onUnbind={onUnbindKujiequ}
+          />
+        ) : null}
+
+        {!isAdminEdit && showExilium ? (
+          <PlatformBindRow
+            name="追放"
+            bound={exiliumBound}
+            credentialOk={exiliumCredOk}
+            errMsg={errMsg}
+            borderTop
+            unbindConfirmTitle="确认解除追放社区绑定？"
+            unbindPending={unbindExiliumPending}
+            onOpenModal={() => setExiliumModalOpen(true)}
+            onOpenRoles={() => exiliumRoles.openPicker()}
+            onUnbind={onUnbindExilium}
           />
         ) : null}
       </Card>

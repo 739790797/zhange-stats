@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.8** — 鸣潮资料卡 / 异环盒子、签到日历 raw、兑换与角色树、森空岛肉鸽与会话缓存。
+**v0.2.9** — 个人中心账号绑定顺序与侧栏对齐（库街区先于追放）。
 
 ## 功能
 
@@ -65,7 +65,7 @@ docker compose pull && docker compose up -d
 
 数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.2.8` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.2.9` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
 
 **部署形态（重要）**：当前设计为 **单 `app` 副本（all-in-one）**。镜像内同容器嵌 Redis（仅 `127.0.0.1`，用于限流与扫码/cred 短时 KV；无持久化）。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移仍非多实例安全。水平扩展前须另行解决：调度 leader 选举或外置 job、共享 `DATA_DIR`（同一 `SECRET_KEY`）、迁移单点执行，以及**所有副本共享同一 `REDIS_URL`**（否则森空岛扫码 pending / cred 缓存与限流键不互通）。**仅外置 Redis 也不能单独支撑多副本**。本地开发可不启 Redis（`REDIS_URL` 空 → 进程内降级）。
 
