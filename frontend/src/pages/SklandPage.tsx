@@ -32,6 +32,7 @@ export default function SklandPage() {
     queryKey: ["skland-status"],
     queryFn: () => fetchSklandStatus(true, true),
     retry: false,
+    staleTime: 30_000,
   });
 
   const featuresReady =

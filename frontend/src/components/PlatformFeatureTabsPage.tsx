@@ -52,6 +52,7 @@ export function PlatformFeatureTabsPage({
     queryKey: statusQueryKey,
     queryFn: fetchStatus,
     retry: false,
+    staleTime: 30_000,
   });
 
   useEffect(() => {

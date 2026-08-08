@@ -19,6 +19,7 @@ export async function fetchSklandStatus(includeRoles = true, force = true) {
       include_roles: includeRoles,
       force,
     },
+    timeout: 60000,
   });
   return data;
 }

@@ -314,11 +314,12 @@ export function CheckinPageTemplate({
   const [checkingKey, setCheckingKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<CheckinDialogState | null>(null);
 
-  // 展示路径始终回源官方，保证与官方一致
+  // 展示路径始终回源官方；staleTime 避免平台 Tabs 切换时反复 force 打上游
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
     queryFn: () => fetchStatus(true, true),
     retry: false,
+    staleTime: 30_000,
   });
 
   const refreshAfterCheckin = () => {
@@ -416,9 +417,14 @@ export function CheckinPageTemplate({
     >
       {statusQuery.isError ? (
         <Alert
-          type="error"
+          type={statusQuery.data ? "warning" : "error"}
           showIcon
           message={apiError(statusQuery.error, "加载签到状态失败")}
+          description={
+            statusQuery.data
+              ? "下方为最近一次成功结果；可稍后切换回本页重试刷新。"
+              : undefined
+          }
           style={{ marginBottom: 16 }}
         />
       ) : null}

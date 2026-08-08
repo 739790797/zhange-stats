@@ -15,7 +15,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.2.9}
+        APP_VERSION: ${APP_VERSION:-0.2.10}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"

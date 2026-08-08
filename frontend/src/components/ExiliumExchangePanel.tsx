@@ -78,7 +78,7 @@ export function ExiliumExchangePanel() {
       bindName="追放"
       unboundMessage="尚未绑定追放社区"
       statusQueryKey={["exilium-status"]}
-      fetchStatus={() => fetchExiliumStatus(false)}
+      fetchStatus={() => fetchExiliumStatus(true, true)}
       bindPanel={
         <ExiliumBindPanel
           title="绑定追放社区账号"

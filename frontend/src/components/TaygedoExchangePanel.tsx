@@ -75,22 +75,38 @@ export function TaygedoExchangePanel() {
     onError: (e: unknown) => message.error(apiError(e, "兑换失败")),
   });
 
-  const openExchange = (
+  const rolesForItem = (
+    item: TaygedoExchangeItem,
+    roles: TaygedoExchangeRole[],
+  ) => {
+    const gameId = String(item.game_id || "").trim();
+    return gameId ? roles.filter((r) => r.game_id === gameId) : roles;
+  };
+
+  const missingRoleHint = (
     item: TaygedoExchangeItem,
     roles: TaygedoExchangeRole[],
   ) => {
     if (!roles.length) {
-      message.error("未找到游戏角色，请先在塔吉多绑定后再兑换");
+      return "未找到游戏角色，请先在塔吉多绑定异环或幻塔后再兑换";
+    }
+    const gameId = String(item.game_id || "").trim();
+    if (!gameId || rolesForItem(item, roles).length) return null;
+    const gameName = GAME_LABEL[gameId] || `游戏 ${gameId}`;
+    return `该商品属于${gameName}，当前账号未绑定${gameName}角色`;
+  };
+
+  const openExchange = (
+    item: TaygedoExchangeItem,
+    roles: TaygedoExchangeRole[],
+  ) => {
+    const hint = missingRoleHint(item, roles);
+    if (hint) {
+      message.error(hint);
       return;
     }
     const gameId = String(item.game_id || "").trim();
-    const gameRoles = gameId
-      ? roles.filter((r) => r.game_id === gameId)
-      : roles;
-    if (!gameRoles.length) {
-      message.error("未找到该游戏角色，请先在塔吉多绑定后再兑换");
-      return;
-    }
+    const gameRoles = rolesForItem(item, roles);
     const memoryKey = gameId || "_any";
     const preferred = lastRoleByGame[memoryKey];
     const initial =
@@ -128,7 +144,8 @@ export function TaygedoExchangePanel() {
     <ExchangePageTemplate<Shop>
       bindName="塔吉多"
       statusQueryKey={["taygedo-status"]}
-      fetchStatus={() => fetchTaygedoStatus(false, true)}
+      // 与签到 Tab / 页壳共用 queryKey，queryFn 须一致（含 include_roles）
+      fetchStatus={() => fetchTaygedoStatus(true, true)}
       bindPanel={
         <TaygedoBindPanel
           title="绑定塔吉多账号"
@@ -246,25 +263,27 @@ export function TaygedoExchangePanel() {
     >
       {(shop) => {
         const gold = shop.gold ?? 0;
+        const roles = shop.roles || [];
         return (shop.items || []).map((item) => {
           const label = statusLabel(item);
           const notEnough = gold < item.price;
+          const roleHint = missingRoleHint(item, roles);
           const disabled =
             !item.can_exchange ||
             notEnough ||
+            Boolean(roleHint) ||
             pendingId === item.goods_id ||
             Boolean(label);
           const cycleLabel = CYCLE_LABEL[item.cycle_type] || "限购";
+          const gameName = item.game_id
+            ? GAME_LABEL[item.game_id] || `游戏 ${item.game_id}`
+            : "塔吉多";
           return (
             <ExchangeGoodsCard
               key={item.goods_id}
               imageUrl={item.cover}
               title={item.name}
-              subtitle={`${
-                item.game_id
-                  ? GAME_LABEL[item.game_id] || `游戏 ${item.game_id}`
-                  : "塔吉多"
-              }${
+              subtitle={`${gameName}${
                 item.stock_limited && item.stock > 0
                   ? ` · 库存 ${item.stock}`
                   : ""
@@ -280,11 +299,13 @@ export function TaygedoExchangePanel() {
               buttonLabel={
                 label
                   ? label
-                  : notEnough
-                    ? `塔塔币不足 · ${item.price}`
-                    : item.price
+                  : roleHint
+                    ? `需绑定${gameName}`
+                    : notEnough
+                      ? `塔塔币不足 · ${item.price}`
+                      : item.price
               }
-              onClick={() => openExchange(item, shop.roles || [])}
+              onClick={() => openExchange(item, roles)}
             />
           );
         });

@@ -34,6 +34,7 @@ export default function KujiequPage() {
     queryKey: ["kujiequ-status"],
     queryFn: () => fetchKujiequStatus(true, true),
     retry: false,
+    staleTime: 30_000,
   });
 
   const featuresReady =

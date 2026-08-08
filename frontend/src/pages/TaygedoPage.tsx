@@ -35,6 +35,7 @@ export default function TaygedoPage() {
     queryKey: ["taygedo-status"],
     queryFn: () => fetchTaygedoStatus(true, true),
     retry: false,
+    staleTime: 30_000,
   });
 
   const featuresReady =

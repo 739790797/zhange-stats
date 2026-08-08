@@ -119,7 +119,7 @@ export function KujiequExchangePanel() {
     <ExchangePageTemplate<Shop>
       bindName="库街区"
       statusQueryKey={["kujiequ-status"]}
-      fetchStatus={() => fetchKujiequStatus(false, true)}
+      fetchStatus={() => fetchKujiequStatus(true, true)}
       bindPanel={
         <KujiequBindPanel
           title="绑定库街区账号"

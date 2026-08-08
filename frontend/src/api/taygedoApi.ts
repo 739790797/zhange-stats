@@ -16,6 +16,8 @@ export async function fetchTaygedoStatus(includeRoles = true, force = true) {
       include_roles: includeRoles,
       force,
     },
+    // force 回源社区 + 多游戏角色，默认 15s 易被网关/客户端掐断
+    timeout: 60000,
   });
   return data;
 }

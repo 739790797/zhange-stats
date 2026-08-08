@@ -67,6 +67,7 @@ export function ExchangePageTemplate<TShop>({
     queryKey: statusQueryKey,
     queryFn: fetchStatus,
     retry: false,
+    staleTime: 30_000,
   });
 
   const bound = Boolean(statusQuery.data?.bound);
