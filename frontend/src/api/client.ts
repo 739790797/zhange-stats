@@ -77,6 +77,20 @@ export {
   testEmailSettings,
 } from "./settingsApi";
 
+export {
+  fetchAppUpdateStatus,
+  fetchAppUpdateReleases,
+  checkAppUpdate,
+  doAppUpdate,
+  waitForHealthVersion,
+} from "./appUpdateApi";
+export type {
+  AppUpdateStatus,
+  AppUpdateRelease,
+  AppUpdateCheckResult,
+  AppUpdateDoResult,
+} from "./appUpdateApi";
+
 export { fetchSetupStatus, completeSetupAdmin } from "./setupApi";
 export type { SetupStatus, SetupAdminResult } from "./setupApi";
 

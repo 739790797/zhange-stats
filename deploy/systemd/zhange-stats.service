@@ -1,0 +1,25 @@
+[Unit]
+Description=Zhange Stats (战鸽数据)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zhange
+Group=zhange
+WorkingDirectory=/opt/zhange-stats/backend
+EnvironmentFile=-/opt/zhange-stats/.env
+Environment=APP_INSTALL_DIR=/opt/zhange-stats
+Environment=STATIC_DIR=/opt/zhange-stats/static
+Environment=DATA_DIR=/opt/zhange-stats/data
+Environment=UPLOAD_DIR=/opt/zhange-stats/uploads
+Environment=APP_ENV=production
+ExecStart=/opt/zhange-stats/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+# 管理端一键更新默认 os.execv 同 PID 换码（无需本用户有 systemctl 权限）。
+# 若坚持 systemctl restart，须设 APP_RESTART_CMD 并配置 sudoers。
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

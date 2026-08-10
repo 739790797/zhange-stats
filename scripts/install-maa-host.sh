@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# 在 Linux 宿主机（如 R730XD）一键启用 MAA 执行面：
-#   - 若缺 compose.maa.yml / systemd 单元：从当前 app 镜像导出到本目录
+# 在 Linux 宿主机一键启用 MAA 执行面（可选；控制面请用 scripts/install.sh）：
 #   - 安装并启用 binder systemd（开机自动）
 #   - 写入 COMPOSE_PROFILES=maa（及可选 token）
-#   - pull + up maa-worker
+#   - build + up maa-worker（不依赖 app 镜像 / Watchtower）
 #
-# 用法（compose 工程目录，如 /opt/zhange-stats）：
-#   # 首次若还没有本脚本，先从镜像导出：
-#   docker run --rm -v "$PWD:/host" ghcr.io/739790797/zhange-stats:latest \
-#     /bin/sh /app/maa-host/scripts/export-to-host.sh
+# 用法（仓库根，如 /opt/zhange-stats）：
 #   sudo bash scripts/install-maa-host.sh
-#
 #   sudo bash scripts/install-maa-host.sh --no-up   # 只装 binder / 改 .env
 set -euo pipefail
 
@@ -38,49 +33,16 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-# 从 .env 读 APP_IMAGE / APP_TAG（若有）
-_env_get() {
-  local key="$1"
-  local line
-  line="$(grep -E "^${key}=" .env 2>/dev/null | tail -n1 || true)"
-  if [[ -n "$line" ]]; then
-    echo "${line#*=}"
-  fi
-}
-
-sync_maa_host_files_from_image() {
-  local need=0
-  [[ -f compose.maa.yml ]] || need=1
-  [[ -f deploy/systemd/maa-binder.service ]] || need=1
-  if [[ "$need" -eq 0 ]]; then
-    return 0
-  fi
-
-  local image_base tag image
-  image_base="$(_env_get APP_IMAGE)"
-  tag="$(_env_get APP_TAG)"
-  image_base="${image_base:-ghcr.io/739790797/zhange-stats}"
-  tag="${tag:-latest}"
-  image="${image_base}:${tag}"
-
-  echo "==> 本目录缺少 MAA 宿主机文件，从镜像导出: $image"
-  if ! command -v docker >/dev/null 2>&1; then
-    echo "错误: 需要 docker 才能从镜像导出 compose.maa.yml / scripts" >&2
-    exit 1
-  fi
-  docker pull "$image" >/dev/null || true
-  docker run --rm -v "$ROOT:/host" "$image" \
-    /bin/sh /app/maa-host/scripts/export-to-host.sh /host
-}
-
-sync_maa_host_files_from_image
-
 if [[ ! -f deploy/systemd/maa-binder.service ]]; then
-  echo "错误: 仍缺少 deploy/systemd/maa-binder.service，请确认 app 镜像已含 /app/maa-host" >&2
+  echo "错误: 缺少 deploy/systemd/maa-binder.service（请用完整 git clone）" >&2
   exit 1
 fi
 if [[ ! -f compose.maa.yml ]]; then
-  echo "错误: 仍缺少 compose.maa.yml" >&2
+  echo "错误: 缺少 compose.maa.yml" >&2
+  exit 1
+fi
+if [[ ! -d maa-worker ]]; then
+  echo "错误: 缺少 maa-worker/ 目录" >&2
   exit 1
 fi
 
@@ -106,7 +68,6 @@ ensure_env_line() {
   local key="$1"
   local value="$2"
   if grep -qE "^${key}=" .env; then
-    # 已有则不覆盖（避免改掉用户显式配置）
     return 0
   fi
   printf '\n%s=%s\n' "$key" "$value" >> .env
@@ -115,29 +76,33 @@ ensure_env_line() {
 
 echo "==> 写入 .env（仅补缺，不覆盖已有项）"
 ensure_env_line "COMPOSE_PROFILES" "maa"
-# token 可留空：app/worker 会用 SECRET_KEY 派生；若既无 token 也无 SECRET_KEY 再生成显式值
 if ! grep -qE '^MAA_WORKER_TOKEN=.+' .env && ! grep -qE '^SECRET_KEY=.+' .env; then
   tok="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p -c 64)"
   ensure_env_line "MAA_WORKER_TOKEN" "$tok"
 fi
-ensure_env_line "MAA_WORKER_IMAGE" "ghcr.io/739790797/zhange-stats-maa-worker"
-ensure_env_line "MAA_WORKER_TAG" "latest"
+ensure_env_line "MAA_WORKER_IMAGE" "zhange-stats-maa-worker"
+ensure_env_line "MAA_WORKER_TAG" "local"
+ensure_env_line "MAA_APP_BASE_URL" "http://host.docker.internal:8000"
 
 if [[ "$NO_UP" -eq 1 ]]; then
   echo "已跳过 compose up（--no-up）。之后执行："
-  echo "  docker compose -f compose.yml -f compose.maa.yml --profile maa pull"
-  echo "  docker compose -f compose.yml -f compose.maa.yml --profile maa up -d"
+  echo "  docker compose -f compose.maa.yml --profile maa build"
+  echo "  docker compose -f compose.maa.yml --profile maa up -d"
   exit 0
 fi
 
-echo "==> 拉取并启动 maa-worker"
-docker compose -f compose.yml -f compose.maa.yml --profile maa pull
-docker compose -f compose.yml -f compose.maa.yml --profile maa up -d
+if ! command -v docker >/dev/null 2>&1; then
+  echo "错误: 需要 docker 才能启动 maa-worker" >&2
+  exit 1
+fi
+
+echo "==> 构建并启动 maa-worker"
+docker compose -f compose.maa.yml --profile maa build
+docker compose -f compose.maa.yml --profile maa up -d
 
 echo
 echo "完成。后续："
 echo "  - 重启后 binder 由 systemd 自动加载"
-echo "  - Watchtower 会自动更新 app 与 maa-worker 镜像"
+echo "  - 控制面用 GitHub Release / 管理端系统更新；MAA 镜像自行 build"
 echo "  - 管理端「设置 → MAA 资源」新增槽位即可自动供给 Android"
-echo "  - 以后若缺文件：docker compose --profile maa-export run --rm maa-host-export"
 echo "详见 docs/maa-ops.md"

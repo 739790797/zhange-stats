@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import auth, exilium, jobs, kujiequ, maa, members, napcat, profile, setup, skland, steam, taygedo
+from app.api import app_update as app_update_api
 from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
@@ -101,6 +102,7 @@ api.include_router(auth.router)
 api.include_router(members.router)
 api.include_router(profile.router)
 api.include_router(settings_api.router)
+api.include_router(app_update_api.router)
 api.include_router(jobs.router)
 api.include_router(steam.router)
 api.include_router(skland.router)

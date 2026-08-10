@@ -2103,6 +2103,134 @@
         ]
       }
     },
+    "/api/settings/app-update/status": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get App Update Status",
+        "operationId": "get_app_update_status_api_settings_app_update_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppUpdateStatusOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/app-update/releases": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "List App Update Releases",
+        "operationId": "list_app_update_releases_api_settings_app_update_releases_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AppUpdateReleaseOut"
+                  },
+                  "type": "array",
+                  "title": "Response List App Update Releases Api Settings App Update Releases Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/app-update/check": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Check App Update",
+        "operationId": "check_app_update_api_settings_app_update_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppUpdateCheckOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/app-update/do": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Do App Update",
+        "operationId": "do_app_update_api_settings_app_update_do_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppUpdateDoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppUpdateDoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/jobs": {
       "get": {
         "tags": [
@@ -7180,6 +7308,188 @@
   },
   "components": {
     "schemas": {
+      "AppUpdateCheckOut": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AppUpdateStatusOut"
+          },
+          "releases": {
+            "items": {
+              "$ref": "#/components/schemas/AppUpdateReleaseOut"
+            },
+            "type": "array",
+            "title": "Releases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "AppUpdateCheckOut"
+      },
+      "AppUpdateDoIn": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "latest or vX.Y.Z",
+            "default": "latest"
+          },
+          "proxy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy",
+            "description": "Optional GitHub proxy URL prefix"
+          },
+          "reboot": {
+            "type": "boolean",
+            "title": "Reboot",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "AppUpdateDoIn"
+      },
+      "AppUpdateDoOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": ""
+          },
+          "reboot": {
+            "type": "boolean",
+            "title": "Reboot",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "AppUpdateDoOut"
+      },
+      "AppUpdateReleaseOut": {
+        "properties": {
+          "tag_name": {
+            "type": "string",
+            "title": "Tag Name"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
+          },
+          "published_at": {
+            "type": "string",
+            "title": "Published At",
+            "default": ""
+          },
+          "has_static_asset": {
+            "type": "boolean",
+            "title": "Has Static Asset",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tag_name",
+          "name"
+        ],
+        "title": "AppUpdateReleaseOut"
+      },
+      "AppUpdateStatusOut": {
+        "properties": {
+          "current_version": {
+            "type": "string",
+            "title": "Current Version"
+          },
+          "install_dir": {
+            "type": "string",
+            "title": "Install Dir"
+          },
+          "update_allowed": {
+            "type": "boolean",
+            "title": "Update Allowed"
+          },
+          "update_blocked_reason": {
+            "type": "string",
+            "title": "Update Blocked Reason",
+            "default": ""
+          },
+          "has_new_version": {
+            "type": "boolean",
+            "title": "Has New Version",
+            "default": false
+          },
+          "latest_version": {
+            "type": "string",
+            "title": "Latest Version",
+            "default": ""
+          },
+          "latest_body": {
+            "type": "string",
+            "title": "Latest Body",
+            "default": ""
+          },
+          "latest_published_at": {
+            "type": "string",
+            "title": "Latest Published At",
+            "default": ""
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "default": false
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "default": ""
+          },
+          "restart_strategy": {
+            "type": "string",
+            "title": "Restart Strategy",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_version",
+          "install_dir",
+          "update_allowed"
+        ],
+        "title": "AppUpdateStatusOut"
+      },
       "ArknightsAttendanceCalendarOut": {
         "properties": {
           "uid": {

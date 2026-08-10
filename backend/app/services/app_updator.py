@@ -1,0 +1,601 @@
+"""AstrBot-style self-update: GitHub Release zip + static asset + pip + restart."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import threading
+import time
+import zipfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from urllib.parse import urljoin
+
+import httpx
+
+from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+# Relative to install root — only these are overwritten from source zip.
+SOURCE_WHITELIST: tuple[str, ...] = (
+    "VERSION",
+    "backend/app",
+    "backend/alembic",
+    "backend/requirements.txt",
+    "backend/requirements-dev.txt",
+    "backend/scripts",
+    "scripts",
+    "deploy",
+    "AGENTS.md",
+    "README.md",
+)
+
+PROTECTED_PREFIXES: tuple[str, ...] = (
+    ".env",
+    "data/",
+    "uploads/",
+    "backend/.venv/",
+    "frontend/node_modules/",
+    "static/",  # replaced only via static asset, not source zip
+)
+
+_state_lock = threading.Lock()
+_progress: dict[str, Any] = {
+    "busy": False,
+    "phase": "",
+    "message": "",
+    "error": "",
+    "target_version": "",
+}
+
+
+class _UpdateLock:
+    """Thread mutex + optional POSIX file lock under DATA_DIR/update.lock."""
+
+    def __init__(self) -> None:
+        self._thread = threading.Lock()
+        self._fd: Any = None
+
+    def acquire(self, *, blocking: bool = False) -> bool:
+        if not self._thread.acquire(blocking=blocking):
+            return False
+        try:
+            settings = get_settings()
+            install = resolve_install_dir()
+            data = Path(settings.DATA_DIR).expanduser()
+            if not data.is_absolute():
+                data = (install / data).resolve()
+            data.mkdir(parents=True, exist_ok=True)
+            lock_path = data / "update.lock"
+            fd = open(lock_path, "a+", encoding="utf-8")  # noqa: SIM115
+            try:
+                if sys.platform != "win32":
+                    import fcntl
+
+                    flags = fcntl.LOCK_EX
+                    if not blocking:
+                        flags |= fcntl.LOCK_NB
+                    fcntl.flock(fd.fileno(), flags)
+            except OSError:
+                fd.close()
+                self._thread.release()
+                return False
+            self._fd = fd
+            fd.seek(0)
+            fd.truncate()
+            fd.write(f"pid={os.getpid()}\n")
+            fd.flush()
+            return True
+        except Exception:
+            if self._fd is not None:
+                try:
+                    self._fd.close()
+                except Exception:
+                    pass
+                self._fd = None
+            self._thread.release()
+            raise
+
+    def release(self) -> None:
+        try:
+            if self._fd is not None:
+                if sys.platform != "win32":
+                    try:
+                        import fcntl
+
+                        fcntl.flock(self._fd.fileno(), fcntl.LOCK_UN)
+                    except OSError:
+                        pass
+                try:
+                    self._fd.close()
+                except Exception:
+                    pass
+                self._fd = None
+        finally:
+            if self._thread.locked():
+                self._thread.release()
+
+
+_lock = _UpdateLock()
+
+
+@dataclass
+class ReleaseInfo:
+    tag_name: str
+    name: str
+    body: str
+    published_at: str
+    zipball_url: str
+    static_asset_url: str | None = None
+    static_asset_name: str | None = None
+
+
+@dataclass
+class UpdateResult:
+    ok: bool
+    message: str
+    version: str = ""
+    reboot: bool = False
+
+
+@dataclass
+class UpdateStatus:
+    current_version: str
+    install_dir: str
+    update_allowed: bool
+    update_blocked_reason: str = ""
+    has_new_version: bool = False
+    latest_version: str = ""
+    latest_body: str = ""
+    latest_published_at: str = ""
+    busy: bool = False
+    phase: str = ""
+    message: str = ""
+    error: str = ""
+    restart_strategy: str = ""
+
+
+def _set_progress(**kwargs: Any) -> None:
+    with _state_lock:
+        _progress.update(kwargs)
+
+
+def get_progress() -> dict[str, Any]:
+    with _state_lock:
+        return dict(_progress)
+
+
+def compare_version(v1: str, v2: str) -> int:
+    """Semver-ish compare. Returns >0 if v1>v2, 0 if equal, <0 if v1<v2."""
+
+    def parts(v: str) -> list[int]:
+        s = (v or "").strip().lstrip("vV")
+        nums: list[int] = []
+        for chunk in re.split(r"[^\d]+", s):
+            if chunk.isdigit():
+                nums.append(int(chunk))
+        return nums or [0]
+
+    a, b = parts(v1), parts(v2)
+    n = max(len(a), len(b))
+    a.extend([0] * (n - len(a)))
+    b.extend([0] * (n - len(b)))
+    for x, y in zip(a, b, strict=True):
+        if x != y:
+            return (x > y) - (x < y)
+    return 0
+
+
+def resolve_install_dir() -> Path:
+    settings = get_settings()
+    raw = (settings.APP_INSTALL_DIR or "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    # Prefer repo root that contains VERSION next to backend/
+    here = Path(__file__).resolve()
+    for candidate in (
+        here.parents[3],  # .../zhange-stats from backend/app/services/
+        Path.cwd().parent if Path.cwd().name == "backend" else Path.cwd(),
+        Path.cwd(),
+    ):
+        if (candidate / "VERSION").is_file() and (candidate / "backend").is_dir():
+            return candidate.resolve()
+    return Path.cwd().resolve()
+
+
+def update_allowed() -> tuple[bool, str]:
+    settings = get_settings()
+    if not settings.allow_in_app_update:
+        return False, "当前环境不允许应用内更新（仅 production 默认开启，或设置 ALLOW_IN_APP_UPDATE=true）"
+    install = resolve_install_dir()
+    if not (install / "VERSION").is_file():
+        return False, f"安装根无效：未找到 VERSION（APP_INSTALL_DIR={install}）"
+    if not (install / "backend" / "app").is_dir():
+        return False, f"安装根无效：缺少 backend/app（APP_INSTALL_DIR={install}）"
+    return True, ""
+
+
+def _proxy_url(url: str, proxy: str | None) -> str:
+    if not proxy:
+        return url
+    p = proxy.rstrip("/")
+    if url.startswith("https://") or url.startswith("http://"):
+        return f"{p}/{url}"
+    return urljoin(p + "/", url)
+
+
+def _releases_api_url() -> str:
+    settings = get_settings()
+    base = (settings.UPDATE_GITHUB_API or "https://api.github.com").rstrip("/")
+    repo = (settings.UPDATE_GITHUB_REPO or "739790797/zhange-stats").strip()
+    return f"{base}/repos/{repo}/releases"
+
+
+def _static_asset_name(version: str) -> str:
+    ver = version.lstrip("vV")
+    return f"zhange-stats-{ver}-static.tar.gz"
+
+
+async def fetch_releases(limit: int = 20, proxy: str | None = None) -> list[ReleaseInfo]:
+    settings = get_settings()
+    url = _proxy_url(_releases_api_url(), proxy)
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": f"zhange-stats/{settings.APP_VERSION}",
+    }
+    token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+    if not isinstance(data, list):
+        raise RuntimeError("GitHub Releases 响应格式异常")
+
+    out: list[ReleaseInfo] = []
+    for item in data[:limit]:
+        tag = str(item.get("tag_name") or "")
+        assets = item.get("assets") or []
+        static_url = None
+        static_name = None
+        want = _static_asset_name(tag)
+        for asset in assets:
+            name = str(asset.get("name") or "")
+            if name == want or name.endswith("-static.tar.gz"):
+                static_url = asset.get("browser_download_url")
+                static_name = name
+                if name == want:
+                    break
+        out.append(
+            ReleaseInfo(
+                tag_name=tag,
+                name=str(item.get("name") or tag),
+                body=str(item.get("body") or ""),
+                published_at=str(item.get("published_at") or ""),
+                zipball_url=str(item.get("zipball_url") or ""),
+                static_asset_url=static_url,
+                static_asset_name=static_name,
+            )
+        )
+    return out
+
+
+async def check_update(proxy: str | None = None) -> tuple[ReleaseInfo | None, list[ReleaseInfo]]:
+    settings = get_settings()
+    releases = await fetch_releases(proxy=proxy)
+    current = settings.APP_VERSION
+    latest: ReleaseInfo | None = None
+    for rel in releases:
+        if compare_version(rel.tag_name, current) > 0:
+            latest = rel
+            break
+    return latest, releases
+
+
+def detect_restart_strategy() -> str:
+    """Post-update restart.
+
+    Default: AstrBot-style ``exec`` (works as non-root under systemd; same PID).
+    ``systemctl restart`` needs root/polkit — only via explicit ``APP_RESTART_CMD``.
+    """
+    settings = get_settings()
+    cmd = (settings.APP_RESTART_CMD or "").strip()
+    if cmd:
+        return f"cmd:{cmd}"
+    return "exec"
+
+
+def build_status(
+    *,
+    latest: ReleaseInfo | None = None,
+    releases_checked: bool = False,
+) -> UpdateStatus:
+    settings = get_settings()
+    allowed, reason = update_allowed()
+    progress = get_progress()
+    install = str(resolve_install_dir())
+    has_new = False
+    latest_version = ""
+    latest_body = ""
+    latest_published = ""
+    if latest is not None:
+        latest_version = latest.tag_name.lstrip("vV")
+        latest_body = latest.body
+        latest_published = latest.published_at
+        has_new = compare_version(latest.tag_name, settings.APP_VERSION) > 0
+    elif not releases_checked:
+        pass
+    return UpdateStatus(
+        current_version=settings.APP_VERSION,
+        install_dir=install,
+        update_allowed=allowed,
+        update_blocked_reason=reason,
+        has_new_version=has_new,
+        latest_version=latest_version,
+        latest_body=latest_body,
+        latest_published_at=latest_published,
+        busy=bool(progress.get("busy")),
+        phase=str(progress.get("phase") or ""),
+        message=str(progress.get("message") or ""),
+        error=str(progress.get("error") or ""),
+        restart_strategy=detect_restart_strategy(),
+    )
+
+
+async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
+    final = _proxy_url(url, proxy)
+    settings = get_settings()
+    headers = {"User-Agent": f"zhange-stats/{settings.APP_VERSION}"}
+    token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
+    if token and "github" in final:
+        headers["Authorization"] = f"Bearer {token}"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
+        async with client.stream("GET", final, headers=headers) as resp:
+            resp.raise_for_status()
+            with dest.open("wb") as f:
+                async for chunk in resp.aiter_bytes():
+                    f.write(chunk)
+
+
+def _is_protected(rel_posix: str) -> bool:
+    r = rel_posix.lstrip("./")
+    for p in PROTECTED_PREFIXES:
+        if p.endswith("/"):
+            if r == p.rstrip("/") or r.startswith(p):
+                return True
+        elif r == p:
+            return True
+    return False
+
+
+def _path_allowed_from_whitelist(rel_posix: str) -> bool:
+    r = rel_posix.lstrip("./")
+    if _is_protected(r):
+        return False
+    for w in SOURCE_WHITELIST:
+        if r == w or r.startswith(w.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
+    """Extract zipball to temp, then copy only SOURCE_WHITELIST into install_dir."""
+    applied: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="zhange-src-") as tmp:
+        tmp_path = Path(tmp)
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(tmp_path)
+        # GitHub zipball: single top-level directory
+        children = [p for p in tmp_path.iterdir() if p.name not in (".", "..")]
+        src_root = children[0] if len(children) == 1 and children[0].is_dir() else tmp_path
+
+        for rel in SOURCE_WHITELIST:
+            if not _path_allowed_from_whitelist(rel):
+                continue
+            src = src_root / rel
+            dest = install_dir / rel
+            if not src.exists():
+                logger.debug("whitelist miss (not in zip): %s", rel)
+                continue
+            if src.is_dir():
+                if dest.exists():
+                    shutil.rmtree(dest)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(src, dest)
+                applied.append(rel.rstrip("/") + "/")
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+                applied.append(rel)
+    return applied
+
+
+def apply_static_tar(tar_path: Path, static_dir: Path) -> None:
+    static_dir.mkdir(parents=True, exist_ok=True)
+    # Clear existing static contents but keep directory
+    for child in static_dir.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink(missing_ok=True)
+    with tarfile.open(tar_path, "r:gz") as tf:
+        # Python 3.12+ filter; use data filter when available
+        if hasattr(tarfile, "data_filter"):
+            tf.extractall(static_dir, filter=tarfile.data_filter)
+        else:
+            tf.extractall(static_dir)
+
+
+def pip_install_requirements(install_dir: Path) -> None:
+    backend = install_dir / "backend"
+    req = backend / "requirements.txt"
+    if not req.is_file():
+        raise RuntimeError("缺少 backend/requirements.txt")
+    candidates = [
+        backend / ".venv" / "bin" / "python",
+        backend / ".venv" / "Scripts" / "python.exe",
+        Path(sys.executable),
+    ]
+    python = next((p for p in candidates if p.is_file()), None)
+    if python is None:
+        raise RuntimeError("找不到 Python（请先 scripts/install.sh 创建 backend/.venv）")
+    cmd = [str(python), "-m", "pip", "install", "-r", str(req)]
+    logger.info("pip install: %s", " ".join(cmd))
+    subprocess.run(cmd, check=True, cwd=str(backend))
+
+
+def trigger_restart(*, delay_sec: float = 1.5) -> None:
+    """Schedule restart after response; never returns when using exec."""
+
+    def _run() -> None:
+        time.sleep(delay_sec)
+        strategy = detect_restart_strategy()
+        logger.warning("self-update restart via %s", strategy)
+        try:
+            if strategy.startswith("cmd:"):
+                cmd = strategy[4:]
+                subprocess.Popen(cmd, shell=True)  # noqa: S602
+                return
+            # AstrBot-style in-place exec (safe under systemd as non-root)
+            executable = sys.executable
+            argv = [executable, *sys.argv]
+            os.execv(executable, argv)
+        except Exception:
+            logger.exception("重启失败，请手动重启服务")
+
+    threading.Thread(target=_run, name="zhange-self-update-restart", daemon=True).start()
+
+
+async def apply_update(
+    *,
+    version: str = "latest",
+    proxy: str | None = None,
+    reboot: bool = True,
+) -> UpdateResult:
+    allowed, reason = update_allowed()
+    if not allowed:
+        return UpdateResult(ok=False, message=reason)
+
+    if not _lock.acquire(blocking=False):
+        return UpdateResult(ok=False, message="已有更新任务进行中")
+
+    install_dir = resolve_install_dir()
+    settings = get_settings()
+    tmp_root = Path(settings.DATA_DIR).expanduser()
+    if not tmp_root.is_absolute():
+        tmp_root = (install_dir / tmp_root).resolve()
+    else:
+        tmp_root = tmp_root.resolve()
+    work = tmp_root / "update-tmp"
+
+    try:
+        _set_progress(busy=True, phase="check", message="检查版本…", error="", target_version="")
+        releases = await fetch_releases(proxy=proxy)
+        if not releases:
+            return UpdateResult(ok=False, message="未获取到任何 GitHub Release")
+
+        target: ReleaseInfo | None = None
+        ver = (version or "latest").strip()
+        if ver in ("", "latest"):
+            target = releases[0]
+            if compare_version(target.tag_name, settings.APP_VERSION) <= 0:
+                return UpdateResult(
+                    ok=False,
+                    message=f"当前已经是最新版本（{settings.APP_VERSION}）",
+                    version=settings.APP_VERSION,
+                )
+        else:
+            want = ver if ver.startswith("v") else f"v{ver}"
+            for rel in releases:
+                if rel.tag_name == want or rel.tag_name.lstrip("vV") == ver.lstrip("vV"):
+                    target = rel
+                    break
+            if target is None:
+                return UpdateResult(ok=False, message=f"未找到版本 {ver}")
+
+        assert target is not None
+        _set_progress(
+            busy=True,
+            phase="download",
+            message=f"下载 {target.tag_name}…",
+            target_version=target.tag_name,
+        )
+
+        if work.exists():
+            shutil.rmtree(work, ignore_errors=True)
+        work.mkdir(parents=True, exist_ok=True)
+
+        zip_path = work / "source.zip"
+        if not target.zipball_url:
+            return UpdateResult(ok=False, message="该 Release 缺少 zipball_url")
+        await _download(target.zipball_url, zip_path, proxy=proxy)
+
+        static_path = work / "static.tar.gz"
+        if target.static_asset_url:
+            await _download(target.static_asset_url, static_path, proxy=proxy)
+        else:
+            # Fallback: construct release download URL
+            repo = (settings.UPDATE_GITHUB_REPO or "739790797/zhange-stats").strip()
+            asset = _static_asset_name(target.tag_name)
+            tag = target.tag_name if target.tag_name.startswith("v") else f"v{target.tag_name}"
+            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+            try:
+                await _download(url, static_path, proxy=proxy)
+            except Exception as e:
+                logger.warning("下载 static 资产失败: %s", e)
+                static_path = Path("")  # mark missing
+
+        _set_progress(phase="apply", message="覆盖代码（白名单）…")
+        applied = apply_source_zip(zip_path, install_dir)
+        logger.info("applied source paths: %s", applied)
+
+        static_dir = Path(settings.STATIC_DIR).expanduser() if settings.STATIC_DIR else install_dir / "static"
+        if not static_dir.is_absolute():
+            static_dir = (install_dir / static_dir).resolve()
+        if static_path and static_path.is_file():
+            _set_progress(phase="static", message="解压前端 static…")
+            apply_static_tar(static_path, static_dir)
+        else:
+            logger.warning("跳过 static 更新（无资产）")
+
+        _set_progress(phase="pip", message="安装 Python 依赖…")
+        await asyncio.to_thread(pip_install_requirements, install_dir)
+
+        # Refresh VERSION into settings cache is pointless — process will restart
+        new_ver = (install_dir / "VERSION").read_text(encoding="utf-8").strip()
+        _set_progress(phase="done", message=f"已更新到 {new_ver}", error="")
+
+        if reboot:
+            _set_progress(phase="restart", message="即将重启…")
+            trigger_restart(delay_sec=1.5)
+            return UpdateResult(
+                ok=True,
+                message=f"更新成功（{new_ver}），即将重启以加载新代码",
+                version=new_ver,
+                reboot=True,
+            )
+        return UpdateResult(
+            ok=True,
+            message=f"更新成功（{new_ver}），请手动重启服务",
+            version=new_ver,
+            reboot=False,
+        )
+    except Exception as e:
+        logger.exception("self-update failed")
+        _set_progress(phase="error", message="更新失败", error=str(e))
+        return UpdateResult(ok=False, message=f"更新失败: {e}")
+    finally:
+        _set_progress(busy=False)
+        _lock.release()

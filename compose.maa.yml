@@ -1,24 +1,26 @@
-# MAA 全托管执行面（默认不启）。在 R730XD 上一键启用：
+# MAA 全托管执行面（可选；与 LXC 控制面解耦）。
+# 控制面用 scripts/install.sh 裸跑；本文件仅拉起 Worker + 可选 Redroid PoC。
 #   sudo bash scripts/install-maa-host.sh
 # 详见 docs/maa-ops.md
 #
-# 之后：binder 开机自动加载；Worker 随 compose 启动；Watchtower 拉 GHCR 新镜像。
+# 镜像需自行 docker build（主线 CI 不再推 GHCR）：
+#   docker compose -f compose.maa.yml --profile maa build
 
 services:
   maa-worker:
     profiles: ["maa"]
-    image: ${MAA_WORKER_IMAGE:-ghcr.io/739790797/zhange-stats-maa-worker}:${MAA_WORKER_TAG:-latest}
+    image: ${MAA_WORKER_IMAGE:-zhange-stats-maa-worker}:${MAA_WORKER_TAG:-local}
     build:
       context: ./maa-worker
       dockerfile: Dockerfile
     restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:
-      MAA_APP_BASE_URL: ${MAA_APP_BASE_URL:-http://app:8000}
+      # LXC 控制面在宿主机时默认走 host.docker.internal
+      MAA_APP_BASE_URL: ${MAA_APP_BASE_URL:-http://host.docker.internal:8000}
       # MAA_WORKER_TOKEN / SECRET_KEY 只从 env_file 注入。
       # 勿写成 ${VAR:-}：宿主机未 export 时会变成空串并覆盖 .env。
       DATA_DIR: /app/data
@@ -30,11 +32,7 @@ services:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
-      - default
       - maa
-    labels:
-      # 与 app 一样由 Watchtower 跟随 GHCR latest/钉版本
-      com.centurylinklabs.watchtower.enable: "true"
 
   # PoC / 手工验证用静态 Redroid（可选）。生产槽位由 maa-worker 动态创建。
   redroid-poc:
@@ -53,7 +51,6 @@ services:
       - androidboot.redroid_gpu_mode=guest
       - androidboot.redroid_fps=30
     labels:
-      com.centurylinklabs.watchtower.enable: "false"
       zhange.maa.poc: "1"
 
 networks:

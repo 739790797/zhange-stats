@@ -56,5 +56,5 @@ alembic upgrade head
 
 ## CI
 
-PR/push：`frontend-quality`（lint+build）· `backend-tests`（pytest）· `openapi-drift`。  
+PR/push：`frontend-quality`（lint+build）· `backend-tests`（pytest）· `openapi-drift`；`main` 再发 GitHub Release（static 资产）。  
 提交信息偏好 conventional commits（`feat` / `fix` / `chore` / `docs` / …）。

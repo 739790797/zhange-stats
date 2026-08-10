@@ -715,6 +715,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/app-update/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get App Update Status */
+        get: operations["get_app_update_status_api_settings_app_update_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/app-update/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List App Update Releases */
+        get: operations["list_app_update_releases_api_settings_app_update_releases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/app-update/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check App Update */
+        post: operations["check_app_update_api_settings_app_update_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/app-update/do": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Do App Update */
+        post: operations["do_app_update_api_settings_app_update_do_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/jobs": {
         parameters: {
             query?: never;
@@ -2480,6 +2548,129 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AppUpdateCheckOut */
+        AppUpdateCheckOut: {
+            status: components["schemas"]["AppUpdateStatusOut"];
+            /** Releases */
+            releases?: components["schemas"]["AppUpdateReleaseOut"][];
+        };
+        /** AppUpdateDoIn */
+        AppUpdateDoIn: {
+            /**
+             * Version
+             * @description latest or vX.Y.Z
+             * @default latest
+             */
+            version: string;
+            /**
+             * Proxy
+             * @description Optional GitHub proxy URL prefix
+             */
+            proxy?: string | null;
+            /**
+             * Reboot
+             * @default true
+             */
+            reboot: boolean;
+        };
+        /** AppUpdateDoOut */
+        AppUpdateDoOut: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /**
+             * Reboot
+             * @default false
+             */
+            reboot: boolean;
+        };
+        /** AppUpdateReleaseOut */
+        AppUpdateReleaseOut: {
+            /** Tag Name */
+            tag_name: string;
+            /** Name */
+            name: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Published At
+             * @default
+             */
+            published_at: string;
+            /**
+             * Has Static Asset
+             * @default false
+             */
+            has_static_asset: boolean;
+        };
+        /** AppUpdateStatusOut */
+        AppUpdateStatusOut: {
+            /** Current Version */
+            current_version: string;
+            /** Install Dir */
+            install_dir: string;
+            /** Update Allowed */
+            update_allowed: boolean;
+            /**
+             * Update Blocked Reason
+             * @default
+             */
+            update_blocked_reason: string;
+            /**
+             * Has New Version
+             * @default false
+             */
+            has_new_version: boolean;
+            /**
+             * Latest Version
+             * @default
+             */
+            latest_version: string;
+            /**
+             * Latest Body
+             * @default
+             */
+            latest_body: string;
+            /**
+             * Latest Published At
+             * @default
+             */
+            latest_published_at: string;
+            /**
+             * Busy
+             * @default false
+             */
+            busy: boolean;
+            /**
+             * Phase
+             * @default
+             */
+            phase: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /**
+             * Restart Strategy
+             * @default
+             */
+            restart_strategy: string;
+        };
         /** ArknightsAttendanceCalendarOut */
         ArknightsAttendanceCalendarOut: {
             /** Uid */
@@ -7745,6 +7936,99 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+        };
+    };
+    get_app_update_status_api_settings_app_update_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppUpdateStatusOut"];
+                };
+            };
+        };
+    };
+    list_app_update_releases_api_settings_app_update_releases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppUpdateReleaseOut"][];
+                };
+            };
+        };
+    };
+    check_app_update_api_settings_app_update_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppUpdateCheckOut"];
+                };
+            };
+        };
+    };
+    do_app_update_api_settings_app_update_do_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppUpdateDoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppUpdateDoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

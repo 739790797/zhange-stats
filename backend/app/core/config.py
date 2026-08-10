@@ -119,6 +119,17 @@ class Settings(BaseSettings):
     APP_VERSION: str = _read_version_file()
     STATIC_DIR: str = ""
 
+    # 源码/LXC 部署根目录（含 VERSION 与 backend/）；空则自动探测
+    APP_INSTALL_DIR: str = ""
+    # 应用内一键更新：None 时仅 production 默认允许
+    ALLOW_IN_APP_UPDATE: bool | None = None
+    # 非空则更新后执行该 shell 命令；空则 os.execv（systemd 下非 root 可用）
+    APP_RESTART_CMD: str = ""
+    # GitHub Releases（检查/下载更新）
+    UPDATE_GITHUB_REPO: str = "739790797/zhange-stats"
+    UPDATE_GITHUB_API: str = "https://api.github.com"
+    UPDATE_GITHUB_TOKEN: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
@@ -126,6 +137,12 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return (self.APP_ENV or "").strip().lower() in ("production", "prod")
+
+    @property
+    def allow_in_app_update(self) -> bool:
+        if self.ALLOW_IN_APP_UPDATE is not None:
+            return bool(self.ALLOW_IN_APP_UPDATE)
+        return self.is_production
 
     @property
     def reject_weak_admin_password(self) -> bool:

@@ -1,19 +1,19 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.15** — 修复 MAA Worker 截图回退与 compose 空环境变量覆盖；补充 Proxmox LXC 运维说明。
+**v0.2.16** — LXC 源码部署 + 管理端 AstrBot 式一键更新；移除控制面 Docker/Watchtower；CI 发 GitHub Release（预构建 static）。
 
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户；支持 QQ 互联登录 / 绑定
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；仅自己与 Steam 好友）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
-- 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务
+- 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
 - 追放社区绑定、签到、每日任务与兑换
 - 库街区绑定与每日自动签到（社区 + 鸣潮 / 战双）；兑换；鸣潮资料卡（roleBox raw 缓存）
-- Docker 部署后由 **Watchtower** 自动拉取新镜像
+- 生产（LXC）：管理端一键从 GitHub Release 更新代码与预构建前端
 
 ## 技术栈
 
@@ -22,7 +22,7 @@
 | 前端 | React 18 · TypeScript · Vite · Ant Design 5 · TanStack Query · Zustand |
 | 后端 | FastAPI · SQLAlchemy 2 · Alembic · APScheduler · MySQL · JWT / bcrypt |
 
-## 本地开发
+## 本地开发（Windows）
 
 需要 Python 3.11+、Node 18+、MySQL：
 
@@ -36,6 +36,16 @@ cp .env.example .env   # 至少填 DATABASE_URL；JWT 密钥自动生成
 ```
 
 首次打开站点会进入 **安装向导** 创建管理员。邮件 SMTP、Steam/QQ 密钥、登录有效期 / 口令策略、签到与轮询调度：登录后在侧栏 **管理** 配置（写入 `system_configs`）。CI 可用 `ALLOW_ENV_ADMIN_SEED=true` + `ADMIN_*` 跳过向导。
+
+推荐用脚本（热重载）：
+
+```powershell
+.\scripts\dev.ps1 start   # 后端 8000 + Vite 5173
+.\scripts\dev.ps1 status
+.\scripts\dev.ps1 stop
+```
+
+或手动：
 
 ```bash
 # 后端
@@ -51,39 +61,51 @@ cd frontend && npm install && npm run dev
 
 - API：http://127.0.0.1:8000/docs · 前端：http://127.0.0.1:5173  
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
-- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地 `data/`、`uploads/`；Docker 挂载 `./data`）。  
-- 平台可用性：管理员在 **系统管理 → 任务配置** 按平台 / 游戏 / 任务级联开关
+- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地 `data/`、`uploads/`）。  
+- 平台可用性：管理员在 **管理 → 任务配置** 按平台 / 游戏 / 任务级联开关  
+- **管理端一键更新仅面向 production / LXC**；Windows 开发机默认不可用（`APP_ENV=development`）
 
-## Docker
+## 生产部署（Linux LXC，推荐）
 
-镜像只含应用，**MySQL 自备**。复制 `.env` 后：
+单副本源码部署。MySQL 自备；可选本机 Redis（限流 / 扫码 KV；不配则进程内降级）。
 
 ```bash
-docker compose pull && docker compose up -d
-# 浏览器 http://<主机>:8080 （前后端同域，OAuth 回调按访问地址自动推断）
+git clone https://github.com/739790797/zhange-stats.git /opt/zhange-stats
+cd /opt/zhange-stats
+cp .env.example .env   # 编辑 DATABASE_URL；建议 REDIS_URL=redis://127.0.0.1:6379/0
+bash scripts/install.sh
+# 编辑 .env 后：
+sudo systemctl start zhange-stats
+# 浏览器 http://<LXC>:8000 （或经反代）；安装向导创建管理员
 ```
 
-数据卷：`./data`（含 `.secret_key`）、`./data/uploads`（头像）。
+更新方式：
 
-发版：推送到 `main` 时构建一次，镜像标签为 **`VERSION` 文件版本号** + `latest`（例如 `0.2.11` 与 `latest`）。不必再推 `v*` 标签来触发构建；Watchtower 默认跟踪 `latest`。
+- **管理端 → 系统更新**（AstrBot 式：拉 GitHub Release 源码 zip + 预构建 `static` → pip → **进程内 exec 重启**）
+- 或 SSH：`bash scripts/update.sh` / `bash scripts/update.sh v0.2.15`
+- 默认不调用 `systemctl restart`（服务用户通常无权限）；需要时可设 `APP_RESTART_CMD` 并配置 sudoers
 
-**部署形态（重要）**：当前设计为 **单 `app` 副本（all-in-one）**。镜像内同容器嵌 Redis（仅 `127.0.0.1`，用于限流与扫码/cred 短时 KV；无持久化）。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移仍非多实例安全。水平扩展前须另行解决：调度 leader 选举或外置 job、共享 `DATA_DIR`（同一 `SECRET_KEY`）、迁移单点执行，以及**所有副本共享同一 `REDIS_URL`**（否则森空岛扫码 pending / cred 缓存与限流键不互通）。**仅外置 Redis 也不能单独支撑多副本**。本地开发可不启 Redis（`REDIS_URL` 空 → 进程内降级）。
+**部署形态**：单 `app` 进程。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移均非多实例安全。水平扩展前须另行解决调度选举、共享 `DATA_DIR`/`SECRET_KEY`、迁移单点，以及共享 `REDIS_URL`。
 
-**自动更新**：`compose.yml` 含 Watchtower，默认每 5 分钟检查 `app` 镜像；CI 推送新 `latest` 后会自动 pull 并重建。Watchtower 挂载宿主机 `docker.sock`（等同 Docker 管理权限）；可用 `APP_TAG` 钉到具体版本号代替 `latest` 以降风险。
+发版：推送到 `main` 时 CI 按根目录 `VERSION` 创建/更新 GitHub Release（tag `v{VERSION}`），并上传 `zhange-stats-{VERSION}-static.tar.gz`。
+
+持久化目录：`data/`（含 `.secret_key`）、`uploads/`、`.env`（更新白名单不会覆盖）。
+
+MAA 执行面默认不启，且通常不适合在 LXC 内嵌套 Docker；见 [docs/maa-ops.md](docs/maa-ops.md)。
 
 ## 目录
 
 ```
 zhange-stats/
-  compose.yml · compose.maa.yml · Dockerfile · .env.example · VERSION
-  docs/maa-ops.md           # MAA 全托管运维
-  maa-worker/               # 槽位 Worker（Docker + ADB + 截图）
+  .env.example · VERSION · scripts/install.sh · scripts/update.sh
+  deploy/systemd/zhange-stats.service
+  compose.maa.yml           # 可选 MAA 执行面
+  docs/maa-ops.md           # MAA 运维（可选）
+  maa-worker/               # 槽位 Worker（可选 Docker）
   frontend/                 # React
   backend/app/              # api · core · models · services
   backend/alembic/          # 迁移（表结构以 versions/ 为准）
 ```
-
-MAA 执行面默认不启。容器部署可从最新 app 镜像导出宿主机文件后安装：见 [docs/maa-ops.md](docs/maa-ops.md)。`app` 不 privileged、不挂 `docker.sock`。
 ## 数据库
 
 改表须新增 Alembic 迁移，并更新本节总览。细节以 `models/` + `alembic/versions/` 为准。
@@ -153,8 +175,8 @@ arknights_operators · arknights_catalog_meta
 - 登录以邮箱为主，也支持 QQ 登录一键开号（回调只带一次性 `ticket`，前端再换 JWT）；无邮箱时可稍后完善
 - 默认 JWT 有效期 **24 小时**（`ACCESS_TOKEN_EXPIRE_MINUTES` 或管理端「安全」可调；库内已存配置优先生效）
 - JWT 目前存前端 `localStorage`（zustand persist）。后续若迁 **httpOnly Cookie**：需后端 `Set-Cookie`（`Secure`/`SameSite`）、登录/登出/QQ 换票改写、CSRF 策略，以及 SPA 同域部署前提；在完成 CSRF 方案前保持 Bearer header，避免半吊子改造扩大攻击面。
-- 生产设置 `APP_ENV=production`（Docker 镜像默认已设）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖，或遗留 env `REJECT_WEAK_ADMIN_PASSWORD`。
-- 限流与短时 KV（扫码会话、森空岛 cred 缓存）默认：Docker **同容器 Redis**；本地无 `REDIS_URL` 时进程内降级。多 `app` 实例须共享同一 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可设 `TRUST_X_FORWARDED_FOR=true`。**当前请保持单 `app` 副本**（见上文「部署形态」）。
+- 生产设置 `APP_ENV=production`（`scripts/install.sh` 会写入）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖，或遗留 env `REJECT_WEAK_ADMIN_PASSWORD`。
+- 限流与短时 KV（扫码会话、森空岛 cred 缓存）：生产建议设 `REDIS_URL`；本地无 `REDIS_URL` 时进程内降级。多 `app` 实例须共享同一 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可设 `TRUST_X_FORWARDED_FOR=true`。**当前请保持单 `app` 副本**。
 - 站内头像/昵称与 Steam 头像/昵称分离；Steam 页统计使用后者
 - Steam 隐私过严时可能跳过本轮状态；未返回过久会超时收尾会话
 - 森空岛支持扫码 / 短信 / 密码绑定，凭证加密存库；勿在 App 退出登录以免失效
@@ -163,6 +185,7 @@ arknights_operators · arknights_catalog_meta
 - 勿提交 `.env`、`data/`、`uploads/`
 
 - 平台数据约定：养成盒 / 旁路（含肉鸽等）存 raw（体积超阈值会打监控日志）；签到状态/奖励按「今日」写入 `*_checkin_logs`（回源后落库，调度可跳过），`bind.last_checkin_*` 仅为签到动作后的反规范化摘要。**签到页展示始终 force 回源官方**；已签才展示今日奖励；不展示执行记录。详见 [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc)。森空岛官服/B服与补奖见 [`.cursor/rules/skland-upstream.mdc`](.cursor/rules/skland-upstream.mdc)。
-- 工程：GitHub Actions 在 PR/push 上跑前端 lint+build、后端 pytest、OpenAPI drift；`main` 推送再构建并推送 GHCR。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 `frontend/src/api/generated/README.md`）。
+- 工程：GitHub Actions 在 PR/push 上跑前端 lint+build、后端 pytest、OpenAPI drift；`main` 推送再按 `VERSION` 发 GitHub Release（含预构建 static）。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 `frontend/src/api/generated/README.md`）。
 - 健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。
 - 本地无 SMTP 时需设 `ALLOW_EMAIL_CODE_LOG=true` 才能用日志收验证码；`APP_ENV=production` 时启动会硬拒绝该开关。
+- 应用内更新：仅管理员；默认仅 `APP_ENV=production` 允许（可用 `ALLOW_IN_APP_UPDATE` 覆盖）。更新会覆盖白名单路径，不碰 `.env` / `data/` / `uploads/` / `.venv`。
