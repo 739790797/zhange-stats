@@ -783,6 +783,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/runtime-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runtime Logs */
+        get: operations["get_runtime_logs_api_settings_runtime_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime-logs/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Runtime Logs */
+        post: operations["clear_runtime_logs_api_settings_runtime_logs_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runtime Health */
+        get: operations["get_runtime_health_api_settings_runtime_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/jobs": {
         parameters: {
             query?: never;
@@ -5193,6 +5244,66 @@ export interface components {
             /** Roles */
             roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
+        /** RuntimeHealthOut */
+        RuntimeHealthOut: {
+            /** Checked At */
+            checked_at: string;
+            /** Overall */
+            overall: string;
+            /** Services */
+            services?: components["schemas"]["RuntimeHealthServiceOut"][];
+        };
+        /** RuntimeHealthServiceOut */
+        RuntimeHealthServiceOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+        };
+        /** RuntimeLogLineOut */
+        RuntimeLogLineOut: {
+            /** Id */
+            id: number;
+            /** Ts */
+            ts: string;
+            /** Level */
+            level: string;
+            /** Logger */
+            logger: string;
+            /** Message */
+            message: string;
+        };
+        /** RuntimeLogsClearOut */
+        RuntimeLogsClearOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default 已清空内存日志缓冲
+             */
+            message: string;
+        };
+        /** RuntimeLogsOut */
+        RuntimeLogsOut: {
+            /** Capacity */
+            capacity: number;
+            /** Buffered */
+            buffered: number;
+            /** Lines */
+            lines?: components["schemas"]["RuntimeLogLineOut"][];
+        };
         /** ScheduledJobLastRunOut */
         ScheduledJobLastRunOut: {
             /** Status */
@@ -8029,6 +8140,85 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_runtime_logs_api_settings_runtime_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description 最低级别：DEBUG / INFO / WARNING / ERROR / CRITICAL */
+                level?: string | null;
+                /** @description logger 名前缀，如 zhange */
+                logger?: string | null;
+                /** @description 消息或 logger 子串 */
+                q?: string | null;
+                /** @description 仅返回 id 大于该值的新行 */
+                after_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeLogsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_runtime_logs_api_settings_runtime_logs_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeLogsClearOut"];
+                };
+            };
+        };
+    };
+    get_runtime_health_api_settings_runtime_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeHealthOut"];
                 };
             };
         };

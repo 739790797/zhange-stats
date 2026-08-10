@@ -1,0 +1,27 @@
+# 托管槽位默认日常（无交互输入；Worker 以 --batch 调用）
+[[tasks]]
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+type = "Recruit"
+params = { refresh = false, select = [4], confirm = [3, 4], times = 4, expedite = false }
+
+[[tasks]]
+type = "Infrast"
+params = { facility = ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm"], mode = 0, dorm_trust_enabled = true }
+
+[[tasks]]
+type = "Fight"
+params = { stage = "1-7", medicine = 0, stone = 0 }
+
+[[tasks]]
+type = "Award"
+
+[[tasks]]
+type = "Mall"
+params = { shopping = true, buy_first = ["招聘许可", "龙门币"], blacklist = ["碳", "家具", "加急许可"] }
+
+[[tasks]]
+type = "CloseDown"
+params = { client_type = "Official" }

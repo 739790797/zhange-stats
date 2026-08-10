@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -9,11 +10,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import auth, exilium, jobs, kujiequ, maa, members, napcat, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
+from app.api import runtime_health as runtime_health_api
+from app.api import runtime_logs as runtime_logs_api
 from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
+from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
@@ -35,7 +39,9 @@ from app.services.seed import seed_data
 from app.services.scheduler_runtime import register_scheduler_jobs
 from app.services.member_sync import sync_users_and_members
 
+logger = logging.getLogger("zhange.startup")
 scheduler = BackgroundScheduler()
+install_runtime_log_buffer()
 
 
 def _ensure_upload_root() -> Path:
@@ -50,28 +56,61 @@ def _ensure_upload_root() -> Path:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    cfg = get_settings()
+    logger.info(
+        "startup begin version=%s env=%s install_dir=%s",
+        cfg.APP_VERSION,
+        cfg.APP_ENV,
+        (cfg.APP_INSTALL_DIR or "").strip() or "(unset)",
+    )
+
+    logger.info("startup step 1/8: alembic migrate")
     run_migrations()
-    _ensure_upload_root()
+
+    logger.info("startup step 2/8: ensure upload root (%s)", cfg.UPLOAD_DIR)
+    upload_path = _ensure_upload_root()
+    logger.info("startup step 2/8 done: upload_root=%s", upload_path)
+
     db = SessionLocal()
     try:
+        logger.info("startup step 3/8: beijing time storage check")
         ensure_beijing_time_storage(db, engine)
+
+        logger.info("startup step 4/8: seed data")
         seed_data(db)
+
         from app.services.security_bootstrap import (
             check_admin_password_health,
             check_email_code_log_policy,
         )
 
+        logger.info("startup step 5/8: email code log policy")
         check_email_code_log_policy()
+
+        logger.info("startup step 6/8: admin password health")
         check_admin_password_health(db)
+
+        logger.info("startup step 7/8: sync users and members")
         sync_users_and_members(db)
+
+        logger.info("startup step 8/8: register scheduler jobs (run_steam_once=true)")
         register_scheduler_jobs(scheduler, db, run_steam_once=True)
     finally:
         db.close()
 
+    logger.info(
+        "startup complete version=%s scheduler_running=%s static_dir=%s",
+        cfg.APP_VERSION,
+        scheduler.running,
+        (cfg.STATIC_DIR or "").strip() or "(unset)",
+    )
     yield
 
+    logger.info("shutdown begin")
     if scheduler.running:
+        logger.info("shutdown: stopping scheduler")
         scheduler.shutdown(wait=False)
+    logger.info("shutdown complete")
 
 
 settings = get_settings()
@@ -103,6 +142,8 @@ api.include_router(members.router)
 api.include_router(profile.router)
 api.include_router(settings_api.router)
 api.include_router(app_update_api.router)
+api.include_router(runtime_logs_api.router)
+api.include_router(runtime_health_api.router)
 api.include_router(jobs.router)
 api.include_router(steam.router)
 api.include_router(skland.router)

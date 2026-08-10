@@ -39,7 +39,7 @@ sudo bash scripts/install-maa-host.sh
 之后日常：
 
 - **重启机器**：binder 由 systemd 自动加载；Worker `restart: unless-stopped`
-- **Worker 镜像**：自行 `docker compose -f compose.maa.yml --profile maa build`
+- **Worker 镜像**：自行 `docker compose -f compose.maa.yml --profile maa build`（预装 `maa-cli`；MaaCore 首次启动时拉取到卷 `maa-cli-data`）
 - **开槽**：管理端「新增槽位」→ Worker 自动供给 Android
 
 仅装 binder / 改 env、暂不 `up`：
@@ -107,7 +107,7 @@ docker compose -f compose.maa.yml --profile maa up -d
 1. `adb connect` 到动态槽（Worker 网络内 `{container}:5555`）。
 2. 安装明日方舟并完成登录（MVP：管理员内网操作）。
 3. 管理端新增槽位 → 进度列显示 `[n/5 …]` → **`online`** → 绑定成员。
-4. 用户侧明日方舟 → MAA Tab；日常需 Worker 内 `maa-cli`（未装则任务失败并写明原因）。
+4. 用户侧明日方舟 → MAA Tab；日常由 Worker 内预装的 `maa-cli` + MaaCore 执行（`maa run daily -a <adb>`）。
 
 ## 安全
 

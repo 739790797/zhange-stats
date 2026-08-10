@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.16** — LXC 源码部署 + 管理端 AstrBot 式一键更新；移除控制面 Docker/Watchtower；CI 发 GitHub Release（预构建 static）。
+**v0.2.17** — 平台日志页多服务健康观测与进程内日志；管理菜单整理；LXC 一键更新与 MAA 执行面。
 
 ## 功能
 

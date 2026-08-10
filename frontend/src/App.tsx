@@ -25,6 +25,7 @@ import UserManagementPage from "@/pages/UserManagementPage";
 import MaaSettingsPage from "@/pages/MaaSettingsPage";
 import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
+import PlatformLogsPage from "@/pages/PlatformLogsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
@@ -200,6 +201,14 @@ export default function App() {
                 element={
                   <AdminPage>
                     <MaaSettingsPage />
+                  </AdminPage>
+                }
+              />
+              <Route
+                path="/settings/logs"
+                element={
+                  <AdminPage>
+                    <PlatformLogsPage />
                   </AdminPage>
                 }
               />

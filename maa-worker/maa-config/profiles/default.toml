@@ -1,0 +1,11 @@
+# 默认连接配置；运行时由 `maa run daily -a <adb_endpoint>` 覆盖 address
+[connection]
+adb_path = "adb"
+address = "127.0.0.1:5555"
+config = "CompatPOSIXShell"
+
+[instance_options]
+touch_mode = "MaaTouch"
+deployment_with_pause = false
+adb_lite_enabled = false
+kill_adb_on_exit = false

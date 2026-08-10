@@ -1,0 +1,8 @@
+# 安装/更新 MaaCore 时跳过镜像测速（Docker 构建非交互）
+[core]
+channel = "Stable"
+test_time = 0
+
+[core.components]
+library = true
+resource = true

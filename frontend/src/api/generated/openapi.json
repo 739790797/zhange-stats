@@ -2231,6 +2231,175 @@
         ]
       }
     },
+    "/api/settings/runtime-logs": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Runtime Logs",
+        "operationId": "get_runtime_logs_api_settings_runtime_logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 300,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "最低级别：DEBUG / INFO / WARNING / ERROR / CRITICAL",
+              "title": "Level"
+            },
+            "description": "最低级别：DEBUG / INFO / WARNING / ERROR / CRITICAL"
+          },
+          {
+            "name": "logger",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "logger 名前缀，如 zhange",
+              "title": "Logger"
+            },
+            "description": "logger 名前缀，如 zhange"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "消息或 logger 子串",
+              "title": "Q"
+            },
+            "description": "消息或 logger 子串"
+          },
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "仅返回 id 大于该值的新行",
+              "default": 0,
+              "title": "After Id"
+            },
+            "description": "仅返回 id 大于该值的新行"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeLogsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/runtime-logs/clear": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Clear Runtime Logs",
+        "operationId": "clear_runtime_logs_api_settings_runtime_logs_clear_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeLogsClearOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/runtime-health": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Runtime Health",
+        "operationId": "get_runtime_health_api_settings_runtime_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeHealthOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/jobs": {
       "get": {
         "tags": [
@@ -13784,6 +13953,144 @@
           "platform"
         ],
         "title": "RoleMembershipTreeOut"
+      },
+      "RuntimeHealthOut": {
+        "properties": {
+          "checked_at": {
+            "type": "string",
+            "title": "Checked At"
+          },
+          "overall": {
+            "type": "string",
+            "title": "Overall"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeHealthServiceOut"
+            },
+            "type": "array",
+            "title": "Services"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checked_at",
+          "overall"
+        ],
+        "title": "RuntimeHealthOut"
+      },
+      "RuntimeHealthServiceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "title": "RuntimeHealthServiceOut"
+      },
+      "RuntimeLogLineOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "logger": {
+            "type": "string",
+            "title": "Logger"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "ts",
+          "level",
+          "logger",
+          "message"
+        ],
+        "title": "RuntimeLogLineOut"
+      },
+      "RuntimeLogsClearOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "已清空内存日志缓冲"
+          }
+        },
+        "type": "object",
+        "title": "RuntimeLogsClearOut"
+      },
+      "RuntimeLogsOut": {
+        "properties": {
+          "capacity": {
+            "type": "integer",
+            "title": "Capacity"
+          },
+          "buffered": {
+            "type": "integer",
+            "title": "Buffered"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeLogLineOut"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "capacity",
+          "buffered"
+        ],
+        "title": "RuntimeLogsOut"
       },
       "ScheduledJobLastRunOut": {
         "properties": {

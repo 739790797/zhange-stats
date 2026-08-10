@@ -2,6 +2,7 @@ import {
   CalendarOutlined,
   CloudDownloadOutlined,
   CloudServerOutlined,
+  FileTextOutlined,
   KeyOutlined,
   LockOutlined,
   LogoutOutlined,
@@ -15,6 +16,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import {
   Avatar,
+  Badge,
   Button,
   Layout,
   Menu,
@@ -23,8 +25,11 @@ import {
   Typography,
   theme,
 } from "antd";
+import type { MenuProps } from "antd";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
 import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -41,58 +46,45 @@ import {
 } from "@/lib/platformFeatures";
 import { useAuthStore } from "@/stores/authStore";
 
+function MenuLabelWithDot({
+  children,
+  showDot,
+  to,
+}: {
+  children: ReactNode;
+  showDot?: boolean;
+  to?: string;
+}) {
+  const label = (
+    <Badge dot={Boolean(showDot)} offset={[6, 0]} color="#ff4d4f">
+      <span>{children}</span>
+    </Badge>
+  );
+  return to ? <Link to={to}>{label}</Link> : label;
+}
+
 const { Header, Sider, Content } = Layout;
 
-const ADMIN_NAV = [
-  {
-    key: "/settings/users",
-    label: "用户管理",
-    icon: <TeamOutlined />,
-  },
-  {
-    key: "/settings/auth",
-    label: "安全设置",
-    icon: <LockOutlined />,
-  },
-  {
-    key: "/settings/integrations",
-    label: "集成密钥",
-    icon: <KeyOutlined />,
-  },
-  {
-    key: "/settings/qq-groups",
-    label: "QQ群",
-    icon: <UsergroupAddOutlined />,
-  },
-  {
-    key: "/settings/email",
-    label: "邮箱设置",
-    icon: <MailOutlined />,
-  },
-  {
-    key: "/settings/task-config",
-    label: "任务配置",
-    icon: <SettingOutlined />,
-  },
-  {
-    key: "/settings/jobs",
-    label: "任务调度",
-    icon: <ScheduleOutlined />,
-  },
-  {
-    key: "/settings/maa",
-    label: "MAA 资源",
-    icon: <CloudServerOutlined />,
-  },
-  {
-    key: "/settings/system",
-    label: "系统更新",
-    icon: <CloudDownloadOutlined />,
-  },
+const SYSTEM_CHILD_KEYS = [
+  "/settings/auth",
+  "/settings/integrations",
+  "/settings/email",
+  "/settings/system",
+] as const;
+
+const JOBS_CHILD_KEYS = ["/settings/task-config", "/settings/jobs"] as const;
+
+const ADMIN_LEAF_KEYS = [
+  "/settings/users",
+  "/settings/qq-groups",
+  ...JOBS_CHILD_KEYS,
+  "/settings/maa",
+  "/settings/logs",
+  ...SYSTEM_CHILD_KEYS,
 ] as const;
 
 const leafKeys = [
-  ...ADMIN_NAV.map((item) => item.key),
+  ...ADMIN_LEAF_KEYS,
   "/steam",
   "/skland",
   "/taygedo",
@@ -102,6 +94,79 @@ const leafKeys = [
   "/profile",
 ];
 
+function buildAdminMenuItems(hasAppUpdate: boolean): MenuProps["items"] {
+  return [
+    {
+      key: "admin-system",
+      icon: <SettingOutlined />,
+      label: <MenuLabelWithDot showDot={hasAppUpdate}>系统管理</MenuLabelWithDot>,
+      children: [
+        {
+          key: "/settings/auth",
+          icon: <LockOutlined />,
+          label: <Link to="/settings/auth">安全设置</Link>,
+        },
+        {
+          key: "/settings/integrations",
+          icon: <KeyOutlined />,
+          label: <Link to="/settings/integrations">集成密钥</Link>,
+        },
+        {
+          key: "/settings/email",
+          icon: <MailOutlined />,
+          label: <Link to="/settings/email">邮箱设置</Link>,
+        },
+        {
+          key: "/settings/system",
+          icon: <CloudDownloadOutlined />,
+          label: (
+            <MenuLabelWithDot to="/settings/system" showDot={hasAppUpdate}>
+              系统更新
+            </MenuLabelWithDot>
+          ),
+        },
+      ],
+    },
+    {
+      key: "admin-jobs",
+      icon: <ScheduleOutlined />,
+      label: "任务管理",
+      children: [
+        {
+          key: "/settings/task-config",
+          icon: <SettingOutlined />,
+          label: <Link to="/settings/task-config">任务配置</Link>,
+        },
+        {
+          key: "/settings/jobs",
+          icon: <ScheduleOutlined />,
+          label: <Link to="/settings/jobs">任务调度</Link>,
+        },
+      ],
+    },
+    {
+      key: "/settings/users",
+      icon: <TeamOutlined />,
+      label: <Link to="/settings/users">用户管理</Link>,
+    },
+    {
+      key: "/settings/logs",
+      icon: <FileTextOutlined />,
+      label: <Link to="/settings/logs">平台日志</Link>,
+    },
+    {
+      key: "/settings/maa",
+      icon: <CloudServerOutlined />,
+      label: <Link to="/settings/maa">MAA 资源</Link>,
+    },
+    {
+      key: "/settings/qq-groups",
+      icon: <UsergroupAddOutlined />,
+      label: <Link to="/settings/qq-groups">QQ群</Link>,
+    },
+  ];
+}
+
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -110,6 +175,7 @@ export function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const { token } = theme.useToken();
   const [completeOpen, setCompleteOpen] = useState(false);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -186,12 +252,11 @@ export function AppLayout() {
       return "/settings/users";
     }
     if (location.pathname.startsWith("/settings/")) {
-      const hit = ADMIN_NAV.find(
-        (item) =>
-          location.pathname === item.key ||
-          location.pathname.startsWith(`${item.key}/`),
+      const hit = ADMIN_LEAF_KEYS.find(
+        (key) =>
+          location.pathname === key || location.pathname.startsWith(`${key}/`),
       );
-      if (hit) return hit.key;
+      if (hit) return hit;
     }
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
@@ -211,8 +276,31 @@ export function AppLayout() {
     );
   }, [location.pathname]);
 
+  useEffect(() => {
+    const next: string[] = [];
+    if ((SYSTEM_CHILD_KEYS as readonly string[]).includes(selected)) {
+      next.push("admin-system");
+    }
+    if ((JOBS_CHILD_KEYS as readonly string[]).includes(selected)) {
+      next.push("admin-jobs");
+    }
+    if (!next.length) return;
+    setOpenKeys((prev) => Array.from(new Set([...prev, ...next])));
+  }, [selected]);
+
   const isAdmin = isAdminUser(user);
   const features = featuresQuery.data;
+
+  const appUpdateQuery = useQuery({
+    queryKey: ["app-update-status"],
+    queryFn: fetchAppUpdateStatus,
+    enabled: isAdmin,
+    staleTime: 5 * 60_000,
+    refetchInterval: 30 * 60_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const hasAppUpdate = Boolean(appUpdateQuery.data?.has_new_version);
 
   const platformItems = PLATFORM_NAV.filter((item) =>
     isFeatureOn(features, item.featureId),
@@ -235,21 +323,26 @@ export function AppLayout() {
     },
   ];
 
-  const adminItems = isAdmin
-    ? ADMIN_NAV.map((item) => ({
-        key: item.key,
-        icon: item.icon,
-        label: <Link to={item.key}>{item.label}</Link>,
-      }))
-    : [];
+  const adminMenuItems = useMemo(
+    () => buildAdminMenuItems(hasAppUpdate),
+    [hasAppUpdate],
+  );
 
   const menuItems = [
     ...(platformItems.length
       ? [{ type: "group" as const, label: "平台", children: platformItems }]
       : []),
     { type: "group" as const, label: "我的", children: mineItems },
-    ...(adminItems.length
-      ? [{ type: "group" as const, label: "管理", children: adminItems }]
+    ...(isAdmin
+      ? [
+          {
+            type: "group" as const,
+            label: (
+              <MenuLabelWithDot showDot={hasAppUpdate}>管理</MenuLabelWithDot>
+            ),
+            children: adminMenuItems,
+          },
+        ]
       : []),
   ];
 
@@ -344,6 +437,8 @@ export function AppLayout() {
             mode="inline"
             className="sider-menu"
             selectedKeys={[selected]}
+            openKeys={openKeys}
+            onOpenChange={setOpenKeys}
             items={menuItems}
             style={{
               background: "#1a2332",
@@ -414,7 +509,11 @@ export function AppLayout() {
                 </Tooltip>
               </div>
               <div style={{ marginTop: 4, paddingBottom: 2 }}>
-                <AppVersion light />
+                <AppVersion
+                  light
+                  hasUpdate={hasAppUpdate}
+                  latestVersion={appUpdateQuery.data?.latest_version}
+                />
               </div>
             </div>
           </div>

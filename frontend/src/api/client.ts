@@ -91,6 +91,13 @@ export type {
   AppUpdateDoResult,
 } from "./appUpdateApi";
 
+export { fetchRuntimeLogs, clearRuntimeLogs } from "./runtimeLogsApi";
+export type {
+  RuntimeLogLine,
+  RuntimeLogsResult,
+  FetchRuntimeLogsParams,
+} from "./runtimeLogsApi";
+
 export { fetchSetupStatus, completeSetupAdmin } from "./setupApi";
 export type { SetupStatus, SetupAdminResult } from "./setupApi";
 

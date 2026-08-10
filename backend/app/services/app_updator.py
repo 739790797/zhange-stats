@@ -57,6 +57,16 @@ _progress: dict[str, Any] = {
     "target_version": "",
 }
 
+# Status / 侧栏红点轮询会打 GitHub；默认 15 分钟缓存（手动「检查更新」force 刷新）
+CHECK_CACHE_TTL_SEC = 15 * 60
+_check_cache_lock = threading.Lock()
+_check_cache: dict[str, Any] = {
+    "expires_at": 0.0,
+    "latest": None,
+    "releases": None,
+    "fetched": False,
+}
+
 
 class _UpdateLock:
     """Thread mutex + optional POSIX file lock under DATA_DIR/update.lock."""
@@ -291,7 +301,46 @@ async def fetch_releases(limit: int = 20, proxy: str | None = None) -> list[Rele
     return out
 
 
-async def check_update(proxy: str | None = None) -> tuple[ReleaseInfo | None, list[ReleaseInfo]]:
+def invalidate_check_cache() -> None:
+    with _check_cache_lock:
+        _check_cache["expires_at"] = 0.0
+        _check_cache["latest"] = None
+        _check_cache["releases"] = None
+        _check_cache["fetched"] = False
+
+
+def _read_check_cache() -> tuple[ReleaseInfo | None, list[ReleaseInfo]] | None:
+    with _check_cache_lock:
+        if not _check_cache.get("fetched"):
+            return None
+        if time.monotonic() >= float(_check_cache.get("expires_at") or 0):
+            return None
+        latest = _check_cache.get("latest")
+        releases = _check_cache.get("releases")
+        if not isinstance(releases, list):
+            return None
+        return latest, releases
+
+
+def _write_check_cache(latest: ReleaseInfo | None, releases: list[ReleaseInfo]) -> None:
+    with _check_cache_lock:
+        _check_cache["latest"] = latest
+        _check_cache["releases"] = list(releases)
+        _check_cache["fetched"] = True
+        _check_cache["expires_at"] = time.monotonic() + CHECK_CACHE_TTL_SEC
+
+
+async def check_update(
+    proxy: str | None = None,
+    *,
+    force: bool = False,
+) -> tuple[ReleaseInfo | None, list[ReleaseInfo]]:
+    # 带 proxy 的检查不走共享缓存（避免污染直连结果）
+    if not force and not (proxy or "").strip():
+        cached = _read_check_cache()
+        if cached is not None:
+            return cached
+
     settings = get_settings()
     releases = await fetch_releases(proxy=proxy)
     current = settings.APP_VERSION
@@ -300,6 +349,8 @@ async def check_update(proxy: str | None = None) -> tuple[ReleaseInfo | None, li
         if compare_version(rel.tag_name, current) > 0:
             latest = rel
             break
+    if not (proxy or "").strip():
+        _write_check_cache(latest, releases)
     return latest, releases
 
 
@@ -575,6 +626,7 @@ async def apply_update(
 
         # Refresh VERSION into settings cache is pointless — process will restart
         new_ver = (install_dir / "VERSION").read_text(encoding="utf-8").strip()
+        invalidate_check_cache()
         _set_progress(phase="done", message=f"已更新到 {new_ver}", error="")
 
         if reboot:

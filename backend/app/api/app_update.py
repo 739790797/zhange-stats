@@ -106,7 +106,7 @@ async def list_app_update_releases(
 @router.post("/check", response_model=AppUpdateCheckOut)
 async def check_app_update(_: User = Depends(require_admin)) -> AppUpdateCheckOut:
     try:
-        latest, releases = await app_updator.check_update()
+        latest, releases = await app_updator.check_update(force=True)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"检查更新失败: {e}") from e
     return AppUpdateCheckOut(

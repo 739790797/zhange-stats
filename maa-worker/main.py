@@ -207,29 +207,31 @@ def capture_slot_png(
     return None
 
 
+def maa_cli_available() -> bool:
+    return bool(shutil.which(MAA_CLI) or Path(MAA_CLI).exists())
+
+
 def run_maa_daily(endpoint: str) -> tuple[bool, str]:
     """尝试 maa-cli；不可用时仅截图占位并返回提示。"""
-    if shutil.which(MAA_CLI) or Path(MAA_CLI).exists():
-        try:
-            env = os.environ.copy()
-            # maa-cli 连接地址因版本而异；优先环境变量透传
-            env["MAA_CONNECTION_ADDRESS"] = endpoint
-            proc = _run(
-                [MAA_CLI, "run", "daily"],
-                capture_output=True,
-                text=True,
-                timeout=3600,
-                env=env,
-            )
-            if proc.returncode == 0:
-                return True, "maa-cli daily ok"
-            return False, (proc.stderr or proc.stdout or f"exit {proc.returncode}")[:2000]
-        except (subprocess.SubprocessError, OSError) as e:
-            return False, f"maa-cli error: {e}"
-    return (
-        False,
-        "maa-cli 未安装：已记录任务失败。请在 Worker 镜像安装 maa-cli 后重试。",
-    )
+    if not maa_cli_available():
+        return (
+            False,
+            "maa-cli 未安装：已记录任务失败。请在 Worker 镜像安装 maa-cli 后重试。",
+        )
+    if not (endpoint or "").strip():
+        return False, "缺少 ADB endpoint，无法连接槽位"
+    try:
+        proc = _run(
+            [MAA_CLI, "--batch", "run", "daily", "-a", endpoint.strip()],
+            capture_output=True,
+            text=True,
+            timeout=3600,
+        )
+        if proc.returncode == 0:
+            return True, "maa-cli daily ok"
+        return False, (proc.stderr or proc.stdout or f"exit {proc.returncode}")[:2000]
+    except (subprocess.SubprocessError, OSError) as e:
+        return False, f"maa-cli error: {e}"
 
 
 def handle_provision(ops: DockerOps, client: httpx.Client, slot: dict) -> None:
@@ -357,7 +359,7 @@ def handle_provision(ops: DockerOps, client: httpx.Client, slot: dict) -> None:
             heartbeat(client, payload)
             return
         _provision_rounds.pop(slot_id, None)
-        maa_ok = bool(shutil.which(MAA_CLI) or Path(MAA_CLI).exists())
+        maa_ok = maa_cli_available()
         maa_note = "maa-cli 可用" if maa_ok else "maa-cli 未安装（日常任务将失败，Android 已就绪）"
         ready_payload: dict = {
             "slot_id": slot_id,
@@ -366,7 +368,8 @@ def handle_provision(ops: DockerOps, client: httpx.Client, slot: dict) -> None:
             "container_name": name,
             "volume_name": volume,
             "adb_endpoint": endpoint,
-            "last_error": "" if maa_ok else provision_progress(5, "maa-cli 未安装"),
+            # Android 就绪即清空进度文案；缺 maa-cli 只写审计，避免管理端误报失败
+            "last_error": "",
             "cpu_percent": stats.get("cpu_percent"),
             "memory_usage_mb": stats.get("memory_usage_mb"),
             "audit_action": "provision_ready",
@@ -699,6 +702,13 @@ def refresh_slot_screenshots(
         }
         if png:
             payload["screenshot_relpath"] = save_screenshot(sid, png)
+        # 镜像升级装上 maa-cli 后，清掉历史「未安装」误报
+        if (
+            status == "online"
+            and maa_cli_available()
+            and "maa-cli 未安装" in (slot.get("last_error") or "")
+        ):
+            payload["last_error"] = ""
         if status == "provisioning":
             if not (payload["cpu_percent"] or payload["memory_usage_mb"]):
                 continue

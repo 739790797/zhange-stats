@@ -19,6 +19,33 @@ def test_compare_version_semver():
     assert u.compare_version("1.0.0", "0.9.9") > 0
 
 
+def test_check_cache_roundtrip(monkeypatch: pytest.MonkeyPatch):
+    u.invalidate_check_cache()
+    rel = u.ReleaseInfo(
+        tag_name="v9.9.9",
+        name="v9.9.9",
+        body="",
+        published_at="",
+        zipball_url="https://example.com/z.zip",
+    )
+    u._write_check_cache(rel, [rel])
+    cached = u._read_check_cache()
+    assert cached is not None
+    latest, releases = cached
+    assert latest is not None and latest.tag_name == "v9.9.9"
+    assert len(releases) == 1
+
+    monkeypatch.setattr(u, "CHECK_CACHE_TTL_SEC", 0)
+    u._write_check_cache(rel, [rel])
+    # expires_at = now + 0 → immediately stale on next read after tiny sleep
+    import time
+
+    time.sleep(0.01)
+    assert u._read_check_cache() is None
+    u.invalidate_check_cache()
+    assert u._read_check_cache() is None
+
+
 def test_path_whitelist_and_protected(tmp_path: Path):
     assert u._path_allowed_from_whitelist("backend/app/main.py")
     assert u._path_allowed_from_whitelist("VERSION")

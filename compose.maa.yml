@@ -30,6 +30,7 @@ services:
       MAA_SCREENSHOT_INTERVAL_SEC: ${MAA_SCREENSHOT_INTERVAL_SEC:-3}
     volumes:
       - ./data:/app/data
+      - maa-cli-data:/var/lib/maa
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - maa
@@ -60,3 +61,4 @@ networks:
 
 volumes:
   redroid-poc-data:
+  maa-cli-data:

@@ -53,6 +53,20 @@ a {
   width: 0;
 }
 
+/* 分组标题（平台 / 我的 / 管理）：与 dark 菜单一致，避免 Badge 自定义节点继承 body 深色字 */
+.sider-menu.ant-menu-dark .ant-menu-item-group-title {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.sider-menu.ant-menu-dark .ant-menu-item-group-title .ant-badge,
+.sider-menu.ant-menu-dark .ant-menu-item-group-title .ant-badge > span,
+.sider-menu.ant-menu-dark .ant-menu-submenu-title .ant-badge,
+.sider-menu.ant-menu-dark .ant-menu-submenu-title .ant-badge > span,
+.sider-menu.ant-menu-dark .ant-menu-item .ant-badge,
+.sider-menu.ant-menu-dark .ant-menu-item .ant-badge > span {
+  color: inherit;
+}
+
 .sider-menu.ant-menu-dark .ant-menu-item,
 .sider-menu.ant-menu-dark .ant-menu-submenu-title {
   margin-inline: 8px;
