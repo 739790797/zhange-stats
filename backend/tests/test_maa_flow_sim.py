@@ -100,10 +100,10 @@ def maa_env(tmp_path, monkeypatch):
     yield {
         "db": db,
         "admin_headers": {
-            "Authorization": f"Bearer {create_access_token(admin.username)}"
+            "Authorization": f"Bearer {create_access_token(admin.username, expires_minutes=120)}"
         },
         "user_headers": {
-            "Authorization": f"Bearer {create_access_token(user.username)}"
+            "Authorization": f"Bearer {create_access_token(user.username, expires_minutes=120)}"
         },
         "worker_headers": {"X-Maa-Worker-Token": "test-worker-token"},
         "member_id": member.id,
