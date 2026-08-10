@@ -23,6 +23,7 @@ def _env_defaults() -> dict[str, str]:
         "qq_app_key": (s.QQ_APP_KEY or "").strip(),
         "napcat_base_url": (s.NAPCAT_BASE_URL or "").strip(),
         "napcat_token": (s.NAPCAT_TOKEN or "").strip(),
+        "github_token": (s.UPDATE_GITHUB_TOKEN or "").strip(),
     }
 
 
@@ -46,7 +47,7 @@ def load_integrations(db: Session) -> dict[str, str]:
             "/"
         )
 
-    for secret_key in ("steam_api_key", "qq_app_key", "napcat_token"):
+    for secret_key in ("steam_api_key", "qq_app_key", "napcat_token", "github_token"):
         if secret_key not in stored:
             continue
         raw = stored.get(secret_key)
@@ -65,6 +66,7 @@ def load_integrations(db: Session) -> dict[str, str]:
         "qq_app_key": merged.get("qq_app_key") or "",
         "napcat_base_url": (merged.get("napcat_base_url") or "").rstrip("/"),
         "napcat_token": merged.get("napcat_token") or "",
+        "github_token": merged.get("github_token") or "",
     }
 
 
@@ -110,6 +112,13 @@ def save_integrations(db: Session, payload: dict[str, Any]) -> dict[str, str]:
         if napcat_token is not None and str(napcat_token).strip():
             stored["napcat_token"] = encrypt_secret(str(napcat_token).strip())
 
+    if payload.get("clear_github_token"):
+        stored.pop("github_token", None)
+    else:
+        github_token = payload.get("github_token")
+        if github_token is not None and str(github_token).strip():
+            stored["github_token"] = encrypt_secret(str(github_token).strip())
+
     raw = json.dumps(stored, ensure_ascii=False)
     if row:
         row.value = raw
@@ -125,6 +134,7 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
     qq_id = cfg.get("qq_app_id") or ""
     napcat_url = cfg.get("napcat_base_url") or ""
     napcat_token = cfg.get("napcat_token") or ""
+    github_token = cfg.get("github_token") or ""
     return {
         "steam_api_key": steam,
         "steam_api_key_set": bool(steam),
@@ -137,6 +147,9 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         "napcat_token": napcat_token,
         "napcat_token_set": bool(napcat_token),
         "napcat_configured": bool(napcat_url and napcat_token),
+        "github_token": github_token,
+        "github_token_set": bool(github_token),
+        "github_configured": bool(github_token),
     }
 
 
@@ -174,5 +187,15 @@ def get_napcat_credentials(db: Session | None = None) -> tuple[str, str]:
     session = SessionLocal()
     try:
         return _read(session)
+    finally:
+        session.close()
+
+
+def get_github_token(db: Session | None = None) -> str:
+    if db is not None:
+        return load_integrations(db).get("github_token") or ""
+    session = SessionLocal()
+    try:
+        return load_integrations(session).get("github_token") or ""
     finally:
         session.close()

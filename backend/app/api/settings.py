@@ -86,6 +86,9 @@ class IntegrationsOut(BaseModel):
     napcat_token: str = ""
     napcat_token_set: bool = False
     napcat_configured: bool = False
+    github_token: str = ""
+    github_token_set: bool = False
+    github_configured: bool = False
 
 
 class IntegrationsUpdate(BaseModel):
@@ -97,6 +100,8 @@ class IntegrationsUpdate(BaseModel):
     napcat_base_url: str | None = None
     napcat_token: str | None = None
     clear_napcat_token: bool = False
+    github_token: str | None = None
+    clear_github_token: bool = False
 
 
 class AuthAdminBrief(BaseModel):
@@ -234,10 +239,12 @@ def update_integrations(
     _: User = Depends(require_admin),
 ) -> dict:
     from app.main import scheduler
+    from app.services.app_updator import invalidate_check_cache
 
     save_integrations(db, body.model_dump())
     # Steam Key 变更可能影响轮询任务是否应注册
     register_scheduler_jobs(scheduler, db, run_steam_once=False)
+    invalidate_check_cache()
     return _integrations_out(db, request)
 
 

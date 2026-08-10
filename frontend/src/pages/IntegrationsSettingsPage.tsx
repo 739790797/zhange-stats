@@ -15,6 +15,7 @@ type FormValues = {
   qq_app_key?: string;
   napcat_base_url?: string;
   napcat_token?: string;
+  github_token?: string;
 };
 
 export default function IntegrationsSettingsPage() {
@@ -35,6 +36,7 @@ export default function IntegrationsSettingsPage() {
       qq_app_key: data.qq_app_key || "",
       napcat_base_url: data.napcat_base_url || "",
       napcat_token: data.napcat_token || "",
+      github_token: data.github_token || "",
     });
   }, [data, form]);
 
@@ -46,6 +48,7 @@ export default function IntegrationsSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["napcat-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["app-update-status"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
@@ -90,6 +93,7 @@ export default function IntegrationsSettingsPage() {
           const steam = values.steam_api_key?.trim() || "";
           const qqKey = values.qq_app_key?.trim() || "";
           const napcatToken = values.napcat_token?.trim() || "";
+          const githubToken = values.github_token?.trim() || "";
           save.mutate({
             steam_api_key: steam || null,
             qq_app_id: values.qq_app_id ?? "",
@@ -99,6 +103,8 @@ export default function IntegrationsSettingsPage() {
             napcat_base_url: values.napcat_base_url ?? "",
             napcat_token: napcatToken || null,
             clear_napcat_token: !napcatToken,
+            github_token: githubToken || null,
+            clear_github_token: !githubToken,
           });
         }}
       >
@@ -189,6 +195,21 @@ export default function IntegrationsSettingsPage() {
           >
             <Input.Password
               placeholder="请输入 HTTP 服务 Token"
+              autoComplete="new-password"
+              size="large"
+            />
+          </Form.Item>
+        </Card>
+
+        <Card title="GitHub（系统更新）" size="small" style={cardStyle}>
+          <Form.Item
+            name="github_token"
+            label="Personal Access Token"
+            extra="用于提高 GitHub Releases API 限额，避免未认证 60 次/小时限流。清空并保存将删除库内配置（仍可回落 .env 的 UPDATE_GITHUB_TOKEN）。"
+            style={{ marginBottom: 0 }}
+          >
+            <Input.Password
+              placeholder="github_pat_… 或 ghp_…"
               autoComplete="new-password"
               size="large"
             />

@@ -12,6 +12,7 @@ import {
   message,
 } from "antd";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   checkAppUpdate,
   doAppUpdate,
@@ -160,6 +161,12 @@ export default function SystemUpdatePage() {
               />
             </Form.Item>
           </Form>
+
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            若检查更新出现 GitHub API 限流（403），请到{" "}
+            <Link to="/settings/integrations">集成密钥</Link>{" "}
+            配置 GitHub Token。
+          </Typography.Text>
 
           <Space wrap>
             <Button

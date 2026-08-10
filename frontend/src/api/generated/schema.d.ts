@@ -4161,6 +4161,21 @@ export interface components {
              * @default false
              */
             napcat_configured: boolean;
+            /**
+             * Github Token
+             * @default
+             */
+            github_token: string;
+            /**
+             * Github Token Set
+             * @default false
+             */
+            github_token_set: boolean;
+            /**
+             * Github Configured
+             * @default false
+             */
+            github_configured: boolean;
         };
         /**
          * IntegrationsStatusOut
@@ -4201,6 +4216,13 @@ export interface components {
              * @default false
              */
             clear_napcat_token: boolean;
+            /** Github Token */
+            github_token?: string | null;
+            /**
+             * Clear Github Token
+             * @default false
+             */
+            clear_github_token: boolean;
         };
         /** JobConfigUpdateItem */
         JobConfigUpdateItem: {

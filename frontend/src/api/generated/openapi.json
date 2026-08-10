@@ -10892,6 +10892,21 @@
             "type": "boolean",
             "title": "Napcat Configured",
             "default": false
+          },
+          "github_token": {
+            "type": "string",
+            "title": "Github Token",
+            "default": ""
+          },
+          "github_token_set": {
+            "type": "boolean",
+            "title": "Github Token Set",
+            "default": false
+          },
+          "github_configured": {
+            "type": "boolean",
+            "title": "Github Configured",
+            "default": false
           }
         },
         "type": "object",
@@ -10998,6 +11013,22 @@
           "clear_napcat_token": {
             "type": "boolean",
             "title": "Clear Napcat Token",
+            "default": false
+          },
+          "github_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Token"
+          },
+          "clear_github_token": {
+            "type": "boolean",
+            "title": "Clear Github Token",
             "default": false
           }
         },

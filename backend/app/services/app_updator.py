@@ -262,7 +262,13 @@ async def fetch_releases(limit: int = 20, proxy: str | None = None) -> list[Rele
         "Accept": "application/vnd.github+json",
         "User-Agent": f"zhange-stats/{settings.APP_VERSION}",
     }
-    token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
+    token = ""
+    try:
+        from app.services.integrations_config import get_github_token
+
+        token = (get_github_token() or "").strip()
+    except Exception:  # noqa: BLE001
+        token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
@@ -408,7 +414,13 @@ async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
     final = _proxy_url(url, proxy)
     settings = get_settings()
     headers = {"User-Agent": f"zhange-stats/{settings.APP_VERSION}"}
-    token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
+    token = ""
+    try:
+        from app.services.integrations_config import get_github_token
+
+        token = (get_github_token() or "").strip()
+    except Exception:  # noqa: BLE001
+        token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
     if token and "github" in final:
         headers["Authorization"] = f"Bearer {token}"
     dest.parent.mkdir(parents=True, exist_ok=True)
