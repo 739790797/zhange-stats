@@ -7,8 +7,11 @@
 # app 镜像 all-in-one：同容器内嵌 Redis（127.0.0.1，限流 + 扫码/cred 短时 KV）。
 #
 # MAA 全托管执行面（Redroid + Worker）见 compose.maa.yml，默认不启。
-# 生产 Linux 一键：sudo bash scripts/install-maa-host.sh（详见 docs/maa-ops.md）。
-# app 不挂 docker.sock、不 privileged。
+# 生产机若只有旧目录：先从最新 app 镜像导出宿主机文件，再一键安装：
+#   docker run --rm -v "$PWD:/host" ghcr.io/739790797/zhange-stats:latest \
+#     /bin/sh /app/maa-host/scripts/export-to-host.sh
+#   sudo bash scripts/install-maa-host.sh
+# 详见 docs/maa-ops.md。app 不挂 docker.sock、不 privileged。
 
 name: zhange-stats
 
@@ -19,7 +22,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.2.13}
+        APP_VERSION: ${APP_VERSION:-0.2.14}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"
@@ -47,6 +50,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+
+  # 把镜像内 /app/maa-host 导出到当前 compose 工程目录（不启业务）
+  maa-host-export:
+    profiles: ["maa-export"]
+    image: ${APP_IMAGE:-ghcr.io/739790797/zhange-stats}:${APP_TAG:-latest}
+    volumes:
+      - ./:/host
+    entrypoint: ["/bin/sh", "/app/maa-host/scripts/export-to-host.sh"]
+    command: ["/host"]
+    restart: "no"
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
 
   watchtower:
     image: nickfedor/watchtower:1.12.3

@@ -16,11 +16,30 @@
 
 **新增即自动就绪**：Worker 收到 `provision` 后按步骤创建 Android、等待 ADB，成功则 **`online`（就绪）**。
 
-## 生产一键启用（推荐）
+## 生产一键启用（容器部署 / 仅有旧目录）
 
-在 **Linux 宿主机（R730XD）**、已有 `.env` 与 `compose.yml` 的仓库目录执行一次：
+Watchtower 只更新 **镜像**，不会改宿主机目录。从 **v0.2.14** 起，`app` 镜像内带 `/app/maa-host/`（`compose.maa.yml`、安装脚本、systemd 单元）。
+
+在宿主机 compose 工程目录（如 `/opt/zhange-stats`）：
 
 ```bash
+cd /opt/zhange-stats
+
+# 1) 等 Watchtower 拉到新镜像，或手动：
+docker pull ghcr.io/739790797/zhange-stats:latest
+
+# 2) 把镜像里的 MAA 宿主机文件导出到当前目录（不碰 .env / data）
+docker run --rm -v "$PWD:/host" ghcr.io/739790797/zhange-stats:latest \
+  /bin/sh /app/maa-host/scripts/export-to-host.sh
+
+# 3) 一键装 binder + 启 Worker（缺文件时也会再尝试从镜像导出）
+sudo bash scripts/install-maa-host.sh
+```
+
+若宿主机 `compose.yml` 已更新，也可用：
+
+```bash
+docker compose --profile maa-export run --rm maa-host-export
 sudo bash scripts/install-maa-host.sh
 ```
 
@@ -33,8 +52,8 @@ sudo bash scripts/install-maa-host.sh
 之后日常：
 
 - **重启机器**：binder 由 systemd 自动加载；Worker `restart: unless-stopped`
-- **发版**：CI 推送 `zhange-stats` 与 `zhange-stats-maa-worker` 的 `:VERSION` / `:latest`；Watchtower 自动更新 app + Worker
-- **开槽**：管理端点「新增槽位」→ Worker 自动供给 Android
+- **发版**：CI 推送 `zhange-stats` 与 `zhange-stats-maa-worker`；Watchtower 更新容器；宿主机文件可用上面的 `export` 再同步一次
+- **开槽**：管理端「新增槽位」→ Worker 自动供给 Android
 
 仅装 binder / 改 env、暂不 `up`：
 

@@ -36,10 +36,17 @@ COPY backend/ /app/backend/
 COPY --from=frontend-build /src/frontend/dist /app/static
 COPY VERSION /app/VERSION
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+# 生产宿主机一键启用 MAA：从镜像导出到 compose 工程目录（不进业务进程）
+COPY compose.maa.yml /app/maa-host/compose.maa.yml
+COPY scripts/install-maa-host.sh /app/maa-host/scripts/install-maa-host.sh
+COPY scripts/export-maa-host-to-volume.sh /app/maa-host/scripts/export-to-host.sh
+COPY deploy/systemd/maa-binder.service /app/maa-host/deploy/systemd/maa-binder.service
+COPY docs/maa-ops.md /app/maa-host/docs/maa-ops.md
 
 RUN mkdir -p /app/data /app/uploads/avatars \
     && printf '%s' "${APP_VERSION}" > /app/VERSION \
-    && chmod +x /app/docker-entrypoint.sh
+    && chmod +x /app/docker-entrypoint.sh \
+    && chmod +x /app/maa-host/scripts/*.sh
 
 EXPOSE 8000
 
