@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.14** — app 镜像内置 MAA 宿主机文件包，生产可从镜像导出后一键启用执行面。
+**v0.2.15** — 修复 MAA Worker 截图回退与 compose 空环境变量覆盖；补充 Proxmox LXC 运维说明。
 
 ## 功能
 

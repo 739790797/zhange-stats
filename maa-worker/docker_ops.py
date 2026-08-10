@@ -220,6 +220,26 @@ class DockerOps:
         except APIError as e:
             return f"(读取容器日志失败: {e})"
 
+    def container_screencap(self, name: str) -> bytes | None:
+        """在 Android 容器内执行 screencap（ADB 未通时的回退）。"""
+        try:
+            c = self.client.containers.get(name)
+            if c.status != "running":
+                return None
+            code, out = c.exec_run(["sh", "-c", "screencap -p 2>/dev/null"])
+            if code != 0 or not out:
+                return None
+            data = out if isinstance(out, (bytes, bytearray)) else bytes(out)
+            if data.startswith(b"\x89PNG") or b"PNG" in data[:20]:
+                return bytes(data)
+            data = data.replace(b"\r\n", b"\n")
+            if data.startswith(b"\x89PNG"):
+                return data
+            return None
+        except (NotFound, APIError, OSError) as e:
+            LOG.warning("container screencap failed %s: %s", name, e)
+            return None
+
     def container_stats(self, name: str | None) -> dict[str, Any]:
         if not name:
             return {}

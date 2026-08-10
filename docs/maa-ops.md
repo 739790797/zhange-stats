@@ -67,6 +67,16 @@ sudo bash scripts/install-maa-host.sh --no-up
 - 未配置时，**app 与 Worker 用同一 `SECRET_KEY` 派生**（算法见 `maa_token.resolve_maa_worker_token`）
 - 安装脚本仅在既无 token 又无 `SECRET_KEY` 时才写入随机 token
 
+## Proxmox LXC（生产常见）
+
+Redroid 需要 **privileged LXC**（或独立 VM）。非特权 LXC 即使能 `modprobe binder` / binder 探测通过，Redroid 也可能瞬间退出（常见 exit 129、无日志）。
+
+在 **PVE 宿主机**上：
+
+1. 加载并持久化 binder：`modprobe binder_linux devices=binder,hwbinder,vndbinder`，挂载 `/dev/binderfs`，并写入 `modules-load.d` / systemd（见上文一键脚本在 CT 内会失败——模块只在宿主机存在）。
+2. CT 配置示例：`unprivileged: 0`，`lxc.mount.entry: /dev/binderfs ...`，`lxc.apparmor.profile: unconfined`。
+3. 若从非特权改为特权，必须把 rootfs 内 `100000+` UID/GID 映射回真实 UID（否则 Docker/权限会坏）。
+
 ## Windows / Docker Desktop
 
 **Docker Desktop（默认内核）不支持 Redroid**：缺少 `binderfs`。Windows 只跑控制面即可。

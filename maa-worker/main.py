@@ -199,7 +199,11 @@ def capture_slot_png(
     if png:
         return png
     if container_name:
-        return ops.container_screencap(container_name)
+        try:
+            return ops.container_screencap(container_name)
+        except AttributeError:
+            LOG.warning("DockerOps 缺少 container_screencap，跳过容器内截图回退")
+            return None
     return None
 
 

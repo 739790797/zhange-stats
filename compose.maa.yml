@@ -19,9 +19,8 @@ services:
       - .env
     environment:
       MAA_APP_BASE_URL: ${MAA_APP_BASE_URL:-http://app:8000}
-      # 可显式配置；留空则与 app 一样用 SECRET_KEY 派生
-      MAA_WORKER_TOKEN: ${MAA_WORKER_TOKEN:-}
-      SECRET_KEY: ${SECRET_KEY:-}
+      # MAA_WORKER_TOKEN / SECRET_KEY 只从 env_file 注入。
+      # 勿写成 ${VAR:-}：宿主机未 export 时会变成空串并覆盖 .env。
       DATA_DIR: /app/data
       MAA_DOCKER_NETWORK: ${MAA_DOCKER_NETWORK:-zhange-stats_maa}
       MAA_REDROID_IMAGE: ${MAA_REDROID_IMAGE:-redroid/redroid:11.0.0-latest}
