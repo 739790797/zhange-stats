@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import anyio
@@ -25,6 +26,12 @@ from app.services.platform_features import (
     invalidate_feature_cache,
     save_feature_flags,
 )
+
+
+@asynccontextmanager
+async def _noop_lifespan(_app):
+    """跳过生产 lifespan（migrate / MySQL），本套件自建 sqlite。"""
+    yield
 
 
 @pytest.fixture()
@@ -86,6 +93,9 @@ def maa_env(tmp_path, monkeypatch):
             pass
 
     app.dependency_overrides[get_db] = _override
+    # httpx 旧版无 lifespan= 参数；直接替换路由 lifespan，避免 CI 连 MySQL
+    prev_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
 
     yield {
         "db": db,
@@ -100,6 +110,7 @@ def maa_env(tmp_path, monkeypatch):
         "data_dir": Path(tmp_path / "data"),
     }
 
+    app.router.lifespan_context = prev_lifespan
     app.dependency_overrides.clear()
     db.close()
     engine.dispose()
@@ -122,7 +133,7 @@ def test_maa_full_lifecycle_simulation(maa_env):
 
     async def _run() -> None:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app, lifespan="off"),
+            transport=httpx.ASGITransport(app=app),
             base_url="http://test",
         ) as c:
             r = await c.get("/api/settings/maa", headers=ah)
@@ -263,7 +274,7 @@ def test_maa_quota_blocks_create(maa_env):
 
     async def _run() -> None:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app, lifespan="off"),
+            transport=httpx.ASGITransport(app=app),
             base_url="http://test",
         ) as c:
             for _ in range(2):
@@ -288,7 +299,7 @@ def test_maa_quota_blocks_create(maa_env):
 def test_worker_auth_required(maa_env):
     async def _run() -> None:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app, lifespan="off"),
+            transport=httpx.ASGITransport(app=app),
             base_url="http://test",
         ) as c:
             r = await c.get("/api/internal/maa/pull")
