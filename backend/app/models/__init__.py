@@ -22,6 +22,7 @@ from app.models.kujiequ import (
     KujiequWwBoxRaw,
 )
 from app.models.user import User
+from app.models.maa import MaaJob, MaaSlot, MaaSlotAudit
 
 __all__ = [
     "User",
@@ -53,4 +54,7 @@ __all__ = [
     "ArknightsRogueRaw",
     "EndfieldBoxRaw",
     "ExastrisBoxRaw",
+    "MaaSlot",
+    "MaaSlotAudit",
+    "MaaJob",
 ]

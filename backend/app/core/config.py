@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
     UPLOAD_DIR: str = "uploads"
 
+    # MAA 全托管（槽位由管理端供给；Worker 用 MAA_WORKER_TOKEN 调内部 API）
+    MAA_MAX_SLOTS: int = 4
+    MAA_WORKER_TOKEN: str = ""
+    MAA_ENABLED: bool = False
+
     # 邮件（不配置则默认拒绝发码；本地可开 ALLOW_EMAIL_CODE_LOG 把验证码打到日志）
     SMTP_HOST: str = ""
     SMTP_PORT: int = 465

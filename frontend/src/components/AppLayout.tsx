@@ -1,5 +1,6 @@
 import {
   CalendarOutlined,
+  CloudServerOutlined,
   KeyOutlined,
   LockOutlined,
   LogoutOutlined,
@@ -76,6 +77,11 @@ const ADMIN_NAV = [
     key: "/settings/jobs",
     label: "任务调度",
     icon: <ScheduleOutlined />,
+  },
+  {
+    key: "/settings/maa",
+    label: "MAA 资源",
+    icon: <CloudServerOutlined />,
   },
 ] as const;
 

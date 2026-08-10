@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.11** — 修复 Steam 绑定回调；未配置 API Key 提示；时间轴在线/离线图例开关。
+**v0.2.12** — MAA 全托管控制面（槽位台账 / 管理端 / 森空岛 Tab）；执行面见 `docs/maa-ops.md`（默认不启）。
 
 ## 功能
 
@@ -75,12 +75,15 @@ docker compose pull && docker compose up -d
 
 ```
 zhange-stats/
-  compose.yml · Dockerfile · .env.example · VERSION
+  compose.yml · compose.maa.yml · Dockerfile · .env.example · VERSION
+  docs/maa-ops.md           # MAA 全托管运维
+  maa-worker/               # 槽位 Worker（Docker + ADB + 截图）
   frontend/                 # React
   backend/app/              # api · core · models · services
   backend/alembic/          # 迁移（表结构以 versions/ 为准）
 ```
 
+MAA 执行面默认不启：见 [docs/maa-ops.md](docs/maa-ops.md)。`app` 不 privileged、不挂 `docker.sock`。
 ## 数据库
 
 改表须新增 Alembic 迁移，并更新本节总览。细节以 `models/` + `alembic/versions/` 为准。
@@ -100,6 +103,7 @@ users 1 ── 1 members ── * play_sessions / presence_segments / steam_frie
                                          └── * kujiequ_attendance_raws
                                          └── * kujiequ_ww_box_raws
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
+                      └── 0..1 maa_slots（全托管；bound_member 唯一）── * maa_slot_audits / maa_jobs
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta
 ```
@@ -130,8 +134,11 @@ arknights_operators · arknights_catalog_meta
 | `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
+| `maa_slots` | MAA 全托管槽位台账（状态机 + desired_action；绑定成员唯一；截图路径与占用采样） |
+| `maa_slot_audits` | 槽位操作审计（追加写：新增/上下线/移除/绑定/Worker 回调） |
+| `maa_jobs` | 用户日常/停止任务队列（与签到 `job_runs` 分离） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理 |
-| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度等） |
+| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`maa_host_stats` 等） |
 | `register_challenges` | 注册验证码 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL） |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |

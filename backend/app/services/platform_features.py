@@ -69,6 +69,11 @@ FEATURE_TREE: list[dict[str, Any]] = [
                         "job_id": "arknights_catalog_sync",
                         "schedule": "cron",
                     },
+                    {
+                        "id": "skland.arknights.maa",
+                        "name": "MAA 日常助手",
+                        "kind": "feature",
+                    },
                 ],
             },
             {
@@ -212,7 +217,11 @@ def reserved_feature_ids() -> set[str]:
 
 
 def default_features() -> dict[str, bool]:
-    return {fid: True for fid in _ALL_FEATURE_IDS}
+    flags = {fid: True for fid in _ALL_FEATURE_IDS}
+    # 全托管消耗大且有封号风险：默认关闭，由管理员显式开启
+    if "skland.arknights.maa" in flags:
+        flags["skland.arknights.maa"] = False
+    return flags
 
 
 def invalidate_feature_cache() -> None:

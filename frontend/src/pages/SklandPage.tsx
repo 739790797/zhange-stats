@@ -41,6 +41,8 @@ export default function SklandPage() {
     featuresReady && isFeatureOn(featuresQuery.data, "skland.checkin");
   const showArknights =
     featuresReady && isFeatureOn(featuresQuery.data, "skland.arknights");
+  const showMaa =
+    featuresReady && isFeatureOn(featuresQuery.data, "skland.arknights.maa");
   const showEndfield =
     featuresReady && isFeatureOn(featuresQuery.data, "skland.endfield");
 
@@ -84,6 +86,7 @@ export default function SklandPage() {
             rogueEnabled={Boolean(
               statusQuery.data?.bound && statusQuery.data?.token_ok !== false,
             )}
+            maaEnabled={showMaa}
           />
         ),
       });
@@ -102,7 +105,7 @@ export default function SklandPage() {
       });
     }
     return items;
-  }, [showArknights, showCheckin, showEndfield, statusQuery.data]);
+  }, [showArknights, showCheckin, showEndfield, showMaa, statusQuery.data]);
 
   return (
     <PlatformFeatureTabsPage

@@ -2107,6 +2107,355 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/maa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Maa */
+        get: operations["admin_list_maa_api_settings_maa_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Create Slot */
+        post: operations["admin_create_slot_api_settings_maa_slots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Start Slot */
+        post: operations["admin_start_slot_api_settings_maa_slots__slot_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Stop Slot */
+        post: operations["admin_stop_slot_api_settings_maa_slots__slot_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Destroy Slot */
+        post: operations["admin_destroy_slot_api_settings_maa_slots__slot_id__destroy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Bind Slot */
+        post: operations["admin_bind_slot_api_settings_maa_slots__slot_id__bind_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Unbind Slot */
+        post: operations["admin_unbind_slot_api_settings_maa_slots__slot_id__unbind_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/audits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Slot Audits */
+        get: operations["admin_slot_audits_api_settings_maa_slots__slot_id__audits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Reconcile
+         * @description 触发对账：Worker 侧轮询会处理；此处仅作显式操作记录入口。
+         */
+        post: operations["admin_reconcile_api_settings_maa_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Slot Screenshot */
+        get: operations["admin_slot_screenshot_api_settings_maa_slots__slot_id__screenshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/maa/slots/{slot_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Slot Logs
+         * @description 槽位运行日志（Worker 采集的事件 + docker logs 片段）。
+         */
+        get: operations["admin_slot_logs_api_settings_maa_slots__slot_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maa/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User Maa Status */
+        get: operations["user_maa_status_api_maa_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maa/me/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** User Start Daily */
+        post: operations["user_start_daily_api_maa_me_daily_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maa/me/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** User Stop Daily */
+        post: operations["user_stop_daily_api_maa_me_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maa/me/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User Maa Screenshot */
+        get: operations["user_maa_screenshot_api_maa_me_screenshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/internal/maa/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Worker Pull */
+        get: operations["worker_pull_api_internal_maa_pull_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/internal/maa/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Worker Heartbeat */
+        post: operations["worker_heartbeat_api_internal_maa_heartbeat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/internal/maa/jobs/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Worker Job Update */
+        post: operations["worker_job_update_api_internal_maa_jobs_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/internal/maa/host-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Worker Host Stats
+         * @description Worker 上报 Docker 宿主机（容器所在环境）CPU/内存。
+         */
+        post: operations["worker_host_stats_api_internal_maa_host_stats_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/internal/maa/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Worker Config */
+        get: operations["worker_config_api_internal_maa_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -4023,6 +4372,237 @@ export interface components {
             username: string;
             /** Password */
             password: string;
+        };
+        /** MaaAdminListOut */
+        MaaAdminListOut: {
+            summary: components["schemas"]["MaaResourceSummaryOut"];
+            /** Slots */
+            slots: components["schemas"]["MaaSlotOut"][];
+        };
+        /** MaaBindRequest */
+        MaaBindRequest: {
+            /** Member Id */
+            member_id: number;
+        };
+        /** MaaJobOut */
+        MaaJobOut: {
+            /** Id */
+            id: number;
+            /** Slot Id */
+            slot_id: number;
+            /** Member Id */
+            member_id: number;
+            /** Job Type */
+            job_type: string;
+            /** Status */
+            status: string;
+            /** Error */
+            error?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+        };
+        /** MaaResourceSummaryOut */
+        MaaResourceSummaryOut: {
+            /** Max Slots */
+            max_slots: number;
+            /** Active Slots */
+            active_slots: number;
+            /** Online */
+            online: number;
+            /** Offline */
+            offline: number;
+            /** Error */
+            error: number;
+            /** Busy */
+            busy: number;
+            /**
+             * Unbound Online
+             * @default 0
+             */
+            unbound_online: number;
+            /** Host Cpu Percent */
+            host_cpu_percent?: string | null;
+            /** Host Memory Used Mb */
+            host_memory_used_mb?: string | null;
+            /** Host Memory Total Mb */
+            host_memory_total_mb?: string | null;
+            /** Host Cpu Count */
+            host_cpu_count?: string | null;
+            /** Host Reported At */
+            host_reported_at?: string | null;
+        };
+        /** MaaSlotAuditOut */
+        MaaSlotAuditOut: {
+            /** Id */
+            id: number;
+            /** Slot Id */
+            slot_id: number;
+            /** Admin User Id */
+            admin_user_id?: number | null;
+            /** Action */
+            action: string;
+            /** From Status */
+            from_status?: string | null;
+            /** To Status */
+            to_status?: string | null;
+            /** Result */
+            result: string;
+            /** Message */
+            message?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** MaaSlotOut */
+        MaaSlotOut: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /** Desired Action */
+            desired_action?: string | null;
+            /** Container Name */
+            container_name?: string | null;
+            /** Volume Name */
+            volume_name?: string | null;
+            /** Adb Endpoint */
+            adb_endpoint?: string | null;
+            /** Bound Member Id */
+            bound_member_id?: number | null;
+            /** Bound Member Nickname */
+            bound_member_nickname?: string | null;
+            /** Resolution */
+            resolution: string;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Heartbeat At */
+            last_heartbeat_at?: string | null;
+            /** Last Screenshot At */
+            last_screenshot_at?: string | null;
+            /**
+             * Has Screenshot
+             * @default false
+             */
+            has_screenshot: boolean;
+            /** Cpu Percent */
+            cpu_percent?: string | null;
+            /** Memory Usage Mb */
+            memory_usage_mb?: string | null;
+            /** Created By User Id */
+            created_by_user_id?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Destroyed At */
+            destroyed_at?: string | null;
+        };
+        /** MaaUserStatusOut */
+        MaaUserStatusOut: {
+            /** Assigned */
+            assigned: boolean;
+            slot?: components["schemas"]["MaaSlotOut"] | null;
+            active_job?: components["schemas"]["MaaJobOut"] | null;
+            /** Message */
+            message?: string | null;
+            /** Availability */
+            availability?: string | null;
+            /**
+             * Free Online Slots
+             * @default 0
+             */
+            free_online_slots: number;
+        };
+        /** MaaWorkerHeartbeatIn */
+        MaaWorkerHeartbeatIn: {
+            /** Slot Id */
+            slot_id: number;
+            /** Status */
+            status?: string | null;
+            /** Desired Action */
+            desired_action?: string | null;
+            /**
+             * Clear Desired Action
+             * @default false
+             */
+            clear_desired_action: boolean;
+            /** Container Name */
+            container_name?: string | null;
+            /** Volume Name */
+            volume_name?: string | null;
+            /** Adb Endpoint */
+            adb_endpoint?: string | null;
+            /** Last Error */
+            last_error?: string | null;
+            /** Cpu Percent */
+            cpu_percent?: string | null;
+            /** Memory Usage Mb */
+            memory_usage_mb?: string | null;
+            /** Screenshot Relpath */
+            screenshot_relpath?: string | null;
+            /** Audit Action */
+            audit_action?: string | null;
+            /** Audit Message */
+            audit_message?: string | null;
+            /**
+             * Audit Result
+             * @default success
+             */
+            audit_result: string;
+        };
+        /** MaaWorkerHostStatsIn */
+        MaaWorkerHostStatsIn: {
+            /**
+             * Cpu Percent
+             * @default
+             */
+            cpu_percent: string;
+            /**
+             * Memory Used Mb
+             * @default
+             */
+            memory_used_mb: string;
+            /**
+             * Memory Total Mb
+             * @default
+             */
+            memory_total_mb: string;
+            /**
+             * Cpu Count
+             * @default
+             */
+            cpu_count: string;
+        };
+        /** MaaWorkerJobUpdateIn */
+        MaaWorkerJobUpdateIn: {
+            /** Job Id */
+            job_id: number;
+            /** Status */
+            status: string;
+            /** Error */
+            error?: string | null;
+        };
+        /** MaaWorkerPullOut */
+        MaaWorkerPullOut: {
+            /** Slots */
+            slots: components["schemas"]["MaaSlotOut"][];
+            /** Jobs */
+            jobs: components["schemas"]["MaaJobOut"][];
         };
         /** MemberOut */
         MemberOut: {
@@ -9740,6 +10320,578 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NapCatGroupMembersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_maa_api_settings_maa_get: {
+        parameters: {
+            query?: {
+                include_destroyed?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaAdminListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_slot_api_settings_maa_slots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+        };
+    };
+    admin_start_slot_api_settings_maa_slots__slot_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_stop_slot_api_settings_maa_slots__slot_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_destroy_slot_api_settings_maa_slots__slot_id__destroy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_bind_slot_api_settings_maa_slots__slot_id__bind_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaaBindRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_unbind_slot_api_settings_maa_slots__slot_id__unbind_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_slot_audits_api_settings_maa_slots__slot_id__audits_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotAuditOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reconcile_api_settings_maa_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    admin_slot_screenshot_api_settings_maa_slots__slot_id__screenshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_slot_logs_api_settings_maa_slots__slot_id__logs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    user_maa_status_api_maa_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaUserStatusOut"];
+                };
+            };
+        };
+    };
+    user_start_daily_api_maa_me_daily_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaJobOut"];
+                };
+            };
+        };
+    };
+    user_stop_daily_api_maa_me_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaJobOut"];
+                };
+            };
+        };
+    };
+    user_maa_screenshot_api_maa_me_screenshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    worker_pull_api_internal_maa_pull_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Maa-Worker-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaWorkerPullOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    worker_heartbeat_api_internal_maa_heartbeat_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Maa-Worker-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaaWorkerHeartbeatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    worker_job_update_api_internal_maa_jobs_update_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Maa-Worker-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaaWorkerJobUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    worker_host_stats_api_internal_maa_host_stats_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Maa-Worker-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaaWorkerHostStatsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    worker_config_api_internal_maa_config_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Maa-Worker-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

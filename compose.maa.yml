@@ -1,0 +1,64 @@
+# MAA 全托管执行面（默认不启）。在 R730XD 上：
+#   1) 宿主机加载 binder：sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+#   2) .env 设置 MAA_WORKER_TOKEN、可选 COMPOSE_PROFILES=maa
+#   3) docker compose --profile maa up -d
+#
+# 详见 docs/maa-ops.md
+
+services:
+  maa-worker:
+    profiles: ["maa"]
+    build:
+      context: ./maa-worker
+      dockerfile: Dockerfile
+    image: ${MAA_WORKER_IMAGE:-zhange-maa-worker:local}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      MAA_APP_BASE_URL: ${MAA_APP_BASE_URL:-http://app:8000}
+      MAA_WORKER_TOKEN: ${MAA_WORKER_TOKEN:?set MAA_WORKER_TOKEN in .env}
+      DATA_DIR: /app/data
+      MAA_DOCKER_NETWORK: ${MAA_DOCKER_NETWORK:-zhange-stats_maa}
+      MAA_REDROID_IMAGE: ${MAA_REDROID_IMAGE:-redroid/redroid:11.0.0-latest}
+      MAA_WORKER_POLL_SEC: ${MAA_WORKER_POLL_SEC:-5}
+      MAA_SCREENSHOT_INTERVAL_SEC: ${MAA_SCREENSHOT_INTERVAL_SEC:-3}
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - maa
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+  # PoC / 手工验证用静态 Redroid（可选）。生产槽位由 maa-worker 动态创建。
+  redroid-poc:
+    profiles: ["maa"]
+    image: ${MAA_REDROID_IMAGE:-redroid/redroid:11.0.0-latest}
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - redroid-poc-data:/data
+    networks:
+      - maa
+    command:
+      - androidboot.redroid_width=720
+      - androidboot.redroid_height=1280
+      - androidboot.redroid_dpi=320
+      - androidboot.redroid_gpu_mode=guest
+      - androidboot.redroid_fps=30
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      zhange.maa.poc: "1"
+
+networks:
+  maa:
+    name: zhange-stats_maa
+    driver: bridge
+
+volumes:
+  redroid-poc-data:
