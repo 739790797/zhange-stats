@@ -122,7 +122,7 @@ def test_maa_full_lifecycle_simulation(maa_env):
 
     async def _run() -> None:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
+            transport=httpx.ASGITransport(app=app, lifespan="off"),
             base_url="http://test",
         ) as c:
             r = await c.get("/api/settings/maa", headers=ah)
@@ -263,7 +263,7 @@ def test_maa_quota_blocks_create(maa_env):
 
     async def _run() -> None:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
+            transport=httpx.ASGITransport(app=app, lifespan="off"),
             base_url="http://test",
         ) as c:
             for _ in range(2):
@@ -288,7 +288,7 @@ def test_maa_quota_blocks_create(maa_env):
 def test_worker_auth_required(maa_env):
     async def _run() -> None:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
+            transport=httpx.ASGITransport(app=app, lifespan="off"),
             base_url="http://test",
         ) as c:
             r = await c.get("/api/internal/maa/pull")
