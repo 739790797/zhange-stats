@@ -31,6 +31,7 @@ data/
 **/.secret_key
 
 # Local scratch
+.dev/
 _tmp_*/
 frontend/public/brand/_preview/
 frontend/public/brand/_gen_from_original.py

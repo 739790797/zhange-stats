@@ -35,6 +35,8 @@ export function DayTimeline({
   rangeStart: Dayjs;
 }) {
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
+  const [showOffline, setShowOffline] = useState(true);
+  const [showOnline, setShowOnline] = useState(true);
   const [trackWidth, setTrackWidth] = useState(0);
   const trackMeasureRef = useRef<HTMLDivElement>(null);
   const labelWidth = 112;
@@ -86,10 +88,35 @@ export function DayTimeline({
     <Spin spinning={Boolean(loading)} tip="加载统计中…" size="large">
       <div style={{ minHeight: loading && rows.length === 0 ? 280 : undefined }}>
       <Space wrap style={{ marginBottom: 12 }}>
-        <Tag color="#d9d9d9" style={{ color: "#595959" }}>
+        <Tag
+          color="#d9d9d9"
+          onClick={() => setShowOffline((v) => !v)}
+          title={showOffline ? "点击隐藏离线段" : "点击显示离线段"}
+          style={{
+            color: "#595959",
+            cursor: "pointer",
+            opacity: showOffline ? 1 : 0.35,
+            textDecoration: showOffline ? undefined : "line-through",
+            userSelect: "none",
+            transition: "opacity 0.15s ease",
+          }}
+        >
           离线
         </Tag>
-        <Tag color="#5b8ff9">在线</Tag>
+        <Tag
+          color="#5b8ff9"
+          onClick={() => setShowOnline((v) => !v)}
+          title={showOnline ? "点击隐藏在线段" : "点击显示在线段"}
+          style={{
+            cursor: "pointer",
+            opacity: showOnline ? 1 : 0.35,
+            textDecoration: showOnline ? undefined : "line-through",
+            userSelect: "none",
+            transition: "opacity 0.15s ease",
+          }}
+        >
+          在线
+        </Tag>
         {gamesLegend.map((g) => {
           const active = hoveredAppId === g.steam_app_id;
           const dimmed = Boolean(hoveredAppId) && !active;
@@ -244,6 +271,8 @@ export function DayTimeline({
                     />
                   ))}
                 {row.segments.map((seg, idx) => {
+                  if (seg.status === "offline" && !showOffline) return null;
+                  if (seg.status === "online" && !showOnline) return null;
                   const left = (seg.start_sec / spanSeconds) * 100;
                   const widthPct =
                     ((seg.end_sec - seg.start_sec) / spanSeconds) * 100;

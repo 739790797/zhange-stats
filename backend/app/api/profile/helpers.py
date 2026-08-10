@@ -157,6 +157,7 @@ def _require_steam_feature(db: Session) -> None:
 
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
     """绑定或解绑 Steam；仅同步 Steam 专用昵称/头像，不改站内身份。"""
+    from app.services.steam_bind import require_public_steam_profile
     from app.services.steam_friends import clear_member_friends, sync_member_friends
     from app.services.steam_persona import force_set_steam_persona_name
 

@@ -19,6 +19,7 @@ import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { rememberSteamIcons } from "@/lib/steamIconCache";
 import { nowBeijing, parseBeijing } from "@/lib/time";
+import { useIntegrationsStatus } from "@/hooks/useIntegrationsStatus";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function SteamCalendarPage() {
@@ -26,6 +27,7 @@ export default function SteamCalendarPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = isAdminUser(user);
   const steamBound = Boolean(useAuthStore((s) => s.user?.steam_id));
+  const integrationsStatus = useIntegrationsStatus(!steamBound);
   const [granularity, setGranularity] = useState<Granularity>("day");
   const [anchor, setAnchor] = useState(() => nowBeijing().startOf("day"));
   /** 日视图：0=自然日 00:00–24:00；12=跨夜窗 12:00–次日 12:00 */
@@ -198,6 +200,8 @@ export default function SteamCalendarPage() {
       {!steamBound ? (
         <SteamBindEntry
           loading={startSteamBind.isPending}
+          steamConfigured={integrationsStatus.data?.steam_configured}
+          isAdmin={isAdmin}
           onBind={() => startSteamBind.mutate()}
         />
       ) : (

@@ -1813,6 +1813,32 @@
         ]
       }
     },
+    "/api/settings/integrations/status": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Integrations Status",
+        "operationId": "get_integrations_status_api_settings_integrations_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsStatusOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/integrations": {
       "get": {
         "tags": [
@@ -9526,6 +9552,30 @@
           "steam_configured"
         ],
         "title": "IntegrationsOut"
+      },
+      "IntegrationsStatusOut": {
+        "properties": {
+          "steam_configured": {
+            "type": "boolean",
+            "title": "Steam Configured"
+          },
+          "qq_configured": {
+            "type": "boolean",
+            "title": "Qq Configured"
+          },
+          "napcat_configured": {
+            "type": "boolean",
+            "title": "Napcat Configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steam_configured",
+          "qq_configured",
+          "napcat_configured"
+        ],
+        "title": "IntegrationsStatusOut",
+        "description": "登录用户可见：仅布尔就绪态，不含密钥。"
       },
       "IntegrationsUpdate": {
         "properties": {

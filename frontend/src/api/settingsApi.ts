@@ -15,6 +15,7 @@ export type UserCheckinTask = components["schemas"]["UserCheckinTaskOut"];
 export type UserCheckinTasksPage = components["schemas"]["UserCheckinTasksPageOut"];
 export type IntegrationsSettings = components["schemas"]["IntegrationsOut"];
 export type IntegrationsUpdate = components["schemas"]["IntegrationsUpdate"];
+export type IntegrationsStatus = components["schemas"]["IntegrationsStatusOut"];
 export type AuthSettings = components["schemas"]["AuthSettingsOut"];
 export type AuthSettingsUpdate = components["schemas"]["AuthSettingsUpdate"];
 export type AuthAdminBrief = components["schemas"]["AuthAdminBrief"];
@@ -115,6 +116,13 @@ export async function fetchMyDailyTaskLogs(params?: {
 export async function fetchIntegrationsSettings() {
   const { data } = await client.get<IntegrationsSettings>(
     "/settings/integrations",
+  );
+  return data;
+}
+
+export async function fetchIntegrationsStatus() {
+  const { data } = await client.get<IntegrationsStatus>(
+    "/settings/integrations/status",
   );
   return data;
 }

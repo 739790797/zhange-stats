@@ -1,4 +1,5 @@
 import { Avatar, Button, Popconfirm, Typography } from "antd";
+import { Link } from "react-router-dom";
 import type { MemberProfile } from "@/api/types";
 import { BindActionSlots } from "@/components/profile/BindActionSlots";
 import { BindStatusTitle } from "@/components/profile/BindStatusTitle";
@@ -11,6 +12,9 @@ type SteamBindRowProps = {
   unbindPending: boolean;
   onStartBind: () => void;
   onUnbind: () => void;
+  /** undefined = 加载中；false = 未配置 API Key */
+  steamConfigured?: boolean;
+  isAdmin?: boolean;
 };
 
 export function SteamBindRow({
@@ -21,7 +25,12 @@ export function SteamBindRow({
   unbindPending,
   onStartBind,
   onUnbind,
+  steamConfigured,
+  isAdmin = false,
 }: SteamBindRowProps) {
+  const notConfigured = steamConfigured === false;
+  const bindDisabled = !!errMsg || notConfigured || steamConfigured === undefined;
+
   return (
     <div
       style={{
@@ -58,6 +67,21 @@ export function SteamBindRow({
             </Typography.Text>
           </div>
         ) : null}
+        {notConfigured ? (
+          <div>
+            <Typography.Text type="warning" style={{ fontSize: 13 }}>
+              {isAdmin ? (
+                <>
+                  尚未配置 API Key，请先在{" "}
+                  <Link to="/settings/integrations">集成密钥</Link> 填写后才能
+                  {steamBound ? "换绑" : "绑定"}
+                </>
+              ) : (
+                `管理员尚未配置 Steam API Key，暂无法${steamBound ? "换绑" : "绑定"}`
+              )}
+            </Typography.Text>
+          </div>
+        ) : null}
       </div>
       <BindActionSlots
         primary={
@@ -65,7 +89,7 @@ export function SteamBindRow({
             block
             type={steamBound ? "default" : "primary"}
             loading={startBindPending}
-            disabled={!!errMsg}
+            disabled={bindDisabled}
             onClick={onStartBind}
           >
             {steamBound ? "换绑" : "绑定"}

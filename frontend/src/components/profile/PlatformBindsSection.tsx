@@ -28,6 +28,8 @@ type PlatformBindsSectionProps = {
   showExilium: boolean;
   showKujiequ: boolean;
   steamBound: boolean;
+  steamConfigured?: boolean;
+  isAdminUser?: boolean;
   qqBound: boolean;
   sklandBound: boolean;
   taygedoBound: boolean;
@@ -63,6 +65,8 @@ export function PlatformBindsSection({
   showExilium,
   showKujiequ,
   steamBound,
+  steamConfigured,
+  isAdminUser = false,
   qqBound,
   sklandBound,
   taygedoBound,
@@ -165,6 +169,8 @@ export function PlatformBindsSection({
           <SteamBindRow
             data={data}
             steamBound={steamBound}
+            steamConfigured={steamConfigured}
+            isAdmin={isAdminUser}
             errMsg={errMsg}
             startBindPending={startSteamBindPending}
             unbindPending={unbindSteamPending}

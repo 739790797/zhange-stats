@@ -107,6 +107,13 @@ def steam_openid_start(
     user: User = Depends(get_current_user),
 ) -> SteamOpenIdStartResponse:
     _require_steam_feature(db)
+    from app.services.integrations_config import get_steam_api_key
+
+    if not get_steam_api_key(db):
+        raise HTTPException(
+            status_code=400,
+            detail="未配置 STEAM_API_KEY，请管理员在「集成密钥」中填写",
+        )
     backend = resolve_backend_base(request)
     if not backend:
         raise HTTPException(
@@ -203,6 +210,11 @@ def steam_openid_callback(
     except HTTPException as exc:
         detail = str(exc.detail) if exc.detail else "绑定失败"
         return _redirect(frontend, path, steam_bind="error", detail=detail)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        return _redirect(
+            frontend, path, steam_bind="error", detail=f"绑定失败: {exc}"
+        )
 
     params = {"steam_bind": "ok"}
     if persona:

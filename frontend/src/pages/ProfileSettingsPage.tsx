@@ -23,6 +23,8 @@ import { apiError } from "@/lib/apiError";
 import { PersonalInfoSection } from "@/components/profile/PersonalInfoSection";
 import { PlatformBindsSection } from "@/components/profile/PlatformBindsSection";
 import { useBindRedirectEffects } from "@/components/profile/useBindRedirectEffects";
+import { useIntegrationsStatus } from "@/hooks/useIntegrationsStatus";
+import { isAdminUser } from "@/lib/isAdminUser";
 import { isFeatureOn } from "@/lib/platformFeatures";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -50,6 +52,8 @@ export default function ProfileSettingsPage() {
   const showTaygedo = isFeatureOn(featuresQuery.data, "taygedo");
   const showExilium = isFeatureOn(featuresQuery.data, "exilium");
   const showKujiequ = isFeatureOn(featuresQuery.data, "kujiequ");
+  const isAdmin = isAdminUser(authUser);
+  const integrationsStatus = useIntegrationsStatus(showSteam);
 
   const profileQueryKey = isAdminEdit
     ? (["member-profile", targetMemberId] as const)
@@ -278,6 +282,8 @@ export default function ProfileSettingsPage() {
         showExilium={showExilium}
         showKujiequ={showKujiequ}
         steamBound={steamBound}
+        steamConfigured={integrationsStatus.data?.steam_configured}
+        isAdminUser={isAdmin}
         qqBound={qqBound}
         sklandBound={sklandBound}
         taygedoBound={taygedoBound}

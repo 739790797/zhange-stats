@@ -21,6 +21,9 @@ from app.services.email_config import (
     save_email_config,
 )
 from app.services.integrations_config import (
+    get_napcat_credentials,
+    get_qq_credentials,
+    get_steam_api_key,
     load_integrations,
     public_integrations,
     save_integrations,
@@ -189,6 +192,29 @@ def test_email_settings(
             "message": "发送失败或配置不完整，详情见服务端日志",
         }
     return {"ok": False, "message": "发送失败，请检查 SMTP 配置"}
+
+
+class IntegrationsStatusOut(BaseModel):
+    """登录用户可见：仅布尔就绪态，不含密钥。"""
+
+    steam_configured: bool
+    qq_configured: bool
+    napcat_configured: bool
+
+
+@router.get("/integrations/status", response_model=IntegrationsStatusOut)
+def get_integrations_status(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> IntegrationsStatusOut:
+    steam = bool(get_steam_api_key(db))
+    qq_id, qq_key = get_qq_credentials(db)
+    napcat_url, napcat_token = get_napcat_credentials(db)
+    return IntegrationsStatusOut(
+        steam_configured=steam,
+        qq_configured=bool(qq_id and qq_key),
+        napcat_configured=bool(napcat_url and napcat_token),
+    )
 
 
 @router.get("/integrations", response_model=IntegrationsOut)

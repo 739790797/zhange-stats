@@ -53,6 +53,7 @@ export type {
   UserCheckinTask,
   UserCheckinTasksPage,
   IntegrationsSettings,
+  IntegrationsStatus,
   AuthSettings,
 } from "./settingsApi";
 
@@ -68,6 +69,7 @@ export {
   fetchMyDailyTasks,
   fetchMyDailyTaskLogs,
   fetchIntegrationsSettings,
+  fetchIntegrationsStatus,
   updateIntegrationsSettings,
   fetchAuthSettings,
   updateAuthSettings,

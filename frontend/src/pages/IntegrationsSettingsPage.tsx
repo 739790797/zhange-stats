@@ -43,6 +43,7 @@ export default function IntegrationsSettingsPage() {
     onSuccess: () => {
       message.success("集成密钥已保存");
       queryClient.invalidateQueries({ queryKey: ["integrations-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["napcat-groups"] });
     },
@@ -78,7 +79,7 @@ export default function IntegrationsSettingsPage() {
     <div>
       <PageHeader
         title="集成密钥"
-        subtitle="Steam / QQ 互联 / NapCat 等第三方密钥与连接配置。"
+        subtitle="第三方密钥与连接配置"
       />
       <Form
         form={form}
@@ -104,7 +105,19 @@ export default function IntegrationsSettingsPage() {
         <Card title="Steam" size="small" style={cardStyle}>
           <Form.Item
             name="steam_api_key"
-            label="Steam Web API Key"
+            label={
+              <span>
+                Steam Web API Key{" "}
+                <a
+                  href="https://steamcommunity.com/dev/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: token.colorLink }}
+                >
+                  （点击前往申请/查看）
+                </a>
+              </span>
+            }
             style={{ marginBottom: 0 }}
           >
             <Input.Password
