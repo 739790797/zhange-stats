@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.12** — MAA 全托管控制面（槽位台账 / 管理端 / 森空岛 Tab）；执行面见 `docs/maa-ops.md`（默认不启）。
+**v0.2.13** — MAA 执行面可一键自动启用（binder systemd + Worker 镜像随发版/Watchtower 更新）。
 
 ## 功能
 
@@ -83,7 +83,7 @@ zhange-stats/
   backend/alembic/          # 迁移（表结构以 versions/ 为准）
 ```
 
-MAA 执行面默认不启：见 [docs/maa-ops.md](docs/maa-ops.md)。`app` 不 privileged、不挂 `docker.sock`。
+MAA 执行面默认不启；生产 Linux 一键：`sudo bash scripts/install-maa-host.sh`（见 [docs/maa-ops.md](docs/maa-ops.md)）。`app` 不 privileged、不挂 `docker.sock`。
 ## 数据库
 
 改表须新增 Alembic 迁移，并更新本节总览。细节以 `models/` + `alembic/versions/` 为准。

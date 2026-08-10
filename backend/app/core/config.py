@@ -134,6 +134,13 @@ class Settings(BaseSettings):
             return bool(self.REJECT_WEAK_ADMIN_PASSWORD)
         return self.is_production
 
+    @property
+    def effective_maa_worker_token(self) -> str:
+        """显式 token 优先；未配置时用 SECRET_KEY 派生。"""
+        from app.core.maa_token import resolve_maa_worker_token
+
+        return resolve_maa_worker_token(self.MAA_WORKER_TOKEN, self.SECRET_KEY)
+
 
 @lru_cache
 def get_settings() -> Settings:

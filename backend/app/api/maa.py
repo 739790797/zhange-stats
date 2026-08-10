@@ -65,9 +65,12 @@ def _require_worker_token(
     x_maa_worker_token: str | None = Header(default=None, alias="X-Maa-Worker-Token"),
 ) -> None:
     settings = get_settings()
-    expected = (settings.MAA_WORKER_TOKEN or "").strip()
+    expected = settings.effective_maa_worker_token
     if not expected:
-        raise HTTPException(status_code=503, detail="未配置 MAA_WORKER_TOKEN")
+        raise HTTPException(
+            status_code=503,
+            detail="未配置 MAA_WORKER_TOKEN（或 SECRET_KEY 不可用，无法派生）",
+        )
     if not x_maa_worker_token or x_maa_worker_token != expected:
         raise HTTPException(status_code=401, detail="Worker 鉴权失败")
 

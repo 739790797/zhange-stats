@@ -104,16 +104,20 @@ jobs:
         shell: bash
         run: |
           IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME,,}"
+          WORKER_IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME,,}-maa-worker"
           VERSION="$(tr -d '[:space:]' < VERSION)"
           if [[ -z "${VERSION}" ]]; then
             echo "VERSION file is empty" >&2
             exit 1
           fi
           TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
+          WORKER_TAGS="${WORKER_IMAGE}:${VERSION},${WORKER_IMAGE}:latest"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "worker_tags=${WORKER_TAGS}" >> "$GITHUB_OUTPUT"
           echo "Resolved version=${VERSION}"
           echo "Resolved tags=${TAGS}"
+          echo "Resolved worker_tags=${WORKER_TAGS}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -125,7 +129,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push app
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -135,4 +139,14 @@ jobs:
             APP_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Build and push maa-worker
+        uses: docker/build-push-action@v6
+        with:
+          context: ./maa-worker
+          push: true
+          tags: ${{ steps.meta.outputs.worker_tags }}
+          cache-from: type=gha,scope=maa-worker
+          cache-to: type=gha,mode=max,scope=maa-worker
           platforms: linux/amd64

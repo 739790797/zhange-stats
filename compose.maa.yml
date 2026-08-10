@@ -1,17 +1,16 @@
-# MAA 全托管执行面（默认不启）。在 R730XD 上：
-#   1) 宿主机加载 binder：sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
-#   2) .env 设置 MAA_WORKER_TOKEN、可选 COMPOSE_PROFILES=maa
-#   3) docker compose --profile maa up -d
-#
+# MAA 全托管执行面（默认不启）。在 R730XD 上一键启用：
+#   sudo bash scripts/install-maa-host.sh
 # 详见 docs/maa-ops.md
+#
+# 之后：binder 开机自动加载；Worker 随 compose 启动；Watchtower 拉 GHCR 新镜像。
 
 services:
   maa-worker:
     profiles: ["maa"]
+    image: ${MAA_WORKER_IMAGE:-ghcr.io/739790797/zhange-stats-maa-worker}:${MAA_WORKER_TAG:-latest}
     build:
       context: ./maa-worker
       dockerfile: Dockerfile
-    image: ${MAA_WORKER_IMAGE:-zhange-maa-worker:local}
     restart: unless-stopped
     depends_on:
       app:
@@ -20,7 +19,9 @@ services:
       - .env
     environment:
       MAA_APP_BASE_URL: ${MAA_APP_BASE_URL:-http://app:8000}
-      MAA_WORKER_TOKEN: ${MAA_WORKER_TOKEN:?set MAA_WORKER_TOKEN in .env}
+      # 可显式配置；留空则与 app 一样用 SECRET_KEY 派生
+      MAA_WORKER_TOKEN: ${MAA_WORKER_TOKEN:-}
+      SECRET_KEY: ${SECRET_KEY:-}
       DATA_DIR: /app/data
       MAA_DOCKER_NETWORK: ${MAA_DOCKER_NETWORK:-zhange-stats_maa}
       MAA_REDROID_IMAGE: ${MAA_REDROID_IMAGE:-redroid/redroid:11.0.0-latest}
@@ -33,7 +34,8 @@ services:
       - default
       - maa
     labels:
-      com.centurylinklabs.watchtower.enable: "false"
+      # 与 app 一样由 Watchtower 跟随 GHCR latest/钉版本
+      com.centurylinklabs.watchtower.enable: "true"
 
   # PoC / 手工验证用静态 Redroid（可选）。生产槽位由 maa-worker 动态创建。
   redroid-poc:

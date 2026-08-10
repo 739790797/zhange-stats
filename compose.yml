@@ -6,9 +6,9 @@
 # 请保持单 app 副本（调度/迁移/进程锁非多实例安全）；详见 README「部署形态」。
 # app 镜像 all-in-one：同容器内嵌 Redis（127.0.0.1，限流 + 扫码/cred 短时 KV）。
 #
-# MAA 全托管执行面（Redroid + Worker）见 compose.maa.yml，默认不启：
-#   COMPOSE_PROFILES=maa docker compose -f compose.yml -f compose.maa.yml up -d
-# 详见 docs/maa-ops.md。app 不挂 docker.sock、不 privileged。
+# MAA 全托管执行面（Redroid + Worker）见 compose.maa.yml，默认不启。
+# 生产 Linux 一键：sudo bash scripts/install-maa-host.sh（详见 docs/maa-ops.md）。
+# app 不挂 docker.sock、不 privileged。
 
 name: zhange-stats
 
@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.2.12}
+        APP_VERSION: ${APP_VERSION:-0.2.13}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8000"

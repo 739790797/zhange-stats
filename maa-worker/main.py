@@ -13,11 +13,15 @@ import httpx
 from PIL import Image
 
 from docker_ops import DockerOps, DockerOpsError
+from maa_token import resolve_maa_worker_token
 
 LOG = logging.getLogger("maa-worker")
 
 APP_BASE_URL = os.environ.get("MAA_APP_BASE_URL", "http://app:8000").rstrip("/")
-WORKER_TOKEN = os.environ.get("MAA_WORKER_TOKEN", "").strip()
+WORKER_TOKEN = resolve_maa_worker_token(
+    os.environ.get("MAA_WORKER_TOKEN"),
+    os.environ.get("SECRET_KEY"),
+)
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/data"))
 POLL_INTERVAL = float(os.environ.get("MAA_WORKER_POLL_SEC", "5"))
 ADB_READY_ATTEMPTS = int(os.environ.get("MAA_ADB_READY_ATTEMPTS", "2"))
@@ -749,7 +753,10 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     if not WORKER_TOKEN:
-        raise SystemExit("MAA_WORKER_TOKEN is required")
+        raise SystemExit(
+            "MAA_WORKER_TOKEN 未配置且无法从 SECRET_KEY 派生；"
+            "请在 .env 设置其一，或运行 scripts/install-maa-host.sh"
+        )
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     ops = DockerOps(network=DOCKER_NETWORK)
     last_shot: dict[int, float] = {}

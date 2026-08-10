@@ -14,7 +14,7 @@ RUN apt-get update \
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY docker_ops.py main.py /app/
+COPY docker_ops.py main.py maa_token.py /app/
 
 # maa-cli 需在目标机另行安装或扩展本镜像；未安装时日常任务会失败并写明原因
 
