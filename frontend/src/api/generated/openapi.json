@@ -7066,7 +7066,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MaaSlotLogsOut"
+                }
               }
             }
           },
@@ -7174,6 +7176,33 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/maa/me/logs": {
+      "get": {
+        "tags": [
+          "maa"
+        ],
+        "summary": "User Maa Logs",
+        "description": "当前用户绑定槽位的运行日志（与管理端同源 runtime.log）。",
+        "operationId": "user_maa_logs_api_maa_me_logs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaaSlotLogsOut"
+                }
               }
             }
           }
@@ -12367,6 +12396,40 @@
           "created_at"
         ],
         "title": "MaaSlotAuditOut"
+      },
+      "MaaSlotLogsOut": {
+        "properties": {
+          "slot_id": {
+            "type": "integer",
+            "title": "Slot Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot_id",
+          "status",
+          "text"
+        ],
+        "title": "MaaSlotLogsOut"
       },
       "MaaSlotOut": {
         "properties": {

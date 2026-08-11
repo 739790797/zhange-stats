@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.18** — 集成密钥可配置 GitHub Token（缓解 Releases API 限流）；平台日志健康观测。
+**v0.2.19** — MAA 日常运行日志（用户面板实时展示；Worker 流式落盘且不阻塞截图）。
 
 ## 功能
 

@@ -185,6 +185,13 @@ def test_maa_full_lifecycle_simulation(maa_env):
             assert r.status_code == 200, r.text
             assert r.json()["assigned"] is True
 
+            # 尚无 runtime.log：返回占位文案
+            r = await c.get("/api/maa/me/logs", headers=uh)
+            assert r.status_code == 200, r.text
+            logs_body = r.json()
+            assert logs_body["slot_id"] == slot_id
+            assert "暂无运行日志" in logs_body["text"]
+
             r = await c.post("/api/maa/me/daily", headers=uh)
             assert r.status_code == 200, r.text
             job_id = r.json()["id"]
@@ -200,6 +207,17 @@ def test_maa_full_lifecycle_simulation(maa_env):
             shot_path = data_dir / rel
             shot_path.parent.mkdir(parents=True, exist_ok=True)
             shot_path.write_bytes(_jpeg_bytes())
+
+            log_path = data_dir / "maa" / str(slot_id) / "runtime.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text(
+                "[sim] daily running\nmaa-cli daily ok\n",
+                encoding="utf-8",
+            )
+
+            r = await c.get("/api/maa/me/logs", headers=uh)
+            assert r.status_code == 200, r.text
+            assert "maa-cli daily ok" in r.json()["text"]
 
             r = await c.post(
                 "/api/internal/maa/heartbeat",
@@ -224,6 +242,10 @@ def test_maa_full_lifecycle_simulation(maa_env):
             r = await c.get("/api/maa/me/screenshot", headers=uh)
             assert r.status_code == 200
             assert len(r.content) > 100
+
+            r = await c.get(f"/api/settings/maa/slots/{slot_id}/logs", headers=ah)
+            assert r.status_code == 200
+            assert "maa-cli daily ok" in r.json()["text"]
 
             r = await c.get(f"/api/settings/maa/slots/{slot_id}/audits", headers=ah)
             assert r.status_code == 200
@@ -264,6 +286,24 @@ def test_maa_full_lifecycle_simulation(maa_env):
 
             r = await c.get("/api/settings/maa", headers=ah)
             assert r.json()["summary"]["active_slots"] == 0
+
+    anyio.run(_run)
+
+
+def test_maa_user_logs_requires_bound_slot(maa_env):
+    uh = maa_env["user_headers"]
+
+    async def _run() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as c:
+            r = await c.get("/api/maa/me/logs", headers=uh)
+            assert r.status_code == 404
+            assert "未分配" in r.json()["detail"]
+
+            r = await c.get("/api/maa/me/logs")
+            assert r.status_code in (401, 403)
 
     anyio.run(_run)
 

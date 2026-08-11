@@ -12,6 +12,7 @@ from app.api.maa_schemas import (
     MaaJobOut,
     MaaResourceSummaryOut,
     MaaSlotAuditOut,
+    MaaSlotLogsOut,
     MaaSlotOut,
     MaaUserStatusOut,
     MaaWorkerHeartbeatIn,
@@ -179,7 +180,7 @@ def admin_slot_screenshot(
     return FileResponse(path, media_type="image/jpeg")
 
 
-@router.get("/settings/maa/slots/{slot_id}/logs")
+@router.get("/settings/maa/slots/{slot_id}/logs", response_model=MaaSlotLogsOut)
 def admin_slot_logs(
     slot_id: int,
     _: User = Depends(require_admin),
@@ -197,12 +198,12 @@ def admin_slot_logs(
             f"last_error: {slot.last_error or '-'}\n"
             f"\n提示: 需 maa-worker 运行后才会写入 DATA_DIR/maa/{slot_id}/runtime.log"
         )
-    return {
-        "slot_id": slot_id,
-        "status": slot.status,
-        "last_error": slot.last_error,
-        "text": text,
-    }
+    return MaaSlotLogsOut(
+        slot_id=slot_id,
+        status=slot.status,
+        last_error=slot.last_error,
+        text=text,
+    )
 
 
 # ----- User -----
@@ -287,6 +288,49 @@ def user_maa_screenshot(
     if not path:
         raise HTTPException(status_code=404, detail="暂无截图")
     return FileResponse(path, media_type="image/jpeg")
+
+
+@router.get(
+    "/maa/me/logs",
+    response_model=MaaSlotLogsOut,
+    dependencies=[Depends(require_feature("skland.arknights.maa"))],
+)
+def user_maa_logs(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """当前用户绑定槽位的运行日志（与管理端同源 runtime.log）。"""
+    member = ensure_user_member(db, user)
+    slot = svc.get_slot_for_member(db, member.id)
+    if not slot:
+        raise HTTPException(status_code=404, detail="未分配槽位")
+    text = svc.runtime_log_text(slot.id)
+    if not text:
+        active = (
+            db.query(MaaJob)
+            .filter(
+                MaaJob.slot_id == slot.id,
+                MaaJob.status.in_(("queued", "running")),
+            )
+            .order_by(MaaJob.id.desc())
+            .first()
+        )
+        job_hint = (
+            f"{active.job_type}:{active.status}" if active else "无进行中任务"
+        )
+        text = (
+            f"暂无运行日志。\n"
+            f"当前状态: {slot.status}\n"
+            f"任务: {job_hint}\n"
+            f"last_error: {slot.last_error or '-'}\n"
+            f"\n提示: 需 maa-worker 运行后才会写入运行日志"
+        )
+    return MaaSlotLogsOut(
+        slot_id=slot.id,
+        status=slot.status,
+        last_error=slot.last_error,
+        text=text,
+    )
 
 
 # ----- Worker internal -----

@@ -7,6 +7,7 @@ export type MaaResourceSummary = components["schemas"]["MaaResourceSummaryOut"];
 export type MaaSlotAudit = components["schemas"]["MaaSlotAuditOut"];
 export type MaaUserStatus = components["schemas"]["MaaUserStatusOut"];
 export type MaaJob = components["schemas"]["MaaJobOut"];
+export type MaaSlotLogs = components["schemas"]["MaaSlotLogsOut"];
 
 export async function fetchMaaAdminList(includeDestroyed = false) {
   const { data } = await client.get<MaaAdminList>("/settings/maa", {
@@ -72,12 +73,14 @@ export async function triggerMaaReconcile() {
 }
 
 export async function fetchMaaSlotLogs(slotId: number) {
-  const { data } = await client.get<{
-    slot_id: number;
-    status: string;
-    last_error: string | null;
-    text: string;
-  }>(`/settings/maa/slots/${slotId}/logs`);
+  const { data } = await client.get<MaaSlotLogs>(
+    `/settings/maa/slots/${slotId}/logs`,
+  );
+  return data;
+}
+
+export async function fetchMaaMeLogs() {
+  const { data } = await client.get<MaaSlotLogs>("/maa/me/logs");
   return data;
 }
 

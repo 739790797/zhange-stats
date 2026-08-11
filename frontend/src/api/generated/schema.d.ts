@@ -2487,6 +2487,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/maa/me/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User Maa Logs
+         * @description 当前用户绑定槽位的运行日志（与管理端同源 runtime.log）。
+         */
+        get: operations["user_maa_logs_api_maa_me_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/internal/maa/pull": {
         parameters: {
             query?: never;
@@ -4725,6 +4745,17 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** MaaSlotLogsOut */
+        MaaSlotLogsOut: {
+            /** Slot Id */
+            slot_id: number;
+            /** Status */
+            status: string;
+            /** Last Error */
+            last_error?: string | null;
+            /** Text */
+            text: string;
         };
         /** MaaSlotOut */
         MaaSlotOut: {
@@ -11140,7 +11171,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["MaaSlotLogsOut"];
                 };
             };
             /** @description Validation Error */
@@ -11230,6 +11261,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    user_maa_logs_api_maa_me_logs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaaSlotLogsOut"];
                 };
             };
         };

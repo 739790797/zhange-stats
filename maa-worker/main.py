@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -16,6 +17,10 @@ from docker_ops import DockerOps, DockerOpsError
 from maa_token import resolve_maa_worker_token
 
 LOG = logging.getLogger("maa-worker")
+
+# 每槽最多一个进行中的日常线程（主循环继续截图 / 写 runtime.log）
+_inflight_slots: set[int] = set()
+_inflight_lock = threading.Lock()
 
 APP_BASE_URL = os.environ.get("MAA_APP_BASE_URL", "http://app:8000").rstrip("/")
 WORKER_TOKEN = resolve_maa_worker_token(
@@ -74,6 +79,13 @@ def _run(cmd: list[str], **kwargs):
     if _CREATE_NO_WINDOW and "creationflags" not in kwargs:
         kwargs["creationflags"] = _CREATE_NO_WINDOW
     return subprocess.run(cmd, **kwargs)
+
+
+def _popen(cmd: list[str], **kwargs) -> subprocess.Popen:
+    """subprocess.Popen 包装：Windows 下不弹控制台。"""
+    if _CREATE_NO_WINDOW and "creationflags" not in kwargs:
+        kwargs["creationflags"] = _CREATE_NO_WINDOW
+    return subprocess.Popen(cmd, **kwargs)
 
 
 def _headers() -> dict[str, str]:
@@ -211,27 +223,99 @@ def maa_cli_available() -> bool:
     return bool(shutil.which(MAA_CLI) or Path(MAA_CLI).exists())
 
 
-def run_maa_daily(endpoint: str) -> tuple[bool, str]:
-    """尝试 maa-cli；不可用时仅截图占位并返回提示。"""
+def run_maa_daily(
+    slot_id: int,
+    endpoint: str,
+    *,
+    job_id: int | None = None,
+    timeout: float = 3600,
+) -> tuple[bool, str]:
+    """运行 maa-cli daily，stdout/stderr 行级写入 runtime.log。"""
     if not maa_cli_available():
-        return (
-            False,
-            "maa-cli 未安装：已记录任务失败。请在 Worker 镜像安装 maa-cli 后重试。",
+        msg = (
+            "maa-cli 未安装：已记录任务失败。请在 Worker 镜像安装 maa-cli 后重试。"
         )
+        append_slot_log(slot_id, msg)
+        return False, msg
     if not (endpoint or "").strip():
-        return False, "缺少 ADB endpoint，无法连接槽位"
+        msg = "缺少 ADB endpoint，无法连接槽位"
+        append_slot_log(slot_id, msg)
+        return False, msg
+
+    cli_cmd = [MAA_CLI, "--batch", "run", "daily", "-a", endpoint.strip()]
+    # 非 TTY 下子进程常全缓冲；有 stdbuf 时强制行缓冲以便实时日志
+    if shutil.which("stdbuf"):
+        cmd = ["stdbuf", "-oL", "-eL", *cli_cmd]
+    else:
+        cmd = cli_cmd
+
+    append_slot_log(
+        slot_id,
+        f"=== daily start job_id={job_id or '-'} endpoint={endpoint.strip()} ===",
+    )
     try:
-        proc = _run(
-            [MAA_CLI, "--batch", "run", "daily", "-a", endpoint.strip()],
-            capture_output=True,
+        proc = _popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=3600,
+            bufsize=1,
         )
-        if proc.returncode == 0:
-            return True, "maa-cli daily ok"
-        return False, (proc.stderr or proc.stdout or f"exit {proc.returncode}")[:2000]
+    except OSError as e:
+        msg = f"maa-cli error: {e}"
+        append_slot_log(slot_id, msg)
+        return False, msg
+
+    tail: list[str] = []
+
+    def _reader() -> None:
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.rstrip("\n\r")
+            if not line:
+                continue
+            append_slot_log(slot_id, line)
+            tail.append(line)
+            if len(tail) > 40:
+                del tail[: len(tail) - 40]
+
+    reader = threading.Thread(
+        target=_reader,
+        name=f"maa-cli-log-{slot_id}",
+        daemon=True,
+    )
+    reader.start()
+    try:
+        rc = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        reader.join(timeout=5)
+        msg = f"maa-cli daily timeout ({int(timeout)}s)"
+        append_slot_log(slot_id, msg)
+        return False, msg
     except (subprocess.SubprocessError, OSError) as e:
-        return False, f"maa-cli error: {e}"
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        reader.join(timeout=5)
+        msg = f"maa-cli error: {e}"
+        append_slot_log(slot_id, msg)
+        return False, msg
+
+    reader.join(timeout=5)
+    append_slot_log(
+        slot_id,
+        f"=== daily end job_id={job_id or '-'} exit={rc} ===",
+    )
+    if rc == 0:
+        return True, "maa-cli daily ok"
+    err = "\n".join(tail).strip() or f"exit {rc}"
+    return False, err[:2000]
 
 
 def handle_provision(ops: DockerOps, client: httpx.Client, slot: dict) -> None:
@@ -638,7 +722,47 @@ def reconcile(ops: DockerOps, client: httpx.Client, slots: list[dict]) -> None:
                 LOG.error("orphan cleanup failed %s: %s", name, e)
 
 
-def process_jobs(client: httpx.Client, slots: list[dict], jobs: list[dict]) -> None:
+def _run_daily_job(ops: DockerOps, slot: dict, job: dict) -> None:
+    """后台执行日常：不阻塞主循环的截图与 runtime.log 刷新。"""
+    job_id = int(job["id"])
+    slot_id = int(slot["id"])
+    endpoint = slot.get("adb_endpoint") or ""
+    name = slot.get("container_name")
+    with httpx.Client(timeout=60.0) as client:
+        try:
+            png = capture_slot_png(ops, endpoint=endpoint, container_name=name)
+            if png:
+                rel = save_screenshot(slot_id, png)
+                heartbeat(client, {"slot_id": slot_id, "screenshot_relpath": rel})
+            ok, msg = run_maa_daily(slot_id, endpoint, job_id=job_id)
+            png2 = capture_slot_png(ops, endpoint=endpoint, container_name=name)
+            if png2:
+                rel = save_screenshot(slot_id, png2)
+                heartbeat(client, {"slot_id": slot_id, "screenshot_relpath": rel})
+            update_job(
+                client,
+                job_id,
+                "success" if ok else "failed",
+                None if ok else msg,
+            )
+        except Exception as e:  # noqa: BLE001
+            LOG.exception("daily job %s slot %s failed", job_id, slot_id)
+            append_slot_log(slot_id, f"daily job error: {e}")
+            try:
+                update_job(client, job_id, "failed", str(e)[:2000])
+            except Exception:  # noqa: BLE001
+                LOG.exception("failed to report job %s failure", job_id)
+        finally:
+            with _inflight_lock:
+                _inflight_slots.discard(slot_id)
+
+
+def process_jobs(
+    ops: DockerOps,
+    client: httpx.Client,
+    slots: list[dict],
+    jobs: list[dict],
+) -> None:
     slot_map = {s["id"]: s for s in slots}
     for job in jobs:
         if job["status"] != "queued":
@@ -648,31 +772,32 @@ def process_jobs(client: httpx.Client, slots: list[dict], jobs: list[dict]) -> N
             update_job(client, job["id"], "failed", "槽位未在线")
             continue
         if job["job_type"] == "stop":
+            # 产品语义：请求停止；不强制杀已 running 的 maa-cli
+            sid = int(job["slot_id"])
+            append_slot_log(sid, f"stop job {job['id']} accepted (no force-kill)")
             update_job(client, job["id"], "success", None)
             continue
         if job["job_type"] != "daily":
             update_job(client, job["id"], "failed", f"未知任务类型 {job['job_type']}")
             continue
-        update_job(client, job["id"], "running", None)
-        endpoint = slot.get("adb_endpoint") or ""
-        # 任务前后截图
-        name = slot.get("container_name")
-        png = capture_slot_png(ops, endpoint=endpoint, container_name=name)
-        if png:
-            rel = save_screenshot(slot["id"], png)
-            heartbeat(
-                client,
-                {"slot_id": slot["id"], "screenshot_relpath": rel},
-            )
-        ok, msg = run_maa_daily(endpoint)
-        png2 = capture_slot_png(ops, endpoint=endpoint, container_name=name)
-        if png2:
-            rel = save_screenshot(slot["id"], png2)
-            heartbeat(
-                client,
-                {"slot_id": slot["id"], "screenshot_relpath": rel},
-            )
-        update_job(client, job["id"], "success" if ok else "failed", None if ok else msg)
+        sid = int(slot["id"])
+        with _inflight_lock:
+            if sid in _inflight_slots:
+                continue
+            _inflight_slots.add(sid)
+        try:
+            update_job(client, job["id"], "running", None)
+        except Exception:  # noqa: BLE001
+            with _inflight_lock:
+                _inflight_slots.discard(sid)
+            raise
+        append_slot_log(sid, f"job {job['id']} queued→running (background)")
+        threading.Thread(
+            target=_run_daily_job,
+            args=(ops, dict(slot), dict(job)),
+            name=f"maa-daily-{sid}-{job['id']}",
+            daemon=True,
+        ).start()
 
 
 def refresh_slot_screenshots(
@@ -812,7 +937,7 @@ def main() -> None:
                         status == "provisioning" and not action
                     ):
                         handle_provision(ops, client, slot)
-                process_jobs(client, slots, jobs)
+                process_jobs(ops, client, slots, jobs)
                 refresh_slot_screenshots(ops, client, slots, last_shot)
                 for slot in slots:
                     if slot.get("status") in ("provisioning", "online", "error", "destroying"):

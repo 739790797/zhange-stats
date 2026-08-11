@@ -92,6 +92,13 @@ class MaaUserStatusOut(BaseModel):
     free_online_slots: int = 0
 
 
+class MaaSlotLogsOut(BaseModel):
+    slot_id: int
+    status: str
+    last_error: str | None = None
+    text: str
+
+
 class MaaWorkerHeartbeatIn(BaseModel):
     slot_id: int
     status: str | None = None
