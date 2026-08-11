@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.21** — 发版用于验证管理端「系统更新」流程。
+**v0.2.22** — SSH `update.sh` 更新成功后自动 `systemctl restart` 后端服务。
 
 ## 功能
 
@@ -82,8 +82,9 @@ sudo systemctl start zhange-stats
 更新方式：
 
 - **管理端 → 系统更新**（AstrBot 式：拉 GitHub Release 源码 zip + 预构建 `static` → pip → **进程内 exec 重启**）
-- 或 SSH：`bash scripts/update.sh` / `bash scripts/update.sh v0.2.15`
-- 默认不调用 `systemctl restart`（服务用户通常无权限）；需要时可设 `APP_RESTART_CMD` 并配置 sudoers
+- 或 SSH（建议 root）：`bash scripts/update.sh` / `bash scripts/update.sh v0.2.15`
+  - 成功后会 `systemctl restart zhange-stats`（可用 `ZHANGE_SERVICE_NAME` 改 unit 名；`--no-reboot` / `UPDATE_NO_REBOOT=1` 跳过重启）
+  - 管理端一键更新仍不依赖 `systemctl`；若坚持用 `APP_RESTART_CMD=systemctl …`，须为服务用户配 sudoers
 
 **部署形态**：单 `app` 进程。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移均非多实例安全。水平扩展前须另行解决调度选举、共享 `DATA_DIR`/`SECRET_KEY`、迁移单点，以及共享 `REDIS_URL`。
 
