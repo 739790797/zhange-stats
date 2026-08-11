@@ -86,7 +86,11 @@ class _UpdateLock:
                 data = (install / data).resolve()
             data.mkdir(parents=True, exist_ok=True)
             lock_path = data / "update.lock"
-            fd = open(lock_path, "a+", encoding="utf-8")  # noqa: SIM115
+            try:
+                fd = open(lock_path, "a+", encoding="utf-8")  # noqa: SIM115
+            except PermissionError as e:
+                self._thread.release()
+                raise PermissionError(_writable_hint(lock_path)) from e
             try:
                 if sys.platform != "win32":
                     import fcntl
@@ -105,6 +109,8 @@ class _UpdateLock:
             fd.write(f"pid={os.getpid()}\n")
             fd.flush()
             return True
+        except PermissionError:
+            raise
         except Exception:
             if self._fd is not None:
                 try:
@@ -222,6 +228,42 @@ def resolve_install_dir() -> Path:
     return Path.cwd().resolve()
 
 
+def _writable_hint(path: Path) -> str:
+    return (
+        f"安装路径不可写：{path}。"
+        "常见原因是曾用 root 执行 scripts/update.sh，文件属主变成 root，"
+        "而服务以 zhange 运行。请在服务器执行："
+        f" chown -R zhange:zhange {path if path.is_dir() else path.parent}"
+    )
+
+
+def _check_install_writable(install: Path) -> tuple[bool, str]:
+    """Ensure service user can overwrite whitelist paths / update lock."""
+    settings = get_settings()
+    data = Path(settings.DATA_DIR).expanduser()
+    if not data.is_absolute():
+        data = (install / data).resolve()
+    candidates = [
+        install / "VERSION",
+        install / "backend" / "app",
+        install / "static",
+        data,
+        data / "update.lock",
+    ]
+    for path in candidates:
+        if not path.exists():
+            # parent must be writable so we can create it
+            parent = path.parent if path.name == "update.lock" else path
+            if path.name == "update.lock":
+                parent = data
+            if parent.exists() and not os.access(parent, os.W_OK):
+                return False, _writable_hint(parent)
+            continue
+        if not os.access(path, os.W_OK):
+            return False, _writable_hint(path)
+    return True, ""
+
+
 def update_allowed() -> tuple[bool, str]:
     settings = get_settings()
     if not settings.allow_in_app_update:
@@ -231,6 +273,9 @@ def update_allowed() -> tuple[bool, str]:
         return False, f"安装根无效：未找到 VERSION（APP_INSTALL_DIR={install}）"
     if not (install / "backend" / "app").is_dir():
         return False, f"安装根无效：缺少 backend/app（APP_INSTALL_DIR={install}）"
+    ok, reason = _check_install_writable(install)
+    if not ok:
+        return False, reason
     return True, ""
 
 
@@ -705,7 +750,11 @@ async def apply_update(
     if not allowed:
         return UpdateResult(ok=False, message=reason)
 
-    if not _lock.acquire(blocking=False):
+    try:
+        got_lock = _lock.acquire(blocking=False)
+    except PermissionError as e:
+        return UpdateResult(ok=False, message=str(e))
+    if not got_lock:
         return UpdateResult(ok=False, message="已有更新任务进行中")
 
     install_dir = resolve_install_dir()
@@ -723,6 +772,11 @@ async def apply_update(
             reboot=reboot,
             install_dir=install_dir,
         )
+    except PermissionError as e:
+        logger.exception("self-update permission denied")
+        msg = str(e) if "不可写" in str(e) else _writable_hint(install_dir)
+        _set_progress(phase="error", message="更新失败", error=msg)
+        return UpdateResult(ok=False, message=f"更新失败: {msg}")
     except Exception as e:
         logger.exception("self-update failed")
         _set_progress(phase="error", message="更新失败", error=str(e))
@@ -745,7 +799,11 @@ async def enqueue_update(
     if not allowed:
         return UpdateResult(ok=False, message=reason)
 
-    if not _lock.acquire(blocking=False):
+    try:
+        got_lock = _lock.acquire(blocking=False)
+    except PermissionError as e:
+        return UpdateResult(ok=False, message=str(e))
+    if not got_lock:
         return UpdateResult(ok=False, message="已有更新任务进行中")
 
     install_dir = resolve_install_dir()
@@ -783,6 +841,10 @@ async def enqueue_update(
                 reboot=reboot,
                 install_dir=install_dir,
             )
+        except PermissionError as e:
+            logger.exception("self-update background permission denied")
+            msg = str(e) if "不可写" in str(e) else _writable_hint(install_dir)
+            _set_progress(phase="error", message="更新失败", error=msg, busy=False)
         except Exception as e:
             logger.exception("self-update background failed")
             _set_progress(phase="error", message="更新失败", error=str(e), busy=False)

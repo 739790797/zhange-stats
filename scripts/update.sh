@@ -22,6 +22,7 @@ usage() {
 
 环境变量:
   ZHANGE_SERVICE_NAME  systemd unit 名（默认 zhange-stats.service）
+  ZHANGE_SERVICE_USER  更新后 chown 目标用户（默认取 unit 的 User，否则 zhange）
   UPDATE_NO_REBOOT=1   同 --no-reboot
 EOF
 }
@@ -82,6 +83,49 @@ if [[ -n "${PROXY_ARG}" ]]; then
 fi
 
 "${PY}" "${ARGS[@]}"
+
+# root 跑更新会把白名单文件写成 root 属主，管理端（zhange）随后无法覆盖 → 一键更新失败
+ensure_service_ownership() {
+  if [[ "$(id -u)" -ne 0 ]]; then
+    return 0
+  fi
+  local unit_user=""
+  if command -v systemctl >/dev/null 2>&1 && systemctl cat "${SERVICE_NAME}" >/dev/null 2>&1; then
+    unit_user="$(systemctl show -p User --value "${SERVICE_NAME}" 2>/dev/null || true)"
+  fi
+  local owner="${ZHANGE_SERVICE_USER:-${unit_user:-zhange}}"
+  if ! id -u "${owner}" >/dev/null 2>&1; then
+    echo "[update] 警告：用户 ${owner} 不存在，跳过 chown" >&2
+    return 0
+  fi
+  echo "[update] 校正属主为 ${owner}（避免 WEB 一键更新无写权限）…"
+  local paths=(
+    "${REPO_ROOT}/VERSION"
+    "${REPO_ROOT}/AGENTS.md"
+    "${REPO_ROOT}/README.md"
+    "${REPO_ROOT}/backend/app"
+    "${REPO_ROOT}/backend/alembic"
+    "${REPO_ROOT}/backend/requirements.txt"
+    "${REPO_ROOT}/backend/requirements-dev.txt"
+    "${REPO_ROOT}/backend/scripts"
+    "${REPO_ROOT}/scripts"
+    "${REPO_ROOT}/deploy"
+    "${REPO_ROOT}/static"
+    "${REPO_ROOT}/data/update-tmp"
+    "${REPO_ROOT}/data/update.lock"
+  )
+  local p
+  for p in "${paths[@]}"; do
+    if [[ -e "${p}" ]]; then
+      chown -R "${owner}:${owner}" "${p}" || true
+    fi
+  done
+  if [[ -d "${REPO_ROOT}/data" ]]; then
+    chown "${owner}:${owner}" "${REPO_ROOT}/data" || true
+  fi
+}
+
+ensure_service_ownership
 
 if [[ "${NO_REBOOT}" -eq 1 ]]; then
   echo "[update] 已跳过重启（--no-reboot / UPDATE_NO_REBOOT=1）"

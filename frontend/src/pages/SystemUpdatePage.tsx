@@ -61,7 +61,18 @@ export default function SystemUpdatePage() {
       if (data.reboot && data.version) {
         setWaitingRestart(true);
         try {
-          const ver = await waitForHealthVersion(data.version);
+          const ver = await waitForHealthVersion(data.version, {
+            shouldAbort: async () => {
+              // 后台任务失败时尽早退出，不要干等 /health 版本
+              await queryClient.refetchQueries({
+                queryKey: ["app-update-status"],
+              });
+              const st = queryClient.getQueryData<AppUpdateStatus>([
+                "app-update-status",
+              ]);
+              return st?.error || null;
+            },
+          });
           message.success(`服务已恢复 · v${ver}`);
           queryClient.invalidateQueries({ queryKey: ["app-version"] });
           queryClient.invalidateQueries({ queryKey: ["app-update-status"] });
@@ -72,7 +83,7 @@ export default function SystemUpdatePage() {
           if (st?.error) {
             message.error(st.error);
           } else {
-            message.warning(
+            message.error(
               e instanceof Error ? e.message : "请手动刷新确认是否已更新",
             );
           }

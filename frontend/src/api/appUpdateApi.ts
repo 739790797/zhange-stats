@@ -39,13 +39,24 @@ export async function doAppUpdate(payload: Partial<AppUpdateDoIn> = {}) {
 /** Poll /health until version matches expected (post-restart). */
 export async function waitForHealthVersion(
   expectedVersion: string,
-  opts?: { timeoutMs?: number; intervalMs?: number },
+  opts?: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    /** Return early if this throws/returns a string error. */
+    shouldAbort?: () => string | null | undefined | Promise<string | null | undefined>;
+  },
 ): Promise<string> {
   const timeoutMs = opts?.timeoutMs ?? 600_000;
   const intervalMs = opts?.intervalMs ?? 2000;
   const want = expectedVersion.replace(/^v/i, "").trim();
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    if (opts?.shouldAbort) {
+      const abortMsg = await opts.shouldAbort();
+      if (abortMsg) {
+        throw new Error(abortMsg);
+      }
+    }
     try {
       const res = await fetch("/health", { cache: "no-store" });
       const data = (await res.json()) as { version?: string };

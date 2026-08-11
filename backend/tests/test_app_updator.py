@@ -104,6 +104,55 @@ def test_apply_static_tar(tmp_path: Path):
     assert not (static_dir / "old.html").exists()
 
 
+def test_update_allowed_requires_writable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    install = tmp_path / "install"
+    (install / "backend" / "app").mkdir(parents=True)
+    (install / "VERSION").write_text("0.2.22\n", encoding="utf-8")
+    (install / "static").mkdir()
+    data = install / "data"
+    data.mkdir()
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ALLOW_IN_APP_UPDATE", "true")
+    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
+    monkeypatch.setenv("DATA_DIR", str(data))
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(u, "resolve_install_dir", lambda: install.resolve())
+    monkeypatch.setattr(
+        u,
+        "get_settings",
+        lambda: type(
+            "S",
+            (),
+            {
+                "allow_in_app_update": True,
+                "DATA_DIR": str(data),
+                "APP_INSTALL_DIR": str(install),
+                "APP_VERSION": "0.2.22",
+            },
+        )(),
+    )
+
+    ok, _ = u.update_allowed()
+    assert ok is True
+
+    # Simulate root-owned unwritable app tree
+    app_dir = install / "backend" / "app"
+    monkeypatch.setattr(
+        u.os,
+        "access",
+        lambda path, mode, **kwargs: False
+        if str(path) == str(app_dir) and mode == u.os.W_OK
+        else True,
+    )
+    ok2, reason = u.update_allowed()
+    assert ok2 is False
+    assert "不可写" in reason
+    get_settings.cache_clear()
+
+
 def test_resolve_target_latest_and_explicit():
     current = "0.2.18"
     older = u.ReleaseInfo(
