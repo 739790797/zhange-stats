@@ -104,6 +104,40 @@ def test_apply_static_tar(tmp_path: Path):
     assert not (static_dir / "old.html").exists()
 
 
+def test_resolve_target_latest_and_explicit():
+    current = "0.2.18"
+    older = u.ReleaseInfo(
+        tag_name="v0.2.17",
+        name="v0.2.17",
+        body="",
+        published_at="",
+        zipball_url="https://example.com/a.zip",
+    )
+    newer = u.ReleaseInfo(
+        tag_name="v0.2.19",
+        name="v0.2.19",
+        body="",
+        published_at="",
+        zipball_url="https://example.com/b.zip",
+    )
+    resolved = u._resolve_target_release([newer, older], "latest", current)
+    assert isinstance(resolved, u.ReleaseInfo)
+    assert resolved.tag_name == "v0.2.19"
+
+    already = u._resolve_target_release([older], "latest", current)
+    assert isinstance(already, u.UpdateResult)
+    assert already.ok is False
+    assert "最新" in already.message
+
+    explicit = u._resolve_target_release([newer, older], "v0.2.17", current)
+    assert isinstance(explicit, u.ReleaseInfo)
+    assert explicit.tag_name == "v0.2.17"
+
+    missing = u._resolve_target_release([newer], "v9.9.9", current)
+    assert isinstance(missing, u.UpdateResult)
+    assert "未找到" in missing.message
+
+
 def test_update_lock_rejects_concurrent(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(u, "update_allowed", lambda: (True, ""))
 
@@ -115,5 +149,9 @@ def test_update_lock_rejects_concurrent(monkeypatch: pytest.MonkeyPatch):
         result = asyncio.run(u.apply_update(version="latest", reboot=False))
         assert result.ok is False
         assert "进行中" in result.message
+
+        queued = asyncio.run(u.enqueue_update(version="latest", reboot=False))
+        assert queued.ok is False
+        assert "进行中" in queued.message
     finally:
         u._lock.release()

@@ -132,7 +132,7 @@ async def do_app_update(
     allowed, reason = app_updator.update_allowed()
     if not allowed:
         raise HTTPException(status_code=403, detail=reason)
-    result = await app_updator.apply_update(
+    result = await app_updator.enqueue_update(
         version=body.version,
         proxy=body.proxy,
         reboot=body.reboot,

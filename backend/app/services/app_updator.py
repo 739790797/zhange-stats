@@ -411,9 +411,14 @@ def build_status(
 
 
 async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
+    """Download URL to dest.
+
+    Do **not** forward Authorization across redirects to codeload/objects CDN —
+    GitHub rejects that and zipball/asset downloads fail.
+    """
     final = _proxy_url(url, proxy)
     settings = get_settings()
-    headers = {"User-Agent": f"zhange-stats/{settings.APP_VERSION}"}
+    base_headers = {"User-Agent": f"zhange-stats/{settings.APP_VERSION}"}
     token = ""
     try:
         from app.services.integrations_config import get_github_token
@@ -421,15 +426,75 @@ async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
         token = (get_github_token() or "").strip()
     except Exception:  # noqa: BLE001
         token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
-    if token and "github" in final:
-        headers["Authorization"] = f"Bearer {token}"
+
     dest.parent.mkdir(parents=True, exist_ok=True)
-    async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
-        async with client.stream("GET", final, headers=headers) as resp:
-            resp.raise_for_status()
-            with dest.open("wb") as f:
-                async for chunk in resp.aiter_bytes():
-                    f.write(chunk)
+
+    def _headers_for(u: str) -> dict[str, str]:
+        h = dict(base_headers)
+        if not token:
+            return h
+        # Token only on GitHub API / release asset hosts — never on codeload CDN
+        host = ""
+        try:
+            from urllib.parse import urlparse
+
+            host = (urlparse(u).hostname or "").lower()
+        except Exception:  # noqa: BLE001
+            host = ""
+        if host in {"api.github.com", "github.com", "www.github.com"}:
+            h["Authorization"] = f"Bearer {token}"
+            if "/releases/download/" in u:
+                h["Accept"] = "application/octet-stream"
+        return h
+
+    async with httpx.AsyncClient(timeout=300.0, follow_redirects=False) as client:
+        current = final
+        for _ in range(12):
+            resp = await client.send(
+                client.build_request("GET", current, headers=_headers_for(current)),
+                stream=True,
+            )
+            if resp.status_code in (301, 302, 303, 307, 308):
+                loc = resp.headers.get("location") or ""
+                await resp.aclose()
+                if not loc:
+                    raise RuntimeError(f"下载重定向缺少 Location（HTTP {resp.status_code}）")
+                current = urljoin(current, loc)
+                continue
+            try:
+                resp.raise_for_status()
+                with dest.open("wb") as f:
+                    async for chunk in resp.aiter_bytes():
+                        f.write(chunk)
+            finally:
+                await resp.aclose()
+            return
+        raise RuntimeError("下载重定向次数过多")
+
+
+def _resolve_target_release(
+    releases: list[ReleaseInfo],
+    version: str,
+    current_version: str,
+) -> ReleaseInfo | UpdateResult:
+    """Return target ReleaseInfo, or UpdateResult on soft failure."""
+    if not releases:
+        return UpdateResult(ok=False, message="未获取到任何 GitHub Release")
+    ver = (version or "latest").strip()
+    if ver in ("", "latest"):
+        target = releases[0]
+        if compare_version(target.tag_name, current_version) <= 0:
+            return UpdateResult(
+                ok=False,
+                message=f"当前已经是最新版本（{current_version}）",
+                version=current_version,
+            )
+        return target
+    want = ver if ver.startswith("v") else f"v{ver}"
+    for rel in releases:
+        if rel.tag_name == want or rel.tag_name.lstrip("vV") == ver.lstrip("vV"):
+            return rel
+    return UpdateResult(ok=False, message=f"未找到版本 {ver}")
 
 
 def _is_protected(rel_posix: str) -> bool:
@@ -541,12 +606,101 @@ def trigger_restart(*, delay_sec: float = 1.5) -> None:
     threading.Thread(target=_run, name="zhange-self-update-restart", daemon=True).start()
 
 
+async def _apply_update_core(
+    *,
+    target: ReleaseInfo,
+    proxy: str | None,
+    reboot: bool,
+    install_dir: Path,
+) -> UpdateResult:
+    """Download + apply + pip. Caller holds update lock."""
+    settings = get_settings()
+    tmp_root = Path(settings.DATA_DIR).expanduser()
+    if not tmp_root.is_absolute():
+        tmp_root = (install_dir / tmp_root).resolve()
+    else:
+        tmp_root = tmp_root.resolve()
+    work = tmp_root / "update-tmp"
+
+    _set_progress(
+        busy=True,
+        phase="download",
+        message=f"下载 {target.tag_name}…",
+        target_version=target.tag_name,
+        error="",
+    )
+
+    if work.exists():
+        shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+
+    zip_path = work / "source.zip"
+    if not target.zipball_url:
+        return UpdateResult(ok=False, message="该 Release 缺少 zipball_url")
+    await _download(target.zipball_url, zip_path, proxy=proxy)
+
+    static_path = work / "static.tar.gz"
+    if target.static_asset_url:
+        await _download(target.static_asset_url, static_path, proxy=proxy)
+    else:
+        repo = (settings.UPDATE_GITHUB_REPO or "739790797/zhange-stats").strip()
+        asset = _static_asset_name(target.tag_name)
+        tag = target.tag_name if target.tag_name.startswith("v") else f"v{target.tag_name}"
+        url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+        try:
+            await _download(url, static_path, proxy=proxy)
+        except Exception as e:
+            logger.warning("下载 static 资产失败: %s", e)
+            static_path = Path("")
+
+    _set_progress(busy=True, phase="apply", message="覆盖代码（白名单）…")
+    applied = await asyncio.to_thread(apply_source_zip, zip_path, install_dir)
+    logger.info("applied source paths: %s", applied)
+
+    static_dir = (
+        Path(settings.STATIC_DIR).expanduser()
+        if settings.STATIC_DIR
+        else install_dir / "static"
+    )
+    if not static_dir.is_absolute():
+        static_dir = (install_dir / static_dir).resolve()
+    if static_path and static_path.is_file():
+        _set_progress(busy=True, phase="static", message="解压前端 static…")
+        await asyncio.to_thread(apply_static_tar, static_path, static_dir)
+    else:
+        logger.warning("跳过 static 更新（无资产）")
+
+    _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
+    await asyncio.to_thread(pip_install_requirements, install_dir)
+
+    new_ver = (install_dir / "VERSION").read_text(encoding="utf-8").strip()
+    invalidate_check_cache()
+    _set_progress(busy=True, phase="done", message=f"已更新到 {new_ver}", error="")
+
+    if reboot:
+        _set_progress(busy=True, phase="restart", message="即将重启…")
+        trigger_restart(delay_sec=1.5)
+        return UpdateResult(
+            ok=True,
+            message=f"更新成功（{new_ver}），即将重启以加载新代码",
+            version=new_ver,
+            reboot=True,
+        )
+    return UpdateResult(
+        ok=True,
+        message=f"更新成功（{new_ver}），请手动重启服务",
+        version=new_ver,
+        reboot=False,
+    )
+
+
 async def apply_update(
     *,
     version: str = "latest",
     proxy: str | None = None,
     reboot: bool = True,
 ) -> UpdateResult:
+    """Blocking self-update（CLI / scripts/update.sh）。"""
     allowed, reason = update_allowed()
     if not allowed:
         return UpdateResult(ok=False, message=reason)
@@ -556,110 +710,92 @@ async def apply_update(
 
     install_dir = resolve_install_dir()
     settings = get_settings()
-    tmp_root = Path(settings.DATA_DIR).expanduser()
-    if not tmp_root.is_absolute():
-        tmp_root = (install_dir / tmp_root).resolve()
-    else:
-        tmp_root = tmp_root.resolve()
-    work = tmp_root / "update-tmp"
 
     try:
         _set_progress(busy=True, phase="check", message="检查版本…", error="", target_version="")
         releases = await fetch_releases(proxy=proxy)
-        if not releases:
-            return UpdateResult(ok=False, message="未获取到任何 GitHub Release")
-
-        target: ReleaseInfo | None = None
-        ver = (version or "latest").strip()
-        if ver in ("", "latest"):
-            target = releases[0]
-            if compare_version(target.tag_name, settings.APP_VERSION) <= 0:
-                return UpdateResult(
-                    ok=False,
-                    message=f"当前已经是最新版本（{settings.APP_VERSION}）",
-                    version=settings.APP_VERSION,
-                )
-        else:
-            want = ver if ver.startswith("v") else f"v{ver}"
-            for rel in releases:
-                if rel.tag_name == want or rel.tag_name.lstrip("vV") == ver.lstrip("vV"):
-                    target = rel
-                    break
-            if target is None:
-                return UpdateResult(ok=False, message=f"未找到版本 {ver}")
-
-        assert target is not None
-        _set_progress(
-            busy=True,
-            phase="download",
-            message=f"下载 {target.tag_name}…",
-            target_version=target.tag_name,
-        )
-
-        if work.exists():
-            shutil.rmtree(work, ignore_errors=True)
-        work.mkdir(parents=True, exist_ok=True)
-
-        zip_path = work / "source.zip"
-        if not target.zipball_url:
-            return UpdateResult(ok=False, message="该 Release 缺少 zipball_url")
-        await _download(target.zipball_url, zip_path, proxy=proxy)
-
-        static_path = work / "static.tar.gz"
-        if target.static_asset_url:
-            await _download(target.static_asset_url, static_path, proxy=proxy)
-        else:
-            # Fallback: construct release download URL
-            repo = (settings.UPDATE_GITHUB_REPO or "739790797/zhange-stats").strip()
-            asset = _static_asset_name(target.tag_name)
-            tag = target.tag_name if target.tag_name.startswith("v") else f"v{target.tag_name}"
-            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
-            try:
-                await _download(url, static_path, proxy=proxy)
-            except Exception as e:
-                logger.warning("下载 static 资产失败: %s", e)
-                static_path = Path("")  # mark missing
-
-        _set_progress(phase="apply", message="覆盖代码（白名单）…")
-        applied = apply_source_zip(zip_path, install_dir)
-        logger.info("applied source paths: %s", applied)
-
-        static_dir = Path(settings.STATIC_DIR).expanduser() if settings.STATIC_DIR else install_dir / "static"
-        if not static_dir.is_absolute():
-            static_dir = (install_dir / static_dir).resolve()
-        if static_path and static_path.is_file():
-            _set_progress(phase="static", message="解压前端 static…")
-            apply_static_tar(static_path, static_dir)
-        else:
-            logger.warning("跳过 static 更新（无资产）")
-
-        _set_progress(phase="pip", message="安装 Python 依赖…")
-        await asyncio.to_thread(pip_install_requirements, install_dir)
-
-        # Refresh VERSION into settings cache is pointless — process will restart
-        new_ver = (install_dir / "VERSION").read_text(encoding="utf-8").strip()
-        invalidate_check_cache()
-        _set_progress(phase="done", message=f"已更新到 {new_ver}", error="")
-
-        if reboot:
-            _set_progress(phase="restart", message="即将重启…")
-            trigger_restart(delay_sec=1.5)
-            return UpdateResult(
-                ok=True,
-                message=f"更新成功（{new_ver}），即将重启以加载新代码",
-                version=new_ver,
-                reboot=True,
-            )
-        return UpdateResult(
-            ok=True,
-            message=f"更新成功（{new_ver}），请手动重启服务",
-            version=new_ver,
-            reboot=False,
+        resolved = _resolve_target_release(releases, version, settings.APP_VERSION)
+        if isinstance(resolved, UpdateResult):
+            return resolved
+        return await _apply_update_core(
+            target=resolved,
+            proxy=proxy,
+            reboot=reboot,
+            install_dir=install_dir,
         )
     except Exception as e:
         logger.exception("self-update failed")
         _set_progress(phase="error", message="更新失败", error=str(e))
         return UpdateResult(ok=False, message=f"更新失败: {e}")
     finally:
-        _set_progress(busy=False)
+        prog = get_progress()
+        if prog.get("phase") != "restart":
+            _set_progress(busy=False)
         _lock.release()
+
+
+async def enqueue_update(
+    *,
+    version: str = "latest",
+    proxy: str | None = None,
+    reboot: bool = True,
+) -> UpdateResult:
+    """管理端一键更新：预检后立刻返回，下载/覆盖在后台跑（避免网关/前端超时成 502/503）。"""
+    allowed, reason = update_allowed()
+    if not allowed:
+        return UpdateResult(ok=False, message=reason)
+
+    if not _lock.acquire(blocking=False):
+        return UpdateResult(ok=False, message="已有更新任务进行中")
+
+    install_dir = resolve_install_dir()
+    settings = get_settings()
+
+    try:
+        _set_progress(busy=True, phase="check", message="检查版本…", error="", target_version="")
+        releases = await fetch_releases(proxy=proxy)
+        resolved = _resolve_target_release(releases, version, settings.APP_VERSION)
+        if isinstance(resolved, UpdateResult):
+            _set_progress(busy=False, phase="", message="")
+            _lock.release()
+            return resolved
+    except Exception as e:
+        logger.exception("self-update preflight failed")
+        _set_progress(busy=False, phase="error", message="更新失败", error=str(e))
+        _lock.release()
+        return UpdateResult(ok=False, message=f"更新失败: {e}")
+
+    target = resolved
+    target_ver = target.tag_name.lstrip("vV")
+    _set_progress(
+        busy=True,
+        phase="queued",
+        message=f"已开始更新到 {target.tag_name}",
+        target_version=target.tag_name,
+        error="",
+    )
+
+    async def _job() -> None:
+        try:
+            await _apply_update_core(
+                target=target,
+                proxy=proxy,
+                reboot=reboot,
+                install_dir=install_dir,
+            )
+        except Exception as e:
+            logger.exception("self-update background failed")
+            _set_progress(phase="error", message="更新失败", error=str(e), busy=False)
+        finally:
+            prog = get_progress()
+            if prog.get("phase") != "restart":
+                _set_progress(busy=False)
+            _lock.release()
+
+    asyncio.create_task(_job())
+    return UpdateResult(
+        ok=True,
+        message=f"已开始更新到 {target.tag_name}，完成后将自动重启",
+        version=target_ver,
+        reboot=reboot,
+    )

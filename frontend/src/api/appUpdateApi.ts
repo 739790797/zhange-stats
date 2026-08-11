@@ -23,11 +23,16 @@ export async function checkAppUpdate() {
 }
 
 export async function doAppUpdate(payload: Partial<AppUpdateDoIn> = {}) {
-  const { data } = await client.post<AppUpdateDoResult>("/settings/app-update/do", {
-    version: payload.version ?? "latest",
-    proxy: payload.proxy ?? null,
-    reboot: payload.reboot ?? true,
-  });
+  // 接口会立刻返回并在后台执行；仍给足超时以防预检/拉 Release 较慢
+  const { data } = await client.post<AppUpdateDoResult>(
+    "/settings/app-update/do",
+    {
+      version: payload.version ?? "latest",
+      proxy: payload.proxy ?? null,
+      reboot: payload.reboot ?? true,
+    },
+    { timeout: 120_000 },
+  );
   return data;
 }
 
@@ -36,8 +41,8 @@ export async function waitForHealthVersion(
   expectedVersion: string,
   opts?: { timeoutMs?: number; intervalMs?: number },
 ): Promise<string> {
-  const timeoutMs = opts?.timeoutMs ?? 120_000;
-  const intervalMs = opts?.intervalMs ?? 1500;
+  const timeoutMs = opts?.timeoutMs ?? 600_000;
+  const intervalMs = opts?.intervalMs ?? 2000;
   const want = expectedVersion.replace(/^v/i, "").trim();
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {

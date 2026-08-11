@@ -16,7 +16,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import {
   Avatar,
-  Badge,
   Button,
   Layout,
   Menu,
@@ -26,7 +25,6 @@ import {
   theme,
 } from "antd";
 import type { MenuProps } from "antd";
-import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
@@ -45,23 +43,6 @@ import {
   isFeatureOn,
 } from "@/lib/platformFeatures";
 import { useAuthStore } from "@/stores/authStore";
-
-function MenuLabelWithDot({
-  children,
-  showDot,
-  to,
-}: {
-  children: ReactNode;
-  showDot?: boolean;
-  to?: string;
-}) {
-  const label = (
-    <Badge dot={Boolean(showDot)} offset={[6, 0]} color="#ff4d4f">
-      <span>{children}</span>
-    </Badge>
-  );
-  return to ? <Link to={to}>{label}</Link> : label;
-}
 
 const { Header, Sider, Content } = Layout;
 
@@ -94,12 +75,12 @@ const leafKeys = [
   "/profile",
 ];
 
-function buildAdminMenuItems(hasAppUpdate: boolean): MenuProps["items"] {
+function buildAdminMenuItems(): MenuProps["items"] {
   return [
     {
       key: "admin-system",
       icon: <SettingOutlined />,
-      label: <MenuLabelWithDot showDot={hasAppUpdate}>系统管理</MenuLabelWithDot>,
+      label: "系统管理",
       children: [
         {
           key: "/settings/auth",
@@ -119,11 +100,7 @@ function buildAdminMenuItems(hasAppUpdate: boolean): MenuProps["items"] {
         {
           key: "/settings/system",
           icon: <CloudDownloadOutlined />,
-          label: (
-            <MenuLabelWithDot to="/settings/system" showDot={hasAppUpdate}>
-              系统更新
-            </MenuLabelWithDot>
-          ),
+          label: <Link to="/settings/system">系统更新</Link>,
         },
       ],
     },
@@ -323,10 +300,7 @@ export function AppLayout() {
     },
   ];
 
-  const adminMenuItems = useMemo(
-    () => buildAdminMenuItems(hasAppUpdate),
-    [hasAppUpdate],
-  );
+  const adminMenuItems = buildAdminMenuItems();
 
   const menuItems = [
     ...(platformItems.length
@@ -337,9 +311,7 @@ export function AppLayout() {
       ? [
           {
             type: "group" as const,
-            label: (
-              <MenuLabelWithDot showDot={hasAppUpdate}>管理</MenuLabelWithDot>
-            ),
+            label: "管理",
             children: adminMenuItems,
           },
         ]

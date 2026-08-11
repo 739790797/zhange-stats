@@ -19,6 +19,7 @@ import {
   fetchAppUpdateStatus,
   waitForHealthVersion,
 } from "@/api/appUpdateApi";
+import type { AppUpdateStatus } from "@/api/appUpdateApi";
 import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 
@@ -30,7 +31,8 @@ export default function SystemUpdatePage() {
   const statusQuery = useQuery({
     queryKey: ["app-update-status"],
     queryFn: fetchAppUpdateStatus,
-    refetchInterval: (q) => (q.state.data?.busy ? 2000 : false),
+    refetchInterval: (q) =>
+      q.state.data?.busy || waitingRestart ? 2000 : false,
   });
 
   const checkMutation = useMutation({
@@ -64,9 +66,16 @@ export default function SystemUpdatePage() {
           queryClient.invalidateQueries({ queryKey: ["app-version"] });
           queryClient.invalidateQueries({ queryKey: ["app-update-status"] });
         } catch (e: unknown) {
-          message.warning(
-            e instanceof Error ? e.message : "请手动刷新确认是否已更新",
-          );
+          const st = queryClient.getQueryData<AppUpdateStatus>([
+            "app-update-status",
+          ]);
+          if (st?.error) {
+            message.error(st.error);
+          } else {
+            message.warning(
+              e instanceof Error ? e.message : "请手动刷新确认是否已更新",
+            );
+          }
         } finally {
           setWaitingRestart(false);
         }
