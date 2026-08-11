@@ -98,11 +98,6 @@ class Settings(BaseSettings):
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
     UPLOAD_DIR: str = "uploads"
 
-    # MAA 全托管（槽位由管理端供给；Worker 用 MAA_WORKER_TOKEN 调内部 API）
-    MAA_MAX_SLOTS: int = 4
-    MAA_WORKER_TOKEN: str = ""
-    MAA_ENABLED: bool = False
-
     # 邮件（不配置则默认拒绝发码；本地可开 ALLOW_EMAIL_CODE_LOG 把验证码打到日志）
     SMTP_HOST: str = ""
     SMTP_PORT: int = 465
@@ -148,14 +143,6 @@ class Settings(BaseSettings):
         if self.REJECT_WEAK_ADMIN_PASSWORD is not None:
             return bool(self.REJECT_WEAK_ADMIN_PASSWORD)
         return self.is_production
-
-    @property
-    def effective_maa_worker_token(self) -> str:
-        """显式 token 优先；未配置时用 SECRET_KEY 派生。"""
-        from app.core.maa_token import resolve_maa_worker_token
-
-        return resolve_maa_worker_token(self.MAA_WORKER_TOKEN, self.SECRET_KEY)
-
 
 @lru_cache
 def get_settings() -> Settings:

@@ -180,26 +180,3 @@ export {
   fetchNapCatGroups,
   fetchNapCatGroupMembers,
 } from "./napcatApi";
-
-export {
-  fetchMaaAdminList,
-  createMaaSlot,
-  startMaaSlot,
-  stopMaaSlot,
-  destroyMaaSlot,
-  bindMaaSlot,
-  unbindMaaSlot,
-  fetchMaaSlotAudits,
-  triggerMaaReconcile,
-  fetchMaaMe,
-  startMaaDaily,
-  stopMaaDaily,
-} from "./maaApi";
-export type {
-  MaaSlot,
-  MaaAdminList,
-  MaaResourceSummary,
-  MaaSlotAudit,
-  MaaUserStatus,
-  MaaJob,
-} from "./maaApi";

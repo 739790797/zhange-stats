@@ -1,26 +1,20 @@
 import { useState } from "react";
 import { Segmented } from "antd";
 import { ArknightsBoxCompare } from "./ArknightsBoxCompare";
-import { ArknightsMaaPanel } from "./ArknightsMaaPanel";
 import { ArknightsRoguePanel } from "./ArknightsRoguePanel";
 
-type Pane = "compare" | "rogue" | "maa";
+type Pane = "compare" | "rogue";
 
 type Props = {
   rogueEnabled?: boolean;
-  maaEnabled?: boolean;
 };
 
-export function ArknightsTabPanel({
-  rogueEnabled = true,
-  maaEnabled = false,
-}: Props) {
+export function ArknightsTabPanel({ rogueEnabled = true }: Props) {
   const [pane, setPane] = useState<Pane>("compare");
 
   const options = [
     { label: "善意对比", value: "compare" as const },
     { label: "集成战略", value: "rogue" as const },
-    ...(maaEnabled ? [{ label: "MAA", value: "maa" as const }] : []),
   ];
 
   return (
@@ -33,8 +27,6 @@ export function ArknightsTabPanel({
       />
       {pane === "rogue" ? (
         <ArknightsRoguePanel enabled={rogueEnabled} />
-      ) : pane === "maa" ? (
-        <ArknightsMaaPanel enabled={rogueEnabled} />
       ) : (
         <ArknightsBoxCompare />
       )}

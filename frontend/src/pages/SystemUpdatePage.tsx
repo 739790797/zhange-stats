@@ -4,15 +4,12 @@ import {
   Alert,
   Button,
   Card,
-  Form,
-  Input,
   Space,
   Tag,
   Typography,
   message,
 } from "antd";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import {
   checkAppUpdate,
   doAppUpdate,
@@ -25,7 +22,6 @@ import { apiError } from "@/lib/apiError";
 
 export default function SystemUpdatePage() {
   const queryClient = useQueryClient();
-  const [proxy, setProxy] = useState("");
   const [waitingRestart, setWaitingRestart] = useState(false);
 
   const statusQuery = useQuery({
@@ -52,7 +48,6 @@ export default function SystemUpdatePage() {
     mutationFn: () =>
       doAppUpdate({
         version: "latest",
-        proxy: proxy.trim() || null,
         reboot: true,
       }),
     onSuccess: async (data) => {
@@ -163,30 +158,6 @@ export default function SystemUpdatePage() {
           {status?.error ? (
             <Alert type="error" showIcon message={status.error} />
           ) : null}
-
-          <Typography.Text type="secondary" copyable={Boolean(status?.install_dir)}>
-            安装根：{status?.install_dir || "—"}
-          </Typography.Text>
-
-          <Form layout="vertical" style={{ maxWidth: 480 }}>
-            <Form.Item
-              label="GitHub 代理前缀（可选）"
-              extra="例如 https://ghproxy.example.com ，将拼在下载 URL 前"
-            >
-              <Input
-                value={proxy}
-                onChange={(e) => setProxy(e.target.value)}
-                placeholder="留空则直连 GitHub"
-                disabled={busy}
-              />
-            </Form.Item>
-          </Form>
-
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            若检查更新出现 GitHub API 限流（403），请到{" "}
-            <Link to="/settings/integrations">集成密钥</Link>{" "}
-            配置 GitHub Token。
-          </Typography.Text>
 
           <Space wrap>
             <Button

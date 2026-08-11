@@ -22,7 +22,6 @@ import KujiequPage from "@/pages/KujiequPage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import TaskConfigPage from "@/pages/TaskConfigPage";
 import UserManagementPage from "@/pages/UserManagementPage";
-import MaaSettingsPage from "@/pages/MaaSettingsPage";
 import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import PlatformLogsPage from "@/pages/PlatformLogsPage";
@@ -193,14 +192,6 @@ export default function App() {
                 element={
                   <AdminPage>
                     <ScheduledJobsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/maa"
-                element={
-                  <AdminPage>
-                    <MaaSettingsPage />
                   </AdminPage>
                 }
               />

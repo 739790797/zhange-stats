@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.24** — 对齐 AstrBot：仅管理端一键更新（落盘 + 进程内 exec）；移除 SSH `update.sh`。
+**v0.2.25** — 移除 MAA 全托管（控制面 / Worker / 槽位与相关 UI）；不再计划该能力。
 
 ## 功能
 
@@ -94,17 +94,12 @@ sudo systemctl start zhange-stats
 
 持久化目录：`data/`（含 `.secret_key`）、`uploads/`、`.env`（更新白名单不会覆盖）。
 
-MAA 执行面默认不启，且通常不适合在 LXC 内嵌套 Docker；见 [docs/maa-ops.md](docs/maa-ops.md)。
-
 ## 目录
 
 ```
 zhange-stats/
   .env.example · VERSION · scripts/install.sh
   deploy/systemd/zhange-stats.service
-  compose.maa.yml           # 可选 MAA 执行面
-  docs/maa-ops.md           # MAA 运维（可选）
-  maa-worker/               # 槽位 Worker（可选 Docker）
   frontend/                 # React
   backend/app/              # api · core · models · services
   backend/alembic/          # 迁移（表结构以 versions/ 为准）
@@ -128,7 +123,6 @@ users 1 ── 1 members ── * play_sessions / presence_segments / steam_frie
                                          └── * kujiequ_attendance_raws
                                          └── * kujiequ_ww_box_raws
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
-                      └── 0..1 maa_slots（全托管；bound_member 唯一）── * maa_slot_audits / maa_jobs
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta
 ```
@@ -159,11 +153,8 @@ arknights_operators · arknights_catalog_meta
 | `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
-| `maa_slots` | MAA 全托管槽位台账（状态机 + desired_action；绑定成员唯一；截图路径与占用采样） |
-| `maa_slot_audits` | 槽位操作审计（追加写：新增/上下线/移除/绑定/Worker 回调） |
-| `maa_jobs` | 用户日常/停止任务队列（与签到 `job_runs` 分离） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理 |
-| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`maa_host_stats` 等） |
+| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度等） |
 | `register_challenges` | 注册验证码 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL） |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |

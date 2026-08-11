@@ -1,7 +1,6 @@
 import {
   CalendarOutlined,
   CloudDownloadOutlined,
-  CloudServerOutlined,
   FileTextOutlined,
   KeyOutlined,
   LockOutlined,
@@ -59,7 +58,6 @@ const ADMIN_LEAF_KEYS = [
   "/settings/users",
   "/settings/qq-groups",
   ...JOBS_CHILD_KEYS,
-  "/settings/maa",
   "/settings/logs",
   ...SYSTEM_CHILD_KEYS,
 ] as const;
@@ -130,11 +128,6 @@ function buildAdminMenuItems(): MenuProps["items"] {
       key: "/settings/logs",
       icon: <FileTextOutlined />,
       label: <Link to="/settings/logs">平台日志</Link>,
-    },
-    {
-      key: "/settings/maa",
-      icon: <CloudServerOutlined />,
-      label: <Link to="/settings/maa">MAA 资源</Link>,
     },
     {
       key: "/settings/qq-groups",
