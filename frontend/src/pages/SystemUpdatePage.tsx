@@ -106,7 +106,7 @@ export default function SystemUpdatePage() {
     <div>
       <PageHeader
         title="系统更新"
-        subtitle="从 GitHub Release 下载源码与预构建前端，安装依赖后重启（类似 AstrBot 一键更新）"
+        subtitle="AstrBot 式：从 GitHub Release 下载源码与预构建前端，安装依赖后进程内 exec 重启"
       />
 
       {!status?.update_allowed && status && (

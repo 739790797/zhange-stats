@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.23** — 修复 root 跑 `update.sh` 后属主错乱导致 WEB 一键更新失败；预检写权限并校正 chown。
+**v0.2.24** — 对齐 AstrBot：仅管理端一键更新（落盘 + 进程内 exec）；移除 SSH `update.sh`。
 
 ## 功能
 
@@ -79,13 +79,14 @@ sudo systemctl start zhange-stats
 # 浏览器 http://<LXC>:8000 （或经反代）；安装向导创建管理员
 ```
 
-更新方式：
+更新方式（AstrBot 式，**仅管理端**）：
 
-- **管理端 → 系统更新**（AstrBot 式：拉 GitHub Release 源码 zip + 预构建 `static` → pip → **进程内 exec 重启**）
-- 或 SSH（建议 root）：`bash scripts/update.sh` / `bash scripts/update.sh v0.2.15`
-  - 成功后会 `systemctl restart zhange-stats`，并以服务用户（默认 `zhange`）校正白名单路径属主（避免 root 更新后 WEB 一键更新无写权限）
-  - 可用 `ZHANGE_SERVICE_NAME` / `ZHANGE_SERVICE_USER`；`--no-reboot` / `UPDATE_NO_REBOOT=1` 跳过重启
-  - 管理端一键更新仍不依赖 `systemctl`；若坚持用 `APP_RESTART_CMD=systemctl …`，须为服务用户配 sudoers
+1. 管理端 → **系统更新** → 检查 / 一键更新  
+2. 进程内下载 GitHub Release 源码 zip + 预构建 `static` → pip  
+3. **`os.execv` 同 PID 换码**（无需 `systemctl`、无需 root）  
+4. 安装树须属服务用户（`zhange`）可写；勿用 root 手改代码属主
+
+应急排障（非常规升级路径）：`sudo systemctl restart zhange-stats`。
 
 **部署形态**：单 `app` 进程。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移均非多实例安全。水平扩展前须另行解决调度选举、共享 `DATA_DIR`/`SECRET_KEY`、迁移单点，以及共享 `REDIS_URL`。
 
@@ -99,7 +100,7 @@ MAA 执行面默认不启，且通常不适合在 LXC 内嵌套 Docker；见 [do
 
 ```
 zhange-stats/
-  .env.example · VERSION · scripts/install.sh · scripts/update.sh
+  .env.example · VERSION · scripts/install.sh
   deploy/systemd/zhange-stats.service
   compose.maa.yml           # 可选 MAA 执行面
   docs/maa-ops.md           # MAA 运维（可选）

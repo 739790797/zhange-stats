@@ -123,8 +123,6 @@ class Settings(BaseSettings):
     APP_INSTALL_DIR: str = ""
     # 应用内一键更新：None 时仅 production 默认允许
     ALLOW_IN_APP_UPDATE: bool | None = None
-    # 非空则更新后执行该 shell 命令；空则 os.execv（systemd 下非 root 可用）
-    APP_RESTART_CMD: str = ""
     # GitHub Releases（检查/下载更新）
     UPDATE_GITHUB_REPO: str = "739790797/zhange-stats"
     UPDATE_GITHUB_API: str = "https://api.github.com"

@@ -83,7 +83,7 @@ elif command -v tar >/dev/null 2>&1; then
     tar -xzf "${TMP}/${ASSET}" -C "${STATIC_DIR}"
     log "static 已解压到 ${STATIC_DIR}"
   else
-    log "WARN: 无法下载 ${ASSET}。可稍后 npm run build 后拷贝到 static/，或运行 scripts/update.sh"
+    log "WARN: 无法下载 ${ASSET}。可稍后 npm run build 后拷贝到 static/，或管理端「系统更新」"
   fi
   rm -rf "${TMP}"
 fi
@@ -121,7 +121,7 @@ if [[ -d /run/systemd/system ]] && command -v systemctl >/dev/null 2>&1; then
     systemctl enable "${SERVICE_NAME}"
     rm -f "${UNIT_TMP}"
     log "已 enable ${SERVICE_NAME}。编辑 .env 后: systemctl start ${SERVICE_NAME}"
-    log "一键更新默认用进程内 exec（无需 systemctl 权限）；勿依赖 APP_RESTART_CMD=systemctl 除非已配 sudoers"
+    log "一键更新：管理端 AstrBot 式（落盘 + os.execv，无需 systemctl 权限）"
   else
     log "非 root：请手动创建用户并安装 unit："
     log "  sudo useradd --system --home ${REPO_ROOT} --shell /usr/sbin/nologin ${SERVICE_USER}"
@@ -132,7 +132,7 @@ if [[ -d /run/systemd/system ]] && command -v systemctl >/dev/null 2>&1; then
 else
   log "未检测到 systemd。可用："
   log "  cd ${BACKEND_DIR} && ${VENV_DIR}/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
-  log "一键更新将使用进程内 exec 重启。"
+  log "一键更新将使用进程内 exec 重启（管理端「系统更新」）。"
 fi
 
 log "完成。浏览器打开站点走安装向导；管理端 → 系统更新 可一键升级。"

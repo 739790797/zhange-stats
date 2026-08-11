@@ -19,6 +19,6 @@ alwaysApply: true
 | 时间 | `app.core.timeutil` 北京墙钟 | 业务层随意 `utcnow` | `backend/app/core/timeutil.py` |
 | 安全 | 凭证 Fernet；QQ 只发 ticket；生产 `APP_ENV=production`；`ALLOW_EMAIL_CODE_LOG` 生产启动硬拒绝 | JWT 进回调 URL；生产弱口令 | 根 `README.md`「说明」 |
 | 短时 KV | 多实例共享 `REDIS_URL`（扫码 / 森空岛 cred / 限流） | 无共享 Redis 水平扩 app | `README.md`「部署形态」、`backend-conventions.mdc` |
-| 生产部署 | LXC：`scripts/install.sh` + systemd；管理端「系统更新」 | 控制面 Docker/Watchtower；默认 `systemctl restart`（非 root 失败） | 根 `README.md` |
+| 生产部署 | LXC：`scripts/install.sh` + systemd；**仅**管理端「系统更新」（落盘 + `os.execv`） | 控制面 Docker/Watchtower；依赖 SSH `update.sh` / `systemctl` 做常规升级 | 根 `README.md` |
 
 总入口：仓库根 `AGENTS.md`。

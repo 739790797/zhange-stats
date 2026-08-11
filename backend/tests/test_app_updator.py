@@ -153,6 +153,30 @@ def test_update_allowed_requires_writable(tmp_path: Path, monkeypatch: pytest.Mo
     get_settings.cache_clear()
 
 
+def test_build_reboot_argv_uvicorn_console_script(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        u.sys,
+        "argv",
+        ["/opt/zhange-stats/backend/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0"],
+    )
+    exe = "/opt/zhange-stats/backend/.venv/bin/python"
+    argv = u._build_reboot_argv(exe)
+    assert argv[0] == exe
+    assert argv[1].endswith("uvicorn")
+    assert "app.main:app" in argv
+
+
+def test_build_reboot_argv_python_dash_m(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        u.sys,
+        "argv",
+        ["python", "-m", "uvicorn", "app.main:app", "--port", "8000"],
+    )
+    exe = "/usr/bin/python3"
+    argv = u._build_reboot_argv(exe)
+    assert argv == [exe, "-m", "uvicorn", "app.main:app", "--port", "8000"]
+
+
 def test_resolve_target_latest_and_explicit():
     current = "0.2.18"
     older = u.ReleaseInfo(

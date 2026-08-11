@@ -231,9 +231,8 @@ def resolve_install_dir() -> Path:
 def _writable_hint(path: Path) -> str:
     return (
         f"安装路径不可写：{path}。"
-        "常见原因是曾用 root 执行 scripts/update.sh，文件属主变成 root，"
-        "而服务以 zhange 运行。请在服务器执行："
-        f" chown -R zhange:zhange {path if path.is_dir() else path.parent}"
+        "请确保安装树属主为运行服务的用户（如 zhange），"
+        f"例如：chown -R zhange:zhange {path if path.is_dir() else path.parent}"
     )
 
 
@@ -406,16 +405,40 @@ async def check_update(
 
 
 def detect_restart_strategy() -> str:
-    """Post-update restart.
-
-    Default: AstrBot-style ``exec`` (works as non-root under systemd; same PID).
-    ``systemctl restart`` needs root/polkit — only via explicit ``APP_RESTART_CMD``.
-    """
-    settings = get_settings()
-    cmd = (settings.APP_RESTART_CMD or "").strip()
-    if cmd:
-        return f"cmd:{cmd}"
+    """Post-update restart: AstrBot-style in-process ``os.execv`` only."""
     return "exec"
+
+
+def _build_reboot_argv(executable: str) -> list[str]:
+    """Rebuild argv for os.execv so the same uvicorn/app entry comes back up."""
+    argv0 = Path(sys.argv[0]).name.lower() if sys.argv else ""
+    # ``python -m uvicorn ...`` → argv is already python-friendly
+    if argv0 in {"python", "python3", "python.exe", "pythonw.exe"}:
+        return [executable, *sys.argv[1:]]
+    # Console script e.g. ``.../bin/uvicorn app.main:app ...``
+    return [executable, *sys.argv]
+
+
+def trigger_restart(*, delay_sec: float = 1.5) -> None:
+    """AstrBot-style reboot: replace *this* process image after a short delay.
+
+    Must only be called from the running app (uvicorn) process — never from a
+    one-shot CLI, or exec would restart the wrong program.
+    """
+
+    def _run() -> None:
+        time.sleep(delay_sec)
+        strategy = detect_restart_strategy()
+        logger.warning("self-update restart via %s", strategy)
+        try:
+            executable = sys.executable
+            argv = _build_reboot_argv(executable)
+            logger.warning("self-update execv executable=%s argv=%s", executable, argv)
+            os.execv(executable, argv)
+        except Exception:
+            logger.exception("重启失败，请手动 systemctl restart zhange-stats")
+
+    threading.Thread(target=_run, name="zhange-self-update-restart", daemon=True).start()
 
 
 def build_status(
@@ -629,28 +652,6 @@ def pip_install_requirements(install_dir: Path) -> None:
     subprocess.run(cmd, check=True, cwd=str(backend))
 
 
-def trigger_restart(*, delay_sec: float = 1.5) -> None:
-    """Schedule restart after response; never returns when using exec."""
-
-    def _run() -> None:
-        time.sleep(delay_sec)
-        strategy = detect_restart_strategy()
-        logger.warning("self-update restart via %s", strategy)
-        try:
-            if strategy.startswith("cmd:"):
-                cmd = strategy[4:]
-                subprocess.Popen(cmd, shell=True)  # noqa: S602
-                return
-            # AstrBot-style in-place exec (safe under systemd as non-root)
-            executable = sys.executable
-            argv = [executable, *sys.argv]
-            os.execv(executable, argv)
-        except Exception:
-            logger.exception("重启失败，请手动重启服务")
-
-    threading.Thread(target=_run, name="zhange-self-update-restart", daemon=True).start()
-
-
 async def _apply_update_core(
     *,
     target: ReleaseInfo,
@@ -745,7 +746,7 @@ async def apply_update(
     proxy: str | None = None,
     reboot: bool = True,
 ) -> UpdateResult:
-    """Blocking self-update（CLI / scripts/update.sh）。"""
+    """Blocking self-update（测试 / 同进程调用）。管理端请用 enqueue_update。"""
     allowed, reason = update_allowed()
     if not allowed:
         return UpdateResult(ok=False, message=reason)
@@ -794,7 +795,7 @@ async def enqueue_update(
     proxy: str | None = None,
     reboot: bool = True,
 ) -> UpdateResult:
-    """管理端一键更新：预检后立刻返回，下载/覆盖在后台跑（避免网关/前端超时成 502/503）。"""
+    """管理端一键更新（AstrBot 式）：预检后立刻返回，后台落盘，成功后进程内 exec 重启。"""
     allowed, reason = update_allowed()
     if not allowed:
         return UpdateResult(ok=False, message=reason)
