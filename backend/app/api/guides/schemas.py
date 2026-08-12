@@ -10,7 +10,24 @@ class TarkovAmmoItemOut(BaseModel):
     damage: int
     penetration: int
     armor_damage: int = 0
+    initial_speed: float = 0
+    accuracy_modifier: float = 0
+    recoil_modifier: float = 0
+    light_bleed_modifier: float = 0
+    heavy_bleed_modifier: float = 0
     icon_link: str = ""
+
+
+class TarkovAmmoDetailOut(BaseModel):
+    """弹药详情：来自 items raw 的完整 item + properties。"""
+
+    id: str
+    name: str
+    short_name: str = ""
+    description: str = ""
+    source: str | None = None
+    item: dict = Field(default_factory=dict)
+    properties: dict = Field(default_factory=dict)
 
 
 class TarkovAmmoCatalogOut(BaseModel):

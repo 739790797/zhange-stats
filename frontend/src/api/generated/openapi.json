@@ -6588,6 +6588,54 @@
         ]
       }
     },
+    "/api/guides/tarkov/ammo/{item_id}": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Ammo Detail",
+        "description": "弹药详情：从 items raw 返回完整 item / properties。",
+        "operationId": "guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovAmmoDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/ammo/sync": {
       "post": {
         "tags": [
@@ -14298,6 +14346,56 @@
         ],
         "title": "TarkovAmmoCatalogOut"
       },
+      "TarkovAmmoDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "item": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Item"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Properties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TarkovAmmoDetailOut",
+        "description": "弹药详情：来自 items raw 的完整 item + properties。"
+      },
       "TarkovAmmoItemOut": {
         "properties": {
           "id": {
@@ -14333,6 +14431,31 @@
           "armor_damage": {
             "type": "integer",
             "title": "Armor Damage",
+            "default": 0
+          },
+          "initial_speed": {
+            "type": "number",
+            "title": "Initial Speed",
+            "default": 0
+          },
+          "accuracy_modifier": {
+            "type": "number",
+            "title": "Accuracy Modifier",
+            "default": 0
+          },
+          "recoil_modifier": {
+            "type": "number",
+            "title": "Recoil Modifier",
+            "default": 0
+          },
+          "light_bleed_modifier": {
+            "type": "number",
+            "title": "Light Bleed Modifier",
+            "default": 0
+          },
+          "heavy_bleed_modifier": {
+            "type": "number",
+            "title": "Heavy Bleed Modifier",
             "default": 0
           },
           "icon_link": {

@@ -267,9 +267,6 @@ export function AppLayout() {
     }
     if (selected.startsWith("/guides/tarkov")) {
       next.push("guides-tarkov");
-      if (selected.startsWith("/guides/tarkov/items")) {
-        next.push("guides-tarkov-items");
-      }
     }
     if (!next.length) return;
     setOpenKeys((prev) => Array.from(new Set([...prev, ...next])));

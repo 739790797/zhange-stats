@@ -2,8 +2,8 @@ import { Scatter } from "@ant-design/plots";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from "antd";
 import { CheckSquareOutlined, ClearOutlined } from "@ant-design/icons";
-import dayjs from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchTarkovAmmo, type TarkovAmmoItem } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import {
@@ -40,12 +40,6 @@ function compareCaliberLabel(a: string, b: string): number {
     numeric: true,
     sensitivity: "base",
   });
-}
-
-function formatSyncedAt(value: string | null | undefined): string {
-  if (!value) return "—";
-  const d = dayjs(value);
-  return d.isValid() ? d.format("YYYY-MM-DD HH:mm:ss") : value;
 }
 
 function escapeHtml(text: string): string {
@@ -102,41 +96,153 @@ function renderAmmoTooltip(
   </div>`;
 }
 
-const AMMO_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
-  "tarkov.dev": {
-    label: "api.tarkov.dev/graphql",
-    href: "https://api.tarkov.dev/graphql",
-  },
-  "json.tarkov.dev": {
-    label: "json.tarkov.dev/regular/items",
-    href: "https://json.tarkov.dev/regular/items",
-  },
-  tarkovdata: {
-    label: "TarkovTracker/tarkovdata",
-    href: "https://github.com/TarkovTracker/tarkovdata",
-  },
+type ScatterPlotInstance = {
+  container?: HTMLElement;
+  options?: { data?: TarkovAmmoItem[] };
+  chart?: {
+    on: (event: string, handler: (ev: unknown) => void) => void;
+    getContext?: () => {
+      canvas?: { document?: { documentElement?: unknown } };
+    };
+  };
+  on: (event: string, handler: (ev: unknown) => void) => void;
 };
 
-function renderAmmoSource(source: string | null | undefined) {
-  const key = (source || "").trim();
-  const hit = AMMO_SOURCE_LINKS[key];
-  if (!hit) {
-    return <Typography.Text type="secondary">{key || "未知"}</Typography.Text>;
+function ammoFromPlotEvent(event: {
+  data?: { data?: unknown } | unknown;
+}): TarkovAmmoItem | null {
+  const raw = (event?.data as { data?: unknown } | undefined)?.data ?? event?.data;
+  const candidates = Array.isArray(raw) ? raw : [raw];
+  for (const item of candidates) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as TarkovAmmoItem & { origin?: TarkovAmmoItem };
+    const candidate = row.id ? row : row.origin;
+    if (candidate && typeof candidate.id === "string" && candidate.id) {
+      return candidate;
+    }
   }
-  return (
-    <Typography.Link href={hit.href} target="_blank" rel="noreferrer">
-      {hit.label}
-    </Typography.Link>
-  );
+  return null;
+}
+
+/** 色点很小，tooltip 靠邻近拾取能出，点击却经常 miss；按坐标找最近 element。 */
+function ammoNearestFromClick(
+  plot: ScatterPlotInstance,
+  event: {
+    data?: unknown;
+    clientX?: number;
+    clientY?: number;
+    nativeEvent?: { clientX?: number; clientY?: number };
+  },
+): TarkovAmmoItem | null {
+  const direct = ammoFromPlotEvent(event);
+  if (direct) return direct;
+
+  const clientX = event.clientX ?? event.nativeEvent?.clientX;
+  const clientY = event.clientY ?? event.nativeEvent?.clientY;
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+
+  const canvas = plot.container?.querySelector?.("canvas");
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  // G2 getBounds 是画布缓冲像素；client 坐标是 CSS 像素，需按 DPR 换算
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (Number(clientX) - rect.left) * scaleX;
+  const y = (Number(clientY) - rect.top) * scaleY;
+  const data = plot.options?.data;
+  if (!Array.isArray(data) || !data.length) return null;
+
+  type G2Node = {
+    className?: string;
+    childNodes?: G2Node[];
+    __data__?: { index?: number };
+    getBounds?: () => { min: [number, number]; max: [number, number] };
+  };
+
+  let best: { dist: number; ammo: TarkovAmmoItem } | null = null;
+  const hitPx = 20 * Math.max(scaleX, scaleY);
+
+  const walk = (node: G2Node | null | undefined) => {
+    if (!node) return;
+    if (node.className === "element" && node.getBounds) {
+      const b = node.getBounds();
+      const cx = (b.min[0] + b.max[0]) / 2;
+      const cy = (b.min[1] + b.max[1]) / 2;
+      const dist = Math.hypot(cx - x, cy - y);
+      if (dist <= hitPx && (!best || dist < best.dist)) {
+        const idx = node.__data__?.index;
+        const row =
+          typeof idx === "number" ? data[idx] : undefined;
+        if (row?.id) best = { dist, ammo: row };
+      }
+    }
+    for (const child of node.childNodes || []) walk(child);
+  };
+
+  try {
+    const root = plot.chart?.getContext?.()?.canvas?.document
+      ?.documentElement as G2Node | undefined;
+    walk(root);
+  } catch {
+    return null;
+  }
+
+  return best?.ammo ?? null;
 }
 
 export function TarkovAmmoScatterPanel() {
+  const navigate = useNavigate();
   const ammoQuery = useQuery({
     queryKey: ["guides-tarkov-ammo"],
     queryFn: fetchTarkovAmmo,
     staleTime: 5 * 60_000,
     retry: 1,
   });
+
+  const goGunsForAmmo = useCallback(
+    (ammo: TarkovAmmoItem) => {
+      const id = (ammo.id || "").trim();
+      if (!id) return;
+      navigate(
+        `/guides/tarkov/items/guns?ammo=${encodeURIComponent(id)}`,
+      );
+    },
+    [navigate],
+  );
+
+  const goGunsRef = useRef(goGunsForAmmo);
+  goGunsRef.current = goGunsForAmmo;
+  const lastNavRef = useRef<{ id: string; at: number }>({ id: "", at: 0 });
+
+  const onScatterReady = useCallback((plot: ScatterPlotInstance) => {
+    const handle = (ev: unknown) => {
+      const ammo = ammoNearestFromClick(
+        plot,
+        ev as {
+          data?: unknown;
+          clientX?: number;
+          clientY?: number;
+          nativeEvent?: { clientX?: number; clientY?: number };
+        },
+      );
+      if (!ammo) return;
+      const now = Date.now();
+      if (
+        lastNavRef.current.id === ammo.id &&
+        now - lastNavRef.current.at < 400
+      ) {
+        return;
+      }
+      lastNavRef.current = { id: ammo.id, at: now };
+      goGunsRef.current(ammo);
+    };
+    // 底层 G2：精确命中
+    plot.chart?.on("element:click", handle);
+    plot.chart?.on("point:click", handle);
+    // Plot 包装层只派发原生 click；未命中色点时用邻近拾取兜底
+    plot.on("click", handle);
+  }, []);
 
   const items = ammoQuery.data?.items ?? EMPTY_ITEMS;
   const allCalibers = useMemo(
@@ -266,6 +372,8 @@ export function TarkovAmmoScatterPanel() {
               padding: "10px 12px",
               "box-sizing": "border-box",
               overflow: "visible",
+              // 避免 tooltip 盖住色点导致点不到 element:click
+              "pointer-events": "none",
             },
             ".g2-tooltip-title": {
               display: "none",
@@ -290,6 +398,7 @@ export function TarkovAmmoScatterPanel() {
         fillOpacity: 1,
         lineWidth: 1,
         stroke: "rgba(255,255,255,0.65)",
+        cursor: "pointer",
       },
       scale: {
         x: {
@@ -336,36 +445,9 @@ export function TarkovAmmoScatterPanel() {
     );
   }
 
-  const meta = ammoQuery.data;
-
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Space direction="vertical" size={0}>
-        <Typography.Text type="secondary">
-          数据来源：{renderAmmoSource(meta?.source)}
-        </Typography.Text>
-        <Typography.Text type="secondary">
-          更新时间：{formatSyncedAt(meta?.synced_at)}
-        </Typography.Text>
-      </Space>
-
       <div>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            alignItems: "center",
-            marginBottom: 10,
-          }}
-        >
-          <Button size="small" onClick={() => persistSelection([...allCalibers])}>
-            全选
-          </Button>
-          <Button size="small" onClick={() => persistSelection([])}>
-            清空
-          </Button>
-        </div>
         <div
           style={{
             border: "1px solid #f0f0f0",
@@ -514,7 +596,10 @@ export function TarkovAmmoScatterPanel() {
       </div>
 
       <Card size="small" styles={{ body: { padding: 12 } }}>
-        <Scatter {...config} />
+        <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+          点击色点跳转枪械页，筛选可使用该弹药的枪械
+        </Typography.Text>
+        <Scatter {...config} onReady={onScatterReady} />
       </Card>
 
       <Card size="small" styles={{ body: { padding: 12 } }}>

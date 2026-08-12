@@ -12,8 +12,12 @@ export type GuideTabsPageProps = {
   title: string;
   subtitle?: ReactNode;
   tabItems: GuideTabItem[];
-  /** 默认选中的 tab key；缺省取 tabItems[0] */
+  /** 非受控默认选中；缺省取 tabItems[0] */
   defaultTab?: string;
+  /** 受控选中 key（与 onTabChange 一起用） */
+  activeTab?: string;
+  onTabChange?: (key: string) => void;
+  destroyInactiveTabPane?: boolean;
 };
 
 /**
@@ -25,21 +29,40 @@ export function GuideTabsPage({
   subtitle,
   tabItems,
   defaultTab,
+  activeTab,
+  onTabChange,
+  destroyInactiveTabPane,
 }: GuideTabsPageProps) {
-  const [tab, setTab] = useState(defaultTab || tabItems[0]?.key || "");
+  const controlled = activeTab !== undefined;
+  const [innerTab, setInnerTab] = useState(
+    defaultTab || tabItems[0]?.key || "",
+  );
+  const tab = controlled ? activeTab : innerTab;
 
   useEffect(() => {
     if (!tabItems.length) return;
     if (!tabItems.some((item) => item.key === tab)) {
-      setTab(tabItems[0].key);
+      const fallback = tabItems[0].key;
+      if (controlled) onTabChange?.(fallback);
+      else setInnerTab(fallback);
     }
-  }, [tab, tabItems]);
+  }, [tab, tabItems, controlled, onTabChange]);
+
+  const handleChange = (key: string) => {
+    if (controlled) onTabChange?.(key);
+    else setInnerTab(key);
+  };
 
   return (
     <div>
       <PageHeader title={title} subtitle={subtitle} />
       {tabItems.length ? (
-        <Tabs activeKey={tab} onChange={setTab} items={tabItems} />
+        <Tabs
+          activeKey={tab}
+          onChange={handleChange}
+          items={tabItems}
+          destroyInactiveTabPane={destroyInactiveTabPane}
+        />
       ) : null}
     </div>
   );

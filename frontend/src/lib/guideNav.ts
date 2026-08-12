@@ -29,24 +29,10 @@ export const GUIDE_NAV: GuideNavNode[] = [
     icon: "tarkov",
     children: [
       {
-        kind: "group",
-        key: "guides-tarkov-items",
+        kind: "leaf",
+        path: "/guides/tarkov/items",
         label: "物品",
         featureId: "guides.tarkov",
-        children: [
-          {
-            kind: "leaf",
-            path: "/guides/tarkov/items/ammo",
-            label: "弹药",
-            featureId: "guides.tarkov",
-          },
-          {
-            kind: "leaf",
-            path: "/guides/tarkov/items/guns",
-            label: "枪械",
-            featureId: "guides.tarkov",
-          },
-        ],
       },
       {
         kind: "leaf",

@@ -1,6 +1,7 @@
 import { Image, Input, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { TarkovGunItem } from "@/api/guidesApi";
 import {
   formatCaliberLabel,
@@ -9,6 +10,10 @@ import {
 
 type Props = {
   data: TarkovGunItem[];
+  /** 仅展示 allowed_ammo_ids 含该弹药 id 的枪械 */
+  ammoFilterId?: string | null;
+  /** URL ?caliber= 口径筛选（原始口径 id） */
+  caliberFilterParam?: string | null;
 };
 
 const CDN_SUFFIX_RE =
@@ -48,7 +53,11 @@ function buildCaliberRowSpan(rows: TarkovGunItem[]): Map<string, number> {
   return map;
 }
 
-export function TarkovGunsTable({ data }: Props) {
+export function TarkovGunsTable({
+  data,
+  ammoFilterId = null,
+  caliberFilterParam = null,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("ergonomics");
   const [sortOrder, setSortOrder] = useState<"ascend" | "descend">("descend");
   const [caliberFilter, setCaliberFilter] = useState<string[] | null>(null);
@@ -75,6 +84,14 @@ export function TarkovGunsTable({ data }: Props) {
 
   const rows = useMemo(() => {
     let list = data;
+    if (ammoFilterId) {
+      list = list.filter((r) =>
+        (r.allowed_ammo_ids || []).includes(ammoFilterId),
+      );
+    }
+    if (caliberFilterParam) {
+      list = list.filter((r) => r.caliber === caliberFilterParam);
+    }
     if (caliberFilter && caliberFilter.length > 0) {
       const allow = new Set(caliberFilter);
       list = list.filter((r) => allow.has(r.caliber));
@@ -100,7 +117,16 @@ export function TarkovGunsTable({ data }: Props) {
       const delta = Number(a[sortKey]) - Number(b[sortKey]);
       return sortOrder === "ascend" ? delta : -delta;
     });
-  }, [caliberFilter, classFilter, data, nameKeyword, sortKey, sortOrder]);
+  }, [
+    ammoFilterId,
+    caliberFilter,
+    caliberFilterParam,
+    classFilter,
+    data,
+    nameKeyword,
+    sortKey,
+    sortOrder,
+  ]);
 
   const caliberRowSpan = useMemo(() => buildCaliberRowSpan(rows), [rows]);
 
@@ -145,20 +171,35 @@ export function TarkovGunsTable({ data }: Props) {
       title: "口径",
       dataIndex: "caliber",
       key: "caliber",
-      width: 120,
+      width: 88,
       fixed: "left",
       filters: caliberFilters,
-      filteredValue: caliberFilter,
+      filteredValue: caliberFilterParam
+        ? [caliberFilterParam]
+        : caliberFilter,
       filterSearch: true,
       onCell: (row) => ({
         rowSpan: caliberRowSpan.get(row.id) ?? 1,
         style: {
           verticalAlign: "middle",
-          textAlign: "center",
+          textAlign: "left",
           fontWeight: 600,
         },
       }),
-      render: (caliber: string) => formatCaliberLabel(caliber),
+      render: (caliber: string) => {
+        const label = formatCaliberLabel(caliber);
+        const raw = (caliber || "").trim();
+        if (!raw) return label;
+        return (
+          <Link
+            to={`/guides/tarkov/items/guns?caliber=${encodeURIComponent(raw)}`}
+            title={`筛选口径 ${label}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {label}
+          </Link>
+        );
+      },
     },
     {
       title: "图片",

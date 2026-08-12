@@ -43,6 +43,11 @@ query AmmoSync($lang: LanguageCode) {
     penetrationPower
     armorDamage
     ammoType
+    initialSpeed
+    accuracyModifier
+    recoilModifier
+    lightBleedModifier
+    heavyBleedModifier
     item {
       id
       name
@@ -176,6 +181,15 @@ def _as_int(value: Any) -> int:
         return 0
 
 
+def _as_float(value: Any) -> float:
+    if value is None or value == "":
+        return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _clean_item_names(
     item_id: str,
     *,
@@ -205,6 +219,11 @@ def _ammo_row(
     penetration: Any,
     armor_damage: Any,
     icon_link: Any = "",
+    initial_speed: Any = 0,
+    accuracy_modifier: Any = 0,
+    recoil_modifier: Any = 0,
+    light_bleed_modifier: Any = 0,
+    heavy_bleed_modifier: Any = 0,
 ) -> dict[str, Any]:
     name, short_name = _clean_item_names(item_id, name=name, short_name=short_name)
     caliber_src = None if caliber_raw is None else str(caliber_raw or "")
@@ -219,6 +238,11 @@ def _ammo_row(
         "damage": _as_int(damage),
         "penetration": _as_int(penetration),
         "armor_damage": _as_int(armor_damage),
+        "initial_speed": _as_float(initial_speed),
+        "accuracy_modifier": _as_float(accuracy_modifier),
+        "recoil_modifier": _as_float(recoil_modifier),
+        "light_bleed_modifier": _as_float(light_bleed_modifier),
+        "heavy_bleed_modifier": _as_float(heavy_bleed_modifier),
         "icon_link": icon,
     }
 
@@ -249,7 +273,14 @@ def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 damage=raw.get("damage"),
                 penetration=raw.get("penetrationPower"),
                 armor_damage=raw.get("armorDamage"),
-                icon_link=item.get("baseImageLink") or item.get("iconLink") or "",
+                icon_link=item.get("baseImageLink")
+                or item.get("iconLink")
+                or "",
+                initial_speed=raw.get("initialSpeed"),
+                accuracy_modifier=raw.get("accuracyModifier"),
+                recoil_modifier=raw.get("recoilModifier"),
+                light_bleed_modifier=raw.get("lightBleedModifier"),
+                heavy_bleed_modifier=raw.get("heavyBleedModifier"),
             )
         )
     return rows
@@ -275,6 +306,16 @@ def parse_tarkovdata_ammo(table: dict[str, Any]) -> list[dict[str, Any]]:
                 damage=ballistics.get("damage"),
                 penetration=ballistics.get("penetrationPower"),
                 armor_damage=ballistics.get("armorDamage"),
+                initial_speed=ballistics.get("initialSpeed")
+                or ballistics.get("velocity"),
+                accuracy_modifier=ballistics.get("accuracyModifier")
+                or ballistics.get("accuracy"),
+                recoil_modifier=ballistics.get("recoilModifier")
+                or ballistics.get("recoil"),
+                light_bleed_modifier=ballistics.get("lightBleedModifier")
+                or ballistics.get("lightBleedChance"),
+                heavy_bleed_modifier=ballistics.get("heavyBleedModifier")
+                or ballistics.get("heavyBleedChance"),
             )
         )
     return rows
@@ -328,7 +369,14 @@ def parse_json_api_ammo(
                 damage=props.get("damage"),
                 penetration=props.get("penetrationPower"),
                 armor_damage=props.get("armorDamage"),
-                icon_link=raw.get("baseImageLink") or raw.get("iconLink") or "",
+                icon_link=raw.get("baseImageLink")
+                or raw.get("iconLink")
+                or "",
+                initial_speed=props.get("initialSpeed"),
+                accuracy_modifier=props.get("accuracyModifier"),
+                recoil_modifier=props.get("recoilModifier"),
+                light_bleed_modifier=props.get("lightBleedModifier"),
+                heavy_bleed_modifier=props.get("heavyBleedModifier"),
             )
         )
     return rows
@@ -516,6 +564,11 @@ def replace_derived_ammo_rows(
                 damage=row["damage"],
                 penetration=row["penetration"],
                 armor_damage=row["armor_damage"],
+                initial_speed=float(row.get("initial_speed") or 0),
+                accuracy_modifier=float(row.get("accuracy_modifier") or 0),
+                recoil_modifier=float(row.get("recoil_modifier") or 0),
+                light_bleed_modifier=float(row.get("light_bleed_modifier") or 0),
+                heavy_bleed_modifier=float(row.get("heavy_bleed_modifier") or 0),
                 icon_link=row.get("icon_link") or "",
                 updated_at=synced_at,
             )

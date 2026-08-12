@@ -18,10 +18,20 @@ export async function syncTarkovItems() {
   return data;
 }
 
+export type TarkovAmmoDetail = components["schemas"]["TarkovAmmoDetailOut"];
+
 export async function fetchTarkovAmmo() {
   const { data } = await client.get<TarkovAmmoCatalog>("/guides/tarkov/ammo", {
     timeout: 120_000,
   });
+  return data;
+}
+
+export async function fetchTarkovAmmoDetail(itemId: string) {
+  const { data } = await client.get<TarkovAmmoDetail>(
+    `/guides/tarkov/ammo/${encodeURIComponent(itemId)}`,
+    { timeout: 60_000 },
+  );
   return data;
 }
 

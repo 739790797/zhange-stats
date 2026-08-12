@@ -2246,6 +2246,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/ammo/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Ammo Detail
+         * @description 弹药详情：从 items raw 返回完整 item / properties。
+         */
+        get: operations["guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/ammo/sync": {
         parameters: {
             query?: never;
@@ -5398,6 +5418,36 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /**
+         * TarkovAmmoDetailOut
+         * @description 弹药详情：来自 items raw 的完整 item + properties。
+         */
+        TarkovAmmoDetailOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Source */
+            source?: string | null;
+            /** Item */
+            item?: {
+                [key: string]: unknown;
+            };
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
+        };
         /** TarkovAmmoItemOut */
         TarkovAmmoItemOut: {
             /** Id */
@@ -5425,6 +5475,31 @@ export interface components {
              * @default 0
              */
             armor_damage: number;
+            /**
+             * Initial Speed
+             * @default 0
+             */
+            initial_speed: number;
+            /**
+             * Accuracy Modifier
+             * @default 0
+             */
+            accuracy_modifier: number;
+            /**
+             * Recoil Modifier
+             * @default 0
+             */
+            recoil_modifier: number;
+            /**
+             * Light Bleed Modifier
+             * @default 0
+             */
+            light_bleed_modifier: number;
+            /**
+             * Heavy Bleed Modifier
+             * @default 0
+             */
+            heavy_bleed_modifier: number;
             /**
              * Icon Link
              * @default
@@ -10433,6 +10508,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovAmmoCatalogOut"];
+                };
+            };
+        };
+    };
+    guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovAmmoDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

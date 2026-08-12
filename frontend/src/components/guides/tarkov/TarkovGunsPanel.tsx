@@ -1,8 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Space, Spin, Typography } from "antd";
+import { Alert, Card, Space, Spin, Tag, Typography } from "antd";
 import dayjs from "dayjs";
-import { fetchTarkovGuns, type TarkovGunItem } from "@/api/guidesApi";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  fetchTarkovAmmo,
+  fetchTarkovGuns,
+  type TarkovGunItem,
+} from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { formatCaliberLabel } from "@/lib/tarkovGunCategories";
 import { TarkovGunsTable } from "@/components/guides/tarkov/TarkovGunsTable";
 
 const EMPTY_ITEMS: TarkovGunItem[] = [];
@@ -38,6 +45,11 @@ function renderGunSource(source: string | null | undefined) {
 }
 
 export function TarkovGunsPanel() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ammoFilterId = (searchParams.get("ammo") || "").trim() || null;
+  const caliberFilterParam =
+    (searchParams.get("caliber") || "").trim() || null;
+
   const gunsQuery = useQuery({
     queryKey: ["guides-tarkov-guns"],
     queryFn: fetchTarkovGuns,
@@ -45,7 +57,34 @@ export function TarkovGunsPanel() {
     retry: 1,
   });
 
+  const ammoQuery = useQuery({
+    queryKey: ["guides-tarkov-ammo"],
+    queryFn: fetchTarkovAmmo,
+    enabled: Boolean(ammoFilterId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+
   const items = gunsQuery.data?.items ?? EMPTY_ITEMS;
+
+  const ammoFilterLabel = useMemo(() => {
+    if (!ammoFilterId) return null;
+    const hit = ammoQuery.data?.items.find((row) => row.id === ammoFilterId);
+    if (!hit) return ammoFilterId;
+    return hit.name || hit.short_name || ammoFilterId;
+  }, [ammoFilterId, ammoQuery.data?.items]);
+
+  const clearAmmoFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("ammo");
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearCaliberFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("caliber");
+    setSearchParams(next, { replace: true });
+  };
 
   if (gunsQuery.isLoading) {
     return (
@@ -82,8 +121,28 @@ export function TarkovGunsPanel() {
         </Typography.Text>
       </Space>
 
+      {ammoFilterId || caliberFilterParam ? (
+        <Space wrap size={8} align="center">
+          <Typography.Text type="secondary">当前筛选：</Typography.Text>
+          {ammoFilterId ? (
+            <Tag closable color="blue" onClose={clearAmmoFilter}>
+              可用弹药：{ammoFilterLabel}
+            </Tag>
+          ) : null}
+          {caliberFilterParam ? (
+            <Tag closable color="blue" onClose={clearCaliberFilter}>
+              口径：{formatCaliberLabel(caliberFilterParam)}
+            </Tag>
+          ) : null}
+        </Space>
+      ) : null}
+
       <Card size="small" styles={{ body: { padding: 12 } }}>
-        <TarkovGunsTable data={items} />
+        <TarkovGunsTable
+          data={items}
+          ammoFilterId={ammoFilterId}
+          caliberFilterParam={caliberFilterParam}
+        />
       </Card>
     </Space>
   );

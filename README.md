@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.27** — 塔科夫弹药：护甲 1–6 效果色块、Wiki 风格表、筛选记忆。
+**v0.2.30** — 塔科夫物品：手册一级分类导航、弹药详情页与弹道列、面包屑深链。
 
 ## 功能
 
@@ -8,7 +8,7 @@
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；站内用户互看）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
 - 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
-- **攻略**：逃离塔科夫弹药穿透 × 伤害对照、枪械总表（口径分类筛选与弹药一致；定时自 tarkov.dev / json.tarkov.dev 同步）
+- **攻略**：逃离塔科夫物品手册分类导航；弹药穿透 × 伤害对照与详情页；枪械总表（口径筛选与弹药互跳；定时自 tarkov.dev / json.tarkov.dev 同步）
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
@@ -146,7 +146,7 @@ tarkov_guns · tarkov_gun_meta
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
 | `tarkov_items_raws` | 逃离塔科夫物品上游原始 JSON（全站最新一份；GraphQL split 或 json.tarkov.dev items；弹药/枪械共用；失败不覆盖） |
 | `tarkov_items_meta` | 物品同步元数据（单行，含 ammo/gun 计数与同步时间） |
-| `tarkov_ammo` | 弹药穿透/伤害派生读模型（由 items raw parse；含上游 `ammo_type` / `icon_link`；供列表/散点） |
+| `tarkov_ammo` | 弹药派生读模型（items raw parse；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正；供列表/散点） |
 | `tarkov_ammo_meta` | 弹药展示元数据（单行；与 items 同事务写入） |
 | `tarkov_guns` | 枪械派生读模型（口径/射速/人机/后坐/`allowed_ammo` 等） |
 | `tarkov_gun_meta` | 枪械展示元数据（单行） |

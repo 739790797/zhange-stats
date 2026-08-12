@@ -301,3 +301,41 @@ def test_ensure_ammo_and_guns_share_sync(monkeypatch: pytest.MonkeyPatch):
     ammo_svc.ensure_ammo(db)
     gun_svc.ensure_guns(db)
     assert calls["n"] == 1
+
+
+def test_extract_ammo_item_detail_from_json_envelope():
+    item_id = "ammo1"
+    payload = {
+        "items": {
+            "data": {
+                "items": {
+                    item_id: {
+                        "id": item_id,
+                        "name": f"{item_id} Name",
+                        "shortName": f"{item_id} ShortName",
+                        "weight": 0.01,
+                        "properties": {
+                            "propertiesType": "ItemPropertiesAmmo",
+                            "caliber": "Caliber9x19PARA",
+                            "damage": 102,
+                            "penetrationPower": 2,
+                            "initialSpeed": 381,
+                        },
+                    }
+                }
+            }
+        },
+        "locale": {
+            f"{item_id} Name": "9x19mm RIP",
+            f"{item_id} ShortName": "RIP",
+            f"{item_id} Description": "desc",
+        },
+    }
+    detail = svc._extract_ammo_item_detail(SOURCE_JSON_API, payload, item_id)
+    assert detail is not None
+    assert detail["name"] == "9x19mm RIP"
+    assert detail["short_name"] == "RIP"
+    assert detail["description"] == "desc"
+    assert detail["properties"]["damage"] == 102
+    assert detail["item"]["weight"] == 0.01
+    assert "properties" not in detail["item"]

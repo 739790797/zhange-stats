@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ConfigProvider } from "antd";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { SetupGate } from "@/components/SetupGate";
@@ -26,11 +26,20 @@ import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import PlatformLogsPage from "@/pages/PlatformLogsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
-import TarkovAmmoPage from "@/pages/guides/TarkovAmmoPage";
-import TarkovGunsPage from "@/pages/guides/TarkovGunsPage";
+import TarkovItemsHubPage from "@/pages/guides/TarkovItemsHubPage";
+import TarkovItemTypePage from "@/pages/guides/TarkovItemTypePage";
+import TarkovAmmoDetailPage from "@/pages/guides/TarkovAmmoDetailPage";
 import TarkovReservedPage from "@/pages/guides/TarkovReservedPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
+
+function TarkovGuidesOutlet() {
+  return (
+    <PlatformRoute featureId="guides.tarkov">
+      <Outlet />
+    </PlatformRoute>
+  );
+}
 
 function AdminPage({ children }: { children: ReactNode }) {
   return <AdminRoute>{children}</AdminRoute>;
@@ -131,24 +140,13 @@ export default function App() {
               <Route path="/daily" element={<MyDailyPage />} />
               <Route
                 path="/guides/tarkov"
-                element={<Navigate to="/guides/tarkov/items/ammo" replace />}
+                element={<Navigate to="/guides/tarkov/items" replace />}
               />
-              <Route
-                path="/guides/tarkov/items/ammo"
-                element={
-                  <PlatformRoute featureId="guides.tarkov">
-                    <TarkovAmmoPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route
-                path="/guides/tarkov/items/guns"
-                element={
-                  <PlatformRoute featureId="guides.tarkov">
-                    <TarkovGunsPage />
-                  </PlatformRoute>
-                }
-              />
+              <Route path="/guides/tarkov/items" element={<TarkovGuidesOutlet />}>
+                <Route index element={<TarkovItemsHubPage />} />
+                <Route path="ammo/:itemId" element={<TarkovAmmoDetailPage />} />
+                <Route path=":typeSegment" element={<TarkovItemTypePage />} />
+              </Route>
               <Route
                 path="/guides/tarkov/tasks"
                 element={

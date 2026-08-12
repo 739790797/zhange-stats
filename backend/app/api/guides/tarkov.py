@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.guides.schemas import (
     TarkovAmmoCatalogOut,
+    TarkovAmmoDetailOut,
     TarkovAmmoItemOut,
     TarkovAmmoSyncOut,
     TarkovGunCatalogOut,
@@ -87,6 +88,11 @@ def guides_tarkov_ammo(
             damage=row.damage,
             penetration=row.penetration,
             armor_damage=row.armor_damage,
+            initial_speed=row.initial_speed,
+            accuracy_modifier=row.accuracy_modifier,
+            recoil_modifier=row.recoil_modifier,
+            light_bleed_modifier=row.light_bleed_modifier,
+            heavy_bleed_modifier=row.heavy_bleed_modifier,
             icon_link=row.icon_link,
         )
         for row in ammo_svc.list_ammo(db)
@@ -98,6 +104,40 @@ def guides_tarkov_ammo(
         source=meta.source if meta else None,
         synced_at=meta.synced_at.isoformat() if meta and meta.synced_at else None,
         note=meta.note if meta else None,
+    )
+
+
+@router.get(
+    "/ammo/{item_id}",
+    response_model=TarkovAmmoDetailOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_ammo_detail(
+    item_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """弹药详情：从 items raw 返回完整 item / properties。"""
+    _ = user
+    try:
+        detail = items_svc.get_ammo_item_detail(db, item_id)
+    except items_svc.TarkovItemsError as exc:
+        msg = str(exc)
+        if msg.startswith("未找到弹药"):
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=502, detail=msg) from exc
+    return TarkovAmmoDetailOut(
+        id=str(detail.get("id") or item_id),
+        name=str(detail.get("name") or item_id),
+        short_name=str(detail.get("short_name") or ""),
+        description=str(detail.get("description") or ""),
+        source=detail.get("source"),
+        item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
+        properties=(
+            detail.get("properties")
+            if isinstance(detail.get("properties"), dict)
+            else {}
+        ),
     )
 
 

@@ -36,6 +36,11 @@ def test_parse_graphql_ammo():
                     "penetrationPower": 51,
                     "armorDamage": 57,
                     "ammoType": "bullet",
+                    "initialSpeed": 830,
+                    "accuracyModifier": 0.05,
+                    "recoilModifier": -0.1,
+                    "lightBleedModifier": 0.2,
+                    "heavyBleedModifier": 0.1,
                     "item": {
                         "id": "56dff4ecd2720b5d7b8b456b",
                         "name": "5.45x39mm BS gs",
@@ -52,6 +57,11 @@ def test_parse_graphql_ammo():
     assert rows[0]["ammo_type"] == "bullet"
     assert rows[0]["penetration"] == 51
     assert rows[0]["damage"] == 40
+    assert rows[0]["initial_speed"] == 830
+    assert rows[0]["accuracy_modifier"] == pytest.approx(0.05)
+    assert rows[0]["recoil_modifier"] == pytest.approx(-0.1)
+    assert rows[0]["light_bleed_modifier"] == pytest.approx(0.2)
+    assert rows[0]["heavy_bleed_modifier"] == pytest.approx(0.1)
 
 
 def test_parse_graphql_ammo_errors():
@@ -95,6 +105,11 @@ def test_parse_json_api_ammo():
                         "damage": 54,
                         "penetrationPower": 31,
                         "armorDamage": 37,
+                        "initialSpeed": 922,
+                        "accuracyModifier": 0,
+                        "recoilModifier": 0,
+                        "lightBleedModifier": 0,
+                        "heavyBleedModifier": 0,
                     },
                 }
             }
@@ -109,6 +124,7 @@ def test_parse_json_api_ammo():
     assert rows[0]["name"] == "5.56x45mm M855"
     assert rows[0]["short_name"] == "M855"
     assert rows[0]["caliber"] == "5.56x45mm"
+    assert rows[0]["initial_speed"] == 922
 
 
 def test_download_graphql_ammo_posts_json(monkeypatch: pytest.MonkeyPatch):

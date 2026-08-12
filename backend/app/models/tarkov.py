@@ -50,6 +50,11 @@ class TarkovAmmo(Base):
     damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     penetration: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     armor_damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    initial_speed: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    accuracy_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    recoil_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    light_bleed_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    heavy_bleed_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     icon_link: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

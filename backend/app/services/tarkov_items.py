@@ -333,6 +333,139 @@ def ensure_items(db: Session) -> None:
         sync_from_upstream(db)
 
 
+def get_ammo_item_detail(db: Session, item_id: str) -> dict[str, Any]:
+    """从 items raw 取出单条弹药的完整 item + properties（读库优先）。"""
+    item_id = (item_id or "").strip()
+    if not item_id:
+        raise TarkovItemsError("弹药 id 无效")
+
+    ensure_items(db)
+    if (
+        db.query(TarkovAmmo.item_id)
+        .filter(TarkovAmmo.item_id == item_id)
+        .one_or_none()
+        is None
+    ):
+        raise TarkovItemsError(f"未找到弹药: {item_id}")
+
+    row = get_items_raw(db)
+    if row is None:
+        raise TarkovItemsError("无物品 raw")
+    try:
+        payload = json.loads(row.raw_json)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise TarkovItemsError("物品 raw_json 无效") from exc
+    if not isinstance(payload, dict):
+        raise TarkovItemsError("物品 raw_json 格式无效")
+
+    detail = _extract_ammo_item_detail(row.source, payload, item_id)
+    if detail is None:
+        raise TarkovItemsError(f"未找到弹药: {item_id}")
+    detail["source"] = row.source
+    return detail
+
+
+def _locale_map(payload: dict[str, Any]) -> dict[str, Any]:
+    locale = payload.get("locale")
+    if isinstance(locale, dict):
+        data = locale.get("data")
+        if isinstance(data, dict):
+            return data
+        return locale
+    return {}
+
+
+def _json_items_map(payload: dict[str, Any]) -> dict[str, Any]:
+    items_blob = payload.get("items")
+    if not isinstance(items_blob, dict):
+        return {}
+    data = items_blob.get("data") if isinstance(items_blob.get("data"), dict) else items_blob
+    if not isinstance(data, dict):
+        return {}
+    items = data.get("items") if isinstance(data.get("items"), dict) else data
+    return items if isinstance(items, dict) else {}
+
+
+def _extract_ammo_item_detail(
+    source: str,
+    payload: dict[str, Any],
+    item_id: str,
+) -> dict[str, Any] | None:
+    src = (source or "").strip()
+    if src == SOURCE_GRAPHQL and payload.get("format") == GRAPHQL_SPLIT_FORMAT:
+        ammo_payload = payload.get("ammo")
+        if not isinstance(ammo_payload, dict):
+            return None
+        data = ammo_payload.get("data") if isinstance(ammo_payload.get("data"), dict) else {}
+        rows = data.get("ammo") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            return None
+        for raw in rows:
+            if not isinstance(raw, dict):
+                continue
+            item = raw.get("item") if isinstance(raw.get("item"), dict) else {}
+            if str(item.get("id") or "").strip() != item_id:
+                continue
+            props = {
+                k: v
+                for k, v in raw.items()
+                if k != "item" and v is not None
+            }
+            item_out = {k: v for k, v in item.items() if v is not None}
+            return {
+                "id": item_id,
+                "name": str(item_out.get("name") or item_id),
+                "short_name": str(item_out.get("shortName") or ""),
+                "description": str(item_out.get("description") or ""),
+                "item": item_out,
+                "properties": props,
+            }
+        return None
+
+    # json.tarkov.dev 信封（含兼容旧 raw）
+    items = _json_items_map(payload)
+    raw = items.get(item_id)
+    if not isinstance(raw, dict):
+        return None
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    if props.get("propertiesType") not in (None, "ItemPropertiesAmmo"):
+        # 仍允许返回：只要 id 在弹药派生表会先校验；这里宽松
+        pass
+    locale = _locale_map(payload)
+    name = str(
+        locale.get(f"{item_id} Name")
+        or raw.get("name")
+        or locale.get(f"{item_id} ShortName")
+        or raw.get("shortName")
+        or item_id
+    )
+    short_name = str(
+        locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
+    )
+    description = str(
+        locale.get(f"{item_id} Description") or raw.get("description") or ""
+    )
+    if description.endswith(" Description") and item_id in description:
+        description = ""
+    item_out = {k: v for k, v in raw.items() if k != "properties"}
+    item_out["name"] = name
+    item_out["shortName"] = short_name
+    if description:
+        item_out["description"] = description
+    elif "description" in item_out and str(item_out["description"]).endswith(
+        " Description"
+    ):
+        item_out.pop("description", None)
+    return {
+        "id": item_id,
+        "name": name,
+        "short_name": short_name,
+        "description": description,
+        "item": item_out,
+        "properties": dict(props) if isinstance(props, dict) else {},
+    }
+
+
 def items_sync_job_wrapper() -> None:
     from app.core.database import SessionLocal
     from app.models.job_run import JobRun
