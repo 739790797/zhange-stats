@@ -21,6 +21,18 @@ import {
   calibersInCategory,
   formatCaliberLabel,
 } from "@/lib/tarkovAmmoCategories";
+import {
+  loadTarkovAmmoFilters,
+  resolveCategorySelection,
+  saveTarkovAmmoFilters,
+} from "@/lib/tarkovAmmoFilterStorage";
+import { TarkovAmmoWikiTable } from "@/components/guides/tarkov/TarkovAmmoWikiTable";
+import {
+  ARMOR_EFFECT_COLORS,
+  ARMOR_EFFECT_LABELS,
+  armorEffectsForAmmo,
+  type ArmorEffectLevel,
+} from "@/lib/tarkovAmmoArmorEffect";
 
 const EMPTY_ITEMS: TarkovAmmoItem[] = [];
 const CHART_HEIGHT = 520;
@@ -37,6 +49,60 @@ function formatSyncedAt(value: string | null | undefined): string {
   if (!value) return "—";
   const d = dayjs(value);
   return d.isValid() ? d.format("YYYY-MM-DD HH:mm:ss") : value;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function itemValue(
+  items: Array<{ name?: string; value?: unknown }>,
+  name: string,
+): number {
+  const raw = items.find((it) => it.name === name)?.value;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function renderAmmoTooltip(
+  title: string,
+  items: Array<{ name?: string; value?: unknown }>,
+): string {
+  const penetration = itemValue(items, "穿透");
+  const damage = itemValue(items, "伤害");
+  const armorDamage = itemValue(items, "对甲");
+  const effects = armorEffectsForAmmo(penetration, armorDamage);
+
+  const cells = effects
+    .map((level: ArmorEffectLevel, idx) => {
+      const { bg, fg } = ARMOR_EFFECT_COLORS[level];
+      const label = ARMOR_EFFECT_LABELS[level];
+      return `<div style="width:36px;flex:0 0 36px;box-sizing:border-box;background:${bg};color:${fg};border-radius:3px;padding:4px 0;text-align:center;line-height:1.15">
+        <div style="font-size:10px;opacity:0.9">${idx + 1}级</div>
+        <div style="font-size:11px;font-weight:600;margin-top:2px">${label}</div>
+      </div>`;
+    })
+    .join("");
+
+  const safeTitle = escapeHtml(title || "—");
+  return `<div style="width:320px;box-sizing:border-box;padding:0">
+    <div style="font-size:13px;font-weight:600;color:rgba(0,0,0,0.88);margin-bottom:8px;line-height:1.35;word-break:break-word">${safeTitle}</div>
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="flex:0 0 72px;font-size:12px;color:rgba(0,0,0,0.75);line-height:1.7">
+        <div>穿透　${penetration}</div>
+        <div>伤害　${damage}</div>
+        <div>对甲　${armorDamage}</div>
+      </div>
+      <div style="flex:0 0 auto">
+        <div style="font-size:11px;color:rgba(0,0,0,0.55);margin-bottom:4px">对护甲效果（估）</div>
+        <div style="display:flex;gap:2px;width:226px">${cells}</div>
+      </div>
+    </div>
+  </div>`;
 }
 
 const AMMO_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
@@ -84,7 +150,12 @@ export function TarkovAmmoScatterPanel() {
     [items],
   );
 
-  const [category, setCategory] = useState<AmmoCategoryId>(DEFAULT_AMMO_CATEGORY);
+  const [category, setCategory] = useState<AmmoCategoryId>(
+    () => loadTarkovAmmoFilters().category || DEFAULT_AMMO_CATEGORY,
+  );
+  const [selectedByCategory, setSelectedByCategory] = useState<
+    Partial<Record<AmmoCategoryId, string[]>>
+  >(() => loadTarkovAmmoFilters().selectedByCategory);
   const [calibers, setCalibers] = useState<string[] | null>(null);
   const [categoryReady, setCategoryReady] = useState(false);
 
@@ -95,15 +166,49 @@ export function TarkovAmmoScatterPanel() {
 
   useEffect(() => {
     if (!allCalibers.length) return;
-    setCalibers(calibersInCategory(allCalibers, category));
+    const next = resolveCategorySelection(
+      category,
+      calibersInCategory(allCalibers, category),
+      selectedByCategory,
+    );
+    setCalibers(next);
     setCategoryReady(true);
-  }, [allCalibers, category]);
+  }, [allCalibers, category, selectedByCategory]);
 
   const selectedCalibers = calibers ?? categoryCalibers;
   const selectedSet = useMemo(
     () => new Set(selectedCalibers),
     [selectedCalibers],
   );
+
+  const persistSelection = (next: string[]) => {
+    setCalibers(next);
+    setSelectedByCategory((prev) => {
+      const updated = { ...prev, [category]: next };
+      saveTarkovAmmoFilters({ category, selectedByCategory: updated });
+      return updated;
+    });
+  };
+
+  const toggleCaliber = (caliber: string) => {
+    const next = new Set(selectedSet);
+    if (next.has(caliber)) next.delete(caliber);
+    else next.add(caliber);
+    persistSelection(categoryCalibers.filter((c) => next.has(c)));
+  };
+
+  const selectAllInCategory = () => persistSelection([...categoryCalibers]);
+  const clearInCategory = () => persistSelection([]);
+
+  const onCategoryChange = (value: AmmoCategoryId) => {
+    setSelectedByCategory((prev) => {
+      const updated =
+        calibers !== null ? { ...prev, [category]: calibers } : prev;
+      saveTarkovAmmoFilters({ category: value, selectedByCategory: updated });
+      return updated;
+    });
+    setCategory(value);
+  };
 
   const caliberColors = useMemo(() => {
     const map = new Map<string, string>();
@@ -156,10 +261,31 @@ export function TarkovAmmoScatterPanel() {
           position: "top",
           mount: "body",
           css: {
+            ".g2-tooltip": {
+              width: "auto",
+              "max-width": "none",
+              "min-width": "0",
+              padding: "10px 12px",
+              "box-sizing": "border-box",
+              overflow: "visible",
+            },
             ".g2-tooltip-title": {
-              color: "rgba(0, 0, 0, 0.88)",
+              display: "none",
+            },
+            ".g2-tooltip-list": {
+              display: "none",
             },
           },
+          render: (
+            _event: unknown,
+            {
+              title,
+              items,
+            }: {
+              title?: string;
+              items?: Array<{ name?: string; value?: unknown }>;
+            },
+          ) => renderAmmoTooltip(title || "", items || []),
         },
       },
       style: {
@@ -192,16 +318,6 @@ export function TarkovAmmoScatterPanel() {
     }),
     [allCalibers, axisMax.x, axisMax.y, caliberColors, data],
   );
-
-  const toggleCaliber = (caliber: string) => {
-    const next = new Set(selectedSet);
-    if (next.has(caliber)) next.delete(caliber);
-    else next.add(caliber);
-    setCalibers(categoryCalibers.filter((c) => next.has(c)));
-  };
-
-  const selectAllInCategory = () => setCalibers([...categoryCalibers]);
-  const clearInCategory = () => setCalibers([]);
 
   if (ammoQuery.isLoading || !categoryReady) {
     return (
@@ -251,7 +367,7 @@ export function TarkovAmmoScatterPanel() {
               label: c.label,
               value: c.id,
             }))}
-            onChange={(value) => setCategory(value as AmmoCategoryId)}
+            onChange={(value) => onCategoryChange(value as AmmoCategoryId)}
           />
           <Button size="small" onClick={selectAllInCategory}>
             全选
@@ -310,6 +426,10 @@ export function TarkovAmmoScatterPanel() {
 
       <Card size="small" styles={{ body: { padding: 12 } }}>
         <Scatter {...config} />
+      </Card>
+
+      <Card size="small" styles={{ body: { padding: 12 } }}>
+        <TarkovAmmoWikiTable data={data} />
       </Card>
     </Space>
   );
