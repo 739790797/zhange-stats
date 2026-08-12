@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.2.25",
+  "version": "0.2.26",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
+    "@ant-design/plots": "^2.6.8",
     "@tanstack/react-query": "^5.101.4",
     "antd": "^5.22.7",
     "axios": "^1.19.0",

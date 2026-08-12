@@ -2226,6 +2226,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/ammo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Ammo
+         * @description 弹药穿透/伤害表。空库时自动从上游同步一次。
+         */
+        get: operations["guides_tarkov_ammo_api_guides_tarkov_ammo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/ammo/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Ammo Sync
+         * @description 管理员：立即从 tarkov.dev（或回退源）同步弹药。
+         */
+        post: operations["guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -5375,6 +5415,56 @@ export interface components {
             visible_friend_count: number;
             /** Hint */
             hint?: string | null;
+        };
+        /** TarkovAmmoCatalogOut */
+        TarkovAmmoCatalogOut: {
+            /** Items */
+            items: components["schemas"]["TarkovAmmoItemOut"][];
+            /** Ammo Count */
+            ammo_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** TarkovAmmoItemOut */
+        TarkovAmmoItemOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /** Caliber */
+            caliber: string;
+            /** Damage */
+            damage: number;
+            /** Penetration */
+            penetration: number;
+            /**
+             * Armor Damage
+             * @default 0
+             */
+            armor_damage: number;
+        };
+        /** TarkovAmmoSyncOut */
+        TarkovAmmoSyncOut: {
+            /** Ammo Count */
+            ammo_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Message
+             * @default ok
+             */
+            message: string;
         };
         /** TaygedoAttendanceCalendarOut */
         TaygedoAttendanceCalendarOut: {
@@ -10245,6 +10335,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_ammo_api_guides_tarkov_ammo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovAmmoCatalogOut"];
+                };
+            };
+        };
+    };
+    guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovAmmoSyncOut"];
                 };
             };
         };

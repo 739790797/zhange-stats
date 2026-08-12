@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, exilium, jobs, kujiequ, members, napcat, profile, setup, skland, steam, taygedo
+from app.api import auth, exilium, guides, jobs, kujiequ, members, napcat, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
@@ -32,6 +32,7 @@ from app.models import skland as _skland  # noqa: F401
 from app.models import steam_app as _steam_app  # noqa: F401
 from app.models import steam_friend as _steam_friend  # noqa: F401
 from app.models import system_config as _system_config  # noqa: F401
+from app.models import tarkov as _tarkov  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
 from app.services.seed import seed_data
@@ -150,6 +151,7 @@ api.include_router(taygedo.router)
 api.include_router(exilium.router)
 api.include_router(kujiequ.router)
 api.include_router(napcat.router)
+api.include_router(guides.router)
 app.include_router(api)
 
 # 只挂载头像子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问

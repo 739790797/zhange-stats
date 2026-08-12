@@ -36,6 +36,7 @@ import {
 } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { isAdminUser } from "@/lib/isAdminUser";
+import { GUIDE_NAV } from "@/lib/guideNav";
 import {
   PLATFORM_NAV,
   firstEnabledPlatformPath,
@@ -62,8 +63,11 @@ const ADMIN_LEAF_KEYS = [
   ...SYSTEM_CHILD_KEYS,
 ] as const;
 
+const GUIDE_LEAF_KEYS = GUIDE_NAV.map((item) => item.path);
+
 const leafKeys = [
   ...ADMIN_LEAF_KEYS,
+  ...GUIDE_LEAF_KEYS,
   "/steam",
   "/skland",
   "/taygedo",
@@ -230,6 +234,13 @@ export function AppLayout() {
     }
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
+    if (location.pathname.startsWith("/guides/")) {
+      const hit = GUIDE_LEAF_KEYS.find(
+        (key) =>
+          location.pathname === key || location.pathname.startsWith(`${key}/`),
+      );
+      if (hit) return hit;
+    }
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
     if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
@@ -280,6 +291,14 @@ export function AppLayout() {
     label: <Link to={item.path}>{item.label}</Link>,
   }));
 
+  const guideItems = GUIDE_NAV.filter((item) =>
+    isFeatureOn(features, item.featureId),
+  ).map((item) => ({
+    key: item.path,
+    icon: <PlatformIcon name={item.icon} />,
+    label: <Link to={item.path}>{item.label}</Link>,
+  }));
+
   const mineItems = [
     {
       key: "/daily",
@@ -298,6 +317,9 @@ export function AppLayout() {
   const menuItems = [
     ...(platformItems.length
       ? [{ type: "group" as const, label: "平台", children: platformItems }]
+      : []),
+    ...(guideItems.length
+      ? [{ type: "group" as const, label: "攻略", children: guideItems }]
       : []),
     { type: "group" as const, label: "我的", children: mineItems },
     ...(isAdmin

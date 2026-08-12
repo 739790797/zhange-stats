@@ -6585,6 +6585,60 @@
         }
       }
     },
+    "/api/guides/tarkov/ammo": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Ammo",
+        "description": "弹药穿透/伤害表。空库时自动从上游同步一次。",
+        "operationId": "guides_tarkov_ammo_api_guides_tarkov_ammo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovAmmoCatalogOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/ammo/sync": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Ammo Sync",
+        "description": "管理员：立即从 tarkov.dev（或回退源）同步弹药。",
+        "operationId": "guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovAmmoSyncOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -14395,6 +14449,143 @@
           "steam_bound"
         ],
         "title": "SteamVisibilityMeta"
+      },
+      "TarkovAmmoCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovAmmoItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "ammo_count": {
+            "type": "integer",
+            "title": "Ammo Count"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "ammo_count"
+        ],
+        "title": "TarkovAmmoCatalogOut"
+      },
+      "TarkovAmmoItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "caliber": {
+            "type": "string",
+            "title": "Caliber"
+          },
+          "damage": {
+            "type": "integer",
+            "title": "Damage"
+          },
+          "penetration": {
+            "type": "integer",
+            "title": "Penetration"
+          },
+          "armor_damage": {
+            "type": "integer",
+            "title": "Armor Damage",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "caliber",
+          "damage",
+          "penetration"
+        ],
+        "title": "TarkovAmmoItemOut"
+      },
+      "TarkovAmmoSyncOut": {
+        "properties": {
+          "ammo_count": {
+            "type": "integer",
+            "title": "Ammo Count"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ammo_count"
+        ],
+        "title": "TarkovAmmoSyncOut"
       },
       "TaygedoAttendanceCalendarOut": {
         "properties": {

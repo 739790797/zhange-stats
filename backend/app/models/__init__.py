@@ -21,6 +21,7 @@ from app.models.kujiequ import (
     KujiequCheckinLog,
     KujiequWwBoxRaw,
 )
+from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta
 from app.models.user import User
 
 __all__ = [
@@ -53,4 +54,6 @@ __all__ = [
     "ArknightsRogueRaw",
     "EndfieldBoxRaw",
     "ExastrisBoxRaw",
+    "TarkovAmmo",
+    "TarkovAmmoMeta",
 ]

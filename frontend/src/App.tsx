@@ -26,6 +26,7 @@ import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import PlatformLogsPage from "@/pages/PlatformLogsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import TarkovPage from "@/pages/guides/TarkovPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
 
@@ -126,6 +127,14 @@ export default function App() {
                 }
               />
               <Route path="/daily" element={<MyDailyPage />} />
+              <Route
+                path="/guides/tarkov"
+                element={
+                  <PlatformRoute featureId="guides.tarkov">
+                    <TarkovPage />
+                  </PlatformRoute>
+                }
+              />
               <Route path="/profile" element={<ProfileSettingsPage />} />
               <Route
                 path="/members/:id/profile"

@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.25** — 移除 MAA 全托管（控制面 / Worker / 槽位与相关 UI）；不再计划该能力。
+**v0.2.26** — 攻略：逃离塔科夫弹药穿透×伤害散点图（定时同步 json.tarkov.dev 等）。
 
 ## 功能
 
@@ -8,6 +8,7 @@
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；仅自己与 Steam 好友）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
 - 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
+- **攻略**：逃离塔科夫弹药穿透 × 伤害对照（口径分类筛选；定时自 tarkov.dev / json.tarkov.dev 同步）
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
@@ -125,6 +126,7 @@ users 1 ── 1 members ── * play_sessions / presence_segments / steam_frie
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta
+tarkov_ammo · tarkov_ammo_meta
 ```
 
 | 表 | 用途 |
@@ -141,6 +143,8 @@ arknights_operators · arknights_catalog_meta
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
+| `tarkov_ammo` | 逃离塔科夫弹药穿透/伤害（自 tarkov.dev 同步；失败依次回退 json.tarkov.dev / tarkovdata） |
+| `tarkov_ammo_meta` | 弹药同步元数据（单行，含来源与同步时间） |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |
 | `taygedo_binds` | 塔吉多凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |

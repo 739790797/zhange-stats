@@ -25,6 +25,7 @@ from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.skland_checkin import checkin_job_wrapper as skland_checkin_job_wrapper
 from app.services.steam_poller import poll_job_wrapper
 from app.services.taygedo_checkin import checkin_job_wrapper as taygedo_checkin_job_wrapper
+from app.services.tarkov_ammo import ammo_sync_job_wrapper as tarkov_ammo_sync_job_wrapper
 
 logger = logging.getLogger("zhange.scheduler")
 
@@ -60,6 +61,7 @@ CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., None]] = {
 SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     "arknights_box_sync": arknights_box_sync_job_wrapper,
     "arknights_catalog_sync": arknights_catalog_sync_job_wrapper,
+    "tarkov_ammo_sync": tarkov_ammo_sync_job_wrapper,
     "job_runs_prune": prune_job_wrapper,
 }
 

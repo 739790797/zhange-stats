@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     ARKNIGHTS_CATALOG_SYNC_ENABLED: bool = True
     ARKNIGHTS_CATALOG_SYNC_HOUR: int = 4
     ARKNIGHTS_CATALOG_SYNC_MINUTE: int = 0
+    # 逃离塔科夫弹药（tarkov.dev，默认 04:30）
+    TARKOV_AMMO_SYNC_ENABLED: bool = True
+    TARKOV_AMMO_SYNC_HOUR: int = 4
+    TARKOV_AMMO_SYNC_MINUTE: int = 30
     # 塔吉多每日签到（异环）
     TAYGEDO_CHECKIN_ENABLED: bool = True
     TAYGEDO_CHECKIN_HOUR: int = 0

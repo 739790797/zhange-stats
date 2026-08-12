@@ -11,6 +11,7 @@ const SRC = {
   tower: "/platform-icons/tower.png",
   ww: "/platform-icons/ww.png",
   pgr: "/platform-icons/pgr.png",
+  tarkov: "/platform-icons/tarkov.png",
 } as const;
 
 export type PlatformIconName = keyof typeof SRC;
