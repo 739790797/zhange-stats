@@ -160,7 +160,8 @@ function ammoNearestFromClick(
     getBounds?: () => { min: [number, number]; max: [number, number] };
   };
 
-  let best: { dist: number; ammo: TarkovAmmoItem } | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  let bestAmmo: TarkovAmmoItem | null = null;
   const hitPx = 20 * Math.max(scaleX, scaleY);
 
   const walk = (node: G2Node | null | undefined) => {
@@ -170,11 +171,14 @@ function ammoNearestFromClick(
       const cx = (b.min[0] + b.max[0]) / 2;
       const cy = (b.min[1] + b.max[1]) / 2;
       const dist = Math.hypot(cx - x, cy - y);
-      if (dist <= hitPx && (!best || dist < best.dist)) {
+      if (dist <= hitPx && dist < bestDist) {
         const idx = node.__data__?.index;
         const row =
           typeof idx === "number" ? data[idx] : undefined;
-        if (row?.id) best = { dist, ammo: row };
+        if (row?.id) {
+          bestDist = dist;
+          bestAmmo = row;
+        }
       }
     }
     for (const child of node.childNodes || []) walk(child);
@@ -188,7 +192,7 @@ function ammoNearestFromClick(
     return null;
   }
 
-  return best?.ammo ?? null;
+  return bestAmmo;
 }
 
 export function TarkovAmmoScatterPanel() {
