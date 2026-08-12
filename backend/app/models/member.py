@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -17,10 +17,6 @@ class Member(Base):
     )
     steam_persona_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     steam_avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    steam_friends_public: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    steam_friends_synced_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
     qq_openid: Mapped[str | None] = mapped_column(
         String(64), unique=True, nullable=True, index=True
     )
@@ -45,12 +41,6 @@ class Member(Base):
     )
     presence_segments = relationship(
         "PresenceSegment", back_populates="member", passive_deletes=True
-    )
-    steam_friend_edges = relationship(
-        "SteamFriendEdge",
-        back_populates="member",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
     )
     skland_bind = relationship(
         "SklandBind",

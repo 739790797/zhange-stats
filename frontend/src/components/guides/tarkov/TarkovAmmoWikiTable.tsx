@@ -44,6 +44,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       const byCaliber = formatCaliberLabel(a.caliber).localeCompare(
         formatCaliberLabel(b.caliber),
         "zh",
+        { numeric: true, sensitivity: "base" },
       );
       if (byCaliber !== 0) return byCaliber;
       const delta = a[sortKey] - b[sortKey];

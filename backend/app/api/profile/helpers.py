@@ -90,8 +90,6 @@ def _profile_from_member(
         steam_id=member.steam_id,
         steam_persona_name=persona,
         steam_avatar_url=member.steam_avatar_url,
-        steam_friends_public=member.steam_friends_public,
-        steam_friends_synced_at=member.steam_friends_synced_at,
         skland_bound=skland is not None,
         skland_auto_checkin=bool(skland.auto_checkin) if skland is not None else None,
         taygedo_bound=taygedo is not None,
@@ -158,18 +156,14 @@ def _require_steam_feature(db: Session) -> None:
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
     """绑定或解绑 Steam；仅同步 Steam 专用昵称/头像，不改站内身份。"""
     from app.services.steam_bind import require_public_steam_profile
-    from app.services.steam_friends import clear_member_friends, sync_member_friends
     from app.services.steam_persona import force_set_steam_persona_name
 
     value = (steam_id or "").strip() or None
     if not value:
         # 解绑在平台关闭时仍允许，便于清理
         member.steam_id = None
-        member.steam_friends_public = None
-        member.steam_friends_synced_at = None
         member.steam_persona_name = None
         member.steam_avatar_url = None
-        clear_member_friends(db, member.id)
         return None
 
     _require_steam_feature(db)
@@ -200,7 +194,6 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         update_display=False,
         avatar_url=profile.avatar_url,
     )
-    sync_member_friends(db, member)
     return profile.persona_name
 
 

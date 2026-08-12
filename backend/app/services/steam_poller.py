@@ -278,10 +278,6 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
         "presence_closed": 0,
         "skipped_private": 0,
         "stale_closed": 0,
-        "friends_synced": 0,
-        "friends_skipped_fresh": 0,
-        "friends_private": 0,
-        "friends_failed": 0,
         "persona_updated": 0,
     }
 
@@ -333,27 +329,12 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
                 stats["persona_updated"] += 1
             _apply_presence(db, member, presence, now, stats)
 
-        from app.services.steam_friends import ensure_friends_fresh
-
-        for member in members:
-            result = ensure_friends_fresh(db, member)
-            if result is None:
-                stats["friends_skipped_fresh"] += 1
-            elif not result.ok:
-                stats["friends_failed"] += 1
-            elif result.friends_public is False:
-                stats["friends_private"] += 1
-            else:
-                stats["friends_synced"] += 1
-
         job.status = "ok"
         job.message = (
             f"轮询 {stats['members']} 人，"
             f"玩 {stats['playing']} / 在线 {stats['online']} / 离线 {stats['offline']}，"
             f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}；"
-            f"昵称跟随 {stats['persona_updated']}；"
-            f"好友同步 {stats['friends_synced']} / 跳过新鲜 {stats['friends_skipped_fresh']} / "
-            f"未公开 {stats['friends_private']}"
+            f"昵称跟随 {stats['persona_updated']}"
         )
         job.stats = stats
         job.finished_at = _now()

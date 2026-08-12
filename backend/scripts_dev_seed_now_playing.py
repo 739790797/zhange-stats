@@ -20,7 +20,6 @@ from app.core.timeutil import now_naive
 from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
-from app.models.steam_friend import SteamFriendEdge
 from app.models.user import User, UserRole
 from app.services.steam_game_names import display_name_for
 
@@ -105,7 +104,6 @@ def ensure_demo_user(
             member.user_id = user.id
             member.nickname = display_name
             member.avatar_url = avatar_url
-            member.steam_friends_public = True
         else:
             # 释放其它成员占用的同 steam_id
             conflict = (
@@ -121,7 +119,6 @@ def ensure_demo_user(
                 user_id=user.id,
                 steam_id=steam_id,
                 avatar_url=avatar_url,
-                steam_friends_public=True,
             )
             db.add(member)
             db.flush()
@@ -140,27 +137,7 @@ def ensure_demo_user(
         member.nickname = display_name
         member.steam_id = steam_id
         member.avatar_url = avatar_url
-        member.steam_friends_public = True
     return member
-
-
-def ensure_friend_edge(db, member_id: int, friend_steam_id: str) -> None:
-    exists = (
-        db.query(SteamFriendEdge)
-        .filter(
-            SteamFriendEdge.member_id == member_id,
-            SteamFriendEdge.friend_steam_id == friend_steam_id,
-        )
-        .first()
-    )
-    if exists is None:
-        db.add(
-            SteamFriendEdge(
-                member_id=member_id,
-                friend_steam_id=friend_steam_id,
-                friend_since=None,
-            )
-        )
 
 
 def close_all_opens(db, member_ids: set[int], now: datetime) -> None:
@@ -235,8 +212,6 @@ def main() -> int:
         players = [m for name, m in demos.items() if name != "演示观察者"]
 
         for m in players:
-            ensure_friend_edge(db, viewer.id, m.steam_id)  # type: ignore[arg-type]
-            ensure_friend_edge(db, m.id, viewer.steam_id)  # type: ignore[arg-type]
 
         # 兼容旧演示账号（demo_alpha 等）也挂到观察者好友下
         for old in ("演示甲", "演示乙", "演示丙"):

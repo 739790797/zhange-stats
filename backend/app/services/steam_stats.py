@@ -17,10 +17,7 @@ from app.services.steam_friends import (
     visibility_meta,
     visible_member_ids_for_user,
 )
-from app.services.steam_display import (
-    load_viewer_friend_aliases,
-    member_steam_presentation,
-)
+from app.services.steam_display import member_steam_presentation
 from app.services.steam_game_names import prefer_display_name, resolve_app_icons, resolve_app_names
 
 
@@ -113,7 +110,6 @@ def build_calendar(
 ) -> dict:
     visible_ids = visible_member_ids_for_user(db, viewer)
     meta = visibility_meta(db, viewer, visible_ids)
-    aliases = load_viewer_friend_aliases(db, viewer)
     range_start, range_end = _range_for(granularity, anchor)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
@@ -140,7 +136,7 @@ def build_calendar(
         mid = s.member_id
         if mid not in member_meta:
             pres = member_steam_presentation(
-                member, aliases=aliases, fallback_id=mid
+                member, fallback_id=mid
             )
             member_meta[mid] = {
                 "member_id": mid,
@@ -206,7 +202,7 @@ def build_calendar(
         for m in steam_members:
             if m.id in known:
                 continue
-            pres = member_steam_presentation(m, aliases=aliases)
+            pres = member_steam_presentation(m)
             members.append(
                 {
                     "member_id": m.id,
@@ -286,7 +282,6 @@ def build_range_detail(
 
     visible_ids = visible_member_ids_for_user(db, viewer)
     vis = visibility_meta(db, viewer, visible_ids)
-    aliases = load_viewer_friend_aliases(db, viewer)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
     span_seconds = int((window_end - window_start).total_seconds())
@@ -339,7 +334,7 @@ def build_range_detail(
         member = s.member
         game_name = _localize(s.steam_app_id, s.game_name, name_map)
         pres = member_steam_presentation(
-            member, aliases=aliases, fallback_id=s.member_id
+            member, fallback_id=s.member_id
         )
         item = {
             "id": s.id,
@@ -459,7 +454,7 @@ def build_range_detail(
     timeline = []
     for m in steam_members:
         segs = sorted(segments_by_member.get(m.id, []), key=lambda x: x["start_sec"])
-        pres = member_steam_presentation(m, aliases=aliases)
+        pres = member_steam_presentation(m)
         timeline.append(
             {
                 "member_id": m.id,
@@ -509,7 +504,6 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
     visible_ids = visible_member_ids_for_user(db, viewer)
     if not visible_ids:
         return []
-    aliases = load_viewer_friend_aliases(db, viewer)
     sessions = (
         db.query(PlaySession)
         .options(joinedload(PlaySession.member))
@@ -530,7 +524,7 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
     for s in sessions:
         start = _to_aware(s.started_at)
         pres = member_steam_presentation(
-            s.member, aliases=aliases, fallback_id=s.member_id
+            s.member, fallback_id=s.member_id
         )
         result.append(
             {
@@ -550,9 +544,8 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
 
 
 def build_overview(db: Session, viewer: User) -> dict:
-    """圈子 Steam 总览：仅自己与 Steam 好友。"""
+    """圈子 Steam 总览：站内已注册成员。"""
     visible_ids = visible_member_ids_for_user(db, viewer)
-    aliases = load_viewer_friend_aliases(db, viewer)
     today_d = today()
     week_start = today_d - timedelta(days=today.weekday())
     window_start, _ = _day_bounds(week_start)
@@ -600,7 +593,7 @@ def build_overview(db: Session, viewer: User) -> dict:
         else:
             duration = max(0, int((end - start).total_seconds()))
         pres = member_steam_presentation(
-            s.member, aliases=aliases, fallback_id=s.member_id
+            s.member, fallback_id=s.member_id
         )
         recent_sessions.append(
             {

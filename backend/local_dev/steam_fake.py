@@ -24,7 +24,6 @@ from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
 from app.models.register_challenge import RegisterChallenge
 from app.models.steam_app import SteamApp
-from app.models.steam_friend import SteamFriendEdge
 from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -415,7 +414,6 @@ def ensure_fake_user(
                 steam_id=steam_id,
                 steam_persona_name=display_name,
                 avatar_url=avatar_url,
-                steam_friends_public=True,
             )
             db.add(member)
             db.flush()
@@ -432,28 +430,7 @@ def ensure_fake_user(
     member.steam_id = steam_id
     member.steam_persona_name = display_name
     member.avatar_url = avatar_url
-    member.steam_friends_public = True
     return member
-
-
-def ensure_friend_edge(db: Session, member_id: int, friend_steam_id: str) -> None:
-    exists = (
-        db.query(SteamFriendEdge)
-        .filter(
-            SteamFriendEdge.member_id == member_id,
-            SteamFriendEdge.friend_steam_id == friend_steam_id,
-        )
-        .first()
-    )
-    if exists is None:
-        db.add(
-            SteamFriendEdge(
-                member_id=member_id,
-                friend_steam_id=friend_steam_id,
-                friend_since=None,
-                nickname=None,
-            )
-        )
 
 
 def ensure_fake_steam_apps(db: Session) -> int:
@@ -838,7 +815,6 @@ def wipe_non_admin_users(db: Session) -> dict[str, int]:
     drop_member_ids = [m.id for m in drop_members]
 
     deleted = {
-        "friend_edges": 0,
         "play_sessions": 0,
         "presence_segments": 0,
         "members": 0,
@@ -847,11 +823,6 @@ def wipe_non_admin_users(db: Session) -> dict[str, int]:
     }
 
     if drop_member_ids:
-        deleted["friend_edges"] = (
-            db.query(SteamFriendEdge)
-            .filter(SteamFriendEdge.member_id.in_(drop_member_ids))
-            .delete(synchronize_session=False)
-        )
         deleted["play_sessions"] = (
             db.query(PlaySession)
             .filter(PlaySession.member_id.in_(drop_member_ids))
@@ -885,7 +856,7 @@ def wipe_non_admin_users(db: Session) -> dict[str, int]:
 
 
 def wipe_fake_users(db: Session) -> dict[str, int]:
-    """仅删除 FAKE_USERS（user_a～user_z）及其 Steam 历史 / 好友边；不影响真实用户。"""
+    """仅删除 FAKE_USERS（user_a～user_z）及其 Steam 历史；不影响真实用户。"""
     usernames = [u[0] for u in FAKE_USERS]
     steam_ids = {u[2] for u in FAKE_USERS}
 
@@ -906,8 +877,6 @@ def wipe_fake_users(db: Session) -> dict[str, int]:
         "members": 0,
         "play_sessions": 0,
         "presence_segments": 0,
-        "friend_edges": 0,
-        "friend_edges_inbound": 0,
         "job_runs": 0,
     }
 
@@ -922,23 +891,11 @@ def wipe_fake_users(db: Session) -> dict[str, int]:
             .filter(PresenceSegment.member_id.in_(member_ids))
             .delete(synchronize_session=False)
         )
-        deleted["friend_edges"] = (
-            db.query(SteamFriendEdge)
-            .filter(SteamFriendEdge.member_id.in_(member_ids))
-            .delete(synchronize_session=False)
-        )
         deleted["members"] = (
             db.query(Member)
             .filter(Member.id.in_(member_ids))
             .delete(synchronize_session=False)
         )
-
-    # 其他成员指向演示 SteamID 的好友缓存
-    deleted["friend_edges_inbound"] = (
-        db.query(SteamFriendEdge)
-        .filter(SteamFriendEdge.friend_steam_id.in_(steam_ids))
-        .delete(synchronize_session=False)
-    )
 
     if user_ids:
         deleted["users"] = (
@@ -1049,13 +1006,6 @@ def ensure_local_fake_data(
             )
         )
     db.flush()
-
-    for m in members:
-        assert m.steam_id
-        for other in members:
-            if other.id == m.id or not other.steam_id:
-                continue
-            ensure_friend_edge(db, m.id, other.steam_id)
 
     apps = ensure_fake_steam_apps(db)
     if force_history:

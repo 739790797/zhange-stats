@@ -57,13 +57,7 @@ export function SteamBindRow({
         {steamBound ? (
           <div>
             <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-              {`${data?.steam_persona_name || "已绑定"} · SteamID：${data?.steam_id}${
-                data?.steam_friends_public === false
-                  ? " · 好友列表未公开（日历只能看自己）"
-                  : data?.steam_friends_public
-                    ? " · 好友列表已同步"
-                    : ""
-              }`}
+              {`${data?.steam_persona_name || "已绑定"} · SteamID：${data?.steam_id}`}
             </Typography.Text>
           </div>
         ) : null}

@@ -30,7 +30,6 @@ from app.models import presence_segment as _presence_segment  # noqa: F401
 from app.models import register_challenge as _register_challenge  # noqa: F401
 from app.models import skland as _skland  # noqa: F401
 from app.models import steam_app as _steam_app  # noqa: F401
-from app.models import steam_friend as _steam_friend  # noqa: F401
 from app.models import system_config as _system_config  # noqa: F401
 from app.models import tarkov as _tarkov  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401

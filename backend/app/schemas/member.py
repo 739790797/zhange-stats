@@ -54,8 +54,6 @@ class MemberProfileOut(BaseModel):
     steam_id: str | None
     steam_persona_name: str | None = None
     steam_avatar_url: str | None = None
-    steam_friends_public: bool | None = None
-    steam_friends_synced_at: datetime | None = None
     skland_bound: bool = False
     skland_auto_checkin: bool | None = None
     taygedo_bound: bool = False

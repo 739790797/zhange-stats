@@ -21,6 +21,7 @@ JOB_IDS = (
     "exilium_checkin",
     "kujiequ_checkin",
     "tarkov_ammo_sync",
+    "tarkov_gun_sync",
     "job_runs_prune",
 )
 
@@ -72,6 +73,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(s.TARKOV_AMMO_SYNC_ENABLED),
             "hour": _clamp_hour(s.TARKOV_AMMO_SYNC_HOUR),
             "minute": _clamp_minute(s.TARKOV_AMMO_SYNC_MINUTE),
+        },
+        "tarkov_gun_sync": {
+            "enabled": bool(s.TARKOV_GUN_SYNC_ENABLED),
+            "hour": _clamp_hour(s.TARKOV_GUN_SYNC_HOUR),
+            "minute": _clamp_minute(s.TARKOV_GUN_SYNC_MINUTE),
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),

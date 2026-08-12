@@ -11,7 +11,6 @@ from app.models.register_challenge import RegisterChallenge
 from app.models.checkin_role_pref import CheckinRolePref
 from app.models.skland import SklandAttendanceRaw, SklandBind, SklandCheckinLog
 from app.models.steam_app import SteamApp
-from app.models.steam_friend import SteamFriendEdge
 from app.models.system_config import SystemConfig
 from app.models.taygedo import TaygedoAttendanceRaw, TaygedoBind, TaygedoCheckinLog
 from app.models.exilium import ExiliumBind, ExiliumCheckinLog
@@ -21,7 +20,14 @@ from app.models.kujiequ import (
     KujiequCheckinLog,
     KujiequWwBoxRaw,
 )
-from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta
+from app.models.tarkov import (
+    TarkovAmmo,
+    TarkovAmmoMeta,
+    TarkovAmmoRaw,
+    TarkovGun,
+    TarkovGunMeta,
+    TarkovGunRaw,
+)
 from app.models.user import User
 
 __all__ = [
@@ -33,7 +39,6 @@ __all__ = [
     "SystemConfig",
     "RegisterChallenge",
     "OAuthExchangeTicket",
-    "SteamFriendEdge",
     "SteamApp",
     "SklandBind",
     "SklandCheckinLog",
@@ -56,4 +61,8 @@ __all__ = [
     "ExastrisBoxRaw",
     "TarkovAmmo",
     "TarkovAmmoMeta",
+    "TarkovAmmoRaw",
+    "TarkovGun",
+    "TarkovGunMeta",
+    "TarkovGunRaw",
 ]

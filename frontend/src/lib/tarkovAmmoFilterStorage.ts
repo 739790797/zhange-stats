@@ -1,49 +1,25 @@
-import {
-  AMMO_CATEGORIES,
-  DEFAULT_AMMO_CATEGORY,
-  type AmmoCategoryId,
-} from "@/lib/tarkovAmmoCategories";
-
-const STORAGE_KEY = "zhange.guides.tarkov.ammoFilters.v1";
+const STORAGE_KEY = "zhange.guides.tarkov.ammoFilters.v2";
 
 export type TarkovAmmoFilterState = {
-  category: AmmoCategoryId;
-  /** 各大类下勾选的口径（原始 caliber 字符串） */
-  selectedByCategory: Partial<Record<AmmoCategoryId, string[]>>;
+  /** 勾选的口径；`null` = 从未保存（默认全选） */
+  selectedCalibers: string[] | null;
 };
-
-const CATEGORY_IDS = new Set<AmmoCategoryId>(
-  AMMO_CATEGORIES.map((c) => c.id),
-);
-
-function isCategoryId(value: unknown): value is AmmoCategoryId {
-  return typeof value === "string" && CATEGORY_IDS.has(value as AmmoCategoryId);
-}
 
 export function loadTarkovAmmoFilters(): TarkovAmmoFilterState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { category: DEFAULT_AMMO_CATEGORY, selectedByCategory: {} };
-    }
+    if (!raw) return { selectedCalibers: null };
     const parsed = JSON.parse(raw) as Partial<TarkovAmmoFilterState>;
-    const category = isCategoryId(parsed.category)
-      ? parsed.category
-      : DEFAULT_AMMO_CATEGORY;
-    const selectedByCategory: Partial<Record<AmmoCategoryId, string[]>> = {};
-    const src = parsed.selectedByCategory;
-    if (src && typeof src === "object") {
-      for (const id of CATEGORY_IDS) {
-        const list = src[id];
-        if (!Array.isArray(list)) continue;
-        selectedByCategory[id] = list.filter(
-          (v): v is string => typeof v === "string" && v.trim().length > 0,
-        );
-      }
+    if (!Array.isArray(parsed.selectedCalibers)) {
+      return { selectedCalibers: null };
     }
-    return { category, selectedByCategory };
+    return {
+      selectedCalibers: parsed.selectedCalibers.filter(
+        (v): v is string => typeof v === "string" && v.trim().length > 0,
+      ),
+    };
   } catch {
-    return { category: DEFAULT_AMMO_CATEGORY, selectedByCategory: {} };
+    return { selectedCalibers: null };
   }
 }
 
@@ -55,14 +31,12 @@ export function saveTarkovAmmoFilters(state: TarkovAmmoFilterState) {
   }
 }
 
-/** 用当前可选口径校正历史勾选；无历史则默认全选该类 */
-export function resolveCategorySelection(
-  category: AmmoCategoryId,
+/** 用当前可选口径校正历史勾选；`null` 默认全选；允许空数组（用户清空） */
+export function resolveCaliberSelection(
   available: string[],
-  selectedByCategory: Partial<Record<AmmoCategoryId, string[]>>,
+  saved: string[] | null,
 ): string[] {
+  if (saved === null) return [...available];
   const availableSet = new Set(available);
-  const saved = selectedByCategory[category];
-  if (!saved) return [...available];
   return saved.filter((c) => availableSet.has(c));
 }

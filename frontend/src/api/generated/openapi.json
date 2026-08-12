@@ -2825,57 +2825,6 @@
         }
       }
     },
-    "/api/steam/friends": {
-      "get": {
-        "tags": [
-          "steam"
-        ],
-        "summary": "Steam Friends",
-        "description": "当前用户的 Steam 好友列表。冷却期内打开页面用缓存，force=true 手动刷新。",
-        "operationId": "steam_friends_api_steam_friends_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "force",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "强制从 Steam 同步；默认受冷却间隔限制",
-              "default": false,
-              "title": "Force"
-            },
-            "description": "强制从 Steam 同步；默认受冷却间隔限制"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SteamFriendsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/steam/overview": {
       "get": {
         "tags": [
@@ -6591,7 +6540,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Ammo",
-        "description": "弹药穿透/伤害表。空库时自动从上游同步一次。",
+        "description": "弹药穿透/伤害表（派生读模型）。空库时优先 raw 重算，否则回源。",
         "operationId": "guides_tarkov_ammo_api_guides_tarkov_ammo_get",
         "responses": {
           "200": {
@@ -6618,7 +6567,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Ammo Sync",
-        "description": "管理员：立即从 tarkov.dev（或回退源）同步弹药。",
+        "description": "管理员：回源同步弹药（成功才覆盖 raw，并重写派生表）。",
         "operationId": "guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post",
         "responses": {
           "200": {
@@ -6627,6 +6576,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovAmmoSyncOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/guns": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Guns",
+        "description": "枪械总表（派生读模型）。空库时优先 raw 重算，否则回源。",
+        "operationId": "guides_tarkov_guns_api_guides_tarkov_guns_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovGunCatalogOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/guns/sync": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Guns Sync",
+        "description": "管理员：回源同步枪械（成功才覆盖 raw，并重写派生表）。",
+        "operationId": "guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovGunSyncOut"
                 }
               }
             }
@@ -11470,29 +11473,6 @@
             ],
             "title": "Steam Avatar Url"
           },
-          "steam_friends_public": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Steam Friends Public"
-          },
-          "steam_friends_synced_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Steam Friends Synced At"
-          },
           "skland_bound": {
             "type": "boolean",
             "title": "Skland Bound",
@@ -13832,196 +13812,6 @@
         ],
         "title": "SteamDaySessionItem"
       },
-      "SteamFriendItem": {
-        "properties": {
-          "steam_id": {
-            "type": "string",
-            "title": "Steam Id"
-          },
-          "persona_name": {
-            "type": "string",
-            "title": "Persona Name"
-          },
-          "steam_persona_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Steam Persona Name"
-          },
-          "friend_nickname": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Friend Nickname"
-          },
-          "avatar_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avatar Url"
-          },
-          "profile_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profile Url"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "game_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Game Name"
-          },
-          "steam_app_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Steam App Id"
-          },
-          "friend_since": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Friend Since"
-          },
-          "member_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Member Id"
-          },
-          "is_registered": {
-            "type": "boolean",
-            "title": "Is Registered",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "steam_id",
-          "persona_name",
-          "status"
-        ],
-        "title": "SteamFriendItem"
-      },
-      "SteamFriendsResponse": {
-        "properties": {
-          "steam_bound": {
-            "type": "boolean",
-            "title": "Steam Bound"
-          },
-          "friends_list_public": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Friends List Public"
-          },
-          "friends_synced_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Friends Synced At"
-          },
-          "friend_count": {
-            "type": "integer",
-            "title": "Friend Count",
-            "default": 0
-          },
-          "sync_ok": {
-            "type": "boolean",
-            "title": "Sync Ok",
-            "default": true
-          },
-          "synced": {
-            "type": "boolean",
-            "title": "Synced",
-            "default": false
-          },
-          "sync_interval_seconds": {
-            "type": "integer",
-            "title": "Sync Interval Seconds",
-            "default": 900
-          },
-          "hint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hint"
-          },
-          "friends": {
-            "items": {
-              "$ref": "#/components/schemas/SteamFriendItem"
-            },
-            "type": "array",
-            "title": "Friends"
-          }
-        },
-        "type": "object",
-        "required": [
-          "steam_bound"
-        ],
-        "title": "SteamFriendsResponse"
-      },
       "SteamGameLegendItem": {
         "properties": {
           "steam_app_id": {
@@ -14393,7 +14183,7 @@
           "mode": {
             "type": "string",
             "title": "Mode",
-            "default": "steam_friends"
+            "default": "site_members"
           },
           "self_member_id": {
             "type": "integer",
@@ -14403,32 +14193,9 @@
             "type": "boolean",
             "title": "Steam Bound"
           },
-          "friends_list_public": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Friends List Public"
-          },
-          "friends_synced_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Friends Synced At"
-          },
-          "visible_friend_count": {
+          "visible_member_count": {
             "type": "integer",
-            "title": "Visible Friend Count",
+            "title": "Visible Member Count",
             "default": 0
           },
           "hint": {
@@ -14523,6 +14290,11 @@
             "type": "string",
             "title": "Caliber"
           },
+          "ammo_type": {
+            "type": "string",
+            "title": "Ammo Type",
+            "default": ""
+          },
           "damage": {
             "type": "integer",
             "title": "Damage"
@@ -14586,6 +14358,182 @@
           "ammo_count"
         ],
         "title": "TarkovAmmoSyncOut"
+      },
+      "TarkovGunCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovGunItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "gun_count": {
+            "type": "integer",
+            "title": "Gun Count"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "gun_count"
+        ],
+        "title": "TarkovGunCatalogOut"
+      },
+      "TarkovGunItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "caliber": {
+            "type": "string",
+            "title": "Caliber"
+          },
+          "weapon_class": {
+            "type": "string",
+            "title": "Weapon Class",
+            "default": ""
+          },
+          "fire_rate": {
+            "type": "integer",
+            "title": "Fire Rate",
+            "default": 0
+          },
+          "ergonomics": {
+            "type": "number",
+            "title": "Ergonomics",
+            "default": 0
+          },
+          "recoil_vertical": {
+            "type": "integer",
+            "title": "Recoil Vertical",
+            "default": 0
+          },
+          "recoil_horizontal": {
+            "type": "integer",
+            "title": "Recoil Horizontal",
+            "default": 0
+          },
+          "effective_distance": {
+            "type": "integer",
+            "title": "Effective Distance",
+            "default": 0
+          },
+          "fire_modes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fire Modes"
+          },
+          "default_ammo_id": {
+            "type": "string",
+            "title": "Default Ammo Id",
+            "default": ""
+          },
+          "allowed_ammo_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Ammo Ids"
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "caliber"
+        ],
+        "title": "TarkovGunItemOut"
+      },
+      "TarkovGunSyncOut": {
+        "properties": {
+          "gun_count": {
+            "type": "integer",
+            "title": "Gun Count"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gun_count"
+        ],
+        "title": "TarkovGunSyncOut"
       },
       "TaygedoAttendanceCalendarOut": {
         "properties": {

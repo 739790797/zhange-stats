@@ -208,11 +208,7 @@ export default function SteamCalendarPage() {
         <>
           {timelineData?.visibility?.hint && (
             <Alert
-              type={
-                timelineData.visibility.friends_list_public === false
-                  ? "warning"
-                  : "info"
-              }
+              type="info"
               showIcon
               style={{ marginBottom: 16 }}
               message={timelineData.visibility.hint}

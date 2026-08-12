@@ -13,12 +13,10 @@ from app.schemas import (
     SteamAppStoreCard,
     SteamCalendarResponse,
     SteamDayResponse,
-    SteamFriendsResponse,
     SteamNowItem,
     SteamOverviewResponse,
     SteamPollResult,
 )
-from app.services.steam_friends import list_viewer_steam_friends
 from app.services.steam_game_names import get_store_card, resolve_app_icons
 from app.services.steam_poller import run_steam_presence_poll
 from app.services.steam_stats import (
@@ -34,16 +32,6 @@ router = APIRouter(
     tags=["steam"],
     dependencies=[Depends(require_feature("steam"))],
 )
-
-
-@router.get("/friends", response_model=SteamFriendsResponse)
-def steam_friends(
-    force: bool = Query(False, description="强制从 Steam 同步；默认受冷却间隔限制"),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> dict:
-    """当前用户的 Steam 好友列表。冷却期内打开页面用缓存，force=true 手动刷新。"""
-    return list_viewer_steam_friends(db, user, force=force)
 
 
 @router.get("/overview", response_model=SteamOverviewResponse)
@@ -64,7 +52,7 @@ def steam_member_stats(
     if not data:
         raise HTTPException(
             status_code=404,
-            detail="成员不存在，或对方不是你的 Steam 好友",
+            detail="成员不存在",
         )
     return data
 

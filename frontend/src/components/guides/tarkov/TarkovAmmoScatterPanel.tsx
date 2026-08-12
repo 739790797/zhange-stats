@@ -1,29 +1,19 @@
 import { Scatter } from "@ant-design/plots";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Card,
-  Segmented,
-  Space,
-  Spin,
-  Tag,
-  Typography,
-} from "antd";
+import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from "antd";
+import { CheckSquareOutlined, ClearOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import { fetchTarkovAmmo, type TarkovAmmoItem } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import {
-  AMMO_CATEGORIES,
-  DEFAULT_AMMO_CATEGORY,
-  type AmmoCategoryId,
-  calibersInCategory,
+  AMMO_TYPE_ORDER,
+  formatAmmoTypeLabel,
   formatCaliberLabel,
 } from "@/lib/tarkovAmmoCategories";
 import {
   loadTarkovAmmoFilters,
-  resolveCategorySelection,
+  resolveCaliberSelection,
   saveTarkovAmmoFilters,
 } from "@/lib/tarkovAmmoFilterStorage";
 import { TarkovAmmoWikiTable } from "@/components/guides/tarkov/TarkovAmmoWikiTable";
@@ -43,6 +33,13 @@ function distinctCaliberColor(index: number): string {
   const sat = index % 2 === 0 ? 78 : 68;
   const light = index % 3 === 0 ? 34 : index % 3 === 1 ? 40 : 36;
   return `hsl(${hue} ${sat}% ${light}%)`;
+}
+
+function compareCaliberLabel(a: string, b: string): number {
+  return formatCaliberLabel(a).localeCompare(formatCaliberLabel(b), "zh", {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function formatSyncedAt(value: string | null | undefined): string {
@@ -144,70 +141,71 @@ export function TarkovAmmoScatterPanel() {
   const items = ammoQuery.data?.items ?? EMPTY_ITEMS;
   const allCalibers = useMemo(
     () =>
-      Array.from(new Set(items.map((row) => row.caliber))).sort((a, b) =>
-        formatCaliberLabel(a).localeCompare(formatCaliberLabel(b), "zh"),
+      Array.from(new Set(items.map((row) => row.caliber))).sort(
+        compareCaliberLabel,
       ),
     [items],
   );
 
-  const [category, setCategory] = useState<AmmoCategoryId>(
-    () => loadTarkovAmmoFilters().category || DEFAULT_AMMO_CATEGORY,
+  const [savedSelection, setSavedSelection] = useState<string[] | null>(
+    () => loadTarkovAmmoFilters().selectedCalibers,
   );
-  const [selectedByCategory, setSelectedByCategory] = useState<
-    Partial<Record<AmmoCategoryId, string[]>>
-  >(() => loadTarkovAmmoFilters().selectedByCategory);
-  const [calibers, setCalibers] = useState<string[] | null>(null);
-  const [categoryReady, setCategoryReady] = useState(false);
-
-  const categoryCalibers = useMemo(
-    () => calibersInCategory(allCalibers, category),
-    [allCalibers, category],
-  );
+  const [selectedCalibers, setSelectedCalibers] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!allCalibers.length) return;
-    const next = resolveCategorySelection(
-      category,
-      calibersInCategory(allCalibers, category),
-      selectedByCategory,
-    );
-    setCalibers(next);
-    setCategoryReady(true);
-  }, [allCalibers, category, selectedByCategory]);
+    const next = resolveCaliberSelection(allCalibers, savedSelection);
+    setSelectedCalibers(next);
+    setReady(true);
+  }, [allCalibers, savedSelection]);
 
-  const selectedCalibers = calibers ?? categoryCalibers;
   const selectedSet = useMemo(
     () => new Set(selectedCalibers),
     [selectedCalibers],
   );
 
   const persistSelection = (next: string[]) => {
-    setCalibers(next);
-    setSelectedByCategory((prev) => {
-      const updated = { ...prev, [category]: next };
-      saveTarkovAmmoFilters({ category, selectedByCategory: updated });
-      return updated;
-    });
+    setSelectedCalibers(next);
+    setSavedSelection(next);
+    saveTarkovAmmoFilters({ selectedCalibers: next });
   };
+
+  const typeRows = useMemo(() => {
+    const byType = new Map<string, Set<string>>();
+    for (const row of items) {
+      const t = (row.ammo_type || "").trim() || "";
+      if (!byType.has(t)) byType.set(t, new Set());
+      byType.get(t)!.add(row.caliber);
+    }
+    const known = AMMO_TYPE_ORDER.filter((t) => byType.has(t));
+    const knownSet = new Set<string>(known);
+    const extra = Array.from(byType.keys())
+      .filter((t) => !knownSet.has(t))
+      .sort((a, b) =>
+        formatAmmoTypeLabel(a).localeCompare(formatAmmoTypeLabel(b), "zh"),
+      );
+    return [...known, ...extra].map((id) => ({
+      id: id || "unknown",
+      label: formatAmmoTypeLabel(id),
+      calibers: Array.from(byType.get(id) || []).sort(compareCaliberLabel),
+    }));
+  }, [items]);
 
   const toggleCaliber = (caliber: string) => {
     const next = new Set(selectedSet);
     if (next.has(caliber)) next.delete(caliber);
     else next.add(caliber);
-    persistSelection(categoryCalibers.filter((c) => next.has(c)));
+    persistSelection(allCalibers.filter((c) => next.has(c)));
   };
 
-  const selectAllInCategory = () => persistSelection([...categoryCalibers]);
-  const clearInCategory = () => persistSelection([]);
-
-  const onCategoryChange = (value: AmmoCategoryId) => {
-    setSelectedByCategory((prev) => {
-      const updated =
-        calibers !== null ? { ...prev, [category]: calibers } : prev;
-      saveTarkovAmmoFilters({ category: value, selectedByCategory: updated });
-      return updated;
-    });
-    setCategory(value);
+  const toggleCategory = (calibers: string[], selectAll: boolean) => {
+    const next = new Set(selectedSet);
+    for (const c of calibers) {
+      if (selectAll) next.add(c);
+      else next.delete(c);
+    }
+    persistSelection(allCalibers.filter((c) => next.has(c)));
   };
 
   const caliberColors = useMemo(() => {
@@ -319,10 +317,10 @@ export function TarkovAmmoScatterPanel() {
     [allCalibers, axisMax.x, axisMax.y, caliberColors, data],
   );
 
-  if (ammoQuery.isLoading || !categoryReady) {
+  if (ammoQuery.isLoading || !ready) {
     return (
       <div style={{ padding: 48, textAlign: "center" }}>
-        <Spin tip="同步 / 加载弹药数据…" />
+        <Spin tip="加载弹药数据…" />
       </div>
     );
   }
@@ -361,65 +359,156 @@ export function TarkovAmmoScatterPanel() {
             marginBottom: 10,
           }}
         >
-          <Segmented
-            value={category}
-            options={AMMO_CATEGORIES.map((c) => ({
-              label: c.label,
-              value: c.id,
-            }))}
-            onChange={(value) => onCategoryChange(value as AmmoCategoryId)}
-          />
-          <Button size="small" onClick={selectAllInCategory}>
+          <Button size="small" onClick={() => persistSelection([...allCalibers])}>
             全选
           </Button>
-          <Button size="small" onClick={clearInCategory}>
+          <Button size="small" onClick={() => persistSelection([])}>
             清空
           </Button>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {categoryCalibers.length ? (
-            categoryCalibers.map((caliber) => {
-              const checked = selectedSet.has(caliber);
-              const color =
-                caliberColors.get(caliber) || distinctCaliberColor(0);
+        <div
+          style={{
+            border: "1px solid #f0f0f0",
+            borderRadius: 8,
+            overflow: "hidden",
+          }}
+        >
+          {typeRows.length ? (
+            typeRows.map((row, idx) => {
+              const selectedInRow = row.calibers.filter((c) =>
+                selectedSet.has(c),
+              ).length;
+              const allOn = selectedInRow === row.calibers.length;
               return (
-                <Tag.CheckableTag
-                  key={caliber}
-                  checked={checked}
-                  onChange={() => toggleCaliber(caliber)}
+                <div
+                  key={row.id}
                   style={{
-                    marginInlineEnd: 0,
-                    ...(checked
-                      ? {
-                          color: "rgba(0, 0, 0, 0.88)",
-                          background: "#f5f5f5",
-                          border: "1px solid #d9d9d9",
-                        }
-                      : {
-                          color: "rgba(0, 0, 0, 0.45)",
-                          background: "transparent",
-                          border: "1px solid transparent",
-                        }),
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 12px",
+                    borderTop: idx === 0 ? undefined : "1px solid #f0f0f0",
+                    background: idx % 2 === 0 ? "#fff" : "#fafafa",
                   }}
                 >
-                  <span
+                  <div
                     style={{
-                      display: "inline-block",
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: color,
-                      marginRight: 6,
-                      opacity: checked ? 1 : 0.35,
-                      verticalAlign: "middle",
+                      flex: "0 0 72px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                      textAlign: "left",
                     }}
-                  />
-                  {formatCaliberLabel(caliber)}
-                </Tag.CheckableTag>
+                  >
+                    {row.label}
+                  </div>
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "6px 8px",
+                      alignItems: "center",
+                    }}
+                  >
+                    {row.calibers.map((caliber) => {
+                      const checked = selectedSet.has(caliber);
+                      const color =
+                        caliberColors.get(caliber) || distinctCaliberColor(0);
+                      const label = formatCaliberLabel(caliber);
+                      return (
+                        <Tag.CheckableTag
+                          key={caliber}
+                          checked={checked}
+                          onChange={() => toggleCaliber(caliber)}
+                          style={{
+                            marginInlineEnd: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "flex-start",
+                            width: 148,
+                            maxWidth: "100%",
+                            minHeight: 28,
+                            paddingInline: 8,
+                            boxSizing: "border-box",
+                            textAlign: "left",
+                            ...(checked
+                              ? {
+                                  color: "rgba(0, 0, 0, 0.88)",
+                                  background: "#f5f5f5",
+                                  border: "1px solid #d9d9d9",
+                                }
+                              : {
+                                  color: "rgba(0, 0, 0, 0.45)",
+                                  background: "transparent",
+                                  border: "1px solid transparent",
+                                }),
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-block",
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: color,
+                              marginRight: 6,
+                              opacity: checked ? 1 : 0.35,
+                              flex: "none",
+                            }}
+                          />
+                          <span
+                            title={label}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              fontSize: 12,
+                              lineHeight: 1.2,
+                              textAlign: "left",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {label}
+                          </span>
+                        </Tag.CheckableTag>
+                      );
+                    })}
+                  </div>
+                  <Space
+                    size={0}
+                    style={{ flex: "none", whiteSpace: "nowrap" }}
+                  >
+                    <Tooltip title="全选本行">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<CheckSquareOutlined />}
+                        onClick={() => toggleCategory(row.calibers, true)}
+                        disabled={allOn}
+                        aria-label="全选本行"
+                      />
+                    </Tooltip>
+                    <Tooltip title="清空本行">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<ClearOutlined />}
+                        onClick={() => toggleCategory(row.calibers, false)}
+                        disabled={selectedInRow === 0}
+                        aria-label="清空本行"
+                      />
+                    </Tooltip>
+                  </Space>
+                </div>
               );
             })
           ) : (
-            <Typography.Text type="secondary">该类暂无口径数据</Typography.Text>
+            <div style={{ padding: 12 }}>
+              <Typography.Text type="secondary">暂无口径数据</Typography.Text>
+            </div>
           )}
         </div>
       </div>

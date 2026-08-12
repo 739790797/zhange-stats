@@ -20,8 +20,6 @@ _SHIFTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("presence_segments", ("started_at", "last_seen_at", "ended_at")),
     ("play_sessions", ("started_at", "last_seen_at", "ended_at")),
     ("job_runs", ("started_at", "finished_at")),
-    ("members", ("steam_friends_synced_at",)),
-    ("steam_friend_edges", ("synced_at",)),
     ("steam_apps", ("fetched_at", "details_fetched_at")),
     ("register_challenges", ("expires_at",)),
 )

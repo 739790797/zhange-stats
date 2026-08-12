@@ -5,10 +5,10 @@
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户；支持 QQ 互联登录 / 绑定
-- Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；仅自己与 Steam 好友）
+- Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；站内用户互看）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
 - 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
-- **攻略**：逃离塔科夫弹药穿透 × 伤害对照（口径分类筛选、护甲效果估算表、筛选记忆；定时自 tarkov.dev / json.tarkov.dev 同步）
+- **攻略**：逃离塔科夫弹药穿透 × 伤害对照、枪械总表（口径分类筛选与弹药一致；定时自 tarkov.dev / json.tarkov.dev 同步）
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
@@ -110,7 +110,7 @@ zhange-stats/
 改表须新增 Alembic 迁移，并更新本节总览。细节以 `models/` + `alembic/versions/` 为准。
 
 ```
-users 1 ── 1 members ── * play_sessions / presence_segments / steam_friend_edges
+users 1 ── 1 members ── * play_sessions / presence_segments
                       └── 0..1 skland_binds ── * skland_checkin_logs
                                          └── * skland_attendance_raws
                                          └── * endfield_box_raws
@@ -126,14 +126,14 @@ users 1 ── 1 members ── * play_sessions / presence_segments / steam_frie
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta
-tarkov_ammo · tarkov_ammo_meta
+tarkov_ammo_raws · tarkov_ammo · tarkov_ammo_meta
+tarkov_gun_raws · tarkov_guns · tarkov_gun_meta
 ```
 
 | 表 | 用途 |
 |---|---|
 | `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin` |
 | `members` | 档案、站内头像/昵称、Steam 绑定（含 `steam_persona_name` / `steam_avatar_url`）、QQ 互联（`qq_openid` 等）与 `qq_number`（群成员匹配） |
-| `steam_friend_edges` | 好友缓存（日历仅好友可见）；`member_id` ON DELETE CASCADE |
 | `play_sessions` | 游戏中会话（热力）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
 | `presence_segments` | 离线/在线/游戏中（日时间轴）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
 | `skland_binds` | 森空岛凭证（加密）；`auto_checkin` 为各角色偏好派生摘要；`checkin_hour` / `checkin_minute` 仅作旧数据种子 |
@@ -143,8 +143,12 @@ tarkov_ammo · tarkov_ammo_meta
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_ammo` | 逃离塔科夫弹药穿透/伤害（自 tarkov.dev 同步；失败依次回退 json.tarkov.dev / tarkovdata） |
-| `tarkov_ammo_meta` | 弹药同步元数据（单行，含来源与同步时间） |
+| `tarkov_ammo_raws` | 逃离塔科夫弹药上游原始 JSON（全站最新一份成功同步；GraphQL / json.tarkov.dev 信封 / tarkovdata；失败不覆盖） |
+| `tarkov_ammo` | 弹药穿透/伤害派生读模型（由 raw parse；含上游 `ammo_type`；供列表/散点） |
+| `tarkov_ammo_meta` | 弹药同步元数据（单行，含来源与同步时间；与 raw 同事务写入） |
+| `tarkov_gun_raws` | 逃离塔科夫枪械上游原始 JSON（全站最新一份成功同步；失败不覆盖） |
+| `tarkov_guns` | 枪械派生读模型（口径/射速/人机/后坐/`allowed_ammo` 等） |
+| `tarkov_gun_meta` | 枪械同步元数据（单行） |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |
 | `taygedo_binds` | 塔吉多凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |

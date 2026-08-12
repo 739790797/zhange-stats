@@ -29,7 +29,6 @@ _REQUIRED_TABLES = (
     "system_configs",
     "play_sessions",
     "presence_segments",
-    "steam_friend_edges",
     "steam_apps",
     "skland_binds",
     "taygedo_binds",
@@ -44,8 +43,6 @@ _REQUIRED_COLUMNS: dict[str, frozenset[str]] = {
     "members": frozenset(
         {
             "steam_id",
-            "steam_friends_public",
-            "steam_friends_synced_at",
             "steam_persona_name",
             "user_id",
         }

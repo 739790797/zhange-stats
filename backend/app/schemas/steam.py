@@ -38,12 +38,10 @@ class SteamCalendarMemberSeries(BaseModel):
 
 
 class SteamVisibilityMeta(BaseModel):
-    mode: str = "steam_friends"
+    mode: str = "site_members"
     self_member_id: int
     steam_bound: bool
-    friends_list_public: bool | None = None
-    friends_synced_at: datetime | None = None
-    visible_friend_count: int = 0
+    visible_member_count: int = 0
     hint: str | None = None
 
 
@@ -126,33 +124,6 @@ class SteamNowItem(BaseModel):
     started_at: datetime
     last_seen_at: datetime
     duration_seconds: int
-
-
-class SteamFriendItem(BaseModel):
-    steam_id: str
-    persona_name: str
-    steam_persona_name: str | None = None
-    friend_nickname: str | None = None
-    avatar_url: str | None = None
-    profile_url: str | None = None
-    status: str  # offline | online | playing
-    game_name: str | None = None
-    steam_app_id: str | None = None
-    friend_since: int | None = None
-    member_id: int | None = None
-    is_registered: bool = False
-
-
-class SteamFriendsResponse(BaseModel):
-    steam_bound: bool
-    friends_list_public: bool | None = None
-    friends_synced_at: datetime | None = None
-    friend_count: int = 0
-    sync_ok: bool = True
-    synced: bool = False
-    sync_interval_seconds: int = 900
-    hint: str | None = None
-    friends: list[SteamFriendItem] = Field(default_factory=list)
 
 
 class SteamPollResult(BaseModel):

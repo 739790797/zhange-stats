@@ -946,26 +946,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/steam/friends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Steam Friends
-         * @description 当前用户的 Steam 好友列表。冷却期内打开页面用缓存，force=true 手动刷新。
-         */
-        get: operations["steam_friends_api_steam_friends_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/steam/overview": {
         parameters: {
             query?: never;
@@ -2235,7 +2215,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Ammo
-         * @description 弹药穿透/伤害表。空库时自动从上游同步一次。
+         * @description 弹药穿透/伤害表（派生读模型）。空库时优先 raw 重算，否则回源。
          */
         get: operations["guides_tarkov_ammo_api_guides_tarkov_ammo_get"];
         put?: never;
@@ -2257,9 +2237,49 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Ammo Sync
-         * @description 管理员：立即从 tarkov.dev（或回退源）同步弹药。
+         * @description 管理员：回源同步弹药（成功才覆盖 raw，并重写派生表）。
          */
         post: operations["guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/guns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Guns
+         * @description 枪械总表（派生读模型）。空库时优先 raw 重算，否则回源。
+         */
+        get: operations["guides_tarkov_guns_api_guides_tarkov_guns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/guns/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Guns Sync
+         * @description 管理员：回源同步枪械（成功才覆盖 raw，并重写派生表）。
+         */
+        post: operations["guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4390,10 +4410,6 @@ export interface components {
             steam_persona_name?: string | null;
             /** Steam Avatar Url */
             steam_avatar_url?: string | null;
-            /** Steam Friends Public */
-            steam_friends_public?: boolean | null;
-            /** Steam Friends Synced At */
-            steam_friends_synced_at?: string | null;
             /**
              * Skland Bound
              * @default false
@@ -5207,69 +5223,6 @@ export interface components {
             /** Is Ongoing */
             is_ongoing: boolean;
         };
-        /** SteamFriendItem */
-        SteamFriendItem: {
-            /** Steam Id */
-            steam_id: string;
-            /** Persona Name */
-            persona_name: string;
-            /** Steam Persona Name */
-            steam_persona_name?: string | null;
-            /** Friend Nickname */
-            friend_nickname?: string | null;
-            /** Avatar Url */
-            avatar_url?: string | null;
-            /** Profile Url */
-            profile_url?: string | null;
-            /** Status */
-            status: string;
-            /** Game Name */
-            game_name?: string | null;
-            /** Steam App Id */
-            steam_app_id?: string | null;
-            /** Friend Since */
-            friend_since?: number | null;
-            /** Member Id */
-            member_id?: number | null;
-            /**
-             * Is Registered
-             * @default false
-             */
-            is_registered: boolean;
-        };
-        /** SteamFriendsResponse */
-        SteamFriendsResponse: {
-            /** Steam Bound */
-            steam_bound: boolean;
-            /** Friends List Public */
-            friends_list_public?: boolean | null;
-            /** Friends Synced At */
-            friends_synced_at?: string | null;
-            /**
-             * Friend Count
-             * @default 0
-             */
-            friend_count: number;
-            /**
-             * Sync Ok
-             * @default true
-             */
-            sync_ok: boolean;
-            /**
-             * Synced
-             * @default false
-             */
-            synced: boolean;
-            /**
-             * Sync Interval Seconds
-             * @default 900
-             */
-            sync_interval_seconds: number;
-            /** Hint */
-            hint?: string | null;
-            /** Friends */
-            friends?: components["schemas"]["SteamFriendItem"][];
-        };
         /** SteamGameLegendItem */
         SteamGameLegendItem: {
             /** Steam App Id */
@@ -5397,22 +5350,18 @@ export interface components {
         SteamVisibilityMeta: {
             /**
              * Mode
-             * @default steam_friends
+             * @default site_members
              */
             mode: string;
             /** Self Member Id */
             self_member_id: number;
             /** Steam Bound */
             steam_bound: boolean;
-            /** Friends List Public */
-            friends_list_public?: boolean | null;
-            /** Friends Synced At */
-            friends_synced_at?: string | null;
             /**
-             * Visible Friend Count
+             * Visible Member Count
              * @default 0
              */
-            visible_friend_count: number;
+            visible_member_count: number;
             /** Hint */
             hint?: string | null;
         };
@@ -5442,6 +5391,11 @@ export interface components {
             short_name: string;
             /** Caliber */
             caliber: string;
+            /**
+             * Ammo Type
+             * @default
+             */
+            ammo_type: string;
             /** Damage */
             damage: number;
             /** Penetration */
@@ -5456,6 +5410,91 @@ export interface components {
         TarkovAmmoSyncOut: {
             /** Ammo Count */
             ammo_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Message
+             * @default ok
+             */
+            message: string;
+        };
+        /** TarkovGunCatalogOut */
+        TarkovGunCatalogOut: {
+            /** Items */
+            items: components["schemas"]["TarkovGunItemOut"][];
+            /** Gun Count */
+            gun_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** TarkovGunItemOut */
+        TarkovGunItemOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /** Caliber */
+            caliber: string;
+            /**
+             * Weapon Class
+             * @default
+             */
+            weapon_class: string;
+            /**
+             * Fire Rate
+             * @default 0
+             */
+            fire_rate: number;
+            /**
+             * Ergonomics
+             * @default 0
+             */
+            ergonomics: number;
+            /**
+             * Recoil Vertical
+             * @default 0
+             */
+            recoil_vertical: number;
+            /**
+             * Recoil Horizontal
+             * @default 0
+             */
+            recoil_horizontal: number;
+            /**
+             * Effective Distance
+             * @default 0
+             */
+            effective_distance: number;
+            /** Fire Modes */
+            fire_modes?: string[];
+            /**
+             * Default Ammo Id
+             * @default
+             */
+            default_ammo_id: string;
+            /** Allowed Ammo Ids */
+            allowed_ammo_ids?: string[];
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+        };
+        /** TarkovGunSyncOut */
+        TarkovGunSyncOut: {
+            /** Gun Count */
+            gun_count: number;
             /** Source */
             source?: string | null;
             /** Synced At */
@@ -7965,38 +8004,6 @@ export interface operations {
             };
         };
     };
-    steam_friends_api_steam_friends_get: {
-        parameters: {
-            query?: {
-                /** @description 强制从 Steam 同步；默认受冷却间隔限制 */
-                force?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SteamFriendsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     steam_overview_api_steam_overview_get: {
         parameters: {
             query?: never;
@@ -10375,6 +10382,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovAmmoSyncOut"];
+                };
+            };
+        };
+    };
+    guides_tarkov_guns_api_guides_tarkov_guns_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovGunCatalogOut"];
+                };
+            };
+        };
+    };
+    guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovGunSyncOut"];
                 };
             };
         };

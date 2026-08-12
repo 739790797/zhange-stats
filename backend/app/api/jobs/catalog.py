@@ -40,6 +40,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_ammo",
     },
     {
+        "id": "tarkov_gun_sync",
+        "name": "枪械数据更新",
+        "description": "从 tarkov.dev GraphQL 同步枪械（失败回退 json.tarkov.dev）",
+        "kind": "cron",
+        "platform": "tarkov_gun",
+    },
+    {
         "id": "taygedo_checkin",
         "name": "塔吉多每日签到",
         "description": "按用户自设时间巡检签到",

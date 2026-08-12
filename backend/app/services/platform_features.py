@@ -171,6 +171,13 @@ FEATURE_TREE: list[dict[str, Any]] = [
                         "job_id": "tarkov_ammo_sync",
                         "schedule": "cron",
                     },
+                    {
+                        "id": "guides.tarkov.gun_sync",
+                        "name": "枪械数据更新",
+                        "kind": "job",
+                        "job_id": "tarkov_gun_sync",
+                        "schedule": "cron",
+                    },
                 ],
             },
         ],
@@ -186,6 +193,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "exilium_checkin": "exilium.checkin",
     "kujiequ_checkin": "kujiequ.checkin",
     "tarkov_ammo_sync": "guides.tarkov.ammo_sync",
+    "tarkov_gun_sync": "guides.tarkov.gun_sync",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
@@ -204,6 +212,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "arknights_box": "干员练度更新",
     "guides": "攻略",
     "tarkov_ammo": "弹药数据更新",
+    "tarkov_gun": "枪械数据更新",
 }
 
 
