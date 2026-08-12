@@ -1,4 +1,4 @@
-import { ReloadOutlined } from "@ant-design/icons";
+import { PlayCircleOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/lib/apiError";
 import {
@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchPlatformFeaturesAdmin,
+  triggerScheduledJob,
   updatePlatformFeatures,
   type PlatformFeatureNode,
 } from "@/api/client";
@@ -26,7 +27,6 @@ type DraftJobs = Record<
   string,
   { interval_minutes?: number; hour?: number; minute?: number }
 >;
-
 
 function collectFlags(nodes: PlatformFeatureNode[], out: DraftFlags = {}) {
   for (const node of nodes) {
@@ -68,15 +68,19 @@ function FeatureRow({
   depth,
   flags,
   jobs,
+  triggeringJobId,
   onToggle,
   onJobPatch,
+  onManualRun,
 }: {
   node: PlatformFeatureNode;
   depth: number;
   flags: DraftFlags;
   jobs: DraftJobs;
+  triggeringJobId: string | null;
   onToggle: (id: string, enabled: boolean) => void;
   onJobPatch: (jobId: string, patch: DraftJobs[string]) => void;
+  onManualRun: (jobId: string) => void;
 }) {
   const enabled = flags[node.id] === true;
   const parentOk = node.parent_effective;
@@ -87,6 +91,11 @@ function FeatureRow({
     node.kind === "platform" || node.kind === "game"
       ? featureIconName(node.id)
       : null;
+  const canManualRun =
+    Boolean(node.job_id) &&
+    (node.schedule === "cron" || node.schedule === "interval") &&
+    parentOk &&
+    (reserved || enabled);
 
   return (
     <div>
@@ -193,6 +202,16 @@ function FeatureRow({
               />
             </>
           ) : null}
+          {canManualRun && node.job_id ? (
+            <Button
+              size="small"
+              icon={<PlayCircleOutlined />}
+              loading={triggeringJobId === node.job_id}
+              onClick={() => onManualRun(node.job_id!)}
+            >
+              手动同步
+            </Button>
+          ) : null}
           <Switch
             checked={reserved ? parentOk : enabled}
             disabled={!canEdit}
@@ -210,8 +229,10 @@ function FeatureRow({
           depth={depth + 1}
           flags={flags}
           jobs={jobs}
+          triggeringJobId={triggeringJobId}
           onToggle={onToggle}
           onJobPatch={onJobPatch}
+          onManualRun={onManualRun}
         />
       ))}
     </div>
@@ -224,6 +245,7 @@ export default function TaskConfigPage() {
     flags: DraftFlags;
     jobs: DraftJobs;
   } | null>(null);
+  const [triggeringJobId, setTriggeringJobId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["platform-features-admin"],
@@ -238,7 +260,6 @@ export default function TaskConfigPage() {
     };
   }, [query.data]);
 
-  // 服务端数据刷新后丢弃未保存草稿，避免和服务器状态错位
   useEffect(() => {
     setDraft(null);
   }, [query.dataUpdatedAt]);
@@ -260,6 +281,20 @@ export default function TaskConfigPage() {
       void queryClient.invalidateQueries({ queryKey: ["user-checkin-tasks"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  });
+
+  const manualRun = useMutation({
+    mutationFn: (jobId: string) => triggerScheduledJob(jobId, {}),
+    onMutate: (jobId) => {
+      setTriggeringJobId(jobId);
+    },
+    onSuccess: (data) => {
+      message.success(data.message || "已提交同步");
+      void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-ammo"] });
+      void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-guns"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "同步失败")),
+    onSettled: () => setTriggeringJobId(null),
   });
 
   return (
@@ -327,6 +362,7 @@ export default function TaskConfigPage() {
               depth={0}
               flags={flags}
               jobs={jobs}
+              triggeringJobId={triggeringJobId}
               onToggle={(id, enabled) =>
                 setDraft({
                   flags: { ...flags, [id]: enabled },
@@ -342,6 +378,7 @@ export default function TaskConfigPage() {
                   },
                 })
               }
+              onManualRun={(jobId) => manualRun.mutate(jobId)}
             />
           ))}
         </div>

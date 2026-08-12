@@ -81,7 +81,11 @@ class Settings(BaseSettings):
     ARKNIGHTS_CATALOG_SYNC_ENABLED: bool = True
     ARKNIGHTS_CATALOG_SYNC_HOUR: int = 4
     ARKNIGHTS_CATALOG_SYNC_MINUTE: int = 0
-    # 逃离塔科夫弹药（tarkov.dev，默认 04:30）
+    # 逃离塔科夫物品（弹药+枪械，默认 04:30）
+    TARKOV_ITEMS_SYNC_ENABLED: bool = True
+    TARKOV_ITEMS_SYNC_HOUR: int = 4
+    TARKOV_ITEMS_SYNC_MINUTE: int = 30
+    # 兼容旧 .env；调度已合并为 TARKOV_ITEMS_*
     TARKOV_AMMO_SYNC_ENABLED: bool = True
     TARKOV_AMMO_SYNC_HOUR: int = 4
     TARKOV_AMMO_SYNC_MINUTE: int = 30

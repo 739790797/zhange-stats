@@ -20,8 +20,7 @@ JOB_IDS = (
     "taygedo_checkin",
     "exilium_checkin",
     "kujiequ_checkin",
-    "tarkov_ammo_sync",
-    "tarkov_gun_sync",
+    "tarkov_items_sync",
     "job_runs_prune",
 )
 
@@ -69,15 +68,17 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "hour": _clamp_hour(s.ARKNIGHTS_CATALOG_SYNC_HOUR),
             "minute": _clamp_minute(s.ARKNIGHTS_CATALOG_SYNC_MINUTE),
         },
-        "tarkov_ammo_sync": {
-            "enabled": bool(s.TARKOV_AMMO_SYNC_ENABLED),
-            "hour": _clamp_hour(s.TARKOV_AMMO_SYNC_HOUR),
-            "minute": _clamp_minute(s.TARKOV_AMMO_SYNC_MINUTE),
-        },
-        "tarkov_gun_sync": {
-            "enabled": bool(s.TARKOV_GUN_SYNC_ENABLED),
-            "hour": _clamp_hour(s.TARKOV_GUN_SYNC_HOUR),
-            "minute": _clamp_minute(s.TARKOV_GUN_SYNC_MINUTE),
+        "tarkov_items_sync": {
+            "enabled": bool(
+                getattr(s, "TARKOV_ITEMS_SYNC_ENABLED", True)
+                and getattr(s, "TARKOV_AMMO_SYNC_ENABLED", True)
+            ),
+            "hour": _clamp_hour(
+                getattr(s, "TARKOV_ITEMS_SYNC_HOUR", None) or s.TARKOV_AMMO_SYNC_HOUR
+            ),
+            "minute": _clamp_minute(
+                getattr(s, "TARKOV_ITEMS_SYNC_MINUTE", None) or s.TARKOV_AMMO_SYNC_MINUTE
+            ),
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),
@@ -151,6 +152,12 @@ def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
     for jid in JOB_IDS:
         fallback = base[jid]
         item = stored.get(jid)
+        if not isinstance(item, dict) and jid == "tarkov_items_sync":
+            # 旧分 job → 合并 items
+            for legacy in ("tarkov_ammo_sync", "tarkov_gun_sync"):
+                if isinstance(stored.get(legacy), dict):
+                    item = stored[legacy]
+                    break
         if isinstance(item, dict):
             out[jid] = _normalize_job(jid, item, fallback)
         else:

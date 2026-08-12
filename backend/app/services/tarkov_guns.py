@@ -1,4 +1,7 @@
-"""逃离塔科夫枪械：上游 raw 落库 → parse 派生读模型。"""
+"""逃离塔科夫枪械：parse / 派生读模型。
+
+共享回源见 tarkov_items。本模块保留 GraphQL/json 下载与解析。
+"""
 
 from __future__ import annotations
 
@@ -9,8 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovGun, TarkovGunMeta, TarkovGunRaw
+from app.models.tarkov import TarkovGun, TarkovGunMeta
 from app.services.tarkov_ammo import (
     SOURCE_GRAPHQL,
     SOURCE_JSON_API,
@@ -25,8 +27,6 @@ from app.services.tarkov_ammo import (
 logger = logging.getLogger(__name__)
 
 META_ROW_ID = 1
-RAW_ROW_ID = 1
-GUN_JOB_KEY = "tarkov_gun_sync"
 DOWNLOAD_TIMEOUT = 120
 
 # BSG itemCategories.normalizedName under weapon
@@ -414,14 +414,6 @@ def get_gun_meta(db: Session) -> TarkovGunMeta | None:
     )
 
 
-def get_gun_raw(db: Session) -> TarkovGunRaw | None:
-    return (
-        db.query(TarkovGunRaw)
-        .filter(TarkovGunRaw.id == RAW_ROW_ID)
-        .one_or_none()
-    )
-
-
 def list_guns(db: Session) -> list[TarkovGun]:
     return (
         db.query(TarkovGun)
@@ -433,34 +425,7 @@ def list_guns(db: Session) -> list[TarkovGun]:
     )
 
 
-def _upsert_gun_raw(
-    db: Session,
-    *,
-    source: str,
-    payload: dict[str, Any],
-    note: str,
-    synced_at,
-) -> None:
-    raw_json = json.dumps(payload, ensure_ascii=False)
-    row = get_gun_raw(db)
-    if row is None:
-        db.add(
-            TarkovGunRaw(
-                id=RAW_ROW_ID,
-                source=source,
-                raw_json=raw_json,
-                synced_at=synced_at,
-                note=note,
-            )
-        )
-    else:
-        row.source = source
-        row.raw_json = raw_json
-        row.synced_at = synced_at
-        row.note = note
-
-
-def _replace_derived_gun_rows(
+def replace_derived_gun_rows(
     db: Session,
     rows: list[dict[str, Any]],
     *,
@@ -503,122 +468,20 @@ def _replace_derived_gun_rows(
     meta.note = note
 
 
-def persist_gun_bundle(db: Session, bundle: GunUpstreamBundle) -> dict[str, Any]:
-    rows = parse_gun_raw(bundle.source, bundle.payload)
-    if not rows:
-        raise TarkovGunError("未解析到枪械数据")
-    now = now_naive()
-    _upsert_gun_raw(
-        db,
-        source=bundle.source,
-        payload=bundle.payload,
-        note=bundle.note,
-        synced_at=now,
-    )
-    _replace_derived_gun_rows(
-        db,
-        rows,
-        source=bundle.source,
-        note=bundle.note,
-        synced_at=now,
-    )
-    db.commit()
-    logger.info("tarkov guns synced: %s rows via %s", len(rows), bundle.source)
-    return {
-        "gun_count": len(rows),
-        "source": bundle.source,
-        "synced_at": now.isoformat() if now else None,
-    }
-
-
-def rebuild_guns_from_raw(db: Session) -> dict[str, Any]:
-    row = get_gun_raw(db)
-    if row is None:
-        raise TarkovGunError("无枪械 raw，无法重算")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovGunError("枪械 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovGunError("枪械 raw_json 格式无效")
-    rows = parse_gun_raw(row.source, payload)
-    now = now_naive()
-    note = row.note or f"rebuild from raw ({row.source})"
-    _replace_derived_gun_rows(
-        db,
-        rows,
-        source=row.source,
-        note=note,
-        synced_at=now,
-    )
-    db.commit()
-    return {
-        "gun_count": len(rows),
-        "source": row.source,
-        "synced_at": now.isoformat() if now else None,
-    }
-
-
 def ensure_guns(db: Session) -> list[TarkovGun]:
-    if gun_count(db) == 0:
-        if get_gun_raw(db) is not None:
-            try:
-                rebuild_guns_from_raw(db)
-            except TarkovGunError as exc:
-                logger.warning("rebuild guns from raw failed, syncing: %s", exc)
-                sync_from_upstream(db)
-        else:
-            sync_from_upstream(db)
+    from app.services import tarkov_items as items_svc
+
+    try:
+        items_svc.ensure_items(db)
+    except items_svc.TarkovItemsError as exc:
+        raise TarkovGunError(str(exc)) from exc
     return list_guns(db)
 
 
 def sync_from_upstream(db: Session) -> dict[str, Any]:
-    logger.info("syncing tarkov guns from upstream")
-    errors: list[str] = []
-    try:
-        return persist_gun_bundle(db, download_graphql_guns(lang="zh"))
-    except TarkovGunError as exc:
-        errors.append(f"graphql: {exc}")
-        logger.warning("tarkov.dev GraphQL gun sync failed: %s", exc)
-    try:
-        bundle = download_json_api_guns(lang="zh")
-        note = bundle.note
-        if errors:
-            note = f"{note} (fallback; {errors[0][:160]})"
-        return persist_gun_bundle(
-            db,
-            GunUpstreamBundle(source=bundle.source, payload=bundle.payload, note=note),
-        )
-    except TarkovGunError as exc:
-        detail = "；".join(errors) if errors else str(exc)
-        raise TarkovGunError(f"枪械同步失败：{detail}；json 亦失败: {exc}") from None
+    from app.services import tarkov_items as items_svc
 
-
-def gun_sync_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=GUN_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
     try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "gun_count": result.get("gun_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov gun sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()
+        return items_svc.sync_from_upstream(db)
+    except items_svc.TarkovItemsError as exc:
+        raise TarkovGunError(str(exc)) from exc

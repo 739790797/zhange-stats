@@ -10,6 +10,7 @@ class TarkovAmmoItemOut(BaseModel):
     damage: int
     penetration: int
     armor_damage: int = 0
+    icon_link: str = ""
 
 
 class TarkovAmmoCatalogOut(BaseModel):
@@ -22,6 +23,15 @@ class TarkovAmmoCatalogOut(BaseModel):
 
 class TarkovAmmoSyncOut(BaseModel):
     ammo_count: int
+    gun_count: int = 0
+    source: str | None = None
+    synced_at: str | None = None
+    message: str = Field(default="ok")
+
+
+class TarkovItemsSyncOut(BaseModel):
+    ammo_count: int
+    gun_count: int
     source: str | None = None
     synced_at: str | None = None
     message: str = Field(default="ok")
@@ -53,6 +63,7 @@ class TarkovGunCatalogOut(BaseModel):
 
 
 class TarkovGunSyncOut(BaseModel):
+    ammo_count: int = 0
     gun_count: int
     source: str | None = None
     synced_at: str | None = None

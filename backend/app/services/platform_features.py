@@ -165,18 +165,23 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "kind": "game",
                 "children": [
                     {
-                        "id": "guides.tarkov.ammo_sync",
-                        "name": "弹药数据更新",
+                        "id": "guides.tarkov.items_sync",
+                        "name": "物品数据更新",
                         "kind": "job",
-                        "job_id": "tarkov_ammo_sync",
+                        "job_id": "tarkov_items_sync",
                         "schedule": "cron",
                     },
                     {
-                        "id": "guides.tarkov.gun_sync",
-                        "name": "枪械数据更新",
-                        "kind": "job",
-                        "job_id": "tarkov_gun_sync",
-                        "schedule": "cron",
+                        "id": "guides.tarkov.tasks",
+                        "name": "任务",
+                        "kind": "game",
+                        "reserved": True,
+                    },
+                    {
+                        "id": "guides.tarkov.maps",
+                        "name": "地图",
+                        "kind": "game",
+                        "reserved": True,
                     },
                 ],
             },
@@ -192,8 +197,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "taygedo_checkin": "taygedo.checkin",
     "exilium_checkin": "exilium.checkin",
     "kujiequ_checkin": "kujiequ.checkin",
-    "tarkov_ammo_sync": "guides.tarkov.ammo_sync",
-    "tarkov_gun_sync": "guides.tarkov.gun_sync",
+    "tarkov_items_sync": "guides.tarkov.items_sync",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
@@ -211,8 +215,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "kujiequ": "库街区",
     "arknights_box": "干员练度更新",
     "guides": "攻略",
-    "tarkov_ammo": "弹药数据更新",
-    "tarkov_gun": "枪械数据更新",
+    "tarkov_items": "物品数据更新",
 }
 
 
@@ -279,6 +282,15 @@ def load_feature_flags(db: Session) -> dict[str, bool]:
                 for fid in base:
                     if fid in flags and flags[fid] is not None:
                         base[fid] = bool(flags[fid])
+                # 旧弹药/枪械开关 → 物品同步
+                if "guides.tarkov.items_sync" not in flags:
+                    legacy = [
+                        flags.get("guides.tarkov.ammo_sync"),
+                        flags.get("guides.tarkov.gun_sync"),
+                    ]
+                    known = [bool(v) for v in legacy if v is not None]
+                    if known:
+                        base["guides.tarkov.items_sync"] = all(known)
     # 预留节点始终视为开启（无独立门控）
     for fid in _RESERVED_FEATURE_IDS:
         base[fid] = True

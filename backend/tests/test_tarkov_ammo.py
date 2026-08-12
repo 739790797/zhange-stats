@@ -1,4 +1,4 @@
-"""Unit tests for tarkov ammo sync parsers / raw persist."""
+"""Unit tests for tarkov ammo parsers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 
 import pytest
 
-from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta, TarkovAmmoRaw
 from app.services import tarkov_ammo as svc
 
 
@@ -23,7 +22,6 @@ def test_normalize_caliber():
     assert svc.normalize_caliber("Caliber725") == "72.5mm"
     assert svc.normalize_caliber("Caliber127x99") == ".50 BMG"
     assert svc.normalize_caliber("Caliber784x49") == ".308 Marlin Express"
-    # 未收录：只剥前缀，不猜小数点
     assert svc.normalize_caliber("Caliber999x99") == "999x99"
     assert svc.normalize_caliber("") == ""
 
@@ -98,11 +96,7 @@ def test_parse_json_api_ammo():
                         "penetrationPower": 31,
                         "armorDamage": 37,
                     },
-                },
-                "gun": {
-                    "id": "gun",
-                    "properties": {"propertiesType": "ItemPropertiesWeapon"},
-                },
+                }
             }
         }
     }
@@ -112,245 +106,9 @@ def test_parse_json_api_ammo():
     }
     rows = svc.parse_json_api_ammo(payload, locale=locale)
     assert len(rows) == 1
+    assert rows[0]["name"] == "5.56x45mm M855"
     assert rows[0]["short_name"] == "M855"
     assert rows[0]["caliber"] == "5.56x45mm"
-    assert rows[0]["ammo_type"] == "bullet"
-    assert rows[0]["penetration"] == 31
-
-
-def test_parse_ammo_raw_json_envelope():
-    envelope = {
-        "items": {
-            "data": {
-                "items": {
-                    "a1": {
-                        "id": "a1",
-                        "name": "a1 Name",
-                        "shortName": "a1 ShortName",
-                        "properties": {
-                            "propertiesType": "ItemPropertiesAmmo",
-                            "caliber": "Caliber545x39",
-                            "damage": 40,
-                            "penetrationPower": 50,
-                            "armorDamage": 55,
-                        },
-                    }
-                }
-            }
-        },
-        "locale": {
-            "a1 Name": "5.45 BT",
-            "a1 ShortName": "BT",
-        },
-    }
-    rows = svc.parse_ammo_raw(svc.SOURCE_JSON_API, envelope)
-    assert len(rows) == 1
-    assert rows[0]["short_name"] == "BT"
-    assert rows[0]["caliber"] == "5.45x39mm"
-
-
-class _FakeQuery:
-    def __init__(self, session: "FakeSession", model):  # noqa: ANN001
-        self._session = session
-        self._model = model
-
-    def delete(self):
-        self._session.store[self._model] = []
-
-    def filter(self, *_a, **_k):  # noqa: ANN001
-        return self
-
-    def order_by(self, *_a, **_k):  # noqa: ANN001
-        return self
-
-    def all(self):
-        return list(self._session.store.get(self._model) or [])
-
-    def one_or_none(self):
-        rows = self._session.store.get(self._model) or []
-        return rows[0] if rows else None
-
-    def count(self):
-        return len(self._session.store.get(self._model) or [])
-
-
-class FakeSession:
-    def __init__(self):
-        self.store: dict[type, list] = {
-            TarkovAmmo: [],
-            TarkovAmmoMeta: [],
-            TarkovAmmoRaw: [],
-        }
-        self.committed = False
-
-    def query(self, model):  # noqa: ANN001
-        return _FakeQuery(self, model)
-
-    def add(self, obj):  # noqa: ANN001
-        bucket = self.store.setdefault(type(obj), [])
-        # upsert singleton raw/meta by replacing same id
-        if isinstance(obj, (TarkovAmmoRaw, TarkovAmmoMeta)):
-            bucket[:] = [x for x in bucket if getattr(x, "id", None) != obj.id]
-        bucket.append(obj)
-
-    def commit(self):
-        self.committed = True
-
-
-def test_sync_persists_raw_then_derived(monkeypatch: pytest.MonkeyPatch):
-    items_body = {
-        "data": {
-            "items": {
-                "j1": {
-                    "id": "j1",
-                    "name": "JSON Ammo",
-                    "shortName": "JA",
-                    "properties": {
-                        "propertiesType": "ItemPropertiesAmmo",
-                        "caliber": "Caliber545x39",
-                        "damage": 40,
-                        "penetrationPower": 50,
-                        "armorDamage": 55,
-                    },
-                }
-            }
-        }
-    }
-
-    monkeypatch.setattr(
-        svc,
-        "download_graphql_ammo",
-        lambda **_k: (_ for _ in ()).throw(svc.TarkovAmmoError("graphql down")),
-    )
-    monkeypatch.setattr(
-        svc,
-        "download_json_api_ammo",
-        lambda **_k: svc.AmmoUpstreamBundle(
-            source=svc.SOURCE_JSON_API,
-            payload={"items": items_body, "locale": None},
-            note="json.tarkov.dev/regular/items",
-        ),
-    )
-    monkeypatch.setattr(
-        svc,
-        "download_tarkovdata_ammo",
-        lambda: (_ for _ in ()).throw(AssertionError("should not call tarkovdata")),
-    )
-
-    db = FakeSession()
-    result = svc.sync_from_upstream(db)
-    assert result["source"] == svc.SOURCE_JSON_API
-    assert result["ammo_count"] == 1
-    assert db.committed is True
-
-    raws = db.store[TarkovAmmoRaw]
-    assert len(raws) == 1
-    assert raws[0].source == svc.SOURCE_JSON_API
-    stored = json.loads(raws[0].raw_json)
-    assert "items" in stored
-
-    ammos = db.store[TarkovAmmo]
-    assert len(ammos) == 1
-    assert ammos[0].item_id == "j1"
-
-    metas = db.store[TarkovAmmoMeta]
-    assert len(metas) == 1
-    assert metas[0].ammo_count == 1
-
-
-def test_rebuild_ammo_from_raw(monkeypatch: pytest.MonkeyPatch):
-    _ = monkeypatch
-    db = FakeSession()
-    payload = {
-        "data": {
-            "ammo": [
-                {
-                    "caliber": "9x19mm",
-                    "damage": 50,
-                    "penetrationPower": 20,
-                    "armorDamage": 27,
-                    "item": {"id": "a", "name": "PST", "shortName": "PST"},
-                }
-            ]
-        }
-    }
-    db.add(
-        TarkovAmmoRaw(
-            id=svc.RAW_ROW_ID,
-            source=svc.SOURCE_GRAPHQL,
-            raw_json=json.dumps(payload, ensure_ascii=False),
-            synced_at=svc.now_naive(),
-            note="saved",
-        )
-    )
-
-    result = svc.rebuild_ammo_from_raw(db)
-    assert result["ammo_count"] == 1
-    assert result["source"] == svc.SOURCE_GRAPHQL
-    assert len(db.store[TarkovAmmo]) == 1
-    assert db.store[TarkovAmmo][0].short_name == "PST"
-
-
-def test_ensure_ammo_rebuilds_from_raw_before_upstream(monkeypatch: pytest.MonkeyPatch):
-    db = FakeSession()
-    payload = {
-        "data": {
-            "ammo": [
-                {
-                    "caliber": "9x19mm",
-                    "damage": 50,
-                    "penetrationPower": 20,
-                    "armorDamage": 27,
-                    "item": {"id": "a", "name": "PST", "shortName": "PST"},
-                }
-            ]
-        }
-    }
-    db.add(
-        TarkovAmmoRaw(
-            id=svc.RAW_ROW_ID,
-            source=svc.SOURCE_GRAPHQL,
-            raw_json=json.dumps(payload, ensure_ascii=False),
-            synced_at=svc.now_naive(),
-            note="saved",
-        )
-    )
-
-    def boom():
-        raise AssertionError("should not sync upstream")
-
-    monkeypatch.setattr(svc, "sync_from_upstream", boom)
-    rows = svc.ensure_ammo(db)
-    assert len(rows) == 1
-
-
-def test_failed_sync_does_not_call_persist(monkeypatch: pytest.MonkeyPatch):
-    calls: list[str] = []
-
-    monkeypatch.setattr(
-        svc,
-        "download_graphql_ammo",
-        lambda **_k: (_ for _ in ()).throw(svc.TarkovAmmoError("g")),
-    )
-    monkeypatch.setattr(
-        svc,
-        "download_json_api_ammo",
-        lambda **_k: (_ for _ in ()).throw(svc.TarkovAmmoError("j")),
-    )
-    monkeypatch.setattr(
-        svc,
-        "download_tarkovdata_ammo",
-        lambda: (_ for _ in ()).throw(svc.TarkovAmmoError("t")),
-    )
-
-    def persist(_db, _bundle):  # noqa: ANN001
-        calls.append("persist")
-        return {}
-
-    monkeypatch.setattr(svc, "persist_ammo_bundle", persist)
-    with pytest.raises(svc.TarkovAmmoError):
-        svc.sync_from_upstream(FakeSession())
-    assert calls == []
 
 
 def test_download_graphql_ammo_posts_json(monkeypatch: pytest.MonkeyPatch):

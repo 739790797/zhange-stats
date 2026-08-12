@@ -23,10 +23,10 @@ from app.models.kujiequ import (
 from app.models.tarkov import (
     TarkovAmmo,
     TarkovAmmoMeta,
-    TarkovAmmoRaw,
     TarkovGun,
     TarkovGunMeta,
-    TarkovGunRaw,
+    TarkovItemsMeta,
+    TarkovItemsRaw,
 )
 from app.models.user import User
 
@@ -59,10 +59,10 @@ __all__ = [
     "ArknightsRogueRaw",
     "EndfieldBoxRaw",
     "ExastrisBoxRaw",
+    "TarkovItemsRaw",
+    "TarkovItemsMeta",
     "TarkovAmmo",
     "TarkovAmmoMeta",
-    "TarkovAmmoRaw",
     "TarkovGun",
     "TarkovGunMeta",
-    "TarkovGunRaw",
 ]

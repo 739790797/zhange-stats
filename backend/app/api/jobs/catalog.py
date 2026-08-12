@@ -33,18 +33,11 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "arknights_catalog",
     },
     {
-        "id": "tarkov_ammo_sync",
-        "name": "弹药数据更新",
-        "description": "从 tarkov.dev GraphQL 同步弹药（失败回退 json.tarkov.dev / tarkovdata）",
+        "id": "tarkov_items_sync",
+        "name": "物品数据更新",
+        "description": "从 tarkov.dev 同步物品（弹药+枪械一次回源；失败回退 json.tarkov.dev）",
         "kind": "cron",
-        "platform": "tarkov_ammo",
-    },
-    {
-        "id": "tarkov_gun_sync",
-        "name": "枪械数据更新",
-        "description": "从 tarkov.dev GraphQL 同步枪械（失败回退 json.tarkov.dev）",
-        "kind": "cron",
-        "platform": "tarkov_gun",
+        "platform": "tarkov_items",
     },
     {
         "id": "taygedo_checkin",

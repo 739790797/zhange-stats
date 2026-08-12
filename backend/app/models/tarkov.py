@@ -6,14 +6,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class TarkovAmmoRaw(Base):
-    """逃离塔科夫弹药上游原始响应（全站最新一份成功同步）。"""
+class TarkovItemsRaw(Base):
+    """逃离塔科夫物品上游原始响应（全站最新一份成功同步；弹药/枪械等共用）。"""
 
-    __tablename__ = "tarkov_ammo_raws"
+    __tablename__ = "tarkov_items_raws"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
-    # GraphQL / json.tarkov.dev envelope / tarkovdata 整包，体积可能较大
+    # GraphQL split 信封 / json.tarkov.dev items 信封，体积可能较大
     raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -23,8 +23,21 @@ class TarkovAmmoRaw(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class TarkovItemsMeta(Base):
+    """物品同步元数据（单行 id=1；与 raw 同事务写入）。"""
+
+    __tablename__ = "tarkov_items_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ammo_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    gun_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class TarkovAmmo(Base):
-    """逃离塔科夫弹药（由 raw 二次解析的派生读模型）。"""
+    """逃离塔科夫弹药（由 items raw 二次解析的派生读模型）。"""
 
     __tablename__ = "tarkov_ammo"
 
@@ -37,6 +50,7 @@ class TarkovAmmo(Base):
     damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     penetration: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     armor_damage: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    icon_link: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -46,7 +60,7 @@ class TarkovAmmo(Base):
 
 
 class TarkovAmmoMeta(Base):
-    """弹药同步元数据（单行 id=1；与 raw 同步写入，供 API 展示）。"""
+    """弹药展示元数据（单行 id=1；与 items 同步写入，供弹药 API）。"""
 
     __tablename__ = "tarkov_ammo_meta"
 
@@ -57,24 +71,8 @@ class TarkovAmmoMeta(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-class TarkovGunRaw(Base):
-    """逃离塔科夫枪械上游原始响应（全站最新一份成功同步）。"""
-
-    __tablename__ = "tarkov_gun_raws"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
 class TarkovGun(Base):
-    """逃离塔科夫枪械（由 raw 二次解析的派生读模型）。"""
+    """逃离塔科夫枪械（由 items raw 二次解析的派生读模型）。"""
 
     __tablename__ = "tarkov_guns"
 
@@ -101,7 +99,7 @@ class TarkovGun(Base):
 
 
 class TarkovGunMeta(Base):
-    """枪械同步元数据（单行 id=1）。"""
+    """枪械展示元数据（单行 id=1；与 items 同步写入）。"""
 
     __tablename__ = "tarkov_gun_meta"
 

@@ -1,8 +1,7 @@
-"""逃离塔科夫弹药：上游 raw 落库 → parse 派生读模型。
+"""逃离塔科夫弹药：parse / 派生读模型。
 
-流程对齐盒子/旁路 raw：
-  上游 ──(回源)──► tarkov_ammo_raws ──(parse)──► tarkov_ammo + meta ──► API
-失败不覆盖已有成功 raw；派生表为空时可先从 raw 重算再回源。
+共享回源见 tarkov_items（一次 items → 弹药+枪械派生）。
+本模块保留 GraphQL/json 下载与解析，供 items 编排与单测使用。
 """
 
 from __future__ import annotations
@@ -17,8 +16,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta, TarkovAmmoRaw
+from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +33,7 @@ SOURCE_JSON_API = "json.tarkov.dev"
 SOURCE_TARKOVDATA = "tarkovdata"
 
 META_ROW_ID = 1
-RAW_ROW_ID = 1
 DOWNLOAD_TIMEOUT = 120
-AMMO_JOB_KEY = "tarkov_ammo_sync"
 
 _AMMO_QUERY = """
 query AmmoSync($lang: LanguageCode) {
@@ -51,6 +47,8 @@ query AmmoSync($lang: LanguageCode) {
       id
       name
       shortName
+      iconLink
+      baseImageLink
     }
   }
 }
@@ -206,10 +204,12 @@ def _ammo_row(
     damage: Any,
     penetration: Any,
     armor_damage: Any,
+    icon_link: Any = "",
 ) -> dict[str, Any]:
     name, short_name = _clean_item_names(item_id, name=name, short_name=short_name)
     caliber_src = None if caliber_raw is None else str(caliber_raw or "")
     ammo_type = str(ammo_type_raw or "").strip()[:32]
+    icon = str(icon_link or "").strip()[:512]
     return {
         "item_id": item_id[:64],
         "name": name,
@@ -219,6 +219,7 @@ def _ammo_row(
         "damage": _as_int(damage),
         "penetration": _as_int(penetration),
         "armor_damage": _as_int(armor_damage),
+        "icon_link": icon,
     }
 
 
@@ -248,6 +249,7 @@ def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 damage=raw.get("damage"),
                 penetration=raw.get("penetrationPower"),
                 armor_damage=raw.get("armorDamage"),
+                icon_link=item.get("baseImageLink") or item.get("iconLink") or "",
             )
         )
     return rows
@@ -326,6 +328,7 @@ def parse_json_api_ammo(
                 damage=props.get("damage"),
                 penetration=props.get("penetrationPower"),
                 armor_damage=props.get("armorDamage"),
+                icon_link=raw.get("baseImageLink") or raw.get("iconLink") or "",
             )
         )
     return rows
@@ -478,14 +481,6 @@ def get_ammo_meta(db: Session) -> TarkovAmmoMeta | None:
     )
 
 
-def get_ammo_raw(db: Session) -> TarkovAmmoRaw | None:
-    return (
-        db.query(TarkovAmmoRaw)
-        .filter(TarkovAmmoRaw.id == RAW_ROW_ID)
-        .one_or_none()
-    )
-
-
 def list_ammo(db: Session) -> list[TarkovAmmo]:
     return (
         db.query(TarkovAmmo)
@@ -498,34 +493,7 @@ def list_ammo(db: Session) -> list[TarkovAmmo]:
     )
 
 
-def _upsert_ammo_raw(
-    db: Session,
-    *,
-    source: str,
-    payload: dict[str, Any],
-    note: str,
-    synced_at,
-) -> TarkovAmmoRaw:
-    raw_json = json.dumps(payload, ensure_ascii=False)
-    row = get_ammo_raw(db)
-    if row is None:
-        row = TarkovAmmoRaw(
-            id=RAW_ROW_ID,
-            source=source,
-            raw_json=raw_json,
-            synced_at=synced_at,
-            note=note,
-        )
-        db.add(row)
-    else:
-        row.source = source
-        row.raw_json = raw_json
-        row.synced_at = synced_at
-        row.note = note
-    return row
-
-
-def _replace_derived_ammo_rows(
+def replace_derived_ammo_rows(
     db: Session,
     rows: list[dict[str, Any]],
     *,
@@ -548,6 +516,7 @@ def _replace_derived_ammo_rows(
                 damage=row["damage"],
                 penetration=row["penetration"],
                 armor_damage=row["armor_damage"],
+                icon_link=row.get("icon_link") or "",
                 updated_at=synced_at,
             )
         )
@@ -562,148 +531,22 @@ def _replace_derived_ammo_rows(
     meta.note = note
 
 
-def persist_ammo_bundle(db: Session, bundle: AmmoUpstreamBundle) -> dict[str, Any]:
-    """落 raw + 派生表 + meta（同事务）。仅成功路径调用。"""
-    rows = parse_ammo_raw(bundle.source, bundle.payload)
-    if not rows:
-        raise TarkovAmmoError("未解析到弹药数据")
-
-    now = now_naive()
-    _upsert_ammo_raw(
-        db,
-        source=bundle.source,
-        payload=bundle.payload,
-        note=bundle.note,
-        synced_at=now,
-    )
-    _replace_derived_ammo_rows(
-        db,
-        rows,
-        source=bundle.source,
-        note=bundle.note,
-        synced_at=now,
-    )
-    db.commit()
-
-    logger.info("tarkov ammo synced: %s rows via %s", len(rows), bundle.source)
-    return {
-        "ammo_count": len(rows),
-        "source": bundle.source,
-        "synced_at": now.isoformat() if now else None,
-    }
-
-
-def rebuild_ammo_from_raw(db: Session) -> dict[str, Any]:
-    """不回源：用已落库 raw 重算派生表（改 parse 后可调用）。"""
-    row = get_ammo_raw(db)
-    if row is None:
-        raise TarkovAmmoError("无弹药 raw，无法重算")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovAmmoError("弹药 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovAmmoError("弹药 raw_json 格式无效")
-
-    rows = parse_ammo_raw(row.source, payload)
-    now = now_naive()
-    note = row.note or f"rebuild from raw ({row.source})"
-    _replace_derived_ammo_rows(
-        db,
-        rows,
-        source=row.source,
-        note=note,
-        synced_at=now,
-    )
-    # raw.synced_at 保持上次成功回源时间；meta 反映派生重算时间
-    db.commit()
-    logger.info("tarkov ammo rebuilt from raw: %s rows via %s", len(rows), row.source)
-    return {
-        "ammo_count": len(rows),
-        "source": row.source,
-        "synced_at": now.isoformat() if now else None,
-    }
-
-
 def ensure_ammo(db: Session) -> list[TarkovAmmo]:
-    """派生表为空时：优先 raw 重算，否则回源。"""
-    if ammo_count(db) == 0:
-        if get_ammo_raw(db) is not None:
-            try:
-                rebuild_ammo_from_raw(db)
-            except TarkovAmmoError as exc:
-                logger.warning("rebuild ammo from raw failed, syncing: %s", exc)
-                sync_from_upstream(db)
-        else:
-            sync_from_upstream(db)
+    """确保弹药可读：委托共享 items 同步。"""
+    from app.services import tarkov_items as items_svc
+
+    try:
+        items_svc.ensure_items(db)
+    except items_svc.TarkovItemsError as exc:
+        raise TarkovAmmoError(str(exc)) from exc
     return list_ammo(db)
 
 
 def sync_from_upstream(db: Session) -> dict[str, Any]:
-    """优先 GraphQL；失败依次回退 json.tarkov.dev、tarkovdata。成功才覆盖 raw。"""
-    logger.info("syncing tarkov ammo from upstream")
-    errors: list[str] = []
+    """委托共享 items 回源（一次同步弹药+枪械）。"""
+    from app.services import tarkov_items as items_svc
 
     try:
-        bundle = download_graphql_ammo(lang="zh")
-        return persist_ammo_bundle(db, bundle)
-    except TarkovAmmoError as exc:
-        errors.append(f"graphql: {exc}")
-        logger.warning("tarkov.dev GraphQL ammo sync failed: %s", exc)
-
-    try:
-        bundle = download_json_api_ammo(lang="zh")
-        note = bundle.note
-        if errors:
-            note = f"{note} (fallback; {errors[0][:160]})"
-        return persist_ammo_bundle(
-            db,
-            AmmoUpstreamBundle(source=bundle.source, payload=bundle.payload, note=note),
-        )
-    except TarkovAmmoError as exc:
-        errors.append(f"json: {exc}")
-        logger.warning("json.tarkov.dev ammo sync failed: %s", exc)
-
-    try:
-        bundle = download_tarkovdata_ammo()
-        note = bundle.note
-        if errors:
-            note = f"{note} (fallback; {'; '.join(errors)[:200]})"
-        return persist_ammo_bundle(
-            db,
-            AmmoUpstreamBundle(source=bundle.source, payload=bundle.payload, note=note),
-        )
-    except TarkovAmmoError:
-        detail = "；".join(errors) if errors else "未知错误"
-        raise TarkovAmmoError(f"弹药同步失败：{detail}；tarkovdata 亦失败") from None
-
-
-def ammo_sync_job_wrapper() -> None:
-    """定时同步塔科夫弹药数据。"""
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=AMMO_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "ammo_count": result.get("ammo_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov ammo sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()
+        return items_svc.sync_from_upstream(db)
+    except items_svc.TarkovItemsError as exc:
+        raise TarkovAmmoError(str(exc)) from exc

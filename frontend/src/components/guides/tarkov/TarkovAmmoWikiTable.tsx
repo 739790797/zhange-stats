@@ -1,4 +1,4 @@
-import { Table } from "antd";
+import { Image, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useMemo, useState } from "react";
 import type { TarkovAmmoItem } from "@/api/guidesApi";
@@ -15,6 +15,21 @@ type Props = {
 };
 
 type SortKey = "damage" | "penetration" | "armor_damage";
+
+const CDN_SUFFIX_RE =
+  /-(?:icon|grid-image|base-image|512|8x|image)\.webp(\?.*)?$/i;
+
+function transparentThumbUrl(src: string | null | undefined): string {
+  const url = (src || "").trim();
+  if (!url) return "";
+  return url.replace(CDN_SUFFIX_RE, "-base-image.webp$1");
+}
+
+function hdPreviewUrl(src: string | null | undefined): string {
+  const url = (src || "").trim();
+  if (!url) return "";
+  return url.replace(CDN_SUFFIX_RE, "-512.webp$1");
+}
 
 function ArmorEffectCell({ level }: { level: ArmorEffectLevel }) {
   return (
@@ -93,17 +108,66 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       title: "名称",
       dataIndex: "name",
       key: "name",
-      width: 220,
+      width: 260,
       fixed: "left",
       ellipsis: true,
-      render: (_: unknown, row) => row.name || row.short_name || row.id,
+      render: (_: unknown, row) => {
+        const label = row.name || row.short_name || row.id;
+        const thumb = transparentThumbUrl(row.icon_link);
+        const hd = hdPreviewUrl(row.icon_link) || thumb;
+        return (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              minWidth: 0,
+              maxWidth: "100%",
+            }}
+          >
+            {thumb ? (
+              <Image
+                src={thumb}
+                alt=""
+                width={28}
+                height={28}
+                preview={{ src: hd, mask: false }}
+                style={{
+                  objectFit: "contain",
+                  flex: "0 0 28px",
+                  cursor: "zoom-in",
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  width: 28,
+                  height: 28,
+                  flex: "0 0 28px",
+                  display: "inline-block",
+                }}
+              />
+            )}
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
+            >
+              {label}
+            </span>
+          </span>
+        );
+      },
     },
     {
       title: "伤害",
       dataIndex: "damage",
       key: "damage",
       width: 72,
-      align: "right",
+      align: "left",
       sorter: true,
       sortOrder: sortKey === "damage" ? sortOrder : null,
     },
@@ -112,7 +176,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       dataIndex: "penetration",
       key: "penetration",
       width: 72,
-      align: "right",
+      align: "left",
       sorter: true,
       sortOrder: sortKey === "penetration" ? sortOrder : null,
     },
@@ -121,7 +185,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       dataIndex: "armor_damage",
       key: "armor_damage",
       width: 72,
-      align: "right",
+      align: "left",
       sorter: true,
       sortOrder: sortKey === "armor_damage" ? sortOrder : null,
     },
@@ -130,7 +194,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       children: [1, 2, 3, 4, 5, 6].map((armorClass) => ({
         title: String(armorClass),
         key: `armor_${armorClass}`,
-        width: 72,
+        width: 56,
         align: "center" as const,
         onCell: (row: TarkovAmmoItem) => {
           const level = armorEffectLevel(
@@ -169,7 +233,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       columns={columns}
       dataSource={rows}
       pagination={false}
-      scroll={{ x: 900 }}
+      scroll={{ x: 1100 }}
       locale={{ emptyText: "当前筛选下无弹药" }}
       onChange={onTableChange}
     />

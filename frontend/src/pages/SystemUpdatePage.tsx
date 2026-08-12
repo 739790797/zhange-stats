@@ -112,7 +112,7 @@ export default function SystemUpdatePage() {
           message="当前环境不可用应用内更新"
           description={
             status.update_blocked_reason ||
-            "仅 production（LXC）默认开启；开发机请用 git / scripts/dev.ps1"
+            "仅 production（LXC）默认开启；开发机请用 git / run_dev.bat"
           }
         />
       )}

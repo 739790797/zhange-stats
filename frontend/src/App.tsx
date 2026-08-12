@@ -26,7 +26,9 @@ import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import PlatformLogsPage from "@/pages/PlatformLogsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
-import TarkovPage from "@/pages/guides/TarkovPage";
+import TarkovAmmoPage from "@/pages/guides/TarkovAmmoPage";
+import TarkovGunsPage from "@/pages/guides/TarkovGunsPage";
+import TarkovReservedPage from "@/pages/guides/TarkovReservedPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
 
@@ -129,9 +131,37 @@ export default function App() {
               <Route path="/daily" element={<MyDailyPage />} />
               <Route
                 path="/guides/tarkov"
+                element={<Navigate to="/guides/tarkov/items/ammo" replace />}
+              />
+              <Route
+                path="/guides/tarkov/items/ammo"
                 element={
                   <PlatformRoute featureId="guides.tarkov">
-                    <TarkovPage />
+                    <TarkovAmmoPage />
+                  </PlatformRoute>
+                }
+              />
+              <Route
+                path="/guides/tarkov/items/guns"
+                element={
+                  <PlatformRoute featureId="guides.tarkov">
+                    <TarkovGunsPage />
+                  </PlatformRoute>
+                }
+              />
+              <Route
+                path="/guides/tarkov/tasks"
+                element={
+                  <PlatformRoute featureId="guides.tarkov">
+                    <TarkovReservedPage title="任务" />
+                  </PlatformRoute>
+                }
+              />
+              <Route
+                path="/guides/tarkov/maps"
+                element={
+                  <PlatformRoute featureId="guides.tarkov">
+                    <TarkovReservedPage title="地图" />
                   </PlatformRoute>
                 }
               />

@@ -79,7 +79,6 @@ function Get-ListenerPids([int]$Port) {
       }
     }
   }
-  # Drop stale netstat rows whose owning process is already gone.
   return @($pids | Select-Object -Unique | Where-Object { $_ -gt 0 -and (Test-PidAlive $_) })
 }
 
@@ -103,7 +102,6 @@ function Stop-ProcessTree([int]$ProcessId, [int]$GraceSeconds = 4) {
   $tree = @($ProcessId) + (Get-DescendantPids $ProcessId)
   $tree = @($tree | Select-Object -Unique | Where-Object { $_ -gt 0 })
 
-  # Soft stop root first so uvicorn lifespan can shut down the scheduler.
   if (Test-PidAlive $ProcessId) {
     try { Stop-Process -Id $ProcessId -ErrorAction SilentlyContinue } catch {}
   }
@@ -117,7 +115,6 @@ function Stop-ProcessTree([int]$ProcessId, [int]$GraceSeconds = 4) {
 
   foreach ($procId in $tree) {
     if (Test-PidAlive $procId) {
-      # Native stderr ("process not found") must not trip $ErrorActionPreference=Stop.
       cmd.exe /c "taskkill /F /T /PID $procId >NUL 2>&1" | Out-Null
     }
   }
@@ -159,7 +156,6 @@ function Get-UvicornRelatedPids {
     foreach ($p in $uvicorn) {
       $pids += [int]$p.ProcessId
     }
-    # Reload workers keep ParentProcessId even if the reloader PID is already gone from the process table.
     foreach ($p in $all) {
       if ($p.CommandLine -and $p.CommandLine -match 'multiprocessing\.spawn' -and ($pids -contains [int]$p.ParentProcessId)) {
         $pids += [int]$p.ProcessId
@@ -181,7 +177,6 @@ function Stop-ServiceByPortAndPid(
   if ($Name -eq "backend") {
     $targets += Get-UvicornRelatedPids
   }
-  # Include children of listeners (uvicorn --reload worker can outlive a dead reloader PID).
   $expanded = @()
   foreach ($procId in ($targets | Select-Object -Unique)) {
     $expanded += $procId
@@ -200,7 +195,6 @@ function Stop-ServiceByPortAndPid(
     Stop-ProcessTree -ProcessId $procId
   }
 
-  # Last resort: force-kill whatever still owns the listen socket / its descendants.
   $left = Get-ListenerPids $Port
   foreach ($procId in $left) {
     Write-Host "[$Name] force-clear listener pid=$procId"
@@ -212,8 +206,6 @@ function Stop-ServiceByPortAndPid(
   }
 
   if (-not (Wait-PortFree -Port $Port -TimeoutSeconds 20)) {
-    $still = Get-ListenerPids $Port
-    # Orphan listen sockets (dead PID in netstat) sometimes clear after child workers die.
     Start-Sleep -Seconds 2
     if (-not (Wait-PortFree -Port $Port -TimeoutSeconds 10)) {
       $still = Get-ListenerPids $Port

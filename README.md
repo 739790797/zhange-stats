@@ -41,9 +41,9 @@ cp .env.example .env   # 至少填 DATABASE_URL；JWT 密钥自动生成
 推荐用脚本（热重载）：
 
 ```powershell
-.\scripts\dev.ps1 start   # 后端 8000 + Vite 5173
-.\scripts\dev.ps1 status
-.\scripts\dev.ps1 stop
+run_dev.bat          # 双击启动（内部调用 scripts/dev.ps1）；另支持 stop / restart / status
+run_dev.bat status
+run_dev.bat stop
 ```
 
 或手动：
@@ -68,7 +68,7 @@ cd frontend && npm install && npm run dev
 
 ## 生产部署（Linux LXC，推荐）
 
-单副本源码部署。MySQL 自备；可选本机 Redis（限流 / 扫码 KV；不配则进程内降级）。
+单副本源码部署。MySQL / MariaDB 自备（塔科夫物品 raw 约 20MB，建议 `max_allowed_packet ≥ 64M`）；可选本机 Redis（限流 / 扫码 KV；不配则进程内降级）。
 
 ```bash
 git clone https://github.com/739790797/zhange-stats.git /opt/zhange-stats
@@ -126,8 +126,9 @@ users 1 ── 1 members ── * play_sessions / presence_segments
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta
-tarkov_ammo_raws · tarkov_ammo · tarkov_ammo_meta
-tarkov_gun_raws · tarkov_guns · tarkov_gun_meta
+tarkov_items_raws · tarkov_items_meta
+tarkov_ammo · tarkov_ammo_meta
+tarkov_guns · tarkov_gun_meta
 ```
 
 | 表 | 用途 |
@@ -143,12 +144,12 @@ tarkov_gun_raws · tarkov_guns · tarkov_gun_meta
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_ammo_raws` | 逃离塔科夫弹药上游原始 JSON（全站最新一份成功同步；GraphQL / json.tarkov.dev 信封 / tarkovdata；失败不覆盖） |
-| `tarkov_ammo` | 弹药穿透/伤害派生读模型（由 raw parse；含上游 `ammo_type`；供列表/散点） |
-| `tarkov_ammo_meta` | 弹药同步元数据（单行，含来源与同步时间；与 raw 同事务写入） |
-| `tarkov_gun_raws` | 逃离塔科夫枪械上游原始 JSON（全站最新一份成功同步；失败不覆盖） |
+| `tarkov_items_raws` | 逃离塔科夫物品上游原始 JSON（全站最新一份；GraphQL split 或 json.tarkov.dev items；弹药/枪械共用；失败不覆盖） |
+| `tarkov_items_meta` | 物品同步元数据（单行，含 ammo/gun 计数与同步时间） |
+| `tarkov_ammo` | 弹药穿透/伤害派生读模型（由 items raw parse；含上游 `ammo_type` / `icon_link`；供列表/散点） |
+| `tarkov_ammo_meta` | 弹药展示元数据（单行；与 items 同事务写入） |
 | `tarkov_guns` | 枪械派生读模型（口径/射速/人机/后坐/`allowed_ammo` 等） |
-| `tarkov_gun_meta` | 枪械同步元数据（单行） |
+| `tarkov_gun_meta` | 枪械展示元数据（单行） |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |
 | `taygedo_binds` | 塔吉多凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |

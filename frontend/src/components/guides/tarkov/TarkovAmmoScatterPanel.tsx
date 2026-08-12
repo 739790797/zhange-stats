@@ -388,7 +388,7 @@ export function TarkovAmmoScatterPanel() {
                     gap: 12,
                     padding: "10px 12px",
                     borderTop: idx === 0 ? undefined : "1px solid #f0f0f0",
-                    background: idx % 2 === 0 ? "#fff" : "#fafafa",
+                    background: "#fff",
                   }}
                 >
                   <div

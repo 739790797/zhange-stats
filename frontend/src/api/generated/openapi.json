@@ -6534,13 +6534,40 @@
         }
       }
     },
+    "/api/guides/tarkov/items/sync": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Items Sync",
+        "description": "管理员：回源同步物品（一次写入 ammo+guns 派生）。",
+        "operationId": "guides_tarkov_items_sync_api_guides_tarkov_items_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovItemsSyncOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/guides/tarkov/ammo": {
       "get": {
         "tags": [
           "guides"
         ],
         "summary": "Guides Tarkov Ammo",
-        "description": "弹药穿透/伤害表（派生读模型）。空库时优先 raw 重算，否则回源。",
+        "description": "弹药穿透/伤害表（派生读模型）。空库时走共享 items 同步。",
         "operationId": "guides_tarkov_ammo_api_guides_tarkov_ammo_get",
         "responses": {
           "200": {
@@ -6567,7 +6594,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Ammo Sync",
-        "description": "管理员：回源同步弹药（成功才覆盖 raw，并重写派生表）。",
+        "description": "管理员：与 /items/sync 相同（兼容旧客户端）。",
         "operationId": "guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post",
         "responses": {
           "200": {
@@ -6594,7 +6621,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Guns",
-        "description": "枪械总表（派生读模型）。空库时优先 raw 重算，否则回源。",
+        "description": "枪械总表（派生读模型）。空库时走共享 items 同步。",
         "operationId": "guides_tarkov_guns_api_guides_tarkov_guns_get",
         "responses": {
           "200": {
@@ -6621,7 +6648,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Guns Sync",
-        "description": "管理员：回源同步枪械（成功才覆盖 raw，并重写派生表）。",
+        "description": "管理员：与 /items/sync 相同（兼容旧客户端）。",
         "operationId": "guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post",
         "responses": {
           "200": {
@@ -14307,6 +14334,11 @@
             "type": "integer",
             "title": "Armor Damage",
             "default": 0
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
           }
         },
         "type": "object",
@@ -14324,6 +14356,11 @@
           "ammo_count": {
             "type": "integer",
             "title": "Ammo Count"
+          },
+          "gun_count": {
+            "type": "integer",
+            "title": "Gun Count",
+            "default": 0
           },
           "source": {
             "anyOf": [
@@ -14497,6 +14534,11 @@
       },
       "TarkovGunSyncOut": {
         "properties": {
+          "ammo_count": {
+            "type": "integer",
+            "title": "Ammo Count",
+            "default": 0
+          },
           "gun_count": {
             "type": "integer",
             "title": "Gun Count"
@@ -14534,6 +14576,51 @@
           "gun_count"
         ],
         "title": "TarkovGunSyncOut"
+      },
+      "TarkovItemsSyncOut": {
+        "properties": {
+          "ammo_count": {
+            "type": "integer",
+            "title": "Ammo Count"
+          },
+          "gun_count": {
+            "type": "integer",
+            "title": "Gun Count"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ammo_count",
+          "gun_count"
+        ],
+        "title": "TarkovItemsSyncOut"
       },
       "TaygedoAttendanceCalendarOut": {
         "properties": {

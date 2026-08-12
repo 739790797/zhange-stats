@@ -2206,6 +2206,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/items/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Items Sync
+         * @description 管理员：回源同步物品（一次写入 ammo+guns 派生）。
+         */
+        post: operations["guides_tarkov_items_sync_api_guides_tarkov_items_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/ammo": {
         parameters: {
             query?: never;
@@ -2215,7 +2235,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Ammo
-         * @description 弹药穿透/伤害表（派生读模型）。空库时优先 raw 重算，否则回源。
+         * @description 弹药穿透/伤害表（派生读模型）。空库时走共享 items 同步。
          */
         get: operations["guides_tarkov_ammo_api_guides_tarkov_ammo_get"];
         put?: never;
@@ -2237,7 +2257,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Ammo Sync
-         * @description 管理员：回源同步弹药（成功才覆盖 raw，并重写派生表）。
+         * @description 管理员：与 /items/sync 相同（兼容旧客户端）。
          */
         post: operations["guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post"];
         delete?: never;
@@ -2255,7 +2275,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Guns
-         * @description 枪械总表（派生读模型）。空库时优先 raw 重算，否则回源。
+         * @description 枪械总表（派生读模型）。空库时走共享 items 同步。
          */
         get: operations["guides_tarkov_guns_api_guides_tarkov_guns_get"];
         put?: never;
@@ -2277,7 +2297,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Guns Sync
-         * @description 管理员：回源同步枪械（成功才覆盖 raw，并重写派生表）。
+         * @description 管理员：与 /items/sync 相同（兼容旧客户端）。
          */
         post: operations["guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post"];
         delete?: never;
@@ -5405,11 +5425,21 @@ export interface components {
              * @default 0
              */
             armor_damage: number;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
         };
         /** TarkovAmmoSyncOut */
         TarkovAmmoSyncOut: {
             /** Ammo Count */
             ammo_count: number;
+            /**
+             * Gun Count
+             * @default 0
+             */
+            gun_count: number;
             /** Source */
             source?: string | null;
             /** Synced At */
@@ -5493,6 +5523,27 @@ export interface components {
         };
         /** TarkovGunSyncOut */
         TarkovGunSyncOut: {
+            /**
+             * Ammo Count
+             * @default 0
+             */
+            ammo_count: number;
+            /** Gun Count */
+            gun_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Message
+             * @default ok
+             */
+            message: string;
+        };
+        /** TarkovItemsSyncOut */
+        TarkovItemsSyncOut: {
+            /** Ammo Count */
+            ammo_count: number;
             /** Gun Count */
             gun_count: number;
             /** Source */
@@ -10342,6 +10393,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_items_sync_api_guides_tarkov_items_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovItemsSyncOut"];
                 };
             };
         };

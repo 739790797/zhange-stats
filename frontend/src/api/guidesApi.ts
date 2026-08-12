@@ -7,6 +7,16 @@ export type TarkovAmmoSyncResult = components["schemas"]["TarkovAmmoSyncOut"];
 export type TarkovGunCatalog = components["schemas"]["TarkovGunCatalogOut"];
 export type TarkovGunItem = components["schemas"]["TarkovGunItemOut"];
 export type TarkovGunSyncResult = components["schemas"]["TarkovGunSyncOut"];
+export type TarkovItemsSyncResult = components["schemas"]["TarkovItemsSyncOut"];
+
+export async function syncTarkovItems() {
+  const { data } = await client.post<TarkovItemsSyncResult>(
+    "/guides/tarkov/items/sync",
+    {},
+    { timeout: 120_000 },
+  );
+  return data;
+}
 
 export async function fetchTarkovAmmo() {
   const { data } = await client.get<TarkovAmmoCatalog>("/guides/tarkov/ammo", {

@@ -36,7 +36,7 @@ import {
 } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { isAdminUser } from "@/lib/isAdminUser";
-import { GUIDE_NAV } from "@/lib/guideNav";
+import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/lib/guideNav";
 import {
   PLATFORM_NAV,
   firstEnabledPlatformPath,
@@ -63,7 +63,7 @@ const ADMIN_LEAF_KEYS = [
   ...SYSTEM_CHILD_KEYS,
 ] as const;
 
-const GUIDE_LEAF_KEYS = GUIDE_NAV.map((item) => item.path);
+const GUIDE_LEAF_KEYS = GUIDE_LEAF_PATHS;
 
 const leafKeys = [
   ...ADMIN_LEAF_KEYS,
@@ -265,6 +265,12 @@ export function AppLayout() {
     if ((JOBS_CHILD_KEYS as readonly string[]).includes(selected)) {
       next.push("admin-jobs");
     }
+    if (selected.startsWith("/guides/tarkov")) {
+      next.push("guides-tarkov");
+      if (selected.startsWith("/guides/tarkov/items")) {
+        next.push("guides-tarkov-items");
+      }
+    }
     if (!next.length) return;
     setOpenKeys((prev) => Array.from(new Set([...prev, ...next])));
   }, [selected]);
@@ -291,13 +297,31 @@ export function AppLayout() {
     label: <Link to={item.path}>{item.label}</Link>,
   }));
 
-  const guideItems = GUIDE_NAV.filter((item) =>
-    isFeatureOn(features, item.featureId),
-  ).map((item) => ({
-    key: item.path,
-    icon: <PlatformIcon name={item.icon} />,
-    label: <Link to={item.path}>{item.label}</Link>,
-  }));
+  const guideItems = useMemo(() => {
+    const mapNode = (node: GuideNavNode): NonNullable<MenuProps["items"]>[number] | null => {
+      if (node.kind === "leaf") {
+        if (!isFeatureOn(features, node.featureId)) return null;
+        return {
+          key: node.path,
+          label: <Link to={node.path}>{node.label}</Link>,
+        };
+      }
+      if (!isFeatureOn(features, node.featureId)) return null;
+      const children = node.children
+        .map(mapNode)
+        .filter((x): x is NonNullable<typeof x> => x != null);
+      if (!children.length) return null;
+      return {
+        key: node.key,
+        icon: node.icon ? <PlatformIcon name={node.icon} /> : undefined,
+        label: node.label,
+        children,
+      };
+    };
+    return GUIDE_NAV.map(mapNode).filter(
+      (x): x is NonNullable<typeof x> => x != null,
+    );
+  }, [features]);
 
   const mineItems = [
     {
