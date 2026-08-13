@@ -10,11 +10,11 @@ import {
   startSklandQrBind,
 } from "@/api/client";
 import type { SklandQrStart, SklandStatus } from "@/api/types";
+import { PhoneAuthBindTemplate } from "@/components/PhoneAuthBindTemplate";
 import {
-  PhoneAuthBindTemplate,
   preferredPhoneAuthMode,
   type PhoneAuthMode,
-} from "@/components/PhoneAuthBindTemplate";
+} from "@/lib/phoneAuth";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { apiError } from "@/lib/apiError";
 

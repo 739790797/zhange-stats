@@ -15,30 +15,7 @@ import { useState } from "react";
 import { fetchArknightsAttendanceCalendar } from "@/api/client";
 import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import { apiError } from "@/lib/apiError";
-
-/** 仅官服有可信签到进度；B 服上游不返回 records/done。 */
-export function isOfficialArknightsChannel(
-  channelName?: string | null,
-): boolean {
-  const n = (channelName || "").trim().toLowerCase();
-  if (!n) return false;
-  if (isBilibiliArknightsChannel(channelName)) return false;
-  return n.includes("官方") || n.includes("官服");
-}
-
-/** 方舟 B 服：领取记录为空，无法查询签到奖励。 */
-export function isBilibiliArknightsChannel(
-  channelName?: string | null,
-): boolean {
-  const n = (channelName || "").trim().toLowerCase();
-  if (!n) return false;
-  return (
-    n.includes("bilibili") ||
-    n.includes("哔哩") ||
-    n.includes("b服") ||
-    n.includes("b 服")
-  );
-}
+import { isBilibiliArknightsChannel } from "@/lib/arknightsChannel";
 
 /** 行内「签到日历」按钮；点击弹窗展示。B 服可看奖励表，进度可能不可信。 */
 export function ArknightsAttendanceCalendarButton({

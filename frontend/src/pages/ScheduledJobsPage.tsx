@@ -23,13 +23,13 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
+import { buildCheckinTaskScheduleColumns } from "@/components/checkinTaskColumns";
+import { CheckinTreeNameLabel } from "@/components/checkinTaskDisplay";
 import {
   CHECKIN_PLATFORM_LABELS,
-  CheckinTreeNameLabel,
-  buildCheckinTaskScheduleColumns,
   communityGameRank,
   platformRank,
-} from "@/components/checkinTaskDisplay";
+} from "@/lib/checkinDisplay";
 import {
   fetchJobFilterMembers,
   fetchUserCheckinTasks,

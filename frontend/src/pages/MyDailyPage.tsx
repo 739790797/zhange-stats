@@ -8,13 +8,13 @@ import {
   type UserCheckinTask,
 } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
+import { buildCheckinTaskScheduleColumns } from "@/components/checkinTaskColumns";
+import { CheckinTreeNameLabel } from "@/components/checkinTaskDisplay";
 import {
   CHECKIN_PLATFORM_LABELS,
   CHECKIN_PLATFORM_ORDER,
-  CheckinTreeNameLabel,
-  buildCheckinTaskScheduleColumns,
   communityGameRank,
-} from "@/components/checkinTaskDisplay";
+} from "@/lib/checkinDisplay";
 
 type RoleLeaf = UserCheckinTask & {
   rowKey: string;

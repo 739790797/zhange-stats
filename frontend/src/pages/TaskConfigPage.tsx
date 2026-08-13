@@ -20,7 +20,8 @@ import {
   type PlatformFeatureNode,
 } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
-import { PlatformIcon, featureIconName } from "@/components/PlatformIcon";
+import { PlatformIcon } from "@/components/PlatformIcon";
+import { featureIconName } from "@/lib/platformIcons";
 
 type DraftFlags = Record<string, boolean>;
 type DraftJobs = Record<

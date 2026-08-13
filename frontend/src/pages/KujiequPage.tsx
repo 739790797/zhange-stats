@@ -7,15 +7,13 @@ import {
   updateKujiequRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import {
-  hasKujiequAttendanceCalendar,
-  KujiequAttendanceCalendarButton,
-} from "@/components/KujiequAttendanceCalendar";
+import { KujiequAttendanceCalendarButton } from "@/components/KujiequAttendanceCalendar";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
 import { KujiequExchangePanel } from "@/components/KujiequExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { WwBoxPanel } from "@/components/WwBoxPanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
+import { hasKujiequAttendanceCalendar } from "@/lib/kujiequAttendance";
 import { isFeatureOn } from "@/lib/platformFeatures";
 
 type TabKey = "checkin" | "exchange" | "ww";

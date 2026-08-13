@@ -16,13 +16,6 @@ import { fetchKujiequAttendanceCalendar } from "@/api/client";
 import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import { apiError } from "@/lib/apiError";
 
-/** 鸣潮 / 战双签到日历（与方舟同款周期格）。 */
-const CALENDAR_GAME_CODES = new Set(["game_3", "game_2"]);
-
-export function hasKujiequAttendanceCalendar(gameCode?: string | null): boolean {
-  return Boolean(gameCode && CALENDAR_GAME_CODES.has(gameCode));
-}
-
 export function KujiequAttendanceCalendarButton({
   gameCode,
   roleUid,

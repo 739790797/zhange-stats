@@ -2,31 +2,17 @@ import { Button, Input, Segmented, Space, Typography, message } from "antd";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiError } from "@/lib/apiError";
-
-export type PhoneAuthMode = "qr" | "sms" | "password";
+import {
+  orderedPhoneAuthModes,
+  preferredPhoneAuthMode,
+  type PhoneAuthMode,
+} from "@/lib/phoneAuth";
 
 const MODE_LABEL: Record<PhoneAuthMode, string> = {
   qr: "扫码",
   sms: "短信验证码",
   password: "账号密码",
-};
-
-/** 默认选中优先级：扫码 > 短信验证码 > 账号密码 */
-export const PHONE_AUTH_MODE_PRIORITY: PhoneAuthMode[] = [
-  "qr",
-  "sms",
-  "password",
-];
-
-export function preferredPhoneAuthMode(modes: PhoneAuthMode[]): PhoneAuthMode {
-  return (
-    PHONE_AUTH_MODE_PRIORITY.find((m) => modes.includes(m)) ?? modes[0]
-  );
-}
-
-function orderedPhoneAuthModes(modes: PhoneAuthMode[]): PhoneAuthMode[] {
-  return PHONE_AUTH_MODE_PRIORITY.filter((m) => modes.includes(m));
-}
+} as const;
 
 /** 与登录页一致：Ant Design large = 40px 高 */
 const CONTROL_SIZE = "large" as const;

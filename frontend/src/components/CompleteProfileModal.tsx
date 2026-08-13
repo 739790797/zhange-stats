@@ -6,9 +6,8 @@ import {
   sendBindEmailCode,
 } from "@/api/client";
 import { apiError } from "@/lib/apiError";
+import { COMPLETE_PROFILE_SKIP_KEY } from "@/lib/completeProfile";
 import { useAuthStore } from "@/stores/authStore";
-
-const SKIP_KEY = "zhange-skip-complete-profile";
 
 type Props = {
   open: boolean;
@@ -71,7 +70,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
       });
       setUser(res.user);
       message.success(res.message || "账号已完善");
-      sessionStorage.removeItem(SKIP_KEY);
+      sessionStorage.removeItem(COMPLETE_PROFILE_SKIP_KEY);
       onCompleted();
     } catch (e: unknown) {
       message.error(apiError(e, "完善失败"));
@@ -89,7 +88,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
       });
       setAuth(res.access_token, res.user);
       message.success(res.message || "已合并到已有账号");
-      sessionStorage.removeItem(SKIP_KEY);
+      sessionStorage.removeItem(COMPLETE_PROFILE_SKIP_KEY);
       onCompleted();
     } catch (e: unknown) {
       message.error(apiError(e, "合并失败"));
@@ -99,7 +98,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
   };
 
   const onSkip = () => {
-    sessionStorage.setItem(SKIP_KEY, "1");
+    sessionStorage.setItem(COMPLETE_PROFILE_SKIP_KEY, "1");
     onClose();
   };
 
@@ -264,9 +263,4 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
       </Button>
     </Modal>
   );
-}
-
-export function shouldPromptCompleteProfile(email?: string | null): boolean {
-  if (email) return false;
-  return sessionStorage.getItem(SKIP_KEY) !== "1";
 }

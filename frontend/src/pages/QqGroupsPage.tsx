@@ -40,10 +40,10 @@ export default function QqGroupsPage() {
     retry: false,
   });
 
-  const groups = groupsQuery.data?.groups ?? [];
+  const groups = groupsQuery.data?.groups;
 
   useEffect(() => {
-    if (!groups.length) {
+    if (!groups?.length) {
       setSelectedGroupId(null);
       return;
     }
@@ -56,7 +56,7 @@ export default function QqGroupsPage() {
   }, [groups, selectedGroupId]);
 
   const selectedGroup = useMemo(
-    () => groups.find((g) => g.group_id === selectedGroupId) || null,
+    () => groups?.find((g) => g.group_id === selectedGroupId) || null,
     [groups, selectedGroupId],
   );
 

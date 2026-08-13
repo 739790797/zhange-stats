@@ -25,17 +25,17 @@ import {
 } from "@/lib/checkinStatus";
 import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import { CheckinStatusTag } from "@/components/CheckinStatusTag";
-import { isBilibiliArknightsChannel } from "@/components/ArknightsAttendanceCalendar";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  PlatformIcon,
-  checkinGameIcon,
-  type PlatformIconName,
-} from "@/components/PlatformIcon";
+import { PlatformIcon } from "@/components/PlatformIcon";
+import { isBilibiliArknightsChannel } from "@/lib/arknightsChannel";
 import {
   communityGameRank,
   displayCheckinChannelName,
-} from "@/components/checkinTaskDisplay";
+} from "@/lib/checkinDisplay";
+import {
+  checkinGameIcon,
+  type PlatformIconName,
+} from "@/lib/platformIcons";
 
 /** 四平台 RoleOut 字段一致，用森空岛 schema 代表 */
 export type CheckinPageRole = components["schemas"]["SklandRoleOut"];

@@ -17,6 +17,8 @@ import { fetchExastrisBox } from "@/api/client";
 import type { ExastrisChar } from "@/api/types";
 import { apiError } from "@/lib/apiError";
 
+const EMPTY_CHARS: ExastrisChar[] = [];
+
 function formatSyncedAt(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -129,7 +131,7 @@ export function ExastrisBoxPanel({ enabled }: Props) {
   });
 
   const roles = boxQuery.data?.roles || [];
-  const chars = boxQuery.data?.chars || [];
+  const chars = boxQuery.data?.chars ?? EMPTY_CHARS;
 
   const filtered = useMemo(() => {
     if (qualityTab === "all") return chars;

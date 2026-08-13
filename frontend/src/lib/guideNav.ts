@@ -1,4 +1,4 @@
-import type { PlatformIconName } from "@/components/PlatformIcon";
+import type { PlatformIconName } from "@/lib/platformIcons";
 
 /** 攻略区侧栏：一点进大厅；栏目在页内顶栏。 */
 

@@ -438,13 +438,3 @@ export function TarkovItemDetailPanel({ itemId }: Props) {
     </div>
   );
 }
-
-export function useTarkovItemDetailTitle(itemId: string): string {
-  const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-item-detail", itemId],
-    queryFn: () => fetchTarkovItemDetail(itemId),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-  return detailQuery.data?.name || detailQuery.data?.short_name || "物品详情";
-}

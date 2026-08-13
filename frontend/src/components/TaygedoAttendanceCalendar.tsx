@@ -16,13 +16,6 @@ import { fetchTaygedoAttendanceCalendar } from "@/api/client";
 import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
 import { apiError } from "@/lib/apiError";
 
-/** 异环 / 幻塔签到日历（与方舟同款周期格）。 */
-const CALENDAR_GAME_CODES = new Set(["1289", "1256"]);
-
-export function hasTaygedoAttendanceCalendar(gameCode?: string | null): boolean {
-  return Boolean(gameCode && CALENDAR_GAME_CODES.has(gameCode));
-}
-
 export function TaygedoAttendanceCalendarButton({
   gameCode,
   roleUid,

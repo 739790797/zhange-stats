@@ -8,15 +8,13 @@ import {
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { ExastrisBoxPanel } from "@/components/ExastrisBoxPanel";
-import {
-  hasTaygedoAttendanceCalendar,
-  TaygedoAttendanceCalendarButton,
-} from "@/components/TaygedoAttendanceCalendar";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
+import { TaygedoAttendanceCalendarButton } from "@/components/TaygedoAttendanceCalendar";
 import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
 import { TaygedoExchangePanel } from "@/components/TaygedoExchangePanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { hasTaygedoAttendanceCalendar } from "@/lib/taygedoAttendance";
 
 type TabKey = "checkin" | "exchange" | "exastris";
 

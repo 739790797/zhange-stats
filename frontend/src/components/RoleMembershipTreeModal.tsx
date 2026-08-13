@@ -2,10 +2,8 @@ import { Alert, Modal, Spin, Tree, Typography, message } from "antd";
 import type { DataNode } from "antd/es/tree";
 import { useEffect, useMemo, useState } from "react";
 import { apiError } from "@/lib/apiError";
-import {
-  CHECKIN_PLATFORM_LABELS,
-  CheckinTreeNameLabel,
-} from "@/components/checkinTaskDisplay";
+import { CheckinTreeNameLabel } from "@/components/checkinTaskDisplay";
+import { CHECKIN_PLATFORM_LABELS } from "@/lib/checkinDisplay";
 
 export type RoleMembershipNode = {
   game_code: string;

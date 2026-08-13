@@ -30,11 +30,9 @@ import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
 import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
-import {
-  CompleteProfileModal,
-  shouldPromptCompleteProfile,
-} from "@/components/CompleteProfileModal";
+import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { shouldPromptCompleteProfile } from "@/lib/completeProfile";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/lib/guideNav";
 import {

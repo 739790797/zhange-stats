@@ -20,6 +20,8 @@ import type {
   EndfieldEquip,
   EndfieldSkill,
 } from "@/api/types";
+
+const EMPTY_CHARS: EndfieldChar[] = [];
 import {
   EQUIP_SLOTS,
   RARITY_COLOR,
@@ -467,7 +469,7 @@ export function EndfieldBoxPanel({ enabled }: Props) {
   });
 
   const roles = boxQuery.data?.roles || [];
-  const chars = boxQuery.data?.chars || [];
+  const chars = boxQuery.data?.chars ?? EMPTY_CHARS;
 
   const filtered = useMemo(() => {
     if (rarityTab === "all") return chars;
