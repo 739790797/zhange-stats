@@ -21,6 +21,9 @@ JOB_IDS = (
     "exilium_checkin",
     "kujiequ_checkin",
     "tarkov_items_sync",
+    "tarkov_tasks_sync",
+    "tarkov_traders_sync",
+    "tarkov_bosses_sync",
     "job_runs_prune",
 )
 
@@ -79,6 +82,21 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "minute": _clamp_minute(
                 getattr(s, "TARKOV_ITEMS_SYNC_MINUTE", None) or s.TARKOV_AMMO_SYNC_MINUTE
             ),
+        },
+        "tarkov_tasks_sync": {
+            "enabled": bool(getattr(s, "TARKOV_TASKS_SYNC_ENABLED", True)),
+            "hour": _clamp_hour(getattr(s, "TARKOV_TASKS_SYNC_HOUR", 4)),
+            "minute": _clamp_minute(getattr(s, "TARKOV_TASKS_SYNC_MINUTE", 35)),
+        },
+        "tarkov_traders_sync": {
+            "enabled": bool(getattr(s, "TARKOV_TRADERS_SYNC_ENABLED", True)),
+            "hour": _clamp_hour(getattr(s, "TARKOV_TRADERS_SYNC_HOUR", 4)),
+            "minute": _clamp_minute(getattr(s, "TARKOV_TRADERS_SYNC_MINUTE", 40)),
+        },
+        "tarkov_bosses_sync": {
+            "enabled": bool(getattr(s, "TARKOV_BOSSES_SYNC_ENABLED", True)),
+            "hour": _clamp_hour(getattr(s, "TARKOV_BOSSES_SYNC_HOUR", 4)),
+            "minute": _clamp_minute(getattr(s, "TARKOV_BOSSES_SYNC_MINUTE", 45)),
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),

@@ -85,6 +85,18 @@ class Settings(BaseSettings):
     TARKOV_ITEMS_SYNC_ENABLED: bool = True
     TARKOV_ITEMS_SYNC_HOUR: int = 4
     TARKOV_ITEMS_SYNC_MINUTE: int = 30
+    # 逃离塔科夫任务（默认 04:35，错开物品同步）
+    TARKOV_TASKS_SYNC_ENABLED: bool = True
+    TARKOV_TASKS_SYNC_HOUR: int = 4
+    TARKOV_TASKS_SYNC_MINUTE: int = 35
+    # 逃离塔科夫商人（默认 04:40，错开任务同步）
+    TARKOV_TRADERS_SYNC_ENABLED: bool = True
+    TARKOV_TRADERS_SYNC_HOUR: int = 4
+    TARKOV_TRADERS_SYNC_MINUTE: int = 40
+    # 逃离塔科夫 BOSS（默认 04:45，错开商人同步）
+    TARKOV_BOSSES_SYNC_ENABLED: bool = True
+    TARKOV_BOSSES_SYNC_HOUR: int = 4
+    TARKOV_BOSSES_SYNC_MINUTE: int = 45
     # 兼容旧 .env；调度已合并为 TARKOV_ITEMS_*
     TARKOV_AMMO_SYNC_ENABLED: bool = True
     TARKOV_AMMO_SYNC_HOUR: int = 4

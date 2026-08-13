@@ -7,6 +7,8 @@ import {
   formatCaliberLabel,
   formatWeaponClass,
 } from "@/lib/tarkovGunCategories";
+import { itemDetailHref } from "@/lib/tarkovItemTypes";
+import tableStyles from "./TarkovDarkTable.module.css";
 
 type Props = {
   data: TarkovGunItem[];
@@ -225,7 +227,7 @@ export function TarkovGunsTable({
             }}
           />
         ) : (
-          <span style={{ color: "rgba(0, 0, 0, 0.25)" }}>—</span>
+          <span style={{ color: "#8a8a8a" }}>—</span>
         );
       },
     },
@@ -254,7 +256,15 @@ export function TarkovGunsTable({
       key: "name",
       width: 260,
       ellipsis: true,
-      render: (_: unknown, row) => row.name || row.short_name || row.id,
+      render: (_: unknown, row) => (
+        <Link
+          to={itemDetailHref("guns", row.id)}
+          title="查看枪械详情"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.name || row.short_name || row.id}
+        </Link>
+      ),
     },
     {
       title: "类型",
@@ -316,6 +326,7 @@ export function TarkovGunsTable({
 
   return (
     <Table<TarkovGunItem>
+      className={tableStyles.table}
       size="small"
       rowKey="id"
       columns={columns}

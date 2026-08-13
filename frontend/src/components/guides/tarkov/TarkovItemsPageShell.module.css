@@ -1,0 +1,61 @@
+.inner {
+  padding: 24px 28px 32px;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 14px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.crumbSep {
+  margin: 0 8px;
+  color: #3a3a3a;
+}
+
+.crumbLink {
+  color: var(--hb-muted);
+  text-decoration: none;
+}
+
+.crumbLink:hover {
+  color: var(--hb-orange);
+}
+
+.crumbCurrent {
+  color: #d8d8d8;
+}
+
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.title {
+  margin: 0;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--hb-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .title {
+    font-size: 24px;
+  }
+}

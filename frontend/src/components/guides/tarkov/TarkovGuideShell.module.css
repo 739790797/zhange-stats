@@ -1,0 +1,276 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&family=Rajdhani:wght@600;700&display=swap");
+
+.shell {
+  --hb-bg: #161710;
+  --hb-panel: #22241a;
+  --hb-panel-hover: #2b2d22;
+  --hb-border: #3a3d30;
+  --hb-orange: #c8932a;
+  --hb-orange-dim: rgba(200, 147, 42, 0.55);
+  --hb-green: #7ab648;
+  --hb-text: #eee9d6;
+  --hb-muted: #b0ae9a;
+  --hb-mono: "IBM Plex Mono", "Cascadia Mono", "Consolas", "Courier New",
+    monospace;
+  --hb-sans: "IBM Plex Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  --hb-display: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 0;
+  background: var(--hb-bg);
+  color: var(--hb-text);
+  font-family: var(--hb-sans);
+  box-sizing: border-box;
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  position: relative;
+  flex: none;
+  z-index: 50;
+  border-bottom: 1px solid var(--hb-border);
+  background: rgba(20, 21, 16, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.topbarInner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  min-height: 52px;
+}
+
+.brand {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--hb-text);
+  text-decoration: none;
+  flex: none;
+}
+
+.brand:hover {
+  color: var(--hb-orange);
+}
+
+.brand:hover .gameWordmark text:last-child {
+  fill: var(--hb-orange);
+}
+
+.gameLogo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gameHex,
+.gameWordmark {
+  display: block;
+  flex: none;
+}
+
+.nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+}
+
+.tracker {
+  margin-left: auto;
+  position: relative;
+  z-index: 3;
+  flex: none;
+}
+
+.navItem {
+  position: relative;
+}
+
+.navLink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 52px;
+  padding: 0 12px;
+  color: #b8b6a4;
+  text-decoration: none;
+  font-family: var(--hb-sans);
+  font-size: 14px;
+  letter-spacing: 0.07em;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.navItem:hover > .navLink,
+.navItem:focus-within > .navLink,
+.navLinkActive {
+  color: var(--hb-text);
+}
+
+.navLinkActive::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  background: var(--hb-orange);
+}
+
+.caret {
+  opacity: 0.3;
+}
+
+.dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 168px;
+  padding: 10px 12px 12px;
+  background: #1c1e16;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--hb-border);
+  z-index: 8;
+}
+
+.navItem:hover > .dropdown,
+.navItem:focus-within > .dropdown {
+  display: flex;
+  gap: 18px;
+}
+
+.dropCol {
+  min-width: 120px;
+}
+
+.dropColBosses {
+  columns: 2;
+  column-gap: 28px;
+  min-width: 280px;
+  max-height: 70vh;
+}
+
+.dropColBosses .dropLink {
+  break-inside: avoid;
+}
+
+.dropHead {
+  margin: 0 0 8px;
+  color: var(--hb-orange);
+  font-family: var(--hb-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.dropLink {
+  display: block;
+  padding: 4px 0;
+  color: #c0be9a;
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.dropLink:hover {
+  color: var(--hb-text);
+}
+
+.soonMark {
+  margin-left: 6px;
+  color: #6a6c58;
+  font-size: 11px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #5a5e4c #1a1b14;
+}
+
+.body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: #1a1b14;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: #4a4e40;
+  border-radius: 4px;
+  border: 2px solid #1a1b14;
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: #6a6e58;
+}
+
+.body::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.body::-webkit-scrollbar-corner {
+  background: #1a1b14;
+}
+
+@media (max-width: 720px) {
+  .topbarInner {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    min-height: 0;
+    padding: 8px 12px 0;
+  }
+
+  .gameWordmark {
+    width: 110px;
+    height: 26px;
+  }
+
+  .nav {
+    position: static;
+    transform: none;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    order: 3;
+  }
+
+  .tracker {
+    margin-left: auto;
+  }
+
+  .navLink {
+    height: 40px;
+    padding: 0 8px;
+  }
+
+  .navItem:hover > .dropdown,
+  .navItem:focus-within > .dropdown {
+    flex-direction: column;
+    gap: 12px;
+  }
+}

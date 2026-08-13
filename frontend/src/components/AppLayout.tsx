@@ -235,10 +235,10 @@ export function AppLayout() {
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/guides/")) {
-      const hit = GUIDE_LEAF_KEYS.find(
+      const hit = GUIDE_LEAF_KEYS.filter(
         (key) =>
           location.pathname === key || location.pathname.startsWith(`${key}/`),
-      );
+      ).sort((a, b) => b.length - a.length)[0];
       if (hit) return hit;
     }
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
@@ -264,9 +264,6 @@ export function AppLayout() {
     }
     if ((JOBS_CHILD_KEYS as readonly string[]).includes(selected)) {
       next.push("admin-jobs");
-    }
-    if (selected.startsWith("/guides/tarkov")) {
-      next.push("guides-tarkov");
     }
     if (!next.length) return;
     setOpenKeys((prev) => Array.from(new Set([...prev, ...next])));
@@ -300,6 +297,7 @@ export function AppLayout() {
         if (!isFeatureOn(features, node.featureId)) return null;
         return {
           key: node.path,
+          icon: node.icon ? <PlatformIcon name={node.icon} /> : undefined,
           label: <Link to={node.path}>{node.label}</Link>,
         };
       }
@@ -398,8 +396,10 @@ export function AppLayout() {
     navigate("/login");
   };
 
+  const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
+
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
       <Sider
         breakpoint="lg"
         collapsedWidth={64}
@@ -527,27 +527,48 @@ export function AppLayout() {
           </div>
         </div>
       </Sider>
-      <Layout>
-        <Header
-          style={{
-            background: token.colorBgContainer,
-            padding: "0 24px",
-            height: 56,
-            lineHeight: "56px",
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          }}
-        />
-        <Content style={{ margin: 24 }}>
-          <div
+      <Layout
+        style={{
+          height: "100vh",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {isTarkovGuide ? null : (
+          <Header
             style={{
               background: token.colorBgContainer,
-              padding: 24,
-              borderRadius: 8,
-              minHeight: 360,
+              padding: "0 24px",
+              height: 56,
+              lineHeight: "56px",
+              flexShrink: 0,
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
             }}
-          >
+          />
+        )}
+        <Content
+          className={isTarkovGuide ? "app-main-tarkov" : "app-main-scroll"}
+          style={
+            isTarkovGuide
+              ? { flex: 1, minHeight: 0, margin: 0, overflow: "hidden" }
+              : { flex: 1, minHeight: 0, margin: 24, overflow: "auto" }
+          }
+        >
+          {isTarkovGuide ? (
             <Outlet />
-          </div>
+          ) : (
+            <div
+              style={{
+                background: token.colorBgContainer,
+                padding: 24,
+                borderRadius: 8,
+                minHeight: 360,
+              }}
+            >
+              <Outlet />
+            </div>
+          )}
         </Content>
       </Layout>
       <CompleteProfileModal

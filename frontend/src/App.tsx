@@ -26,9 +26,16 @@ import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import PlatformLogsPage from "@/pages/PlatformLogsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import TarkovHomePage from "@/pages/guides/TarkovHomePage";
 import TarkovItemsHubPage from "@/pages/guides/TarkovItemsHubPage";
 import TarkovItemTypePage from "@/pages/guides/TarkovItemTypePage";
-import TarkovAmmoDetailPage from "@/pages/guides/TarkovAmmoDetailPage";
+import TarkovItemDetailPage from "@/pages/guides/TarkovItemDetailPage";
+import TarkovTasksPage from "@/pages/guides/TarkovTasksPage";
+import TarkovTaskDetailPage from "@/pages/guides/TarkovTaskDetailPage";
+import TarkovTradersPage from "@/pages/guides/TarkovTradersPage";
+import TarkovTraderPage from "@/pages/guides/TarkovTraderPage";
+import TarkovBossesPage from "@/pages/guides/TarkovBossesPage";
+import TarkovBossPage from "@/pages/guides/TarkovBossPage";
 import TarkovReservedPage from "@/pages/guides/TarkovReservedPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
@@ -138,31 +145,47 @@ export default function App() {
                 }
               />
               <Route path="/daily" element={<MyDailyPage />} />
-              <Route
-                path="/guides/tarkov"
-                element={<Navigate to="/guides/tarkov/items" replace />}
-              />
-              <Route path="/guides/tarkov/items" element={<TarkovGuidesOutlet />}>
-                <Route index element={<TarkovItemsHubPage />} />
-                <Route path="ammo/:itemId" element={<TarkovAmmoDetailPage />} />
-                <Route path=":typeSegment" element={<TarkovItemTypePage />} />
+              <Route path="/guides/tarkov" element={<TarkovGuidesOutlet />}>
+                <Route index element={<TarkovHomePage />} />
+                <Route path="items" element={<TarkovItemsHubPage />} />
+                <Route
+                  path="items/:typeSegment/:itemId"
+                  element={<TarkovItemDetailPage />}
+                />
+                <Route
+                  path="items/:typeSegment"
+                  element={<TarkovItemTypePage />}
+                />
+                <Route path="tasks" element={<TarkovTasksPage />} />
+                <Route
+                  path="tasks/:taskId"
+                  element={<TarkovTaskDetailPage />}
+                />
+                <Route
+                  path="maps"
+                  element={<TarkovReservedPage title="地图" />}
+                />
+                <Route
+                  path="traders"
+                  element={<TarkovTradersPage />}
+                />
+                <Route
+                  path="traders/:traderSlug"
+                  element={<TarkovTraderPage />}
+                />
+                <Route
+                  path="bosses"
+                  element={<TarkovBossesPage />}
+                />
+                <Route
+                  path="bosses/:bossSlug"
+                  element={<TarkovBossPage />}
+                />
+                <Route
+                  path="progression"
+                  element={<TarkovReservedPage title="进度" />}
+                />
               </Route>
-              <Route
-                path="/guides/tarkov/tasks"
-                element={
-                  <PlatformRoute featureId="guides.tarkov">
-                    <TarkovReservedPage title="任务" />
-                  </PlatformRoute>
-                }
-              />
-              <Route
-                path="/guides/tarkov/maps"
-                element={
-                  <PlatformRoute featureId="guides.tarkov">
-                    <TarkovReservedPage title="地图" />
-                  </PlatformRoute>
-                }
-              />
               <Route path="/profile" element={<ProfileSettingsPage />} />
               <Route
                 path="/members/:id/profile"

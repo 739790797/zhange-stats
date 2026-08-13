@@ -172,10 +172,25 @@ FEATURE_TREE: list[dict[str, Any]] = [
                         "schedule": "cron",
                     },
                     {
-                        "id": "guides.tarkov.tasks",
-                        "name": "任务",
-                        "kind": "game",
-                        "reserved": True,
+                        "id": "guides.tarkov.tasks_sync",
+                        "name": "任务数据更新",
+                        "kind": "job",
+                        "job_id": "tarkov_tasks_sync",
+                        "schedule": "cron",
+                    },
+                    {
+                        "id": "guides.tarkov.traders_sync",
+                        "name": "商人数据更新",
+                        "kind": "job",
+                        "job_id": "tarkov_traders_sync",
+                        "schedule": "cron",
+                    },
+                    {
+                        "id": "guides.tarkov.bosses_sync",
+                        "name": "BOSS 数据更新",
+                        "kind": "job",
+                        "job_id": "tarkov_bosses_sync",
+                        "schedule": "cron",
                     },
                     {
                         "id": "guides.tarkov.maps",
@@ -198,6 +213,9 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "exilium_checkin": "exilium.checkin",
     "kujiequ_checkin": "kujiequ.checkin",
     "tarkov_items_sync": "guides.tarkov.items_sync",
+    "tarkov_tasks_sync": "guides.tarkov.tasks_sync",
+    "tarkov_traders_sync": "guides.tarkov.traders_sync",
+    "tarkov_bosses_sync": "guides.tarkov.bosses_sync",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
@@ -216,6 +234,9 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "arknights_box": "干员练度更新",
     "guides": "攻略",
     "tarkov_items": "物品数据更新",
+    "tarkov_tasks": "任务数据更新",
+    "tarkov_traders": "商人数据更新",
+    "tarkov_bosses": "BOSS 数据更新",
 }
 
 

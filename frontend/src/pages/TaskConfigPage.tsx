@@ -292,6 +292,7 @@ export default function TaskConfigPage() {
       message.success(data.message || "已提交同步");
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-ammo"] });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-guns"] });
+      void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-bosses"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "同步失败")),
     onSettled: () => setTriggeringJobId(null),

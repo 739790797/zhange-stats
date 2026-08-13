@@ -1,12 +1,13 @@
 import type { PlatformIconName } from "@/components/PlatformIcon";
 
-/** 攻略区侧栏树：按上游 API 域分级（tarkov.dev Query 顶层）。 */
+/** 攻略区侧栏：一点进大厅；栏目在页内顶栏。 */
 
 export type GuideNavLeaf = {
   kind: "leaf";
   path: string;
   label: string;
   featureId: string;
+  icon?: PlatformIconName;
 };
 
 export type GuideNavGroup = {
@@ -22,31 +23,11 @@ export type GuideNavNode = GuideNavLeaf | GuideNavGroup;
 
 export const GUIDE_NAV: GuideNavNode[] = [
   {
-    kind: "group",
-    key: "guides-tarkov",
+    kind: "leaf",
+    path: "/guides/tarkov",
     label: "逃离塔科夫",
     featureId: "guides.tarkov",
     icon: "tarkov",
-    children: [
-      {
-        kind: "leaf",
-        path: "/guides/tarkov/items",
-        label: "物品",
-        featureId: "guides.tarkov",
-      },
-      {
-        kind: "leaf",
-        path: "/guides/tarkov/tasks",
-        label: "任务",
-        featureId: "guides.tarkov",
-      },
-      {
-        kind: "leaf",
-        path: "/guides/tarkov/maps",
-        label: "地图",
-        featureId: "guides.tarkov",
-      },
-    ],
   },
 ];
 

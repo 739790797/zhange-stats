@@ -1,0 +1,13 @@
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.row span {
+  letter-spacing: 0.02em;
+}

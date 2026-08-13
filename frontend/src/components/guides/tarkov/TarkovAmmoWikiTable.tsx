@@ -11,6 +11,7 @@ import {
   armorEffectLevel,
   type ArmorEffectLevel,
 } from "@/lib/tarkovAmmoArmorEffect";
+import tableStyles from "./TarkovDarkTable.module.css";
 
 type Props = {
   data: TarkovAmmoItem[];
@@ -38,7 +39,7 @@ function renderModifierPct(value: number | null | undefined) {
   const n = Number(value);
   const text = formatModifierPct(n);
   if (!Number.isFinite(n) || n === 0) {
-    return <span style={{ color: "rgba(0,0,0,0.45)" }}>{text}</span>;
+    return <span style={{ color: "#8a8a8a" }}>{text}</span>;
   }
   return text;
 }
@@ -51,12 +52,12 @@ function renderSignedModifier(
   const n = Number(value);
   const text = formatModifierPct(n);
   if (!Number.isFinite(n) || n === 0) {
-    return <span style={{ color: "rgba(0,0,0,0.45)" }}>{text}</span>;
+    return <span style={{ color: "#8a8a8a" }}>{text}</span>;
   }
   const positiveIsGood = polarity === "accuracy";
   const good = positiveIsGood ? n > 0 : n < 0;
   return (
-    <span style={{ color: good ? "#389e0d" : "#cf1322", fontWeight: 600 }}>
+    <span style={{ color: good ? "#8bc34a" : "#e07070", fontWeight: 600 }}>
       {text}
     </span>
   );
@@ -358,6 +359,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
 
   return (
     <Table<TarkovAmmoItem>
+      className={tableStyles.table}
       size="small"
       rowKey="id"
       columns={columns}

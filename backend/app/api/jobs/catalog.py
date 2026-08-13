@@ -40,6 +40,27 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_items",
     },
     {
+        "id": "tarkov_tasks_sync",
+        "name": "任务数据更新",
+        "description": "从 tarkov.dev 同步商人任务（GraphQL 优先，失败回退 json.tarkov.dev）",
+        "kind": "cron",
+        "platform": "tarkov_tasks",
+    },
+    {
+        "id": "tarkov_traders_sync",
+        "name": "商人数据更新",
+        "description": "从 json.tarkov.dev 同步商人与现金报价（物品 buyFromTrader）",
+        "kind": "cron",
+        "platform": "tarkov_traders",
+    },
+    {
+        "id": "tarkov_bosses_sync",
+        "name": "BOSS 数据更新",
+        "description": "从 json.tarkov.dev 同步 BOSS 出生率 / 生命值 / 护卫（maps + mobs）",
+        "kind": "cron",
+        "platform": "tarkov_bosses",
+    },
+    {
         "id": "taygedo_checkin",
         "name": "塔吉多每日签到",
         "description": "按用户自设时间巡检签到",

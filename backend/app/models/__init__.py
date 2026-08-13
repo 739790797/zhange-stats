@@ -27,6 +27,13 @@ from app.models.tarkov import (
     TarkovGunMeta,
     TarkovItemsMeta,
     TarkovItemsRaw,
+    TarkovTasksMeta,
+    TarkovTasksRaw,
+    TarkovBossesMeta,
+    TarkovBossesRaw,
+    TarkovTradersMeta,
+    TarkovTradersRaw,
+    TarkovTrackerBind,
 )
 from app.models.user import User
 
@@ -65,4 +72,11 @@ __all__ = [
     "TarkovAmmoMeta",
     "TarkovGun",
     "TarkovGunMeta",
+    "TarkovTasksRaw",
+    "TarkovTasksMeta",
+    "TarkovTradersRaw",
+    "TarkovTradersMeta",
+    "TarkovBossesRaw",
+    "TarkovBossesMeta",
+    "TarkovTrackerBind",
 ]

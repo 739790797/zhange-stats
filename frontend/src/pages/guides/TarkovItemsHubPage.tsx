@@ -1,26 +1,18 @@
 import { Navigate, useSearchParams } from "react-router-dom";
-import { TarkovItemTypeHub } from "@/components/guides/tarkov/TarkovItemTypeHub";
-import {
-  itemTypeHref,
-  resolveItemTypeKey,
-} from "@/lib/tarkovItemTypes";
+import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { itemTypeHref, resolveItemTypeKey } from "@/lib/tarkovItemTypes";
 
-/** 物品分类总览（Figma 战术目录）；兼容旧 ?tab= 深链。 */
+/** 分类总览已撤；旧 /items 与 ?tab= 深链转到首页或对应分类。 */
 export default function TarkovItemsHubPage() {
   const [params] = useSearchParams();
-  const tab = params.get("tab");
-  const typeKey = resolveItemTypeKey(tab);
+  const typeKey = resolveItemTypeKey(params.get("tab"));
   if (typeKey) {
     const next = new URLSearchParams(params);
     next.delete("tab");
     const qs = next.toString();
     return (
-      <Navigate
-        to={`${itemTypeHref(typeKey)}${qs ? `?${qs}` : ""}`}
-        replace
-      />
+      <Navigate to={`${itemTypeHref(typeKey)}${qs ? `?${qs}` : ""}`} replace />
     );
   }
-
-  return <TarkovItemTypeHub />;
+  return <Navigate to={TARKOV_HOME_PATH} replace />;
 }

@@ -1,0 +1,78 @@
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bindBtn,
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.bindBtn:hover,
+.chip:hover {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  color: #fff;
+}
+
+.level {
+  color: var(--hb-orange, #c8932a);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.hint a {
+  color: var(--hb-orange, #c8932a);
+}
+
+.detail {
+  display: grid;
+  gap: 6px;
+  min-width: 200px;
+  font-size: 13px;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detailLabel {
+  color: var(--hb-muted, #b0ae9a);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.loginNeed {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+}

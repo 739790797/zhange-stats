@@ -6,7 +6,7 @@ html,
 body,
 #root {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
@@ -51,6 +51,46 @@ a {
   display: none;
   height: 0;
   width: 0;
+}
+
+/* 主栏页内滚动：贴合浅色内容区，避免浏览器窗口条 */
+.app-main-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26, 35, 50, 0.28) transparent;
+}
+
+.app-main-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app-main-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-main-scroll::-webkit-scrollbar-thumb {
+  background: rgba(26, 35, 50, 0.22);
+  border-radius: 4px;
+}
+
+.app-main-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(26, 35, 50, 0.38);
+}
+
+.app-main-scroll::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.app-main-tarkov {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main-tarkov > * {
+  flex: 1;
+  min-height: 0;
 }
 
 /* 分组标题（平台 / 我的 / 管理）：与 dark 菜单一致，避免 Badge 自定义节点继承 body 深色字 */

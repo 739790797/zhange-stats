@@ -1,6 +1,6 @@
 import { Scatter } from "@ant-design/plots";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Space, Spin, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Spin, Tag, Tooltip } from "antd";
 import { CheckSquareOutlined, ClearOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,15 +23,16 @@ import {
   armorEffectsForAmmo,
   type ArmorEffectLevel,
 } from "@/lib/tarkovAmmoArmorEffect";
+import styles from "./TarkovAmmoScatterPanel.module.css";
 
 const EMPTY_ITEMS: TarkovAmmoItem[] = [];
 const CHART_HEIGHT = 520;
 
-/** 黄金角分散色相，避免相邻口径落到近似色 */
+/** 黄金角分散色相；暗底略提亮，避免相邻口径落到近似色 */
 function distinctCaliberColor(index: number): string {
   const hue = Math.round((index * 137.508) % 360);
-  const sat = index % 2 === 0 ? 78 : 68;
-  const light = index % 3 === 0 ? 34 : index % 3 === 1 ? 40 : 36;
+  const sat = index % 2 === 0 ? 72 : 64;
+  const light = index % 3 === 0 ? 52 : index % 3 === 1 ? 58 : 48;
   return `hsl(${hue} ${sat}% ${light}%)`;
 }
 
@@ -81,15 +82,15 @@ function renderAmmoTooltip(
 
   const safeTitle = escapeHtml(title || "—");
   return `<div style="width:320px;box-sizing:border-box;padding:0">
-    <div style="font-size:13px;font-weight:600;color:rgba(0,0,0,0.88);margin-bottom:8px;line-height:1.35;word-break:break-word">${safeTitle}</div>
+    <div style="font-size:13px;font-weight:600;color:#f2f2f2;margin-bottom:8px;line-height:1.35;word-break:break-word">${safeTitle}</div>
     <div style="display:flex;gap:10px;align-items:flex-start">
-      <div style="flex:0 0 72px;font-size:12px;color:rgba(0,0,0,0.75);line-height:1.7">
+      <div style="flex:0 0 72px;font-size:12px;color:#c8c8c8;line-height:1.7">
         <div>穿透　${penetration}</div>
         <div>伤害　${damage}</div>
         <div>对甲　${armorDamage}</div>
       </div>
       <div style="flex:0 0 auto">
-        <div style="font-size:11px;color:rgba(0,0,0,0.55);margin-bottom:4px">对护甲效果（估）</div>
+        <div style="font-size:11px;color:#8a8a8a;margin-bottom:4px">对护甲效果（估）</div>
         <div style="display:flex;gap:2px;width:226px">${cells}</div>
       </div>
     </div>
@@ -351,9 +352,30 @@ export function TarkovAmmoScatterPanel() {
       shapeField: "point",
       autoFit: true,
       height: CHART_HEIGHT,
+      theme: "classicDark",
+      viewStyle: {
+        viewFill: "#141414",
+        plotFill: "#141414",
+      },
       axis: {
-        x: { title: "穿透 (Penetration)" },
-        y: { title: "伤害 (Damage)" },
+        x: {
+          title: "穿透 (Penetration)",
+          titleFill: "#8a8a8a",
+          labelFill: "#8a8a8a",
+          lineStroke: "#2a2a2a",
+          tickStroke: "#2a2a2a",
+          gridStroke: "#1f1f1f",
+          gridStrokeOpacity: 1,
+        },
+        y: {
+          title: "伤害 (Damage)",
+          titleFill: "#8a8a8a",
+          labelFill: "#8a8a8a",
+          lineStroke: "#2a2a2a",
+          tickStroke: "#2a2a2a",
+          gridStroke: "#1f1f1f",
+          gridStrokeOpacity: 1,
+        },
       },
       legend: false,
       tooltip: {
@@ -376,6 +398,10 @@ export function TarkovAmmoScatterPanel() {
               padding: "10px 12px",
               "box-sizing": "border-box",
               overflow: "visible",
+              background: "#161616",
+              color: "#f2f2f2",
+              border: "1px solid #2a2a2a",
+              "box-shadow": "none",
               // 避免 tooltip 盖住色点导致点不到 element:click
               "pointer-events": "none",
             },
@@ -401,7 +427,7 @@ export function TarkovAmmoScatterPanel() {
       style: {
         fillOpacity: 1,
         lineWidth: 1,
-        stroke: "rgba(255,255,255,0.65)",
+        stroke: "rgba(13,13,13,0.55)",
         cursor: "pointer",
       },
       scale: {
@@ -432,7 +458,7 @@ export function TarkovAmmoScatterPanel() {
 
   if (ammoQuery.isLoading || !ready) {
     return (
-      <div style={{ padding: 48, textAlign: "center" }}>
+      <div className={styles.status}>
         <Spin tip="加载弹药数据…" />
       </div>
     );
@@ -450,165 +476,86 @@ export function TarkovAmmoScatterPanel() {
   }
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <div>
-        <div
-          style={{
-            border: "1px solid #f0f0f0",
-            borderRadius: 8,
-            overflow: "hidden",
-          }}
-        >
-          {typeRows.length ? (
-            typeRows.map((row, idx) => {
-              const selectedInRow = row.calibers.filter((c) =>
-                selectedSet.has(c),
-              ).length;
-              const allOn = selectedInRow === row.calibers.length;
-              return (
-                <div
-                  key={row.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 12px",
-                    borderTop: idx === 0 ? undefined : "1px solid #f0f0f0",
-                    background: "#fff",
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: "0 0 72px",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: 1.3,
-                      textAlign: "left",
-                    }}
-                  >
-                    {row.label}
-                  </div>
-                  <div
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "6px 8px",
-                      alignItems: "center",
-                    }}
-                  >
-                    {row.calibers.map((caliber) => {
-                      const checked = selectedSet.has(caliber);
-                      const color =
-                        caliberColors.get(caliber) || distinctCaliberColor(0);
-                      const label = formatCaliberLabel(caliber);
-                      return (
-                        <Tag.CheckableTag
-                          key={caliber}
-                          checked={checked}
-                          onChange={() => toggleCaliber(caliber)}
+    <div className={styles.stack}>
+      <div className={styles.filterPanel}>
+        {typeRows.length ? (
+          typeRows.map((row) => {
+            const selectedInRow = row.calibers.filter((c) =>
+              selectedSet.has(c),
+            ).length;
+            const allOn = selectedInRow === row.calibers.length;
+            return (
+              <div key={row.id} className={styles.filterRow}>
+                <div className={styles.filterLabel}>{row.label}</div>
+                <div className={styles.filterChips}>
+                  {row.calibers.map((caliber) => {
+                    const checked = selectedSet.has(caliber);
+                    const color =
+                      caliberColors.get(caliber) || distinctCaliberColor(0);
+                    const label = formatCaliberLabel(caliber);
+                    return (
+                      <Tag.CheckableTag
+                        key={caliber}
+                        checked={checked}
+                        onChange={() => toggleCaliber(caliber)}
+                        className={`${styles.chip} ${checked ? styles.chipOn : styles.chipOff}`}
+                      >
+                        <span
+                          className={styles.dot}
                           style={{
-                            marginInlineEnd: 0,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "flex-start",
-                            width: 148,
-                            maxWidth: "100%",
-                            minHeight: 28,
-                            paddingInline: 8,
-                            boxSizing: "border-box",
-                            textAlign: "left",
-                            ...(checked
-                              ? {
-                                  color: "rgba(0, 0, 0, 0.88)",
-                                  background: "#f5f5f5",
-                                  border: "1px solid #d9d9d9",
-                                }
-                              : {
-                                  color: "rgba(0, 0, 0, 0.45)",
-                                  background: "transparent",
-                                  border: "1px solid transparent",
-                                }),
+                            background: color,
+                            opacity: checked ? 1 : 0.35,
                           }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              background: color,
-                              marginRight: 6,
-                              opacity: checked ? 1 : 0.35,
-                              flex: "none",
-                            }}
-                          />
-                          <span
-                            title={label}
-                            style={{
-                              flex: 1,
-                              minWidth: 0,
-                              fontSize: 12,
-                              lineHeight: 1.2,
-                              textAlign: "left",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {label}
-                          </span>
-                        </Tag.CheckableTag>
-                      );
-                    })}
-                  </div>
-                  <Space
-                    size={0}
-                    style={{ flex: "none", whiteSpace: "nowrap" }}
-                  >
-                    <Tooltip title="全选本行">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<CheckSquareOutlined />}
-                        onClick={() => toggleCategory(row.calibers, true)}
-                        disabled={allOn}
-                        aria-label="全选本行"
-                      />
-                    </Tooltip>
-                    <Tooltip title="清空本行">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<ClearOutlined />}
-                        onClick={() => toggleCategory(row.calibers, false)}
-                        disabled={selectedInRow === 0}
-                        aria-label="清空本行"
-                      />
-                    </Tooltip>
-                  </Space>
+                        />
+                        <span title={label} className={styles.chipLabel}>
+                          {label}
+                        </span>
+                      </Tag.CheckableTag>
+                    );
+                  })}
                 </div>
-              );
-            })
-          ) : (
-            <div style={{ padding: 12 }}>
-              <Typography.Text type="secondary">暂无口径数据</Typography.Text>
-            </div>
-          )}
+                <div className={styles.rowActions}>
+                  <Tooltip title="全选本行">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CheckSquareOutlined />}
+                      onClick={() => toggleCategory(row.calibers, true)}
+                      disabled={allOn}
+                      aria-label="全选本行"
+                    />
+                  </Tooltip>
+                  <Tooltip title="清空本行">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ClearOutlined />}
+                      onClick={() => toggleCategory(row.calibers, false)}
+                      disabled={selectedInRow === 0}
+                      aria-label="清空本行"
+                    />
+                  </Tooltip>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className={styles.empty}>暂无口径数据</div>
+        )}
+      </div>
+
+      <div className={styles.panel}>
+        <span className={styles.hint}>
+          点击色点跳转枪械页，筛选可使用该弹药的枪械
+        </span>
+        <div className={styles.chart}>
+          <Scatter {...config} onReady={onScatterReady} />
         </div>
       </div>
 
-      <Card size="small" styles={{ body: { padding: 12 } }}>
-        <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-          点击色点跳转枪械页，筛选可使用该弹药的枪械
-        </Typography.Text>
-        <Scatter {...config} onReady={onScatterReady} />
-      </Card>
-
-      <Card size="small" styles={{ body: { padding: 12 } }}>
+      <div className={styles.panel}>
         <TarkovAmmoWikiTable data={data} />
-      </Card>
-    </Space>
+      </div>
+    </div>
   );
 }

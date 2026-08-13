@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.30** — 塔科夫物品：手册一级分类导航、弹药详情页与弹道列、面包屑深链。
+**v0.2.31** — 塔科夫攻略站：全站搜索、任务 / 商人 / BOSS、物品分类页与 Tracker 进度。
 
 ## 功能
 
@@ -8,7 +8,7 @@
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；站内用户互看）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
 - 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
-- **攻略**：逃离塔科夫物品手册分类导航；弹药穿透 × 伤害对照与详情页；枪械总表（口径筛选与弹药互跳；定时自 tarkov.dev / json.tarkov.dev 同步）
+- **攻略**：逃离塔科夫攻略站（全站搜索、物品分类、任务 / 商人 / BOSS、Tarkov Tracker 进度）；弹药穿透对照与枪械总表（定时自 tarkov.dev 同步）
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
@@ -129,6 +129,10 @@ arknights_operators · arknights_catalog_meta
 tarkov_items_raws · tarkov_items_meta
 tarkov_ammo · tarkov_ammo_meta
 tarkov_guns · tarkov_gun_meta
+tarkov_tasks_raws · tarkov_tasks_meta
+tarkov_traders_raws · tarkov_traders_meta
+tarkov_bosses_raws · tarkov_bosses_meta
+tarkov_tracker_binds
 ```
 
 | 表 | 用途 |
@@ -150,6 +154,13 @@ tarkov_guns · tarkov_gun_meta
 | `tarkov_ammo_meta` | 弹药展示元数据（单行；与 items 同事务写入） |
 | `tarkov_guns` | 枪械派生读模型（口径/射速/人机/后坐/`allowed_ammo` 等） |
 | `tarkov_gun_meta` | 枪械展示元数据（单行） |
+| `tarkov_tasks_raws` | 逃离塔科夫任务上游原始 JSON（全站最新一份；GraphQL 或 json.tarkov.dev tasks + locale；失败不覆盖） |
+| `tarkov_tasks_meta` | 任务同步元数据（单行，含 task_count 与同步时间） |
+| `tarkov_traders_raws` | 逃离塔科夫商人上游原始 JSON（全站最新一份；json.tarkov.dev traders + locale + 物品 buyFromTrader 报价；失败不覆盖） |
+| `tarkov_traders_meta` | 商人同步元数据（单行，含 trader_count / offer_count 与同步时间） |
+| `tarkov_bosses_raws` | 逃离塔科夫 BOSS 上游原始 JSON（全站最新一份；json.tarkov.dev maps + mobs 精简包 + locale；失败不覆盖） |
+| `tarkov_bosses_meta` | BOSS 同步元数据（单行，含 boss_count 与同步时间） |
+| `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |
 | `taygedo_binds` | 塔吉多凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |

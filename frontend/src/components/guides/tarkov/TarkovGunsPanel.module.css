@@ -1,0 +1,42 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status {
+  padding: 48px;
+  text-align: center;
+}
+
+.meta {
+  color: var(--hb-muted, #8a8a8a);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.meta a {
+  color: var(--hb-orange, #e87a2e);
+}
+
+.meta a:hover {
+  color: #f09a5a;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterLabel {
+  color: var(--hb-muted, #8a8a8a);
+  font-size: 13px;
+}
+
+.panel {
+  border: 1px solid var(--hb-border, #2a2a2a);
+  background: var(--hb-panel, #141414);
+  padding: 12px;
+}

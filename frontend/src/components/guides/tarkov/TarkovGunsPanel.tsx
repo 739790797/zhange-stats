@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Spin, Tag } from "antd";
 import dayjs from "dayjs";
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -11,6 +11,7 @@ import {
 import { apiError } from "@/lib/apiError";
 import { formatCaliberLabel } from "@/lib/tarkovGunCategories";
 import { TarkovGunsTable } from "@/components/guides/tarkov/TarkovGunsTable";
+import styles from "./TarkovGunsPanel.module.css";
 
 const EMPTY_ITEMS: TarkovGunItem[] = [];
 
@@ -35,12 +36,12 @@ function renderGunSource(source: string | null | undefined) {
   const key = (source || "").trim();
   const hit = GUN_SOURCE_LINKS[key];
   if (!hit) {
-    return <Typography.Text type="secondary">{key || "未知"}</Typography.Text>;
+    return <span>{key || "未知"}</span>;
   }
   return (
-    <Typography.Link href={hit.href} target="_blank" rel="noreferrer">
+    <a href={hit.href} target="_blank" rel="noreferrer">
       {hit.label}
-    </Typography.Link>
+    </a>
   );
 }
 
@@ -88,7 +89,7 @@ export function TarkovGunsPanel() {
 
   if (gunsQuery.isLoading) {
     return (
-      <div style={{ padding: 48, textAlign: "center" }}>
+      <div className={styles.status}>
         <Spin tip="加载枪械数据…" />
       </div>
     );
@@ -108,42 +109,40 @@ export function TarkovGunsPanel() {
   const meta = gunsQuery.data;
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Space direction="vertical" size={0}>
-        <Typography.Text type="secondary">
-          数据来源：{renderGunSource(meta?.source)}
-        </Typography.Text>
-        <Typography.Text type="secondary">
+    <div className={styles.stack}>
+      <div className={styles.meta}>
+        <div>数据来源：{renderGunSource(meta?.source)}</div>
+        <div>
           更新时间：{formatSyncedAt(meta?.synced_at)}
           {typeof meta?.gun_count === "number"
             ? ` · 共 ${meta.gun_count} 把`
             : null}
-        </Typography.Text>
-      </Space>
+        </div>
+      </div>
 
       {ammoFilterId || caliberFilterParam ? (
-        <Space wrap size={8} align="center">
-          <Typography.Text type="secondary">当前筛选：</Typography.Text>
+        <div className={styles.filters}>
+          <span className={styles.filterLabel}>当前筛选：</span>
           {ammoFilterId ? (
-            <Tag closable color="blue" onClose={clearAmmoFilter}>
+            <Tag closable color="orange" onClose={clearAmmoFilter}>
               可用弹药：{ammoFilterLabel}
             </Tag>
           ) : null}
           {caliberFilterParam ? (
-            <Tag closable color="blue" onClose={clearCaliberFilter}>
+            <Tag closable color="orange" onClose={clearCaliberFilter}>
               口径：{formatCaliberLabel(caliberFilterParam)}
             </Tag>
           ) : null}
-        </Space>
+        </div>
       ) : null}
 
-      <Card size="small" styles={{ body: { padding: 12 } }}>
+      <div className={styles.panel}>
         <TarkovGunsTable
           data={items}
           ammoFilterId={ammoFilterId}
           caliberFilterParam={caliberFilterParam}
         />
-      </Card>
-    </Space>
+      </div>
+    </div>
   );
 }

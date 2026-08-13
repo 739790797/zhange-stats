@@ -1,0 +1,65 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status {
+  padding: 48px;
+  text-align: center;
+}
+
+.hero {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid var(--hb-border, #2a2a2a);
+  background: var(--hb-panel, #141414);
+}
+
+.thumb {
+  object-fit: contain;
+  flex: 0 0 96px;
+  background: #101010;
+}
+
+.copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+}
+
+.shortName {
+  display: block;
+  margin-top: 4px;
+  color: var(--hb-muted, #8a8a8a);
+  font-size: 13px;
+}
+
+.desc {
+  margin: 8px 0 0;
+  color: var(--hb-muted, #8a8a8a);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sectionTitle {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--hb-orange, #e87a2e);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.error {
+  color: #e07070;
+}

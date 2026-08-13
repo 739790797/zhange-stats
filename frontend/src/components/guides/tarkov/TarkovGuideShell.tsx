@@ -1,0 +1,217 @@
+import type { ReactNode } from "react";
+import { useMemo } from "react";
+import { ConfigProvider } from "antd";
+import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTarkovBosses } from "@/api/guidesApi";
+import {
+  TARKOV_HOME_PATH,
+  TARKOV_TOP_NAV,
+  isTarkovTopNavActive,
+  tarkovBossHref,
+  type TarkovNavStatus,
+} from "@/lib/tarkovHomeNav";
+import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
+import { TarkovTrackerBindButton } from "@/components/guides/tarkov/TarkovTrackerBindButton";
+import styles from "./TarkovGuideShell.module.css";
+
+export function TarkovSoonMark({ status }: { status: TarkovNavStatus }) {
+  if (status === "ready") return null;
+  return <span className={styles.soonMark}>即将推出</span>;
+}
+
+/** 逃离塔科夫游戏标识：六边形徽标 + ESCAPE FROM TARKOV 字标。 */
+function TarkovGameLogo() {
+  return (
+    <span className={styles.gameLogo} aria-hidden>
+      <svg
+        className={styles.gameHex}
+        viewBox="0 0 36 36"
+        width="32"
+        height="32"
+      >
+        <polygon
+          points="18,2 32.5,10.25 32.5,25.75 18,34 3.5,25.75 3.5,10.25"
+          fill="#1a1b14"
+          stroke="#c8932a"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <polygon
+          points="18,7.2 27.4,12.6 27.4,23.4 18,28.8 8.6,23.4 8.6,12.6"
+          fill="none"
+          stroke="#c8932a"
+          strokeWidth="0.7"
+          opacity="0.45"
+        />
+        <path
+          d="M18 11.2 L24.2 21.8 H11.8 Z"
+          fill="none"
+          stroke="#c8932a"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M18 15.4 L21.6 21.8 H14.4 Z"
+          fill="#c8932a"
+        />
+      </svg>
+      <svg
+        className={styles.gameWordmark}
+        viewBox="0 0 132 32"
+        width="132"
+        height="32"
+      >
+        <text
+          x="0"
+          y="9"
+          fill="#c8932a"
+          fontFamily="Rajdhani, 'Arial Narrow', sans-serif"
+          fontWeight="600"
+          fontSize="7.5"
+          letterSpacing="3.6"
+        >
+          ESCAPE FROM
+        </text>
+        <text
+          x="0"
+          y="28"
+          fill="#e8e3cf"
+          fontFamily="Rajdhani, 'Arial Narrow', sans-serif"
+          fontWeight="700"
+          fontSize="16.5"
+          letterSpacing="3.2"
+        >
+          TARKOV
+        </text>
+      </svg>
+    </span>
+  );
+}
+
+function NavCaret() {
+  return (
+    <svg
+      className={styles.caret}
+      width="8"
+      height="5"
+      viewBox="0 0 8 5"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M1 1L4 4L7 1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+type Props = {
+  children: ReactNode;
+};
+
+/** 攻略暗色全幅外壳 + 顶栏，首页与弹药/枪械等内页共用。 */
+export function TarkovGuideShell({ children }: Props) {
+  const { pathname } = useLocation();
+  const bossesQuery = useQuery({
+    queryKey: ["guides-tarkov-bosses"],
+    queryFn: fetchTarkovBosses,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const navItems = useMemo(() => {
+    const bosses = bossesQuery.data?.items;
+    if (!bosses?.length) return TARKOV_TOP_NAV;
+    return TARKOV_TOP_NAV.map((item) => {
+      if (item.id !== "bosses") return item;
+      return {
+        ...item,
+        groups: [
+          {
+            id: "bosses",
+            label: "BOSS",
+            items: bosses.map((boss) => ({
+              id: boss.id || boss.slug,
+              label: boss.name,
+              href: tarkovBossHref(boss.slug),
+              status: "ready" as const,
+            })),
+          },
+        ],
+      };
+    });
+  }, [bossesQuery.data]);
+
+  return (
+    <div className={styles.shell}>
+      <header className={styles.topbar}>
+        <div className={styles.topbarInner}>
+          <Link
+            to={TARKOV_HOME_PATH}
+            className={styles.brand}
+            aria-label="逃离塔科夫"
+          >
+            <TarkovGameLogo />
+          </Link>
+          <nav className={styles.nav} aria-label="攻略栏目">
+            {navItems.map((item) => {
+              const extraHrefs = (item.groups ?? []).flatMap((g) =>
+                g.items.map((link) => link.href),
+              );
+              const active = isTarkovTopNavActive(
+                item.href,
+                pathname,
+                extraHrefs,
+              );
+              const bossMenu = item.id === "bosses";
+              return (
+                <div key={item.id} className={styles.navItem}>
+                  <Link
+                    to={item.href}
+                    className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {item.label}
+                    {item.groups ? <NavCaret /> : null}
+                  </Link>
+                  {item.groups ? (
+                    <div className={styles.dropdown} role="menu">
+                      {item.groups.map((group) => (
+                        <div
+                          key={group.id}
+                          className={`${styles.dropCol} ${bossMenu ? styles.dropColBosses : ""}`}
+                        >
+                          <p className={styles.dropHead}>{group.label}</p>
+                          {group.items.map((link) => (
+                            <Link
+                              key={link.id}
+                              to={link.href}
+                              className={styles.dropLink}
+                              role="menuitem"
+                            >
+                              {link.label}
+                              <TarkovSoonMark status={link.status} />
+                            </Link>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </nav>
+          <div className={styles.tracker}>
+            <ConfigProvider theme={TARKOV_ANTD_DARK}>
+              <TarkovTrackerBindButton />
+            </ConfigProvider>
+          </div>
+        </div>
+      </header>
+      <div className={styles.body}>{children}</div>
+    </div>
+  );
+}

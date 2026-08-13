@@ -1,0 +1,71 @@
+.table :global(.ant-table) {
+  background: transparent;
+  font-size: 13px;
+}
+
+.table :global(.ant-table-container) {
+  border-inline-start: 1px solid #2a2a2a !important;
+  border-top: 1px solid #2a2a2a !important;
+}
+
+.table :global(.ant-table-thead > tr > th) {
+  background: #161616 !important;
+  color: #c8c8c8 !important;
+  border-bottom-color: #2a2a2a !important;
+  font-weight: 600;
+}
+
+.table :global(.ant-table-tbody > tr > td) {
+  border-bottom-color: #2a2a2a !important;
+  color: #f2f2f2;
+}
+
+.table :global(.ant-table-cell-fix-left),
+.table :global(.ant-table-cell-fix-right) {
+  background: #141414;
+}
+
+.table :global(.ant-table-thead .ant-table-cell-fix-left),
+.table :global(.ant-table-thead .ant-table-cell-fix-right) {
+  background: #161616;
+}
+
+.table :global(.ant-table-tbody > tr.ant-table-row:hover > .ant-table-cell-fix-left),
+.table :global(.ant-table-tbody > tr.ant-table-row:hover > .ant-table-cell-fix-right) {
+  background: #1c1c1c;
+}
+
+.table :global(a) {
+  color: #c8932a;
+}
+
+.table :global(a:hover) {
+  color: #e0b45a;
+}
+
+.table :global(.ant-input) {
+  background: #101010;
+  border-color: #3a3a3a;
+  color: #f2f2f2;
+}
+
+.table :global(.ant-input::placeholder) {
+  color: #666;
+}
+
+.table :global(.ant-table-filter-trigger) {
+  color: #8a8878;
+}
+
+.table :global(.ant-table-filter-trigger:hover),
+.table :global(.ant-table-filter-trigger.active) {
+  color: #c8932a;
+}
+
+.table :global(.ant-pagination) {
+  margin: 16px 0 0;
+}
+
+.table :global(.ant-pagination-total-text) {
+  color: #8a8878;
+}

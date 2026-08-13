@@ -1,0 +1,139 @@
+.traderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+
+.traderCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 8px 14px;
+  background: var(--hb-panel, #22241a);
+  border: 1px solid var(--hb-border, #3a3d30);
+  color: inherit;
+  text-align: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-family: inherit;
+  appearance: none;
+}
+
+.traderCard:hover {
+  background: var(--hb-panel-hover, #2b2d22);
+  border-color: #4a4e40;
+}
+
+.traderCardOn {
+  border-color: var(--hb-orange, #c8932a);
+}
+
+.traderAvatar,
+.traderAvatarFallback {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  object-position: top center;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+}
+
+.traderAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.traderEnglish {
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.traderCard:hover .traderEnglish,
+.traderCardOn .traderEnglish {
+  color: var(--hb-orange, #c8932a);
+}
+
+.traderChinese {
+  color: #b0ae9a;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.toolbarRight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.taskName {
+  color: inherit;
+}
+
+.clickableRows :global(.ant-table-tbody > tr.ant-table-row) {
+  cursor: pointer;
+}
+
+.clickableRows :global(.ant-table-expanded-row > td) {
+  background: #141510 !important;
+}
+
+.clickableRows :global(.ant-table-row-expand-icon) {
+  color: #c8c4a8;
+}
+
+.clickableRows :global(.ant-table-row-expand-icon:hover),
+.clickableRows :global(.ant-table-row-expand-icon-expanded) {
+  color: #c8932a;
+  border-color: #c8932a;
+}
+
+.statusChip {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid #3a3d30;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.statusAvailable {
+  border-color: #c8932a;
+  color: #e0b45a;
+}
+
+.statusComplete {
+  border-color: #3d5c3a;
+  color: #8fbf88;
+}
+
+.statusLocked {
+  border-color: #4a4a40;
+  color: #8a8c78;
+}
+
+.statusFailed {
+  border-color: #6a3333;
+  color: #d08080;
+}
+
+@media (max-width: 700px) {
+  .traderGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .traderAvatar,
+  .traderAvatarFallback {
+    width: 56px;
+    height: 56px;
+  }
+}
