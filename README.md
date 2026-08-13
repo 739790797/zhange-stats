@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.31** — 塔科夫攻略站：全站搜索、任务 / 商人 / BOSS、物品分类页与 Tracker 进度。
+**v0.2.32** — CI 升到 Node 24 运行时，消除 oxlint Fast Refresh 注解。
 
 ## 功能
 
