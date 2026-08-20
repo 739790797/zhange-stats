@@ -1909,6 +1909,98 @@
         ]
       }
     },
+    "/api/settings/integrations/pelican-test": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Test Pelican Connection",
+        "operationId": "test_pelican_connection_api_settings_integrations_pelican_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PelicanTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PelicanTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/integrations/minecraft-rcon-test": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Test Minecraft Rcon Connection",
+        "operationId": "test_minecraft_rcon_connection_api_settings_integrations_minecraft_rcon_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftRconTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftRconTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/auth": {
       "get": {
         "tags": [
@@ -7462,7 +7554,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Map Detail",
-        "description": "地图详情：撤离点、BOSS、突袭时长；互动图层链到 tarkov.dev。",
+        "description": "地图详情：撤离点/BOSS 坐标与底图信息；前端 Leaflet 查看器使用。",
         "operationId": "guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get",
         "security": [
           {
@@ -8008,6 +8100,1289 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovTrackerStatusOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files List",
+        "operationId": "minecraft_files_list_api_guides_minecraft_files_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "/",
+              "title": "Directory"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileListOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/files/contents": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Contents",
+        "operationId": "minecraft_files_contents_api_guides_minecraft_files_contents_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileContentsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Write",
+        "operationId": "minecraft_files_write_api_guides_minecraft_files_contents_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileWriteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/files/download": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Download",
+        "operationId": "minecraft_files_download_api_guides_minecraft_files_download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileDownloadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/files/upload": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Upload",
+        "operationId": "minecraft_files_upload_api_guides_minecraft_files_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_minecraft_files_upload_api_guides_minecraft_files_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/create-folder": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Create Folder",
+        "operationId": "minecraft_files_create_folder_api_guides_minecraft_files_create_folder_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileCreateFolderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/create-file": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Create File",
+        "operationId": "minecraft_files_create_file_api_guides_minecraft_files_create_file_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileCreateFileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/rename": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Rename",
+        "operationId": "minecraft_files_rename_api_guides_minecraft_files_rename_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileRenameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/copy": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Copy",
+        "operationId": "minecraft_files_copy_api_guides_minecraft_files_copy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileCopyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/delete": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Delete",
+        "operationId": "minecraft_files_delete_api_guides_minecraft_files_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileDeleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/compress": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Compress",
+        "operationId": "minecraft_files_compress_api_guides_minecraft_files_compress_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileCompressIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/decompress": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Decompress",
+        "operationId": "minecraft_files_decompress_api_guides_minecraft_files_decompress_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileDecompressIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/chmod": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Chmod",
+        "operationId": "minecraft_files_chmod_api_guides_minecraft_files_chmod_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFileChmodIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/files/pull": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft",
+          "minecraft"
+        ],
+        "summary": "Minecraft Files Pull",
+        "operationId": "minecraft_files_pull_api_guides_minecraft_files_pull_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftFilePullIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftFileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/status": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Status",
+        "operationId": "minecraft_status_api_guides_minecraft_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftStatusOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/presence": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Presence",
+        "operationId": "minecraft_presence_api_guides_minecraft_presence_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "起始日期 YYYY-MM-DD",
+              "title": "Date"
+            },
+            "description": "起始日期 YYYY-MM-DD"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "结束日期 YYYY-MM-DD；缺省则仅查询当日",
+              "title": "End"
+            },
+            "description": "结束日期 YYYY-MM-DD；缺省则仅查询当日"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftPresenceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/perf": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Perf",
+        "operationId": "minecraft_perf_api_guides_minecraft_perf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "30m",
+                "1h",
+                "12h",
+                "24h",
+                "30d",
+                "all"
+              ],
+              "type": "string",
+              "description": "折线时间窗：30m / 1h / 12h / 24h / 30d / all",
+              "default": "30m",
+              "title": "Range"
+            },
+            "description": "折线时间窗：30m / 1h / 12h / 24h / 30d / all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftPerfOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/power": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Power",
+        "operationId": "minecraft_power_api_guides_minecraft_power_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftPowerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftPowerOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/profile": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Get Profile",
+        "operationId": "minecraft_get_profile_api_guides_minecraft_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftProfileOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Put Profile",
+        "operationId": "minecraft_put_profile_api_guides_minecraft_profile_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftProfileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/apply": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Apply",
+        "operationId": "minecraft_apply_api_guides_minecraft_apply_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftApplyOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/game-versions": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Game Versions",
+        "operationId": "minecraft_game_versions_api_guides_minecraft_game_versions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MinecraftGameVersionOut"
+                  },
+                  "type": "array",
+                  "title": "Response Minecraft Game Versions Api Guides Minecraft Game Versions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/loader-versions": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Loader Versions",
+        "operationId": "minecraft_loader_versions_api_guides_minecraft_loader_versions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "loader",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Loader"
+            }
+          },
+          {
+            "name": "mc_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Mc Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftLoaderVersionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mods/search": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Search",
+        "operationId": "minecraft_mod_search_api_guides_minecraft_mods_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "loader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "fabric",
+              "title": "Loader"
+            }
+          },
+          {
+            "name": "mc_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Mc Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModSearchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mods/versions": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Versions",
+        "operationId": "minecraft_mod_versions_api_guides_minecraft_mods_versions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "loader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "fabric",
+              "title": "Loader"
+            }
+          },
+          {
+            "name": "mc_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Mc Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MinecraftModPinOut"
+                  },
+                  "title": "Response Minecraft Mod Versions Api Guides Minecraft Mods Versions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mods/pin": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Pin",
+        "operationId": "minecraft_mod_pin_api_guides_minecraft_mods_pin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftModPinIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModPinOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/mods/updates": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Updates",
+        "operationId": "minecraft_mod_updates_api_guides_minecraft_mods_updates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MinecraftModUpdateOut"
+                  },
+                  "type": "array",
+                  "title": "Response Minecraft Mod Updates Api Guides Minecraft Mods Updates Get"
                 }
               }
             }
@@ -9511,6 +10886,25 @@
           "user"
         ],
         "title": "BindEmailResponse"
+      },
+      "Body_minecraft_files_upload_api_guides_minecraft_files_upload_post": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_minecraft_files_upload_api_guides_minecraft_files_upload_post"
       },
       "Body_upload_member_avatar_api_members__member_id__avatar_post": {
         "properties": {
@@ -11470,6 +12864,56 @@
             "type": "boolean",
             "title": "Github Configured",
             "default": false
+          },
+          "pelican_base_url": {
+            "type": "string",
+            "title": "Pelican Base Url",
+            "default": ""
+          },
+          "pelican_client_token": {
+            "type": "string",
+            "title": "Pelican Client Token",
+            "default": ""
+          },
+          "pelican_client_token_set": {
+            "type": "boolean",
+            "title": "Pelican Client Token Set",
+            "default": false
+          },
+          "pelican_server_uuid": {
+            "type": "string",
+            "title": "Pelican Server Uuid",
+            "default": ""
+          },
+          "pelican_configured": {
+            "type": "boolean",
+            "title": "Pelican Configured",
+            "default": false
+          },
+          "minecraft_rcon_host": {
+            "type": "string",
+            "title": "Minecraft Rcon Host",
+            "default": ""
+          },
+          "minecraft_rcon_port": {
+            "type": "integer",
+            "title": "Minecraft Rcon Port",
+            "default": 25575
+          },
+          "minecraft_rcon_password": {
+            "type": "string",
+            "title": "Minecraft Rcon Password",
+            "default": ""
+          },
+          "minecraft_rcon_password_set": {
+            "type": "boolean",
+            "title": "Minecraft Rcon Password Set",
+            "default": false
+          },
+          "minecraft_rcon_configured": {
+            "type": "boolean",
+            "title": "Minecraft Rcon Configured",
+            "default": false
           }
         },
         "type": "object",
@@ -11495,6 +12939,11 @@
           "napcat_configured": {
             "type": "boolean",
             "title": "Napcat Configured"
+          },
+          "pelican_configured": {
+            "type": "boolean",
+            "title": "Pelican Configured",
+            "default": false
           }
         },
         "type": "object",
@@ -11592,6 +13041,84 @@
           "clear_github_token": {
             "type": "boolean",
             "title": "Clear Github Token",
+            "default": false
+          },
+          "pelican_base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pelican Base Url"
+          },
+          "pelican_client_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pelican Client Token"
+          },
+          "pelican_server_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pelican Server Uuid"
+          },
+          "clear_pelican_client_token": {
+            "type": "boolean",
+            "title": "Clear Pelican Client Token",
+            "default": false
+          },
+          "minecraft_rcon_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minecraft Rcon Host"
+          },
+          "minecraft_rcon_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 65535.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minecraft Rcon Port"
+          },
+          "minecraft_rcon_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minecraft Rcon Password"
+          },
+          "clear_minecraft_rcon_password": {
+            "type": "boolean",
+            "title": "Clear Minecraft Rcon Password",
             "default": false
           }
         },
@@ -13089,6 +14616,1473 @@
         "type": "object",
         "title": "MemberProfileUpdate"
       },
+      "MinecraftAppliedModOut": {
+        "properties": {
+          "project_title": {
+            "type": "string",
+            "title": "Project Title",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "version_number": {
+            "type": "string",
+            "title": "Version Number",
+            "default": ""
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "MinecraftAppliedModOut"
+      },
+      "MinecraftAppliedOut": {
+        "properties": {
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader"
+          },
+          "loader_version": {
+            "type": "string",
+            "title": "Loader Version",
+            "default": ""
+          },
+          "mods": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftAppliedModOut"
+            },
+            "type": "array",
+            "title": "Mods"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          },
+          "last_applied_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Applied At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mc_version",
+          "loader"
+        ],
+        "title": "MinecraftAppliedOut"
+      },
+      "MinecraftApplyOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "boot_in_startup": {
+            "type": "boolean",
+            "title": "Boot In Startup",
+            "default": false
+          },
+          "mod_count": {
+            "type": "integer",
+            "title": "Mod Count",
+            "default": 0
+          },
+          "startup_hint": {
+            "type": "string",
+            "title": "Startup Hint",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "MinecraftApplyOut"
+      },
+      "MinecraftFileChmodIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Names"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "names",
+          "mode"
+        ],
+        "title": "MinecraftFileChmodIn"
+      },
+      "MinecraftFileCompressIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Names"
+          },
+          "archive_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Name"
+          },
+          "extension": {
+            "type": "string",
+            "enum": [
+              "zip",
+              "tar.gz",
+              "tgz",
+              "tar.xz",
+              "txz",
+              "tar.bz2",
+              "tbz2"
+            ],
+            "title": "Extension",
+            "default": "zip"
+          }
+        },
+        "type": "object",
+        "required": [
+          "names"
+        ],
+        "title": "MinecraftFileCompressIn"
+      },
+      "MinecraftFileContentsOut": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "MinecraftFileContentsOut"
+      },
+      "MinecraftFileCopyIn": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "MinecraftFileCopyIn"
+      },
+      "MinecraftFileCreateFileIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MinecraftFileCreateFileIn"
+      },
+      "MinecraftFileCreateFolderIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MinecraftFileCreateFolderIn"
+      },
+      "MinecraftFileDecompressIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MinecraftFileDecompressIn"
+      },
+      "MinecraftFileDeleteIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Names"
+          }
+        },
+        "type": "object",
+        "required": [
+          "names"
+        ],
+        "title": "MinecraftFileDeleteIn"
+      },
+      "MinecraftFileDownloadOut": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "url"
+        ],
+        "title": "MinecraftFileDownloadOut"
+      },
+      "MinecraftFileEntryOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_file": {
+            "type": "boolean",
+            "title": "Is File"
+          },
+          "is_symlink": {
+            "type": "boolean",
+            "title": "Is Symlink",
+            "default": false
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "default": 0
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": ""
+          },
+          "mode_bits": {
+            "type": "string",
+            "title": "Mode Bits",
+            "default": ""
+          },
+          "mimetype": {
+            "type": "string",
+            "title": "Mimetype",
+            "default": ""
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "modified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "is_file"
+        ],
+        "title": "MinecraftFileEntryOut"
+      },
+      "MinecraftFileListOut": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftFileEntryOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "directory"
+        ],
+        "title": "MinecraftFileListOut"
+      },
+      "MinecraftFileOkOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftFileOkOut"
+      },
+      "MinecraftFilePullIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "MinecraftFilePullIn"
+      },
+      "MinecraftFileRenameIn": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": "/"
+          },
+          "src": {
+            "type": "string",
+            "title": "Src"
+          },
+          "dest": {
+            "type": "string",
+            "title": "Dest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src",
+          "dest"
+        ],
+        "title": "MinecraftFileRenameIn"
+      },
+      "MinecraftFileWriteIn": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "MinecraftFileWriteIn"
+      },
+      "MinecraftGameVersionOut": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "stable": {
+            "type": "boolean",
+            "title": "Stable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "MinecraftGameVersionOut"
+      },
+      "MinecraftLoaderVersionOut": {
+        "properties": {
+          "versions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "versions"
+        ],
+        "title": "MinecraftLoaderVersionOut"
+      },
+      "MinecraftModPinIn": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "version_id"
+        ],
+        "title": "MinecraftModPinIn"
+      },
+      "MinecraftModPinOut": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "project_title": {
+            "type": "string",
+            "title": "Project Title",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "version_number": {
+            "type": "string",
+            "title": "Version Number",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url"
+          },
+          "sha512": {
+            "type": "string",
+            "title": "Sha512"
+          },
+          "sha1": {
+            "type": "string",
+            "title": "Sha1",
+            "default": ""
+          },
+          "file_size": {
+            "type": "integer",
+            "title": "File Size",
+            "default": 0
+          },
+          "env_server": {
+            "type": "string",
+            "title": "Env Server",
+            "default": "required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "version_id",
+          "filename",
+          "download_url",
+          "sha512"
+        ],
+        "title": "MinecraftModPinOut"
+      },
+      "MinecraftModSearchHitOut": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "icon_url": {
+            "type": "string",
+            "title": "Icon Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id"
+        ],
+        "title": "MinecraftModSearchHitOut"
+      },
+      "MinecraftModSearchOut": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModSearchHitOut"
+            },
+            "type": "array",
+            "title": "Hits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hits"
+        ],
+        "title": "MinecraftModSearchOut"
+      },
+      "MinecraftModUpdateOut": {
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/MinecraftModPinOut"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/MinecraftModPinOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current",
+          "latest"
+        ],
+        "title": "MinecraftModUpdateOut"
+      },
+      "MinecraftOverrideOut": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "MinecraftOverrideOut"
+      },
+      "MinecraftOverviewModOut": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "version_number": {
+            "type": "string",
+            "title": "Version Number",
+            "default": ""
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "title_zh": {
+            "type": "string",
+            "title": "Title Zh",
+            "default": ""
+          },
+          "icon_url": {
+            "type": "string",
+            "title": "Icon Url",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "downloads": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downloads"
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment",
+            "default": ""
+          },
+          "modrinth_url": {
+            "type": "string",
+            "title": "Modrinth Url",
+            "default": ""
+          },
+          "curseforge_url": {
+            "type": "string",
+            "title": "Curseforge Url",
+            "default": ""
+          },
+          "mcmod_url": {
+            "type": "string",
+            "title": "Mcmod Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "MinecraftOverviewModOut"
+      },
+      "MinecraftPerfOut": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "tps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tps"
+          },
+          "mspt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mspt"
+          },
+          "range": {
+            "type": "string",
+            "enum": [
+              "30m",
+              "1h",
+              "12h",
+              "24h",
+              "30d",
+              "all"
+            ],
+            "title": "Range",
+            "default": "30m"
+          },
+          "range_start": {
+            "type": "string",
+            "title": "Range Start",
+            "default": ""
+          },
+          "range_end": {
+            "type": "string",
+            "title": "Range End",
+            "default": ""
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftPerfSampleOut"
+            },
+            "type": "array",
+            "title": "Samples"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftPerfOut"
+      },
+      "MinecraftPerfSampleOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At",
+            "default": ""
+          },
+          "tps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tps"
+          },
+          "mspt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mspt"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftPerfSampleOut"
+      },
+      "MinecraftPlaybookOut": {
+        "properties": {
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader"
+          },
+          "loader_version": {
+            "type": "string",
+            "title": "Loader Version",
+            "default": ""
+          },
+          "mods": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModPinOut"
+            },
+            "type": "array",
+            "title": "Mods"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftOverrideOut"
+            },
+            "type": "array",
+            "title": "Overrides"
+          },
+          "public_host": {
+            "type": "string",
+            "title": "Public Host",
+            "default": ""
+          },
+          "public_port": {
+            "type": "integer",
+            "title": "Public Port",
+            "default": 25565
+          }
+        },
+        "type": "object",
+        "required": [
+          "mc_version",
+          "loader"
+        ],
+        "title": "MinecraftPlaybookOut"
+      },
+      "MinecraftPlayerOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MinecraftPlayerOut"
+      },
+      "MinecraftPowerIn": {
+        "properties": {
+          "signal": {
+            "type": "string",
+            "enum": [
+              "start",
+              "stop",
+              "restart",
+              "kill"
+            ],
+            "title": "Signal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signal"
+        ],
+        "title": "MinecraftPowerIn"
+      },
+      "MinecraftPowerOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "power_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "MinecraftPowerOut"
+      },
+      "MinecraftPresenceOut": {
+        "properties": {
+          "range_start": {
+            "type": "string",
+            "title": "Range Start"
+          },
+          "range_end": {
+            "type": "string",
+            "title": "Range End"
+          },
+          "span_seconds": {
+            "type": "integer",
+            "title": "Span Seconds"
+          },
+          "player_count": {
+            "type": "integer",
+            "title": "Player Count",
+            "default": 0
+          },
+          "online_count": {
+            "type": "integer",
+            "title": "Online Count",
+            "default": 0
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftPresenceRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "range_start",
+          "range_end",
+          "span_seconds"
+        ],
+        "title": "MinecraftPresenceOut"
+      },
+      "MinecraftPresenceRowOut": {
+        "properties": {
+          "player_key": {
+            "type": "string",
+            "title": "Player Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "default": false
+          },
+          "online_seconds": {
+            "type": "integer",
+            "title": "Online Seconds",
+            "default": 0
+          },
+          "offline_seconds": {
+            "type": "integer",
+            "title": "Offline Seconds",
+            "default": 0
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftPresenceSegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_key",
+          "name"
+        ],
+        "title": "MinecraftPresenceRowOut"
+      },
+      "MinecraftPresenceSegmentOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "start_sec": {
+            "type": "integer",
+            "title": "Start Sec"
+          },
+          "end_sec": {
+            "type": "integer",
+            "title": "End Sec"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "start_sec",
+          "end_sec"
+        ],
+        "title": "MinecraftPresenceSegmentOut"
+      },
+      "MinecraftProfileOut": {
+        "properties": {
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader"
+          },
+          "loader_version": {
+            "type": "string",
+            "title": "Loader Version",
+            "default": ""
+          },
+          "mods": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModPinOut"
+            },
+            "type": "array",
+            "title": "Mods"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftOverrideOut"
+            },
+            "type": "array",
+            "title": "Overrides"
+          },
+          "public_host": {
+            "type": "string",
+            "title": "Public Host",
+            "default": ""
+          },
+          "public_port": {
+            "type": "integer",
+            "title": "Public Port",
+            "default": 25565
+          },
+          "last_applied_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Applied At"
+          },
+          "last_apply_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Apply Message"
+          },
+          "pelican_configured": {
+            "type": "boolean",
+            "title": "Pelican Configured",
+            "default": false
+          },
+          "startup_hint": {
+            "type": "string",
+            "title": "Startup Hint",
+            "default": ""
+          },
+          "playbook_dirty": {
+            "type": "boolean",
+            "title": "Playbook Dirty",
+            "default": false
+          },
+          "applied": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinecraftPlaybookOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "mc_version",
+          "loader"
+        ],
+        "title": "MinecraftProfileOut"
+      },
+      "MinecraftProfileUpdate": {
+        "properties": {
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader"
+          },
+          "loader_version": {
+            "type": "string",
+            "title": "Loader Version",
+            "default": ""
+          },
+          "mods": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModPinOut"
+            },
+            "type": "array",
+            "title": "Mods"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftOverrideOut"
+            },
+            "type": "array",
+            "title": "Overrides"
+          },
+          "public_host": {
+            "type": "string",
+            "title": "Public Host",
+            "default": ""
+          },
+          "public_port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Public Port",
+            "default": 25565
+          }
+        },
+        "type": "object",
+        "required": [
+          "mc_version",
+          "loader"
+        ],
+        "title": "MinecraftProfileUpdate"
+      },
+      "MinecraftRconTestRequest": {
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "default": ""
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 0.0,
+            "title": "Port",
+            "default": 0
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftRconTestRequest"
+      },
+      "MinecraftRconTestResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "MinecraftRconTestResponse"
+      },
+      "MinecraftRosterPlayerOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MinecraftRosterPlayerOut"
+      },
+      "MinecraftStatusOut": {
+        "properties": {
+          "pelican_configured": {
+            "type": "boolean",
+            "title": "Pelican Configured"
+          },
+          "power_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power State"
+          },
+          "ping_online": {
+            "type": "boolean",
+            "title": "Ping Online"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "motd": {
+            "type": "string",
+            "title": "Motd",
+            "default": ""
+          },
+          "motd_raw": {
+            "type": "string",
+            "title": "Motd Raw",
+            "default": ""
+          },
+          "favicon": {
+            "type": "string",
+            "title": "Favicon",
+            "default": ""
+          },
+          "version_name": {
+            "type": "string",
+            "title": "Version Name",
+            "default": ""
+          },
+          "players_online": {
+            "type": "integer",
+            "title": "Players Online",
+            "default": 0
+          },
+          "players_max": {
+            "type": "integer",
+            "title": "Players Max",
+            "default": 0
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftPlayerOut"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "public_host": {
+            "type": "string",
+            "title": "Public Host",
+            "default": ""
+          },
+          "public_port": {
+            "type": "integer",
+            "title": "Public Port",
+            "default": 25565
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "playbook_dirty": {
+            "type": "boolean",
+            "title": "Playbook Dirty",
+            "default": false
+          },
+          "applied": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinecraftAppliedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          },
+          "mods": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftOverviewModOut"
+            },
+            "type": "array",
+            "title": "Mods"
+          },
+          "whitelist": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftPlayerOut"
+            },
+            "type": "array",
+            "title": "Whitelist"
+          },
+          "roster": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftRosterPlayerOut"
+            },
+            "type": "array",
+            "title": "Roster"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pelican_configured",
+          "ping_online"
+        ],
+        "title": "MinecraftStatusOut"
+      },
       "NapCatGroupMemberOut": {
         "properties": {
           "user_id": {
@@ -13333,6 +16327,74 @@
         },
         "type": "object",
         "title": "PasswordPolicyOut"
+      },
+      "PelicanTestRequest": {
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "title": "Base Url",
+            "default": ""
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "server_uuid": {
+            "type": "string",
+            "title": "Server Uuid",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "PelicanTestRequest"
+      },
+      "PelicanTestResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "server_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Name"
+          },
+          "power_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "PelicanTestResponse"
       },
       "PlatformFeatureJobUpdate": {
         "properties": {
@@ -17564,6 +20626,29 @@
         ],
         "title": "TarkovLootTierItemOut"
       },
+      "TarkovMapBossLocationOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "chance": {
+            "type": "number",
+            "title": "Chance",
+            "default": 0
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapPointOut"
+            },
+            "type": "array",
+            "title": "Positions"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapBossLocationOut"
+      },
       "TarkovMapBossOut": {
         "properties": {
           "id": {
@@ -17585,6 +20670,13 @@
             "type": "integer",
             "title": "Spawn Chance",
             "default": 0
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapBossLocationOut"
+            },
+            "type": "array",
+            "title": "Locations"
           }
         },
         "type": "object",
@@ -17784,6 +20876,39 @@
             "type": "string",
             "title": "Faction",
             "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
           }
         },
         "type": "object",
@@ -17851,6 +20976,29 @@
           "name"
         ],
         "title": "TarkovMapListItemOut"
+      },
+      "TarkovMapPointOut": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "default": 0
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "z"
+        ],
+        "title": "TarkovMapPointOut"
       },
       "TarkovMapVariantOut": {
         "properties": {

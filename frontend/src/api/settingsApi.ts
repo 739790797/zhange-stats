@@ -19,6 +19,12 @@ export type IntegrationsStatus = components["schemas"]["IntegrationsStatusOut"];
 export type AuthSettings = components["schemas"]["AuthSettingsOut"];
 export type AuthSettingsUpdate = components["schemas"]["AuthSettingsUpdate"];
 export type AuthAdminBrief = components["schemas"]["AuthAdminBrief"];
+export type PelicanTestRequest = components["schemas"]["PelicanTestRequest"];
+export type PelicanTestResponse = components["schemas"]["PelicanTestResponse"];
+export type MinecraftRconTestRequest =
+  components["schemas"]["MinecraftRconTestRequest"];
+export type MinecraftRconTestResponse =
+  components["schemas"]["MinecraftRconTestResponse"];
 
 export async function fetchEmailSettings() {
   const { data } = await client.get<EmailSettings>("/settings/email");
@@ -131,6 +137,26 @@ export async function updateIntegrationsSettings(payload: IntegrationsUpdate) {
   const { data } = await client.put<IntegrationsSettings>(
     "/settings/integrations",
     payload,
+  );
+  return data;
+}
+
+export async function testPelicanConnection(payload: PelicanTestRequest) {
+  const { data } = await client.post<PelicanTestResponse>(
+    "/settings/integrations/pelican-test",
+    payload,
+    { timeout: 15_000 },
+  );
+  return data;
+}
+
+export async function testMinecraftRconConnection(
+  payload: MinecraftRconTestRequest,
+) {
+  const { data } = await client.post<MinecraftRconTestResponse>(
+    "/settings/integrations/minecraft-rcon-test",
+    payload,
+    { timeout: 10_000 },
   );
   return data;
 }

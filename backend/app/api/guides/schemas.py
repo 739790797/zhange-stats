@@ -445,17 +445,33 @@ class TarkovTrackerStatusOut(BaseModel):
     last_error: str | None = None
 
 
+class TarkovMapPointOut(BaseModel):
+    x: float
+    y: float = 0
+    z: float
+
+
+class TarkovMapBossLocationOut(BaseModel):
+    name: str = ""
+    chance: float = 0
+    positions: list[TarkovMapPointOut] = Field(default_factory=list)
+
+
 class TarkovMapBossOut(BaseModel):
     id: str = ""
     slug: str = ""
     name: str = ""
     spawn_chance: int = 0
+    locations: list[TarkovMapBossLocationOut] = Field(default_factory=list)
 
 
 class TarkovMapExtractOut(BaseModel):
     id: str = ""
     name: str = ""
     faction: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
 
 
 class TarkovMapListItemOut(BaseModel):

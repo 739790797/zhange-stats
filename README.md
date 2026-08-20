@@ -1,14 +1,14 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.33** — 塔科夫攻略增加地图 / 藏身处，枪械详情嵌入可用弹药对照。
+**v0.2.34** — Minecraft 单服总览（Pelican 代操、RCON 性能图按时间段），塔科夫地图可交互查看。
 
 ## 功能
 
 - 邮箱注册 / 登录（JWT）；管理员与普通用户；支持 QQ 互联登录 / 绑定
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；站内用户互看）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
-- 管理端：用户 / 集成密钥（含 NapCat）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
-- **攻略**：逃离塔科夫攻略站（全站搜索、物品分类、任务 / 商人 / BOSS、Tarkov Tracker 进度）；弹药穿透对照与枪械总表（定时自 tarkov.dev 同步）
+- 管理端：用户 / 集成密钥（含 NapCat、Pelican、Minecraft RCON）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
+- **游戏**：逃离塔科夫攻略站（全站搜索、物品分类、任务 / 商人 / BOSS、Tarkov Tracker 进度）；弹药穿透对照与枪械总表（定时自 tarkov.dev 同步）；**Minecraft 单服**（Pelican Client API 代操：服况、启停、版本/加载器/模组档案与配置覆盖）
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
@@ -134,6 +134,7 @@ tarkov_traders_raws · tarkov_traders_meta
 tarkov_bosses_raws · tarkov_bosses_meta
 tarkov_guides_raws · tarkov_guides_meta
 tarkov_tracker_binds
+minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segments
 ```
 
 | 表 | 用途 |
@@ -164,6 +165,9 @@ tarkov_tracker_binds
 | `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（全站最新一份；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
 | `tarkov_guides_meta` | 藏身处与交换同步元数据（单行，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
+| `minecraft_server_profiles` | 圈子 Minecraft 单服目标档案（永远一行 `id=1`：草稿剧本为版本 / 加载器 / 核心 / 钉死模组 / 配置覆盖 / 公开地址；`applied_json` 为上次成功「应用」时的快照，对应当前服内生效配置；本体在 Pelican，不另起进程；RCON 连接在 `system_configs.integrations`，不进开服剧本） |
+| `minecraft_perf_samples` | Minecraft RCON TPS/MSPT 采样（约 10 秒一条；总览折线按时间窗分桶，空桶表示停采） |
+| `minecraft_presence_segments` | Minecraft 玩家在线/离线片段（总览时间轴）；索引含 `(player_key, started_at)` / `(player_key, ended_at)` |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |
 | `taygedo_binds` | 塔吉多凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |
@@ -200,6 +204,8 @@ tarkov_tracker_binds
 - 塔吉多使用手机号验证码或密码登录老虎官方接口，凭证加密存库；用于社区 APP + 异环 / 幻塔每日签到，并完成社区每日任务（浏览/点赞/分享）与兑换
 - 库街区使用手机号短信验证码绑定，凭证加密存库
 - 勿提交 `.env`、`data/`、`uploads/`
+
+- **Minecraft / Pelican**：圈子只有 Pelican 里那一台服。战鸽不另开 Java。在管理端「集成密钥」填 Panel 根地址、Client API Token（需 files + power）、Server UUID，以及 RCON 地址/端口/密码（服内自行 `enable-rcon`，不要对公网开放）。首次把 Egg 启动改成 `bash zhange/boot.sh <原来的 java 命令>`（示例见页面提示）。写操作走 Pelican Client API，与网页同一入口；在线人数是对公开端口的 status ping，TPS/MSPT 走 RCON。模组版本钉死，不会每次开服拉 latest。
 
 - 平台数据约定：养成盒 / 旁路（含肉鸽等）存 raw（体积超阈值会打监控日志）；签到状态/奖励按「今日」写入 `*_checkin_logs`（回源后落库，调度可跳过），`bind.last_checkin_*` 仅为签到动作后的反规范化摘要。**签到页展示始终 force 回源官方**；已签才展示今日奖励；不展示执行记录。详见 [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc)。森空岛官服/B服与补奖见 [`.cursor/rules/skland-upstream.mdc`](.cursor/rules/skland-upstream.mdc)。
 - 工程：GitHub Actions 在 PR/push 上跑前端 lint+build、后端 pytest、OpenAPI drift；`main` 推送再按 `VERSION` 发 GitHub Release（含预构建 static）。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 `frontend/src/api/generated/README.md`）。

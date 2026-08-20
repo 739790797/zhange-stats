@@ -32,6 +32,7 @@ from app.models import skland as _skland  # noqa: F401
 from app.models import steam_app as _steam_app  # noqa: F401
 from app.models import system_config as _system_config  # noqa: F401
 from app.models import tarkov as _tarkov  # noqa: F401
+from app.models import minecraft as _minecraft  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
 from app.services.seed import seed_data

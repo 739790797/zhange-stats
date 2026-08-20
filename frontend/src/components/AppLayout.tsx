@@ -337,7 +337,7 @@ export function AppLayout() {
       ? [{ type: "group" as const, label: "平台", children: platformItems }]
       : []),
     ...(guideItems.length
-      ? [{ type: "group" as const, label: "攻略", children: guideItems }]
+      ? [{ type: "group" as const, label: "游戏", children: guideItems }]
       : []),
     { type: "group" as const, label: "我的", children: mineItems },
     ...(isAdmin

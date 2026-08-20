@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     STEAM_API_KEY: str = ""
     STEAM_POLL_INTERVAL_MINUTES: int = 3
     STEAM_POLL_ENABLED: bool = True
+    MINECRAFT_POLL_INTERVAL_MINUTES: int = 1
     # 可选手动覆盖 OAuth 回调基址；留空则从请求 Host / Origin / X-Forwarded-* 推断
     PUBLIC_BACKEND_URL: str = ""
     PUBLIC_FRONTEND_URL: str = ""

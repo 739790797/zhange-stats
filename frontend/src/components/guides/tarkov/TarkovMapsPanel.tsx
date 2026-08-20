@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Spin } from "antd";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -8,11 +9,42 @@ import {
   tarkovMapHref,
   tarkovMapSlug,
 } from "@/lib/tarkovHomeNav";
+import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
 import styles from "./TarkovMapsPanel.module.css";
 
-function thumbFor(slug: string, fallback?: string): string {
-  if (fallback) return fallback;
-  return `https://tarkov.dev/maps/${slug}_thumb.jpg`;
+function MapThumb({
+  slug,
+  apiThumb,
+  icon,
+}: {
+  slug: string;
+  apiThumb?: string;
+  icon?: string;
+}) {
+  const [broken, setBroken] = useState(false);
+  const src = tarkovMapThumbUrl(slug, apiThumb);
+  if (!src || broken) {
+    return icon ? (
+      <svg
+        className={styles.thumbFallback}
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <path fill="currentColor" d={icon} />
+      </svg>
+    ) : null;
+  }
+  return (
+    <img
+      className={styles.thumb}
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 export function TarkovMapsPanel() {
@@ -66,10 +98,10 @@ export function TarkovMapsPanel() {
           <>
             <div className={styles.thumbWrap}>
               {soon ? null : (
-                <img
-                  className={styles.thumb}
-                  src={thumbFor(slug, api?.thumb_link)}
-                  alt=""
+                <MapThumb
+                  slug={slug}
+                  apiThumb={api?.thumb_link}
+                  icon={home.icon}
                 />
               )}
             </div>
@@ -111,9 +143,7 @@ export function TarkovMapsPanel() {
           className={styles.card}
         >
           <div className={styles.thumbWrap}>
-            {row.thumb_link ? (
-              <img className={styles.thumb} src={row.thumb_link} alt="" />
-            ) : null}
+            <MapThumb slug={row.slug} apiThumb={row.thumb_link} />
           </div>
           <div className={styles.body}>
             <span className={styles.name}>{row.name}</span>

@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 
 export type GuideTabItem = {
   key: string;
-  label: string;
+  label: ReactNode;
   children: ReactNode;
 };
 

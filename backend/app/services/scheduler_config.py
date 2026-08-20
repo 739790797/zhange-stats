@@ -14,6 +14,7 @@ SCHEDULER_CONFIG_KEY = "scheduler_jobs"
 
 JOB_IDS = (
     "steam_presence",
+    "minecraft_presence",
     "skland_checkin",
     "arknights_box_sync",
     "arknights_catalog_sync",
@@ -27,6 +28,8 @@ JOB_IDS = (
     "tarkov_guides_sync",
     "job_runs_prune",
 )
+
+INTERVAL_JOB_IDS = frozenset({"steam_presence", "minecraft_presence"})
 
 
 def _clamp_hour(value: Any) -> int:
@@ -56,6 +59,12 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
         "steam_presence": {
             "enabled": bool(s.STEAM_POLL_ENABLED),
             "interval_minutes": _clamp_interval(s.STEAM_POLL_INTERVAL_MINUTES, 3),
+        },
+        "minecraft_presence": {
+            "enabled": True,
+            "interval_minutes": _clamp_interval(
+                getattr(s, "MINECRAFT_POLL_INTERVAL_MINUTES", 1), 1
+            ),
         },
         "skland_checkin": {
             "enabled": bool(s.SKLAND_CHECKIN_ENABLED),
@@ -139,10 +148,11 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
     out: dict[str, Any] = {
         "enabled": bool(raw.get("enabled", fallback.get("enabled", False))),
     }
-    if job_id == "steam_presence":
+    if job_id in INTERVAL_JOB_IDS:
+        default = 3 if job_id == "steam_presence" else 1
         out["interval_minutes"] = _clamp_interval(
-            raw.get("interval_minutes", fallback.get("interval_minutes", 3)),
-            3,
+            raw.get("interval_minutes", fallback.get("interval_minutes", default)),
+            default,
         )
     else:
         out["hour"] = _clamp_hour(raw.get("hour", fallback.get("hour", 0)))

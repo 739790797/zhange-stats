@@ -185,8 +185,9 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
         hour_out = None
         minute_out = None
         interval_out = None
-        if job_id == "steam_presence":
-            interval_out = int(job_cfg.get("interval_minutes") or 3)
+        if kind == "interval":
+            default = 3 if job_id == "steam_presence" else 1
+            interval_out = int(job_cfg.get("interval_minutes") or default)
         elif kind == "cron":
             hour_out = int(job_cfg.get("hour", 0))
             minute_out = int(job_cfg.get("minute", 0))

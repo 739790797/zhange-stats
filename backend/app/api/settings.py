@@ -21,7 +21,9 @@ from app.services.email_config import (
     save_email_config,
 )
 from app.services.integrations_config import (
+    get_minecraft_rcon_credentials,
     get_napcat_credentials,
+    get_pelican_credentials,
     get_qq_credentials,
     get_steam_api_key,
     load_integrations,
@@ -89,6 +91,16 @@ class IntegrationsOut(BaseModel):
     github_token: str = ""
     github_token_set: bool = False
     github_configured: bool = False
+    pelican_base_url: str = ""
+    pelican_client_token: str = ""
+    pelican_client_token_set: bool = False
+    pelican_server_uuid: str = ""
+    pelican_configured: bool = False
+    minecraft_rcon_host: str = ""
+    minecraft_rcon_port: int = 25575
+    minecraft_rcon_password: str = ""
+    minecraft_rcon_password_set: bool = False
+    minecraft_rcon_configured: bool = False
 
 
 class IntegrationsUpdate(BaseModel):
@@ -102,6 +114,14 @@ class IntegrationsUpdate(BaseModel):
     clear_napcat_token: bool = False
     github_token: str | None = None
     clear_github_token: bool = False
+    pelican_base_url: str | None = None
+    pelican_client_token: str | None = None
+    pelican_server_uuid: str | None = None
+    clear_pelican_client_token: bool = False
+    minecraft_rcon_host: str | None = None
+    minecraft_rcon_port: int | None = Field(default=None, ge=0, le=65535)
+    minecraft_rcon_password: str | None = None
+    clear_minecraft_rcon_password: bool = False
 
 
 class AuthAdminBrief(BaseModel):
@@ -205,6 +225,7 @@ class IntegrationsStatusOut(BaseModel):
     steam_configured: bool
     qq_configured: bool
     napcat_configured: bool
+    pelican_configured: bool = False
 
 
 @router.get("/integrations/status", response_model=IntegrationsStatusOut)
@@ -215,10 +236,12 @@ def get_integrations_status(
     steam = bool(get_steam_api_key(db))
     qq_id, qq_key = get_qq_credentials(db)
     napcat_url, napcat_token = get_napcat_credentials(db)
+    pelican_url, pelican_token, pelican_uuid = get_pelican_credentials(db)
     return IntegrationsStatusOut(
         steam_configured=steam,
         qq_configured=bool(qq_id and qq_key),
         napcat_configured=bool(napcat_url and napcat_token),
+        pelican_configured=bool(pelican_url and pelican_token and pelican_uuid),
     )
 
 
@@ -246,6 +269,102 @@ def update_integrations(
     register_scheduler_jobs(scheduler, db, run_steam_once=False)
     invalidate_check_cache()
     return _integrations_out(db, request)
+
+
+class PelicanTestRequest(BaseModel):
+    base_url: str = ""
+    token: str | None = Field(default=None, max_length=512)
+    server_uuid: str = ""
+
+
+class PelicanTestResponse(BaseModel):
+    ok: bool
+    message: str
+    server_name: str | None = None
+    power_state: str | None = None
+
+
+@router.post("/integrations/pelican-test", response_model=PelicanTestResponse)
+def test_pelican_connection(
+    body: PelicanTestRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> PelicanTestResponse:
+    from app.services.pelican_client import (
+        PelicanError,
+        get_resources,
+        get_server,
+        normalize_pelican_base_url,
+        pelican_configured,
+        power_state_from_resources,
+    )
+
+    saved_url, saved_token, saved_uuid = get_pelican_credentials(db)
+    base = normalize_pelican_base_url(body.base_url) or saved_url
+    token = (body.token or "").strip() or saved_token
+    server_uuid = (body.server_uuid or "").strip() or saved_uuid
+    if not pelican_configured(base, token, server_uuid):
+        return PelicanTestResponse(ok=False, message="请填写 Panel 地址、Client Token 与 Server UUID")
+    try:
+        server = get_server(base, token, server_uuid)
+        attrs = server.get("attributes") if isinstance(server.get("attributes"), dict) else {}
+        name = str(attrs.get("name") or "") or None
+        state = None
+        try:
+            res = get_resources(base, token, server_uuid)
+            state = power_state_from_resources(res)
+        except PelicanError:
+            state = None
+        return PelicanTestResponse(
+            ok=True,
+            message="已连接到 Pelican 上的这台服",
+            server_name=name,
+            power_state=state,
+        )
+    except PelicanError as exc:
+        return PelicanTestResponse(ok=False, message=exc.message)
+
+
+class MinecraftRconTestRequest(BaseModel):
+    host: str = ""
+    port: int = Field(default=0, ge=0, le=65535)
+    password: str | None = Field(default=None, max_length=256)
+
+
+class MinecraftRconTestResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+@router.post("/integrations/minecraft-rcon-test", response_model=MinecraftRconTestResponse)
+def test_minecraft_rcon_connection(
+    body: MinecraftRconTestRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftRconTestResponse:
+    from app.services.minecraft_rcon import MinecraftRconError, query_list
+
+    saved_host, saved_port, saved_password = get_minecraft_rcon_credentials(db)
+    host = (body.host or "").strip() or saved_host
+    port = int(body.port or 0)
+    if port < 1 or port > 65535:
+        port = saved_port
+    if port < 1 or port > 65535:
+        port = 25575
+    password = (body.password or "").strip() or saved_password
+    if not host or not password:
+        return MinecraftRconTestResponse(ok=False, message="请填写 RCON 地址和密码")
+    try:
+        names = query_list(host, port, password)
+    except MinecraftRconError as exc:
+        return MinecraftRconTestResponse(ok=False, message=exc.message)
+    except OSError as exc:
+        return MinecraftRconTestResponse(ok=False, message=str(exc) or "无法连接 RCON")
+    count = len(names)
+    return MinecraftRconTestResponse(
+        ok=True,
+        message=f"已连通 RCON，当前 {count} 人在线" if count else "已连通 RCON",
+    )
 
 
 @router.get("/auth", response_model=AuthSettingsOut)

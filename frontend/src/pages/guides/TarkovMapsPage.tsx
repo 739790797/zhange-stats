@@ -7,7 +7,7 @@ export default function TarkovMapsPage() {
       title="地图"
       crumbs={[]}
       sectionLabel="地图"
-      subtitle="突袭时长 / 人数 / 缩略图。互动图层在详情页链到 tarkov.dev。"
+      subtitle="突袭时长 / 人数。详情页内嵌可缩放地图（撤离点 / BOSS）。"
     >
       <TarkovMapsPanel />
     </TarkovItemsPageShell>

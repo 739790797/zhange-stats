@@ -12,6 +12,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "steam",
     },
     {
+        "id": "minecraft_presence",
+        "name": "Minecraft 在线时长轮询",
+        "description": "轮询 Minecraft 在线名单，累计玩家在线/离线时长",
+        "kind": "interval",
+        "platform": "minecraft",
+    },
+    {
         "id": "skland_checkin",
         "name": "森空岛每日签到",
         "description": "按用户自设时间巡检签到",

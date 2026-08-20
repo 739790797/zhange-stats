@@ -626,7 +626,7 @@ def guides_tarkov_map_detail(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """地图详情：撤离点、BOSS、突袭时长；互动图层链到 tarkov.dev。"""
+    """地图详情：撤离点/BOSS 坐标与底图信息；前端 Leaflet 查看器使用。"""
     _ = user
     try:
         detail = maps_svc.get_map_detail(db, map_slug)

@@ -12,6 +12,7 @@ export const PLATFORM_ICON_SRC = {
   ww: "/platform-icons/ww.png",
   pgr: "/platform-icons/pgr.png",
   tarkov: "/platform-icons/tarkov.png",
+  minecraft: "/platform-icons/minecraft.png",
 } as const;
 
 export type PlatformIconName = keyof typeof PLATFORM_ICON_SRC;
@@ -29,6 +30,7 @@ const FEATURE_ICON_BY_ID: Record<string, PlatformIconName> = {
   "taygedo.tower": "tower",
   "kujiequ.ww": "ww",
   "kujiequ.pgr": "pgr",
+  "guides.minecraft": "minecraft",
 };
 
 export function featureIconName(featureId: string): PlatformIconName | null {

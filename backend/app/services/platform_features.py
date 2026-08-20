@@ -156,7 +156,7 @@ FEATURE_TREE: list[dict[str, Any]] = [
     },
     {
         "id": "guides",
-        "name": "攻略",
+        "name": "游戏",
         "kind": "platform",
         "children": [
             {
@@ -201,12 +201,27 @@ FEATURE_TREE: list[dict[str, Any]] = [
                     },
                 ],
             },
+            {
+                "id": "guides.minecraft",
+                "name": "Minecraft",
+                "kind": "game",
+                "children": [
+                    {
+                        "id": "guides.minecraft.presence",
+                        "name": "玩家在线时长轮询",
+                        "kind": "job",
+                        "job_id": "minecraft_presence",
+                        "schedule": "interval",
+                    },
+                ],
+            },
         ],
     },
 ]
 
 JOB_FEATURE_IDS: dict[str, str] = {
     "steam_presence": "steam.presence",
+    "minecraft_presence": "guides.minecraft.presence",
     "skland_checkin": "skland.checkin",
     "arknights_box_sync": "skland.arknights.box_sync",
     "arknights_catalog_sync": "skland.arknights.catalog_sync",
@@ -234,7 +249,8 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "exilium": "追放",
     "kujiequ": "库街区",
     "arknights_box": "干员练度更新",
-    "guides": "攻略",
+    "guides": "游戏",
+    "minecraft": "Minecraft",
     "tarkov_items": "物品数据更新",
     "tarkov_tasks": "任务数据更新",
     "tarkov_traders": "商人数据更新",

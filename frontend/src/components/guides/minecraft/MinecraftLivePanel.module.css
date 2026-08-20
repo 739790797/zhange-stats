@@ -1,0 +1,265 @@
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.heroLoading .skelIcon,
+.heroLoading .skelLine {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.skelIcon {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.skelBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.skelLine {
+  height: 12px;
+  width: 60%;
+}
+
+.skelLineShort {
+  width: 36%;
+}
+
+.icon {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #f5f5f5;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.motd {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Segoe UI Mono", monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 1.4em;
+  color: rgba(0, 0, 0, 0.88);
+  word-break: break-word;
+}
+
+.motdLine {
+  min-height: 1.4em;
+  white-space: pre-wrap;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.joinHost {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(0, 0, 0, 0.45);
+  word-break: break-all;
+}
+
+.side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  min-width: 72px;
+}
+
+.players {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.latency,
+.version {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8c8c8c;
+}
+
+.dotOnline {
+  background: #52c41a;
+}
+
+.dotBusy {
+  background: #faad14;
+}
+
+.rosterToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.perfToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rosterScroll {
+  overflow-x: auto;
+}
+
+.rosterMarks {
+  position: relative;
+  height: 20px;
+  margin: 0 80px 8px 120px;
+}
+
+.rosterMark {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #8c8c8c;
+  white-space: nowrap;
+}
+
+.rosterRow {
+  display: contents;
+}
+
+.rosterLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 112px;
+  padding-left: 4px;
+}
+
+.rosterName {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rosterTrack {
+  height: 28px;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.rosterTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.rosterSeg {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 3px;
+  min-width: 2px;
+  cursor: pointer;
+}
+
+.rosterOnline {
+  background: #5b8ff9;
+}
+
+.rosterOffline {
+  background: #d9d9d9;
+}
+
+.rosterDuration {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  text-align: right;
+  min-width: 72px;
+}
+
+.rosterShell {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) max-content;
+  column-gap: 8px;
+  row-gap: 10px;
+  align-items: center;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 8px 8px 8px 4px;
+  background: #fafafa;
+}
+
+.head {
+  image-rendering: pixelated;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    flex-wrap: wrap;
+  }
+
+  .side {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    min-width: 0;
+  }
+}

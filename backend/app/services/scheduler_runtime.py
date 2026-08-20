@@ -20,6 +20,11 @@ from app.services.exilium_checkin import checkin_job_wrapper as exilium_checkin_
 from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
 from app.services.kujiequ_checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
+from app.services.minecraft_presence import poll_job_wrapper as minecraft_presence_job
+from app.services.minecraft_perf import (
+    SAMPLE_INTERVAL_SEC as MINECRAFT_PERF_INTERVAL_SEC,
+)
+from app.services.minecraft_perf import poll_job_wrapper as minecraft_rcon_perf_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.skland_checkin import checkin_job_wrapper as skland_checkin_job_wrapper
@@ -103,6 +108,8 @@ def resolve_job_callable(
         raise RuntimeError("该任务所属功能未启用")
     if job_id == "steam_presence":
         return poll_job_wrapper
+    if job_id == "minecraft_presence":
+        return minecraft_presence_job
     if job_id in CHECKIN_MANUAL_HANDLERS:
         handler = CHECKIN_MANUAL_HANDLERS[job_id]
 
@@ -172,6 +179,19 @@ def register_scheduler_jobs(
             if run_steam_once:
                 poll_job_wrapper()
 
+        mc_cfg = cfg.get("minecraft_presence") or {}
+        mc_interval = max(1, int(mc_cfg.get("interval_minutes") or 1))
+        if _job_feature_allowed(db, "minecraft_presence"):
+            scheduler.add_job(
+                minecraft_presence_job,
+                "interval",
+                minutes=mc_interval,
+                id="minecraft_presence",
+                replace_existing=True,
+                max_instances=1,
+            )
+            started = True
+
         # 平台签到：功能开启时每分钟巡检（用户 auto_checkin + HH:MM）
         for job_id, func in CHECKIN_DUE_HANDLERS.items():
             if not _job_feature_allowed(db, job_id):
@@ -202,6 +222,18 @@ def register_scheduler_jobs(
                 minute=minute,
                 timezone=BEIJING,
                 id=job_id,
+                replace_existing=True,
+                max_instances=1,
+            )
+            started = True
+
+        _remove_job(scheduler, "minecraft_rcon_perf")
+        if is_feature_enabled(db, "guides.minecraft"):
+            scheduler.add_job(
+                minecraft_rcon_perf_job,
+                "interval",
+                seconds=MINECRAFT_PERF_INTERVAL_SEC,
+                id="minecraft_rcon_perf",
                 replace_existing=True,
                 max_instances=1,
             )

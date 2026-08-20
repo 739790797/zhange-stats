@@ -47,6 +47,7 @@ import TarkovHideoutCostPage from "@/pages/guides/TarkovHideoutCostPage";
 import TarkovWipeLengthPage from "@/pages/guides/TarkovWipeLengthPage";
 import TarkovBitcoinFarmPage from "@/pages/guides/TarkovBitcoinFarmPage";
 import TarkovProgressionPage from "@/pages/guides/TarkovProgressionPage";
+import MinecraftPage from "@/pages/guides/MinecraftPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
 import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
@@ -217,6 +218,14 @@ export default function App() {
                   element={<TarkovProgressionPage />}
                 />
               </Route>
+              <Route
+                path="/guides/minecraft"
+                element={
+                  <PlatformRoute featureId="guides.minecraft">
+                    <MinecraftPage />
+                  </PlatformRoute>
+                }
+              />
               <Route path="/profile" element={<ProfileSettingsPage />} />
               <Route
                 path="/members/:id/profile"

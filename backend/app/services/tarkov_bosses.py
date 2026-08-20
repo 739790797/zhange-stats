@@ -313,6 +313,47 @@ def _id_of(value: Any) -> str:
     return str(value).strip()
 
 
+def map_xyz(raw: Any) -> dict[str, float] | None:
+    """解析游戏坐标；接受 {x,y,z}、嵌套 position、或 [x,y,z]。"""
+    if isinstance(raw, dict):
+        nested = raw.get("position")
+        if isinstance(nested, dict) or isinstance(nested, (list, tuple)):
+            parsed = map_xyz(nested)
+            if parsed:
+                return parsed
+        try:
+            x = float(raw.get("x"))
+            z = float(raw.get("z"))
+        except (TypeError, ValueError):
+            return None
+        try:
+            y = float(raw.get("y") or 0)
+        except (TypeError, ValueError):
+            y = 0.0
+        return {"x": x, "y": y, "z": z}
+    if isinstance(raw, (list, tuple)) and len(raw) >= 2:
+        try:
+            x = float(raw[0])
+            if len(raw) >= 3:
+                return {"x": x, "y": float(raw[1]), "z": float(raw[2])}
+            return {"x": x, "y": 0.0, "z": float(raw[1])}
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _slim_positions(raw: Any) -> list[dict[str, float]]:
+    out: list[dict[str, float]] = []
+    if isinstance(raw, list):
+        for row in raw:
+            point = map_xyz(row)
+            if point:
+                out.append(point)
+        return out
+    point = map_xyz(raw)
+    return [point] if point else out
+
+
 def resolve_boss_slug(slug: str) -> str:
     key = (slug or "").strip().lower()
     return SLUG_ALIASES.get(key, key)
@@ -397,7 +438,12 @@ def _slim_locations(raw: Any, locale: dict[str, Any]) -> list[dict[str, Any]]:
         chance = _as_float(row.get("chance"), 0) or 0
         if not name:
             continue
-        out.append({"name": name, "chance": chance})
+        positions = _slim_positions(row.get("positions"))
+        if not positions:
+            point = map_xyz(row)
+            if point:
+                positions.append(point)
+        out.append({"name": name, "chance": chance, "positions": positions})
     return out
 
 
@@ -511,13 +557,15 @@ def slim_maps_payload(
         for extract in raw.get("extracts") or []:
             if not isinstance(extract, dict):
                 continue
-            extracts.append(
-                {
-                    "id": str(extract.get("id") or ""),
-                    "name": str(extract.get("name") or ""),
-                    "faction": str(extract.get("faction") or ""),
-                }
-            )
+            item = {
+                "id": str(extract.get("id") or ""),
+                "name": str(extract.get("name") or ""),
+                "faction": str(extract.get("faction") or ""),
+            }
+            point = map_xyz(extract)
+            if point:
+                item["position"] = point
+            extracts.append(item)
         maps_out[str(key)] = {
             "id": str(raw.get("id") or key),
             "name": str(raw.get("name") or ""),

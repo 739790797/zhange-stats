@@ -16,6 +16,7 @@ export default defineConfig({
       "/api": {
         target: process.env.VITE_API_PROXY || "http://127.0.0.1:6130",
         changeOrigin: true,
+        ws: true,
       },
       "/uploads": {
         target: process.env.VITE_API_PROXY || "http://127.0.0.1:6130",

@@ -10,6 +10,7 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { tarkovBossHref, tarkovMapHref } from "@/lib/tarkovHomeNav";
+import { TarkovMapViewer } from "@/components/guides/tarkov/TarkovMapViewer";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovMapsPanel.module.css";
 
@@ -129,16 +130,18 @@ export function TarkovMapDetailPanel({ slug }: Props) {
               target="_blank"
               rel="noreferrer"
             >
-              在 tarkov.dev 打开互动地图
+              在 tarkov.dev 打开
             </a>
           ) : null}
         </div>
-        {detail.thumb_link ? (
-          <div className={styles.thumbWrap}>
-            <img className={styles.thumb} src={detail.thumb_link} alt="" />
-          </div>
-        ) : null}
       </section>
+
+      <TarkovMapViewer
+        slug={slug}
+        parentSlug={detail.parent_slug || undefined}
+        extracts={detail.extracts}
+        bosses={detail.bosses}
+      />
 
       {detail.variants?.length ? (
         <div>

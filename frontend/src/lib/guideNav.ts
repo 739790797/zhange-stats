@@ -1,6 +1,6 @@
 import type { PlatformIconName } from "@/lib/platformIcons";
 
-/** 攻略区侧栏：一点进大厅；栏目在页内顶栏。 */
+/** 游戏区侧栏：一点进大厅；栏目在页内顶栏。 */
 
 export type GuideNavLeaf = {
   kind: "leaf";
@@ -28,6 +28,13 @@ export const GUIDE_NAV: GuideNavNode[] = [
     label: "逃离塔科夫",
     featureId: "guides.tarkov",
     icon: "tarkov",
+  },
+  {
+    kind: "leaf",
+    path: "/guides/minecraft",
+    label: "Minecraft",
+    featureId: "guides.minecraft",
+    icon: "minecraft",
   },
 ];
 

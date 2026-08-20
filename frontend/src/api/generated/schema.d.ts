@@ -656,6 +656,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/integrations/pelican-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Pelican Connection */
+        post: operations["test_pelican_connection_api_settings_integrations_pelican_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/integrations/minecraft-rcon-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Minecraft Rcon Connection */
+        post: operations["test_minecraft_rcon_connection_api_settings_integrations_minecraft_rcon_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/auth": {
         parameters: {
             query?: never;
@@ -2595,7 +2629,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Map Detail
-         * @description 地图详情：撤离点、BOSS、突袭时长；互动图层链到 tarkov.dev。
+         * @description 地图详情：撤离点/BOSS 坐标与底图信息；前端 Leaflet 查看器使用。
          */
         get: operations["guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get"];
         put?: never;
@@ -2784,6 +2818,433 @@ export interface paths {
          * @description 已绑定：从 Tarkov Tracker 再拉一次进度摘要。
          */
         post: operations["guides_tarkov_progress_sync_api_guides_tarkov_progress_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Files List */
+        get: operations["minecraft_files_list_api_guides_minecraft_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Files Contents */
+        get: operations["minecraft_files_contents_api_guides_minecraft_files_contents_get"];
+        /** Minecraft Files Write */
+        put: operations["minecraft_files_write_api_guides_minecraft_files_contents_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Files Download */
+        get: operations["minecraft_files_download_api_guides_minecraft_files_download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Upload */
+        post: operations["minecraft_files_upload_api_guides_minecraft_files_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/create-folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Create Folder */
+        post: operations["minecraft_files_create_folder_api_guides_minecraft_files_create_folder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/create-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Create File */
+        post: operations["minecraft_files_create_file_api_guides_minecraft_files_create_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Rename */
+        post: operations["minecraft_files_rename_api_guides_minecraft_files_rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Copy */
+        post: operations["minecraft_files_copy_api_guides_minecraft_files_copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Delete */
+        post: operations["minecraft_files_delete_api_guides_minecraft_files_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/compress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Compress */
+        post: operations["minecraft_files_compress_api_guides_minecraft_files_compress_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/decompress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Decompress */
+        post: operations["minecraft_files_decompress_api_guides_minecraft_files_decompress_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/chmod": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Chmod */
+        post: operations["minecraft_files_chmod_api_guides_minecraft_files_chmod_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/files/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Files Pull */
+        post: operations["minecraft_files_pull_api_guides_minecraft_files_pull_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Status */
+        get: operations["minecraft_status_api_guides_minecraft_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Presence */
+        get: operations["minecraft_presence_api_guides_minecraft_presence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/perf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Perf */
+        get: operations["minecraft_perf_api_guides_minecraft_perf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/power": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Power */
+        post: operations["minecraft_power_api_guides_minecraft_power_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Get Profile */
+        get: operations["minecraft_get_profile_api_guides_minecraft_profile_get"];
+        /** Minecraft Put Profile */
+        put: operations["minecraft_put_profile_api_guides_minecraft_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Apply */
+        post: operations["minecraft_apply_api_guides_minecraft_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/game-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Game Versions */
+        get: operations["minecraft_game_versions_api_guides_minecraft_game_versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/loader-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Loader Versions */
+        get: operations["minecraft_loader_versions_api_guides_minecraft_loader_versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mods/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Search */
+        get: operations["minecraft_mod_search_api_guides_minecraft_mods_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mods/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Versions */
+        get: operations["minecraft_mod_versions_api_guides_minecraft_mods_versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mods/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Mod Pin */
+        post: operations["minecraft_mod_pin_api_guides_minecraft_mods_pin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mods/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Updates */
+        get: operations["minecraft_mod_updates_api_guides_minecraft_mods_updates_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3527,6 +3988,16 @@ export interface components {
             /** Message */
             message: string;
             user: components["schemas"]["UserOut"];
+        };
+        /** Body_minecraft_files_upload_api_guides_minecraft_files_upload_post */
+        Body_minecraft_files_upload_api_guides_minecraft_files_upload_post: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** File */
+            file: string;
         };
         /** Body_upload_member_avatar_api_members__member_id__avatar_post */
         Body_upload_member_avatar_api_members__member_id__avatar_post: {
@@ -4391,6 +4862,56 @@ export interface components {
              * @default false
              */
             github_configured: boolean;
+            /**
+             * Pelican Base Url
+             * @default
+             */
+            pelican_base_url: string;
+            /**
+             * Pelican Client Token
+             * @default
+             */
+            pelican_client_token: string;
+            /**
+             * Pelican Client Token Set
+             * @default false
+             */
+            pelican_client_token_set: boolean;
+            /**
+             * Pelican Server Uuid
+             * @default
+             */
+            pelican_server_uuid: string;
+            /**
+             * Pelican Configured
+             * @default false
+             */
+            pelican_configured: boolean;
+            /**
+             * Minecraft Rcon Host
+             * @default
+             */
+            minecraft_rcon_host: string;
+            /**
+             * Minecraft Rcon Port
+             * @default 25575
+             */
+            minecraft_rcon_port: number;
+            /**
+             * Minecraft Rcon Password
+             * @default
+             */
+            minecraft_rcon_password: string;
+            /**
+             * Minecraft Rcon Password Set
+             * @default false
+             */
+            minecraft_rcon_password_set: boolean;
+            /**
+             * Minecraft Rcon Configured
+             * @default false
+             */
+            minecraft_rcon_configured: boolean;
         };
         /**
          * IntegrationsStatusOut
@@ -4403,6 +4924,11 @@ export interface components {
             qq_configured: boolean;
             /** Napcat Configured */
             napcat_configured: boolean;
+            /**
+             * Pelican Configured
+             * @default false
+             */
+            pelican_configured: boolean;
         };
         /** IntegrationsUpdate */
         IntegrationsUpdate: {
@@ -4438,6 +4964,28 @@ export interface components {
              * @default false
              */
             clear_github_token: boolean;
+            /** Pelican Base Url */
+            pelican_base_url?: string | null;
+            /** Pelican Client Token */
+            pelican_client_token?: string | null;
+            /** Pelican Server Uuid */
+            pelican_server_uuid?: string | null;
+            /**
+             * Clear Pelican Client Token
+             * @default false
+             */
+            clear_pelican_client_token: boolean;
+            /** Minecraft Rcon Host */
+            minecraft_rcon_host?: string | null;
+            /** Minecraft Rcon Port */
+            minecraft_rcon_port?: number | null;
+            /** Minecraft Rcon Password */
+            minecraft_rcon_password?: string | null;
+            /**
+             * Clear Minecraft Rcon Password
+             * @default false
+             */
+            clear_minecraft_rcon_password: boolean;
         };
         /** JobConfigUpdateItem */
         JobConfigUpdateItem: {
@@ -4982,6 +5530,801 @@ export interface components {
             /** Qq Number */
             qq_number?: string | null;
         };
+        /** MinecraftAppliedModOut */
+        MinecraftAppliedModOut: {
+            /**
+             * Project Title
+             * @default
+             */
+            project_title: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Version Number
+             * @default
+             */
+            version_number: string;
+            /**
+             * Project Id
+             * @default
+             */
+            project_id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+        };
+        /** MinecraftAppliedOut */
+        MinecraftAppliedOut: {
+            /** Mc Version */
+            mc_version: string;
+            /** Loader */
+            loader: string;
+            /**
+             * Loader Version
+             * @default
+             */
+            loader_version: string;
+            /** Mods */
+            mods?: components["schemas"]["MinecraftAppliedModOut"][];
+            /** Properties */
+            properties?: {
+                [key: string]: string;
+            };
+            /** Last Applied At */
+            last_applied_at?: string | null;
+        };
+        /** MinecraftApplyOut */
+        MinecraftApplyOut: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /**
+             * Boot In Startup
+             * @default false
+             */
+            boot_in_startup: boolean;
+            /**
+             * Mod Count
+             * @default 0
+             */
+            mod_count: number;
+            /**
+             * Startup Hint
+             * @default
+             */
+            startup_hint: string;
+        };
+        /** MinecraftFileChmodIn */
+        MinecraftFileChmodIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Names */
+            names: string[];
+            /** Mode */
+            mode: string;
+        };
+        /** MinecraftFileCompressIn */
+        MinecraftFileCompressIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Names */
+            names: string[];
+            /** Archive Name */
+            archive_name?: string | null;
+            /**
+             * Extension
+             * @default zip
+             * @enum {string}
+             */
+            extension: "zip" | "tar.gz" | "tgz" | "tar.xz" | "txz" | "tar.bz2" | "tbz2";
+        };
+        /** MinecraftFileContentsOut */
+        MinecraftFileContentsOut: {
+            /** Path */
+            path: string;
+            /** Content */
+            content: string;
+        };
+        /** MinecraftFileCopyIn */
+        MinecraftFileCopyIn: {
+            /** Path */
+            path: string;
+        };
+        /** MinecraftFileCreateFileIn */
+        MinecraftFileCreateFileIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Name */
+            name: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** MinecraftFileCreateFolderIn */
+        MinecraftFileCreateFolderIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Name */
+            name: string;
+        };
+        /** MinecraftFileDecompressIn */
+        MinecraftFileDecompressIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Name */
+            name: string;
+        };
+        /** MinecraftFileDeleteIn */
+        MinecraftFileDeleteIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Names */
+            names: string[];
+        };
+        /** MinecraftFileDownloadOut */
+        MinecraftFileDownloadOut: {
+            /** Path */
+            path: string;
+            /** Url */
+            url: string;
+        };
+        /** MinecraftFileEntryOut */
+        MinecraftFileEntryOut: {
+            /** Name */
+            name: string;
+            /** Is File */
+            is_file: boolean;
+            /**
+             * Is Symlink
+             * @default false
+             */
+            is_symlink: boolean;
+            /**
+             * Size
+             * @default 0
+             */
+            size: number;
+            /**
+             * Mode
+             * @default
+             */
+            mode: string;
+            /**
+             * Mode Bits
+             * @default
+             */
+            mode_bits: string;
+            /**
+             * Mimetype
+             * @default
+             */
+            mimetype: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Modified At */
+            modified_at?: string | null;
+        };
+        /** MinecraftFileListOut */
+        MinecraftFileListOut: {
+            /** Directory */
+            directory: string;
+            /** Entries */
+            entries?: components["schemas"]["MinecraftFileEntryOut"][];
+        };
+        /** MinecraftFileOkOut */
+        MinecraftFileOkOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** MinecraftFilePullIn */
+        MinecraftFilePullIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Url */
+            url: string;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+        };
+        /** MinecraftFileRenameIn */
+        MinecraftFileRenameIn: {
+            /**
+             * Directory
+             * @default /
+             */
+            directory: string;
+            /** Src */
+            src: string;
+            /** Dest */
+            dest: string;
+        };
+        /** MinecraftFileWriteIn */
+        MinecraftFileWriteIn: {
+            /** Path */
+            path: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** MinecraftGameVersionOut */
+        MinecraftGameVersionOut: {
+            /** Version */
+            version: string;
+            /**
+             * Stable
+             * @default false
+             */
+            stable: boolean;
+        };
+        /** MinecraftLoaderVersionOut */
+        MinecraftLoaderVersionOut: {
+            /** Versions */
+            versions: string[];
+        };
+        /** MinecraftModPinIn */
+        MinecraftModPinIn: {
+            /** Project Id */
+            project_id: string;
+            /** Version Id */
+            version_id: string;
+        };
+        /** MinecraftModPinOut */
+        MinecraftModPinOut: {
+            /** Project Id */
+            project_id: string;
+            /**
+             * Project Title
+             * @default
+             */
+            project_title: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /** Version Id */
+            version_id: string;
+            /**
+             * Version Number
+             * @default
+             */
+            version_number: string;
+            /** Filename */
+            filename: string;
+            /** Download Url */
+            download_url: string;
+            /** Sha512 */
+            sha512: string;
+            /**
+             * Sha1
+             * @default
+             */
+            sha1: string;
+            /**
+             * File Size
+             * @default 0
+             */
+            file_size: number;
+            /**
+             * Env Server
+             * @default required
+             */
+            env_server: string;
+        };
+        /** MinecraftModSearchHitOut */
+        MinecraftModSearchHitOut: {
+            /** Project Id */
+            project_id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Icon Url
+             * @default
+             */
+            icon_url: string;
+        };
+        /** MinecraftModSearchOut */
+        MinecraftModSearchOut: {
+            /** Hits */
+            hits: components["schemas"]["MinecraftModSearchHitOut"][];
+        };
+        /** MinecraftModUpdateOut */
+        MinecraftModUpdateOut: {
+            current: components["schemas"]["MinecraftModPinOut"];
+            latest: components["schemas"]["MinecraftModPinOut"];
+        };
+        /** MinecraftOverrideOut */
+        MinecraftOverrideOut: {
+            /** Path */
+            path: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** MinecraftOverviewModOut */
+        MinecraftOverviewModOut: {
+            /** Filename */
+            filename: string;
+            /**
+             * Version Number
+             * @default
+             */
+            version_number: string;
+            /**
+             * Project Id
+             * @default
+             */
+            project_id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Title Zh
+             * @default
+             */
+            title_zh: string;
+            /**
+             * Icon Url
+             * @default
+             */
+            icon_url: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Downloads */
+            downloads?: number | null;
+            /**
+             * Environment
+             * @default
+             */
+            environment: string;
+            /**
+             * Modrinth Url
+             * @default
+             */
+            modrinth_url: string;
+            /**
+             * Curseforge Url
+             * @default
+             */
+            curseforge_url: string;
+            /**
+             * Mcmod Url
+             * @default
+             */
+            mcmod_url: string;
+        };
+        /** MinecraftPerfOut */
+        MinecraftPerfOut: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Ok
+             * @default false
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Tps */
+            tps?: number | null;
+            /** Mspt */
+            mspt?: number | null;
+            /**
+             * Range
+             * @default 30m
+             * @enum {string}
+             */
+            range: "30m" | "1h" | "12h" | "24h" | "30d" | "all";
+            /**
+             * Range Start
+             * @default
+             */
+            range_start: string;
+            /**
+             * Range End
+             * @default
+             */
+            range_end: string;
+            /** Samples */
+            samples?: components["schemas"]["MinecraftPerfSampleOut"][];
+        };
+        /** MinecraftPerfSampleOut */
+        MinecraftPerfSampleOut: {
+            /**
+             * At
+             * @default
+             */
+            at: string;
+            /** Tps */
+            tps?: number | null;
+            /** Mspt */
+            mspt?: number | null;
+        };
+        /** MinecraftPlaybookOut */
+        MinecraftPlaybookOut: {
+            /** Mc Version */
+            mc_version: string;
+            /** Loader */
+            loader: string;
+            /**
+             * Loader Version
+             * @default
+             */
+            loader_version: string;
+            /** Mods */
+            mods?: components["schemas"]["MinecraftModPinOut"][];
+            /** Properties */
+            properties?: {
+                [key: string]: string;
+            };
+            /** Overrides */
+            overrides?: components["schemas"]["MinecraftOverrideOut"][];
+            /**
+             * Public Host
+             * @default
+             */
+            public_host: string;
+            /**
+             * Public Port
+             * @default 25565
+             */
+            public_port: number;
+        };
+        /** MinecraftPlayerOut */
+        MinecraftPlayerOut: {
+            /** Name */
+            name: string;
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+        };
+        /** MinecraftPowerIn */
+        MinecraftPowerIn: {
+            /**
+             * Signal
+             * @enum {string}
+             */
+            signal: "start" | "stop" | "restart" | "kill";
+        };
+        /** MinecraftPowerOut */
+        MinecraftPowerOut: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /** Power State */
+            power_state?: string | null;
+        };
+        /** MinecraftPresenceOut */
+        MinecraftPresenceOut: {
+            /** Range Start */
+            range_start: string;
+            /** Range End */
+            range_end: string;
+            /** Span Seconds */
+            span_seconds: number;
+            /**
+             * Player Count
+             * @default 0
+             */
+            player_count: number;
+            /**
+             * Online Count
+             * @default 0
+             */
+            online_count: number;
+            /** Rows */
+            rows?: components["schemas"]["MinecraftPresenceRowOut"][];
+        };
+        /** MinecraftPresenceRowOut */
+        MinecraftPresenceRowOut: {
+            /** Player Key */
+            player_key: string;
+            /** Name */
+            name: string;
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Online
+             * @default false
+             */
+            online: boolean;
+            /**
+             * Online Seconds
+             * @default 0
+             */
+            online_seconds: number;
+            /**
+             * Offline Seconds
+             * @default 0
+             */
+            offline_seconds: number;
+            /** Segments */
+            segments?: components["schemas"]["MinecraftPresenceSegmentOut"][];
+        };
+        /** MinecraftPresenceSegmentOut */
+        MinecraftPresenceSegmentOut: {
+            /** Status */
+            status: string;
+            /** Start Sec */
+            start_sec: number;
+            /** End Sec */
+            end_sec: number;
+        };
+        /** MinecraftProfileOut */
+        MinecraftProfileOut: {
+            /** Mc Version */
+            mc_version: string;
+            /** Loader */
+            loader: string;
+            /**
+             * Loader Version
+             * @default
+             */
+            loader_version: string;
+            /** Mods */
+            mods?: components["schemas"]["MinecraftModPinOut"][];
+            /** Properties */
+            properties?: {
+                [key: string]: string;
+            };
+            /** Overrides */
+            overrides?: components["schemas"]["MinecraftOverrideOut"][];
+            /**
+             * Public Host
+             * @default
+             */
+            public_host: string;
+            /**
+             * Public Port
+             * @default 25565
+             */
+            public_port: number;
+            /** Last Applied At */
+            last_applied_at?: string | null;
+            /** Last Apply Message */
+            last_apply_message?: string | null;
+            /**
+             * Pelican Configured
+             * @default false
+             */
+            pelican_configured: boolean;
+            /**
+             * Startup Hint
+             * @default
+             */
+            startup_hint: string;
+            /**
+             * Playbook Dirty
+             * @default false
+             */
+            playbook_dirty: boolean;
+            applied?: components["schemas"]["MinecraftPlaybookOut"] | null;
+        };
+        /** MinecraftProfileUpdate */
+        MinecraftProfileUpdate: {
+            /** Mc Version */
+            mc_version: string;
+            /** Loader */
+            loader: string;
+            /**
+             * Loader Version
+             * @default
+             */
+            loader_version: string;
+            /** Mods */
+            mods?: components["schemas"]["MinecraftModPinOut"][];
+            /** Properties */
+            properties?: {
+                [key: string]: string;
+            };
+            /** Overrides */
+            overrides?: components["schemas"]["MinecraftOverrideOut"][];
+            /**
+             * Public Host
+             * @default
+             */
+            public_host: string;
+            /**
+             * Public Port
+             * @default 25565
+             */
+            public_port: number;
+        };
+        /** MinecraftRconTestRequest */
+        MinecraftRconTestRequest: {
+            /**
+             * Host
+             * @default
+             */
+            host: string;
+            /**
+             * Port
+             * @default 0
+             */
+            port: number;
+            /** Password */
+            password?: string | null;
+        };
+        /** MinecraftRconTestResponse */
+        MinecraftRconTestResponse: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
+        };
+        /** MinecraftRosterPlayerOut */
+        MinecraftRosterPlayerOut: {
+            /** Name */
+            name: string;
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Online
+             * @default false
+             */
+            online: boolean;
+        };
+        /** MinecraftStatusOut */
+        MinecraftStatusOut: {
+            /** Pelican Configured */
+            pelican_configured: boolean;
+            /** Power State */
+            power_state?: string | null;
+            /** Ping Online */
+            ping_online: boolean;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /**
+             * Motd
+             * @default
+             */
+            motd: string;
+            /**
+             * Motd Raw
+             * @default
+             */
+            motd_raw: string;
+            /**
+             * Favicon
+             * @default
+             */
+            favicon: string;
+            /**
+             * Version Name
+             * @default
+             */
+            version_name: string;
+            /**
+             * Players Online
+             * @default 0
+             */
+            players_online: number;
+            /**
+             * Players Max
+             * @default 0
+             */
+            players_max: number;
+            /** Players */
+            players?: components["schemas"]["MinecraftPlayerOut"][];
+            /**
+             * Public Host
+             * @default
+             */
+            public_host: string;
+            /**
+             * Public Port
+             * @default 25565
+             */
+            public_port: number;
+            /**
+             * Address
+             * @default
+             */
+            address: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Playbook Dirty
+             * @default false
+             */
+            playbook_dirty: boolean;
+            applied?: components["schemas"]["MinecraftAppliedOut"] | null;
+            /** Properties */
+            properties?: {
+                [key: string]: string;
+            };
+            /** Mods */
+            mods?: components["schemas"]["MinecraftOverviewModOut"][];
+            /** Whitelist */
+            whitelist?: components["schemas"]["MinecraftPlayerOut"][];
+            /** Roster */
+            roster?: components["schemas"]["MinecraftRosterPlayerOut"][];
+        };
         /** NapCatGroupMemberOut */
         NapCatGroupMemberOut: {
             /** User Id */
@@ -5077,6 +6420,32 @@ export interface components {
              * @default 8
              */
             min_password_length: number;
+        };
+        /** PelicanTestRequest */
+        PelicanTestRequest: {
+            /**
+             * Base Url
+             * @default
+             */
+            base_url: string;
+            /** Token */
+            token?: string | null;
+            /**
+             * Server Uuid
+             * @default
+             */
+            server_uuid: string;
+        };
+        /** PelicanTestResponse */
+        PelicanTestResponse: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /** Server Name */
+            server_name?: string | null;
+            /** Power State */
+            power_state?: string | null;
         };
         /** PlatformFeatureJobUpdate */
         PlatformFeatureJobUpdate: {
@@ -6921,6 +8290,21 @@ export interface components {
              */
             tier: string;
         };
+        /** TarkovMapBossLocationOut */
+        TarkovMapBossLocationOut: {
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Chance
+             * @default 0
+             */
+            chance: number;
+            /** Positions */
+            positions?: components["schemas"]["TarkovMapPointOut"][];
+        };
         /** TarkovMapBossOut */
         TarkovMapBossOut: {
             /**
@@ -6943,6 +8327,8 @@ export interface components {
              * @default 0
              */
             spawn_chance: number;
+            /** Locations */
+            locations?: components["schemas"]["TarkovMapBossLocationOut"][];
         };
         /** TarkovMapCatalogOut */
         TarkovMapCatalogOut: {
@@ -7048,6 +8434,12 @@ export interface components {
              * @default
              */
             faction: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
         };
         /** TarkovMapListItemOut */
         TarkovMapListItemOut: {
@@ -7097,6 +8489,18 @@ export interface components {
              * @default 0
              */
             max_player_level: number;
+        };
+        /** TarkovMapPointOut */
+        TarkovMapPointOut: {
+            /** X */
+            x: number;
+            /**
+             * Y
+             * @default 0
+             */
+            y: number;
+            /** Z */
+            z: number;
         };
         /** TarkovMapVariantOut */
         TarkovMapVariantOut: {
@@ -9864,6 +11268,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IntegrationsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_pelican_connection_api_settings_integrations_pelican_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PelicanTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PelicanTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_minecraft_rcon_connection_api_settings_integrations_minecraft_rcon_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftRconTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftRconTestResponse"];
                 };
             };
             /** @description Validation Error */
@@ -13519,6 +14989,825 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovTrackerStatusOut"];
+                };
+            };
+        };
+    };
+    minecraft_files_list_api_guides_minecraft_files_get: {
+        parameters: {
+            query?: {
+                directory?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_contents_api_guides_minecraft_files_contents_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileContentsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_write_api_guides_minecraft_files_contents_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_download_api_guides_minecraft_files_download_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileDownloadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_upload_api_guides_minecraft_files_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_minecraft_files_upload_api_guides_minecraft_files_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_create_folder_api_guides_minecraft_files_create_folder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileCreateFolderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_create_file_api_guides_minecraft_files_create_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileCreateFileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_rename_api_guides_minecraft_files_rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileRenameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_copy_api_guides_minecraft_files_copy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileCopyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_delete_api_guides_minecraft_files_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileDeleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_compress_api_guides_minecraft_files_compress_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileCompressIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_decompress_api_guides_minecraft_files_decompress_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileDecompressIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_chmod_api_guides_minecraft_files_chmod_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFileChmodIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_files_pull_api_guides_minecraft_files_pull_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftFilePullIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftFileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_status_api_guides_minecraft_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftStatusOut"];
+                };
+            };
+        };
+    };
+    minecraft_presence_api_guides_minecraft_presence_get: {
+        parameters: {
+            query: {
+                /** @description 起始日期 YYYY-MM-DD */
+                date: string;
+                /** @description 结束日期 YYYY-MM-DD；缺省则仅查询当日 */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftPresenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_perf_api_guides_minecraft_perf_get: {
+        parameters: {
+            query?: {
+                /** @description 折线时间窗：30m / 1h / 12h / 24h / 30d / all */
+                range?: "30m" | "1h" | "12h" | "24h" | "30d" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftPerfOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_power_api_guides_minecraft_power_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftPowerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftPowerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_get_profile_api_guides_minecraft_profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftProfileOut"];
+                };
+            };
+        };
+    };
+    minecraft_put_profile_api_guides_minecraft_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_apply_api_guides_minecraft_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftApplyOut"];
+                };
+            };
+        };
+    };
+    minecraft_game_versions_api_guides_minecraft_game_versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftGameVersionOut"][];
+                };
+            };
+        };
+    };
+    minecraft_loader_versions_api_guides_minecraft_loader_versions_get: {
+        parameters: {
+            query: {
+                loader: string;
+                mc_version?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftLoaderVersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_search_api_guides_minecraft_mods_search_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                loader?: string;
+                mc_version?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_versions_api_guides_minecraft_mods_versions_get: {
+        parameters: {
+            query: {
+                project_id: string;
+                loader?: string;
+                mc_version?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModPinOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_pin_api_guides_minecraft_mods_pin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftModPinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModPinOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_updates_api_guides_minecraft_mods_updates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModUpdateOut"][];
                 };
             };
         };

@@ -2,22 +2,30 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import time
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.services.tarkov_ammo import TARKOV_GRAPHQL_URL
 from app.services.tarkov_bosses import (
     TarkovBossesError,
     _as_int,
+    _http_request,
     _locale_lookup,
     _map_zh,
     _maps_blob,
     _mob_name,
     _mobs_blob,
+    map_xyz,
     ensure_bosses,
     get_bosses_raw,
 )
 from app.services.tarkov_bosses import _load_payload as load_bosses_payload
+
+logger = logging.getLogger(__name__)
 
 MAPS_PAGE_SIZE_DEFAULT = 50
 
@@ -40,6 +48,48 @@ VARIANT_PARENT: dict[str, str] = {
 
 HUB_SKIP = {"ground-zero-tutorial", "openworld", "transits"}
 
+_MARKERS_QUERY = """
+query MapMarkers($lang: LanguageCode) {
+  maps(lang: $lang) {
+    normalizedName
+    extracts {
+      id
+      name
+      faction
+      position { x y z }
+    }
+    bosses {
+      normalizedName
+      spawnLocations {
+        name
+        chance
+        positions { x y z }
+      }
+    }
+  }
+}
+""".strip()
+
+_MARKER_TTL_SEC = 3600
+_marker_cache: dict[str, Any] = {"at": 0.0, "by_slug": {}}
+
+# tarkov.dev /maps/{slug}_thumb.jpg 已被 SPA 路由吞成 HTML；改用 assets 上的 svg/瓦片。
+MAP_THUMB_ASSETS: dict[str, str] = {
+    "customs": "https://assets.tarkov.dev/maps/svg/Customs.svg",
+    "factory": "https://assets.tarkov.dev/maps/svg/Factory.svg",
+    "ground-zero": "https://assets.tarkov.dev/maps/svg/GroundZero.svg",
+    "interchange": "https://assets.tarkov.dev/maps/svg/Interchange.svg",
+    "lighthouse": "https://assets.tarkov.dev/maps/svg/Lighthouse.svg",
+    "reserve": "https://assets.tarkov.dev/maps/svg/Reserve.svg",
+    "shoreline": "https://assets.tarkov.dev/maps/svg/Shoreline.svg",
+    "streets-of-tarkov": "https://assets.tarkov.dev/maps/svg/StreetsOfTarkov.svg",
+    "terminal": "https://assets.tarkov.dev/maps/svg/Terminal.svg",
+    "woods": "https://assets.tarkov.dev/maps/svg/Woods.svg",
+    "the-lab": "https://assets.tarkov.dev/maps/labs_v4/1st/0/0/0.png",
+    "the-labyrinth": "https://assets.tarkov.dev/maps/labyrinth/main/0/0/0.png",
+    "icebreaker": "https://assets.tarkov.dev/maps/icebreaker/06_infirmary/0/0/0.png",
+}
+
 
 def resolve_map_slug(slug: str) -> str:
     key = (slug or "").strip().lower()
@@ -58,10 +108,16 @@ def _faction_label(raw: str) -> str:
 
 
 def _thumb_url(normalized: str) -> str:
-    slug = (normalized or "").strip()
+    slug = resolve_map_slug(normalized)
     if not slug:
         return ""
-    return f"https://tarkov.dev/maps/{slug}_thumb.jpg"
+    slug = VARIANT_PARENT.get(slug, slug)
+    if slug in MAP_THUMB_ASSETS:
+        return MAP_THUMB_ASSETS[slug]
+    pascal = "".join(part.capitalize() for part in slug.split("-") if part)
+    if not pascal:
+        return ""
+    return f"https://assets.tarkov.dev/maps/svg/{pascal}.svg"
 
 
 def _interactive_url(normalized: str) -> str:
@@ -84,13 +140,17 @@ def _extracts(raw: dict[str, Any], locale: dict[str, Any]) -> list[dict[str, Any
         if not label or label in seen:
             continue
         seen.add(label)
-        out.append(
-            {
-                "id": ident,
-                "name": label,
-                "faction": _faction_label(str(row.get("faction") or "")),
-            }
-        )
+        item: dict[str, Any] = {
+            "id": ident,
+            "name": label,
+            "faction": _faction_label(str(row.get("faction") or "")),
+        }
+        point = map_xyz(row)
+        if point:
+            item["x"] = point["x"]
+            item["y"] = point["y"]
+            item["z"] = point["z"]
+        out.append(item)
     out.sort(key=lambda r: (r.get("faction") or "", r.get("name") or ""))
     return out
 
@@ -118,10 +178,125 @@ def _map_bosses(
                 "slug": slug,
                 "name": _mob_name(mob_id, mob or {}, locale),
                 "spawn_chance": round(chance * 100) if chance <= 1 else int(chance),
+                "locations": _boss_locations(spawn, locale),
             }
         )
     out.sort(key=lambda r: (-int(r.get("spawn_chance") or 0), str(r.get("name") or "")))
     return out
+
+
+def _boss_locations(spawn: dict[str, Any], locale: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for loc in spawn.get("spawnLocations") or []:
+        if not isinstance(loc, dict):
+            continue
+        key = str(loc.get("spawnKey") or loc.get("name") or "").strip()
+        name = _locale_lookup(locale, key) if key else ""
+        label = name or str(loc.get("name") or key)
+        positions: list[dict[str, float]] = []
+        for raw in loc.get("positions") or []:
+            point = map_xyz(raw)
+            if point:
+                positions.append(point)
+        if not positions:
+            point = map_xyz(loc)
+            if point:
+                positions.append(point)
+        chance = float(loc.get("chance") or 0)
+        out.append({"name": label, "chance": chance, "positions": positions})
+    return out
+
+
+def _extracts_have_coords(extracts: list[dict[str, Any]]) -> bool:
+    return any(row.get("x") is not None and row.get("z") is not None for row in extracts)
+
+
+def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
+    now = time.time()
+    cached = _marker_cache.get("by_slug")
+    if isinstance(cached, dict) and cached and now - float(_marker_cache.get("at") or 0) < _MARKER_TTL_SEC:
+        return cached
+    body = json.dumps(
+        {"query": _MARKERS_QUERY, "variables": {"lang": lang}},
+        ensure_ascii=False,
+    ).encode("utf-8")
+    raw = _http_request(
+        TARKOV_GRAPHQL_URL,
+        method="POST",
+        body=body,
+        headers={"Content-Type": "application/json"},
+        timeout=20,
+    )
+    payload = json.loads(raw.decode("utf-8"))
+    if payload.get("errors"):
+        raise TarkovBossesError(f"tarkov.dev GraphQL 错误: {payload.get('errors')}")
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    rows = data.get("maps") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise TarkovBossesError("tarkov.dev maps 标记响应无效")
+    by_slug: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        slug = str(row.get("normalizedName") or "").strip()
+        if slug:
+            by_slug[slug] = row
+    _marker_cache["at"] = now
+    _marker_cache["by_slug"] = by_slug
+    return by_slug
+
+
+def _apply_graphql_markers(row: dict[str, Any]) -> None:
+    extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
+    if _extracts_have_coords(extracts):
+        return
+    try:
+        by_slug = _graphql_map_markers()
+    except Exception:  # noqa: BLE001
+        logger.warning("tarkov.dev GraphQL map markers unavailable", exc_info=True)
+        return
+    extra = by_slug.get(str(row.get("slug") or "")) or by_slug.get(str(row.get("id") or ""))
+    if not extra:
+        return
+    gql_extracts = extra.get("extracts") if isinstance(extra.get("extracts"), list) else []
+    by_id = {
+        str(item.get("id") or ""): item
+        for item in gql_extracts
+        if isinstance(item, dict) and item.get("id")
+    }
+    by_name = {
+        str(item.get("name") or ""): item
+        for item in gql_extracts
+        if isinstance(item, dict) and item.get("name")
+    }
+    for extract in extracts:
+        if extract.get("x") is not None and extract.get("z") is not None:
+            continue
+        src = by_id.get(str(extract.get("id") or "")) or by_name.get(
+            str(extract.get("name") or "")
+        )
+        point = map_xyz(src) if src else None
+        if not point:
+            continue
+        extract["x"] = point["x"]
+        extract["y"] = point["y"]
+        extract["z"] = point["z"]
+    gql_bosses = extra.get("bosses") if isinstance(extra.get("bosses"), list) else []
+    gql_by_slug = {
+        str(item.get("normalizedName") or ""): item
+        for item in gql_bosses
+        if isinstance(item, dict) and item.get("normalizedName")
+    }
+    for boss in row.get("bosses") or []:
+        if not isinstance(boss, dict):
+            continue
+        locs = boss.get("locations") if isinstance(boss.get("locations"), list) else []
+        if any(loc.get("positions") for loc in locs if isinstance(loc, dict)):
+            continue
+        src = gql_by_slug.get(str(boss.get("slug") or ""))
+        if not src:
+            continue
+        boss["locations"] = _boss_locations(src, {})
 
 
 def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -236,6 +411,7 @@ def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
         for v in rows
         if v.get("parent_slug") == parent and v.get("slug") != row.get("slug")
     ]
+    _apply_graphql_markers(row)
     return {
         **row,
         "variants": variants,

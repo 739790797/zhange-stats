@@ -20,6 +20,11 @@ from app.models.kujiequ import (
     KujiequCheckinLog,
     KujiequWwBoxRaw,
 )
+from app.models.minecraft import (
+    MinecraftPerfSample,
+    MinecraftPresenceSegment,
+    MinecraftServerProfile,
+)
 from app.models.tarkov import (
     TarkovAmmo,
     TarkovAmmoMeta,
@@ -83,4 +88,7 @@ __all__ = [
     "TarkovGuidesRaw",
     "TarkovGuidesMeta",
     "TarkovTrackerBind",
+    "MinecraftServerProfile",
+    "MinecraftPerfSample",
+    "MinecraftPresenceSegment",
 ]
