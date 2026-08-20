@@ -24,10 +24,10 @@ frontend/.vite/
 .DS_Store
 Thumbs.db
 
-# Uploads / runtime data
+# Uploads / runtime data（仅仓库根 data/，不要误伤 frontend/src/data）
 uploads/
 backend/uploads/
-data/
+/data/
 **/.secret_key
 
 # Local scratch
