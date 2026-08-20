@@ -15,12 +15,8 @@ export function TarkovHomeToolRail() {
         <nav className={styles.toolList}>
           {TARKOV_TOOLS.map((item) => {
             const ready = item.status === "ready";
-            return (
-              <Link
-                key={item.id}
-                to={item.href}
-                className={`${styles.toolItem} ${ready ? styles.toolReady : ""}`}
-              >
+            const body = (
+              <>
                 <span className={styles.toolIcon} aria-hidden>
                   {item.icon}
                 </span>
@@ -28,6 +24,26 @@ export function TarkovHomeToolRail() {
                 <span className={styles.toolChevron} aria-hidden>
                   ›
                 </span>
+              </>
+            );
+            if (!ready) {
+              return (
+                <span
+                  key={item.id}
+                  className={`${styles.toolItem} ${styles.toolSoon}`}
+                  aria-disabled="true"
+                >
+                  {body}
+                </span>
+              );
+            }
+            return (
+              <Link
+                key={item.id}
+                to={item.href}
+                className={`${styles.toolItem} ${styles.toolReady}`}
+              >
+                {body}
               </Link>
             );
           })}

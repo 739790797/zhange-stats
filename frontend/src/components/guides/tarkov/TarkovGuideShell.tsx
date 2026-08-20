@@ -1,14 +1,16 @@
 import type { ReactNode } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfigProvider } from "antd";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
+import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
   TARKOV_HOME_PATH,
   TARKOV_TOP_NAV,
   isTarkovTopNavActive,
   tarkovBossHref,
+  tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
 import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
@@ -116,6 +118,41 @@ type Props = {
 /** 攻略暗色全幅外壳 + 顶栏，首页与弹药/枪械等内页共用。 */
 export function TarkovGuideShell({ children }: Props) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const qParam = (searchParams.get("q") || "").trim();
+  const [draft, setDraft] = useState(
+    pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`
+      ? qParam
+      : "",
+  );
+  const searchRef = useRef<HTMLInputElement>(null);
+  useTarkovDocumentTitle(tarkovPageTitle(pathname));
+  useEffect(() => {
+    if (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`) {
+      setDraft(qParam);
+    }
+  }, [pathname, qParam]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const bossesQuery = useQuery({
     queryKey: ["guides-tarkov-bosses"],
     queryFn: fetchTarkovBosses,
@@ -185,17 +222,27 @@ export function TarkovGuideShell({ children }: Props) {
                           className={`${styles.dropCol} ${bossMenu ? styles.dropColBosses : ""}`}
                         >
                           <p className={styles.dropHead}>{group.label}</p>
-                          {group.items.map((link) => (
-                            <Link
-                              key={link.id}
-                              to={link.href}
-                              className={styles.dropLink}
-                              role="menuitem"
-                            >
-                              {link.label}
-                              <TarkovSoonMark status={link.status} />
-                            </Link>
-                          ))}
+                          {group.items.map((link) =>
+                            link.status === "soon" ? (
+                              <span
+                                key={link.id}
+                                className={`${styles.dropLink} ${styles.dropLinkSoon}`}
+                                aria-disabled="true"
+                              >
+                                {link.label}
+                                <TarkovSoonMark status={link.status} />
+                              </span>
+                            ) : (
+                              <Link
+                                key={link.id}
+                                to={link.href}
+                                className={styles.dropLink}
+                                role="menuitem"
+                              >
+                                {link.label}
+                              </Link>
+                            ),
+                          )}
                         </div>
                       ))}
                     </div>
@@ -204,10 +251,35 @@ export function TarkovGuideShell({ children }: Props) {
               );
             })}
           </nav>
-          <div className={styles.tracker}>
-            <ConfigProvider theme={TARKOV_ANTD_DARK}>
-              <TarkovTrackerBindButton />
-            </ConfigProvider>
+          <div className={styles.topRight}>
+            <form
+              className={styles.topSearch}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const next = draft.trim();
+                navigate(
+                  next
+                    ? `${TARKOV_HOME_PATH}?q=${encodeURIComponent(next)}`
+                    : TARKOV_HOME_PATH,
+                );
+              }}
+            >
+              <input
+                ref={searchRef}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="搜索…"
+                aria-label="全站搜索攻略"
+                autoComplete="off"
+                enterKeyHint="search"
+              />
+              <kbd className={styles.topKbd}>/</kbd>
+            </form>
+            <div className={styles.tracker}>
+              <ConfigProvider theme={TARKOV_ANTD_DARK}>
+                <TarkovTrackerBindButton />
+              </ConfigProvider>
+            </div>
           </div>
         </div>
       </header>

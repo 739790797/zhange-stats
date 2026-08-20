@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     TARKOV_BOSSES_SYNC_ENABLED: bool = True
     TARKOV_BOSSES_SYNC_HOUR: int = 4
     TARKOV_BOSSES_SYNC_MINUTE: int = 45
+    # 逃离塔科夫藏身处 / 以物易物 / 制作（默认 04:50）
+    TARKOV_GUIDES_SYNC_ENABLED: bool = True
+    TARKOV_GUIDES_SYNC_HOUR: int = 4
+    TARKOV_GUIDES_SYNC_MINUTE: int = 50
     # 兼容旧 .env；调度已合并为 TARKOV_ITEMS_*
     TARKOV_AMMO_SYNC_ENABLED: bool = True
     TARKOV_AMMO_SYNC_HOUR: int = 4

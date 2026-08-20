@@ -103,6 +103,95 @@ def test_extract_detail_uses_locale():
     assert detail["properties"]["propertiesType"] == "ItemPropertiesHeadphones"
 
 
+def test_extract_detail_hydrates_item_and_category_refs():
+    payload = {
+        "items": {
+            "data": {
+                "items": {
+                    "gun1": {
+                        "id": "gun1",
+                        "name": "gun1 Name",
+                        "shortName": "G",
+                        "types": ["gun"],
+                        "categories": [
+                            "5447b5f14bdc2d61278b4567",
+                            "54009119af1c881c07000029",
+                        ],
+                        "handbookCategories": ["5b5f78fc86f77409407a7f90"],
+                        "containsItems": [{"item": "ammo1", "count": 30}],
+                        "conflictingItems": ["plate1"],
+                        "properties": {
+                            "propertiesType": "ItemPropertiesWeapon",
+                            "defaultAmmo": "ammo1",
+                            "allowedAmmo": ["ammo1"],
+                            "defaultPreset": "preset1",
+                            "presets": ["preset1"],
+                            "content": ["tape1", "missing-key"],
+                            "armorSlots": [
+                                {"name": "Front", "allowedPlates": ["plate1"]},
+                            ],
+                        },
+                    },
+                    "ammo1": {
+                        "id": "ammo1",
+                        "types": ["ammo"],
+                        "baseImageLink": "https://example/ammo.webp",
+                    },
+                    "preset1": {
+                        "id": "preset1",
+                        "types": ["preset"],
+                    },
+                    "plate1": {
+                        "id": "plate1",
+                        "types": ["armorPlate"],
+                    },
+                },
+                "itemCategories": {
+                    "5447b5f14bdc2d61278b4567": {
+                        "normalizedName": "assault-rifle",
+                    }
+                },
+                "handbookCategories": {
+                    "5b5f78fc86f77409407a7f90": {
+                        "normalizedName": "assault-rifles",
+                    }
+                },
+            }
+        },
+        "locale": {
+            "gun1 Name": "MCX",
+            "ammo1 Name": ".300 BPZ FMJ",
+            "ammo1 ShortName": "BPZ",
+            "preset1 Name": "MCX 默认",
+            "plate1 Name": "SAPI",
+            "5447b5f14bdc2d61278b4567 Name": "突击步枪",
+            "5b5f78fc86f77409407a7f90": "突击步枪",
+            "tape1": "<b>A.P.:</b> 开始会议<br>第二句",
+        },
+    }
+    detail = catalog.extract_item_detail(SOURCE_JSON_API, payload, "gun1")
+    assert detail is not None
+    props = detail["properties"]
+    assert props["defaultAmmo"]["name"] == ".300 BPZ FMJ"
+    assert props["defaultAmmo"]["types"] == ["ammo"]
+    assert props["allowedAmmo"][0]["name"] == ".300 BPZ FMJ"
+    assert props["defaultPreset"]["name"] == "MCX 默认"
+    assert props["presets"][0]["name"] == "MCX 默认"
+    assert props["content"] == ["A.P.: 开始会议\n第二句"]
+    assert props["armorSlots"][0]["allowedPlates"][0]["name"] == "SAPI"
+    assert detail["item"]["containsItems"][0]["item"]["name"] == ".300 BPZ FMJ"
+    assert detail["item"]["containsItems"][0]["count"] == 30
+    assert detail["item"]["conflictingItems"][0]["name"] == "SAPI"
+    assert detail["item"]["categories"] == [
+        {
+            "id": "5447b5f14bdc2d61278b4567",
+            "name": "突击步枪",
+            "normalizedName": "assault-rifle",
+        }
+    ]
+    assert detail["item"]["handbookCategories"][0]["name"] == "突击步枪"
+
+
 def test_payload_has_full_items():
     assert catalog.payload_has_full_items(SOURCE_JSON_API, _json_envelope()) is True
     split = {"format": GRAPHQL_SPLIT_FORMAT, "ammo": {}, "guns": {}}

@@ -27,6 +27,7 @@ import {
 } from "@/lib/tarkovItemFormat";
 import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import { itemDetailHref, type TarkovItemPage } from "@/lib/tarkovItemTypes";
+import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovItemCatalogPanel.module.css";
 
@@ -132,11 +133,15 @@ function cellFor(column: CatalogColumnId, row: CatalogRow): string {
 export function TarkovItemCatalogPanel({ page }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const childParam = (searchParams.get("child") || "").trim();
-  const [keyword, setKeyword] = useState("");
-  const [q, setQ] = useState("");
+  const q = (searchParams.get("q") || "").trim();
+  const pageNo = readPositiveInt(searchParams.get("page"), 1);
+  const pageSize = readAllowedInt(
+    searchParams.get("pageSize"),
+    PAGE_SIZE_DEFAULT,
+    PAGE_SIZE_OPTIONS,
+  );
+  const [keyword, setKeyword] = useState(q);
   const qRef = useRef(q);
-  const [pageNo, setPageNo] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   const activeChild = page.children.find((c) => c.id === childParam) || null;
 
@@ -146,15 +151,23 @@ export function TarkovItemCatalogPanel({ page }: Props) {
   const columnIds = catalogColumnsForSlug(page.slug);
 
   useEffect(() => {
+    setKeyword(q);
+    qRef.current = q;
+  }, [q]);
+
+  useEffect(() => {
     const handle = window.setTimeout(() => {
       const next = keyword.trim();
       if (qRef.current === next) return;
       qRef.current = next;
-      setQ(next);
-      setPageNo(1);
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      params.delete("page");
+      setSearchParams(params, { replace: true });
     }, 300);
     return () => window.clearTimeout(handle);
-  }, [keyword]);
+  }, [keyword, searchParams, setSearchParams]);
 
   const catalogQuery = useQuery({
     queryKey: [
@@ -184,7 +197,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
     const next = new URLSearchParams(searchParams);
     if (id) next.set("child", id);
     else next.delete("child");
-    setPageNo(1);
+    next.delete("page");
     setSearchParams(next, { replace: true });
   };
 
@@ -340,8 +353,12 @@ export function TarkovItemCatalogPanel({ page }: Props) {
             pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
             showTotal: (count, range) => `${range[0]}–${range[1]} / ${count}`,
             onChange: (nextPage, nextSize) => {
-              setPageNo(nextPage);
-              setPageSize(nextSize);
+              const params = new URLSearchParams(searchParams);
+              if (nextPage <= 1) params.delete("page");
+              else params.set("page", String(nextPage));
+              if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
+              else params.set("pageSize", String(nextSize));
+              setSearchParams(params, { replace: true });
             },
           }}
           scroll={{ x: 720 }}

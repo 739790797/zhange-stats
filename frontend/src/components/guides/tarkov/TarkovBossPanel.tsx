@@ -14,6 +14,8 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { traderPortraitUrl } from "@/lib/tarkovHomeNav";
+import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
+import { formatMoney } from "@/lib/tarkovItemFormat";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalogStyles from "./TarkovItemCatalogPanel.module.css";
@@ -22,12 +24,6 @@ import styles from "./TarkovBossPanel.module.css";
 type Props = {
   slug: string;
 };
-
-function formatMoney(value: number | null | undefined, currency = "RUB"): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  const symbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : "₽";
-  return `${value.toLocaleString("zh-CN")} ${symbol}`;
-}
 
 function formatChance(chance: number | undefined): string {
   if (chance == null || !Number.isFinite(chance)) return "—";
@@ -42,6 +38,7 @@ export function TarkovBossPanel({ slug }: Props) {
     retry: 1,
     enabled: Boolean(slug),
   });
+  useTarkovDocumentTitle(detailQuery.data?.name || "");
 
   if (detailQuery.isLoading) {
     return (
@@ -230,7 +227,7 @@ export function TarkovBossPanel({ slug }: Props) {
           <span className={styles.diamond} aria-hidden>
             ◆
           </span>
-          Boss 特殊战利品
+          BOSS 特殊战利品
         </div>
         <Table
           className={tableStyles.table}

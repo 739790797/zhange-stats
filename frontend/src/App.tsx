@@ -36,14 +36,27 @@ import TarkovTradersPage from "@/pages/guides/TarkovTradersPage";
 import TarkovTraderPage from "@/pages/guides/TarkovTraderPage";
 import TarkovBossesPage from "@/pages/guides/TarkovBossesPage";
 import TarkovBossPage from "@/pages/guides/TarkovBossPage";
-import TarkovReservedPage from "@/pages/guides/TarkovReservedPage";
+import TarkovMapsPage from "@/pages/guides/TarkovMapsPage";
+import TarkovMapDetailPage from "@/pages/guides/TarkovMapDetailPage";
+import TarkovHideoutPage from "@/pages/guides/TarkovHideoutPage";
+import TarkovHideoutDetailPage from "@/pages/guides/TarkovHideoutDetailPage";
+import TarkovBartersPage from "@/pages/guides/TarkovBartersPage";
+import TarkovCraftsPage from "@/pages/guides/TarkovCraftsPage";
+import TarkovLootTiersPage from "@/pages/guides/TarkovLootTiersPage";
+import TarkovHideoutCostPage from "@/pages/guides/TarkovHideoutCostPage";
+import TarkovWipeLengthPage from "@/pages/guides/TarkovWipeLengthPage";
+import TarkovBitcoinFarmPage from "@/pages/guides/TarkovBitcoinFarmPage";
+import TarkovProgressionPage from "@/pages/guides/TarkovProgressionPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
+import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
 
 function TarkovGuidesOutlet() {
   return (
     <PlatformRoute featureId="guides.tarkov">
-      <Outlet />
+      <TarkovGuideShell>
+        <Outlet />
+      </TarkovGuideShell>
     </PlatformRoute>
   );
 }
@@ -161,10 +174,8 @@ export default function App() {
                   path="tasks/:taskId"
                   element={<TarkovTaskDetailPage />}
                 />
-                <Route
-                  path="maps"
-                  element={<TarkovReservedPage title="地图" />}
-                />
+                <Route path="maps" element={<TarkovMapsPage />} />
+                <Route path="maps/:mapSlug" element={<TarkovMapDetailPage />} />
                 <Route
                   path="traders"
                   element={<TarkovTradersPage />}
@@ -181,9 +192,29 @@ export default function App() {
                   path="bosses/:bossSlug"
                   element={<TarkovBossPage />}
                 />
+                <Route path="hideout" element={<TarkovHideoutPage />} />
+                <Route
+                  path="hideout/:stationSlug"
+                  element={<TarkovHideoutDetailPage />}
+                />
+                <Route path="barters" element={<TarkovBartersPage />} />
+                <Route path="crafts" element={<TarkovCraftsPage />} />
+                <Route path="loot-tiers" element={<TarkovLootTiersPage />} />
+                <Route
+                  path="hideout-cost"
+                  element={<TarkovHideoutCostPage />}
+                />
+                <Route
+                  path="wipe-length"
+                  element={<TarkovWipeLengthPage />}
+                />
+                <Route
+                  path="bitcoin-farm"
+                  element={<TarkovBitcoinFarmPage />}
+                />
                 <Route
                   path="progression"
-                  element={<TarkovReservedPage title="进度" />}
+                  element={<TarkovProgressionPage />}
                 />
               </Route>
               <Route path="/profile" element={<ProfileSettingsPage />} />

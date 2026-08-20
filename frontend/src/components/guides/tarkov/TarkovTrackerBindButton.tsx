@@ -89,6 +89,8 @@ export function TarkovTrackerBindButton() {
     mutationFn: bindTarkovTrackerToken,
     onSuccess: (data) => {
       queryClient.setQueryData(QUERY_KEY, data);
+      queryClient.invalidateQueries({ queryKey: ["guides-tarkov-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["guides-tarkov-task-detail"] });
       setOpen(false);
       setToken("");
       message.success(
@@ -106,6 +108,8 @@ export function TarkovTrackerBindButton() {
     mutationFn: syncTarkovProgress,
     onSuccess: (data) => {
       queryClient.setQueryData(QUERY_KEY, data);
+      queryClient.invalidateQueries({ queryKey: ["guides-tarkov-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["guides-tarkov-task-detail"] });
       message.success("进度已刷新");
     },
     onError: (err) => {
@@ -117,6 +121,8 @@ export function TarkovTrackerBindButton() {
     mutationFn: unbindTarkovTrackerToken,
     onSuccess: (data) => {
       queryClient.setQueryData(QUERY_KEY, data);
+      queryClient.invalidateQueries({ queryKey: ["guides-tarkov-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["guides-tarkov-task-detail"] });
       message.success("已解绑");
     },
     onError: (err) => {

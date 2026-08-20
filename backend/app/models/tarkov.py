@@ -238,3 +238,33 @@ class TarkovTrackerBind(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class TarkovGuidesRaw(Base):
+    """藏身处 / 以物易物 / 制作上游原始响应（全站最新一份）。"""
+
+    __tablename__ = "tarkov_guides_raws"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class TarkovGuidesMeta(Base):
+    """藏身处 / 交换同步元数据（单行 id=1）。"""
+
+    __tablename__ = "tarkov_guides_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    station_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    barter_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    craft_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)

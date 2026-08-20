@@ -31,6 +31,8 @@ from app.models.tarkov import (
     TarkovTasksRaw,
     TarkovBossesMeta,
     TarkovBossesRaw,
+    TarkovGuidesMeta,
+    TarkovGuidesRaw,
     TarkovTradersMeta,
     TarkovTradersRaw,
     TarkovTrackerBind,
@@ -78,5 +80,7 @@ __all__ = [
     "TarkovTradersMeta",
     "TarkovBossesRaw",
     "TarkovBossesMeta",
+    "TarkovGuidesRaw",
+    "TarkovGuidesMeta",
     "TarkovTrackerBind",
 ]

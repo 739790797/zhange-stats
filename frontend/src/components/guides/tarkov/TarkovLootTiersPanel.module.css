@@ -1,0 +1,41 @@
+.tier {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid #3a3d30;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tierS {
+  color: #e0b45a;
+  border-color: #c8932a;
+}
+
+.tierA {
+  color: #c8c4a8;
+  border-color: #8a8878;
+}
+
+.tierB {
+  color: #8fbf88;
+  border-color: #3d5c3a;
+}
+
+.tierC {
+  color: #7ab8c8;
+  border-color: #3a5c6a;
+}
+
+.tierD {
+  color: #b0ae9a;
+  border-color: #4a4a40;
+}
+
+.tierE {
+  color: #8a8c78;
+  border-color: #3a3a32;
+}

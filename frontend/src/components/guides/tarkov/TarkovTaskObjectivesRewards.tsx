@@ -1,21 +1,13 @@
 import {
-  BorderOutlined,
   GiftOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
-import { Alert, Spin } from "antd";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import {
-  fetchTarkovTaskDetail,
-  type TarkovTaskDetail,
-} from "@/api/guidesApi";
-import { apiError } from "@/lib/apiError";
 import { TARKOV_TRADERS } from "@/lib/tarkovHomeNav";
-import { useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
 import { formatTaskExtractLines } from "@/lib/tarkovTaskObjective";
 import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
+import type { TarkovTaskDetail } from "@/api/guidesApi";
 import type { components } from "@/api/generated/schema";
 import styles from "./TarkovTaskDetailPanel.module.css";
 
@@ -41,32 +33,29 @@ function ObjectiveItem({
   count?: number | null;
 }) {
   const thumb = transparentThumbUrl(item.icon_link) || item.icon_link;
-  const label = item.name && item.name !== item.id ? item.name : "";
+  const label = item.name && item.name !== item.id ? item.name : item.id;
   const body = (
     <>
       {thumb ? (
-        <img className={styles.objItemIcon} src={thumb} alt="" />
+        <span className={styles.objItemVisual}>
+          <img className={styles.objItemIcon} src={thumb} alt="" />
+          {count && count > 1 ? (
+            <span className={styles.objItemCount}>×{count}</span>
+          ) : null}
+        </span>
       ) : null}
-      {count && count > 1 ? (
-        <span className={styles.objItemCount}>×{count}</span>
-      ) : null}
-      {!thumb && label ? label : null}
+      <span className={styles.objItemName}>{label}</span>
     </>
   );
   if (item.types?.length) {
     return (
-      <Link
-        className={styles.objItem}
-        to={itemHref(item)}
-        onClick={(e) => e.stopPropagation()}
-        title={label || item.id}
-      >
+      <Link className={styles.objItem} to={itemHref(item)} title={label}>
         {body}
       </Link>
     );
   }
   return (
-    <span className={styles.objItem} title={label || item.id}>
+    <span className={styles.objItem} title={label}>
       {body}
     </span>
   );
@@ -75,12 +64,15 @@ function ObjectiveItem({
 function ObjectiveRow({ obj }: { obj: Objective }) {
   const extractLines = formatTaskExtractLines(obj);
   const items = obj.items || [];
+  const maps = obj.maps || [];
   const showItems = items.length > 0;
   const showBox = extractLines.length > 0;
   const countForSingle = items.length === 1 ? obj.count : null;
   return (
     <div className={styles.obj}>
-      <BorderOutlined className={styles.check} />
+      <span className={styles.check} aria-hidden>
+        □
+      </span>
       <div className={styles.objBody}>
         <div>
           {obj.optional ? <span className={styles.tag}>可选</span> : null}
@@ -89,6 +81,15 @@ function ObjectiveRow({ obj }: { obj: Objective }) {
           ) : null}
           {obj.description || obj.type || obj.id}
         </div>
+        {maps.length ? (
+          <div className={styles.objMaps}>
+            地图：
+            {maps
+              .map((map) => map.name || map.slug || map.id)
+              .filter(Boolean)
+              .join("、")}
+          </div>
+        ) : null}
         {showItems ? (
           <div className={styles.objItems}>
             {items.map((item) => (
@@ -108,27 +109,37 @@ function ObjectiveRow({ obj }: { obj: Objective }) {
   );
 }
 
-type RewardsProps = {
-  detail: TarkovTaskDetail;
-  compact?: boolean;
-};
+function KeyLink({ item }: { item: NamedRef }) {
+  const label = item.name && item.name !== item.id ? item.name : item.id;
+  return (
+    <Link className={styles.keyItem} to={itemHref(item)} title={label}>
+      {item.icon_link ? (
+        <img className={styles.keyIcon} src={item.icon_link} alt="" />
+      ) : (
+        <span className={styles.keyIcon} />
+      )}
+      <span className={styles.objItemName}>{label}</span>
+    </Link>
+  );
+}
 
-/** 游戏任务卡同款：目标清单 + 完成奖励（不含目标下的地图标签）。 */
+/** 对齐 tarkov.dev 任务详情：目标（含地图）→ 钥匙 → 完成奖励。 */
 export function TarkovTaskObjectivesRewards({
   detail,
-  compact = false,
-}: RewardsProps) {
+}: {
+  detail: TarkovTaskDetail;
+}) {
   const objectives = detail.objectives || [];
   const rewards = detail.finish_rewards;
-  const sectionClass = compact ? styles.sectionFlush : styles.section;
+  const keys = detail.needed_keys || [];
 
   return (
-    <div className={compact ? styles.expandStack : undefined}>
-      <section className={sectionClass}>
-        <div className={styles.sectionHead}>
+    <>
+      <section className={styles.section}>
+        <h2 className={styles.sectionHead}>
           <UnorderedListOutlined />
           目标
-        </div>
+        </h2>
         {objectives.length ? (
           objectives.map((obj) => (
             <ObjectiveRow key={obj.id || obj.description} obj={obj} />
@@ -138,18 +149,41 @@ export function TarkovTaskObjectivesRewards({
         )}
       </section>
 
-      <section className={sectionClass}>
-        <div className={styles.sectionHead}>
+      {keys.length ? (
+        <section className={styles.section}>
+          <h2 className={styles.sectionHead}>所需钥匙</h2>
+          <div className={styles.keys}>
+            {keys.map((row, index) => (
+              <div
+                key={`${row.map?.id || "map"}-${index}`}
+                className={styles.keyGroup}
+              >
+                <div className={styles.keyMap}>
+                  {row.map?.name || row.map?.id || "未知地图"}
+                </div>
+                <div className={styles.rewardRow}>
+                  {(row.keys || []).map((key) => (
+                    <KeyLink key={key.id} item={key} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionHead}>
           <GiftOutlined />
-          Completion Rewards
-        </div>
+          完成奖励
+        </h2>
         {detail.experience ||
         rewards?.items?.length ||
         rewards?.trader_standing?.length ? (
           <div className={styles.rewards}>
             {detail.experience ? (
               <div>
-                <div className={styles.rewardBlock}>XP</div>
+                <div className={styles.rewardBlock}>经验</div>
                 <div className={styles.xp}>
                   +{detail.experience.toLocaleString("zh-CN")}
                 </div>
@@ -164,17 +198,24 @@ export function TarkovTaskObjectivesRewards({
                       key={`${item.id}-${item.count}`}
                       className={styles.rewardItem}
                       to={itemHref(item)}
-                      onClick={(e) => e.stopPropagation()}
                     >
                       {item.icon_link ? (
-                        <img
-                          className={styles.keyIcon}
-                          src={item.icon_link}
-                          alt=""
-                        />
+                        <span className={styles.objItemVisual}>
+                          <img
+                            className={styles.keyIcon}
+                            src={item.icon_link}
+                            alt=""
+                          />
+                          {item.count > 1 ? (
+                            <span className={styles.objItemCount}>
+                              ×{item.count}
+                            </span>
+                          ) : null}
+                        </span>
                       ) : null}
-                      {item.name && item.name !== item.id ? item.name : item.id}
-                      {item.count > 1 ? ` ×${item.count}` : ""}
+                      <span className={styles.objItemName}>
+                        {item.name && item.name !== item.id ? item.name : item.id}
+                      </span>
                     </Link>
                   ))}
                 </div>
@@ -199,38 +240,6 @@ export function TarkovTaskObjectivesRewards({
           <div className={styles.muted}>无奖励数据</div>
         )}
       </section>
-    </div>
+    </>
   );
-}
-
-export function TarkovTaskExpandBody({ taskId }: { taskId: string }) {
-  const [mine] = useTarkovTaskMineMode();
-  const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-task-detail", taskId, mine],
-    queryFn: () => fetchTarkovTaskDetail(taskId, { progress: mine }),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-
-  if (detailQuery.isLoading) {
-    return (
-      <div className={styles.expandStatus}>
-        <Spin size="small" tip="加载目标与奖励…" />
-      </div>
-    );
-  }
-
-  if (detailQuery.isError) {
-    return (
-      <Alert
-        type="error"
-        showIcon
-        message="任务详情加载失败"
-        description={apiError(detailQuery.error, "任务详情加载失败")}
-      />
-    );
-  }
-
-  if (!detailQuery.data) return null;
-  return <TarkovTaskObjectivesRewards detail={detailQuery.data} compact />;
 }

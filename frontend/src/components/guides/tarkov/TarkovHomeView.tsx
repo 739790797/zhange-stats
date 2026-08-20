@@ -22,7 +22,6 @@ import {
   type TarkovMapCard,
   type TarkovSiteSearchRow,
 } from "@/lib/tarkovHomeNav";
-import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
 import { TarkovHomeToolRail } from "@/components/guides/tarkov/TarkovHomeToolRail";
 import styles from "./TarkovHomeView.module.css";
 
@@ -122,6 +121,8 @@ function BossName({ row }: { row: HomeBossRow }) {
           alt=""
           width={56}
           height={56}
+          loading="lazy"
+          decoding="async"
           onError={() => setBroken(true)}
         />
       ) : (
@@ -184,7 +185,7 @@ function MapCard({ item }: { item: TarkovMapCard }) {
       href={item.href}
       icon={item.icon}
       label={item.label}
-      soon={item.comingSoon}
+      soon={item.status === "soon" || Boolean(item.comingSoon)}
     />
   );
 }
@@ -276,7 +277,7 @@ export function TarkovHomeView() {
   const waiting = searching && searchQuery.isLoading && !searchQuery.data;
 
   return (
-    <TarkovGuideShell>
+    <>
       <section className={styles.hero}>
         <div className={styles.heroInner}>
           <h1 className={styles.title}>逃离塔科夫</h1>
@@ -384,6 +385,8 @@ export function TarkovHomeView() {
                         alt=""
                         width={72}
                         height={72}
+                        loading="lazy"
+                        decoding="async"
                       />
                       <div className={styles.traderEnglish}>{item.english}</div>
                       <div className={styles.traderChinese}>{item.chinese}</div>
@@ -445,6 +448,6 @@ export function TarkovHomeView() {
           </div>
         </div>
       </footer>
-    </TarkovGuideShell>
+    </>
   );
 }

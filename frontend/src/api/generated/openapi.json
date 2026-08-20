@@ -7429,6 +7429,471 @@
         }
       }
     },
+    "/api/guides/tarkov/maps": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Map Catalog",
+        "description": "地图目录：时长 / 人数 / 缩略图（读 bosses maps raw）。",
+        "operationId": "guides_tarkov_map_catalog_api_guides_tarkov_maps_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovMapCatalogOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/maps/{map_slug}": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Map Detail",
+        "description": "地图详情：撤离点、BOSS、突袭时长；互动图层链到 tarkov.dev。",
+        "operationId": "guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Map Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovMapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/guides/sync": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Guides Sync",
+        "description": "管理员：回源同步藏身处 / 以物易物 / 制作。",
+        "operationId": "guides_tarkov_guides_sync_api_guides_tarkov_guides_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovGuidesSyncOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/hideout": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Hideout Catalog",
+        "description": "藏身处模块与升级材料。",
+        "operationId": "guides_tarkov_hideout_catalog_api_guides_tarkov_hideout_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovHideoutCatalogOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/hideout/{station_slug}": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Hideout Detail",
+        "description": "单个藏身处模块的全部等级。",
+        "operationId": "guides_tarkov_hideout_detail_api_guides_tarkov_hideout__station_slug__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "station_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Station Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovHideoutDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/barters": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Barter Catalog",
+        "description": "商人以物易物。",
+        "operationId": "guides_tarkov_barter_catalog_api_guides_tarkov_barters_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "trader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trader"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovBarterCatalogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/crafts": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Craft Catalog",
+        "description": "藏身处制作。",
+        "operationId": "guides_tarkov_craft_catalog_api_guides_tarkov_crafts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "station",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Station"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCraftCatalogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/loot-tiers": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Loot Tiers",
+        "description": "战利品等级：跳蚤每格价分档。",
+        "operationId": "guides_tarkov_loot_tiers_api_guides_tarkov_loot_tiers_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tier"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovLootTierCatalogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/progress": {
       "get": {
         "tags": [
@@ -15357,6 +15822,134 @@
         ],
         "title": "TarkovAmmoSyncOut"
       },
+      "TarkovBarterCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBarterOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "barter_count": {
+            "type": "integer",
+            "title": "Barter Count",
+            "default": 0
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 50
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "traders": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTraderChipOut"
+            },
+            "type": "array",
+            "title": "Traders"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovBarterCatalogOut"
+      },
+      "TarkovBarterOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "trader_id": {
+            "type": "string",
+            "title": "Trader Id",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          },
+          "min_trader_level": {
+            "type": "integer",
+            "title": "Min Trader Level",
+            "default": 0
+          },
+          "task_unlock": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Unlock"
+          },
+          "required_items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovGuideItemRefOut"
+            },
+            "type": "array",
+            "title": "Required Items"
+          },
+          "offered_item": {
+            "$ref": "#/components/schemas/TarkovGuideItemRefOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "offered_item"
+        ],
+        "title": "TarkovBarterOut"
+      },
       "TarkovBossCatalogOut": {
         "properties": {
           "items": {
@@ -16057,6 +16650,232 @@
         ],
         "title": "TarkovCatalogOut"
       },
+      "TarkovCraftCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovCraftOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "craft_count": {
+            "type": "integer",
+            "title": "Craft Count",
+            "default": 0
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 50
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovStationChipOut"
+            },
+            "type": "array",
+            "title": "Stations"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovCraftCatalogOut"
+      },
+      "TarkovCraftOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "station_id": {
+            "type": "string",
+            "title": "Station Id",
+            "default": ""
+          },
+          "station_slug": {
+            "type": "string",
+            "title": "Station Slug",
+            "default": ""
+          },
+          "station_name": {
+            "type": "string",
+            "title": "Station Name",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          },
+          "duration": {
+            "type": "integer",
+            "title": "Duration",
+            "default": 0
+          },
+          "required_items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovGuideItemRefOut"
+            },
+            "type": "array",
+            "title": "Required Items"
+          },
+          "product_item": {
+            "$ref": "#/components/schemas/TarkovGuideItemRefOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "product_item"
+        ],
+        "title": "TarkovCraftOut"
+      },
+      "TarkovGuideItemRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "count": {
+            "type": "number",
+            "title": "Count",
+            "default": 1
+          },
+          "found_in_raid": {
+            "type": "boolean",
+            "title": "Found In Raid",
+            "default": false
+          },
+          "flea_price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flea Price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovGuideItemRefOut"
+      },
+      "TarkovGuidesSyncOut": {
+        "properties": {
+          "station_count": {
+            "type": "integer",
+            "title": "Station Count",
+            "default": 0
+          },
+          "barter_count": {
+            "type": "integer",
+            "title": "Barter Count",
+            "default": 0
+          },
+          "craft_count": {
+            "type": "integer",
+            "title": "Craft Count",
+            "default": 0
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "title": "TarkovGuidesSyncOut"
+      },
       "TarkovGunCatalogOut": {
         "properties": {
           "items": {
@@ -16238,6 +17057,292 @@
         ],
         "title": "TarkovGunSyncOut"
       },
+      "TarkovHideoutCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutStationOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "station_count": {
+            "type": "integer",
+            "title": "Station Count",
+            "default": 0
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutCatalogOut"
+      },
+      "TarkovHideoutDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "image_link": {
+            "type": "string",
+            "title": "Image Link",
+            "default": ""
+          },
+          "level_count": {
+            "type": "integer",
+            "title": "Level Count",
+            "default": 0
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutLevelOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "TarkovHideoutDetailOut"
+      },
+      "TarkovHideoutLevelOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          },
+          "construction_time": {
+            "type": "integer",
+            "title": "Construction Time",
+            "default": 0
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "item_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovGuideItemRefOut"
+            },
+            "type": "array",
+            "title": "Item Requirements"
+          },
+          "station_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutStationReqOut"
+            },
+            "type": "array",
+            "title": "Station Requirements"
+          },
+          "trader_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutTraderReqOut"
+            },
+            "type": "array",
+            "title": "Trader Requirements"
+          },
+          "skill_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutSkillReqOut"
+            },
+            "type": "array",
+            "title": "Skill Requirements"
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutLevelOut"
+      },
+      "TarkovHideoutSkillReqOut": {
+        "properties": {
+          "skill": {
+            "type": "string",
+            "title": "Skill",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutSkillReqOut"
+      },
+      "TarkovHideoutStationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "image_link": {
+            "type": "string",
+            "title": "Image Link",
+            "default": ""
+          },
+          "level_count": {
+            "type": "integer",
+            "title": "Level Count",
+            "default": 0
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutLevelOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "TarkovHideoutStationOut"
+      },
+      "TarkovHideoutStationReqOut": {
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "title": "Station Id",
+            "default": ""
+          },
+          "station_slug": {
+            "type": "string",
+            "title": "Station Slug",
+            "default": ""
+          },
+          "station_name": {
+            "type": "string",
+            "title": "Station Name",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutStationReqOut"
+      },
+      "TarkovHideoutTraderReqOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutTraderReqOut"
+      },
       "TarkovItemDetailOut": {
         "properties": {
           "id": {
@@ -16332,6 +17437,446 @@
           "gun_count"
         ],
         "title": "TarkovItemsSyncOut"
+      },
+      "TarkovLootTierCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovLootTierItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "default": 0
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 100
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovLootTierCatalogOut"
+      },
+      "TarkovLootTierItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "default": 1
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height",
+            "default": 1
+          },
+          "slots": {
+            "type": "integer",
+            "title": "Slots",
+            "default": 1
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price",
+            "default": 0
+          },
+          "price_per_slot": {
+            "type": "integer",
+            "title": "Price Per Slot",
+            "default": 0
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier",
+            "default": "E"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TarkovLootTierItemOut"
+      },
+      "TarkovMapBossOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "spawn_chance": {
+            "type": "integer",
+            "title": "Spawn Chance",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapBossOut"
+      },
+      "TarkovMapCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapListItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "map_count": {
+            "type": "integer",
+            "title": "Map Count",
+            "default": 0
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapCatalogOut"
+      },
+      "TarkovMapDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "english": {
+            "type": "string",
+            "title": "English",
+            "default": ""
+          },
+          "raid_duration": {
+            "type": "integer",
+            "title": "Raid Duration",
+            "default": 0
+          },
+          "players": {
+            "type": "string",
+            "title": "Players",
+            "default": ""
+          },
+          "thumb_link": {
+            "type": "string",
+            "title": "Thumb Link",
+            "default": ""
+          },
+          "interactive_url": {
+            "type": "string",
+            "title": "Interactive Url",
+            "default": ""
+          },
+          "parent_slug": {
+            "type": "string",
+            "title": "Parent Slug",
+            "default": ""
+          },
+          "min_player_level": {
+            "type": "integer",
+            "title": "Min Player Level",
+            "default": 0
+          },
+          "max_player_level": {
+            "type": "integer",
+            "title": "Max Player Level",
+            "default": 0
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "wiki_link": {
+            "type": "string",
+            "title": "Wiki Link",
+            "default": ""
+          },
+          "extracts": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapExtractOut"
+            },
+            "type": "array",
+            "title": "Extracts"
+          },
+          "bosses": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapBossOut"
+            },
+            "type": "array",
+            "title": "Bosses"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapVariantOut"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "TarkovMapDetailOut"
+      },
+      "TarkovMapExtractOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "faction": {
+            "type": "string",
+            "title": "Faction",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapExtractOut"
+      },
+      "TarkovMapListItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "english": {
+            "type": "string",
+            "title": "English",
+            "default": ""
+          },
+          "raid_duration": {
+            "type": "integer",
+            "title": "Raid Duration",
+            "default": 0
+          },
+          "players": {
+            "type": "string",
+            "title": "Players",
+            "default": ""
+          },
+          "thumb_link": {
+            "type": "string",
+            "title": "Thumb Link",
+            "default": ""
+          },
+          "interactive_url": {
+            "type": "string",
+            "title": "Interactive Url",
+            "default": ""
+          },
+          "parent_slug": {
+            "type": "string",
+            "title": "Parent Slug",
+            "default": ""
+          },
+          "min_player_level": {
+            "type": "integer",
+            "title": "Min Player Level",
+            "default": 0
+          },
+          "max_player_level": {
+            "type": "integer",
+            "title": "Max Player Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "TarkovMapListItemOut"
+      },
+      "TarkovMapVariantOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "raid_duration": {
+            "type": "integer",
+            "title": "Raid Duration",
+            "default": 0
+          },
+          "players": {
+            "type": "string",
+            "title": "Players",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapVariantOut"
       },
       "TarkovSearchHitOut": {
         "properties": {
@@ -16433,6 +17978,24 @@
           "q"
         ],
         "title": "TarkovSiteSearchOut"
+      },
+      "TarkovStationChipOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "TarkovStationChipOut"
       },
       "TarkovTaskCatalogOut": {
         "properties": {
@@ -17293,6 +18856,24 @@
           "trader_count"
         ],
         "title": "TarkovTraderCatalogOut"
+      },
+      "TarkovTraderChipOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "TarkovTraderChipOut"
       },
       "TarkovTraderDetailOut": {
         "properties": {

@@ -1,7 +1,7 @@
-import { Alert, Image, Spin, Table } from "antd";
+import { Alert, Spin, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   fetchTarkovTasks,
@@ -10,15 +10,17 @@ import {
 import { apiError } from "@/lib/apiError";
 import {
   TARKOV_TRADERS,
+  tarkovTaskHref,
+  traderIconUrl,
   traderPortraitUrl,
 } from "@/lib/tarkovHomeNav";
+import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import {
   TARKOV_TASK_PROGRESS_FILTERS,
   tarkovTaskProgressLabel,
   useTarkovTaskMineMode,
 } from "@/lib/tarkovTaskProgress";
 import { TarkovTaskProgressSwitch } from "@/components/guides/tarkov/TarkovTaskProgressSwitch";
-import { TarkovTaskExpandBody } from "@/components/guides/tarkov/TarkovTaskObjectivesRewards";
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalog from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovTasksPanel.module.css";
@@ -36,19 +38,34 @@ function traderFilterLabel(slug: string, apiName: string): {
   return { english: apiName, chinese: "" };
 }
 
-function TraderFilterAvatar({ slug }: { slug: string }) {
-  const [broken, setBroken] = useState(false);
-  if (broken) {
-    return <span className={styles.traderAvatarFallback} />;
+function TraderThumb({
+  slug,
+  size = 40,
+  title,
+}: {
+  slug: string;
+  size?: number;
+  title?: string;
+}) {
+  const [kind, setKind] = useState<"icon" | "portrait" | "none">("icon");
+  if (kind === "none") {
+    return (
+      <span
+        className={styles.traderThumbFallback}
+        style={{ width: size, height: size }}
+        title={title}
+      />
+    );
   }
   return (
     <img
-      className={styles.traderAvatar}
-      src={traderPortraitUrl(slug)}
+      className={styles.traderThumb}
+      src={kind === "icon" ? traderIconUrl(slug) : traderPortraitUrl(slug)}
       alt=""
-      width={72}
-      height={72}
-      onError={() => setBroken(true)}
+      width={size}
+      height={size}
+      title={title}
+      onError={() => setKind((prev) => (prev === "icon" ? "portrait" : "none"))}
     />
   );
 }
@@ -56,35 +73,47 @@ function TraderFilterAvatar({ slug }: { slug: string }) {
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
-function factionLabel(value: string | undefined): string {
+function factionSuffix(value: string | undefined): string {
   const v = (value || "").trim();
-  if (!v || v === "Any") return "不限";
-  return v;
+  if (!v || v === "Any") return "";
+  return ` (${v})`;
 }
 
 export function TarkovTasksPanel() {
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
   const pstatus = (searchParams.get("pstatus") || "").trim();
+  const q = (searchParams.get("q") || "").trim();
+  const kappa = searchParams.get("kappa") === "1";
+  const pageNo = readPositiveInt(searchParams.get("page"), 1);
+  const pageSize = readAllowedInt(
+    searchParams.get("pageSize"),
+    PAGE_SIZE_DEFAULT,
+    PAGE_SIZE_OPTIONS,
+  );
   const [mine, setMine] = useTarkovTaskMineMode();
-  const [keyword, setKeyword] = useState("");
-  const [q, setQ] = useState("");
+  const [keyword, setKeyword] = useState(q);
   const qRef = useRef(q);
-  const [pageNo, setPageNo] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const statusFilter = mine ? pstatus || "all" : "";
+
+  useEffect(() => {
+    setKeyword(q);
+    qRef.current = q;
+  }, [q]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
       const next = keyword.trim();
       if (qRef.current === next) return;
       qRef.current = next;
-      setQ(next);
-      setPageNo(1);
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      params.delete("page");
+      setSearchParams(params, { replace: true });
     }, 300);
     return () => window.clearTimeout(handle);
-  }, [keyword]);
+  }, [keyword, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!mine && pstatus) {
@@ -93,10 +122,6 @@ export function TarkovTasksPanel() {
       setSearchParams(next, { replace: true });
     }
   }, [mine, pstatus, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    setExpandedId(null);
-  }, [trader, q, pageNo, pageSize, mine, statusFilter]);
 
   const catalogQuery = useQuery({
     queryKey: [
@@ -107,6 +132,7 @@ export function TarkovTasksPanel() {
       pageSize,
       mine,
       statusFilter,
+      kappa,
     ],
     queryFn: () =>
       fetchTarkovTasks({
@@ -114,6 +140,7 @@ export function TarkovTasksPanel() {
         trader: trader || undefined,
         page: pageNo,
         pageSize,
+        kappa: kappa || undefined,
         progress: mine,
         progressStatus:
           mine && statusFilter && statusFilter !== "all"
@@ -129,10 +156,17 @@ export function TarkovTasksPanel() {
 
   const setTraderFilter = (nextTrader: string | null) => {
     const next = new URLSearchParams(searchParams);
-    if (nextTrader) next.set("trader", nextTrader);
-    else next.delete("trader");
-    next.delete("kappa");
-    setPageNo(1);
+    if (!nextTrader) next.delete("trader");
+    else next.set("trader", nextTrader);
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
+
+  const setKappaFilter = (on: boolean) => {
+    const next = new URLSearchParams(searchParams);
+    if (on) next.set("kappa", "1");
+    else next.delete("kappa");
+    next.delete("page");
     setSearchParams(next, { replace: true });
   };
 
@@ -140,7 +174,7 @@ export function TarkovTasksPanel() {
     const next = new URLSearchParams(searchParams);
     if (nextStatus && nextStatus !== "all") next.set("pstatus", nextStatus);
     else next.delete("pstatus");
-    setPageNo(1);
+    next.delete("page");
     setSearchParams(next, { replace: true });
   };
 
@@ -159,30 +193,24 @@ export function TarkovTasksPanel() {
 
   const columns: ColumnsType<TarkovTaskListItem> = [
     {
-      title: "名称",
+      title: "任务",
       dataIndex: "name",
       key: "name",
-      width: 280,
       ellipsis: true,
       render: (_: unknown, row) => {
         const label = row.name || row.normalized_name || row.id;
-        const thumb = (row.task_image_link || "").trim();
+        const traderName = row.trader_name || row.trader_slug;
         return (
-          <span className={catalog.nameCell}>
-            {thumb ? (
-              <Image
-                src={thumb}
-                alt=""
-                width={48}
-                height={28}
-                preview={{ src: thumb, mask: false }}
-                onClick={(e) => e.stopPropagation()}
-                style={{ objectFit: "cover", flex: "0 0 48px" }}
-              />
+          <span className={styles.taskCell}>
+            {row.trader_slug ? (
+              <TraderThumb slug={row.trader_slug} size={40} title={traderName} />
             ) : (
-              <span style={{ width: 48, height: 28, flex: "0 0 48px" }} />
+              <span className={styles.traderThumbFallback} />
             )}
-            <span className={styles.taskName}>{label}</span>
+            <Link className={styles.taskName} to={tarkovTaskHref(row.id)}>
+              {label}
+              {factionSuffix(row.faction_name)}
+            </Link>
           </span>
         );
       },
@@ -220,58 +248,33 @@ export function TarkovTasksPanel() {
         ]
       : []),
     {
-      title: "商人",
-      dataIndex: "trader_name",
-      key: "trader_name",
-      width: 120,
-      ellipsis: true,
-      render: (v: string) => v || "—",
-    },
-    {
-      title: "地图",
-      dataIndex: "map_name",
-      key: "map_name",
-      width: 100,
-      ellipsis: true,
-      render: (v: string) => v || "—",
-    },
-    {
-      title: "等级",
+      title: "最低等级",
       dataIndex: "min_player_level",
       key: "min_player_level",
-      width: 64,
-      align: "right",
-      render: (v: number) => (v ? v : "—"),
+      width: 96,
+      align: "center",
+      render: (v: number) => (v ? v : ""),
     },
     {
       title: "经验",
       dataIndex: "experience",
       key: "experience",
-      width: 80,
+      width: 96,
       align: "right",
-      render: (v: number) =>
-        v ? v.toLocaleString("zh-CN") : "—",
+      render: (v: number) => (v ? v.toLocaleString("zh-CN") : ""),
     },
     {
-      title: "阵营",
-      dataIndex: "faction_name",
-      key: "faction_name",
-      width: 72,
-      render: (v: string) => factionLabel(v),
-    },
-    {
-      title: "目标",
-      dataIndex: "objective_count",
-      key: "objective_count",
-      width: 56,
-      align: "right",
-    },
-    {
-      title: "卡帕",
-      dataIndex: "kappa_required",
-      key: "kappa_required",
-      width: 72,
-      render: (v: boolean) => (v ? "需要" : "—"),
+      title: "终局",
+      key: "endgame",
+      width: 120,
+      render: (_: unknown, row) => {
+        const marks = [
+          row.kappa_required ? "Kappa" : "",
+          row.lightkeeper_required ? "灯塔商人" : "",
+        ].filter(Boolean);
+        if (!marks.length) return "";
+        return <span className={styles.endgame}>{marks.join(" · ")}</span>;
+      },
     },
   ];
 
@@ -310,23 +313,62 @@ export function TarkovTasksPanel() {
         />
       ) : null}
 
-      <div className={catalog.toolbar}>
+      <div className={styles.headline}>
         <div className={catalog.meta}>
           {typeof meta?.task_count === "number" ? `共 ${meta.task_count} 条` : null}
         </div>
-        <div className={styles.toolbarRight}>
+        <div className={styles.filters}>
           <TarkovTaskProgressSwitch
             enabled={mine}
             onChange={(value) => {
               setMine(value);
-              setPageNo(1);
+              const next = new URLSearchParams(searchParams);
+              next.delete("page");
+              setSearchParams(next, { replace: true });
             }}
           />
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={kappa}
+              onChange={(e) => setKappaFilter(e.target.checked)}
+            />
+            Kappa
+          </label>
+          <div className={styles.traderBar} role="radiogroup" aria-label="按商人筛选">
+            {traders.map((item) => {
+              const { english, chinese } = traderFilterLabel(item.slug, item.name);
+              const selected = trader === item.slug;
+              return (
+                <button
+                  key={item.slug || item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={chinese ? `${english}（${chinese}）` : english}
+                  title={chinese ? `${english}（${chinese}）` : english}
+                  className={`${styles.traderBtn} ${selected ? styles.traderBtnOn : ""}`}
+                  onClick={() => setTraderFilter(item.slug)}
+                >
+                  <TraderThumb slug={item.slug} size={40} />
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={allOn}
+              className={`${styles.traderBtn} ${styles.traderBtnAll} ${allOn ? styles.traderBtnOn : ""}`}
+              onClick={() => setTraderFilter(null)}
+            >
+              全部
+            </button>
+          </div>
           <input
             className={catalog.search}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索名称 / 商人 / 地图"
+            placeholder="按任务名称筛选"
             aria-label="搜索任务"
           />
         </div>
@@ -349,60 +391,15 @@ export function TarkovTasksPanel() {
         />
       ) : null}
 
-      <div className={styles.traderGrid} role="radiogroup" aria-label="按商人筛选">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={allOn}
-          className={`${styles.traderCard} ${allOn ? styles.traderCardOn : ""}`}
-          onClick={() => setTraderFilter(null)}
-        >
-          <span className={styles.traderAvatarFallback}>全部</span>
-          <div className={styles.traderEnglish}>All</div>
-          <div className={styles.traderChinese}>全部商人</div>
-        </button>
-        {traders.map((item) => {
-          const { english, chinese } = traderFilterLabel(item.slug, item.name);
-          const selected = trader === item.slug;
-          return (
-            <button
-              key={item.slug || item.id}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              className={`${styles.traderCard} ${selected ? styles.traderCardOn : ""}`}
-              onClick={() => setTraderFilter(item.slug)}
-            >
-              <TraderFilterAvatar slug={item.slug} />
-              <div className={styles.traderEnglish}>{english}</div>
-              {chinese ? (
-                <div className={styles.traderChinese}>{chinese}</div>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-
       <div className={catalog.panel}>
         <Table<TarkovTaskListItem>
-          className={`${tableStyles.table} ${styles.clickableRows}`}
+          className={tableStyles.table}
           size="small"
           rowKey="id"
           columns={columns}
           dataSource={rows}
           loading={catalogQuery.isFetching}
           onChange={onTableChange}
-          expandable={{
-            expandedRowKeys: expandedId ? [expandedId] : [],
-            onExpand: (expanded, record) => {
-              setExpandedId(expanded ? record.id : null);
-            },
-            expandedRowRender: (row) => (
-              <TarkovTaskExpandBody taskId={row.id} />
-            ),
-            expandRowByClick: true,
-            columnWidth: 36,
-          }}
           pagination={{
             current: pageNo,
             pageSize,
@@ -411,11 +408,15 @@ export function TarkovTasksPanel() {
             pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
             showTotal: (count, range) => `${range[0]}–${range[1]} / ${count}`,
             onChange: (nextPage, nextSize) => {
-              setPageNo(nextPage);
-              setPageSize(nextSize);
+              const params = new URLSearchParams(searchParams);
+              if (nextPage <= 1) params.delete("page");
+              else params.set("page", String(nextPage));
+              if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
+              else params.set("pageSize", String(nextSize));
+              setSearchParams(params, { replace: true });
             },
           }}
-          scroll={{ x: 960 }}
+          scroll={{ x: 720 }}
           locale={{
             emptyText: "当前筛选下无任务",
             filterReset: "全部",

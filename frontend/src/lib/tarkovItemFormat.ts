@@ -1,5 +1,9 @@
 import { formatCaliberLabel } from "@/lib/tarkovAmmoCategories";
-import { handbookHrefFromCategoryId, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
+import {
+  handbookHrefFromCategoryId,
+  isGenericItemCategoryId,
+  itemHrefFromTypes,
+} from "@/lib/tarkovItemTypes";
 
 export type CatalogPriceRow = {
   last_low_price?: number | null;
@@ -112,15 +116,15 @@ export const CATALOG_COLUMN_LABELS: Record<CatalogColumnId, string> = {
 
 const SKIP_PROP_KEYS = new Set([
   "grid",
-  "ConflictingItems",
-  "conflictingItems",
   "__typename",
   "slots",
-  "presets",
   "armorSlots",
   "content",
   "propertiesType",
   "pouches",
+  "conflictingSlotIds",
+  "defaultAmmo",
+  "default",
 ]);
 
 const PROP_LABELS: Record<string, string> = {
@@ -185,6 +189,9 @@ const PROP_LABELS: Record<string, string> = {
   ammoCheckModifier: "查弹",
   malfunctionChance: "故障率",
   allowedAmmo: "可用弹药",
+  presets: "预设",
+  conflictingItems: "冲突物品",
+  conflictingCategories: "冲突分类",
   distanceModifier: "听力距离",
   distortion: "失真",
   ambientVolume: "环境音",
@@ -259,6 +266,11 @@ const PROP_LABELS: Record<string, string> = {
 export type FormattedPropLink = {
   label: string;
   href: string;
+  id?: string;
+  icon?: string;
+  types?: string[];
+  count?: number;
+  badge?: string;
 };
 
 export type FormattedProp = {
@@ -267,7 +279,12 @@ export type FormattedProp = {
   value: string;
   large?: boolean;
   links?: FormattedPropLink[];
+  note?: string;
 };
+
+/** 枪械可用弹药里「默认」角标的说明。不单独占一行属性。 */
+export const DEFAULT_AMMO_HINT =
+  "标「默认」的是参考弹：瞄具归零按它的初速算；商人默认预设和战局里刷出的枪，弹匣里通常也是它。游戏检视界面不会单独列出。";
 
 export function catalogColumnsForSlug(slug: string): CatalogColumnId[] {
   return COLUMN_PRESETS[slug] || DEFAULT_COLUMNS;
@@ -342,9 +359,29 @@ export function formatWeight(value: number | null | undefined): string {
   return `${Math.round(value * 1000) / 1000} kg`;
 }
 
-export function formatMoney(value: number | null | undefined): string {
+export function formatDurationSeconds(
+  value: number | null | undefined,
+): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "即时";
+  const total = Math.round(value);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const parts: string[] = [];
+  if (h) parts.push(`${h} 小时`);
+  if (m) parts.push(`${m} 分`);
+  if (s && !h) parts.push(`${s} 秒`);
+  return parts.join(" ") || "即时";
+}
+
+export function formatMoney(
+  value: number | null | undefined,
+  currency = "RUB",
+): string {
   if (value == null || !Number.isFinite(value)) return "—";
-  return `${Math.round(value).toLocaleString("zh-CN")} ₽`;
+  const code = (currency || "RUB").toUpperCase();
+  const symbol = code === "USD" ? "$" : code === "EUR" ? "€" : "₽";
+  return `${Math.round(value).toLocaleString("zh-CN")} ${symbol}`;
 }
 
 export function cheapestPrice(
@@ -392,13 +429,26 @@ function gridsFormat(value: unknown): string {
     .join(", ");
 }
 
+/** json.tarkov.dev / BSG 物品 id 多为 24 位 hex。 */
+export function isBareTarkovId(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value.trim());
+}
+
+function displayName(value: string | undefined | null): string {
+  const text = String(value || "").trim();
+  if (!text || isBareTarkovId(text)) return "";
+  return text;
+}
+
 function namedList(value: unknown): string {
   if (!Array.isArray(value)) return "";
   return value
     .map((entry) => {
-      if (typeof entry === "string") return entry;
+      if (typeof entry === "string") return displayName(entry);
       if (entry && typeof entry === "object" && "name" in entry) {
-        return String((entry as { name?: string }).name || "");
+        const row = entry as { id?: string; name?: string };
+        if (row.id && isGenericItemCategoryId(String(row.id))) return "";
+        return displayName(row.name);
       }
       return "";
     })
@@ -440,16 +490,15 @@ export function formatPropValue(key: string, value: unknown): string | null {
     }
     return null;
   }
-  if (key === "baseItem" || key === "defaultPreset" || key === "defaultAmmo") {
-    if (value && typeof value === "object" && "name" in value) {
-      return String((value as { name?: string }).name || "") || null;
+  if (key === "baseItem" || key === "defaultPreset") {
+    if (value && typeof value === "object") {
+      const row = value as { name?: string; shortName?: string };
+      return displayName(row.name) || displayName(row.shortName) || null;
     }
-    if (value && typeof value === "object" && "id" in value) {
-      return String((value as { id?: string }).id || "") || null;
-    }
-    return typeof value === "string" ? value : null;
+    if (typeof value === "string") return displayName(value) || null;
+    return null;
   }
-  if (key === "categories" || key === "usedOnMaps" || key === "allowedAmmo") {
+  if (key === "categories" || key === "usedOnMaps" || key === "allowedAmmo" || key === "presets" || key === "conflictingItems" || key === "conflictingCategories") {
     const text = namedList(value);
     return text || null;
   }
@@ -506,12 +555,15 @@ export function formatPropValue(key: string, value: unknown): string | null {
   if (Array.isArray(value)) {
     if (!value.length) return null;
     if (value.every((x) => typeof x !== "object")) {
-      return value.map(String).join(", ");
+      const parts = value
+        .map((entry) => displayName(String(entry)))
+        .filter(Boolean);
+      return parts.length ? parts.join(", ") : null;
     }
     return null;
   }
   if (typeof value === "object") return null;
-  return String(value);
+  return displayName(String(value)) || null;
 }
 
 export function formatPropertyList(
@@ -529,15 +581,51 @@ export function formatPropertyList(
     const value = formatPropValue(key, properties[key]);
     if (value == null) continue;
     const links = extractPropLinks(key, properties[key]);
+    const itemChips = links.filter((link) => Boolean(link.id)).length;
     rows.push({
       key,
       label: PROP_LABELS[key] || key,
       value,
-      large: value.length >= 40 || links.length > 4,
+      large: itemChips > 1 || value.length >= 40 || links.length > 4,
       links: links.length ? links : undefined,
     });
   }
-  return rows;
+  return markDefaultAmmoInAllowed(rows, properties);
+}
+
+export function extractRefItemId(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  const row = asRecord(value);
+  return row ? String(row.id || "").trim() : "";
+}
+
+function markDefaultAmmoInAllowed(
+  rows: FormattedProp[],
+  properties: Record<string, unknown>,
+): FormattedProp[] {
+  const defaultId = extractRefItemId(properties.defaultAmmo);
+  if (!defaultId) return rows;
+  const fallback = itemRefLink(properties.defaultAmmo, ["ammo"]);
+  return rows.map((row) => {
+    if (row.key !== "allowedAmmo") return row;
+    let links = [...(row.links || [])];
+    if (fallback && !links.some((link) => link.id === defaultId)) {
+      links = [fallback, ...links];
+    }
+    const marked = links.map((link) =>
+      link.id === defaultId ? { ...link, badge: "默认" } : link,
+    );
+    if (!marked.some((link) => link.badge)) return row;
+    return {
+      ...row,
+      links: [
+        ...marked.filter((link) => link.badge),
+        ...marked.filter((link) => !link.badge),
+      ],
+      note: DEFAULT_AMMO_HINT,
+      large: true,
+    };
+  });
 }
 
 function itemRefLink(
@@ -548,18 +636,26 @@ function itemRefLink(
   if (!row) return null;
   const id = String(row.id || "").trim();
   if (!id) return null;
-  const label = String(row.name || row.shortName || id).trim();
+  const label =
+    displayName(String(row.name || "")) ||
+    displayName(String(row.shortName || ""));
+  if (!label) return null;
   const types = Array.isArray(row.types)
     ? row.types.map(String)
     : fallbackTypes || [];
-  return { label, href: itemHrefFromTypes(id, types) };
+  const icon = String(
+    row.iconLink || row.baseImageLink || row.icon_link || "",
+  ).trim();
+  return {
+    label,
+    href: itemHrefFromTypes(id, types),
+    id,
+    types,
+    ...(icon ? { icon } : {}),
+  };
 }
 
 function extractPropLinks(key: string, value: unknown): FormattedPropLink[] {
-  if (key === "defaultAmmo") {
-    const link = itemRefLink(value, ["ammo"]);
-    return link ? [link] : [];
-  }
   if (key === "defaultPreset") {
     const link = itemRefLink(value, ["preset", "gun"]);
     return link ? [link] : [];
@@ -573,6 +669,30 @@ function extractPropLinks(key: string, value: unknown): FormattedPropLink[] {
       .map((entry) => itemRefLink(entry, ["ammo"]))
       .filter((link): link is FormattedPropLink => Boolean(link));
   }
+  if (key === "presets" && Array.isArray(value)) {
+    return value
+      .map((entry) => itemRefLink(entry, ["preset", "gun"]))
+      .filter((link): link is FormattedPropLink => Boolean(link));
+  }
+  if (key === "conflictingItems" && Array.isArray(value)) {
+    return value
+      .map((entry) => itemRefLink(entry))
+      .filter((link): link is FormattedPropLink => Boolean(link));
+  }
+  if (key === "conflictingCategories" && Array.isArray(value)) {
+    const links: FormattedPropLink[] = [];
+    for (const entry of value) {
+      const row = asRecord(entry);
+      if (!row) continue;
+      const id = String(row.id || "");
+      if (isGenericItemCategoryId(id)) continue;
+      const href = handbookHrefFromCategoryId(id);
+      const label = displayName(String(row.name || ""));
+      if (!href || !label) continue;
+      links.push({ label, href });
+    }
+    return links;
+  }
   if (key === "usedOnMaps" && Array.isArray(value)) {
     const links: FormattedPropLink[] = [];
     for (const entry of value) {
@@ -584,7 +704,7 @@ function extractPropLinks(key: string, value: unknown): FormattedPropLink[] {
       links.push({
         label,
         href: slug
-          ? `/guides/tarkov/maps?map=${encodeURIComponent(slug)}`
+          ? `/guides/tarkov/maps/${encodeURIComponent(slug)}`
           : "/guides/tarkov/maps",
       });
     }
@@ -595,8 +715,10 @@ function extractPropLinks(key: string, value: unknown): FormattedPropLink[] {
     for (const entry of value) {
       const row = asRecord(entry);
       if (!row) continue;
-      const href = handbookHrefFromCategoryId(String(row.id || ""));
-      const label = String(row.name || "").trim();
+      const id = String(row.id || "");
+      if (isGenericItemCategoryId(id)) continue;
+      const href = handbookHrefFromCategoryId(id);
+      const label = displayName(String(row.name || ""));
       if (!href || !label) continue;
       links.push({ label, href });
     }
@@ -685,10 +807,14 @@ function linkedItem(value: unknown): LinkedItemRef | null {
   if (!row) return null;
   const id = String(row.id || "").trim();
   if (!id) return null;
+  const name =
+    displayName(String(row.name || "")) ||
+    displayName(String(row.shortName || ""));
+  if (!name) return null;
   const types = Array.isArray(row.types) ? row.types.map(String) : [];
   return {
     id,
-    name: String(row.name || row.shortName || id),
+    name,
     icon: String(row.iconLink || row.baseImageLink || ""),
     types,
   };
@@ -763,7 +889,14 @@ export function extractContentLines(
 ): string[] {
   const raw = properties?.content;
   if (!Array.isArray(raw)) return [];
-  return raw.map((line) => String(line || "").trim()).filter(Boolean);
+  return raw
+    .map((line) => String(line || "").trim())
+    .filter(
+      (line) =>
+        Boolean(line) &&
+        !isBareTarkovId(line) &&
+        !line.includes("_Note_Page"),
+    );
 }
 
 export function itemHasFlea(item: Record<string, unknown> | undefined): boolean {

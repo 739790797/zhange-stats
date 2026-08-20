@@ -1,0 +1,178 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status {
+  padding: 48px;
+  text-align: center;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.meta {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+}
+
+.search {
+  height: 36px;
+  min-width: min(100%, 240px);
+  padding: 0 12px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1b14;
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+}
+
+.chipBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  border: 1px solid #2a2a2a;
+}
+
+.chipBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  min-width: 40px;
+  height: 40px;
+  border: 0;
+  border-right: 1px solid #2a2a2a;
+  background: #1a1b14;
+  color: var(--hb-orange, #c8932a);
+  cursor: pointer;
+  appearance: none;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.chipBtn:last-child {
+  border-right: 0;
+}
+
+.chipBtn img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  opacity: 0.62;
+  background: #101010;
+}
+
+.chipBtn:hover,
+.chipOn {
+  background: #101010;
+}
+
+.chipBtn:hover img,
+.chipOn img {
+  opacity: 1;
+}
+
+.chipAll {
+  width: auto;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.profitPos {
+  color: #8fbf88;
+  font-variant-numeric: tabular-nums;
+}
+
+.profitNeg {
+  color: #d08080;
+  font-variant-numeric: tabular-nums;
+}
+
+.stationHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.stationIcon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+}
+
+.stationName {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.levelLabel {
+  color: var(--hb-orange, #c8932a);
+  font-size: 13px;
+}
+
+.reqs {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.summary {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sliderRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.stat {
+  padding: 12px 14px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+}
+
+.statLabel {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.statValue {
+  margin-top: 4px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

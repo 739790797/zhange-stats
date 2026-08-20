@@ -1,0 +1,31 @@
+.defaultBadge {
+  flex: none;
+  padding: 0 5px;
+  background: var(--hb-orange, #c8932a);
+  color: #161710;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+}
+
+.hoverRow :global(td) {
+  box-shadow: inset 0 0 0 999px rgba(200, 147, 42, 0.22);
+}
+
+.compact :global(.ant-table) {
+  font-size: 12px;
+}
+
+.compact :global(.ant-table-thead > tr > th) {
+  padding: 4px 5px !important;
+  white-space: nowrap;
+}
+
+.compact :global(.ant-table-tbody > tr > td) {
+  padding: 4px 5px !important;
+}
+
+.compact :global(.ant-table-tbody > tr) {
+  cursor: pointer;
+}

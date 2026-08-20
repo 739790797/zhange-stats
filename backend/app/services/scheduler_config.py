@@ -24,6 +24,7 @@ JOB_IDS = (
     "tarkov_tasks_sync",
     "tarkov_traders_sync",
     "tarkov_bosses_sync",
+    "tarkov_guides_sync",
     "job_runs_prune",
 )
 
@@ -97,6 +98,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(getattr(s, "TARKOV_BOSSES_SYNC_ENABLED", True)),
             "hour": _clamp_hour(getattr(s, "TARKOV_BOSSES_SYNC_HOUR", 4)),
             "minute": _clamp_minute(getattr(s, "TARKOV_BOSSES_SYNC_MINUTE", 45)),
+        },
+        "tarkov_guides_sync": {
+            "enabled": bool(getattr(s, "TARKOV_GUIDES_SYNC_ENABLED", True)),
+            "hour": _clamp_hour(getattr(s, "TARKOV_GUIDES_SYNC_HOUR", 4)),
+            "minute": _clamp_minute(getattr(s, "TARKOV_GUIDES_SYNC_MINUTE", 50)),
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),

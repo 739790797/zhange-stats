@@ -27,6 +27,14 @@ from app.api.guides.schemas import (
     TarkovSiteSearchOut,
     TarkovTrackerBindIn,
     TarkovTrackerStatusOut,
+    TarkovMapCatalogOut,
+    TarkovMapDetailOut,
+    TarkovHideoutCatalogOut,
+    TarkovHideoutDetailOut,
+    TarkovBarterCatalogOut,
+    TarkovCraftCatalogOut,
+    TarkovGuidesSyncOut,
+    TarkovLootTierCatalogOut,
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
@@ -35,8 +43,10 @@ from app.models.user import User
 from app.services import tarkov_ammo as ammo_svc
 from app.services import tarkov_bosses as bosses_svc
 from app.services import tarkov_catalog as catalog_svc
+from app.services import tarkov_guides as guides_svc
 from app.services import tarkov_guns as gun_svc
 from app.services import tarkov_items as items_svc
+from app.services import tarkov_maps as maps_svc
 from app.services import tarkov_tasks as tasks_svc
 from app.services import tarkov_traders as traders_svc
 from app.services import tarkov_search as search_svc
@@ -579,6 +589,179 @@ def guides_tarkov_boss_detail(
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
     return TarkovBossDetailOut.model_validate(detail)
+
+
+def _sync_guides(db: Session) -> dict:
+    try:
+        return guides_svc.sync_from_upstream(db)
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get(
+    "/maps",
+    response_model=TarkovMapCatalogOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_catalog(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """地图目录：时长 / 人数 / 缩略图（读 bosses maps raw）。"""
+    _ = user
+    try:
+        result = maps_svc.list_maps(db)
+    except bosses_svc.TarkovBossesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovMapCatalogOut.model_validate(result)
+
+
+@router.get(
+    "/maps/{map_slug}",
+    response_model=TarkovMapDetailOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_detail(
+    map_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """地图详情：撤离点、BOSS、突袭时长；互动图层链到 tarkov.dev。"""
+    _ = user
+    try:
+        detail = maps_svc.get_map_detail(db, map_slug)
+    except bosses_svc.TarkovBossesError as exc:
+        msg = str(exc)
+        if msg.startswith("未找到地图") or "slug 无效" in msg:
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=502, detail=msg) from exc
+    return TarkovMapDetailOut.model_validate(detail)
+
+
+@router.post(
+    "/guides/sync",
+    response_model=TarkovGuidesSyncOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_guides_sync(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：回源同步藏身处 / 以物易物 / 制作。"""
+    result = _sync_guides(db)
+    return TarkovGuidesSyncOut.model_validate({**result, "message": "ok"})
+
+
+@router.get(
+    "/hideout",
+    response_model=TarkovHideoutCatalogOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_hideout_catalog(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """藏身处模块与升级材料。"""
+    _ = user
+    try:
+        result = guides_svc.list_hideout(db)
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovHideoutCatalogOut.model_validate(result)
+
+
+@router.get(
+    "/hideout/{station_slug}",
+    response_model=TarkovHideoutDetailOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_hideout_detail(
+    station_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """单个藏身处模块的全部等级。"""
+    _ = user
+    try:
+        detail = guides_svc.get_hideout_station(db, station_slug)
+    except guides_svc.TarkovGuidesError as exc:
+        msg = str(exc)
+        if msg.startswith("未找到") or "slug 无效" in msg:
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=502, detail=msg) from exc
+    return TarkovHideoutDetailOut.model_validate(detail)
+
+
+@router.get(
+    "/barters",
+    response_model=TarkovBarterCatalogOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_barter_catalog(
+    q: str | None = Query(default=None, max_length=80),
+    trader: str | None = Query(default=None, max_length=64),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """商人以物易物。"""
+    _ = user
+    try:
+        result = guides_svc.list_barters(
+            db, trader=trader, q=q, page=page, page_size=page_size
+        )
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovBarterCatalogOut.model_validate(result)
+
+
+@router.get(
+    "/crafts",
+    response_model=TarkovCraftCatalogOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_craft_catalog(
+    q: str | None = Query(default=None, max_length=80),
+    station: str | None = Query(default=None, max_length=64),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """藏身处制作。"""
+    _ = user
+    try:
+        result = guides_svc.list_crafts(
+            db, station=station, q=q, page=page, page_size=page_size
+        )
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovCraftCatalogOut.model_validate(result)
+
+
+@router.get(
+    "/loot-tiers",
+    response_model=TarkovLootTierCatalogOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_loot_tiers(
+    q: str | None = Query(default=None, max_length=80),
+    tier: str | None = Query(default=None, max_length=8),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """战利品等级：跳蚤每格价分档。"""
+    _ = user
+    try:
+        result = catalog_svc.list_loot_tiers(
+            db, q=q, tier=tier, page=page, page_size=page_size
+        )
+    except items_svc.TarkovItemsError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovLootTierCatalogOut.model_validate(result)
 
 
 def _tracker_http_error(exc: tracker_svc.TarkovTrackerError) -> HTTPException:

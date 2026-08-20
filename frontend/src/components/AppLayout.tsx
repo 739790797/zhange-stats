@@ -148,6 +148,7 @@ export function AppLayout() {
   const { token } = theme.useToken();
   const [completeOpen, setCompleteOpen] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -394,13 +395,9 @@ export function AppLayout() {
     navigate("/login");
   };
 
-  const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
-
   return (
     <Layout style={{ height: "100vh", overflow: "hidden" }}>
       <Sider
-        breakpoint="lg"
-        collapsedWidth={64}
         width={220}
         style={{
           background: "#1a2332",

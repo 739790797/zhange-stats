@@ -239,9 +239,9 @@
   letter-spacing: 0.14em;
 }
 
-.traderGrid {
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-}
+  .traderGrid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  }
 
 .traderCard {
   display: flex;
@@ -448,6 +448,21 @@
 .toolItem:hover {
   background: var(--hb-panel-hover);
   color: var(--hb-text);
+}
+
+.toolSoon {
+  color: #8a8c78;
+  cursor: default;
+}
+
+.toolSoon:hover {
+  background: transparent;
+  color: #8a8c78;
+}
+
+.toolSoon .toolIcon,
+.toolSoon:hover .toolIcon {
+  color: #6a6c58;
 }
 
 .toolReady {

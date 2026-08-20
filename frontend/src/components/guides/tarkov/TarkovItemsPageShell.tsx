@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { ConfigProvider } from "antd";
-import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
 import {
   TarkovItemsBreadcrumb,
   type TarkovCrumb,
@@ -44,24 +43,20 @@ export function TarkovItemsPageShell({
   ];
 
   return (
-    <TarkovGuideShell>
-      <div className={styles.inner}>
-        {hideHead ? null : (
-          <>
-            <TarkovItemsBreadcrumb items={breadcrumbItems} />
-            <div className={styles.headerRow}>
-              <div>
-                <h1 className={styles.title}>{title}</h1>
-                {subtitle ? (
-                  <p className={styles.subtitle}>{subtitle}</p>
-                ) : null}
-              </div>
-              {extra}
+    <div className={styles.inner}>
+      {hideHead ? null : (
+        <>
+          <TarkovItemsBreadcrumb items={breadcrumbItems} />
+          <div className={styles.headerRow}>
+            <div>
+              <h1 className={styles.title}>{title}</h1>
+              {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
             </div>
-          </>
-        )}
-        <ConfigProvider theme={TARKOV_ANTD_DARK}>{children}</ConfigProvider>
-      </div>
-    </TarkovGuideShell>
+            {extra}
+          </div>
+        </>
+      )}
+      <ConfigProvider theme={TARKOV_ANTD_DARK}>{children}</ConfigProvider>
+    </div>
   );
 }

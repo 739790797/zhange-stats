@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   catalogColumnsForSlug,
   cheapestPrice,
+  DEFAULT_AMMO_HINT,
+  extractContentLines,
   extractGridPockets,
   extractPlateSlots,
   formatPropValue,
@@ -75,18 +77,29 @@ describe("formatPropValue", () => {
     );
   });
 
-  it("flattens zoom levels and names default ammo", () => {
+  it("flattens zoom levels", () => {
     expect(formatPropValue("zoomLevels", [[1, 4], [6]])).toBe("1, 4, 6");
-    expect(formatPropValue("defaultAmmo", { name: "5.56x45 M855" })).toBe(
-      "5.56x45 M855",
-    );
   });
 });
 
 describe("formatPropertyList links", () => {
-  it("links default ammo, preset, maps, and handbook categories", () => {
+  it("marks default ammo inside allowed ammo instead of a separate row", () => {
     const rows = formatPropertyList({
-      defaultAmmo: { id: "a1", name: "M855", types: ["ammo"] },
+      defaultAmmo: {
+        id: "a1",
+        name: "M855",
+        types: ["ammo"],
+        iconLink: "https://example/a.webp",
+      },
+      allowedAmmo: [
+        { id: "a2", name: "M995", types: ["ammo"] },
+        {
+          id: "a1",
+          name: "M855",
+          types: ["ammo"],
+          iconLink: "https://example/a.webp",
+        },
+      ],
       defaultPreset: { id: "p1", name: "AK default", types: ["preset"] },
       usedOnMaps: [{ name: "海关", normalizedName: "customs" }],
       categories: [
@@ -94,18 +107,96 @@ describe("formatPropertyList links", () => {
         { id: "5b47574386f77428ca22b342", name: "钥匙" },
       ],
     });
-    expect(rows.find((r) => r.key === "defaultAmmo")?.links).toEqual([
-      { label: "M855", href: "/guides/tarkov/items/ammo/a1" },
+    expect(rows.find((r) => r.key === "defaultAmmo")).toBeUndefined();
+    const ammo = rows.find((r) => r.key === "allowedAmmo");
+    expect(ammo?.note).toBe(DEFAULT_AMMO_HINT);
+    expect(ammo?.links).toEqual([
+      {
+        label: "M855",
+        href: "/guides/tarkov/items/ammo/a1",
+        id: "a1",
+        types: ["ammo"],
+        icon: "https://example/a.webp",
+        badge: "默认",
+      },
+      {
+        label: "M995",
+        href: "/guides/tarkov/items/ammo/a2",
+        id: "a2",
+        types: ["ammo"],
+      },
     ]);
     expect(rows.find((r) => r.key === "defaultPreset")?.links).toEqual([
-      { label: "AK default", href: "/guides/tarkov/items/guns/p1" },
+      {
+        label: "AK default",
+        href: "/guides/tarkov/items/guns/p1",
+        id: "p1",
+        types: ["preset"],
+      },
     ]);
     expect(rows.find((r) => r.key === "usedOnMaps")?.links).toEqual([
-      { label: "海关", href: "/guides/tarkov/maps?map=customs" },
+      { label: "海关", href: "/guides/tarkov/maps/customs" },
     ]);
     expect(rows.find((r) => r.key === "categories")?.links).toEqual([
       { label: "钥匙", href: "/guides/tarkov/items/keys" },
     ]);
+  });
+
+  it("does not annotate allowed ammo when there is no default round", () => {
+    const rows = formatPropertyList({
+      allowedAmmo: [{ id: "a2", name: "M995", types: ["ammo"] }],
+    });
+    expect(rows.find((r) => r.key === "allowedAmmo")?.note).toBeUndefined();
+    expect(rows.find((r) => r.key === "allowedAmmo")?.links?.[0]?.badge).toBeUndefined();
+  });
+
+  it("links presets and hides unresolved content ids", () => {
+    const rows = formatPropertyList({
+      presets: [{ id: "p1", name: "AK default", types: ["preset"] }],
+      conflictingItems: [{ id: "m1", name: "瞄具", types: ["sights"] }],
+    });
+    expect(rows.find((r) => r.key === "presets")?.links).toEqual([
+      {
+        label: "AK default",
+        href: "/guides/tarkov/items/guns/p1",
+        id: "p1",
+        types: ["preset"],
+      },
+    ]);
+    expect(rows.find((r) => r.key === "conflictingItems")?.links?.[0]?.label).toBe(
+      "瞄具",
+    );
+    expect(
+      extractContentLines({
+        content: [
+          "录音正文",
+          "5fbe3ffdf8b6a877a729ea82",
+          "abc_Note_Page1_Text1",
+        ],
+      }),
+    ).toEqual(["录音正文"]);
+  });
+
+  it("does not dump bare tarkov ids", () => {
+    const rows = formatPropertyList({
+      defaultAmmo: "5fbe3ffdf8b6a877a729ea82",
+      allowedAmmo: ["5fbe3ffdf8b6a877a729ea82"],
+      defaultPreset: "5fd251a31189a17bcc172662",
+      categories: ["54009119af1c881c07000029", "5447b5f14bdc2d61278b4567"],
+    });
+    expect(rows.find((r) => r.key === "defaultAmmo")).toBeUndefined();
+    expect(rows.find((r) => r.key === "allowedAmmo")).toBeUndefined();
+    expect(rows.find((r) => r.key === "defaultPreset")).toBeUndefined();
+    expect(rows.find((r) => r.key === "categories")).toBeUndefined();
+  });
+
+  it("hides preset default flag", () => {
+    const rows = formatPropertyList({
+      default: true,
+      ergonomics: 71.9,
+    });
+    expect(rows.find((r) => r.key === "default")).toBeUndefined();
+    expect(rows.find((r) => r.key === "ergonomics")?.value).toBe("71.9");
   });
 });
 

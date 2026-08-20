@@ -23,8 +23,8 @@ $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend"
 $PythonExe = Join-Path $BackendDir ".venv\Scripts\python.exe"
 
-$BackendPort = 8000
-$FrontendPort = 5173
+$BackendPort = 6130
+$FrontendPort = 6131
 $BackendHost = "127.0.0.1"
 $FrontendHost = "127.0.0.1"
 
@@ -276,6 +276,9 @@ function Start-Frontend {
   foreach ($f in @($FrontendOutLog, $FrontendErrLog)) {
     if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
   }
+
+  $env:VITE_DEV_PORT = "$FrontendPort"
+  $env:VITE_API_PROXY = "http://${BackendHost}:${BackendPort}"
 
   $proc = Start-Process `
     -FilePath $npmCmd.Source `

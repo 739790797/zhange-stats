@@ -1,10 +1,5 @@
-import {
-  EnvironmentOutlined,
-  KeyOutlined,
-  ShopOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
-import { Alert, Spin } from "antd";
+import { EnvironmentOutlined, ShopOutlined, UserOutlined } from "@ant-design/icons";
+import { Alert, Image, Spin } from "antd";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovTaskDetail } from "@/api/guidesApi";
@@ -12,15 +7,14 @@ import { apiError } from "@/lib/apiError";
 import {
   TARKOV_TRADERS,
   tarkovTaskHref,
+  tarkovTraderHref,
+  traderIconUrl,
   traderPortraitUrl,
 } from "@/lib/tarkovHomeNav";
 import { TarkovTaskProgressSwitch } from "@/components/guides/tarkov/TarkovTaskProgressSwitch";
 import { TarkovTaskObjectivesRewards } from "@/components/guides/tarkov/TarkovTaskObjectivesRewards";
-import {
-  tarkovTaskProgressLabel,
-  useTarkovTaskMineMode,
-} from "@/lib/tarkovTaskProgress";
-import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
+import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
+import { tarkovTaskProgressLabel, useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
 import type { components } from "@/api/generated/schema";
 import styles from "./TarkovTaskDetailPanel.module.css";
 
@@ -28,7 +22,6 @@ type Props = {
   taskId: string;
 };
 
-type NamedRef = components["schemas"]["TarkovTaskNamedRefOut"];
 type TraderReq = components["schemas"]["TarkovTaskTraderReqOut"];
 
 function traderEnglish(slug: string, fallback: string): string {
@@ -57,25 +50,6 @@ function traderLevelLabel(
     .join("、");
 }
 
-function itemHref(item: NamedRef): string {
-  if (item.types?.length) return itemHrefFromTypes(item.id, item.types);
-  return itemDetailHref("keys", item.id);
-}
-
-function KeyLink({ item }: { item: NamedRef }) {
-  const label = item.name && item.name !== item.id ? item.name : item.id;
-  return (
-    <Link className={styles.keyItem} to={itemHref(item)}>
-      {item.icon_link ? (
-        <img className={styles.keyIcon} src={item.icon_link} alt="" />
-      ) : (
-        <span className={styles.keyIcon} />
-      )}
-      {label}
-    </Link>
-  );
-}
-
 export function TarkovTaskDetailPanel({ taskId }: Props) {
   const [mine, setMine] = useTarkovTaskMineMode();
   const detailQuery = useQuery({
@@ -84,6 +58,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
     staleTime: 5 * 60_000,
     retry: 1,
   });
+  useTarkovDocumentTitle(detailQuery.data?.name || "");
 
   if (detailQuery.isLoading) {
     return (
@@ -109,11 +84,16 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
 
   const image = (detail.task_image_link || "").trim();
   const traderSrc = detail.trader_slug
+    ? traderIconUrl(detail.trader_slug)
+    : "";
+  const traderFallback = detail.trader_slug
     ? traderPortraitUrl(detail.trader_slug)
     : "";
   const reqs = detail.task_requirements || [];
   const nextTasks = detail.successor_tasks || [];
-  const keys = detail.needed_keys || [];
+  const traderHref = detail.trader_slug
+    ? tarkovTraderHref(detail.trader_slug)
+    : "";
 
   return (
     <div className={styles.stack}>
@@ -155,7 +135,15 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                 {tarkovTaskProgressLabel(detail.progress_status)}
               </span>
             ) : null}
-            <h2 className={styles.name}>{detail.name || detail.id}</h2>
+            {detail.kappa_required ? (
+              <span className={styles.endgameChip}>Kappa</span>
+            ) : null}
+            {detail.lightkeeper_required ? (
+              <span className={styles.endgameChip}>灯塔商人</span>
+            ) : null}
+          </div>
+          <div className={styles.titleBar}>
+            <h1 className={styles.name}>{detail.name || detail.id}</h1>
             {detail.wiki_link ? (
               <a
                 className={styles.wiki}
@@ -172,7 +160,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
             <div>
               <div className={styles.statLabel}>
                 <UserOutlined className={styles.statIcon} />
-                Minimum PMC Level
+                最低 PMC 等级
               </div>
               <div className={styles.statValue}>
                 {detail.min_player_level || "—"}
@@ -184,10 +172,20 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                 商人等级
               </div>
               <div className={styles.statValue}>
-                {traderLevelLabel(
-                  detail.trader_slug,
-                  detail.trader_name,
-                  detail.trader_requirements,
+                {traderHref ? (
+                  <Link className={styles.inlineLink} to={traderHref}>
+                    {traderLevelLabel(
+                      detail.trader_slug,
+                      detail.trader_name,
+                      detail.trader_requirements,
+                    )}
+                  </Link>
+                ) : (
+                  traderLevelLabel(
+                    detail.trader_slug,
+                    detail.trader_name,
+                    detail.trader_requirements,
+                  )
                 )}
               </div>
             </div>
@@ -255,41 +253,32 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
 
         <div className={styles.posterWrap}>
           {image ? (
-            <img className={styles.poster} src={image} alt="" />
-          ) : traderSrc ? (
-            <img className={styles.poster} src={traderSrc} alt="" />
+            <Image
+              className={styles.poster}
+              src={image}
+              alt={detail.name || ""}
+              preview={{ src: image }}
+            />
+          ) : traderFallback ? (
+            <img className={styles.poster} src={traderFallback} alt="" />
           ) : null}
           {traderSrc && image ? (
-            <img className={styles.traderBadge} src={traderSrc} alt="" />
+            traderHref ? (
+              <Link className={styles.traderBadgeLink} to={traderHref}>
+                <img
+                  className={styles.traderBadge}
+                  src={traderSrc}
+                  alt={detail.trader_name || ""}
+                />
+              </Link>
+            ) : (
+              <img className={styles.traderBadge} src={traderSrc} alt="" />
+            )
           ) : null}
         </div>
       </section>
 
       <TarkovTaskObjectivesRewards detail={detail} />
-
-      {keys.length ? (
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <KeyOutlined />
-            所需钥匙
-          </div>
-          <div className={styles.keys}>
-            {keys.map((row, index) => (
-              <div
-                key={`${row.map?.id || "map"}-${index}`}
-                className={styles.keyGroup}
-              >
-                <div className={styles.keyMap}>
-                  {row.map?.name || row.map?.id || "未知地图"}
-                </div>
-                {(row.keys || []).map((key) => (
-                  <KeyLink key={key.id} item={key} />
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

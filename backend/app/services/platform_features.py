@@ -193,10 +193,11 @@ FEATURE_TREE: list[dict[str, Any]] = [
                         "schedule": "cron",
                     },
                     {
-                        "id": "guides.tarkov.maps",
-                        "name": "地图",
-                        "kind": "game",
-                        "reserved": True,
+                        "id": "guides.tarkov.guides_sync",
+                        "name": "藏身处与交换数据更新",
+                        "kind": "job",
+                        "job_id": "tarkov_guides_sync",
+                        "schedule": "cron",
                     },
                 ],
             },
@@ -216,6 +217,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "tarkov_tasks_sync": "guides.tarkov.tasks_sync",
     "tarkov_traders_sync": "guides.tarkov.traders_sync",
     "tarkov_bosses_sync": "guides.tarkov.bosses_sync",
+    "tarkov_guides_sync": "guides.tarkov.guides_sync",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
@@ -237,6 +239,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "tarkov_tasks": "任务数据更新",
     "tarkov_traders": "商人数据更新",
     "tarkov_bosses": "BOSS 数据更新",
+    "tarkov_guides": "藏身处与交换数据更新",
 }
 
 

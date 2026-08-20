@@ -1,6 +1,7 @@
 """逃离塔科夫枪械：parse / 派生读模型。
 
 共享回源见 tarkov_items。本模块保留 GraphQL/json 下载与解析。
+列表行：有 defaultPreset 时用默认配置的 id/名/图/人机/后坐，口径与射速仍取机匣。
 """
 
 from __future__ import annotations
@@ -69,6 +70,22 @@ query GunSync($lang: LanguageCode) {
         fireModes
         defaultAmmo { id }
         allowedAmmo { id }
+        defaultPreset {
+          id
+          name
+          shortName
+          iconLink
+          baseImageLink
+          types
+          properties {
+            __typename
+            ... on ItemPropertiesPreset {
+              ergonomics
+              recoilVertical
+              recoilHorizontal
+            }
+          }
+        }
       }
     }
   }
@@ -101,6 +118,63 @@ def _item_id_list(raw: Any) -> list[str]:
             if iid:
                 out.append(iid[:64])
     return out
+
+
+def _extract_ref_id(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return str(value.get("id") or value.get("_id") or "").strip()
+    return ""
+
+
+def _localized_item_names(
+    item_id: str,
+    raw: dict[str, Any],
+    locale: dict[str, Any],
+) -> tuple[str, str]:
+    name = str(
+        locale.get(f"{item_id} Name")
+        or raw.get("name")
+        or locale.get(f"{item_id} ShortName")
+        or raw.get("shortName")
+        or ""
+    ).strip()
+    short_name = str(
+        locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
+    ).strip()
+    # json.tarkov.dev 无 locale 时 name 常为 "<id> Name" 占位，不可当真名
+    if name.endswith(" Name") and item_id in name:
+        name = short_name
+    if short_name.endswith(" ShortName") and item_id in short_name:
+        short_name = ""
+    if not name:
+        name = short_name or item_id
+    return name, short_name
+
+
+def _resolve_default_preset(
+    props: dict[str, Any],
+    items_by_id: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """嵌套对象（GraphQL）或 id（json）解析默认配置；缺条目则不覆盖。"""
+    ref = props.get("defaultPreset")
+    pid = _extract_ref_id(ref)
+    if not pid:
+        return None
+    indexed = (items_by_id or {}).get(pid)
+    if isinstance(ref, dict):
+        merged = dict(indexed) if isinstance(indexed, dict) else {}
+        for key, val in ref.items():
+            if val is not None and val != "":
+                merged[key] = val
+        merged["id"] = pid
+        return merged
+    if isinstance(indexed, dict):
+        merged = dict(indexed)
+        merged["id"] = pid
+        return merged
+    return None
 
 
 def _weapon_class_from_categories(
@@ -138,11 +212,54 @@ def _is_special_slot_gun(raw: dict[str, Any]) -> bool:
     return isinstance(types, list) and "specialSlot" in types
 
 
+def _overlay_default_preset(
+    row: dict[str, Any],
+    props: dict[str, Any],
+    *,
+    locale: dict[str, Any],
+    items_by_id: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """有默认配置则用其 id/名/图/人机/后坐；口径射速等仍用机匣。"""
+    preset = _resolve_default_preset(props, items_by_id)
+    if not preset:
+        return row
+    pid = str(preset.get("id") or "").strip()
+    if not pid:
+        return row
+    name, short_name = _localized_item_names(pid, preset, locale)
+    row["item_id"] = pid[:64]
+    row["name"] = name[:128]
+    row["short_name"] = short_name[:64]
+    icon = str(preset.get("baseImageLink") or preset.get("iconLink") or "").strip()
+    if icon:
+        row["icon_link"] = icon[:512]
+    preset_props = (
+        preset.get("properties") if isinstance(preset.get("properties"), dict) else {}
+    )
+    ergo = preset_props.get("ergonomics")
+    if ergo is None:
+        ergo = props.get("defaultErgonomics")
+    recoil_v = preset_props.get("recoilVertical")
+    if recoil_v is None:
+        recoil_v = props.get("defaultRecoilVertical")
+    recoil_h = preset_props.get("recoilHorizontal")
+    if recoil_h is None:
+        recoil_h = props.get("defaultRecoilHorizontal")
+    if ergo is not None and ergo != "":
+        row["ergonomics"] = _as_float(ergo)
+    if recoil_v is not None and recoil_v != "":
+        row["recoil_vertical"] = _as_int(recoil_v)
+    if recoil_h is not None and recoil_h != "":
+        row["recoil_horizontal"] = _as_int(recoil_h)
+    return row
+
+
 def _row_from_weapon_item(
     raw: dict[str, Any],
     *,
     locale: dict[str, Any] | None = None,
     category_index: dict[str, str] | None = None,
+    items_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     types = raw.get("types") or []
     if isinstance(types, list) and "preset" in types:
@@ -160,23 +277,7 @@ def _row_from_weapon_item(
     if not item_id:
         return None
     locale = locale or {}
-    name = str(
-        locale.get(f"{item_id} Name")
-        or raw.get("name")
-        or locale.get(f"{item_id} ShortName")
-        or raw.get("shortName")
-        or ""
-    ).strip()
-    short_name = str(
-        locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
-    ).strip()
-    # json.tarkov.dev 无 locale 时 name 常为 "<id> Name" 占位，不可当真名
-    if name.endswith(" Name") and item_id in name:
-        name = short_name
-    if short_name.endswith(" ShortName") and item_id in short_name:
-        short_name = ""
-    if not name:
-        name = short_name or item_id
+    name, short_name = _localized_item_names(item_id, raw, locale)
 
     default_ammo = props.get("defaultAmmo")
     if isinstance(default_ammo, dict):
@@ -187,7 +288,7 @@ def _row_from_weapon_item(
     fire_modes = props.get("fireModes") if isinstance(props.get("fireModes"), list) else []
     fire_modes = [str(m) for m in fire_modes if m is not None]
 
-    return {
+    row = {
         "item_id": item_id[:64],
         "name": name[:128],
         "short_name": short_name[:64],
@@ -210,6 +311,9 @@ def _row_from_weapon_item(
             raw.get("baseImageLink") or raw.get("iconLink") or ""
         )[:512],
     }
+    return _overlay_default_preset(
+        row, props, locale=locale, items_by_id=items_by_id
+    )
 
 
 def _as_int(value: Any) -> int:
@@ -239,10 +343,16 @@ def parse_graphql_guns(payload: dict[str, Any]) -> list[dict[str, Any]]:
     rows_raw = data.get("items")
     if not isinstance(rows_raw, list):
         raise TarkovGunError("tarkov.dev guns 响应无效")
-    rows: list[dict[str, Any]] = []
+    items_by_id: dict[str, dict[str, Any]] = {}
     for raw in rows_raw:
         if not isinstance(raw, dict):
             continue
+        iid = str(raw.get("id") or "").strip()
+        if iid:
+            items_by_id[iid] = raw
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in items_by_id.values():
         props = raw.get("properties")
         if not isinstance(props, dict):
             continue
@@ -250,9 +360,13 @@ def parse_graphql_guns(payload: dict[str, Any]) -> list[dict[str, Any]]:
             # some guns may omit typename in odd payloads; require weapon fields
             if props.get("caliber") is None and props.get("fireRate") is None:
                 continue
-        row = _row_from_weapon_item(raw)
-        if row:
-            rows.append(row)
+        row = _row_from_weapon_item(raw, items_by_id=items_by_id)
+        if not row:
+            continue
+        if row["item_id"] in seen:
+            continue
+        seen.add(row["item_id"])
+        rows.append(row)
     return rows
 
 
@@ -282,10 +396,17 @@ def parse_json_api_guns(
             if norm:
                 category_index[str(cid)] = norm
 
-    rows: list[dict[str, Any]] = []
+    items_by_id: dict[str, dict[str, Any]] = {}
     for raw in items_iter:
         if not isinstance(raw, dict):
             continue
+        iid = str(raw.get("id") or "").strip()
+        if iid:
+            items_by_id[iid] = raw
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in items_by_id.values():
         types = raw.get("types") or []
         if not isinstance(types, list) or "gun" not in types:
             continue
@@ -293,10 +414,17 @@ def parse_json_api_guns(
         if props.get("propertiesType") != "ItemPropertiesWeapon":
             continue
         row = _row_from_weapon_item(
-            raw, locale=locale, category_index=category_index
+            raw,
+            locale=locale,
+            category_index=category_index,
+            items_by_id=items_by_id,
         )
-        if row:
-            rows.append(row)
+        if not row:
+            continue
+        if row["item_id"] in seen:
+            continue
+        seen.add(row["item_id"])
+        rows.append(row)
     return rows
 
 

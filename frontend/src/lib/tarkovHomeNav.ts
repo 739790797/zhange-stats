@@ -4,6 +4,7 @@ import {
   TARKOV_HANDBOOK_ROOTS,
   handbookHref,
   itemHrefFromTypes,
+  itemPageBySlug,
 } from "@/lib/tarkovItemTypes";
 import { TARKOV_MAP_ICON_PATHS } from "@/lib/tarkovMapIcons";
 
@@ -46,6 +47,11 @@ export function traderPortraitUrl(id: string): string {
   return `https://tarkov.dev/images/traders/${id}-portrait.png`;
 }
 
+/** tarkov.dev 任务表 / 筛选条用的商人小图标。 */
+export function traderIconUrl(id: string): string {
+  return `https://tarkov.dev/images/traders/${id}-icon.jpg`;
+}
+
 /** tarkov.dev 头像文件名（Goons 用 Knight，邪教徒用祭司）。 */
 const BOSS_PORTRAIT_FILES: Record<string, string> = {
   reshala: "reshala-portrait.webp",
@@ -77,11 +83,38 @@ export type TarkovBossRow = TarkovHomeLink & {
 
 export const TARKOV_HOME_PATH = "/guides/tarkov";
 
-const MAPS_HREF = "/guides/tarkov/maps";
+export const MAPS_HREF = "/guides/tarkov/maps";
 export const TARKOV_TRADERS_PATH = "/guides/tarkov/traders";
 export const TARKOV_BOSSES_PATH = "/guides/tarkov/bosses";
+export const TARKOV_HIDEOUT_PATH = "/guides/tarkov/hideout";
+export const TARKOV_BARTERS_PATH = "/guides/tarkov/barters";
+export const TARKOV_CRAFTS_PATH = "/guides/tarkov/crafts";
+export const TARKOV_LOOT_TIERS_PATH = "/guides/tarkov/loot-tiers";
+export const TARKOV_HIDEOUT_COST_PATH = "/guides/tarkov/hideout-cost";
+export const TARKOV_WIPE_LENGTH_PATH = "/guides/tarkov/wipe-length";
+export const TARKOV_BITCOIN_FARM_PATH = "/guides/tarkov/bitcoin-farm";
 const PROGRESSION_HREF = "/guides/tarkov/progression";
 export const TARKOV_TASKS_PATH = "/guides/tarkov/tasks";
+
+/** 首页短 id → json.tarkov.dev / 详情路径 slug。 */
+const MAP_SLUG_ALIASES: Record<string, string> = {
+  lab: "the-lab",
+  streets: "streets-of-tarkov",
+  labyrinth: "the-labyrinth",
+};
+
+export function tarkovMapSlug(id: string): string {
+  return MAP_SLUG_ALIASES[id] || id;
+}
+
+export function tarkovMapHref(id: string): string {
+  if (id === "openworld" || id === "transits") return MAPS_HREF;
+  return `${MAPS_HREF}/${encodeURIComponent(id)}`;
+}
+
+export function tarkovHideoutHref(slug: string): string {
+  return `${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(slug)}`;
+}
 
 export function tarkovTaskHref(taskId: string): string {
   return `${TARKOV_TASKS_PATH}/${encodeURIComponent(taskId)}`;
@@ -159,10 +192,11 @@ export const TARKOV_MAPS: TarkovMapCard[] = MAP_DEFS.map((def) => {
   if (!icon) {
     throw new Error(`missing tarkov map icon: ${def.id}`);
   }
+  const soon = Boolean(def.comingSoon);
   return {
     ...def,
-    href: MAPS_HREF,
-    status: "soon",
+    href: soon ? MAPS_HREF : tarkovMapHref(def.id),
+    status: soon ? "soon" : "ready",
     icon,
     keywords: [def.english, ...(def.keywords || [])],
   };
@@ -292,10 +326,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   },
 ];
 
-/** 首页商人条：常规 8 人 + Ref；不含 Lightkeeper / BTR。 */
-export const TARKOV_HOME_TRADERS: TarkovTraderCard[] = TARKOV_TRADERS.filter(
-  (t) => t.id !== "lightkeeper" && t.id !== "btr-driver",
-);
+/** 首页商人条与 Hub / 顶栏同一集合。 */
+export const TARKOV_HOME_TRADERS: TarkovTraderCard[] = TARKOV_TRADERS;
 
 /** PvP 常规图出生率 / 护卫，对齐 json.tarkov.dev maps（不含 Terminal / 活动图）。 */
 export const TARKOV_BOSSES: TarkovBossRow[] = [
@@ -431,10 +463,8 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
   },
 ];
 
-/** 首页 BOSS 表：不含 Partisan；含 Kollontay。 */
-export const TARKOV_HOME_BOSSES: TarkovBossRow[] = TARKOV_BOSSES.filter(
-  (b) => b.id !== "partisan",
-);
+/** 首页 BOSS 表与 Hub / 顶栏同一集合。 */
+export const TARKOV_HOME_BOSSES: TarkovBossRow[] = TARKOV_BOSSES;
 
 export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   {
@@ -444,10 +474,22 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
     status: "ready",
     keywords: ["tasks", "quests"],
   },
-  { id: "hideout", label: "藏身处", href: PROGRESSION_HREF, status: "soon" },
+  {
+    id: "hideout",
+    label: "藏身处",
+    href: TARKOV_HIDEOUT_PATH,
+    status: "ready",
+    keywords: ["hideout", "藏身处"],
+  },
   { id: "achievements", label: "成就", href: PROGRESSION_HREF, status: "soon" },
   { id: "prestige", label: "声望", href: PROGRESSION_HREF, status: "soon" },
-  { id: "loot-tiers", label: "战利品等级", href: PROGRESSION_HREF, status: "soon" },
+  {
+    id: "loot-tiers",
+    label: "战利品等级",
+    href: TARKOV_LOOT_TIERS_PATH,
+    status: "ready",
+    keywords: ["loot", "战利品"],
+  },
 ];
 
 /** 首页右侧工具栏；仅弹药图表已接入。 */
@@ -463,48 +505,48 @@ export const TARKOV_TOOLS: TarkovHomeLink[] = [
   {
     id: "barter-profit",
     label: "商人交易利润",
-    href: TARKOV_TRADERS_PATH,
-    status: "soon",
+    href: TARKOV_BARTERS_PATH,
+    status: "ready",
     icon: "⇌",
     keywords: ["barter", "以物易物"],
   },
   {
     id: "craft-profit",
     label: "藏身处制作利润",
-    href: PROGRESSION_HREF,
-    status: "soon",
+    href: TARKOV_CRAFTS_PATH,
+    status: "ready",
     icon: "⚙",
     keywords: ["crafts", "制作"],
   },
   {
     id: "loot-tier-rank",
     label: "战利品等级排名",
-    href: PROGRESSION_HREF,
-    status: "soon",
+    href: TARKOV_LOOT_TIERS_PATH,
+    status: "ready",
     icon: "◈",
     keywords: ["loot", "战利品"],
   },
   {
     id: "hideout-cost",
     label: "藏身处建造成本",
-    href: PROGRESSION_HREF,
-    status: "soon",
+    href: TARKOV_HIDEOUT_COST_PATH,
+    status: "ready",
     icon: "⌂",
     keywords: ["hideout", "建造"],
   },
   {
     id: "wipe-length",
     label: "平均删档周期",
-    href: PROGRESSION_HREF,
-    status: "soon",
+    href: TARKOV_WIPE_LENGTH_PATH,
+    status: "ready",
     icon: "◷",
     keywords: ["wipe", "删档"],
   },
   {
     id: "btc-farm",
     label: "比特币矿场利润",
-    href: PROGRESSION_HREF,
-    status: "soon",
+    href: TARKOV_BITCOIN_FARM_PATH,
+    status: "ready",
     icon: "₿",
     keywords: ["bitcoin", "btc", "矿场"],
   },
@@ -523,6 +565,7 @@ export const TARKOV_ITEM_MENU_GROUPS: TarkovHomeGroup[] = [
       { id: "armors", label: "护甲", href: `${ITEMS_BASE_PATH}/armors`, status: "ready" },
       { id: "rigs", label: "胸挂", href: `${ITEMS_BASE_PATH}/rigs`, status: "ready" },
       { id: "backpacks", label: "背包", href: `${ITEMS_BASE_PATH}/backpacks`, status: "ready" },
+      { id: "meds", label: "医疗", href: `${ITEMS_BASE_PATH}/meds`, status: "ready" },
     ],
   },
   {
@@ -586,7 +629,7 @@ export const TARKOV_TOP_NAV: TarkovTopNavItem[] = [
   {
     id: "progression",
     label: "进度",
-    href: PROGRESSION_HREF,
+    href: TARKOV_TASKS_PATH,
     groups: [{ id: "progression", label: "进度", items: TARKOV_PROGRESSION }],
   },
 ];
@@ -836,6 +879,33 @@ export function buildSiteSearchSections(
     });
   }
   return sections;
+}
+
+/** 浏览器标签：栏目名；详情页再用物品/任务名覆盖。 */
+export function tarkovPageTitle(pathname: string): string {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === "/guides/tarkov") return "逃离塔科夫";
+  if (path.startsWith("/guides/tarkov/tasks")) return "任务";
+  if (path.startsWith("/guides/tarkov/traders")) return "商人";
+  if (path.startsWith("/guides/tarkov/bosses")) return "BOSS";
+  if (path.startsWith("/guides/tarkov/maps")) return "地图";
+  if (path.startsWith("/guides/tarkov/hideout-cost")) return "藏身处建造成本";
+  if (path.startsWith("/guides/tarkov/hideout")) return "藏身处";
+  if (path.startsWith("/guides/tarkov/barters")) return "商人交易利润";
+  if (path.startsWith("/guides/tarkov/crafts")) return "藏身处制作利润";
+  if (path.startsWith("/guides/tarkov/loot-tiers")) return "战利品等级";
+  if (path.startsWith("/guides/tarkov/wipe-length")) return "平均删档周期";
+  if (path.startsWith("/guides/tarkov/bitcoin-farm")) return "比特币矿场利润";
+  if (path.startsWith("/guides/tarkov/progression")) return "进度";
+  if (path.startsWith("/guides/tarkov/items")) {
+    const seg = path.split("/")[4];
+    if (seg) {
+      const page = itemPageBySlug(seg);
+      if (page) return page.label;
+    }
+    return "物品";
+  }
+  return "逃离塔科夫";
 }
 
 /** 顶栏高亮：物品子路径、进度下的任务页都算对应栏目激活。 */

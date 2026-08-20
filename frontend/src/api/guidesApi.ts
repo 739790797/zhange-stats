@@ -275,3 +275,123 @@ export async function syncTarkovProgress() {
   );
   return data;
 }
+
+export type TarkovMapCatalog = components["schemas"]["TarkovMapCatalogOut"];
+export type TarkovMapListItem = components["schemas"]["TarkovMapListItemOut"];
+export type TarkovMapDetail = components["schemas"]["TarkovMapDetailOut"];
+export type TarkovMapExtract = components["schemas"]["TarkovMapExtractOut"];
+export type TarkovMapBoss = components["schemas"]["TarkovMapBossOut"];
+export type TarkovHideoutCatalog = components["schemas"]["TarkovHideoutCatalogOut"];
+export type TarkovHideoutStation = components["schemas"]["TarkovHideoutStationOut"];
+export type TarkovHideoutLevel = components["schemas"]["TarkovHideoutLevelOut"];
+export type TarkovHideoutDetail = components["schemas"]["TarkovHideoutDetailOut"];
+export type TarkovBarterCatalog = components["schemas"]["TarkovBarterCatalogOut"];
+export type TarkovBarter = components["schemas"]["TarkovBarterOut"];
+export type TarkovCraftCatalog = components["schemas"]["TarkovCraftCatalogOut"];
+export type TarkovCraft = components["schemas"]["TarkovCraftOut"];
+export type TarkovLootTierCatalog = components["schemas"]["TarkovLootTierCatalogOut"];
+export type TarkovLootTierItem = components["schemas"]["TarkovLootTierItemOut"];
+export type TarkovGuidesSyncResult = components["schemas"]["TarkovGuidesSyncOut"];
+
+export async function fetchTarkovMaps() {
+  const { data } = await client.get<TarkovMapCatalog>("/guides/tarkov/maps", {
+    timeout: 120_000,
+  });
+  return data;
+}
+
+export async function fetchTarkovMapDetail(slug: string) {
+  const { data } = await client.get<TarkovMapDetail>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}`,
+    { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovHideout() {
+  const { data } = await client.get<TarkovHideoutCatalog>(
+    "/guides/tarkov/hideout",
+    { timeout: 180_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovHideoutStation(slug: string) {
+  const { data } = await client.get<TarkovHideoutDetail>(
+    `/guides/tarkov/hideout/${encodeURIComponent(slug)}`,
+    { timeout: 180_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovBarters(opts: {
+  q?: string;
+  trader?: string;
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const q = (opts.q || "").trim();
+  const trader = (opts.trader || "").trim();
+  const { data } = await client.get<TarkovBarterCatalog>("/guides/tarkov/barters", {
+    params: {
+      ...(q ? { q } : {}),
+      ...(trader ? { trader } : {}),
+      page: opts.page ?? 1,
+      page_size: opts.pageSize ?? 50,
+    },
+    timeout: 180_000,
+  });
+  return data;
+}
+
+export async function fetchTarkovCrafts(opts: {
+  q?: string;
+  station?: string;
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const q = (opts.q || "").trim();
+  const station = (opts.station || "").trim();
+  const { data } = await client.get<TarkovCraftCatalog>("/guides/tarkov/crafts", {
+    params: {
+      ...(q ? { q } : {}),
+      ...(station ? { station } : {}),
+      page: opts.page ?? 1,
+      page_size: opts.pageSize ?? 50,
+    },
+    timeout: 180_000,
+  });
+  return data;
+}
+
+export async function fetchTarkovLootTiers(opts: {
+  q?: string;
+  tier?: string;
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const q = (opts.q || "").trim();
+  const tier = (opts.tier || "").trim();
+  const { data } = await client.get<TarkovLootTierCatalog>(
+    "/guides/tarkov/loot-tiers",
+    {
+      params: {
+        ...(q ? { q } : {}),
+        ...(tier ? { tier } : {}),
+        page: opts.page ?? 1,
+        page_size: opts.pageSize ?? 100,
+      },
+      timeout: 180_000,
+    },
+  );
+  return data;
+}
+
+export async function syncTarkovGuides() {
+  const { data } = await client.post<TarkovGuidesSyncResult>(
+    "/guides/tarkov/guides/sync",
+    {},
+    { timeout: 180_000 },
+  );
+  return data;
+}

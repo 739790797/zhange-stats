@@ -7,6 +7,7 @@ import {
   handbookHref,
   handbookRootBySlug,
   itemPageBySlug,
+  ITEMS_BASE_PATH,
 } from "@/lib/tarkovItemTypes";
 
 const TarkovAmmoScatterPanel = lazy(() =>
@@ -59,6 +60,7 @@ export default function TarkovItemTypePage() {
     <TarkovItemsPageShell
       title={page.label}
       crumbs={crumbs}
+      sectionHref={ITEMS_BASE_PATH}
     >
       {page.panel === "ammo" ? (
         <Suspense fallback={<PanelFallback tip="加载图表…" />}>

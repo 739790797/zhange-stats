@@ -28,6 +28,9 @@ from app.services.taygedo_checkin import checkin_job_wrapper as taygedo_checkin_
 from app.services.tarkov_bosses import (
     bosses_sync_job_wrapper as tarkov_bosses_sync_job_wrapper,
 )
+from app.services.tarkov_guides import (
+    guides_sync_job_wrapper as tarkov_guides_sync_job_wrapper,
+)
 from app.services.tarkov_items import items_sync_job_wrapper as tarkov_items_sync_job_wrapper
 from app.services.tarkov_tasks import tasks_sync_job_wrapper as tarkov_tasks_sync_job_wrapper
 from app.services.tarkov_traders import (
@@ -72,6 +75,7 @@ SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     "tarkov_tasks_sync": tarkov_tasks_sync_job_wrapper,
     "tarkov_traders_sync": tarkov_traders_sync_job_wrapper,
     "tarkov_bosses_sync": tarkov_bosses_sync_job_wrapper,
+    "tarkov_guides_sync": tarkov_guides_sync_job_wrapper,
     "job_runs_prune": prune_job_wrapper,
 }
 

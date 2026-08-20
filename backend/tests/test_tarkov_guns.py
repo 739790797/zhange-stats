@@ -97,6 +97,132 @@ def test_parse_graphql_guns():
     assert rows[1]["caliber"] == "40x46mm"
 
 
+def test_parse_graphql_guns_uses_default_preset():
+    payload = {
+        "data": {
+            "items": [
+                {
+                    "id": "ak74n",
+                    "name": "AK-74N",
+                    "shortName": "AK-74N",
+                    "iconLink": "https://example/receiver.webp",
+                    "types": ["gun"],
+                    "categories": [
+                        {
+                            "id": "5447b5f14bdc2d61278b4567",
+                            "normalizedName": "assault-rifle",
+                        }
+                    ],
+                    "properties": {
+                        "__typename": "ItemPropertiesWeapon",
+                        "caliber": "Caliber545x39",
+                        "fireRate": 650,
+                        "ergonomics": 31,
+                        "recoilVertical": 96,
+                        "recoilHorizontal": 244,
+                        "effectiveDistance": 650,
+                        "fireModes": ["single", "fullauto"],
+                        "defaultAmmo": {"id": "ammo1"},
+                        "allowedAmmo": [{"id": "ammo1"}],
+                        "defaultPreset": {
+                            "id": "ak74n-default",
+                            "name": "AK-74N 默认",
+                            "shortName": "AK-74N 默认",
+                            "baseImageLink": "https://example/default.webp",
+                            "types": ["preset"],
+                            "properties": {
+                                "__typename": "ItemPropertiesPreset",
+                                "ergonomics": 48,
+                                "recoilVertical": 80,
+                                "recoilHorizontal": 210,
+                            },
+                        },
+                    },
+                },
+                {
+                    "id": "other-preset",
+                    "name": "AK-74N Zenit",
+                    "types": ["gun", "preset"],
+                    "properties": {
+                        "__typename": "ItemPropertiesPreset",
+                        "ergonomics": 99,
+                    },
+                },
+                {
+                    "id": "fn40",
+                    "name": "FN40GL",
+                    "shortName": "FN40GL",
+                    "types": ["gun", "wearable"],
+                    "categories": [
+                        {
+                            "id": "5447bedf4bdc2d87278b4568",
+                            "normalizedName": "grenade-launcher",
+                        }
+                    ],
+                    "properties": {
+                        "__typename": "ItemPropertiesWeapon",
+                        "caliber": "Caliber40x46",
+                        "fireRate": 30,
+                        "ergonomics": 10,
+                        "recoilVertical": 200,
+                        "recoilHorizontal": 200,
+                        "effectiveDistance": 100,
+                        "fireModes": ["single"],
+                    },
+                },
+            ]
+        }
+    }
+    rows = {r["item_id"]: r for r in svc.parse_graphql_guns(payload)}
+    assert set(rows) == {"ak74n-default", "fn40"}
+    default = rows["ak74n-default"]
+    assert default["name"] == "AK-74N 默认"
+    assert default["icon_link"] == "https://example/default.webp"
+    assert default["caliber"] == "5.45x39mm"
+    assert default["fire_rate"] == 650
+    assert default["ergonomics"] == 48
+    assert default["recoil_vertical"] == 80
+    assert default["recoil_horizontal"] == 210
+    assert default["weapon_class"] == "assault-rifle"
+    assert default["allowed_ammo_ids"] == ["ammo1"]
+
+
+def test_parse_graphql_guns_missing_preset_falls_back_to_receiver():
+    payload = {
+        "data": {
+            "items": [
+                {
+                    "id": "ak74n",
+                    "name": "AK-74N",
+                    "shortName": "AK-74N",
+                    "types": ["gun"],
+                    "categories": [
+                        {
+                            "id": "5447b5f14bdc2d61278b4567",
+                            "normalizedName": "assault-rifle",
+                        }
+                    ],
+                    "properties": {
+                        "__typename": "ItemPropertiesWeapon",
+                        "caliber": "Caliber545x39",
+                        "fireRate": 650,
+                        "ergonomics": 31,
+                        "recoilVertical": 96,
+                        "recoilHorizontal": 244,
+                        "effectiveDistance": 650,
+                        "fireModes": ["single"],
+                        "defaultPreset": "missing-preset",
+                    },
+                }
+            ]
+        }
+    }
+    rows = svc.parse_graphql_guns(payload)
+    assert len(rows) == 1
+    assert rows[0]["item_id"] == "ak74n"
+    assert rows[0]["ergonomics"] == 31
+
+
 def test_parse_json_api_guns():
     payload = {
         "data": {
@@ -138,6 +264,112 @@ def test_parse_json_api_guns():
     assert rows[0]["short_name"] == "MP5"
     assert rows[0]["caliber"] == "9x19mm"
     assert rows[0]["weapon_class"] == "smg"
+
+
+def test_parse_json_api_guns_uses_default_preset():
+    payload = {
+        "data": {
+            "items": {
+                "g1": {
+                    "id": "g1",
+                    "name": "g1 Name",
+                    "shortName": "g1 ShortName",
+                    "types": ["gun"],
+                    "categories": ["5447b5e04bdc2d62278b4567"],
+                    "iconLink": "https://example/g1.webp",
+                    "properties": {
+                        "propertiesType": "ItemPropertiesWeapon",
+                        "caliber": "Caliber9x19PARA",
+                        "fireRate": 900,
+                        "ergonomics": 40,
+                        "recoilVertical": 50,
+                        "recoilHorizontal": 200,
+                        "effectiveDistance": 200,
+                        "fireModes": ["fullauto"],
+                        "defaultAmmo": "a1",
+                        "allowedAmmo": ["a1", "a2"],
+                        "defaultPreset": "g1-default",
+                    },
+                },
+                "g1-default": {
+                    "id": "g1-default",
+                    "name": "g1-default Name",
+                    "shortName": "g1-default ShortName",
+                    "types": ["preset"],
+                    "baseImageLink": "https://example/g1-default.webp",
+                    "properties": {
+                        "propertiesType": "ItemPropertiesPreset",
+                        "baseItem": "g1",
+                        "ergonomics": 55.5,
+                        "recoilVertical": 42,
+                        "recoilHorizontal": 180,
+                    },
+                },
+                "g1-zenit": {
+                    "id": "g1-zenit",
+                    "types": ["preset"],
+                    "properties": {
+                        "propertiesType": "ItemPropertiesPreset",
+                        "baseItem": "g1",
+                        "ergonomics": 80,
+                    },
+                },
+            },
+            "itemCategories": {
+                "5447b5e04bdc2d62278b4567": {"normalizedName": "smg"},
+            },
+        }
+    }
+    locale = {
+        "g1 Name": "MP5",
+        "g1 ShortName": "MP5",
+        "g1-default Name": "MP5 默认",
+        "g1-default ShortName": "MP5 Default",
+    }
+    rows = svc.parse_json_api_guns(payload, locale=locale)
+    assert len(rows) == 1
+    assert rows[0]["item_id"] == "g1-default"
+    assert rows[0]["name"] == "MP5 默认"
+    assert rows[0]["short_name"] == "MP5 Default"
+    assert rows[0]["icon_link"] == "https://example/g1-default.webp"
+    assert rows[0]["caliber"] == "9x19mm"
+    assert rows[0]["fire_rate"] == 900
+    assert rows[0]["ergonomics"] == 55.5
+    assert rows[0]["recoil_vertical"] == 42
+    assert rows[0]["weapon_class"] == "smg"
+
+
+def test_parse_json_api_guns_missing_preset_falls_back_to_receiver():
+    payload = {
+        "data": {
+            "items": {
+                "g1": {
+                    "id": "g1",
+                    "name": "g1 Name",
+                    "types": ["gun"],
+                    "categories": ["5447b5e04bdc2d62278b4567"],
+                    "properties": {
+                        "propertiesType": "ItemPropertiesWeapon",
+                        "caliber": "Caliber9x19PARA",
+                        "fireRate": 900,
+                        "ergonomics": 40,
+                        "recoilVertical": 50,
+                        "recoilHorizontal": 200,
+                        "effectiveDistance": 200,
+                        "fireModes": ["fullauto"],
+                        "defaultPreset": "missing",
+                    },
+                }
+            },
+            "itemCategories": {
+                "5447b5e04bdc2d62278b4567": {"normalizedName": "smg"},
+            },
+        }
+    }
+    rows = svc.parse_json_api_guns(payload, locale={"g1 Name": "MP5"})
+    assert len(rows) == 1
+    assert rows[0]["item_id"] == "g1"
+    assert rows[0]["name"] == "MP5"
 
 
 def test_parse_gun_raw_json_envelope():

@@ -1,6 +1,6 @@
 # 前端（战鸽数据）
 
-React 18 + Vite 8 + Ant Design 5 + TanStack Query。开发时代理到后端 `http://127.0.0.1:8000`（见 `vite.config.ts`）。
+React 18 + Vite 8 + Ant Design 5 + TanStack Query。开发时代理到后端 `http://127.0.0.1:6130`（见 `vite.config.ts`）。
 
 ## 常用命令
 

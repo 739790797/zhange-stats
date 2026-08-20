@@ -9,7 +9,11 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { TARKOV_TASKS_PATH, tarkovTaskHref } from "@/lib/tarkovHomeNav";
+import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
+import { formatMoney } from "@/lib/tarkovItemFormat";
+import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
+import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalogStyles from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovTraderPanel.module.css";
@@ -26,36 +30,6 @@ const LOYALTY = [
   { value: 3, label: "III" },
   { value: 4, label: "IV" },
 ] as const;
-
-const CDN_SUFFIX_RE =
-  /-(?:icon|grid-image|base-image|512|8x|image)\.webp(\?.*)?$/i;
-
-function transparentThumbUrl(src: string | null | undefined): string {
-  const url = (src || "").trim();
-  if (!url) return "";
-  return url.replace(CDN_SUFFIX_RE, "-base-image.webp$1");
-}
-
-function hdPreviewUrl(src: string | null | undefined): string {
-  const url = (src || "").trim();
-  if (!url) return "";
-  return url.replace(CDN_SUFFIX_RE, "-512.webp$1");
-}
-
-function currencySymbol(code: string | undefined): string {
-  const c = (code || "RUB").toUpperCase();
-  if (c === "USD") return "$";
-  if (c === "EUR") return "€";
-  return "₽";
-}
-
-function formatMoney(
-  value: number | null | undefined,
-  currency = "RUB",
-): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  return `${value.toLocaleString("zh-CN")} ${currencySymbol(currency)}`;
-}
 
 function restockLabel(resetTime: string | undefined, nowMs: number): string {
   const t = Date.parse(resetTime || "");
@@ -76,31 +50,36 @@ export function TarkovTraderPanel({ slug }: Props) {
     levelRaw === 1 || levelRaw === 2 || levelRaw === 3 || levelRaw === 4
       ? levelRaw
       : undefined;
-  const [keyword, setKeyword] = useState("");
-  const [q, setQ] = useState("");
+  const q = (searchParams.get("q") || "").trim();
+  const pageNo = readPositiveInt(searchParams.get("page"), 1);
+  const pageSize = readAllowedInt(
+    searchParams.get("pageSize"),
+    PAGE_SIZE_DEFAULT,
+    PAGE_SIZE_OPTIONS,
+  );
+  const [keyword, setKeyword] = useState(q);
   const qRef = useRef(q);
-  const [pageNo, setPageNo] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [portraitSrc, setPortraitSrc] = useState("");
 
   useEffect(() => {
-    setPageNo(1);
-    setKeyword("");
-    setQ("");
-    qRef.current = "";
-  }, [slug]);
+    setKeyword(q);
+    qRef.current = q;
+  }, [q, slug]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
       const next = keyword.trim();
       if (qRef.current === next) return;
       qRef.current = next;
-      setQ(next);
-      setPageNo(1);
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      params.delete("page");
+      setSearchParams(params, { replace: true });
     }, 300);
     return () => window.clearTimeout(handle);
-  }, [keyword]);
+  }, [keyword, searchParams, setSearchParams]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -126,6 +105,7 @@ export function TarkovTraderPanel({ slug }: Props) {
   });
 
   const detail = detailQuery.data;
+  useTarkovDocumentTitle(detail?.english || "");
   useEffect(() => {
     setPortraitSrc(detail?.portrait_link || detail?.image_link || "");
   }, [detail?.portrait_link, detail?.image_link, slug]);
@@ -134,7 +114,7 @@ export function TarkovTraderPanel({ slug }: Props) {
     const params = new URLSearchParams(searchParams);
     if (next) params.set("level", String(next));
     else params.delete("level");
-    setPageNo(1);
+    params.delete("page");
     setSearchParams(params, { replace: true });
   };
 
@@ -181,7 +161,7 @@ export function TarkovTraderPanel({ slug }: Props) {
         formatMoney(row.last_low_price ?? row.avg24h_price, "RUB"),
     },
     {
-      title: "Trader offer",
+      title: "商人报价",
       key: "offer",
       width: 220,
       render: (_: unknown, row) => (
@@ -243,7 +223,7 @@ export function TarkovTraderPanel({ slug }: Props) {
 
       <section className={styles.hero}>
         <div>
-          <span className={styles.badge}>TRADER</span>
+          <span className={styles.badge}>商人</span>
           <div className={styles.nameRow}>
             <h2 className={styles.name}>{title}</h2>
             {detail.chinese ? (
@@ -330,8 +310,12 @@ export function TarkovTraderPanel({ slug }: Props) {
           pageSizeOptions: PAGE_SIZE_OPTIONS,
           showTotal: (n) => `共 ${n} 条`,
           onChange: (nextPage, nextSize) => {
-            setPageNo(nextPage);
-            setPageSize(nextSize);
+            const params = new URLSearchParams(searchParams);
+            if (nextPage <= 1) params.delete("page");
+            else params.set("page", String(nextPage));
+            if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
+            else params.set("pageSize", String(nextSize));
+            setSearchParams(params, { replace: true });
           },
         }}
         locale={{ emptyText: "该商人暂无现金报价" }}

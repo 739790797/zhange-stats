@@ -61,6 +61,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_bosses",
     },
     {
+        "id": "tarkov_guides_sync",
+        "name": "藏身处与交换数据更新",
+        "description": "从 json.tarkov.dev 同步藏身处、以物易物与制作",
+        "kind": "cron",
+        "platform": "tarkov_guides",
+    },
+    {
         "id": "taygedo_checkin",
         "name": "塔吉多每日签到",
         "description": "按用户自设时间巡检签到",

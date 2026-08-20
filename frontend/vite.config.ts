@@ -11,18 +11,18 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
-    port: Number(process.env.VITE_DEV_PORT || 5173),
+    port: Number(process.env.VITE_DEV_PORT || 6131),
     proxy: {
       "/api": {
-        target: process.env.VITE_API_PROXY || "http://127.0.0.1:8000",
+        target: process.env.VITE_API_PROXY || "http://127.0.0.1:6130",
         changeOrigin: true,
       },
       "/uploads": {
-        target: process.env.VITE_API_PROXY || "http://127.0.0.1:8000",
+        target: process.env.VITE_API_PROXY || "http://127.0.0.1:6130",
         changeOrigin: true,
       },
       "/health": {
-        target: process.env.VITE_API_PROXY || "http://127.0.0.1:8000",
+        target: process.env.VITE_API_PROXY || "http://127.0.0.1:6130",
         changeOrigin: true,
       },
     },

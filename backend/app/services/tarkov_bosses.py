@@ -507,10 +507,28 @@ def slim_maps_payload(
                     "escorts": _slim_escorts(spawn.get("escorts")),
                 }
             )
+        extracts: list[dict[str, Any]] = []
+        for extract in raw.get("extracts") or []:
+            if not isinstance(extract, dict):
+                continue
+            extracts.append(
+                {
+                    "id": str(extract.get("id") or ""),
+                    "name": str(extract.get("name") or ""),
+                    "faction": str(extract.get("faction") or ""),
+                }
+            )
         maps_out[str(key)] = {
             "id": str(raw.get("id") or key),
             "name": str(raw.get("name") or ""),
             "normalizedName": str(raw.get("normalizedName") or ""),
+            "description": str(raw.get("description") or ""),
+            "wiki": str(raw.get("wiki") or ""),
+            "raidDuration": _as_int(raw.get("raidDuration"), 0) or 0,
+            "players": str(raw.get("players") or ""),
+            "minPlayerLevel": _as_int(raw.get("minPlayerLevel"), 0) or 0,
+            "maxPlayerLevel": _as_int(raw.get("maxPlayerLevel"), 0) or 0,
+            "extracts": extracts,
             "bosses": bosses,
         }
 

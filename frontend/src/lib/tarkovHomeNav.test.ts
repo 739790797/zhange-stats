@@ -13,10 +13,13 @@ import {
   TARKOV_TOP_NAV,
   TARKOV_TRADERS,
   bossPortraitUrl,
+  traderIconUrl,
+  traderPortraitUrl,
   buildHomeSearchIndex,
   buildSiteSearchSections,
   filterHomeSearch,
   isTarkovTopNavActive,
+  tarkovPageTitle,
   textMatchesQuery,
 } from "./tarkovHomeNav";
 
@@ -176,12 +179,23 @@ describe("TARKOV_BOSSES", () => {
     });
     expect(byId.partisan).toMatchObject({ map: "游荡", spawn: "10%", guards: "—" });
     expect(TARKOV_HOME_BOSSES.map((b) => b.id)).toContain("kollontay");
-    expect(TARKOV_HOME_BOSSES.map((b) => b.id)).not.toContain("partisan");
+    expect(TARKOV_HOME_BOSSES.map((b) => b.id)).toContain("partisan");
     expect(bossPortraitUrl("goons")).toContain("knight-portrait");
     expect(bossPortraitUrl("cultists")).toContain("cultist-priest");
     expect(byId.goons.href).toBe("/guides/tarkov/bosses/knight");
     expect(byId.cultists.href).toBe("/guides/tarkov/bosses/cultist-priest");
     expect(byId.reshala.href).toBe("/guides/tarkov/bosses/reshala");
+  });
+});
+
+describe("trader image urls", () => {
+  it("uses tarkov.dev icon and portrait paths", () => {
+    expect(traderIconUrl("prapor")).toBe(
+      "https://tarkov.dev/images/traders/prapor-icon.jpg",
+    );
+    expect(traderPortraitUrl("prapor")).toBe(
+      "https://tarkov.dev/images/traders/prapor-portrait.png",
+    );
   });
 });
 
@@ -212,10 +226,21 @@ describe("TARKOV_MAPS", () => {
       label: "中心区",
       english: "Ground Zero",
     });
+    expect(TARKOV_MAPS.find((m) => m.id === "customs")).toMatchObject({
+      href: "/guides/tarkov/maps/customs",
+      status: "ready",
+    });
+    expect(TARKOV_MAPS.find((m) => m.id === "lab")).toMatchObject({
+      href: "/guides/tarkov/maps/lab",
+      status: "ready",
+    });
     expect(TARKOV_MAPS.filter((m) => m.comingSoon).map((m) => m.id)).toEqual([
       "openworld",
       "transits",
     ]);
+    expect(
+      TARKOV_MAPS.filter((m) => !m.comingSoon).every((m) => m.status === "ready"),
+    ).toBe(true);
   });
 });
 
@@ -227,7 +252,7 @@ describe("TARKOV_HOME_ITEMS", () => {
       "tools",
     ]);
     expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.items.map((i) => i.id))).toEqual([
-      ["headsets", "helmets", "glasses", "armors", "rigs", "backpacks"],
+      ["headsets", "helmets", "glasses", "armors", "rigs", "backpacks", "meds"],
       ["ammo", "guns", "mods", "pistol-grips", "suppressors"],
       ["grenades", "containers", "barter-items", "keys", "provisions"],
     ]);
@@ -256,8 +281,11 @@ describe("isTarkovTopNavActive", () => {
 
   it("highlights progression when on the tasks page", () => {
     expect(
-      isTarkovTopNavActive("/guides/tarkov/progression", "/guides/tarkov/tasks", [
-        "/guides/tarkov/tasks",
+      isTarkovTopNavActive("/guides/tarkov/tasks", "/guides/tarkov/tasks"),
+    ).toBe(true);
+    expect(
+      isTarkovTopNavActive("/guides/tarkov/tasks", "/guides/tarkov/progression", [
+        "/guides/tarkov/progression",
       ]),
     ).toBe(true);
   });
@@ -266,10 +294,21 @@ describe("isTarkovTopNavActive", () => {
 describe("TARKOV_TOP_NAV", () => {
   it("nests tasks under progression instead of a top-level item", () => {
     expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("tasks");
+    expect(TARKOV_TOP_NAV.find((i) => i.id === "progression")?.href).toBe(
+      "/guides/tarkov/tasks",
+    );
     expect(TARKOV_PROGRESSION[0]).toMatchObject({
       id: "tasks",
       label: "任务",
       href: "/guides/tarkov/tasks",
+      status: "ready",
+    });
+    expect(TARKOV_PROGRESSION.find((p) => p.id === "hideout")).toMatchObject({
+      href: "/guides/tarkov/hideout",
+      status: "ready",
+    });
+    expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toMatchObject({
+      href: "/guides/tarkov/loot-tiers",
       status: "ready",
     });
   });
@@ -304,18 +343,12 @@ describe("TARKOV_TRADERS", () => {
 });
 
 describe("TARKOV_HOME_TRADERS", () => {
-  it("adds Ref after the classic eight and keeps Lightkeeper/BTR off the home strip", () => {
-    expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toEqual([
-      "prapor",
-      "therapist",
-      "fence",
-      "skier",
-      "peacekeeper",
-      "mechanic",
-      "ragman",
-      "jaeger",
-      "ref",
-    ]);
+  it("shows the same traders as the hub, including Lightkeeper and BTR", () => {
+    expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toEqual(
+      TARKOV_TRADERS.map((t) => t.id),
+    );
+    expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toContain("lightkeeper");
+    expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toContain("btr-driver");
   });
 });
 
@@ -327,6 +360,49 @@ describe("TARKOV_TOOLS", () => {
       href: `${ITEMS_BASE_PATH}/ammo`,
       status: "ready",
     });
+  });
+
+  it("opens barter, craft, loot, hideout cost, wipe, and bitcoin tools", () => {
+    const byId = Object.fromEntries(TARKOV_TOOLS.map((t) => [t.id, t]));
+    expect(byId["barter-profit"]).toMatchObject({
+      href: "/guides/tarkov/barters",
+      status: "ready",
+    });
+    expect(byId["craft-profit"]).toMatchObject({
+      href: "/guides/tarkov/crafts",
+      status: "ready",
+    });
+    expect(byId["loot-tier-rank"]).toMatchObject({
+      href: "/guides/tarkov/loot-tiers",
+      status: "ready",
+    });
+    expect(byId["hideout-cost"]).toMatchObject({
+      href: "/guides/tarkov/hideout-cost",
+      status: "ready",
+    });
+    expect(byId["wipe-length"]).toMatchObject({
+      href: "/guides/tarkov/wipe-length",
+      status: "ready",
+    });
+    expect(byId["btc-farm"]).toMatchObject({
+      href: "/guides/tarkov/bitcoin-farm",
+      status: "ready",
+    });
+  });
+});
+
+describe("tarkovPageTitle", () => {
+  it("uses handbook labels on item type paths", () => {
+    expect(tarkovPageTitle("/guides/tarkov")).toBe("逃离塔科夫");
+    expect(tarkovPageTitle("/guides/tarkov/items")).toBe("物品");
+    expect(tarkovPageTitle("/guides/tarkov/items/meds")).toBe("医疗物品");
+    expect(tarkovPageTitle("/guides/tarkov/tasks/abc")).toBe("任务");
+    expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
+    expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
+    expect(tarkovPageTitle("/guides/tarkov/barters")).toBe("商人交易利润");
+    expect(tarkovPageTitle("/guides/tarkov/hideout-cost")).toBe(
+      "藏身处建造成本",
+    );
   });
 });
 

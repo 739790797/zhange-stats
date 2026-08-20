@@ -8,6 +8,7 @@ import {
   formatWeaponClass,
 } from "@/lib/tarkovGunCategories";
 import { itemDetailHref } from "@/lib/tarkovItemTypes";
+import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import tableStyles from "./TarkovDarkTable.module.css";
 
 type Props = {
@@ -17,23 +18,6 @@ type Props = {
   /** URL ?caliber= 口径筛选（原始口径 id） */
   caliberFilterParam?: string | null;
 };
-
-const CDN_SUFFIX_RE =
-  /-(?:icon|grid-image|base-image|512|8x|image)\.webp(\?.*)?$/i;
-
-/** icon 为灰黑底；base-image 为透明小图 */
-function transparentThumbUrl(src: string | null | undefined): string {
-  const url = (src || "").trim();
-  if (!url) return "";
-  return url.replace(CDN_SUFFIX_RE, "-base-image.webp$1");
-}
-
-/** CDN 最大透明高清：image512pxLink / image8xLink → -512.webp */
-function hdPreviewUrl(src: string | null | undefined): string {
-  const url = (src || "").trim();
-  if (!url) return "";
-  return url.replace(CDN_SUFFIX_RE, "-512.webp$1");
-}
 
 type SortKey =
   | "fire_rate"

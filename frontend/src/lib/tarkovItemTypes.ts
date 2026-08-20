@@ -451,6 +451,10 @@ const IGNORE_CATEGORY_IDS = new Set([
   "566168634bdc2d144c8b456c",
 ]);
 
+export function isGenericItemCategoryId(id: string): boolean {
+  return IGNORE_CATEGORY_IDS.has((id || "").trim());
+}
+
 /** 手册分类 id → 本站分类页；泛 Item 节点不链。 */
 export function handbookHrefFromCategoryId(id: string): string | null {
   const key = (id || "").trim();

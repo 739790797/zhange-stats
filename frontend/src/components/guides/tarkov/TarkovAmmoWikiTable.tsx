@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import type { TarkovAmmoItem } from "@/api/guidesApi";
 import { formatCaliberLabel } from "@/lib/tarkovAmmoCategories";
 import { ammoDetailHref } from "@/lib/tarkovItemTypes";
+import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
   ARMOR_EFFECT_COLORS,
   ARMOR_EFFECT_LABELS,
@@ -12,9 +13,14 @@ import {
   type ArmorEffectLevel,
 } from "@/lib/tarkovAmmoArmorEffect";
 import tableStyles from "./TarkovDarkTable.module.css";
+import styles from "./TarkovAmmoWikiTable.module.css";
 
 type Props = {
   data: TarkovAmmoItem[];
+  defaultAmmoId?: string;
+  compact?: boolean;
+  highlightedId?: string | null;
+  onHoverId?: (id: string | null) => void;
 };
 
 type SortKey =
@@ -69,22 +75,6 @@ function formatInitialSpeed(value: number | null | undefined): string {
   return String(Math.round(n));
 }
 
-const CDN_SUFFIX_RE =
-  /-(?:icon|grid-image|base-image|512|8x|image)\.webp(\?.*)?$/i;
-
-/** 透明底图（无角标字） */
-function inventoryIconUrl(src: string | null | undefined): string {
-  const url = (src || "").trim();
-  if (!url) return "";
-  return url.replace(CDN_SUFFIX_RE, "-base-image.webp$1");
-}
-
-function hdPreviewUrl(src: string | null | undefined): string {
-  const url = (src || "").trim();
-  if (!url) return "";
-  return url.replace(CDN_SUFFIX_RE, "-512.webp$1");
-}
-
 function ArmorEffectCell({ level }: { level: ArmorEffectLevel }) {
   return (
     <span title={ARMOR_EFFECT_LABELS[level]}>{ARMOR_EFFECT_LABELS[level]}</span>
@@ -104,9 +94,38 @@ function buildCaliberRowSpan(rows: TarkovAmmoItem[]): Map<string, number> {
   return map;
 }
 
-export function TarkovAmmoWikiTable({ data }: Props) {
+export function TarkovAmmoWikiTable({
+  data,
+  defaultAmmoId,
+  compact = false,
+  highlightedId,
+  onHoverId,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("penetration");
   const [sortOrder, setSortOrder] = useState<"ascend" | "descend">("ascend");
+  const defaultId = (defaultAmmoId || "").trim();
+  const hoverId = (highlightedId || "").trim();
+  const w = compact
+    ? {
+        caliber: 72,
+        name: 220,
+        num: 44,
+        speed: 48,
+        mod: 50,
+        bleed: 56,
+        armor: 36,
+        icon: 32,
+      }
+    : {
+        caliber: 88,
+        name: 268,
+        num: 72,
+        speed: 88,
+        mod: 88,
+        bleed: 100,
+        armor: 56,
+        icon: 48,
+      };
 
   const rows = useMemo(() => {
     return [...data].sort((a, b) => {
@@ -155,8 +174,8 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       title: "口径",
       dataIndex: "caliber",
       key: "caliber",
-      width: 88,
-      fixed: "left",
+      width: w.caliber,
+      ...(compact ? {} : { fixed: "left" as const }),
       onCell: (row) => ({
         rowSpan: caliberRowSpan.get(row.id) ?? 1,
         style: {
@@ -184,19 +203,19 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       title: "名称",
       dataIndex: "name",
       key: "name",
-      width: 220,
-      fixed: "left",
+      width: w.name,
+      ...(compact ? {} : { fixed: "left" as const }),
       ellipsis: true,
       render: (_: unknown, row) => {
         const label = row.name || row.short_name || row.id;
-        const thumb = inventoryIconUrl(row.icon_link);
+        const thumb = transparentThumbUrl(row.icon_link);
         const hd = hdPreviewUrl(row.icon_link) || thumb;
         return (
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 10,
+              gap: compact ? 8 : 10,
               minWidth: 0,
               maxWidth: "100%",
               padding: "4px 0",
@@ -206,22 +225,22 @@ export function TarkovAmmoWikiTable({ data }: Props) {
               <Image
                 src={thumb}
                 alt=""
-                width={48}
-                height={48}
+                width={w.icon}
+                height={w.icon}
                 preview={{ src: hd, mask: false }}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   objectFit: "contain",
-                  flex: "0 0 48px",
+                  flex: `0 0 ${w.icon}px`,
                   cursor: "zoom-in",
                 }}
               />
             ) : (
               <span
                 style={{
-                  width: 48,
-                  height: 48,
-                  flex: "0 0 48px",
+                  width: w.icon,
+                  height: w.icon,
+                  flex: `0 0 ${w.icon}px`,
                   display: "inline-block",
                 }}
               />
@@ -239,6 +258,9 @@ export function TarkovAmmoWikiTable({ data }: Props) {
             >
               {label}
             </Link>
+            {defaultId && row.id === defaultId ? (
+              <span className={styles.defaultBadge}>默认</span>
+            ) : null}
           </span>
         );
       },
@@ -247,7 +269,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       title: "伤害",
       dataIndex: "damage",
       key: "damage",
-      width: 72,
+      width: w.num,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "damage" ? sortOrder : null,
@@ -256,7 +278,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       title: "穿透",
       dataIndex: "penetration",
       key: "penetration",
-      width: 72,
+      width: w.num,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "penetration" ? sortOrder : null,
@@ -265,67 +287,67 @@ export function TarkovAmmoWikiTable({ data }: Props) {
       title: "对甲%",
       dataIndex: "armor_damage",
       key: "armor_damage",
-      width: 72,
+      width: w.num,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "armor_damage" ? sortOrder : null,
     },
     {
-      title: "子弹初速",
+      title: compact ? "初速" : "子弹初速",
       dataIndex: "initial_speed",
       key: "initial_speed",
-      width: 88,
+      width: w.speed,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "initial_speed" ? sortOrder : null,
       render: (v: number) => formatInitialSpeed(v),
     },
     {
-      title: "精度修正",
+      title: compact ? "精度" : "精度修正",
       dataIndex: "accuracy_modifier",
       key: "accuracy_modifier",
-      width: 88,
+      width: w.mod,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "accuracy_modifier" ? sortOrder : null,
       render: (v: number) => renderSignedModifier(v, "accuracy"),
     },
     {
-      title: "后座修正",
+      title: compact ? "后座" : "后座修正",
       dataIndex: "recoil_modifier",
       key: "recoil_modifier",
-      width: 88,
+      width: w.mod,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "recoil_modifier" ? sortOrder : null,
       render: (v: number) => renderSignedModifier(v, "recoil"),
     },
     {
-      title: "小出血概率",
+      title: compact ? "小出血" : "小出血概率",
       dataIndex: "light_bleed_modifier",
       key: "light_bleed_modifier",
-      width: 100,
+      width: w.bleed,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "light_bleed_modifier" ? sortOrder : null,
       render: (v: number) => renderModifierPct(v),
     },
     {
-      title: "大出血概率",
+      title: compact ? "大出血" : "大出血概率",
       dataIndex: "heavy_bleed_modifier",
       key: "heavy_bleed_modifier",
-      width: 100,
+      width: w.bleed,
       align: "left",
       sorter: true,
       sortOrder: sortKey === "heavy_bleed_modifier" ? sortOrder : null,
       render: (v: number) => renderModifierPct(v),
     },
     {
-      title: "对护甲效果（估）",
+      title: compact ? "对甲效果" : "对护甲效果（估）",
       children: [1, 2, 3, 4, 5, 6].map((armorClass) => ({
         title: String(armorClass),
         key: `armor_${armorClass}`,
-        width: 56,
+        width: w.armor,
         align: "center" as const,
         onCell: (row: TarkovAmmoItem) => {
           const level = armorEffectLevel(
@@ -340,7 +362,7 @@ export function TarkovAmmoWikiTable({ data }: Props) {
               color: fg,
               fontWeight: 600,
               fontSize: 12,
-              padding: "4px 2px",
+              padding: compact ? "2px 0" : "4px 2px",
             },
           };
         },
@@ -357,17 +379,33 @@ export function TarkovAmmoWikiTable({ data }: Props) {
     },
   ];
 
+  const visibleColumns = compact
+    ? columns.filter((col) => col.key !== "caliber")
+    : columns;
+
   return (
     <Table<TarkovAmmoItem>
-      className={tableStyles.table}
+      className={`${tableStyles.table} ${compact ? styles.compact : ""}`}
       size="small"
       rowKey="id"
-      columns={columns}
+      columns={visibleColumns}
       dataSource={rows}
       pagination={false}
-      scroll={{ x: 1500 }}
+      tableLayout={compact ? "fixed" : undefined}
+      scroll={compact ? undefined : { x: 1500 }}
       locale={{ emptyText: "当前筛选下无弹药" }}
       onChange={onTableChange}
+      onRow={
+        onHoverId
+          ? (row) => ({
+              onMouseEnter: () => onHoverId(row.id),
+              onMouseLeave: () => onHoverId(null),
+            })
+          : undefined
+      }
+      rowClassName={(row) =>
+        hoverId && row.id === hoverId ? styles.hoverRow : ""
+      }
     />
   );
 }

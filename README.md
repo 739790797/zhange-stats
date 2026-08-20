@@ -54,13 +54,13 @@ cd backend && python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 6130
 
 # 前端（另开终端）
 cd frontend && npm install && npm run dev
 ```
 
-- API：http://127.0.0.1:8000/docs · 前端：http://127.0.0.1:5173  
+- API：http://127.0.0.1:6130/docs · 前端：http://127.0.0.1:6131  
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
 - 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地 `data/`、`uploads/`）。  
 - 平台可用性：管理员在 **管理 → 任务配置** 按平台 / 游戏 / 任务级联开关  
@@ -132,6 +132,7 @@ tarkov_guns · tarkov_gun_meta
 tarkov_tasks_raws · tarkov_tasks_meta
 tarkov_traders_raws · tarkov_traders_meta
 tarkov_bosses_raws · tarkov_bosses_meta
+tarkov_guides_raws · tarkov_guides_meta
 tarkov_tracker_binds
 ```
 
@@ -160,6 +161,8 @@ tarkov_tracker_binds
 | `tarkov_traders_meta` | 商人同步元数据（单行，含 trader_count / offer_count 与同步时间） |
 | `tarkov_bosses_raws` | 逃离塔科夫 BOSS 上游原始 JSON（全站最新一份；json.tarkov.dev maps + mobs 精简包 + locale；失败不覆盖） |
 | `tarkov_bosses_meta` | BOSS 同步元数据（单行，含 boss_count 与同步时间） |
+| `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（全站最新一份；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
+| `tarkov_guides_meta` | 藏身处与交换同步元数据（单行，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |

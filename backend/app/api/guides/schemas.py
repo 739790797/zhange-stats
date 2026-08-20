@@ -443,3 +443,209 @@ class TarkovTrackerStatusOut(BaseModel):
     token_suffix: str = ""
     last_synced_at: str | None = None
     last_error: str | None = None
+
+
+class TarkovMapBossOut(BaseModel):
+    id: str = ""
+    slug: str = ""
+    name: str = ""
+    spawn_chance: int = 0
+
+
+class TarkovMapExtractOut(BaseModel):
+    id: str = ""
+    name: str = ""
+    faction: str = ""
+
+
+class TarkovMapListItemOut(BaseModel):
+    id: str
+    slug: str
+    name: str
+    english: str = ""
+    raid_duration: int = 0
+    players: str = ""
+    thumb_link: str = ""
+    interactive_url: str = ""
+    parent_slug: str = ""
+    min_player_level: int = 0
+    max_player_level: int = 0
+
+
+class TarkovMapCatalogOut(BaseModel):
+    items: list[TarkovMapListItemOut] = Field(default_factory=list)
+    map_count: int = 0
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovMapVariantOut(BaseModel):
+    slug: str = ""
+    name: str = ""
+    raid_duration: int = 0
+    players: str = ""
+
+
+class TarkovMapDetailOut(TarkovMapListItemOut):
+    description: str = ""
+    wiki_link: str = ""
+    extracts: list[TarkovMapExtractOut] = Field(default_factory=list)
+    bosses: list[TarkovMapBossOut] = Field(default_factory=list)
+    variants: list[TarkovMapVariantOut] = Field(default_factory=list)
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovGuideItemRefOut(BaseModel):
+    id: str
+    name: str = ""
+    short_name: str = ""
+    icon_link: str = ""
+    types: list[str] = Field(default_factory=list)
+    count: float = 1
+    found_in_raid: bool = False
+    flea_price: int | None = None
+
+
+class TarkovHideoutStationReqOut(BaseModel):
+    station_id: str = ""
+    station_slug: str = ""
+    station_name: str = ""
+    level: int = 0
+
+
+class TarkovHideoutTraderReqOut(BaseModel):
+    id: str = ""
+    slug: str = ""
+    name: str = ""
+    level: int = 0
+
+
+class TarkovHideoutSkillReqOut(BaseModel):
+    skill: str = ""
+    level: int = 0
+
+
+class TarkovHideoutLevelOut(BaseModel):
+    id: str = ""
+    level: int = 0
+    construction_time: int = 0
+    description: str = ""
+    item_requirements: list[TarkovGuideItemRefOut] = Field(default_factory=list)
+    station_requirements: list[TarkovHideoutStationReqOut] = Field(default_factory=list)
+    trader_requirements: list[TarkovHideoutTraderReqOut] = Field(default_factory=list)
+    skill_requirements: list[TarkovHideoutSkillReqOut] = Field(default_factory=list)
+
+
+class TarkovHideoutStationOut(BaseModel):
+    id: str
+    slug: str
+    name: str
+    image_link: str = ""
+    level_count: int = 0
+    levels: list[TarkovHideoutLevelOut] = Field(default_factory=list)
+
+
+class TarkovHideoutCatalogOut(BaseModel):
+    items: list[TarkovHideoutStationOut] = Field(default_factory=list)
+    station_count: int = 0
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovHideoutDetailOut(TarkovHideoutStationOut):
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovBarterOut(BaseModel):
+    id: str
+    trader_id: str = ""
+    trader_slug: str = ""
+    trader_name: str = ""
+    min_trader_level: int = 0
+    task_unlock: str | None = None
+    required_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
+    offered_item: TarkovGuideItemRefOut
+
+
+class TarkovTraderChipOut(BaseModel):
+    slug: str
+    name: str
+
+
+class TarkovBarterCatalogOut(BaseModel):
+    items: list[TarkovBarterOut] = Field(default_factory=list)
+    barter_count: int = 0
+    page: int = 1
+    page_size: int = 50
+    total: int = 0
+    traders: list[TarkovTraderChipOut] = Field(default_factory=list)
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovCraftOut(BaseModel):
+    id: str
+    station_id: str = ""
+    station_slug: str = ""
+    station_name: str = ""
+    level: int = 0
+    duration: int = 0
+    required_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
+    product_item: TarkovGuideItemRefOut
+
+
+class TarkovStationChipOut(BaseModel):
+    slug: str
+    name: str
+
+
+class TarkovCraftCatalogOut(BaseModel):
+    items: list[TarkovCraftOut] = Field(default_factory=list)
+    craft_count: int = 0
+    page: int = 1
+    page_size: int = 50
+    total: int = 0
+    stations: list[TarkovStationChipOut] = Field(default_factory=list)
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovGuidesSyncOut(BaseModel):
+    station_count: int = 0
+    barter_count: int = 0
+    craft_count: int = 0
+    source: str | None = None
+    synced_at: str | None = None
+    message: str = Field(default="ok")
+
+
+class TarkovLootTierItemOut(BaseModel):
+    id: str
+    name: str
+    short_name: str = ""
+    icon_link: str = ""
+    types: list[str] = Field(default_factory=list)
+    width: int = 1
+    height: int = 1
+    slots: int = 1
+    price: int = 0
+    price_per_slot: int = 0
+    tier: str = "E"
+
+
+class TarkovLootTierCatalogOut(BaseModel):
+    items: list[TarkovLootTierItemOut] = Field(default_factory=list)
+    item_count: int = 0
+    page: int = 1
+    page_size: int = 100
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None

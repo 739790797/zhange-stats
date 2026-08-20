@@ -6,8 +6,10 @@ json.tarkov.dev 整包含 handbookCategories；GraphQL split 仅弹药/枪械。
 
 from __future__ import annotations
 
+import html
 import json
 import logging
+import re
 import threading
 from typing import Any, Iterable
 
@@ -82,6 +84,264 @@ def _as_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+_ITEM_REF_KEYS = ("defaultAmmo", "defaultPreset", "baseItem")
+_ITEM_REF_LIST_KEYS = ("allowedAmmo", "presets")
+_BR_RE = re.compile(r"<br\s*/?>", re.I)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_GENERIC_CATEGORY_IDS = {
+    "54009119af1c881c07000029",
+    "566162e44bdc2d3f298b4573",
+    "5661632d4bdc2d903d8b456b",
+    "566168634bdc2d144c8b456c",
+}
+
+
+def _extract_ref_id(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return str(value.get("id") or value.get("_id") or "").strip()
+    return ""
+
+
+def _items_data_blob(payload: dict[str, Any]) -> dict[str, Any]:
+    blob = payload.get("items")
+    if not isinstance(blob, dict):
+        return {}
+    data = blob.get("data") if isinstance(blob.get("data"), dict) else blob
+    return data if isinstance(data, dict) else {}
+
+
+def _raw_items_by_id(source: str, payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for ident, raw in iter_raw_items(source, payload):
+        if ident:
+            out[ident] = raw
+    return out
+
+
+def _item_stub(
+    item_id: str,
+    raw: dict[str, Any] | None,
+    locale: dict[str, Any],
+) -> dict[str, Any]:
+    row = raw if isinstance(raw, dict) else {}
+    name, short_name, _desc = _localized_name(item_id, row, locale)
+    types = row.get("types") if isinstance(row.get("types"), list) else []
+    return {
+        "id": item_id,
+        "name": name,
+        "shortName": short_name,
+        "types": [str(t) for t in types if t is not None and str(t).strip()],
+        "iconLink": str(row.get("baseImageLink") or row.get("iconLink") or ""),
+    }
+
+
+def _resolve_item_ref(
+    value: Any,
+    items_by_id: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+) -> dict[str, Any] | None:
+    ident = _extract_ref_id(value)
+    if not ident:
+        return None
+    raw = items_by_id.get(ident)
+    if not isinstance(raw, dict) and isinstance(value, dict):
+        raw = value
+    return _item_stub(ident, raw, locale)
+
+
+def _localized_category_name(
+    cat_id: str,
+    locale: dict[str, Any],
+    meta: dict[str, Any] | None = None,
+) -> str:
+    meta = meta if isinstance(meta, dict) else {}
+    name = str(locale.get(f"{cat_id} Name") or locale.get(cat_id) or "").strip()
+    placeholder = f"{cat_id} Name"
+    if name and name not in {placeholder, cat_id}:
+        return name
+    raw_name = str(meta.get("name") or "").strip()
+    if raw_name and raw_name not in {placeholder, cat_id}:
+        return raw_name
+    return str(meta.get("normalizedName") or cat_id)
+
+
+def _resolve_category_list(
+    value: Any,
+    locale: dict[str, Any],
+    catalogs: tuple[dict[str, Any], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    item_cats, handbook_cats = catalogs
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for cat_id in _id_list(value):
+        if not cat_id or cat_id in seen or cat_id in _GENERIC_CATEGORY_IDS:
+            continue
+        seen.add(cat_id)
+        meta = item_cats.get(cat_id) if isinstance(item_cats.get(cat_id), dict) else None
+        if not isinstance(meta, dict):
+            hb = handbook_cats.get(cat_id)
+            meta = hb if isinstance(hb, dict) else {}
+        name = _localized_category_name(cat_id, locale, meta)
+        if not name or name == cat_id:
+            continue
+        out.append(
+            {
+                "id": cat_id,
+                "name": name,
+                "normalizedName": str(meta.get("normalizedName") or ""),
+            }
+        )
+    return out
+
+
+def _hydrate_ref_list(
+    value: Any,
+    items_by_id: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+) -> list[dict[str, Any]]:
+    raw_list = value if isinstance(value, list) else (
+        [value] if value not in (None, "") else []
+    )
+    out: list[dict[str, Any]] = []
+    for entry in raw_list:
+        stub = _resolve_item_ref(entry, items_by_id, locale)
+        if stub:
+            out.append(stub)
+    return out
+
+
+def _plain_text_from_html(raw: str) -> str:
+    text = _BR_RE.sub("\n", raw)
+    text = _HTML_TAG_RE.sub("", text)
+    text = html.unescape(text)
+    lines = [line.strip() for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
+def _hydrate_content(value: Any, locale: dict[str, Any]) -> list[str]:
+    keys = value if isinstance(value, list) else []
+    out: list[str] = []
+    for key in keys:
+        ident = str(key or "").strip()
+        if not ident:
+            continue
+        loc = locale.get(ident)
+        if not loc:
+            continue
+        text = _plain_text_from_html(str(loc))
+        if text:
+            out.append(text)
+    return out
+
+
+def _hydrate_contains_items(
+    value: Any,
+    items_by_id: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for entry in value:
+        if isinstance(entry, dict):
+            ident = _extract_ref_id(entry.get("item") if "item" in entry else entry)
+            count = entry.get("count") or 1
+        else:
+            ident = _extract_ref_id(entry)
+            count = 1
+        stub = _resolve_item_ref(ident, items_by_id, locale)
+        if not stub:
+            continue
+        out.append({"item": stub, "count": count})
+    return out
+
+
+def _hydrate_armor_slots(
+    slots: Any,
+    items_by_id: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+) -> Any:
+    if not isinstance(slots, list):
+        return slots
+    out: list[Any] = []
+    for slot in slots:
+        if not isinstance(slot, dict):
+            out.append(slot)
+            continue
+        copied = dict(slot)
+        plates = copied.get("allowedPlates")
+        if isinstance(plates, list):
+            resolved: list[dict[str, Any]] = []
+            for entry in plates:
+                stub = _resolve_item_ref(entry, items_by_id, locale)
+                if stub:
+                    resolved.append(stub)
+            copied["allowedPlates"] = resolved
+        out.append(copied)
+    return out
+
+
+def _hydrate_detail_refs(
+    detail: dict[str, Any],
+    items_by_id: dict[str, dict[str, Any]],
+    payload: dict[str, Any],
+    locale: dict[str, Any],
+) -> dict[str, Any]:
+    """json.tarkov.dev 把弹药/预设/分类存成 id，详情需要名称才能展示。"""
+    item = dict(detail.get("item") or {})
+    props = dict(detail.get("properties") or {})
+    data = _items_data_blob(payload)
+    item_cats = data.get("itemCategories") if isinstance(data.get("itemCategories"), dict) else {}
+    handbook_cats = (
+        data.get("handbookCategories")
+        if isinstance(data.get("handbookCategories"), dict)
+        else {}
+    )
+    catalogs = (item_cats, handbook_cats)
+
+    for key in _ITEM_REF_KEYS:
+        if key not in props or props[key] in (None, ""):
+            continue
+        resolved = _resolve_item_ref(props[key], items_by_id, locale)
+        if resolved:
+            props[key] = resolved
+    for key in _ITEM_REF_LIST_KEYS:
+        if key not in props:
+            continue
+        props[key] = _hydrate_ref_list(props[key], items_by_id, locale)
+    if "armorSlots" in props:
+        props["armorSlots"] = _hydrate_armor_slots(
+            props.get("armorSlots"), items_by_id, locale
+        )
+    if "content" in props:
+        props["content"] = _hydrate_content(props.get("content"), locale)
+    if "categories" in item:
+        item["categories"] = _resolve_category_list(
+            item.get("categories"), locale, catalogs
+        )
+    if "handbookCategories" in item:
+        item["handbookCategories"] = _resolve_category_list(
+            item.get("handbookCategories"), locale, catalogs
+        )
+    if "containsItems" in item:
+        item["containsItems"] = _hydrate_contains_items(
+            item.get("containsItems"), items_by_id, locale
+        )
+    if "conflictingItems" in item:
+        item["conflictingItems"] = _hydrate_ref_list(
+            item.get("conflictingItems"), items_by_id, locale
+        )
+    if "conflictingCategories" in item:
+        item["conflictingCategories"] = _resolve_category_list(
+            item.get("conflictingCategories"), locale, catalogs
+        )
+    detail["item"] = item
+    detail["properties"] = props
+    return detail
 
 
 def _localized_name(
@@ -324,12 +584,13 @@ def paginate_catalog_items(
     *,
     page: int = 1,
     page_size: int = CATALOG_PAGE_SIZE_DEFAULT,
+    max_size: int = CATALOG_PAGE_SIZE_MAX,
 ) -> dict[str, Any]:
     try:
         size = int(page_size)
     except (TypeError, ValueError):
         size = CATALOG_PAGE_SIZE_DEFAULT
-    size = max(1, min(size, CATALOG_PAGE_SIZE_MAX))
+    size = max(1, min(size, max_size))
     try:
         page_n = int(page)
     except (TypeError, ValueError):
@@ -398,29 +659,30 @@ def extract_item_detail(
     if not item_id:
         return None
     locale = items_svc._locale_map(payload)
-    for ident, raw in iter_raw_items(source, payload):
-        if ident != item_id:
-            continue
-        props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
-        name, short_name, description = _localized_name(item_id, raw, locale)
-        item_out = {k: v for k, v in raw.items() if k != "properties"}
-        item_out["name"] = name
-        item_out["shortName"] = short_name
-        if description:
-            item_out["description"] = description
-        elif "description" in item_out and str(item_out["description"]).endswith(
-            " Description"
-        ):
-            item_out.pop("description", None)
-        return {
-            "id": item_id,
-            "name": name,
-            "short_name": short_name,
-            "description": description,
-            "item": item_out,
-            "properties": dict(props) if isinstance(props, dict) else {},
-        }
-    return None
+    items_by_id = _raw_items_by_id(source, payload)
+    raw = items_by_id.get(item_id)
+    if not isinstance(raw, dict):
+        return None
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    name, short_name, description = _localized_name(item_id, raw, locale)
+    item_out = {k: v for k, v in raw.items() if k != "properties"}
+    item_out["name"] = name
+    item_out["shortName"] = short_name
+    if description:
+        item_out["description"] = description
+    elif "description" in item_out and str(item_out["description"]).endswith(
+        " Description"
+    ):
+        item_out.pop("description", None)
+    detail = {
+        "id": item_id,
+        "name": name,
+        "short_name": short_name,
+        "description": description,
+        "item": item_out,
+        "properties": dict(props) if isinstance(props, dict) else {},
+    }
+    return _hydrate_detail_refs(detail, items_by_id, payload, locale)
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
@@ -476,6 +738,79 @@ def list_catalog(
         q,
     )
     paged = paginate_catalog_items(rows, page=page, page_size=page_size)
+    return {
+        "items": paged["items"],
+        "item_count": paged["item_count"],
+        "page": paged["page"],
+        "page_size": paged["page_size"],
+        "source": source,
+        "synced_at": synced_at,
+        "note": note,
+    }
+
+
+def list_loot_tiers(
+    db: Session,
+    *,
+    q: str | None = None,
+    tier: str | None = None,
+    page: int = 1,
+    page_size: int = 100,
+) -> dict[str, Any]:
+    """对齐 tarkov.dev loot-tiers：按跳蚤每格价排序。"""
+    source, all_rows, synced_at, note = load_parsed_catalog(db)
+    needle = (q or "").strip().lower()
+    tier_key = (tier or "").strip().upper()
+    ranked: list[dict[str, Any]] = []
+    for row in all_rows:
+        types = {str(t).lower() for t in (row.get("types") or [])}
+        if "preset" in types or "quest" in types:
+            continue
+        width = int(row.get("width") or 1)
+        height = int(row.get("height") or 1)
+        slots = max(width * height, 1)
+        price = row.get("last_low_price")
+        if not isinstance(price, int) or price <= 0:
+            price = row.get("avg24h_price")
+        if not isinstance(price, int) or price <= 0:
+            continue
+        pps = int(price / slots)
+        name = str(row.get("name") or "")
+        if needle and needle not in name.lower() and needle not in str(row.get("id") or "").lower():
+            continue
+        if pps >= 40000:
+            band = "S"
+        elif pps >= 25000:
+            band = "A"
+        elif pps >= 15000:
+            band = "B"
+        elif pps >= 8000:
+            band = "C"
+        elif pps >= 4000:
+            band = "D"
+        else:
+            band = "E"
+        if tier_key and band != tier_key:
+            continue
+        ranked.append(
+            {
+                "id": row.get("id") or "",
+                "name": name,
+                "short_name": row.get("short_name") or "",
+                "icon_link": row.get("icon_link") or "",
+                "types": row.get("types") or [],
+                "width": width,
+                "height": height,
+                "slots": slots,
+                "price": price,
+                "price_per_slot": pps,
+                "tier": band,
+            }
+        )
+    ranked.sort(key=lambda r: (-int(r.get("price_per_slot") or 0), str(r.get("name") or "")))
+    paged = paginate_catalog_items(
+        ranked, page=page, page_size=page_size, max_size=200
+    )
     return {
         "items": paged["items"],
         "item_count": paged["item_count"],
