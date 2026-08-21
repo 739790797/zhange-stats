@@ -650,3 +650,295 @@ def get_websocket(base_url: str, token: str, server_uuid: str) -> tuple[str, str
     url = f"{_server_root(base_url, server_uuid)}/websocket"
     data = _request("GET", url, token)
     return parse_websocket_credentials(data)
+
+
+def startup_details(data: dict[str, Any]) -> dict[str, Any]:
+    """解析 GET /startup：命令、Docker 镜像、Egg 环境变量。"""
+    command = startup_command(data)
+    variables: list[dict[str, str]] = []
+    rows = data.get("data")
+    if isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else row
+            if not isinstance(attrs, dict):
+                continue
+            key = str(attrs.get("env_variable") or attrs.get("env") or "").strip()
+            if not key:
+                continue
+            variables.append(
+                {
+                    "key": key,
+                    "name": str(attrs.get("name") or key),
+                    "value": str(
+                        attrs.get("server_value")
+                        if attrs.get("server_value") is not None
+                        else attrs.get("default_value")
+                        or ""
+                    ),
+                }
+            )
+    meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+    images = meta.get("docker_images")
+    docker_images: list[str] = []
+    if isinstance(images, dict):
+        docker_images = [str(v) for v in images.values() if v]
+    elif isinstance(images, list):
+        docker_images = [str(v) for v in images if v]
+    image = str(meta.get("docker_image") or meta.get("image") or "")
+    if image and image not in docker_images:
+        docker_images.insert(0, image)
+    return {
+        "command": command,
+        "docker_images": docker_images,
+        "variables": variables,
+    }
+
+
+def update_startup_variable(
+    base_url: str,
+    token: str,
+    server_uuid: str,
+    key: str,
+    value: str,
+) -> None:
+    env_key = (key or "").strip()
+    if not env_key:
+        raise PelicanError("启动变量名为空")
+    url = f"{_server_root(base_url, server_uuid)}/startup/variable"
+    _request(
+        "PUT",
+        url,
+        token,
+        json_body={"key": env_key, "value": str(value or "")},
+    )
+
+
+def _application_root(base_url: str) -> str:
+    root = normalize_pelican_base_url(base_url)
+    if not root:
+        raise PelicanError("未配置 Pelican Panel 地址")
+    return f"{root}/api/application"
+
+
+def parse_internal_id(data: Any) -> int:
+    if not isinstance(data, dict):
+        return 0
+    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else data
+    if not isinstance(attrs, dict):
+        return 0
+    return _as_int(attrs.get("internal_id") or attrs.get("id"))
+
+
+def parse_application_server(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return {
+            "id": 0,
+            "uuid": "",
+            "egg_id": 0,
+            "startup": "",
+            "image": "",
+            "environment": {},
+        }
+    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else data
+    if not isinstance(attrs, dict):
+        attrs = {}
+    container = attrs.get("container") if isinstance(attrs.get("container"), dict) else {}
+    env_raw = container.get("environment") if isinstance(container.get("environment"), dict) else {}
+    environment = {
+        str(key): "" if value is None else str(value) for key, value in env_raw.items()
+    }
+    return {
+        "id": _as_int(attrs.get("id")),
+        "uuid": str(attrs.get("uuid") or ""),
+        "egg_id": _as_int(attrs.get("egg")),
+        "startup": str(container.get("startup_command") or attrs.get("startup") or ""),
+        "image": str(container.get("image") or ""),
+        "environment": environment,
+    }
+
+
+def get_application_server(
+    base_url: str,
+    application_token: str,
+    server_id: int,
+) -> dict[str, Any]:
+    url = f"{_application_root(base_url)}/servers/{int(server_id)}"
+    data = _request("GET", url, application_token)
+    parsed = parse_application_server(data)
+    if not parsed.get("id"):
+        raise PelicanError("Pelican 未返回 Application 服务器")
+    return parsed
+
+
+def find_application_server(
+    base_url: str,
+    application_token: str,
+    server_uuid: str,
+) -> dict[str, Any] | None:
+    ident = normalize_server_uuid(server_uuid)
+    if not ident:
+        return None
+    for key, value in (("uuid", ident), ("uuid_short", ident)):
+        q = urllib.parse.urlencode({f"filter[{key}]": value, "per_page": "1"})
+        url = f"{_application_root(base_url)}/servers?{q}"
+        data = _request("GET", url, application_token)
+        if not isinstance(data, dict):
+            continue
+        rows = data.get("data")
+        if not isinstance(rows, list) or not rows:
+            continue
+        parsed = parse_application_server(rows[0])
+        if parsed.get("id"):
+            return parsed
+    return None
+
+
+def update_application_startup(
+    base_url: str,
+    application_token: str,
+    server_id: int,
+    *,
+    startup: str,
+    environment: dict[str, str],
+    egg_id: int,
+    image: str,
+    skip_scripts: bool = True,
+) -> dict[str, Any]:
+    url = f"{_application_root(base_url)}/servers/{int(server_id)}/startup"
+    data = _request(
+        "PATCH",
+        url,
+        application_token,
+        json_body={
+            "startup": startup,
+            "environment": environment,
+            "egg": int(egg_id),
+            "image": image,
+            "skip_scripts": bool(skip_scripts),
+        },
+    )
+    return parse_application_server(data) if isinstance(data, dict) else {}
+
+
+def get_application_egg(
+    base_url: str,
+    application_token: str,
+    egg_id: int,
+) -> dict[str, Any]:
+    url = f"{_application_root(base_url)}/eggs/{int(egg_id)}?include=variables"
+    data = _request("GET", url, application_token)
+    return data if isinstance(data, dict) else {}
+
+
+def parse_egg_variable_defaults(data: Any) -> dict[str, str]:
+    if not isinstance(data, dict):
+        return {}
+    rel = data.get("relationships") if isinstance(data.get("relationships"), dict) else {}
+    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else {}
+    if not rel and isinstance(attrs.get("relationships"), dict):
+        rel = attrs["relationships"]
+    block = rel.get("variables") if isinstance(rel, dict) else None
+    rows = block.get("data") if isinstance(block, dict) else None
+    if not isinstance(rows, list):
+        return {}
+    out: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        item = row.get("attributes") if isinstance(row.get("attributes"), dict) else row
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("env_variable") or item.get("env") or "").strip()
+        if not key:
+            continue
+        default = item.get("default_value")
+        out[key] = "" if default is None else str(default)
+    return out
+
+
+def parse_egg_startup_and_image(data: Any) -> tuple[str, str]:
+    if not isinstance(data, dict):
+        return "", ""
+    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else data
+    if not isinstance(attrs, dict):
+        return "", ""
+    startup = str(attrs.get("startup") or "")
+    commands = attrs.get("startup_commands")
+    if not startup and isinstance(commands, dict):
+        startup = str(next(iter(commands.values()), "") or "")
+    elif not startup and isinstance(commands, list) and commands:
+        startup = str(commands[0] or "")
+    docker = attrs.get("docker_images")
+    image = ""
+    if isinstance(docker, dict) and docker:
+        image = str(next(iter(docker.values()), "") or "")
+    elif isinstance(docker, list) and docker:
+        image = str(docker[0] or "")
+    if not image:
+        image = str(attrs.get("docker_image") or "")
+    return startup, image
+
+
+def list_application_eggs(base_url: str, application_token: str) -> list[dict[str, Any]]:
+    """用 Application API 列出 Nest 下全部 Egg（用于匹配 Minecraft 加载器）。"""
+    token = (application_token or "").strip()
+    if not token:
+        return []
+    url = f"{_application_root(base_url)}/nests?include=eggs&per_page=100"
+    data = _request("GET", url, token)
+    if not isinstance(data, dict):
+        return []
+    nests = data.get("data")
+    if not isinstance(nests, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for nest in nests:
+        if not isinstance(nest, dict):
+            continue
+        nest_attrs = (
+            nest.get("attributes") if isinstance(nest.get("attributes"), dict) else nest
+        )
+        nest_name = str(nest_attrs.get("name") or "")
+        nest_id = nest_attrs.get("id")
+        rel = nest.get("relationships") if isinstance(nest.get("relationships"), dict) else {}
+        if not rel and isinstance(nest_attrs, dict):
+            rel = nest_attrs.get("relationships") if isinstance(nest_attrs.get("relationships"), dict) else {}
+        eggs_block = rel.get("eggs") if isinstance(rel, dict) else None
+        eggs = eggs_block.get("data") if isinstance(eggs_block, dict) else None
+        if not isinstance(eggs, list):
+            continue
+        for egg in eggs:
+            if not isinstance(egg, dict):
+                continue
+            attrs = egg.get("attributes") if isinstance(egg.get("attributes"), dict) else egg
+            if not isinstance(attrs, dict):
+                continue
+            docker = attrs.get("docker_images")
+            images: list[str] = []
+            if isinstance(docker, dict):
+                images = [str(v) for v in docker.values() if v]
+            elif isinstance(docker, list):
+                images = [str(v) for v in docker if v]
+            try:
+                parsed_egg_id = int(attrs.get("id")) if attrs.get("id") is not None else None
+            except (TypeError, ValueError):
+                parsed_egg_id = None
+            try:
+                parsed_nest_id = int(nest_id) if nest_id is not None else None
+            except (TypeError, ValueError):
+                parsed_nest_id = None
+            out.append(
+                {
+                    "egg_id": parsed_egg_id,
+                    "uuid": str(attrs.get("uuid") or ""),
+                    "name": str(attrs.get("name") or ""),
+                    "description": str(attrs.get("description") or ""),
+                    "nest": nest_name,
+                    "nest_id": parsed_nest_id,
+                    "docker_images": images,
+                    "startup": str(attrs.get("startup") or ""),
+                }
+            )
+    return out

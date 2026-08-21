@@ -5,9 +5,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.services.minecraft_profile import (
+    _STAGE_KEY,
     desired_snapshot,
     is_playbook_dirty,
     playbook_from_snapshot,
+    playbook_stages,
     public_applied_view,
     seed_applied_if_missing,
 )
@@ -29,8 +31,6 @@ def _row(**kwargs):
             }
         ],
         "overrides_json": {"server.properties": "motd=hello\nmax-players=20\n"},
-        "public_host": "zhange.space",
-        "public_port": 25565,
         "applied_json": None,
         "last_applied_at": None,
     }
@@ -60,6 +60,19 @@ def test_old_applied_snapshot_with_rcon_keys_is_clean():
     snap["rcon_password_set"] = True
     row.applied_json = snap
     assert not is_playbook_dirty(row)
+
+
+def test_old_applied_snapshot_with_public_address_is_clean():
+    row = _row()
+    snap = desired_snapshot(row)
+    snap["public_host"] = "zhange.space"
+    snap["public_port"] = 25565
+    row.applied_json = snap
+    assert not is_playbook_dirty(row)
+    playbook = playbook_from_snapshot(snap)
+    assert playbook is not None
+    assert "public_host" not in playbook
+    assert "public_port" not in playbook
 
 
 def test_draft_change_marks_dirty_and_public_view_stays_on_applied():
@@ -92,3 +105,47 @@ def test_playbook_from_snapshot_splits_properties():
     assert playbook is not None
     assert playbook["properties"]["max-players"] == "20"
     assert playbook["mods"][0]["filename"] == "lithium.jar"
+    assert playbook["egg_id"] == 0
+    assert playbook["startup"] == ""
+
+
+def test_legacy_snapshot_without_egg_fields_is_clean():
+    row = _row()
+    snap = desired_snapshot(row)
+    snap.pop("egg_id", None)
+    snap.pop("startup", None)
+    row.applied_json = snap
+    assert not is_playbook_dirty(row)
+
+
+def test_draft_egg_change_marks_dirty():
+    row = _row()
+    row.applied_json = desired_snapshot(row)
+    row.egg_id = 9
+    row.startup = "bash run.sh"
+    assert is_playbook_dirty(row)
+
+
+def test_partial_bootstrap_keeps_other_stages_pending():
+    row = _row()
+    snap = desired_snapshot(row)
+    snap["mods"] = []
+    snap[_STAGE_KEY] = ["bootstrap"]
+    row.applied_json = snap
+    stages = playbook_stages(row)
+    assert stages["bootstrap"] == "applied"
+    assert stages["mods"] == "pending"
+    assert stages["config"] == "pending"
+    assert is_playbook_dirty(row)
+
+
+def test_legacy_full_snapshot_marks_all_applied():
+    row = _row()
+    row.applied_json = desired_snapshot(row)
+    stages = playbook_stages(row)
+    assert stages == {
+        "bootstrap": "applied",
+        "mods": "applied",
+        "config": "applied",
+    }
+    assert not is_playbook_dirty(row)

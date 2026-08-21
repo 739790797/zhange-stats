@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Col,
+  ConfigProvider,
   Divider,
   Form,
   Input,
@@ -39,10 +40,13 @@ type FormValues = {
   github_token?: string;
   pelican_base_url?: string;
   pelican_client_token?: string;
+  pelican_application_token?: string;
   pelican_server_uuid?: string;
   minecraft_rcon_host?: string;
   minecraft_rcon_port?: number;
   minecraft_rcon_password?: string;
+  minecraft_public_host?: string;
+  minecraft_public_port?: number;
 };
 
 function IntegrationMark({ children }: { children: ReactNode }) {
@@ -70,44 +74,37 @@ function IntegrationMark({ children }: { children: ReactNode }) {
 function IntegrationBlock({
   icon,
   title,
-  description,
   configured,
-  extra,
+  status,
   children,
   divider = true,
 }: {
   icon: ReactNode;
   title: string;
-  description: string;
   configured?: boolean;
-  extra?: ReactNode;
+  status?: ReactNode;
   children: ReactNode;
   divider?: boolean;
 }) {
   return (
     <>
-      <Row gutter={[32, 16]} style={{ padding: "4px 0 8px" }}>
+      <Row gutter={[32, 16]} style={{ padding: "8px 0 12px" }}>
         <Col xs={24} md={8} xl={7}>
           <Space align="start" size={12} style={{ width: "100%" }}>
             {icon}
             <div style={{ minWidth: 0 }}>
-              <Space size={8} wrap>
-                <Typography.Text strong style={{ fontSize: 15 }}>
-                  {title}
-                </Typography.Text>
-                {configured == null ? null : (
+              <Typography.Text strong style={{ fontSize: 15 }}>
+                {title}
+              </Typography.Text>
+              {status ? (
+                <div style={{ marginTop: 4 }}>{status}</div>
+              ) : configured == null ? null : (
+                <div style={{ marginTop: 4 }}>
                   <Tag color={configured ? "success" : "default"}>
                     {configured ? "已配置" : "未配置"}
                   </Tag>
-                )}
-              </Space>
-              <Typography.Paragraph
-                type="secondary"
-                style={{ margin: "4px 0 0", fontSize: 13 }}
-              >
-                {description}
-              </Typography.Paragraph>
-              {extra ? <div style={{ marginTop: 8 }}>{extra}</div> : null}
+                </div>
+              )}
             </div>
           </Space>
         </Col>
@@ -115,7 +112,7 @@ function IntegrationBlock({
           {children}
         </Col>
       </Row>
-      {divider ? <Divider style={{ margin: "12px 0 20px" }} /> : null}
+      {divider ? <Divider style={{ margin: "20px 0 28px" }} /> : null}
     </>
   );
 }
@@ -140,10 +137,13 @@ export default function IntegrationsSettingsPage() {
       github_token: data.github_token || "",
       pelican_base_url: data.pelican_base_url || "",
       pelican_client_token: data.pelican_client_token || "",
+      pelican_application_token: data.pelican_application_token || "",
       pelican_server_uuid: data.pelican_server_uuid || "",
       minecraft_rcon_host: data.minecraft_rcon_host || "",
       minecraft_rcon_port: data.minecraft_rcon_port || 25575,
       minecraft_rcon_password: data.minecraft_rcon_password || "",
+      minecraft_public_host: data.minecraft_public_host || "",
+      minecraft_public_port: data.minecraft_public_port || 25565,
     });
   }, [data, form]);
 
@@ -215,30 +215,26 @@ export default function IntegrationsSettingsPage() {
     onError: (e: unknown) => message.error(apiError(e, "测试失败")),
   });
 
-  const callbackUrl = data?.qq_callback_url || "";
   const saveButton = (
-    <Button
-      type="primary"
-      htmlType="submit"
-      loading={save.isPending}
-      style={{ background: "#1a2332", borderColor: "#1a2332" }}
-    >
+    <Button type="primary" htmlType="submit" loading={save.isPending}>
       保存
     </Button>
   );
 
   return (
-    <Form
-      form={form}
-      layout="vertical"
-      style={{ maxWidth: 960 }}
-      disabled={isLoading}
-      onFinish={(values) => {
+    <ConfigProvider theme={{ components: { Form: { itemMarginBottom: 36 } } }}>
+      <Form
+        form={form}
+        layout="vertical"
+        style={{ maxWidth: 960, margin: "0 auto" }}
+        disabled={isLoading}
+        onFinish={(values) => {
         const steam = values.steam_api_key?.trim() || "";
         const qqKey = values.qq_app_key?.trim() || "";
         const napcatToken = values.napcat_token?.trim() || "";
         const githubToken = values.github_token?.trim() || "";
         const pelicanToken = values.pelican_client_token?.trim() || "";
+        const pelicanAppToken = values.pelican_application_token?.trim() || "";
         const rconPassword = values.minecraft_rcon_password?.trim() || "";
         save.mutate({
           steam_api_key: steam || null,
@@ -253,12 +249,16 @@ export default function IntegrationsSettingsPage() {
           clear_github_token: !githubToken,
           pelican_base_url: values.pelican_base_url ?? "",
           pelican_client_token: pelicanToken || null,
+          pelican_application_token: pelicanAppToken || null,
           pelican_server_uuid: values.pelican_server_uuid ?? "",
           clear_pelican_client_token: !pelicanToken,
+          clear_pelican_application_token: !pelicanAppToken,
           minecraft_rcon_host: values.minecraft_rcon_host ?? "",
           minecraft_rcon_port: values.minecraft_rcon_port || 25575,
           minecraft_rcon_password: rconPassword || null,
           clear_minecraft_rcon_password: !rconPassword,
+          minecraft_public_host: values.minecraft_public_host ?? "",
+          minecraft_public_port: values.minecraft_public_port || 25565,
         });
       }}
     >
@@ -267,7 +267,6 @@ export default function IntegrationsSettingsPage() {
         subtitle="第三方密钥与连接配置"
         extra={saveButton}
       />
-
       <IntegrationBlock
         icon={
           <IntegrationMark>
@@ -275,7 +274,6 @@ export default function IntegrationsSettingsPage() {
           </IntegrationMark>
         }
         title="Steam"
-        description="游玩日历与 Steam 绑定所需的 Web API Key。"
         configured={data?.steam_configured}
       >
         <Form.Item
@@ -306,17 +304,24 @@ export default function IntegrationsSettingsPage() {
           </IntegrationMark>
         }
         title="QQ 互联"
-        description="用于登录与账号绑定。回调地址填到 QQ 开放平台。"
         configured={data?.qq_configured}
       >
         <Row gutter={16}>
           <Col xs={24} sm={12}>
-            <Form.Item name="qq_app_id" label="App ID">
+            <Form.Item
+              name="qq_app_id"
+              label="App ID"
+              style={{ marginBottom: 0 }}
+            >
               <Input placeholder="应用 ID" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
-            <Form.Item name="qq_app_key" label="App Key">
+            <Form.Item
+              name="qq_app_key"
+              label="App Key"
+              style={{ marginBottom: 0 }}
+            >
               <Input.Password
                 placeholder="请输入 QQ App Key"
                 autoComplete="new-password"
@@ -324,25 +329,6 @@ export default function IntegrationsSettingsPage() {
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item label="回调地址" style={{ marginBottom: 0 }}>
-          <Space.Compact style={{ width: "100%" }}>
-            <Input value={callbackUrl} readOnly />
-            <Button
-              htmlType="button"
-              disabled={!callbackUrl}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(callbackUrl);
-                  message.success("已复制回调地址");
-                } catch {
-                  message.error("复制失败，请手动选择复制");
-                }
-              }}
-            >
-              复制
-            </Button>
-          </Space.Compact>
-        </Form.Item>
       </IntegrationBlock>
 
       <IntegrationBlock
@@ -352,40 +338,35 @@ export default function IntegrationsSettingsPage() {
           </IntegrationMark>
         }
         title="NapCat"
-        description="OneBot HTTP 服务，用于 QQ 群成员同步。"
         configured={data?.napcat_configured}
-        extra={
-          <Button
-            size="small"
-            htmlType="button"
-            loading={testNapcat.isPending}
-            onClick={() => testNapcat.mutate()}
-          >
-            测试连接
-          </Button>
-        }
       >
         <Row gutter={16}>
           <Col xs={24} sm={12}>
             <Form.Item
               name="napcat_base_url"
               label="Base URL"
-              extra="填 OneBot HTTP 服务地址，不要填 /webui 管理页"
               style={{ marginBottom: 0 }}
             >
               <Input placeholder="http://127.0.0.1:3000" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
-            <Form.Item
-              name="napcat_token"
-              label="Token"
-              style={{ marginBottom: 0 }}
-            >
-              <Input.Password
-                placeholder="请输入 HTTP 服务 Token"
-                autoComplete="new-password"
-              />
+            <Form.Item label="Token" style={{ marginBottom: 0 }}>
+              <Space.Compact style={{ width: "100%" }}>
+                <Form.Item name="napcat_token" noStyle>
+                  <Input.Password
+                    placeholder="请输入 HTTP 服务 Token"
+                    autoComplete="new-password"
+                  />
+                </Form.Item>
+                <Button
+                  htmlType="button"
+                  loading={testNapcat.isPending}
+                  onClick={() => testNapcat.mutate()}
+                >
+                  测试连接
+                </Button>
+              </Space.Compact>
             </Form.Item>
           </Col>
         </Row>
@@ -397,99 +378,104 @@ export default function IntegrationsSettingsPage() {
             <PlatformIcon name="minecraft" size={22} />
           </IntegrationMark>
         }
-        title="Pelican"
-        description="Minecraft 面板控制：与网页操作同一台服，不要填 Wings。"
-        configured={data?.pelican_configured}
-        extra={
-          <Button
-            size="small"
-            htmlType="button"
-            loading={testPelican.isPending}
-            onClick={() => testPelican.mutate()}
-          >
-            测试连接
-          </Button>
+        title="Minecraft"
+        status={
+          <Space size={8} wrap>
+            <Tag color={data?.pelican_configured ? "success" : "default"}>
+              {data?.pelican_configured ? "面板已配置" : "面板未配置"}
+            </Tag>
+            <Tag
+              color={data?.minecraft_public_configured ? "success" : "default"}
+            >
+              {data?.minecraft_public_configured
+                ? "公开地址已配置"
+                : "公开地址未配置"}
+            </Tag>
+            <Tag
+              color={data?.minecraft_rcon_configured ? "success" : "default"}
+            >
+              {data?.minecraft_rcon_configured ? "RCON 已配置" : "RCON 未配置"}
+            </Tag>
+          </Space>
         }
       >
-        <Form.Item
-          name="pelican_base_url"
-          label="Panel 地址"
-          extra="填 Pelican 网页根地址"
-        >
+        <Form.Item name="pelican_base_url" label="Panel 地址">
           <Input placeholder="https://panel.example.com" />
         </Form.Item>
-        <Row gutter={16}>
-          <Col xs={24} sm={12}>
-            <Form.Item
-              name="pelican_client_token"
-              label="Client API Token"
-              extra="账号右上角 → API Credentials；权限含 console / files / power，不要用管理后台的 Application API Key"
-              style={{ marginBottom: 0 }}
+        <Form.Item name="pelican_client_token" label="Client API Token">
+          <Input.Password
+            placeholder="账号设置里创建的 Client API key"
+            autoComplete="new-password"
+          />
+        </Form.Item>
+        <Form.Item label="Server UUID">
+          <Space.Compact style={{ width: "100%" }}>
+            <Form.Item name="pelican_server_uuid" noStyle>
+              <Input placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+            </Form.Item>
+            <Button
+              htmlType="button"
+              loading={testPelican.isPending}
+              onClick={() => testPelican.mutate()}
             >
-              <Input.Password
-                placeholder="账号设置里创建的 Client API key"
-                autoComplete="new-password"
-              />
+              测试面板
+            </Button>
+          </Space.Compact>
+        </Form.Item>
+        <Form.Item name="pelican_application_token" label="Application API Token">
+          <Input.Password
+            placeholder="管理后台 Application API key"
+            autoComplete="new-password"
+          />
+        </Form.Item>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.Item name="minecraft_public_host" label="公开地址">
+              <Input placeholder="mc.example.com" />
             </Form.Item>
           </Col>
-          <Col xs={24} sm={12}>
-            <Form.Item
-              name="pelican_server_uuid"
-              label="Server UUID"
-              extra="短码或完整 UUID 均可"
-              style={{ marginBottom: 0 }}
-            >
-              <Input placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+          <Col xs={24} sm={8}>
+            <Form.Item name="minecraft_public_port" label="端口">
+              <InputNumber min={1} max={65535} style={{ width: "100%" }} />
             </Form.Item>
           </Col>
         </Row>
-      </IntegrationBlock>
-
-      <IntegrationBlock
-        icon={
-          <IntegrationMark>
-            <PlatformIcon name="minecraft" size={22} />
-          </IntegrationMark>
-        }
-        title="Minecraft RCON"
-        description="总览 TPS / MSPT 与在线名单。服内自行开启 enable-rcon；填战鸽能连上的地址，不要对公网开放。"
-        configured={data?.minecraft_rcon_configured}
-        extra={
-          <Button
-            size="small"
-            htmlType="button"
-            loading={testRcon.isPending}
-            onClick={() => testRcon.mutate()}
-          >
-            测试连接
-          </Button>
-        }
-      >
         <Row gutter={16}>
-          <Col xs={24} sm={12}>
+          <Col xs={24} sm={8}>
             <Form.Item
               name="minecraft_rcon_host"
-              label="地址"
-              extra="内网或 Pelican 映射后的主机名"
+              label="RCON 地址"
+              style={{ marginBottom: 0 }}
             >
               <Input placeholder="127.0.0.1" />
             </Form.Item>
           </Col>
-          <Col xs={24} sm={6}>
+          <Col xs={24} sm={4}>
             <Form.Item
               name="minecraft_rcon_port"
               label="端口"
-              extra="默认 25575"
+              style={{ marginBottom: 0 }}
             >
               <InputNumber min={1} max={65535} style={{ width: "100%" }} />
             </Form.Item>
           </Col>
-          <Col xs={24} sm={6}>
-            <Form.Item name="minecraft_rcon_password" label="密码">
-              <Input.Password
-                placeholder="rcon.password"
-                autoComplete="new-password"
-              />
+          <Col xs={24} sm={12}>
+            <Form.Item label="密码" style={{ marginBottom: 0 }}>
+              <Space.Compact style={{ width: "100%" }}>
+                <Form.Item name="minecraft_rcon_password" noStyle>
+                  <Input.Password
+                    placeholder="rcon.password"
+                    autoComplete="new-password"
+                  />
+                </Form.Item>
+                <Button
+                  htmlType="button"
+                  loading={testRcon.isPending}
+                  onClick={() => testRcon.mutate()}
+                >
+                  测试 RCON
+                </Button>
+              </Space.Compact>
             </Form.Item>
           </Col>
         </Row>
@@ -502,14 +488,12 @@ export default function IntegrationsSettingsPage() {
           </IntegrationMark>
         }
         title="GitHub"
-        description="提高 Releases API 限额，避免未认证 60 次/小时限流。"
         configured={data?.github_configured}
         divider={false}
       >
         <Form.Item
           name="github_token"
           label="Personal Access Token"
-          extra="清空并保存将删除库内配置（仍可回落 .env 的 UPDATE_GITHUB_TOKEN）。"
           style={{ marginBottom: 0 }}
         >
           <Input.Password
@@ -519,5 +503,6 @@ export default function IntegrationsSettingsPage() {
         </Form.Item>
       </IntegrationBlock>
     </Form>
+    </ConfigProvider>
   );
 }

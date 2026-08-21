@@ -32,6 +32,7 @@ import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { adminContentShell } from "@/lib/adminContentShell";
 import { shouldPromptCompleteProfile } from "@/lib/completeProfile";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/lib/guideNav";
@@ -149,6 +150,7 @@ export function AppLayout() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
+  const contentShell = adminContentShell(location.pathname);
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -547,19 +549,34 @@ export function AppLayout() {
           style={
             isTarkovGuide
               ? { flex: 1, minHeight: 0, margin: 0, overflow: "hidden" }
-              : { flex: 1, minHeight: 0, margin: 24, overflow: "auto" }
+              : {
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 0,
+                  margin: 24,
+                  overflow: "auto",
+                }
           }
         >
           {isTarkovGuide ? (
             <Outlet />
           ) : (
             <div
-              style={{
-                background: token.colorBgContainer,
-                padding: 24,
-                borderRadius: 8,
-                minHeight: 360,
-              }}
+              className={
+                contentShell
+                  ? `app-page-shell app-page-shell--${contentShell}`
+                  : undefined
+              }
+              style={
+                contentShell
+                  ? { background: token.colorBgContainer }
+                  : {
+                      background: token.colorBgContainer,
+                      padding: 24,
+                      borderRadius: 8,
+                      minHeight: 360,
+                    }
+              }
             >
               <Outlet />
             </div>

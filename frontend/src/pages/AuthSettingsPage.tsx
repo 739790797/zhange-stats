@@ -119,7 +119,7 @@ export default function AuthSettingsPage() {
         <Alert
           type="warning"
           showIcon
-          style={{ marginBottom: 16, maxWidth: 640 }}
+          style={{ marginBottom: 16 }}
           message="存在管理员弱口令"
           description={`${weakAdmins
             .map((a) => a.display_name || a.username)
@@ -127,7 +127,7 @@ export default function AuthSettingsPage() {
         />
       ) : null}
 
-      <Card title="登录会话" size="small" style={{ ...cardStyle, maxWidth: 560 }}>
+      <Card title="登录会话" size="small" style={cardStyle}>
         <Form
           form={sessionForm}
           layout="vertical"
@@ -175,7 +175,7 @@ export default function AuthSettingsPage() {
         </Form>
       </Card>
 
-      <Card title="口令策略" size="small" style={{ ...cardStyle, maxWidth: 560 }}>
+      <Card title="口令策略" size="small" style={cardStyle}>
         <Form
           form={policyForm}
           layout="vertical"
@@ -250,7 +250,7 @@ export default function AuthSettingsPage() {
       <Card
         title="管理员"
         size="small"
-        style={{ ...cardStyle, maxWidth: 560 }}
+        style={cardStyle}
         extra={
           <Space size={8}>
             <Button

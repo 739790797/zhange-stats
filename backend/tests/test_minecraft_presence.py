@@ -46,7 +46,7 @@ def test_clip_to_window() -> None:
     assert clipped == (0, 6 * 3600)
 
 
-def test_apply_snapshot_opens_and_switches() -> None:
+def test_apply_snapshot_only_tracks_online():
     db = _session()
     t0 = now_naive()
     stats = apply_snapshot(
@@ -58,11 +58,11 @@ def test_apply_snapshot_opens_and_switches() -> None:
         stale_after=timedelta(minutes=3),
     )
     db.commit()
-    assert stats["opened"] == 2
+    assert stats["opened"] == 1
     rows = db.query(MinecraftPresenceSegment).all()
-    by_name = {row.player_name: row for row in rows}
-    assert by_name["BaiYi"].status == "online"
-    assert by_name["Steve"].status == "offline"
+    assert len(rows) == 1
+    assert rows[0].player_name == "BaiYi"
+    assert rows[0].status == "online"
 
     t1 = t0 + timedelta(minutes=5)
     apply_snapshot(
@@ -76,23 +76,22 @@ def test_apply_snapshot_opens_and_switches() -> None:
     db.commit()
     online_closed = (
         db.query(MinecraftPresenceSegment)
-        .filter(
-            MinecraftPresenceSegment.player_name == "BaiYi",
-            MinecraftPresenceSegment.status == "online",
-        )
+        .filter(MinecraftPresenceSegment.player_name == "BaiYi")
         .one()
     )
+    assert online_closed.status == "online"
     assert online_closed.ended_at is not None
+    assert db.query(MinecraftPresenceSegment).count() == 1
 
 
-def test_incomplete_sample_does_not_mark_others_offline() -> None:
+def test_incomplete_sample_does_not_close_online() -> None:
     db = _session()
     t0 = now_naive()
     apply_snapshot(
         db,
         now_dt=t0,
         online=[{"name": "BaiYi", "id": ""}],
-        known=[{"name": "BaiYi", "id": ""}, {"name": "Steve", "id": ""}],
+        known=[{"name": "BaiYi", "id": ""}],
         complete=True,
         stale_after=timedelta(minutes=3),
     )
@@ -101,19 +100,15 @@ def test_incomplete_sample_does_not_mark_others_offline() -> None:
     apply_snapshot(
         db,
         now_dt=t1,
-        online=[{"name": "BaiYi", "id": ""}],
-        known=[{"name": "BaiYi", "id": ""}, {"name": "Steve", "id": ""}],
+        online=[],
+        known=[{"name": "BaiYi", "id": ""}],
         complete=False,
         stale_after=timedelta(minutes=3),
     )
     db.commit()
-    steve = (
-        db.query(MinecraftPresenceSegment)
-        .filter(MinecraftPresenceSegment.player_name == "Steve")
-        .one()
-    )
-    assert steve.status == "offline"
-    assert steve.ended_at is None
+    row = db.query(MinecraftPresenceSegment).one()
+    assert row.status == "online"
+    assert row.ended_at is None
 
 
 def test_build_presence_range_counts_online_seconds() -> None:
@@ -136,3 +131,22 @@ def test_build_presence_range_counts_online_seconds() -> None:
     assert data["rows"][0]["online_seconds"] == 2 * 3600
     assert data["rows"][0]["segments"][0]["start_sec"] == 10 * 3600
     assert data["rows"][0]["segments"][0]["end_sec"] == 12 * 3600
+
+
+def test_build_presence_range_skips_offline_segments() -> None:
+    db = _session()
+    start = datetime(2026, 8, 21, 8, 0, 0)
+    db.add(
+        MinecraftPresenceSegment(
+            player_key="name:steve",
+            player_name="Steve",
+            player_uuid="",
+            status="offline",
+            started_at=start,
+            last_seen_at=start + timedelta(hours=4),
+            ended_at=start + timedelta(hours=4),
+        )
+    )
+    db.commit()
+    data = build_presence_range(db, date(2026, 8, 21), date(2026, 8, 21))
+    assert data["rows"] == []

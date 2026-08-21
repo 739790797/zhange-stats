@@ -15,15 +15,23 @@ from app.core.ephemeral_kv import ephemeral_delete, ephemeral_get, ephemeral_set
 from app.core.timeutil import ensure, now, now_naive, to_naive
 from app.models.minecraft import MinecraftPerfSample
 from app.services.integrations_config import get_minecraft_rcon_credentials
-from app.services.minecraft_rcon import MinecraftRconError, query_perf
+from app.services.minecraft_entities import query_entities
+from app.services.minecraft_rcon import (
+    MinecraftRconError,
+    query_perf,
+    reset_session,
+    session_connected,
+)
 from app.services.platform_features import is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
 LEGACY_KV_KEY = "minecraft:rcon_perf:v1"
 STATUS_KEY = "minecraft:rcon_perf:status:v1"
+ENTITY_KEY = "minecraft:rcon_entities:v1"
 STATUS_TTL_SEC = 2 * 3600
 SAMPLE_INTERVAL_SEC = 10
+ENTITY_INTERVAL_SEC = 30
 CHART_BUCKETS = 180
 RAW_CAP = 4000
 
@@ -177,6 +185,100 @@ def _maybe_import_legacy(db: Session) -> None:
     ephemeral_delete(LEGACY_KV_KEY)
 
 
+def _empty_entities() -> dict[str, Any]:
+    return {
+        "ok": False,
+        "message": "",
+        "total": 0,
+        "command": "",
+        "categories": [],
+        "types": [],
+        "type_count": 0,
+        "worlds": [],
+        "at": "",
+    }
+
+
+def _save_entities(state: dict[str, Any]) -> None:
+    ephemeral_set(ENTITY_KEY, json.dumps(state, ensure_ascii=False), ttl_sec=STATUS_TTL_SEC)
+
+
+def load_entities() -> dict[str, Any]:
+    raw = ephemeral_get(ENTITY_KEY)
+    if not raw:
+        return _empty_entities()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return _empty_entities()
+    if not isinstance(data, dict):
+        return _empty_entities()
+    categories = data.get("categories") if isinstance(data.get("categories"), list) else []
+    types = data.get("types") if isinstance(data.get("types"), list) else []
+    worlds = data.get("worlds") if isinstance(data.get("worlds"), list) else []
+    return {
+        "ok": bool(data.get("ok")),
+        "message": str(data.get("message") or ""),
+        "total": int(data.get("total") or 0),
+        "command": str(data.get("command") or ""),
+        "categories": categories,
+        "types": types,
+        "type_count": int(data.get("type_count") or len(types)),
+        "worlds": worlds,
+        "at": str(data.get("at") or ""),
+    }
+
+
+def _entities_due(cached: dict[str, Any]) -> bool:
+    if not cached.get("ok"):
+        return True
+    stamp = str(cached.get("at") or "")
+    if not stamp:
+        return True
+    try:
+        at = datetime.fromisoformat(stamp)
+    except ValueError:
+        return True
+    return (now() - ensure(at)).total_seconds() >= ENTITY_INTERVAL_SEC
+
+
+def collect_entities(host: str, port: int, password: str) -> None:
+    cached = load_entities()
+    if not _entities_due(cached):
+        return
+    stamp = now().isoformat(timespec="seconds")
+    try:
+        parsed = query_entities(host, port, password)
+        _save_entities(
+            {
+                "ok": True,
+                "message": "",
+                "at": stamp,
+                **parsed,
+            }
+        )
+    except MinecraftRconError as exc:
+        logger.info("minecraft rcon entities: %s", exc.message)
+        _save_entities(
+            {
+                **_empty_entities(),
+                "ok": False,
+                "message": exc.message,
+                "at": stamp,
+            }
+        )
+    except OSError as exc:
+        logger.info("minecraft rcon entities os: %s", exc)
+        _save_entities(
+            {
+                **_empty_entities(),
+                "ok": False,
+                "message": str(exc) or "无法连接 RCON",
+                "at": stamp,
+            }
+        )
+
+
 def _save_status(state: dict[str, Any]) -> None:
     ephemeral_set(STATUS_KEY, json.dumps(state, ensure_ascii=False), ttl_sec=STATUS_TTL_SEC)
 
@@ -225,6 +327,7 @@ def collect_perf(db: Session) -> None:
     _maybe_import_legacy(db)
     enabled, host, port, password = _rcon_ready(db)
     if not enabled:
+        reset_session()
         _save_status(
             {
                 "ok": False,
@@ -234,6 +337,7 @@ def collect_perf(db: Session) -> None:
                 "at": "",
             }
         )
+        _save_entities(_empty_entities())
         db.commit()
         return
     db.commit()
@@ -278,6 +382,7 @@ def collect_perf(db: Session) -> None:
             }
         )
         logger.info("minecraft rcon perf os: %s", exc)
+    collect_entities(host, port, password)
 
 
 def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
@@ -295,6 +400,7 @@ def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
     return {
         "enabled": enabled,
         "ok": bool(status.get("ok")) if enabled else False,
+        "connected": bool(enabled and session_connected()),
         "message": message,
         "tps": status.get("tps") if enabled else None,
         "mspt": status.get("mspt") if enabled else None,
@@ -302,6 +408,7 @@ def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
         "range_start": _to_iso(start_n),
         "range_end": _to_iso(end_n),
         "samples": samples,
+        "entities": load_entities() if enabled else _empty_entities(),
     }
 
 
@@ -309,6 +416,8 @@ def poll_job_wrapper() -> None:
     db = SessionLocal()
     try:
         if not is_feature_enabled(db, "guides.minecraft"):
+            reset_session()
+            _save_entities(_empty_entities())
             return
         collect_perf(db)
     except Exception:

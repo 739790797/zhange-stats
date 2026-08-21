@@ -99,6 +99,7 @@ class MinecraftStatusOut(BaseModel):
     pelican_configured: bool
     power_state: str | None = None
     ping_online: bool
+    rcon_connected: bool | None = None
     latency_ms: int | None = None
     motd: str = ""
     motd_raw: str = ""
@@ -152,11 +153,17 @@ class MinecraftPlaybookOut(BaseModel):
     mc_version: str
     loader: str
     loader_version: str = ""
+    egg_id: int = 0
+    startup: str = ""
     mods: list[MinecraftModPinOut] = Field(default_factory=list)
     properties: dict[str, str] = Field(default_factory=dict)
     overrides: list[MinecraftOverrideOut] = Field(default_factory=list)
-    public_host: str = ""
-    public_port: int = 25565
+
+
+class MinecraftPlaybookStagesOut(BaseModel):
+    bootstrap: str = "pending"
+    mods: str = "pending"
+    config: str = "pending"
 
 
 class MinecraftProfileOut(MinecraftPlaybookOut):
@@ -166,17 +173,20 @@ class MinecraftProfileOut(MinecraftPlaybookOut):
     startup_hint: str = ""
     playbook_dirty: bool = False
     applied: MinecraftPlaybookOut | None = None
+    stages: MinecraftPlaybookStagesOut = Field(
+        default_factory=MinecraftPlaybookStagesOut
+    )
 
 
 class MinecraftProfileUpdate(BaseModel):
     mc_version: str
     loader: str
     loader_version: str = ""
+    egg_id: int = 0
+    startup: str = ""
     mods: list[MinecraftModPinOut] = Field(default_factory=list)
     properties: dict[str, str] = Field(default_factory=dict)
     overrides: list[MinecraftOverrideOut] = Field(default_factory=list)
-    public_host: str = ""
-    public_port: int = Field(default=25565, ge=1, le=65535)
 
 
 class MinecraftApplyOut(BaseModel):
@@ -185,15 +195,116 @@ class MinecraftApplyOut(BaseModel):
     boot_in_startup: bool = False
     mod_count: int = 0
     startup_hint: str = ""
+    stage: str = ""
+    power_state: str = ""
+    ping_online: bool = False
+    ready: bool = False
+    pulled: int = 0
+    skipped: int = 0
+    removed: int = 0
+    egg_match: bool = False
+    egg_name: str = ""
+    inferred_loader: str = ""
+    stages: MinecraftPlaybookStagesOut = Field(
+        default_factory=MinecraftPlaybookStagesOut
+    )
+
+
+class MinecraftEggVariableOut(BaseModel):
+    key: str
+    name: str = ""
+    value: str = ""
+
+
+class MinecraftEggCurrentOut(BaseModel):
+    command: str = ""
+    docker_images: list[str] = Field(default_factory=list)
+    variables: list[MinecraftEggVariableOut] = Field(default_factory=list)
+    inferred_loader: str = ""
+    matches_loader: bool = False
+    egg_id: int = 0
+    egg_name: str = ""
+    docker_image: str = ""
+    desired_command: str = ""
+    can_write: bool = False
+
+
+class MinecraftEggOut(BaseModel):
+    egg_id: int | None = None
+    uuid: str = ""
+    name: str = ""
+    description: str = ""
+    nest: str = ""
+    nest_id: int | None = None
+    docker_images: list[str] = Field(default_factory=list)
+    startup: str = ""
+    source: str = "catalog"
+    loaders: list[str] = Field(default_factory=list)
+    key: str = ""
+    reason: str = ""
+
+
+class MinecraftEggsOut(BaseModel):
+    ok: bool = True
+    application_configured: bool = False
+    current: MinecraftEggCurrentOut = Field(default_factory=MinecraftEggCurrentOut)
+    recommended: MinecraftEggOut | None = None
+    eggs: list[MinecraftEggOut] = Field(default_factory=list)
+    catalog: list[MinecraftEggOut] = Field(default_factory=list)
+    message: str = ""
+    boot_in_startup: bool = False
+
+
+class MinecraftEggSyncIn(BaseModel):
+    startup: str = ""
+    egg_id: int | None = None
+
+
+class MinecraftLiveConfigOut(BaseModel):
+    path: str
+    size: int = 0
+    modified_at: str | None = None
+    kind: str = "mod"
 
 
 class MinecraftGameVersionOut(BaseModel):
     version: str
     stable: bool = False
+    version_type: str = "release"
+    release_time: str | None = None
 
 
 class MinecraftLoaderVersionOut(BaseModel):
     versions: list[str]
+
+
+class MinecraftEntityTypeOut(BaseModel):
+    id: str
+    name: str = ""
+    count: int = 0
+    category: str = ""
+
+
+class MinecraftEntityCategoryOut(BaseModel):
+    key: str
+    count: int = 0
+
+
+class MinecraftEntityWorldOut(BaseModel):
+    id: str
+    total: int = 0
+
+
+class MinecraftEntitiesOut(BaseModel):
+    ok: bool = False
+    message: str = ""
+    total: int = 0
+    command: str = ""
+    categories: list[MinecraftEntityCategoryOut] = Field(default_factory=list)
+    types: list[MinecraftEntityTypeOut] = Field(default_factory=list)
+    type_count: int = 0
+    worlds: list[MinecraftEntityWorldOut] = Field(default_factory=list)
+    at: str = ""
 
 
 class MinecraftPerfSampleOut(BaseModel):
@@ -205,6 +316,7 @@ class MinecraftPerfSampleOut(BaseModel):
 class MinecraftPerfOut(BaseModel):
     enabled: bool = False
     ok: bool = False
+    connected: bool = False
     message: str = ""
     tps: float | None = None
     mspt: float | None = None
@@ -212,6 +324,7 @@ class MinecraftPerfOut(BaseModel):
     range_start: str = ""
     range_end: str = ""
     samples: list[MinecraftPerfSampleOut] = Field(default_factory=list)
+    entities: MinecraftEntitiesOut = Field(default_factory=MinecraftEntitiesOut)
 
 
 class MinecraftModSearchHitOut(BaseModel):
@@ -353,19 +466,113 @@ def minecraft_put_profile(
     return _profile_out(db, row)
 
 
-@router.post("/apply", response_model=MinecraftApplyOut, dependencies=[_FEATURE])
-def minecraft_apply(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-) -> MinecraftApplyOut:
+def _run_apply(db: Session, fn: Any) -> MinecraftApplyOut:
     try:
-        result = profile_svc.apply_profile(db)
+        result = fn(db)
     except profile_svc.MinecraftProfileError as exc:
         _raise_profile(exc)
         raise
     except pelican.PelicanError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
     return MinecraftApplyOut.model_validate(result)
+
+
+@router.post("/apply", response_model=MinecraftApplyOut, dependencies=[_FEATURE])
+def minecraft_apply(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftApplyOut:
+    return _run_apply(db, profile_svc.apply_profile)
+
+
+@router.post("/bootstrap", response_model=MinecraftApplyOut, dependencies=[_FEATURE])
+def minecraft_bootstrap(
+    body: MinecraftEggSyncIn | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftApplyOut:
+    payload = body or MinecraftEggSyncIn()
+
+    def _fn(session: Session) -> dict[str, Any]:
+        return profile_svc.bootstrap_profile(
+            session,
+            startup=payload.startup,
+            egg_id=payload.egg_id,
+        )
+
+    return _run_apply(db, _fn)
+
+
+@router.post("/sync-egg", response_model=MinecraftEggsOut, dependencies=[_FEATURE])
+def minecraft_sync_egg(
+    body: MinecraftEggSyncIn | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftEggsOut:
+    from app.services import minecraft_eggs as eggs_svc
+
+    payload = body or MinecraftEggSyncIn()
+    row = profile_svc.get_or_create_profile(db)
+    try:
+        data = eggs_svc.sync_server_egg(
+            db,
+            loader=row.loader,
+            mc_version=row.mc_version,
+            loader_version=row.loader_version or "",
+            startup=payload.startup or row.startup or "",
+            egg_id=payload.egg_id or row.egg_id or None,
+        )
+    except eggs_svc.EggSyncError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except pelican.PelicanError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+    return MinecraftEggsOut.model_validate(data)
+
+
+@router.post("/sync-mods", response_model=MinecraftApplyOut, dependencies=[_FEATURE])
+def minecraft_sync_mods(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftApplyOut:
+    return _run_apply(db, profile_svc.sync_profile_mods)
+
+
+@router.post("/apply-config", response_model=MinecraftApplyOut, dependencies=[_FEATURE])
+def minecraft_apply_config(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftApplyOut:
+    return _run_apply(db, profile_svc.apply_profile_config)
+
+
+@router.get("/eggs", response_model=MinecraftEggsOut, dependencies=[_FEATURE])
+def minecraft_eggs(
+    loader: str = "",
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftEggsOut:
+    from app.services import minecraft_eggs as eggs_svc
+
+    return MinecraftEggsOut.model_validate(eggs_svc.collect_eggs(db, loader=loader))
+
+
+@router.get(
+    "/live-configs",
+    response_model=list[MinecraftLiveConfigOut],
+    dependencies=[_FEATURE],
+)
+def minecraft_live_configs(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> list[MinecraftLiveConfigOut]:
+    try:
+        rows = profile_svc.list_live_configs(db)
+    except profile_svc.MinecraftProfileError as exc:
+        _raise_profile(exc)
+        raise
+    except pelican.PelicanError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+    return [MinecraftLiveConfigOut.model_validate(row) for row in rows]
 
 
 @router.get(

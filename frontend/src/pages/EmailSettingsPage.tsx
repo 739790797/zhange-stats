@@ -102,7 +102,6 @@ export default function EmailSettingsPage() {
       <Form
         form={form}
         layout="vertical"
-        style={{ maxWidth: 480 }}
         requiredMark
         disabled={isLoading}
         onFinish={(values) => save.mutate(toPayload(values))}

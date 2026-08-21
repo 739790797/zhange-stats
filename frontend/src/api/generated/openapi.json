@@ -9086,6 +9086,248 @@
         ]
       }
     },
+    "/api/guides/minecraft/bootstrap": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Bootstrap",
+        "operationId": "minecraft_bootstrap_api_guides_minecraft_bootstrap_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MinecraftEggSyncIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftApplyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/sync-egg": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Sync Egg",
+        "operationId": "minecraft_sync_egg_api_guides_minecraft_sync_egg_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MinecraftEggSyncIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftEggsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/sync-mods": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Sync Mods",
+        "operationId": "minecraft_sync_mods_api_guides_minecraft_sync_mods_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftApplyOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/apply-config": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Apply Config",
+        "operationId": "minecraft_apply_config_api_guides_minecraft_apply_config_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftApplyOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/eggs": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Eggs",
+        "operationId": "minecraft_eggs_api_guides_minecraft_eggs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "loader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Loader"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftEggsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/live-configs": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Live Configs",
+        "operationId": "minecraft_live_configs_api_guides_minecraft_live_configs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MinecraftLiveConfigOut"
+                  },
+                  "type": "array",
+                  "title": "Response Minecraft Live Configs Api Guides Minecraft Live Configs Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/guides/minecraft/game-versions": {
       "get": {
         "tags": [
@@ -12880,6 +13122,16 @@
             "title": "Pelican Client Token Set",
             "default": false
           },
+          "pelican_application_token": {
+            "type": "string",
+            "title": "Pelican Application Token",
+            "default": ""
+          },
+          "pelican_application_token_set": {
+            "type": "boolean",
+            "title": "Pelican Application Token Set",
+            "default": false
+          },
           "pelican_server_uuid": {
             "type": "string",
             "title": "Pelican Server Uuid",
@@ -12913,6 +13165,21 @@
           "minecraft_rcon_configured": {
             "type": "boolean",
             "title": "Minecraft Rcon Configured",
+            "default": false
+          },
+          "minecraft_public_host": {
+            "type": "string",
+            "title": "Minecraft Public Host",
+            "default": ""
+          },
+          "minecraft_public_port": {
+            "type": "integer",
+            "title": "Minecraft Public Port",
+            "default": 25565
+          },
+          "minecraft_public_configured": {
+            "type": "boolean",
+            "title": "Minecraft Public Configured",
             "default": false
           }
         },
@@ -13065,6 +13332,17 @@
             ],
             "title": "Pelican Client Token"
           },
+          "pelican_application_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pelican Application Token"
+          },
           "pelican_server_uuid": {
             "anyOf": [
               {
@@ -13079,6 +13357,11 @@
           "clear_pelican_client_token": {
             "type": "boolean",
             "title": "Clear Pelican Client Token",
+            "default": false
+          },
+          "clear_pelican_application_token": {
+            "type": "boolean",
+            "title": "Clear Pelican Application Token",
             "default": false
           },
           "minecraft_rcon_host": {
@@ -13120,6 +13403,30 @@
             "type": "boolean",
             "title": "Clear Minecraft Rcon Password",
             "default": false
+          },
+          "minecraft_public_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minecraft Public Host"
+          },
+          "minecraft_public_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 65535.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minecraft Public Port"
           }
         },
         "type": "object",
@@ -14721,6 +15028,59 @@
             "type": "string",
             "title": "Startup Hint",
             "default": ""
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": ""
+          },
+          "power_state": {
+            "type": "string",
+            "title": "Power State",
+            "default": ""
+          },
+          "ping_online": {
+            "type": "boolean",
+            "title": "Ping Online",
+            "default": false
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready",
+            "default": false
+          },
+          "pulled": {
+            "type": "integer",
+            "title": "Pulled",
+            "default": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped",
+            "default": 0
+          },
+          "removed": {
+            "type": "integer",
+            "title": "Removed",
+            "default": 0
+          },
+          "egg_match": {
+            "type": "boolean",
+            "title": "Egg Match",
+            "default": false
+          },
+          "egg_name": {
+            "type": "string",
+            "title": "Egg Name",
+            "default": ""
+          },
+          "inferred_loader": {
+            "type": "string",
+            "title": "Inferred Loader",
+            "default": ""
+          },
+          "stages": {
+            "$ref": "#/components/schemas/MinecraftPlaybookStagesOut"
           }
         },
         "type": "object",
@@ -14729,6 +15089,367 @@
           "message"
         ],
         "title": "MinecraftApplyOut"
+      },
+      "MinecraftEggCurrentOut": {
+        "properties": {
+          "command": {
+            "type": "string",
+            "title": "Command",
+            "default": ""
+          },
+          "docker_images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Docker Images"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftEggVariableOut"
+            },
+            "type": "array",
+            "title": "Variables"
+          },
+          "inferred_loader": {
+            "type": "string",
+            "title": "Inferred Loader",
+            "default": ""
+          },
+          "matches_loader": {
+            "type": "boolean",
+            "title": "Matches Loader",
+            "default": false
+          },
+          "egg_id": {
+            "type": "integer",
+            "title": "Egg Id",
+            "default": 0
+          },
+          "egg_name": {
+            "type": "string",
+            "title": "Egg Name",
+            "default": ""
+          },
+          "docker_image": {
+            "type": "string",
+            "title": "Docker Image",
+            "default": ""
+          },
+          "desired_command": {
+            "type": "string",
+            "title": "Desired Command",
+            "default": ""
+          },
+          "can_write": {
+            "type": "boolean",
+            "title": "Can Write",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "MinecraftEggCurrentOut"
+      },
+      "MinecraftEggOut": {
+        "properties": {
+          "egg_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Egg Id"
+          },
+          "uuid": {
+            "type": "string",
+            "title": "Uuid",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "nest": {
+            "type": "string",
+            "title": "Nest",
+            "default": ""
+          },
+          "nest_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nest Id"
+          },
+          "docker_images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Docker Images"
+          },
+          "startup": {
+            "type": "string",
+            "title": "Startup",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "catalog"
+          },
+          "loaders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Loaders"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftEggOut"
+      },
+      "MinecraftEggSyncIn": {
+        "properties": {
+          "startup": {
+            "type": "string",
+            "title": "Startup",
+            "default": ""
+          },
+          "egg_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Egg Id"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftEggSyncIn"
+      },
+      "MinecraftEggVariableOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "MinecraftEggVariableOut"
+      },
+      "MinecraftEggsOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "application_configured": {
+            "type": "boolean",
+            "title": "Application Configured",
+            "default": false
+          },
+          "current": {
+            "$ref": "#/components/schemas/MinecraftEggCurrentOut"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinecraftEggOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eggs": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftEggOut"
+            },
+            "type": "array",
+            "title": "Eggs"
+          },
+          "catalog": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftEggOut"
+            },
+            "type": "array",
+            "title": "Catalog"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "boot_in_startup": {
+            "type": "boolean",
+            "title": "Boot In Startup",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "MinecraftEggsOut"
+      },
+      "MinecraftEntitiesOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "command": {
+            "type": "string",
+            "title": "Command",
+            "default": ""
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftEntityCategoryOut"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftEntityTypeOut"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "type_count": {
+            "type": "integer",
+            "title": "Type Count",
+            "default": 0
+          },
+          "worlds": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftEntityWorldOut"
+            },
+            "type": "array",
+            "title": "Worlds"
+          },
+          "at": {
+            "type": "string",
+            "title": "At",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftEntitiesOut"
+      },
+      "MinecraftEntityCategoryOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "MinecraftEntityCategoryOut"
+      },
+      "MinecraftEntityTypeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftEntityTypeOut"
+      },
+      "MinecraftEntityWorldOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftEntityWorldOut"
       },
       "MinecraftFileChmodIn": {
         "properties": {
@@ -15114,6 +15835,22 @@
             "type": "boolean",
             "title": "Stable",
             "default": false
+          },
+          "version_type": {
+            "type": "string",
+            "title": "Version Type",
+            "default": "release"
+          },
+          "release_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Time"
           }
         },
         "type": "object",
@@ -15121,6 +15858,40 @@
           "version"
         ],
         "title": "MinecraftGameVersionOut"
+      },
+      "MinecraftLiveConfigOut": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "default": 0
+          },
+          "modified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified At"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "mod"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "MinecraftLiveConfigOut"
       },
       "MinecraftLoaderVersionOut": {
         "properties": {
@@ -15393,6 +16164,11 @@
             "title": "Ok",
             "default": false
           },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected",
+            "default": false
+          },
           "message": {
             "type": "string",
             "title": "Message",
@@ -15449,6 +16225,9 @@
             },
             "type": "array",
             "title": "Samples"
+          },
+          "entities": {
+            "$ref": "#/components/schemas/MinecraftEntitiesOut"
           }
         },
         "type": "object",
@@ -15502,6 +16281,16 @@
             "title": "Loader Version",
             "default": ""
           },
+          "egg_id": {
+            "type": "integer",
+            "title": "Egg Id",
+            "default": 0
+          },
+          "startup": {
+            "type": "string",
+            "title": "Startup",
+            "default": ""
+          },
           "mods": {
             "items": {
               "$ref": "#/components/schemas/MinecraftModPinOut"
@@ -15522,16 +16311,6 @@
             },
             "type": "array",
             "title": "Overrides"
-          },
-          "public_host": {
-            "type": "string",
-            "title": "Public Host",
-            "default": ""
-          },
-          "public_port": {
-            "type": "integer",
-            "title": "Public Port",
-            "default": 25565
           }
         },
         "type": "object",
@@ -15540,6 +16319,27 @@
           "loader"
         ],
         "title": "MinecraftPlaybookOut"
+      },
+      "MinecraftPlaybookStagesOut": {
+        "properties": {
+          "bootstrap": {
+            "type": "string",
+            "title": "Bootstrap",
+            "default": "pending"
+          },
+          "mods": {
+            "type": "string",
+            "title": "Mods",
+            "default": "pending"
+          },
+          "config": {
+            "type": "string",
+            "title": "Config",
+            "default": "pending"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftPlaybookStagesOut"
       },
       "MinecraftPlayerOut": {
         "properties": {
@@ -15730,6 +16530,16 @@
             "title": "Loader Version",
             "default": ""
           },
+          "egg_id": {
+            "type": "integer",
+            "title": "Egg Id",
+            "default": 0
+          },
+          "startup": {
+            "type": "string",
+            "title": "Startup",
+            "default": ""
+          },
           "mods": {
             "items": {
               "$ref": "#/components/schemas/MinecraftModPinOut"
@@ -15750,16 +16560,6 @@
             },
             "type": "array",
             "title": "Overrides"
-          },
-          "public_host": {
-            "type": "string",
-            "title": "Public Host",
-            "default": ""
-          },
-          "public_port": {
-            "type": "integer",
-            "title": "Public Port",
-            "default": 25565
           },
           "last_applied_at": {
             "anyOf": [
@@ -15807,6 +16607,9 @@
                 "type": "null"
               }
             ]
+          },
+          "stages": {
+            "$ref": "#/components/schemas/MinecraftPlaybookStagesOut"
           }
         },
         "type": "object",
@@ -15831,6 +16634,16 @@
             "title": "Loader Version",
             "default": ""
           },
+          "egg_id": {
+            "type": "integer",
+            "title": "Egg Id",
+            "default": 0
+          },
+          "startup": {
+            "type": "string",
+            "title": "Startup",
+            "default": ""
+          },
           "mods": {
             "items": {
               "$ref": "#/components/schemas/MinecraftModPinOut"
@@ -15851,18 +16664,6 @@
             },
             "type": "array",
             "title": "Overrides"
-          },
-          "public_host": {
-            "type": "string",
-            "title": "Public Host",
-            "default": ""
-          },
-          "public_port": {
-            "type": "integer",
-            "maximum": 65535.0,
-            "minimum": 1.0,
-            "title": "Public Port",
-            "default": 25565
           }
         },
         "type": "object",
@@ -15963,6 +16764,17 @@
           "ping_online": {
             "type": "boolean",
             "title": "Ping Online"
+          },
+          "rcon_connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rcon Connected"
           },
           "latency_ms": {
             "anyOf": [

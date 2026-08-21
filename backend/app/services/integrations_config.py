@@ -14,16 +14,25 @@ from app.models.system_config import SystemConfig
 
 INTEGRATIONS_KEY = "integrations"
 RCON_DEFAULT_PORT = 25575
+GAME_DEFAULT_PORT = 25565
 
 
-def _parse_rcon_port(raw: Any) -> int:
+def _parse_port(raw: Any, *, default: int) -> int:
     try:
         port = int(raw or 0)
     except (TypeError, ValueError):
         port = 0
     if 1 <= port <= 65535:
         return port
-    return RCON_DEFAULT_PORT
+    return default
+
+
+def _parse_rcon_port(raw: Any) -> int:
+    return _parse_port(raw, default=RCON_DEFAULT_PORT)
+
+
+def _parse_game_port(raw: Any) -> int:
+    return _parse_port(raw, default=GAME_DEFAULT_PORT)
 
 
 def _env_defaults() -> dict[str, str]:
@@ -37,10 +46,13 @@ def _env_defaults() -> dict[str, str]:
         "github_token": (s.UPDATE_GITHUB_TOKEN or "").strip(),
         "pelican_base_url": "",
         "pelican_client_token": "",
+        "pelican_application_token": "",
         "pelican_server_uuid": "",
         "minecraft_rcon_host": "",
         "minecraft_rcon_port": "25575",
         "minecraft_rcon_password": "",
+        "minecraft_public_host": "",
+        "minecraft_public_port": "25565",
     }
 
 
@@ -75,6 +87,10 @@ def load_integrations(db: Session) -> dict[str, str]:
         merged["minecraft_rcon_host"] = str(stored["minecraft_rcon_host"] or "").strip()
     if "minecraft_rcon_port" in stored and stored["minecraft_rcon_port"] is not None:
         merged["minecraft_rcon_port"] = str(stored["minecraft_rcon_port"] or "").strip()
+    if "minecraft_public_host" in stored and stored["minecraft_public_host"] is not None:
+        merged["minecraft_public_host"] = str(stored["minecraft_public_host"] or "").strip()
+    if "minecraft_public_port" in stored and stored["minecraft_public_port"] is not None:
+        merged["minecraft_public_port"] = str(stored["minecraft_public_port"] or "").strip()
 
     for secret_key in (
         "steam_api_key",
@@ -82,6 +98,7 @@ def load_integrations(db: Session) -> dict[str, str]:
         "napcat_token",
         "github_token",
         "pelican_client_token",
+        "pelican_application_token",
         "minecraft_rcon_password",
     ):
         if secret_key not in stored:
@@ -105,12 +122,17 @@ def load_integrations(db: Session) -> dict[str, str]:
         "github_token": merged.get("github_token") or "",
         "pelican_base_url": (merged.get("pelican_base_url") or "").rstrip("/"),
         "pelican_client_token": merged.get("pelican_client_token") or "",
+        "pelican_application_token": merged.get("pelican_application_token") or "",
         "pelican_server_uuid": (merged.get("pelican_server_uuid") or "").strip(),
         "minecraft_rcon_host": (merged.get("minecraft_rcon_host") or "").strip(),
         "minecraft_rcon_port": str(
             _parse_rcon_port(merged.get("minecraft_rcon_port"))
         ),
         "minecraft_rcon_password": merged.get("minecraft_rcon_password") or "",
+        "minecraft_public_host": (merged.get("minecraft_public_host") or "").strip(),
+        "minecraft_public_port": str(
+            _parse_game_port(merged.get("minecraft_public_port"))
+        ),
     }
 
 
@@ -178,10 +200,30 @@ def save_integrations(db: Session, payload: dict[str, Any]) -> dict[str, str]:
         if pelican_token is not None and str(pelican_token).strip():
             stored["pelican_client_token"] = encrypt_secret(str(pelican_token).strip())
 
+    if payload.get("clear_pelican_application_token"):
+        stored.pop("pelican_application_token", None)
+    else:
+        pelican_app = payload.get("pelican_application_token")
+        if pelican_app is not None and str(pelican_app).strip():
+            stored["pelican_application_token"] = encrypt_secret(str(pelican_app).strip())
+
     if "minecraft_rcon_host" in payload and payload.get("minecraft_rcon_host") is not None:
         stored["minecraft_rcon_host"] = str(payload.get("minecraft_rcon_host") or "").strip()
     if "minecraft_rcon_port" in payload and payload.get("minecraft_rcon_port") is not None:
         stored["minecraft_rcon_port"] = _parse_rcon_port(payload.get("minecraft_rcon_port"))
+    if "minecraft_public_host" in payload and payload.get("minecraft_public_host") is not None:
+        stored["minecraft_public_host"] = str(payload.get("minecraft_public_host") or "").strip()
+    if "minecraft_public_port" in payload and payload.get("minecraft_public_port") is not None:
+        stored["minecraft_public_port"] = _parse_game_port(payload.get("minecraft_public_port"))
+    rcon_changed = any(
+        key in payload
+        for key in (
+            "minecraft_rcon_host",
+            "minecraft_rcon_port",
+            "minecraft_rcon_password",
+            "clear_minecraft_rcon_password",
+        )
+    )
     if payload.get("clear_minecraft_rcon_password"):
         stored.pop("minecraft_rcon_password", None)
     else:
@@ -195,6 +237,10 @@ def save_integrations(db: Session, payload: dict[str, Any]) -> dict[str, str]:
     else:
         db.add(SystemConfig(key=INTEGRATIONS_KEY, value=raw))
     db.commit()
+    if rcon_changed:
+        from app.services.minecraft_rcon import reset_session
+
+        reset_session()
     return load_integrations(db)
 
 
@@ -207,10 +253,13 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
     github_token = cfg.get("github_token") or ""
     pelican_url = cfg.get("pelican_base_url") or ""
     pelican_token = cfg.get("pelican_client_token") or ""
+    pelican_app = cfg.get("pelican_application_token") or ""
     pelican_uuid = cfg.get("pelican_server_uuid") or ""
     rcon_host = cfg.get("minecraft_rcon_host") or ""
     rcon_port = _parse_rcon_port(cfg.get("minecraft_rcon_port"))
     rcon_password = cfg.get("minecraft_rcon_password") or ""
+    public_host = cfg.get("minecraft_public_host") or ""
+    public_port = _parse_game_port(cfg.get("minecraft_public_port"))
     return {
         "steam_api_key": steam,
         "steam_api_key_set": bool(steam),
@@ -229,6 +278,8 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         "pelican_base_url": pelican_url,
         "pelican_client_token": pelican_token,
         "pelican_client_token_set": bool(pelican_token),
+        "pelican_application_token": pelican_app,
+        "pelican_application_token_set": bool(pelican_app),
         "pelican_server_uuid": pelican_uuid,
         "pelican_configured": bool(pelican_url and pelican_token and pelican_uuid),
         "minecraft_rcon_host": rcon_host,
@@ -236,6 +287,9 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         "minecraft_rcon_password": rcon_password,
         "minecraft_rcon_password_set": bool(rcon_password),
         "minecraft_rcon_configured": bool(rcon_host and rcon_password),
+        "minecraft_public_host": public_host,
+        "minecraft_public_port": public_port,
+        "minecraft_public_configured": bool(public_host),
     }
 
 
@@ -305,6 +359,16 @@ def get_pelican_credentials(db: Session | None = None) -> tuple[str, str, str]:
         session.close()
 
 
+def get_pelican_application_token(db: Session | None = None) -> str:
+    if db is not None:
+        return load_integrations(db).get("pelican_application_token") or ""
+    session = SessionLocal()
+    try:
+        return load_integrations(session).get("pelican_application_token") or ""
+    finally:
+        session.close()
+
+
 def get_minecraft_rcon_credentials(db: Session | None = None) -> tuple[str, int, str]:
     def _read(session: Session) -> tuple[str, int, str]:
         cfg = load_integrations(session)
@@ -312,6 +376,23 @@ def get_minecraft_rcon_credentials(db: Session | None = None) -> tuple[str, int,
             (cfg.get("minecraft_rcon_host") or "").strip(),
             _parse_rcon_port(cfg.get("minecraft_rcon_port")),
             (cfg.get("minecraft_rcon_password") or "").strip(),
+        )
+
+    if db is not None:
+        return _read(db)
+    session = SessionLocal()
+    try:
+        return _read(session)
+    finally:
+        session.close()
+
+
+def get_minecraft_public_address(db: Session | None = None) -> tuple[str, int]:
+    def _read(session: Session) -> tuple[str, int]:
+        cfg = load_integrations(session)
+        return (
+            (cfg.get("minecraft_public_host") or "").strip(),
+            _parse_game_port(cfg.get("minecraft_public_port")),
         )
 
     if db is not None:

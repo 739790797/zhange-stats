@@ -16,7 +16,10 @@ from app.models.job_run import JobRun
 from app.models.minecraft import MinecraftPresenceSegment
 from app.services import minecraft_profile as profile_svc
 from app.services import minecraft_status as status_svc
-from app.services.integrations_config import get_minecraft_rcon_credentials, get_pelican_credentials
+from app.services.integrations_config import (
+    get_minecraft_public_address,
+    get_minecraft_rcon_credentials,
+)
 from app.services.minecraft_rcon import MinecraftRconError, query_list
 from app.services.platform_features import is_feature_enabled
 from app.services.scheduler_config import load_scheduler_config
@@ -133,6 +136,18 @@ def _refresh_identity(seg: MinecraftPresenceSegment, player: dict[str, str]) -> 
         seg.player_key = player["key"]
 
 
+def _find_open(
+    player: dict[str, str],
+    opens: dict[str, MinecraftPresenceSegment],
+) -> MinecraftPresenceSegment | None:
+    open_seg = opens.get(player["key"])
+    if open_seg is None and player["name"]:
+        for seg in opens.values():
+            if seg.player_name.lower() == player["name"].lower():
+                return seg
+    return open_seg
+
+
 def _apply_player(
     db: Session,
     player: dict[str, str],
@@ -141,12 +156,7 @@ def _apply_player(
     opens: dict[str, MinecraftPresenceSegment],
     stats: dict[str, int],
 ) -> None:
-    open_seg = opens.get(player["key"])
-    if open_seg is None and player["name"]:
-        for seg in opens.values():
-            if seg.player_name.lower() == player["name"].lower():
-                open_seg = seg
-                break
+    open_seg = _find_open(player, opens)
     if open_seg is None:
         row = _new_segment(player, status, now_dt)
         db.add(row)
@@ -173,8 +183,24 @@ def _apply_player(
     stats["opened"] += 1
 
 
+def _close_open(
+    player: dict[str, str],
+    now_dt: datetime,
+    opens: dict[str, MinecraftPresenceSegment],
+    stats: dict[str, int],
+) -> None:
+    open_seg = _find_open(player, opens)
+    if open_seg is None:
+        return
+    open_seg.ended_at = now_dt
+    open_seg.last_seen_at = now_dt
+    stats["closed"] += 1
+    opens.pop(open_seg.player_key, None)
+    if player["key"] != open_seg.player_key:
+        opens.pop(player["key"], None)
+
+
 def _maybe_stale_close(
-    db: Session,
     seg: MinecraftPresenceSegment,
     player: dict[str, str],
     now_dt: datetime,
@@ -187,7 +213,7 @@ def _maybe_stale_close(
     last = _naive(_aware(seg.last_seen_at))
     if now_dt - last < stale_after:
         return
-    _apply_player(db, player, "offline", now_dt, opens, stats)
+    _close_open(player, now_dt, opens, stats)
     stats["stale_closed"] += 1
 
 
@@ -247,13 +273,14 @@ def apply_snapshot(
         if desired == "online":
             _apply_player(db, player, "online", now_dt, opens, stats)
             continue
-        if complete:
-            stats["offline"] += 1
-            _apply_player(db, player, "offline", now_dt, opens, stats)
-            continue
+        stats["offline"] += 1
         open_seg = opens.get(key)
-        if open_seg is not None:
-            _maybe_stale_close(db, open_seg, player, now_dt, stale_after, opens, stats)
+        if open_seg is None:
+            continue
+        if complete:
+            _close_open(player, now_dt, opens, stats)
+            continue
+        _maybe_stale_close(open_seg, player, now_dt, stale_after, opens, stats)
     db.flush()
     return stats
 
@@ -295,9 +322,7 @@ def _players_from_history(db: Session) -> list[dict[str, str]]:
 
 def collect_online_snapshot(db: Session) -> dict[str, Any]:
     """Ping + 可选 RCON list，得到当前在线集合。"""
-    row = profile_svc.get_or_create_profile(db)
-    host = (row.public_host or "").strip()
-    port = int(row.public_port or 25565)
+    host, port = get_minecraft_public_address(db)
     ping_online = False
     players_online = 0
     ping_players: list[dict[str, str]] = []
@@ -477,6 +502,9 @@ def poll_job_wrapper() -> None:
     db = SessionLocal()
     try:
         if not is_feature_enabled(db, "guides.minecraft"):
+            from app.services.minecraft_rcon import reset_session
+
+            reset_session()
             return
         run_minecraft_presence_poll(db)
     except Exception:
@@ -529,6 +557,7 @@ def build_presence_range(
     rows = (
         db.query(MinecraftPresenceSegment)
         .filter(
+            MinecraftPresenceSegment.status == "online",
             MinecraftPresenceSegment.started_at < _naive(window_end),
             (MinecraftPresenceSegment.ended_at.is_(None))
             | (MinecraftPresenceSegment.ended_at >= _naive(window_start))
@@ -567,15 +596,12 @@ def build_presence_range(
         if seg.player_uuid:
             bucket["id"] = seg.player_uuid
         dur = max(0, end_sec - start_sec)
-        if seg.status == "online":
-            bucket["online_seconds"] += dur
-        else:
-            bucket["offline_seconds"] += dur
+        bucket["online_seconds"] += dur
         if seg.ended_at is None:
-            bucket["online"] = seg.status == "online"
+            bucket["online"] = True
         bucket["segments"].append(
             {
-                "status": seg.status,
+                "status": "online",
                 "start_sec": start_sec,
                 "end_sec": end_sec,
             }

@@ -230,6 +230,13 @@ export function MinecraftManagePanel() {
                 <Tag color={tag.color} style={{ marginInlineEnd: 8 }}>
                   {tag.text}
                 </Tag>
+                {liveState === "running" && status?.rcon_connected === true ? (
+                  <Tag color="green" style={{ marginInlineEnd: 8 }}>
+                    RCON
+                  </Tag>
+                ) : liveState === "running" && status?.rcon_connected === false ? (
+                  <Tag style={{ marginInlineEnd: 8 }}>RCON 断开</Tag>
+                ) : null}
                 {uptime ? (
                   <Typography.Text type="secondary" style={{ fontWeight: 400 }}>
                     {uptime}

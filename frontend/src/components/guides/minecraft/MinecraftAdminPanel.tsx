@@ -6,37 +6,55 @@ import {
   Collapse,
   Form,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
+  Steps,
   Table,
   Tag,
   Typography,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  applyMinecraftProfile,
+  applyMinecraftConfig,
+  bootstrapMinecraftServer,
+  fetchMinecraftEggs,
+  fetchMinecraftFileContents,
   fetchMinecraftGameVersions,
+  fetchMinecraftLiveConfigs,
   fetchMinecraftLoaderVersions,
   fetchMinecraftModUpdates,
   fetchMinecraftModVersions,
   fetchMinecraftProfile,
   fetchMinecraftStatus,
   searchMinecraftMods,
+  syncMinecraftEgg,
+  syncMinecraftMods,
   updateMinecraftProfile,
+  type MinecraftLiveConfig,
   type MinecraftModPin,
   type MinecraftOverride,
   type MinecraftPlaybook,
+  type MinecraftPlaybookStages,
 } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
-import { isServerLive, LOADERS, PROPERTY_FIELDS } from "./minecraftUi";
+import { MinecraftSetupPicker } from "./MinecraftSetupPicker";
+import {
+  eggOptionLabel,
+  eggsForLoader,
+  inferEggLoader,
+  inferSetupFromPlaybook,
+  isServerLive,
+  modLoaderOfCore,
+  pickSelectedEggId,
+  PLAYBOOK_STEPS,
+  PROPERTY_FIELDS,
+  setupSummary,
+  type MinecraftSetupValue,
+} from "./minecraftUi";
 
 type FormValues = {
-  public_host: string;
-  public_port: number;
   mc_version: string;
   loader: string;
   loader_version: string;
@@ -45,13 +63,33 @@ type FormValues = {
 
 function toForm(profile: MinecraftPlaybook): FormValues {
   return {
-    public_host: profile.public_host || "",
-    public_port: profile.public_port || 25565,
     mc_version: profile.mc_version,
     loader: profile.loader,
-    loader_version: profile.loader_version || "",
+    loader_version: profile.loader_version || "latest",
     properties: { ...(profile.properties || {}) },
   };
+}
+
+function relPath(path: string) {
+  return path.replace(/^\/+/, "");
+}
+
+function parsePropertiesText(text: string) {
+  const out: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const index = trimmed.indexOf("=");
+    if (index < 0) continue;
+    out[trimmed.slice(0, index).trim()] = trimmed.slice(index + 1);
+  }
+  return out;
+}
+
+function defaultStep(stages?: MinecraftPlaybookStages) {
+  if (!stages || stages.bootstrap !== "applied") return 0;
+  if (stages.mods !== "applied") return 1;
+  return 2;
 }
 
 export function MinecraftAdminPanel() {
@@ -59,9 +97,21 @@ export function MinecraftAdminPanel() {
   const [form] = Form.useForm<FormValues>();
   const loader = Form.useWatch("loader", form);
   const mcVersion = Form.useWatch("mc_version", form);
+  const [step, setStep] = useState(0);
   const [mods, setMods] = useState<MinecraftModPin[]>([]);
   const [overrides, setOverrides] = useState<MinecraftOverride[]>([]);
   const [modQuery, setModQuery] = useState("");
+  const [liveConfigs, setLiveConfigs] = useState<MinecraftLiveConfig[]>([]);
+  const [startupCmd, setStartupCmd] = useState("");
+  const [selectedEggId, setSelectedEggId] = useState<number | null>(null);
+  const [setup, setSetup] = useState<MinecraftSetupValue>({
+    mcVersion: "",
+    kind: "",
+    core: "",
+  });
+  const [setupDone, setSetupDone] = useState(false);
+  const steppedFromProfile = useRef(false);
+  const setupFromProfile = useRef(false);
 
   const profileQuery = useQuery({
     queryKey: ["minecraft-profile"],
@@ -78,19 +128,25 @@ export function MinecraftAdminPanel() {
   const pelicanConfigured = Boolean(profileQuery.data?.pelican_configured);
   const dirty = Boolean(profileQuery.data?.playbook_dirty);
   const live = isServerLive(statusQuery.data?.power_state);
+  const draftEggId = profileQuery.data?.egg_id || 0;
 
   const versionsQuery = useQuery({
     queryKey: ["minecraft-game-versions"],
     queryFn: fetchMinecraftGameVersions,
-    enabled: pelicanConfigured,
     staleTime: 60 * 60_000,
   });
 
   const loaderQuery = useQuery({
     queryKey: ["minecraft-loader-versions", loader, mcVersion],
     queryFn: () => fetchMinecraftLoaderVersions(loader, mcVersion || ""),
-    enabled: pelicanConfigured && Boolean(loader),
+    enabled: Boolean(loader),
     staleTime: 10 * 60_000,
+  });
+
+  const eggsQuery = useQuery({
+    queryKey: ["minecraft-eggs", loader],
+    queryFn: () => fetchMinecraftEggs(loader || ""),
+    staleTime: 60_000,
   });
 
   const searchQuery = useQuery({
@@ -101,7 +157,7 @@ export function MinecraftAdminPanel() {
         loader: loader || "fabric",
         mcVersion: mcVersion || "",
       }),
-    enabled: pelicanConfigured && modQuery.trim().length >= 2,
+    enabled: Boolean(loader) && modQuery.trim().length >= 2,
   });
 
   useEffect(() => {
@@ -110,7 +166,41 @@ export function MinecraftAdminPanel() {
     form.setFieldsValue(toForm(profile));
     setMods(profile.mods || []);
     setOverrides(profile.overrides || []);
+    setSelectedEggId(profile.egg_id || null);
+    setStartupCmd(profile.startup || "");
+    if (!setupFromProfile.current) {
+      setupFromProfile.current = true;
+      setSetup(inferSetupFromPlaybook(profile.mc_version, profile.loader));
+    }
+    if (!steppedFromProfile.current) {
+      steppedFromProfile.current = true;
+      setStep(defaultStep(profile.stages));
+    }
   }, [profileQuery.data, form]);
+
+  const allEggs = eggsQuery.data?.eggs;
+  const recommended = eggsQuery.data?.recommended;
+  const canWriteEgg = Boolean(eggsQuery.data?.application_configured);
+  const eggChoices = useMemo(
+    () =>
+      eggsForLoader(
+        allEggs || [],
+        loader || "",
+        selectedEggId || draftEggId,
+      ),
+    [allEggs, loader, selectedEggId, draftEggId],
+  );
+
+  useEffect(() => {
+    setSelectedEggId((prev) =>
+      pickSelectedEggId({
+        availableIds: eggChoices.map((row) => row.egg_id),
+        currentId: draftEggId,
+        recommendedId: recommended?.egg_id,
+        prev,
+      }),
+    );
+  }, [eggChoices, draftEggId, recommended?.egg_id]);
 
   const payloadFromForm = (values: FormValues) => {
     const properties: Record<string, string> = {};
@@ -121,65 +211,109 @@ export function MinecraftAdminPanel() {
       mc_version: values.mc_version,
       loader: values.loader,
       loader_version: values.loader_version || "",
+      egg_id: selectedEggId || 0,
+      startup: startupCmd,
       mods,
       properties,
       overrides: overrides.filter((row) => row.path.trim()),
-      public_host: values.public_host || "",
-      public_port: values.public_port || 25565,
     };
   };
 
+  const saveDraft = async () => {
+    const values = await form.validateFields();
+    return updateMinecraftProfile(payloadFromForm(values));
+  };
+
   const save = useMutation({
-    mutationFn: async () => {
-      const values = await form.validateFields();
-      return updateMinecraftProfile(payloadFromForm(values));
-    },
+    mutationFn: saveDraft,
     onSuccess: (profile) => {
-      message.success("开服配置已保存，尚未写入服务器");
+      message.success("草稿已保存");
       queryClient.setQueryData(["minecraft-profile"], profile);
-      queryClient.invalidateQueries({ queryKey: ["minecraft-status"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
-  const apply = useMutation({
+  const afterStage = (res: {
+    message?: string | null;
+    ready?: boolean;
+    ping_online?: boolean;
+  }) => {
+    if (res.ready) {
+      message.success(res.message || "已完成，服已就绪");
+    } else {
+      message.warning(res.message || "已执行，但尚未探测到就绪，请看总览或控制台");
+    }
+    queryClient.invalidateQueries({ queryKey: ["minecraft-profile"] });
+    queryClient.invalidateQueries({ queryKey: ["minecraft-status"] });
+    queryClient.invalidateQueries({ queryKey: ["minecraft-eggs"] });
+  };
+
+  const bootstrap = useMutation({
     mutationFn: async () => {
-      const values = await form.validateFields();
-      await updateMinecraftProfile(payloadFromForm(values));
-      return applyMinecraftProfile();
+      await saveDraft();
+      return bootstrapMinecraftServer({
+        startup: startupCmd,
+        egg_id: selectedEggId,
+      });
     },
     onSuccess: (res) => {
-      message.success(res.message || "已应用并请求启动");
-      queryClient.invalidateQueries({ queryKey: ["minecraft-profile"] });
-      queryClient.invalidateQueries({ queryKey: ["minecraft-status"] });
+      afterStage(res);
+      setStep(1);
     },
-    onError: (e: unknown) => message.error(apiError(e, "应用失败")),
+    onError: (e: unknown) => message.error(apiError(e, "开服失败")),
   });
 
-  const confirmApply = () => {
+  const pushEgg = useMutation({
+    mutationFn: async () => {
+      await saveDraft();
+      return syncMinecraftEgg({
+        startup: startupCmd,
+        egg_id: selectedEggId,
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["minecraft-eggs", loader], data);
+      message.success(data.message || "已写回 Panel");
+    },
+    onError: (e: unknown) => message.error(apiError(e, "同步 Egg 失败")),
+  });
+
+  const syncMods = useMutation({
+    mutationFn: async () => {
+      await saveDraft();
+      return syncMinecraftMods();
+    },
+    onSuccess: (res) => {
+      afterStage(res);
+      setStep(2);
+    },
+    onError: (e: unknown) => message.error(apiError(e, "同步模组失败")),
+  });
+
+  const applyConfig = useMutation({
+    mutationFn: async () => {
+      await saveDraft();
+      return applyMinecraftConfig();
+    },
+    onSuccess: afterStage,
+    onError: (e: unknown) => message.error(apiError(e, "写入配置失败")),
+  });
+
+  const confirmStage = (
+    title: string,
+    content: string,
+    okText: string,
+    run: () => Promise<unknown>,
+  ) => {
     Modal.confirm({
-      title: "应用开服配置",
-      content: live
-        ? "当前服正在运行。应用会先停服，再按这份配置启动，在线玩家会断开。"
-        : "会把开服配置写入 Pelican 并启动。正在跑的服不会被这份草稿影响，直到你点应用。",
-      okText: live ? "停服并应用" : "应用并开服",
+      title,
+      content,
+      okText,
       okButtonProps: {
         style: { background: "#1a2332", borderColor: "#1a2332" },
       },
-      onOk: () => apply.mutateAsync(),
+      onOk: () => run(),
     });
-  };
-
-  const restoreApplied = () => {
-    const applied = profileQuery.data?.applied;
-    if (!applied) {
-      message.warning("还没有已应用的服内快照");
-      return;
-    }
-    form.setFieldsValue(toForm(applied));
-    setMods(applied.mods || []);
-    setOverrides(applied.overrides || []);
-    message.success("已恢复为当前服内配置，保存后才会写回草稿");
   };
 
   const checkUpdates = useMutation({
@@ -199,7 +333,7 @@ export function MinecraftAdminPanel() {
         }
         return next;
       });
-      message.success(`已换上 ${rows.length} 个新版本，请保存或应用`);
+      message.success(`已换上 ${rows.length} 个新版本，请保存后再同步`);
     },
     onError: (e: unknown) => message.error(apiError(e, "检查更新失败")),
   });
@@ -230,18 +364,70 @@ export function MinecraftAdminPanel() {
     }
   };
 
-  const versionOptions = useMemo(() => {
-    const rows = versionsQuery.data || [];
-    return rows.map((row) => ({
-      value: row.version,
-      label: row.stable ? row.version : `${row.version}（快照）`,
-    }));
-  }, [versionsQuery.data]);
+  const scanConfigs = useMutation({
+    mutationFn: fetchMinecraftLiveConfigs,
+    onSuccess: (rows) => {
+      setLiveConfigs(rows);
+      message.success(
+        rows.length ? `扫到 ${rows.length} 个配置文件` : "还没有生成配置文件",
+      );
+    },
+    onError: (e: unknown) => message.error(apiError(e, "扫描失败")),
+  });
 
-  const loaderOptions = (loaderQuery.data || []).map((v) => ({
-    value: v,
-    label: v,
-  }));
+  const loadLiveFile = async (path: string) => {
+    const relative = relPath(path);
+    try {
+      const file = await fetchMinecraftFileContents(path);
+      if (relative === "server.properties") {
+        const parsed = parsePropertiesText(file.content || "");
+        const next: Record<string, string> = {
+          ...(form.getFieldValue("properties") || {}),
+        };
+        for (const field of PROPERTY_FIELDS) {
+          if (parsed[field.key] != null) next[field.key] = parsed[field.key];
+        }
+        form.setFieldValue("properties", next);
+        message.success("已载入 server.properties 常用项");
+        return;
+      }
+      setOverrides((prev) => {
+        const rest = prev.filter((row) => row.path !== relative);
+        return [...rest, { path: relative, content: file.content || "" }];
+      });
+      message.success(`已载入 ${relative}`);
+    } catch (e: unknown) {
+      message.error(apiError(e, "读取失败"));
+    }
+  };
+
+  const applySetup = (next: MinecraftSetupValue, done: boolean) => {
+    setSetup(next);
+    if (next.mcVersion) form.setFieldValue("mc_version", next.mcVersion);
+    const mapped = modLoaderOfCore(next.core);
+    if (mapped) {
+      form.setFieldValue("loader", mapped);
+      if (mapped !== loader) form.setFieldValue("loader_version", "latest");
+    }
+    setSetupDone(done);
+  };
+
+  const loaderOptions = [
+    { value: "latest", label: "latest" },
+    ...(loaderQuery.data || [])
+      .filter((v) => v !== "latest")
+      .map((v) => ({
+        value: v,
+        label: v,
+      })),
+  ];
+
+  const busy =
+    save.isPending ||
+    bootstrap.isPending ||
+    pushEgg.isPending ||
+    syncMods.isPending ||
+    applyConfig.isPending;
 
   if (profileQuery.isLoading) {
     return (
@@ -251,304 +437,456 @@ export function MinecraftAdminPanel() {
     );
   }
 
-  if (!pelicanConfigured) {
-    return (
-      <Card title="开服">
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="尚未连接 Pelican"
-          description="填好 Panel 地址、Client Token 和这台服的 UUID 之后，才能在这里改下次开服要用的版本和模组。游戏进程仍在 Pelican 里，战鸽只作为操作入口。"
-        />
-        <Link to="/settings/integrations">
-          <Button
-            type="primary"
-            size="large"
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
-          >
-            去集成密钥配置
-          </Button>
-        </Link>
-      </Card>
-    );
-  }
+  const bootWrapped = startupCmd.includes("zhange/boot.sh");
+  const eggEmpty = !eggsQuery.isFetching && !(allEggs || []).length;
+
+  const onSelectEgg = (eggId: number) => {
+    setSelectedEggId(eggId);
+    const egg = (allEggs || []).find((row) => row.egg_id === eggId);
+    const inferred = egg ? inferEggLoader(egg) : "";
+    if (inferred) form.setFieldValue("loader", inferred);
+    if (egg?.startup) setStartupCmd(egg.startup);
+  };
 
   return (
     <Card
       title={
         <Space>
           开服
-          {!profileQuery.data?.applied ? (
-            <Tag>尚未应用</Tag>
-          ) : dirty ? (
-            <Tag color="gold">有未进服的改动</Tag>
-          ) : (
-            <Tag>与当前服一致</Tag>
-          )}
+          <Tag>草稿</Tag>
+          {dirty ? <Tag color="gold">有未应用改动</Tag> : null}
         </Space>
       }
       extra={
-        <Space wrap>
-          <Button
-            onClick={restoreApplied}
-            disabled={!profileQuery.data?.applied}
-          >
-            恢复为当前服
-          </Button>
-          <Button onClick={() => save.mutate()} loading={save.isPending}>
-            保存草稿
-          </Button>
-          <Button
-            type="primary"
-            onClick={confirmApply}
-            loading={apply.isPending}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
-          >
-            应用并开服
-          </Button>
-        </Space>
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
+          保存草稿
+        </Button>
       }
     >
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message="这里改的是下次开服才生效的配置，不会改正在跑的进程。"
-        description="「保存草稿」只记在战鸽；「应用并开服」才会写入 Pelican 并对齐模组/配置。公开地址保存后立刻用于页面探测，不必等重启。RCON 在集成密钥里配置，不写进开服剧本。"
-      />
-
       {profileQuery.data?.last_apply_message ? (
         <Typography.Paragraph type="secondary">
-          上次应用：{profileQuery.data.last_apply_message}
+          上次执行：{profileQuery.data.last_apply_message}
         </Typography.Paragraph>
       ) : null}
 
-      <Collapse
-        style={{ marginBottom: 16 }}
-        items={[
-          {
-            key: "boot",
-            label: "首次接入：Egg 启动命令",
-            children: (
-              <div>
-                <Typography.Paragraph>
-                  把 Egg 启动改成包一层 boot 脚本，加载器换档才会在下次启动执行。并在{" "}
-                  <Link to="/settings/integrations">集成密钥</Link> 填写 Panel
-                  地址、Client Token、Server UUID，以及 RCON。
-                </Typography.Paragraph>
-                {profileQuery.data?.startup_hint ? (
-                  <Typography.Paragraph copyable>
-                    {profileQuery.data.startup_hint}
-                  </Typography.Paragraph>
-                ) : null}
-              </div>
-            ),
-          },
-        ]}
+      <Steps
+        current={step}
+        onChange={setStep}
+        style={{ marginBottom: 24 }}
+        items={PLAYBOOK_STEPS.map((item) => ({
+          title: item.title,
+        }))}
       />
 
       <Form form={form} layout="vertical">
-        <Space size="large" wrap style={{ width: "100%" }}>
-          <Form.Item
-            name="public_host"
-            label="公开地址"
-            extra="朋友用来连接的主机名，保存后立刻用于探测"
-          >
-            <Input placeholder="mc.example.com" style={{ width: 260 }} />
-          </Form.Item>
-          <Form.Item name="public_port" label="端口">
-            <InputNumber min={1} max={65535} style={{ width: 120 }} />
-          </Form.Item>
-        </Space>
-
-        <Space size="large" wrap style={{ width: "100%" }}>
-          <Form.Item
-            name="mc_version"
-            label="游戏版本"
-            rules={[{ required: true, message: "请选择版本" }]}
-          >
-            <Select
-              showSearch
-              style={{ width: 200 }}
-              options={versionOptions}
+        <Form.Item
+          name="mc_version"
+          hidden
+          rules={[{ required: true, message: "请选择版本" }]}
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item name="loader" hidden rules={[{ required: true }]}>
+          <Input />
+        </Form.Item>
+        {step === 0 ? (
+          <>
+            <MinecraftSetupPicker
+              versions={versionsQuery.data || []}
               loading={versionsQuery.isFetching}
-              placeholder="1.21.1"
-            />
-          </Form.Item>
-          <Form.Item
-            name="loader"
-            label="加载器"
-            rules={[{ required: true }]}
-          >
-            <Select style={{ width: 160 }} options={LOADERS} />
-          </Form.Item>
-          <Form.Item
-            name="loader_version"
-            label="核心（加载器版本）"
-            extra="留空则保存时钉死当时最新"
-          >
-            <Select
-              showSearch
-              allowClear
-              style={{ width: 240 }}
-              options={loaderOptions}
-              loading={loaderQuery.isFetching}
-              placeholder="latest → 保存时钉死"
-            />
-          </Form.Item>
-        </Space>
-
-        <Typography.Title level={5}>模组</Typography.Title>
-        <Space style={{ marginBottom: 12 }} wrap>
-          <Input.Search
-            placeholder="在 Modrinth 搜索"
-            allowClear
-            enterButton="搜索"
-            style={{ width: 320 }}
-            onSearch={(v) => setModQuery(v.trim())}
-          />
-          <Button
-            onClick={() => checkUpdates.mutate()}
-            loading={checkUpdates.isPending}
-          >
-            检查更新
-          </Button>
-        </Space>
-        {searchQuery.data?.length ? (
-          <Table
-            size="small"
-            pagination={false}
-            rowKey="project_id"
-            style={{ marginBottom: 12 }}
-            dataSource={searchQuery.data}
-            columns={[
-              { title: "模组", dataIndex: "title" },
-              {
-                title: "说明",
-                dataIndex: "description",
-                ellipsis: true,
-              },
-              {
-                title: "",
-                width: 80,
-                render: (_, row) => (
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => addMod(row.project_id)}
-                  >
-                    添加
-                  </Button>
-                ),
-              },
-            ]}
-          />
-        ) : null}
-        <Table
-          size="small"
-          pagination={false}
-          rowKey={(row) => row.project_id || row.filename}
-          dataSource={mods}
-          columns={[
-            {
-              title: "模组",
-              dataIndex: "project_title",
-              render: (v: string, row) => v || row.filename,
-            },
-            { title: "版本", dataIndex: "version_number", width: 140 },
-            { title: "文件", dataIndex: "filename", ellipsis: true },
-            {
-              title: "",
-              width: 80,
-              render: (_, row) => (
-                <Button
-                  type="link"
-                  danger
-                  size="small"
-                  onClick={() =>
-                    setMods((prev) =>
-                      prev.filter((m) => m.project_id !== row.project_id),
+              value={setup}
+              done={setupDone}
+              currentLabel={
+                profileQuery.data
+                  ? setupSummary(
+                      inferSetupFromPlaybook(
+                        profileQuery.data.mc_version,
+                        profileQuery.data.loader,
+                      ),
                     )
+                  : ""
+              }
+              onChange={(next) => applySetup(next, false)}
+              onComplete={(next) => applySetup(next, true)}
+              onEdit={() => setSetupDone(false)}
+              onUseCurrent={() =>
+                applySetup(
+                  inferSetupFromPlaybook(
+                    profileQuery.data?.mc_version || setup.mcVersion,
+                    profileQuery.data?.loader || "",
+                  ),
+                  true,
+                )
+              }
+            />
+
+            {setupDone && setup.kind && setup.kind !== "mod" ? (
+              <Alert
+                style={{ marginTop: 16, maxWidth: 640 }}
+                type="info"
+                showIcon
+                message={`已记下 ${setupSummary(setup)}`}
+                description="纯净端、插件端、混合端的自动安装下一步再接到 Panel Egg。现在先把版本和核心选好。"
+              />
+            ) : null}
+
+            {setupDone && setup.kind === "mod" ? (
+              <>
+                <Form.Item
+                  label="Egg"
+                  required
+                  style={{ marginTop: 20 }}
+                  validateStatus={eggEmpty ? "warning" : undefined}
+                  help={
+                    eggEmpty
+                      ? eggsQuery.data?.message ||
+                        "还没有从 Panel 读到 Egg。请确认 Application API Token 能列出 nests / eggs。"
+                      : undefined
                   }
                 >
-                  移除
-                </Button>
-              ),
-            },
-          ]}
-        />
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    style={{ width: "100%", maxWidth: 560 }}
+                    loading={eggsQuery.isFetching}
+                    placeholder="选择 Panel 里的 Egg"
+                    value={selectedEggId ?? undefined}
+                    options={eggChoices
+                      .filter((row) => row.egg_id)
+                      .map((row) => ({
+                        value: row.egg_id as number,
+                        label: eggOptionLabel(row, {
+                          recommended: row.egg_id === recommended?.egg_id,
+                        }),
+                      }))}
+                    onChange={onSelectEgg}
+                  />
+                </Form.Item>
+                <Form.Item name="loader_version" label="核心版本">
+                  <Select
+                    showSearch
+                    style={{ width: 240 }}
+                    options={loaderOptions}
+                    loading={loaderQuery.isFetching}
+                    placeholder="latest"
+                  />
+                </Form.Item>
 
-        <Typography.Title level={5} style={{ marginTop: 24 }}>
-          server.properties
-        </Typography.Title>
-        {PROPERTY_FIELDS.map((field) => (
-          <Form.Item
-            key={field.key}
-            label={field.label}
-            name={["properties", field.key]}
-            style={{ marginBottom: 8 }}
-          >
-            <Input placeholder="保持档案为空则不覆盖该键" />
-          </Form.Item>
-        ))}
+                <Form.Item label="启动命令">
+                  <Input.TextArea
+                    rows={3}
+                    value={startupCmd}
+                    onChange={(e) => setStartupCmd(e.target.value)}
+                    placeholder="java -jar {{SERVER_JARFILE}}"
+                  />
+                </Form.Item>
+                {bootWrapped ? (
+                  <Tag color="green" style={{ marginBottom: 12 }}>
+                    已包 boot.sh
+                  </Tag>
+                ) : null}
 
-        <Typography.Title level={5} style={{ marginTop: 24 }}>
-          其它配置覆盖
-        </Typography.Title>
-        <Typography.Paragraph type="secondary">
-          相对服根路径，例如 config/sodium-extra.properties。应用时写入
-          server-overrides，开服 boot 会对齐。
-        </Typography.Paragraph>
-        {overrides.map((row, index) => (
-          <Space
-            key={`${row.path}-${index}`}
-            align="start"
-            style={{ display: "flex", marginBottom: 8, width: "100%" }}
-          >
-            <Input
-              placeholder="config/foo.toml"
-              value={row.path}
-              style={{ width: 260 }}
-              onChange={(e) => {
-                const path = e.target.value;
-                setOverrides((prev) =>
-                  prev.map((item, i) =>
-                    i === index ? { ...item, path } : item,
+                <Space wrap>
+                  <Button
+                    onClick={() => pushEgg.mutate()}
+                    loading={pushEgg.isPending}
+                    disabled={
+                      busy || !canWriteEgg || !pelicanConfigured || !selectedEggId
+                    }
+                  >
+                    同步到 Panel
+                  </Button>
+                  <Button
+                    type="primary"
+                    loading={bootstrap.isPending}
+                    disabled={
+                      busy || !canWriteEgg || !pelicanConfigured || !selectedEggId
+                    }
+                    onClick={() =>
+                      confirmStage(
+                        "用 Egg 开服",
+                        live
+                          ? "会先把 Egg 和启动命令写回 Panel，再停服启动。首次安装加载器可能要几分钟。"
+                          : "会把 Egg / 启动命令写回 Panel，再启动并等待就绪。首次安装加载器可能要几分钟。",
+                        live ? "停服并开服" : "开服并等待就绪",
+                        () => bootstrap.mutateAsync(),
+                      )
+                    }
+                    style={{ background: "#1a2332", borderColor: "#1a2332" }}
+                  >
+                    用 Egg 开服
+                  </Button>
+                </Space>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        {step === 1 ? (
+          <>
+            <Typography.Paragraph type="secondary">
+              按当前版本和加载器从 Modrinth
+              匹配服务端文件。已在 /mods 里的 jar 会跳过，缺的再下载，然后重启并检查服况。
+            </Typography.Paragraph>
+            <Space style={{ marginBottom: 12 }} wrap>
+              <Input.Search
+                placeholder="搜索模组（Modrinth）"
+                allowClear
+                enterButton="搜索"
+                style={{ width: 320 }}
+                onSearch={(v) => setModQuery(v.trim())}
+              />
+              <Button
+                onClick={() => checkUpdates.mutate()}
+                loading={checkUpdates.isPending}
+              >
+                检查更新
+              </Button>
+            </Space>
+            {searchQuery.data?.length ? (
+              <Table
+                size="small"
+                pagination={false}
+                rowKey="project_id"
+                style={{ marginBottom: 12 }}
+                dataSource={searchQuery.data}
+                columns={[
+                  { title: "模组", dataIndex: "title" },
+                  {
+                    title: "说明",
+                    dataIndex: "description",
+                    ellipsis: true,
+                  },
+                  {
+                    title: "",
+                    width: 80,
+                    render: (_, row) => (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => addMod(row.project_id)}
+                      >
+                        添加
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+            ) : null}
+            <Table
+              size="small"
+              pagination={false}
+              rowKey={(row) => row.project_id || row.filename}
+              style={{ marginBottom: 16 }}
+              dataSource={mods}
+              columns={[
+                {
+                  title: "模组",
+                  dataIndex: "project_title",
+                  render: (v: string, row) => v || row.filename,
+                },
+                { title: "版本", dataIndex: "version_number", width: 140 },
+                { title: "文件", dataIndex: "filename", ellipsis: true },
+                {
+                  title: "",
+                  width: 80,
+                  render: (_, row) => (
+                    <Button
+                      type="link"
+                      danger
+                      size="small"
+                      onClick={() =>
+                        setMods((prev) =>
+                          prev.filter((m) => m.project_id !== row.project_id),
+                        )
+                      }
+                    >
+                      移除
+                    </Button>
                   ),
-                );
-              }}
-            />
-            <Input.TextArea
-              placeholder="文件内容"
-              value={row.content}
-              rows={3}
-              style={{ width: 420 }}
-              onChange={(e) => {
-                const content = e.target.value;
-                setOverrides((prev) =>
-                  prev.map((item, i) =>
-                    i === index ? { ...item, content } : item,
-                  ),
-                );
-              }}
+                },
+              ]}
             />
             <Button
+              type="primary"
+              loading={syncMods.isPending}
+              disabled={busy}
               onClick={() =>
-                setOverrides((prev) => prev.filter((_, i) => i !== index))
+                confirmStage(
+                  "同步模组",
+                  live
+                    ? "会停服、补齐缺少的 jar、去掉档案外的模组，再重启并等待就绪。"
+                    : "会检查 /mods，下载缺少的文件后启动，并等待就绪。",
+                  live ? "停服并同步" : "同步并重启",
+                  () => syncMods.mutateAsync(),
+                )
+              }
+              style={{ background: "#1a2332", borderColor: "#1a2332" }}
+            >
+              同步模组并重启
+            </Button>
+          </>
+        ) : null}
+
+        {step === 2 ? (
+          <>
+            <Typography.Paragraph type="secondary">
+              加载器和模组首启后才会写出默认配置。先扫描服内文件，把要改的载入剧本再编辑；没载入的保持服内默认。
+            </Typography.Paragraph>
+            <Space style={{ marginBottom: 16 }} wrap>
+              <Button
+                onClick={() => scanConfigs.mutate()}
+                loading={scanConfigs.isPending}
+              >
+                扫描服内配置
+              </Button>
+              <Button
+                onClick={() => loadLiveFile("/server.properties")}
+                disabled={busy}
+              >
+                载入 server.properties
+              </Button>
+            </Space>
+            {liveConfigs.length ? (
+              <Table
+                size="small"
+                pagination={false}
+                rowKey="path"
+                style={{ marginBottom: 16 }}
+                dataSource={liveConfigs}
+                columns={[
+                  {
+                    title: "文件",
+                    dataIndex: "path",
+                    render: (path: string, row) => (
+                      <Space>
+                        {path}
+                        <Tag>{row.kind === "server" ? "服务器" : "模组"}</Tag>
+                      </Space>
+                    ),
+                  },
+                  {
+                    title: "",
+                    width: 120,
+                    render: (_, row) => (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => loadLiveFile(row.path)}
+                      >
+                        载入到剧本
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+            ) : null}
+
+            <Typography.Title level={5}>服务器常用项</Typography.Title>
+            {PROPERTY_FIELDS.map((field) => (
+              <Form.Item
+                key={field.key}
+                label={field.label}
+                name={["properties", field.key]}
+                style={{ marginBottom: 8 }}
+              >
+                <Input placeholder="空着则不覆盖该键" />
+              </Form.Item>
+            ))}
+
+            <Typography.Title level={5} style={{ marginTop: 24 }}>
+              将写入的配置文件
+            </Typography.Title>
+            {overrides.length ? (
+              <Collapse
+                style={{ marginBottom: 16 }}
+                items={overrides.map((row, index) => ({
+                  key: `${row.path}-${index}`,
+                  label: row.path || "未填写路径",
+                  extra: (
+                    <Button
+                      size="small"
+                      danger
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOverrides((prev) =>
+                          prev.filter((_, i) => i !== index),
+                        );
+                      }}
+                    >
+                      删除
+                    </Button>
+                  ),
+                  children: (
+                    <Space
+                      direction="vertical"
+                      style={{ width: "100%" }}
+                      size={8}
+                    >
+                      <Input
+                        placeholder="config/foo.toml"
+                        value={row.path}
+                        onChange={(e) => {
+                          const path = e.target.value;
+                          setOverrides((prev) =>
+                            prev.map((item, i) =>
+                              i === index ? { ...item, path } : item,
+                            ),
+                          );
+                        }}
+                      />
+                      <Input.TextArea
+                        placeholder="文件内容"
+                        value={row.content}
+                        rows={8}
+                        onChange={(e) => {
+                          const content = e.target.value;
+                          setOverrides((prev) =>
+                            prev.map((item, i) =>
+                              i === index ? { ...item, content } : item,
+                            ),
+                          );
+                        }}
+                      />
+                    </Space>
+                  ),
+                }))}
+              />
+            ) : (
+              <Typography.Paragraph type="secondary">
+                还没有要覆盖的模组配置。扫描后点「载入到剧本」，会按文件分别编辑。
+              </Typography.Paragraph>
+            )}
+            <Button
+              style={{ marginBottom: 16 }}
+              onClick={() =>
+                setOverrides((prev) => [...prev, { path: "", content: "" }])
               }
             >
-              删除
+              手动添加覆盖文件
             </Button>
-          </Space>
-        ))}
-        <Button
-          onClick={() =>
-            setOverrides((prev) => [...prev, { path: "", content: "" }])
-          }
-        >
-          添加覆盖文件
-        </Button>
+            <div>
+              <Button
+                type="primary"
+                loading={applyConfig.isPending}
+                disabled={busy}
+                onClick={() =>
+                  confirmStage(
+                    "写入配置",
+                    live
+                      ? "会停服、写入 server.properties 和已载入的模组配置，再启动并检查服况。"
+                      : "会写入配置文件后启动，并等待就绪。",
+                    live ? "停服并写入" : "写入并重启",
+                    () => applyConfig.mutateAsync(),
+                  )
+                }
+                style={{ background: "#1a2332", borderColor: "#1a2332" }}
+              >
+                写入配置并重启
+              </Button>
+            </div>
+          </>
+        ) : null}
       </Form>
     </Card>
   );

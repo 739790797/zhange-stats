@@ -11,9 +11,10 @@ PROFILE_ROW_ID = 1
 
 
 class MinecraftServerProfile(Base):
-    """圈子单台 Minecraft 服（永远一行 id=1；本体在 Pelican）。
+    """圈子 Minecraft 开服剧本草稿（永远一行 id=1）。
 
-    行内字段是下次开服剧本草稿；`applied_json` 是上次成功应用时的快照，对应服内当前配置。
+    行内字段只描述下次要应用的剧本（版本 / 加载器 / Egg / 启动命令 / 模组 / 配置），
+    不镜像当前 Pelican 服的实时状态。`applied_json` 是上次成功应用时的快照。
     """
 
     __tablename__ = "minecraft_server_profiles"
@@ -22,12 +23,12 @@ class MinecraftServerProfile(Base):
     mc_version: Mapped[str] = mapped_column(String(32), nullable=False, default="1.21.1")
     loader: Mapped[str] = mapped_column(String(32), nullable=False, default="fabric")
     loader_version: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    egg_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    startup: Mapped[str] = mapped_column(Text, nullable=False, default="")
     mods_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     overrides_json: Mapped[dict[str, Any]] = mapped_column(
         JSON, nullable=False, default=dict
     )
-    public_host: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    public_port: Mapped[int] = mapped_column(Integer, nullable=False, default=25565)
     applied_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     last_applied_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

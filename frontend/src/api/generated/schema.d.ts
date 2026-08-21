@@ -3149,6 +3149,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/minecraft/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Bootstrap */
+        post: operations["minecraft_bootstrap_api_guides_minecraft_bootstrap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/sync-egg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Sync Egg */
+        post: operations["minecraft_sync_egg_api_guides_minecraft_sync_egg_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/sync-mods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Sync Mods */
+        post: operations["minecraft_sync_mods_api_guides_minecraft_sync_mods_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/apply-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Apply Config */
+        post: operations["minecraft_apply_config_api_guides_minecraft_apply_config_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/eggs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Eggs */
+        get: operations["minecraft_eggs_api_guides_minecraft_eggs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/live-configs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Live Configs */
+        get: operations["minecraft_live_configs_api_guides_minecraft_live_configs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/minecraft/game-versions": {
         parameters: {
             query?: never;
@@ -4878,6 +4980,16 @@ export interface components {
              */
             pelican_client_token_set: boolean;
             /**
+             * Pelican Application Token
+             * @default
+             */
+            pelican_application_token: string;
+            /**
+             * Pelican Application Token Set
+             * @default false
+             */
+            pelican_application_token_set: boolean;
+            /**
              * Pelican Server Uuid
              * @default
              */
@@ -4912,6 +5024,21 @@ export interface components {
              * @default false
              */
             minecraft_rcon_configured: boolean;
+            /**
+             * Minecraft Public Host
+             * @default
+             */
+            minecraft_public_host: string;
+            /**
+             * Minecraft Public Port
+             * @default 25565
+             */
+            minecraft_public_port: number;
+            /**
+             * Minecraft Public Configured
+             * @default false
+             */
+            minecraft_public_configured: boolean;
         };
         /**
          * IntegrationsStatusOut
@@ -4968,6 +5095,8 @@ export interface components {
             pelican_base_url?: string | null;
             /** Pelican Client Token */
             pelican_client_token?: string | null;
+            /** Pelican Application Token */
+            pelican_application_token?: string | null;
             /** Pelican Server Uuid */
             pelican_server_uuid?: string | null;
             /**
@@ -4975,6 +5104,11 @@ export interface components {
              * @default false
              */
             clear_pelican_client_token: boolean;
+            /**
+             * Clear Pelican Application Token
+             * @default false
+             */
+            clear_pelican_application_token: boolean;
             /** Minecraft Rcon Host */
             minecraft_rcon_host?: string | null;
             /** Minecraft Rcon Port */
@@ -4986,6 +5120,10 @@ export interface components {
              * @default false
              */
             clear_minecraft_rcon_password: boolean;
+            /** Minecraft Public Host */
+            minecraft_public_host?: string | null;
+            /** Minecraft Public Port */
+            minecraft_public_port?: number | null;
         };
         /** JobConfigUpdateItem */
         JobConfigUpdateItem: {
@@ -5596,6 +5734,288 @@ export interface components {
              * @default
              */
             startup_hint: string;
+            /**
+             * Stage
+             * @default
+             */
+            stage: string;
+            /**
+             * Power State
+             * @default
+             */
+            power_state: string;
+            /**
+             * Ping Online
+             * @default false
+             */
+            ping_online: boolean;
+            /**
+             * Ready
+             * @default false
+             */
+            ready: boolean;
+            /**
+             * Pulled
+             * @default 0
+             */
+            pulled: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Removed
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Egg Match
+             * @default false
+             */
+            egg_match: boolean;
+            /**
+             * Egg Name
+             * @default
+             */
+            egg_name: string;
+            /**
+             * Inferred Loader
+             * @default
+             */
+            inferred_loader: string;
+            stages?: components["schemas"]["MinecraftPlaybookStagesOut"];
+        };
+        /** MinecraftEggCurrentOut */
+        MinecraftEggCurrentOut: {
+            /**
+             * Command
+             * @default
+             */
+            command: string;
+            /** Docker Images */
+            docker_images?: string[];
+            /** Variables */
+            variables?: components["schemas"]["MinecraftEggVariableOut"][];
+            /**
+             * Inferred Loader
+             * @default
+             */
+            inferred_loader: string;
+            /**
+             * Matches Loader
+             * @default false
+             */
+            matches_loader: boolean;
+            /**
+             * Egg Id
+             * @default 0
+             */
+            egg_id: number;
+            /**
+             * Egg Name
+             * @default
+             */
+            egg_name: string;
+            /**
+             * Docker Image
+             * @default
+             */
+            docker_image: string;
+            /**
+             * Desired Command
+             * @default
+             */
+            desired_command: string;
+            /**
+             * Can Write
+             * @default false
+             */
+            can_write: boolean;
+        };
+        /** MinecraftEggOut */
+        MinecraftEggOut: {
+            /** Egg Id */
+            egg_id?: number | null;
+            /**
+             * Uuid
+             * @default
+             */
+            uuid: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Nest
+             * @default
+             */
+            nest: string;
+            /** Nest Id */
+            nest_id?: number | null;
+            /** Docker Images */
+            docker_images?: string[];
+            /**
+             * Startup
+             * @default
+             */
+            startup: string;
+            /**
+             * Source
+             * @default catalog
+             */
+            source: string;
+            /** Loaders */
+            loaders?: string[];
+            /**
+             * Key
+             * @default
+             */
+            key: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
+        /** MinecraftEggSyncIn */
+        MinecraftEggSyncIn: {
+            /**
+             * Startup
+             * @default
+             */
+            startup: string;
+            /** Egg Id */
+            egg_id?: number | null;
+        };
+        /** MinecraftEggVariableOut */
+        MinecraftEggVariableOut: {
+            /** Key */
+            key: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Value
+             * @default
+             */
+            value: string;
+        };
+        /** MinecraftEggsOut */
+        MinecraftEggsOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Application Configured
+             * @default false
+             */
+            application_configured: boolean;
+            current?: components["schemas"]["MinecraftEggCurrentOut"];
+            recommended?: components["schemas"]["MinecraftEggOut"] | null;
+            /** Eggs */
+            eggs?: components["schemas"]["MinecraftEggOut"][];
+            /** Catalog */
+            catalog?: components["schemas"]["MinecraftEggOut"][];
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Boot In Startup
+             * @default false
+             */
+            boot_in_startup: boolean;
+        };
+        /** MinecraftEntitiesOut */
+        MinecraftEntitiesOut: {
+            /**
+             * Ok
+             * @default false
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Command
+             * @default
+             */
+            command: string;
+            /** Categories */
+            categories?: components["schemas"]["MinecraftEntityCategoryOut"][];
+            /** Types */
+            types?: components["schemas"]["MinecraftEntityTypeOut"][];
+            /**
+             * Type Count
+             * @default 0
+             */
+            type_count: number;
+            /** Worlds */
+            worlds?: components["schemas"]["MinecraftEntityWorldOut"][];
+            /**
+             * At
+             * @default
+             */
+            at: string;
+        };
+        /** MinecraftEntityCategoryOut */
+        MinecraftEntityCategoryOut: {
+            /** Key */
+            key: string;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /** MinecraftEntityTypeOut */
+        MinecraftEntityTypeOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Category
+             * @default
+             */
+            category: string;
+        };
+        /** MinecraftEntityWorldOut */
+        MinecraftEntityWorldOut: {
+            /** Id */
+            id: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** MinecraftFileChmodIn */
         MinecraftFileChmodIn: {
@@ -5798,6 +6218,30 @@ export interface components {
              * @default false
              */
             stable: boolean;
+            /**
+             * Version Type
+             * @default release
+             */
+            version_type: string;
+            /** Release Time */
+            release_time?: string | null;
+        };
+        /** MinecraftLiveConfigOut */
+        MinecraftLiveConfigOut: {
+            /** Path */
+            path: string;
+            /**
+             * Size
+             * @default 0
+             */
+            size: number;
+            /** Modified At */
+            modified_at?: string | null;
+            /**
+             * Kind
+             * @default mod
+             */
+            kind: string;
         };
         /** MinecraftLoaderVersionOut */
         MinecraftLoaderVersionOut: {
@@ -5974,6 +6418,11 @@ export interface components {
              */
             ok: boolean;
             /**
+             * Connected
+             * @default false
+             */
+            connected: boolean;
+            /**
              * Message
              * @default
              */
@@ -6000,6 +6449,7 @@ export interface components {
             range_end: string;
             /** Samples */
             samples?: components["schemas"]["MinecraftPerfSampleOut"][];
+            entities?: components["schemas"]["MinecraftEntitiesOut"];
         };
         /** MinecraftPerfSampleOut */
         MinecraftPerfSampleOut: {
@@ -6024,6 +6474,16 @@ export interface components {
              * @default
              */
             loader_version: string;
+            /**
+             * Egg Id
+             * @default 0
+             */
+            egg_id: number;
+            /**
+             * Startup
+             * @default
+             */
+            startup: string;
             /** Mods */
             mods?: components["schemas"]["MinecraftModPinOut"][];
             /** Properties */
@@ -6032,16 +6492,24 @@ export interface components {
             };
             /** Overrides */
             overrides?: components["schemas"]["MinecraftOverrideOut"][];
+        };
+        /** MinecraftPlaybookStagesOut */
+        MinecraftPlaybookStagesOut: {
             /**
-             * Public Host
-             * @default
+             * Bootstrap
+             * @default pending
              */
-            public_host: string;
+            bootstrap: string;
             /**
-             * Public Port
-             * @default 25565
+             * Mods
+             * @default pending
              */
-            public_port: number;
+            mods: string;
+            /**
+             * Config
+             * @default pending
+             */
+            config: string;
         };
         /** MinecraftPlayerOut */
         MinecraftPlayerOut: {
@@ -6140,6 +6608,16 @@ export interface components {
              * @default
              */
             loader_version: string;
+            /**
+             * Egg Id
+             * @default 0
+             */
+            egg_id: number;
+            /**
+             * Startup
+             * @default
+             */
+            startup: string;
             /** Mods */
             mods?: components["schemas"]["MinecraftModPinOut"][];
             /** Properties */
@@ -6148,16 +6626,6 @@ export interface components {
             };
             /** Overrides */
             overrides?: components["schemas"]["MinecraftOverrideOut"][];
-            /**
-             * Public Host
-             * @default
-             */
-            public_host: string;
-            /**
-             * Public Port
-             * @default 25565
-             */
-            public_port: number;
             /** Last Applied At */
             last_applied_at?: string | null;
             /** Last Apply Message */
@@ -6178,6 +6646,7 @@ export interface components {
              */
             playbook_dirty: boolean;
             applied?: components["schemas"]["MinecraftPlaybookOut"] | null;
+            stages?: components["schemas"]["MinecraftPlaybookStagesOut"];
         };
         /** MinecraftProfileUpdate */
         MinecraftProfileUpdate: {
@@ -6190,6 +6659,16 @@ export interface components {
              * @default
              */
             loader_version: string;
+            /**
+             * Egg Id
+             * @default 0
+             */
+            egg_id: number;
+            /**
+             * Startup
+             * @default
+             */
+            startup: string;
             /** Mods */
             mods?: components["schemas"]["MinecraftModPinOut"][];
             /** Properties */
@@ -6198,16 +6677,6 @@ export interface components {
             };
             /** Overrides */
             overrides?: components["schemas"]["MinecraftOverrideOut"][];
-            /**
-             * Public Host
-             * @default
-             */
-            public_host: string;
-            /**
-             * Public Port
-             * @default 25565
-             */
-            public_port: number;
         };
         /** MinecraftRconTestRequest */
         MinecraftRconTestRequest: {
@@ -6254,6 +6723,8 @@ export interface components {
             power_state?: string | null;
             /** Ping Online */
             ping_online: boolean;
+            /** Rcon Connected */
+            rcon_connected?: boolean | null;
             /** Latency Ms */
             latency_ms?: number | null;
             /**
@@ -15637,6 +16108,163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MinecraftApplyOut"];
+                };
+            };
+        };
+    };
+    minecraft_bootstrap_api_guides_minecraft_bootstrap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MinecraftEggSyncIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_sync_egg_api_guides_minecraft_sync_egg_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MinecraftEggSyncIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftEggsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_sync_mods_api_guides_minecraft_sync_mods_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftApplyOut"];
+                };
+            };
+        };
+    };
+    minecraft_apply_config_api_guides_minecraft_apply_config_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftApplyOut"];
+                };
+            };
+        };
+    };
+    minecraft_eggs_api_guides_minecraft_eggs_get: {
+        parameters: {
+            query?: {
+                loader?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftEggsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_live_configs_api_guides_minecraft_live_configs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftLiveConfigOut"][];
                 };
             };
         };

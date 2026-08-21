@@ -1,10 +1,11 @@
 import { DualAxes } from "@ant-design/plots";
-import { Card, Radio, Typography } from "antd";
+import { Card, Radio, Tag, Typography } from "antd";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { fetchMinecraftPerf } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
+import { MinecraftEntitiesCard } from "./MinecraftEntitiesCard";
 import styles from "./MinecraftLivePanel.module.css";
 
 /* DualAxes 用 children 配双轴，不是 React 子节点 */
@@ -84,7 +85,18 @@ export function MinecraftPerfCard() {
   const xDomainMax = spanMs > 0 ? rangeEnd : undefined;
 
   return (
-    <Card size="small" title="性能">
+    <>
+    <Card
+      size="small"
+      title="性能"
+      extra={
+        perf?.enabled ? (
+          <Tag color={perf.connected ? "green" : "default"}>
+            {perf.connected ? "RCON 已连接" : "RCON 未连接"}
+          </Tag>
+        ) : null
+      }
+    >
       <div className={styles.perfToolbar}>
         <Radio.Group
           size="small"
@@ -195,5 +207,7 @@ export function MinecraftPerfCard() {
         </>
       )}
     </Card>
+    <MinecraftEntitiesCard entities={perf?.entities} />
+    </>
   );
 }

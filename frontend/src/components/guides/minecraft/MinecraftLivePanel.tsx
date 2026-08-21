@@ -28,7 +28,7 @@ import {
   HOUR_MARKS,
   WEEKDAY_LABELS,
 } from "@/components/steam/constants";
-import { formatDuration, formatPlayDuration } from "@/components/steam/format";
+import { formatDuration } from "@/components/steam/format";
 import { SegmentHoverTip } from "@/components/steam/SegmentHoverTip";
 import {
   DEFAULT_SERVER_ICON,
@@ -95,8 +95,6 @@ function RosterCard({
   onlineCount: number;
   max?: number | null;
 }) {
-  const [showOffline, setShowOffline] = useState(true);
-  const [showOnline, setShowOnline] = useState(true);
   const [granularity, setGranularity] = useState<"day" | "week">("day");
   const [anchor, setAnchor] = useState(() => nowBeijing().startOf("day"));
 
@@ -158,6 +156,7 @@ function RosterCard({
       byKey.set(row.player_key, { ...row, segments: [...(row.segments ?? [])] });
     }
     for (const live of roster) {
+      if (!live.online) continue;
       const key = rosterPlayerKey(live);
       if (!key) continue;
       const hit =
@@ -166,7 +165,7 @@ function RosterCard({
           (row) => row.name.toLowerCase() === live.name.toLowerCase(),
         );
       if (hit) {
-        hit.online = live.online;
+        hit.online = true;
         hit.name = live.name || hit.name;
         if (live.id) hit.id = live.id;
         continue;
@@ -175,7 +174,7 @@ function RosterCard({
         player_key: key,
         name: live.name,
         id: live.id || "",
-        online: live.online,
+        online: true,
         online_seconds: 0,
         offline_seconds: 0,
         segments: [],
@@ -190,7 +189,12 @@ function RosterCard({
     });
   }, [presenceQuery.data, roster]);
 
-  const visible = rows.filter((row) => (row.online ? showOnline : showOffline));
+  const visible = rows.filter(
+    (row) =>
+      row.online ||
+      row.online_seconds > 0 ||
+      (row.segments ?? []).some((seg) => seg.status === "online"),
+  );
 
   const shift = (dir: -1 | 1) => {
     setAnchor((cur) =>
@@ -214,29 +218,7 @@ function RosterCard({
     >
       <div className={styles.rosterToolbar}>
         <Space wrap>
-          <Tag
-            color="#d9d9d9"
-            onClick={() => setShowOffline((v) => !v)}
-            style={{
-              color: "#595959",
-              cursor: "pointer",
-              opacity: showOffline ? 1 : 0.35,
-              textDecoration: showOffline ? undefined : "line-through",
-              userSelect: "none",
-            }}
-          >
-            离线
-          </Tag>
-          <Tag
-            color="#5b8ff9"
-            onClick={() => setShowOnline((v) => !v)}
-            style={{
-              cursor: "pointer",
-              opacity: showOnline ? 1 : 0.35,
-              textDecoration: showOnline ? undefined : "line-through",
-              userSelect: "none",
-            }}
-          >
+          <Tag color="#5b8ff9" style={{ userSelect: "none" }}>
             在线
           </Tag>
         </Space>
@@ -334,8 +316,7 @@ function RosterCard({
                         />
                       ))}
                     {(row.segments ?? []).map((seg, idx) => {
-                      if (seg.status === "offline" && !showOffline) return null;
-                      if (seg.status === "online" && !showOnline) return null;
+                      if (seg.status !== "online") return null;
                       const left = (seg.start_sec / spanSeconds) * 100;
                       const widthPct =
                         ((seg.end_sec - seg.start_sec) / spanSeconds) * 100;
@@ -344,7 +325,7 @@ function RosterCard({
                           key={`${row.player_key}-${idx}`}
                           title={
                             <SegmentHoverTip
-                              status={seg.status}
+                              status="online"
                               startSec={seg.start_sec}
                               endSec={seg.end_sec}
                               spanSeconds={spanSeconds}
@@ -353,11 +334,7 @@ function RosterCard({
                           }
                         >
                           <div
-                            className={`${styles.rosterSeg} ${
-                              seg.status === "online"
-                                ? styles.rosterOnline
-                                : styles.rosterOffline
-                            }`}
+                            className={`${styles.rosterSeg} ${styles.rosterOnline}`}
                             style={{
                               left: `${left}%`,
                               width: `${Math.max(widthPct, 0.08)}%`,
@@ -370,8 +347,8 @@ function RosterCard({
                   <span
                     className={styles.rosterDuration}
                     title={
-                      row.online_seconds || row.offline_seconds
-                        ? `离线 ${formatPlayDuration(row.offline_seconds)}`
+                      row.online_seconds
+                        ? formatDuration(row.online_seconds)
                         : "轮询开始后才会累计时长"
                     }
                   >
@@ -408,12 +385,16 @@ export function MinecraftLivePanel() {
     setIconFailed(false);
   }, [status?.favicon]);
 
-  const badge = pingBadge(Boolean(status?.ping_online), status?.power_state);
+  const badge = pingBadge(
+    Boolean(status?.ping_online),
+    status?.power_state,
+    status?.rcon_connected,
+  );
   const iconSrc =
     !iconFailed && status?.favicon ? status.favicon : DEFAULT_SERVER_ICON;
   const motdRaw =
     status?.motd_raw || status?.motd || applied?.properties?.motd || "";
-  const motdFallback = status?.ping_online
+  const motdFallback = status?.ping_online || status?.rcon_connected
     ? "A Minecraft Server"
     : statusQuery.isLoading
       ? ""

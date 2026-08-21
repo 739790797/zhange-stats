@@ -13,6 +13,11 @@ export type MinecraftProfileUpdate =
 export type MinecraftModPin = components["schemas"]["MinecraftModPinOut"];
 export type MinecraftOverride = components["schemas"]["MinecraftOverrideOut"];
 export type MinecraftApplyResult = components["schemas"]["MinecraftApplyOut"];
+export type MinecraftEggs = components["schemas"]["MinecraftEggsOut"];
+export type MinecraftLiveConfig =
+  components["schemas"]["MinecraftLiveConfigOut"];
+export type MinecraftPlaybookStages =
+  components["schemas"]["MinecraftPlaybookStagesOut"];
 export type MinecraftGameVersion =
   components["schemas"]["MinecraftGameVersionOut"];
 export type MinecraftModSearchHit =
@@ -83,11 +88,71 @@ export async function updateMinecraftProfile(payload: MinecraftProfileUpdate) {
   return data;
 }
 
+const PLAYBOOK_TIMEOUT = 360_000;
+
 export async function applyMinecraftProfile() {
   const { data } = await client.post<MinecraftApplyResult>(
     "/guides/minecraft/apply",
     {},
-    { timeout: 180_000 },
+    { timeout: PLAYBOOK_TIMEOUT },
+  );
+  return data;
+}
+
+export async function bootstrapMinecraftServer(payload?: {
+  startup?: string;
+  egg_id?: number | null;
+}) {
+  const { data } = await client.post<MinecraftApplyResult>(
+    "/guides/minecraft/bootstrap",
+    payload || {},
+    { timeout: PLAYBOOK_TIMEOUT },
+  );
+  return data;
+}
+
+export async function syncMinecraftEgg(payload?: {
+  startup?: string;
+  egg_id?: number | null;
+}) {
+  const { data } = await client.post<MinecraftEggs>(
+    "/guides/minecraft/sync-egg",
+    payload || {},
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
+export async function syncMinecraftMods() {
+  const { data } = await client.post<MinecraftApplyResult>(
+    "/guides/minecraft/sync-mods",
+    {},
+    { timeout: PLAYBOOK_TIMEOUT },
+  );
+  return data;
+}
+
+export async function applyMinecraftConfig() {
+  const { data } = await client.post<MinecraftApplyResult>(
+    "/guides/minecraft/apply-config",
+    {},
+    { timeout: PLAYBOOK_TIMEOUT },
+  );
+  return data;
+}
+
+export async function fetchMinecraftEggs(loader = "") {
+  const { data } = await client.get<MinecraftEggs>("/guides/minecraft/eggs", {
+    params: loader ? { loader } : {},
+    timeout: 30_000,
+  });
+  return data;
+}
+
+export async function fetchMinecraftLiveConfigs() {
+  const { data } = await client.get<MinecraftLiveConfig[]>(
+    "/guides/minecraft/live-configs",
+    { timeout: 45_000 },
   );
   return data;
 }

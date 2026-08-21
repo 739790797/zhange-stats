@@ -5,6 +5,280 @@ export const LOADERS = [
   { value: "neoforge", label: "NeoForge" },
 ];
 
+export const MOD_LOADERS = LOADERS.map((row) => row.value);
+
+export type ServerKind = "vanilla" | "mod" | "plugin" | "hybrid";
+export type McVersionChannel = "release" | "snapshot" | "old" | "fool";
+
+export type McGameVersion = {
+  version: string;
+  stable?: boolean;
+  version_type?: string | null;
+  release_time?: string | null;
+};
+
+export type MinecraftSetupValue = {
+  mcVersion: string;
+  kind: ServerKind | "";
+  core: string;
+};
+
+export type ServerKindOption = {
+  key: ServerKind;
+  name: string;
+  hint: string;
+};
+
+export type ServerCoreOption = {
+  key: string;
+  name: string;
+  hint: string;
+  /** 已接入档案的模组加载器；空表示还只是选型 */
+  loader: string;
+};
+
+export const SERVER_KINDS: ServerKindOption[] = [
+  { key: "vanilla", name: "纯净端", hint: "官方原版，无模组、无插件" },
+  { key: "mod", name: "模组端", hint: "Forge / NeoForge / Fabric / Quilt" },
+  { key: "plugin", name: "插件端", hint: "Paper / Purpur / Spigot" },
+  { key: "hybrid", name: "混合端", hint: "模组 + 插件，Mohist / Arclight 等" },
+];
+
+export const SERVER_CORES: Record<ServerKind, ServerCoreOption[]> = {
+  vanilla: [
+    { key: "vanilla", name: "Vanilla", hint: "官方原版服务端", loader: "" },
+  ],
+  mod: [
+    { key: "neoforge", name: "NeoForge", hint: "可以添加", loader: "neoforge" },
+    { key: "forge", name: "Forge", hint: "可以添加", loader: "forge" },
+    { key: "fabric", name: "Fabric", hint: "可以添加", loader: "fabric" },
+    { key: "quilt", name: "Quilt", hint: "可以添加", loader: "quilt" },
+  ],
+  plugin: [
+    { key: "paper", name: "Paper", hint: "可以添加", loader: "" },
+    { key: "purpur", name: "Purpur", hint: "可以添加", loader: "" },
+    { key: "spigot", name: "Spigot", hint: "可以添加", loader: "" },
+  ],
+  hybrid: [
+    { key: "mohist", name: "Mohist", hint: "Forge / NeoForge + 插件", loader: "" },
+    { key: "arclight", name: "Arclight", hint: "Forge / Fabric + 插件", loader: "" },
+    { key: "youer", name: "Youer", hint: "Fabric + 插件", loader: "" },
+    { key: "banner", name: "Banner", hint: "Fabric + 插件", loader: "" },
+    { key: "catserver", name: "CatServer", hint: "Forge + 插件，偏老版本", loader: "" },
+  ],
+};
+
+const APRIL_FOOLS = new Set([
+  "15w14a",
+  "1.RV-Pre1",
+  "3D Shareware v1.34",
+  "20w14infinite",
+  "22w13oneblockatatime",
+  "23w13a_or_b",
+  "24w14potato",
+  "25w14craftmine",
+]);
+
+export const VERSION_CHANNELS: { key: McVersionChannel; title: string }[] = [
+  { key: "release", title: "正式版" },
+  { key: "snapshot", title: "预览版" },
+  { key: "old", title: "远古版" },
+  { key: "fool", title: "愚人节版" },
+];
+
+export function isAprilFoolsVersion(id: string) {
+  const name = (id || "").trim();
+  if (!name) return false;
+  if (APRIL_FOOLS.has(name)) return true;
+  return /infinite|potato|oneblock|shareware|craftmine|_or_b|^2\.0/i.test(name);
+}
+
+export function classifyMcVersion(row: McGameVersion): McVersionChannel {
+  if (isAprilFoolsVersion(row.version)) return "fool";
+  const kind = (row.version_type || "").trim().toLowerCase();
+  if (kind === "old_alpha" || kind === "old_beta") return "old";
+  if (kind === "snapshot") return "snapshot";
+  if (kind === "release") return "release";
+  return row.stable ? "release" : "snapshot";
+}
+
+export function groupMcVersions(rows: McGameVersion[]) {
+  const groups: Record<McVersionChannel, McGameVersion[]> = {
+    release: [],
+    snapshot: [],
+    old: [],
+    fool: [],
+  };
+  for (const row of rows) {
+    groups[classifyMcVersion(row)].push(row);
+  }
+  return {
+    latestRelease: groups.release[0] || null,
+    latestSnapshot: groups.snapshot[0] || null,
+    groups,
+  };
+}
+
+export function coresForKind(kind: ServerKind | "") {
+  if (!kind) return [];
+  return SERVER_CORES[kind];
+}
+
+export function findServerKind(kind: ServerKind | "") {
+  return SERVER_KINDS.find((row) => row.key === kind);
+}
+
+export function findServerCore(kind: ServerKind | "", core: string) {
+  return coresForKind(kind).find((row) => row.key === core);
+}
+
+export function modLoaderOfCore(core: string) {
+  const key = (core || "").trim().toLowerCase();
+  return MOD_LOADERS.includes(key) ? key : "";
+}
+
+export function inferSetupFromPlaybook(
+  mcVersion: string,
+  loader: string,
+): MinecraftSetupValue {
+  const version = (mcVersion || "").trim();
+  const core = (loader || "").trim().toLowerCase();
+  if (!core || core === "vanilla") {
+    return { mcVersion: version, kind: core ? "vanilla" : "", core };
+  }
+  if (MOD_LOADERS.includes(core)) {
+    return { mcVersion: version, kind: "mod", core };
+  }
+  if (["paper", "purpur", "spigot", "bukkit"].includes(core)) {
+    return { mcVersion: version, kind: "plugin", core };
+  }
+  if (["mohist", "arclight", "youer", "banner", "catserver"].includes(core)) {
+    return { mcVersion: version, kind: "hybrid", core };
+  }
+  return { mcVersion: version, kind: "mod", core };
+}
+
+export function setupSummary(value: MinecraftSetupValue) {
+  const kind = findServerKind(value.kind);
+  const core = findServerCore(value.kind, value.core);
+  const parts = [value.mcVersion, kind?.name, core?.name].filter(Boolean);
+  return parts.join(" · ");
+}
+
+export type EggLoaderHint = {
+  egg_id?: number | null;
+  name?: string | null;
+  description?: string | null;
+  nest?: string | null;
+  startup?: string | null;
+  key?: string | null;
+  loaders?: string[] | null;
+};
+
+const LOADER_EGG_RULES: Record<string, { include: string[]; exclude: string[] }> =
+  {
+    neoforge: { include: ["neoforge"], exclude: [] },
+    fabric: { include: ["fabric"], exclude: ["quilt", "forge", "neoforge"] },
+    quilt: { include: ["quilt"], exclude: [] },
+    forge: { include: ["forge"], exclude: ["neoforge", "fabric"] },
+  };
+
+function eggBlob(egg: EggLoaderHint) {
+  return [
+    egg.name,
+    egg.description,
+    egg.nest,
+    egg.startup,
+    egg.key,
+    ...(egg.loaders || []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+export function inferEggLoader(egg: EggLoaderHint) {
+  const text = eggBlob(egg);
+  if (text.includes("neoforge")) return "neoforge";
+  if (text.includes("quilt")) return "quilt";
+  if (text.includes("fabric")) return "fabric";
+  if (text.includes("forge")) return "forge";
+  return "";
+}
+
+export function eggMatchesLoader(egg: EggLoaderHint, loader: string) {
+  const kind = (loader || "").trim().toLowerCase();
+  if (!kind) return true;
+  const preset = LOADER_EGG_RULES[kind];
+  if (!preset) return true;
+  const text = eggBlob(egg);
+  if (preset.exclude.some((token) => text.includes(token))) return false;
+  return preset.include.some((token) => text.includes(token));
+}
+
+export function eggsForLoader<T extends EggLoaderHint>(
+  eggs: T[],
+  loader: string,
+  currentEggId?: number | null,
+) {
+  const matched = eggs.filter((egg) => eggMatchesLoader(egg, loader));
+  const rows = matched.length ? matched : eggs;
+  if (!currentEggId) return rows;
+  const current = eggs.find((egg) => egg.egg_id === currentEggId);
+  if (current && !rows.some((egg) => egg.egg_id === currentEggId)) {
+    return [current, ...rows];
+  }
+  return rows;
+}
+
+export function pickSelectedEggId(opts: {
+  availableIds: Array<number | null | undefined>;
+  currentId?: number | null;
+  recommendedId?: number | null;
+  prev?: number | null;
+}) {
+  const ids = opts.availableIds.filter((id): id is number => Boolean(id));
+  if (opts.prev != null && ids.includes(opts.prev)) return opts.prev;
+  if (opts.currentId && ids.includes(opts.currentId)) return opts.currentId;
+  if (opts.recommendedId && ids.includes(opts.recommendedId)) {
+    return opts.recommendedId;
+  }
+  return ids[0] ?? null;
+}
+
+export function eggOptionLabel(
+  egg: { name?: string | null; nest?: string | null },
+  opts?: { current?: boolean; recommended?: boolean },
+) {
+  const name = (egg.name || "未命名 Egg").trim();
+  const nest = (egg.nest || "").trim();
+  const base = nest ? `${nest} / ${name}` : name;
+  const tags: string[] = [];
+  if (opts?.current) tags.push("当前");
+  if (opts?.recommended) tags.push("推荐");
+  return tags.length ? `${base}（${tags.join(" · ")}）` : base;
+}
+
+export const PLAYBOOK_STEPS = [
+  { key: "bootstrap", title: "基础开服", description: "选版本和核心" },
+  { key: "mods", title: "模组", description: "缺的再下载" },
+  { key: "config", title: "配置", description: "首启后再改" },
+] as const;
+
+export type PlaybookStageKey = (typeof PLAYBOOK_STEPS)[number]["key"];
+
+export function playbookStageColor(status?: string) {
+  if (status === "applied") return "green";
+  if (status === "dirty") return "gold";
+  return undefined;
+}
+
+export function playbookStageLabel(status?: string) {
+  if (status === "applied") return "已完成";
+  if (status === "dirty") return "有改动";
+  return "未执行";
+}
+
 export const PROPERTY_FIELDS: { key: string; label: string }[] = [
   { key: "motd", label: "MOTD" },
   { key: "max-players", label: "人数上限" },
@@ -133,8 +407,9 @@ export type PingBadgeKind = "online" | "busy" | "offline";
 export function pingBadge(
   pingOnline: boolean,
   powerState?: string | null,
+  rconConnected?: boolean | null,
 ): { kind: PingBadgeKind; text: string } {
-  if (pingOnline) return { kind: "online", text: "在线" };
+  if (pingOnline || rconConnected) return { kind: "online", text: "在线" };
   if (powerState === "starting") return { kind: "busy", text: "启动中" };
   if (powerState === "stopping") return { kind: "busy", text: "停止中" };
   return { kind: "offline", text: "离线" };

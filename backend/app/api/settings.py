@@ -94,6 +94,8 @@ class IntegrationsOut(BaseModel):
     pelican_base_url: str = ""
     pelican_client_token: str = ""
     pelican_client_token_set: bool = False
+    pelican_application_token: str = ""
+    pelican_application_token_set: bool = False
     pelican_server_uuid: str = ""
     pelican_configured: bool = False
     minecraft_rcon_host: str = ""
@@ -101,6 +103,9 @@ class IntegrationsOut(BaseModel):
     minecraft_rcon_password: str = ""
     minecraft_rcon_password_set: bool = False
     minecraft_rcon_configured: bool = False
+    minecraft_public_host: str = ""
+    minecraft_public_port: int = 25565
+    minecraft_public_configured: bool = False
 
 
 class IntegrationsUpdate(BaseModel):
@@ -116,12 +121,16 @@ class IntegrationsUpdate(BaseModel):
     clear_github_token: bool = False
     pelican_base_url: str | None = None
     pelican_client_token: str | None = None
+    pelican_application_token: str | None = None
     pelican_server_uuid: str | None = None
     clear_pelican_client_token: bool = False
+    clear_pelican_application_token: bool = False
     minecraft_rcon_host: str | None = None
     minecraft_rcon_port: int | None = Field(default=None, ge=0, le=65535)
     minecraft_rcon_password: str | None = None
     clear_minecraft_rcon_password: bool = False
+    minecraft_public_host: str | None = None
+    minecraft_public_port: int | None = Field(default=None, ge=0, le=65535)
 
 
 class AuthAdminBrief(BaseModel):

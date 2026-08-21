@@ -99,52 +99,62 @@ export default function SystemUpdatePage() {
 
   return (
     <div>
-      <PageHeader
-        title="系统更新"
-        subtitle="AstrBot 式：从 GitHub Release 下载源码与预构建前端，安装依赖后进程内 exec 重启"
-      />
+      <PageHeader title="系统更新" />
 
-      {!status?.update_allowed && status && (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="当前环境不可用应用内更新"
-          description={
-            status.update_blocked_reason ||
-            "仅 production（LXC）默认开启；开发机请用 git / run_dev.bat"
-          }
-        />
-      )}
-
-      <Card loading={statusQuery.isLoading} style={{ marginBottom: 16 }}>
+      <Card loading={statusQuery.isLoading}>
         <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-          <div>
-            <Typography.Text type="secondary">当前版本</Typography.Text>
-            <div>
-              <Typography.Title level={3} style={{ margin: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <Space align="center" wrap size={8}>
+              <Typography.Text type="secondary">当前版本</Typography.Text>
+              <Typography.Title level={3} style={{ margin: 0, lineHeight: 1.2 }}>
                 v{status?.current_version || "—"}
               </Typography.Title>
-            </div>
+              {status?.has_new_version ? (
+                <Tag color="processing">有新版本 v{status.latest_version}</Tag>
+              ) : (
+                <Tag>已是最新或未检查</Tag>
+              )}
+              {status?.busy || waitingRestart ? (
+                <Tag color="warning">
+                  {waitingRestart
+                    ? "等待服务恢复…"
+                    : `${status?.phase || "busy"} · ${status?.message || ""}`}
+                </Tag>
+              ) : null}
+            </Space>
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={checkMutation.isPending}
+                disabled={busy && !checkMutation.isPending}
+                onClick={() => checkMutation.mutate()}
+              >
+                检查更新
+              </Button>
+              <Button
+                type="primary"
+                icon={<CloudSyncOutlined />}
+                loading={updateMutation.isPending || waitingRestart}
+                disabled={!status?.update_allowed || busy}
+                onClick={() => {
+                  if (!status?.has_new_version) {
+                    message.info("未检测到新版本，仍将尝试更新到 latest");
+                  }
+                  updateMutation.mutate();
+                }}
+              >
+                一键更新
+              </Button>
+            </Space>
           </div>
-
-          <Space wrap>
-            {status?.has_new_version ? (
-              <Tag color="processing">有新版本 v{status.latest_version}</Tag>
-            ) : (
-              <Tag>已是最新或未检查</Tag>
-            )}
-            {status?.restart_strategy ? (
-              <Tag>重启: {status.restart_strategy}</Tag>
-            ) : null}
-            {status?.busy || waitingRestart ? (
-              <Tag color="warning">
-                {waitingRestart
-                  ? "等待服务恢复…"
-                  : `${status?.phase || "busy"} · ${status?.message || ""}`}
-              </Tag>
-            ) : null}
-          </Space>
 
           {status?.latest_body ? (
             <Typography.Paragraph
@@ -158,31 +168,6 @@ export default function SystemUpdatePage() {
           {status?.error ? (
             <Alert type="error" showIcon message={status.error} />
           ) : null}
-
-          <Space wrap>
-            <Button
-              icon={<ReloadOutlined />}
-              loading={checkMutation.isPending}
-              disabled={busy && !checkMutation.isPending}
-              onClick={() => checkMutation.mutate()}
-            >
-              检查更新
-            </Button>
-            <Button
-              type="primary"
-              icon={<CloudSyncOutlined />}
-              loading={updateMutation.isPending || waitingRestart}
-              disabled={!status?.update_allowed || busy}
-              onClick={() => {
-                if (!status?.has_new_version) {
-                  message.info("未检测到新版本，仍将尝试更新到 latest");
-                }
-                updateMutation.mutate();
-              }}
-            >
-              一键更新
-            </Button>
-          </Space>
         </Space>
       </Card>
     </div>

@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.34** — Minecraft 单服总览（Pelican 代操、RCON 性能图按时间段），塔科夫地图可交互查看。
+**v0.2.35** — Minecraft 开服按版本选纯净/模组/插件/混合端，公开地址进集成，管理设置页内容区对齐。
 
 ## 功能
 
@@ -8,7 +8,7 @@
 - Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；站内用户互看）
 - 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
 - 管理端：用户 / 集成密钥（含 NapCat、Pelican、Minecraft RCON）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
-- **游戏**：逃离塔科夫攻略站（全站搜索、物品分类、任务 / 商人 / BOSS、Tarkov Tracker 进度）；弹药穿透对照与枪械总表（定时自 tarkov.dev 同步）；**Minecraft 单服**（Pelican Client API 代操：服况、启停、版本/加载器/模组档案与配置覆盖）
+- **游戏**：逃离塔科夫攻略站（全站搜索、物品分类、任务 / 商人 / BOSS、Tarkov Tracker 进度）；弹药穿透对照与枪械总表（定时自 tarkov.dev 同步）；**Minecraft 单服**（Pelican 代操：服况、启停、开服选型与 Egg 剧本、模组/配置覆盖）
 - 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
 - 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
 - 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
@@ -165,7 +165,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（全站最新一份；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
 | `tarkov_guides_meta` | 藏身处与交换同步元数据（单行，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
-| `minecraft_server_profiles` | 圈子 Minecraft 单服目标档案（永远一行 `id=1`：草稿剧本为版本 / 加载器 / 核心 / 钉死模组 / 配置覆盖 / 公开地址；`applied_json` 为上次成功「应用」时的快照，对应当前服内生效配置；本体在 Pelican，不另起进程；RCON 连接在 `system_configs.integrations`，不进开服剧本） |
+| `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON TPS/MSPT 采样（约 10 秒一条；总览折线按时间窗分桶，空桶表示停采） |
 | `minecraft_presence_segments` | Minecraft 玩家在线/离线片段（总览时间轴）；索引含 `(player_key, started_at)` / `(player_key, ended_at)` |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
