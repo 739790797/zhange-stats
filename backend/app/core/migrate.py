@@ -245,7 +245,7 @@ def run_migrations() -> None:
                 "Alembic 修订号冲突（常见于 v0.2.37 双 0056）。"
                 "请在主机执行应急更新：\n"
                 "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
-                "scripts/emergency_update.sh | sudo bash"
+                "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
             ) from exc
         raise
 
