@@ -82,9 +82,8 @@
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   object-fit: contain;
-  image-rendering: pixelated;
   background: #f3f5f8;
 }
 

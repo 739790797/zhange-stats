@@ -4,12 +4,16 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { formatBeijing } from "@/lib/time";
 import {
   DEFAULT_SERVER_ICON,
+  MC_ICONS,
   SERVER_KINDS,
   VERSION_CHANNELS,
+  classifyMcVersion,
   coresForKind,
   findServerCore,
   findServerKind,
   groupMcVersions,
+  setupIcon,
+  versionChannelIcon,
   type McGameVersion,
   type MinecraftSetupValue,
   type ServerKind,
@@ -35,9 +39,9 @@ function releasedAt(row: McGameVersion) {
   return `发布于 ${formatBeijing(row.release_time, "YYYY/MM/DD HH:mm")}`;
 }
 
-function VersionIcon() {
+function SetupIcon({ src }: { src: string }) {
   return (
-    <img className={styles.icon} src={DEFAULT_SERVER_ICON} alt="" draggable={false} />
+    <img className={styles.icon} src={src || DEFAULT_SERVER_ICON} alt="" draggable={false} />
   );
 }
 
@@ -45,12 +49,14 @@ function Row({
   title,
   meta,
   hint,
+  icon,
   active,
   onClick,
 }: {
   title: string;
   meta?: string;
   hint?: string;
+  icon: string;
   active?: boolean;
   onClick: () => void;
 }) {
@@ -60,7 +66,7 @@ function Row({
       className={active ? `${styles.row} ${styles.rowActive}` : styles.row}
       onClick={onClick}
     >
-      <VersionIcon />
+      <SetupIcon src={icon} />
       <span className={styles.body}>
         <span className={styles.title}>{title}</span>
         {meta ? <span className={styles.meta}>{meta}</span> : null}
@@ -97,9 +103,11 @@ function Group({
 
 function DrillHeader({
   version,
+  icon,
   onBack,
 }: {
   version: string;
+  icon?: string;
   onBack: () => void;
 }) {
   return (
@@ -107,7 +115,7 @@ function DrillHeader({
       <button type="button" className={styles.back} onClick={onBack} aria-label="返回">
         <LeftOutlined />
       </button>
-      <VersionIcon />
+      <SetupIcon src={icon || MC_ICONS.vanilla} />
       <div className={styles.versionBox}>{version}</div>
     </div>
   );
@@ -137,7 +145,7 @@ export function MinecraftSetupPicker({
     return (
       <div className={styles.picker}>
         <div className={`${styles.card} ${styles.summary}`}>
-          <VersionIcon />
+          <SetupIcon src={setupIcon(value)} />
           <div className={styles.summaryBody}>
             <div className={styles.title}>{value.mcVersion || "未选版本"}</div>
             <div className={styles.meta}>
@@ -187,6 +195,7 @@ export function MinecraftSetupPicker({
       <div className={styles.picker}>
         <DrillHeader
           version={value.mcVersion}
+          icon={MC_ICONS.vanilla}
           onBack={() => setPane("versions")}
         />
         <div className={styles.card}>
@@ -196,6 +205,7 @@ export function MinecraftSetupPicker({
                 key={row.key}
                 title={row.name}
                 meta={row.hint}
+                icon={row.icon}
                 active={value.kind === row.key}
                 onClick={() => pickKind(row.key)}
               />
@@ -212,6 +222,7 @@ export function MinecraftSetupPicker({
       <div className={styles.picker}>
         <DrillHeader
           version={`${value.mcVersion}${kind ? ` · ${kind.name}` : ""}`}
+          icon={kind?.icon || MC_ICONS.vanilla}
           onBack={() => setPane("kinds")}
         />
         <div className={styles.card}>
@@ -221,6 +232,7 @@ export function MinecraftSetupPicker({
                 key={row.key}
                 title={row.name}
                 hint={row.hint}
+                icon={row.icon}
                 active={value.core === row.key}
                 onClick={() => pickCore(row.key)}
               />
@@ -254,6 +266,7 @@ export function MinecraftSetupPicker({
             meta={["最新正式版", releasedAt(grouped.latestRelease)]
               .filter(Boolean)
               .join("，")}
+            icon={MC_ICONS.vanilla}
             active={value.mcVersion === grouped.latestRelease.version}
             onClick={() => pickVersion(grouped.latestRelease!.version)}
           />
@@ -265,6 +278,7 @@ export function MinecraftSetupPicker({
             meta={["最新预览版", releasedAt(grouped.latestSnapshot)]
               .filter(Boolean)
               .join("，")}
+            icon={versionChannelIcon(classifyMcVersion(grouped.latestSnapshot))}
             active={value.mcVersion === grouped.latestSnapshot.version}
             onClick={() => pickVersion(grouped.latestSnapshot!.version)}
           />
@@ -284,6 +298,7 @@ export function MinecraftSetupPicker({
                 key={row.version}
                 title={row.version}
                 meta={releasedAt(row)}
+                icon={versionChannelIcon(classifyMcVersion(row))}
                 active={value.mcVersion === row.version}
                 onClick={() => pickVersion(row.version)}
               />

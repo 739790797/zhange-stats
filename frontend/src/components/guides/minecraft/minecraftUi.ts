@@ -7,6 +7,30 @@ export const LOADERS = [
 
 export const MOD_LOADERS = LOADERS.map((row) => row.value);
 
+const ICON = "/minecraft-icons";
+
+export const MC_ICONS = {
+  vanilla: `${ICON}/vanilla.svg`,
+  snapshot: `${ICON}/snapshot.svg`,
+  old: `${ICON}/old.svg`,
+  fool: `${ICON}/fool.svg`,
+  fabric: `${ICON}/fabric.svg`,
+  forge: `${ICON}/forge.svg`,
+  neoforge: `${ICON}/neoforge.svg`,
+  quilt: `${ICON}/quilt.svg`,
+  paper: `${ICON}/paper.svg`,
+  purpur: `${ICON}/purpur.svg`,
+  spigot: `${ICON}/spigot.svg`,
+  mohist: `${ICON}/mohist.svg`,
+  arclight: `${ICON}/arclight.svg`,
+  youer: `${ICON}/youer.svg`,
+  banner: `${ICON}/banner.svg`,
+  catserver: `${ICON}/catserver.svg`,
+  kindMod: `${ICON}/kind-mod.svg`,
+  kindPlugin: `${ICON}/kind-plugin.svg`,
+  kindHybrid: `${ICON}/kind-hybrid.svg`,
+} as const;
+
 export type ServerKind = "vanilla" | "mod" | "plugin" | "hybrid";
 export type McVersionChannel = "release" | "snapshot" | "old" | "fool";
 
@@ -27,6 +51,7 @@ export type ServerKindOption = {
   key: ServerKind;
   name: string;
   hint: string;
+  icon: string;
 };
 
 export type ServerCoreOption = {
@@ -35,36 +60,37 @@ export type ServerCoreOption = {
   hint: string;
   /** 已接入档案的模组加载器；空表示还只是选型 */
   loader: string;
+  icon: string;
 };
 
 export const SERVER_KINDS: ServerKindOption[] = [
-  { key: "vanilla", name: "纯净端", hint: "官方原版，无模组、无插件" },
-  { key: "mod", name: "模组端", hint: "Forge / NeoForge / Fabric / Quilt" },
-  { key: "plugin", name: "插件端", hint: "Paper / Purpur / Spigot" },
-  { key: "hybrid", name: "混合端", hint: "模组 + 插件，Mohist / Arclight 等" },
+  { key: "vanilla", name: "纯净端", hint: "官方原版，无模组、无插件", icon: MC_ICONS.vanilla },
+  { key: "mod", name: "模组端", hint: "Forge / NeoForge / Fabric / Quilt", icon: MC_ICONS.kindMod },
+  { key: "plugin", name: "插件端", hint: "Paper / Purpur / Spigot", icon: MC_ICONS.kindPlugin },
+  { key: "hybrid", name: "混合端", hint: "模组 + 插件，Mohist / Arclight 等", icon: MC_ICONS.kindHybrid },
 ];
 
 export const SERVER_CORES: Record<ServerKind, ServerCoreOption[]> = {
   vanilla: [
-    { key: "vanilla", name: "Vanilla", hint: "官方原版服务端", loader: "" },
+    { key: "vanilla", name: "Vanilla", hint: "官方原版服务端", loader: "", icon: MC_ICONS.vanilla },
   ],
   mod: [
-    { key: "neoforge", name: "NeoForge", hint: "可以添加", loader: "neoforge" },
-    { key: "forge", name: "Forge", hint: "可以添加", loader: "forge" },
-    { key: "fabric", name: "Fabric", hint: "可以添加", loader: "fabric" },
-    { key: "quilt", name: "Quilt", hint: "可以添加", loader: "quilt" },
+    { key: "neoforge", name: "NeoForge", hint: "可以添加", loader: "neoforge", icon: MC_ICONS.neoforge },
+    { key: "forge", name: "Forge", hint: "可以添加", loader: "forge", icon: MC_ICONS.forge },
+    { key: "fabric", name: "Fabric", hint: "可以添加", loader: "fabric", icon: MC_ICONS.fabric },
+    { key: "quilt", name: "Quilt", hint: "可以添加", loader: "quilt", icon: MC_ICONS.quilt },
   ],
   plugin: [
-    { key: "paper", name: "Paper", hint: "可以添加", loader: "" },
-    { key: "purpur", name: "Purpur", hint: "可以添加", loader: "" },
-    { key: "spigot", name: "Spigot", hint: "可以添加", loader: "" },
+    { key: "paper", name: "Paper", hint: "可以添加", loader: "", icon: MC_ICONS.paper },
+    { key: "purpur", name: "Purpur", hint: "可以添加", loader: "", icon: MC_ICONS.purpur },
+    { key: "spigot", name: "Spigot", hint: "可以添加", loader: "", icon: MC_ICONS.spigot },
   ],
   hybrid: [
-    { key: "mohist", name: "Mohist", hint: "Forge / NeoForge + 插件", loader: "" },
-    { key: "arclight", name: "Arclight", hint: "Forge / Fabric + 插件", loader: "" },
-    { key: "youer", name: "Youer", hint: "Fabric + 插件", loader: "" },
-    { key: "banner", name: "Banner", hint: "Fabric + 插件", loader: "" },
-    { key: "catserver", name: "CatServer", hint: "Forge + 插件，偏老版本", loader: "" },
+    { key: "mohist", name: "Mohist", hint: "Forge / NeoForge + 插件", loader: "", icon: MC_ICONS.mohist },
+    { key: "arclight", name: "Arclight", hint: "Forge / Fabric + 插件", loader: "", icon: MC_ICONS.arclight },
+    { key: "youer", name: "Youer", hint: "Fabric + 插件", loader: "", icon: MC_ICONS.youer },
+    { key: "banner", name: "Banner", hint: "Fabric + 插件", loader: "", icon: MC_ICONS.banner },
+    { key: "catserver", name: "CatServer", hint: "Forge + 插件，偏老版本", loader: "", icon: MC_ICONS.catserver },
   ],
 };
 
@@ -79,11 +105,11 @@ const APRIL_FOOLS = new Set([
   "25w14craftmine",
 ]);
 
-export const VERSION_CHANNELS: { key: McVersionChannel; title: string }[] = [
-  { key: "release", title: "正式版" },
-  { key: "snapshot", title: "预览版" },
-  { key: "old", title: "远古版" },
-  { key: "fool", title: "愚人节版" },
+export const VERSION_CHANNELS: { key: McVersionChannel; title: string; icon: string }[] = [
+  { key: "release", title: "正式版", icon: MC_ICONS.vanilla },
+  { key: "snapshot", title: "预览版", icon: MC_ICONS.snapshot },
+  { key: "old", title: "远古版", icon: MC_ICONS.old },
+  { key: "fool", title: "愚人节版", icon: MC_ICONS.fool },
 ];
 
 export function isAprilFoolsVersion(id: string) {
@@ -163,6 +189,18 @@ export function setupSummary(value: MinecraftSetupValue) {
   const core = findServerCore(value.kind, value.core);
   const parts = [value.mcVersion, kind?.name, core?.name].filter(Boolean);
   return parts.join(" · ");
+}
+
+export function versionChannelIcon(channel: McVersionChannel) {
+  return VERSION_CHANNELS.find((row) => row.key === channel)?.icon || MC_ICONS.vanilla;
+}
+
+export function setupIcon(value: Pick<MinecraftSetupValue, "kind" | "core">) {
+  const core = findServerCore(value.kind, value.core);
+  if (core?.icon) return core.icon;
+  const kind = findServerKind(value.kind);
+  if (kind?.icon) return kind.icon;
+  return MC_ICONS.vanilla;
 }
 
 export type EggLoaderHint = {

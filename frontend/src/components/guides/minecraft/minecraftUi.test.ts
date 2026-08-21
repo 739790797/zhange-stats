@@ -21,7 +21,10 @@ import {
   parentMinecraftPath,
   pickSelectedEggId,
   pingBadge,
+  setupIcon,
   setupSummary,
+  versionChannelIcon,
+  MC_ICONS,
 } from "@/components/guides/minecraft/minecraftUi";
 
 describe("minecraft file paths", () => {
@@ -209,6 +212,15 @@ describe("server setup kinds", () => {
     expect(setupSummary({ mcVersion: "1.21.1", kind: "mod", core: "fabric" })).toBe(
       "1.21.1 · 模组端 · Fabric",
     );
+  });
+
+  it("maps kinds and cores to icon files", () => {
+    expect(versionChannelIcon("snapshot")).toBe(MC_ICONS.snapshot);
+    expect(setupIcon({ kind: "mod", core: "fabric" })).toBe(MC_ICONS.fabric);
+    expect(setupIcon({ kind: "plugin", core: "paper" })).toBe(MC_ICONS.paper);
+    expect(setupIcon({ kind: "hybrid", core: "arclight" })).toBe(MC_ICONS.arclight);
+    expect(setupIcon({ kind: "plugin", core: "" })).toBe(MC_ICONS.kindPlugin);
+    expect(setupIcon({ kind: "", core: "" })).toBe(MC_ICONS.vanilla);
   });
 });
 
