@@ -14,6 +14,10 @@ from app.models.user import User, UserRole
 from app.schemas import UserOut
 from app.services.email import send_verification_email
 
+PURPOSE_REGISTER = "register"
+PURPOSE_BIND = "bind"
+PURPOSE_RESET = "reset"
+
 
 def _utcnow() -> datetime:
     return now_naive()
@@ -33,23 +37,49 @@ def _gen_username(db: Session) -> str:
     raise HTTPException(status_code=500, detail="无法生成唯一用户名，请重试")
 
 
-def _upsert_register_challenge(db: Session, email: str) -> tuple[str, dict]:
+def _upsert_register_challenge(
+    db: Session,
+    email: str,
+    *,
+    purpose: str = PURPOSE_REGISTER,
+) -> tuple[str, dict]:
     from app.services.email_config import load_email_config
 
     cfg = load_email_config(db)
     expire_minutes = max(1, int(cfg.get("code_expire_minutes") or 15))
     code = _gen_code()
     expires = _utcnow() + timedelta(minutes=expire_minutes)
-    row = db.query(RegisterChallenge).filter(RegisterChallenge.email == email).first()
+    row = (
+        db.query(RegisterChallenge)
+        .filter(
+            RegisterChallenge.email == email,
+            RegisterChallenge.purpose == purpose,
+        )
+        .first()
+    )
     if row:
         row.code = code
         row.expires_at = expires
     else:
-        db.add(RegisterChallenge(email=email, code=code, expires_at=expires))
+        db.add(
+            RegisterChallenge(
+                email=email,
+                purpose=purpose,
+                code=code,
+                expires_at=expires,
+            )
+        )
     db.commit()
-    delivery = send_verification_email(email, code, db=db)
+    delivery = send_verification_email(email, code, db=db, purpose=purpose)
     if delivery.get("mode") == "unavailable":
-        row = db.query(RegisterChallenge).filter(RegisterChallenge.email == email).first()
+        row = (
+            db.query(RegisterChallenge)
+            .filter(
+                RegisterChallenge.email == email,
+                RegisterChallenge.purpose == purpose,
+            )
+            .first()
+        )
         if row:
             db.delete(row)
             db.commit()
@@ -60,8 +90,21 @@ def _upsert_register_challenge(db: Session, email: str) -> tuple[str, dict]:
     return code, delivery
 
 
-def _consume_register_challenge(db: Session, email: str, code: str) -> None:
-    row = db.query(RegisterChallenge).filter(RegisterChallenge.email == email).first()
+def _consume_register_challenge(
+    db: Session,
+    email: str,
+    code: str,
+    *,
+    purpose: str = PURPOSE_REGISTER,
+) -> None:
+    row = (
+        db.query(RegisterChallenge)
+        .filter(
+            RegisterChallenge.email == email,
+            RegisterChallenge.purpose == purpose,
+        )
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=400, detail="请先发送验证码")
     if to_naive(row.expires_at) < _utcnow():

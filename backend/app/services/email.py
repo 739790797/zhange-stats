@@ -1,4 +1,4 @@
-"""发送注册验证码邮件；未配置 SMTP 时默认拒绝（可开 ALLOW_EMAIL_CODE_LOG 仅本地调试）。"""
+"""发送邮箱验证码；未配置 SMTP 时默认拒绝（可开 ALLOW_EMAIL_CODE_LOG 仅本地调试）。"""
 
 from __future__ import annotations
 
@@ -16,6 +16,12 @@ from app.services.email_config import load_email_config, resolve_mail_from
 
 logger = logging.getLogger(__name__)
 
+_PURPOSE_LABEL = {
+    "register": "注册",
+    "bind": "绑定邮箱",
+    "reset": "找回密码",
+}
+
 
 def _mask_code(code: str) -> str:
     raw = code or ""
@@ -24,11 +30,22 @@ def _mask_code(code: str) -> str:
     return ("*" * (len(raw) - 2)) + raw[-2:]
 
 
-def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
+def _purpose_label(purpose: str) -> str:
+    return _PURPOSE_LABEL.get((purpose or "").strip().lower(), "邮箱")
+
+
+def _send_with_config(
+    cfg: dict,
+    to_email: str,
+    code: str,
+    *,
+    purpose: str = "register",
+) -> dict:
     expire = int(cfg.get("code_expire_minutes") or 15)
+    label = _purpose_label(purpose)
     subject = "战鸽数据 · 邮箱验证码"
     body = (
-        f"您的注册验证码是：{code}\n\n"
+        f"您的{label}验证码是：{code}\n\n"
         f"有效期 {expire} 分钟。"
         "如非本人操作请忽略。"
     )
@@ -92,7 +109,11 @@ def _send_with_config(cfg: dict, to_email: str, code: str) -> dict:
 
 
 def send_verification_email(
-    to_email: str, code: str, db: Session | None = None
+    to_email: str,
+    code: str,
+    db: Session | None = None,
+    *,
+    purpose: str = "register",
 ) -> dict:
     """
     发送验证码。
@@ -104,7 +125,7 @@ def send_verification_email(
         own_session = True
     try:
         cfg = load_email_config(db)
-        return _send_with_config(cfg, to_email, code)
+        return _send_with_config(cfg, to_email, code, purpose=purpose)
     finally:
         if own_session:
             db.close()

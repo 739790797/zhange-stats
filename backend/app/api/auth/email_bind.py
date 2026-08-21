@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.auth.helpers import (
+    PURPOSE_BIND,
     _consume_register_challenge,
     _upsert_register_challenge,
     _user_out,
@@ -51,7 +52,7 @@ def send_bind_email_code(
     if taken:
         raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
 
-    _, delivery = _upsert_register_challenge(db, email)
+    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_BIND)
     msg = "验证码已发送"
     if delivery["mode"] == "log":
         msg = "验证码已输出到服务端日志（邮件未配置或发送失败）"
@@ -82,7 +83,7 @@ def bind_email(
     if taken:
         raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
 
-    _consume_register_challenge(db, email, code)
+    _consume_register_challenge(db, email, code, purpose=PURPOSE_BIND)
     user.email = email
     user.email_verified = True
     if body.password:

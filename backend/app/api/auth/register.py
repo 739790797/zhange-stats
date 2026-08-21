@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.auth.helpers import (
+    PURPOSE_REGISTER,
     _consume_register_challenge,
     _gen_username,
     _upsert_register_challenge,
@@ -43,7 +44,7 @@ def send_register_code(
             email=email,
             delivery="skipped",
         )
-    _, delivery = _upsert_register_challenge(db, email)
+    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_REGISTER)
     msg = "若该邮箱可注册，验证码已发送"
     if delivery["mode"] == "log":
         msg = "验证码已输出到服务端日志（邮件未配置或发送失败）"
@@ -67,7 +68,7 @@ def register(
     if existing and existing.email_verified:
         raise HTTPException(status_code=400, detail="邮箱已被注册")
 
-    _consume_register_challenge(db, email, code)
+    _consume_register_challenge(db, email, code, purpose=PURPOSE_REGISTER)
 
     # 清理未完成验证的旧账号（若有）
     if existing:
@@ -117,7 +118,7 @@ def verify_email(
         raise HTTPException(status_code=400, detail="验证失败，请检查邮箱与验证码")
     if user.email_verified:
         return {"message": "邮箱已验证，可直接登录"}
-    _consume_register_challenge(db, email, code)
+    _consume_register_challenge(db, email, code, purpose=PURPOSE_REGISTER)
     user.email_verified = True
     db.commit()
     return {"message": "邮箱验证成功，请登录"}
@@ -141,7 +142,7 @@ def resend_code(
             email=email,
             delivery="skipped",
         )
-    _, delivery = _upsert_register_challenge(db, email)
+    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_REGISTER)
     msg = "验证码已重新发送"
     if delivery["mode"] == "log":
         msg = "验证码已输出到服务端日志"

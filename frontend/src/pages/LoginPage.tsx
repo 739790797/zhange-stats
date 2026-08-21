@@ -176,6 +176,9 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
           </Form.Item>
+          <div style={{ marginTop: -8, marginBottom: 8, textAlign: "right" }}>
+            <Link to="/forgot-password">忘记密码？</Link>
+          </div>
           <Button
             type="primary"
             htmlType="submit"

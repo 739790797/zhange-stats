@@ -6,6 +6,7 @@ type RegisterResponse = components["schemas"]["RegisterResponse"];
 type BindEmailResponse = components["schemas"]["BindEmailResponse"];
 type LinkExistingAccountResponse =
   components["schemas"]["LinkExistingAccountResponse"];
+type ResetPasswordResponse = components["schemas"]["ResetPasswordResponse"];
 
 export async function login(username: string, password: string) {
   const { data } = await client.post<TokenResponse>("/auth/login", {
@@ -28,6 +29,26 @@ export async function sendRegisterCode(email: string) {
   const { data } = await client.post<RegisterResponse>(
     "/auth/send-register-code",
     { email },
+  );
+  return data;
+}
+
+export async function sendResetPasswordCode(email: string) {
+  const { data } = await client.post<ResetPasswordResponse>(
+    "/auth/send-reset-password-code",
+    { email },
+  );
+  return data;
+}
+
+export async function resetPassword(payload: {
+  email: string;
+  code: string;
+  new_password: string;
+}) {
+  const { data } = await client.post<ResetPasswordResponse>(
+    "/auth/reset-password",
+    payload,
   );
   return data;
 }

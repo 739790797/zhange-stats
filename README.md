@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.36** — Minecraft 开服选型为各加载器/核心配图标（纯净/模组/插件/混合）。
+**v0.2.37** — 邮箱找回密码（验证码重置）。
 
 ## 功能
 
@@ -182,7 +182,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理 |
 | `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度等） |
-| `register_challenges` | 注册验证码 |
+| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL） |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
 

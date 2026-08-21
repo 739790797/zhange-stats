@@ -51,3 +51,19 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendCodeRequest(BaseModel):
     email: EmailStr
+
+
+class SendResetPasswordCodeRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=16)
+    new_password: str = Field(min_length=1, max_length=72)
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str
+    email: str
+    delivery: str | None = None

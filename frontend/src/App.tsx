@@ -13,6 +13,7 @@ import MemberDetailPage from "@/pages/MemberDetailPage";
 import MyDailyPage from "@/pages/MyDailyPage";
 import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
 import RegisterPage from "@/pages/RegisterPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import SetupPage from "@/pages/SetupPage";
 import SklandPage from "@/pages/SklandPage";
 import SteamCalendarPage from "@/pages/SteamCalendarPage";
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route
               element={

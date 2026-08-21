@@ -4,6 +4,8 @@ export {
   login,
   register,
   sendRegisterCode,
+  sendResetPasswordCode,
+  resetPassword,
   sendBindEmailCode,
   bindEmail,
   linkExistingAccount,
