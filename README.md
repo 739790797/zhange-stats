@@ -91,7 +91,8 @@ sudo systemctl start zhange-stats
 若卡在 **v0.2.37 Alembic 双 0056** 导致进程起不来、无法用管理端更新，在主机执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts/emergency_update.sh | sudo bash
+# 推荐：拉主干源码（含自愈）+ 最新 Release 的 static
+curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts/emergency_update.sh | sudo SOURCE_REF=main bash
 ```
 
 **部署形态**：单 `app` 进程。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移均非多实例安全。水平扩展前须另行解决调度选举、共享 `DATA_DIR`/`SECRET_KEY`、迁移单点，以及共享 `REDIS_URL`。
