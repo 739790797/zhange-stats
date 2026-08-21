@@ -43,7 +43,11 @@ class MinecraftServerProfile(Base):
 
 
 class MinecraftPerfSample(Base):
-    """RCON TPS/MSPT 采样（10 秒一次；总览按时间窗分桶展示）。"""
+    """RCON 性能采样（约 10 秒一次；总览按时间窗分桶展示）。
+
+    `entities` / `chunks` 为可选旁路指标（实体来自 entity list 缓存；
+    区块来自 Essentials `gc` 等尽力解析，拿不到则为空）。
+    """
 
     __tablename__ = "minecraft_perf_samples"
 
@@ -53,6 +57,8 @@ class MinecraftPerfSample(Base):
     )
     tps: Mapped[float | None] = mapped_column(Float, nullable=True)
     mspt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    entities: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chunks: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class MinecraftPresenceSegment(Base):

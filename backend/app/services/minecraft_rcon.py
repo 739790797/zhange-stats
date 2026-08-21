@@ -17,6 +17,7 @@ TYPE_EXEC = 2
 TYPE_AUTH = 3
 _MAX_PACKET = 4096
 _COMMANDS = ("spark tps", "tick query", "tps")
+_CHUNK_COMMANDS = ("gc", "essentials:gc")
 _DEAD_HINTS = ("关闭", "超时", "连接", "Reset", "refused", "timed out")
 
 
@@ -146,6 +147,27 @@ def parse_perf_text(raw: str) -> dict[str, float | None]:
     return {"tps": tps, "mspt": mspt}
 
 
+def parse_chunks_text(raw: str) -> int | None:
+    """从 Essentials `/gc` 等文本里汇总已加载区块数。
+
+    Spark / 原版 NeoForge 没有轻量 RCON 接口给出区块数；常见回落是
+    EssentialsX 的 `World "x": N chunks, …`。找不到则返回 None。
+    """
+    text = strip_section_codes(raw or "").replace("\r", "\n")
+    if not text.strip():
+        return None
+    totals = [
+        int(match.group(1))
+        for match in re.finditer(r"(\d+)\s+chunks?\b", text, re.I)
+    ]
+    if totals:
+        return int(sum(totals))
+    single = re.search(r"\bchunks?\s*[:=]\s*(\d+)\b", text, re.I)
+    if single:
+        return int(single.group(1))
+    return None
+
+
 class RconSession:
     """进程内复用一条已认证的 RCON TCP；凭证变化或对端断开后再建连。"""
 
@@ -155,11 +177,15 @@ class RconSession:
         self._key: tuple[str, int, str] | None = None
         self._req = 0
         self._preferred_command: str | None = None
+        self._preferred_chunk_command: str | None = None
+        self._chunks_unsupported = False
 
     def reset(self) -> None:
         with self._lock:
             self._drop()
             self._preferred_command = None
+            self._preferred_chunk_command = None
+            self._chunks_unsupported = False
 
     def connected(self) -> bool:
         with self._lock:
@@ -169,10 +195,29 @@ class RconSession:
         with self._lock:
             self._preferred_command = command
 
+    def remember_chunk_command(self, command: str) -> None:
+        with self._lock:
+            self._preferred_chunk_command = command
+            self._chunks_unsupported = False
+
+    def mark_chunks_unsupported(self) -> None:
+        with self._lock:
+            self._chunks_unsupported = True
+
     @property
     def preferred_command(self) -> str | None:
         with self._lock:
             return self._preferred_command
+
+    @property
+    def preferred_chunk_command(self) -> str | None:
+        with self._lock:
+            return self._preferred_chunk_command
+
+    @property
+    def chunks_unsupported(self) -> bool:
+        with self._lock:
+            return self._chunks_unsupported
 
     def execute(
         self,
@@ -395,3 +440,30 @@ def query_perf(host: str, port: int, password: str, *, timeout: float = 3.0) -> 
             return {**parsed, "raw": text, "command": command}
         last_error = "RCON 已连通，但输出里没有 TPS/MSPT（NeoForge 请安装 Spark）"
     raise MinecraftRconError(last_error)
+
+
+def query_chunks(
+    host: str, port: int, password: str, *, timeout: float = 3.0
+) -> dict[str, Any] | None:
+    """尽力读取已加载区块总数；Spark/原版无轻量命令时返回 None。"""
+    if _SESSION.chunks_unsupported:
+        return None
+    commands = list(_CHUNK_COMMANDS)
+    preferred = _SESSION.preferred_chunk_command
+    if preferred in commands:
+        commands = [preferred, *[item for item in commands if item != preferred]]
+    for command in commands:
+        try:
+            text = rcon_exec(host, port, password, command, timeout=timeout)
+        except MinecraftRconError as exc:
+            if any(key in exc.message for key in ("密码", "连接", "超时", "地址", "端口")):
+                raise
+            continue
+        except OSError:
+            continue
+        chunks = parse_chunks_text(text)
+        if chunks is not None:
+            _SESSION.remember_chunk_command(command)
+            return {"chunks": chunks, "raw": text, "command": command}
+    _SESSION.mark_chunks_unsupported()
+    return None

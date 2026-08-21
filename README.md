@@ -172,7 +172,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `tarkov_guides_meta` | 藏身处与交换同步元数据（单行，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
 | `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
-| `minecraft_perf_samples` | Minecraft RCON TPS/MSPT 采样（约 10 秒一条；总览折线按时间窗分桶，空桶表示停采） |
+| `minecraft_perf_samples` | Minecraft RCON 性能采样（约 10 秒一条：TPS/MSPT，以及可选的实体总数 / 已加载区块；总览折线按时间窗分桶，空桶表示停采） |
 | `minecraft_presence_segments` | Minecraft 玩家在线/离线片段（总览时间轴）；索引含 `(player_key, started_at)` / `(player_key, ended_at)` |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
 | `arknights_rogue_raws` | 明日方舟肉鸽 GET `/game/arknights/rogue` 原始 JSON（按 member+uid+topic 最新一份；force / 首次回源） |

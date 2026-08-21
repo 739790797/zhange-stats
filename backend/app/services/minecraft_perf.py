@@ -18,6 +18,7 @@ from app.services.integrations_config import get_minecraft_rcon_credentials
 from app.services.minecraft_entities import query_entities
 from app.services.minecraft_rcon import (
     MinecraftRconError,
+    query_chunks,
     query_perf,
     reset_session,
     session_connected,
@@ -52,6 +53,8 @@ def _empty_status() -> dict[str, Any]:
         "message": "",
         "tps": None,
         "mspt": None,
+        "entity_total": None,
+        "chunks": None,
         "at": "",
     }
 
@@ -67,45 +70,53 @@ def _as_float(value: Any) -> float | None:
 
 
 def bucket_series(
-    samples: list[tuple[datetime, float | None, float | None]],
+    samples: list[
+        tuple[
+            datetime,
+            float | None,
+            float | None,
+            float | None,
+            float | None,
+        ]
+    ],
     start: datetime,
     end: datetime,
     buckets: int = CHART_BUCKETS,
 ) -> list[dict[str, Any]]:
-    """把样本填进 [start, end] 上等宽时间桶；空桶 tps/mspt 为 None。"""
+    """把样本填进 [start, end] 上等宽时间桶；空桶指标为 None。"""
     start_n = to_naive(start)
     end_n = to_naive(end)
     span = (end_n - start_n).total_seconds()
     if span <= 0 or buckets < 1:
         return []
     width = span / buckets
-    tps_sum = [0.0] * buckets
-    tps_n = [0] * buckets
-    mspt_sum = [0.0] * buckets
-    mspt_n = [0] * buckets
-    for at, tps, mspt in samples:
+    keys = ("tps", "mspt", "entities", "chunks")
+    sums = {key: [0.0] * buckets for key in keys}
+    counts = {key: [0] * buckets for key in keys}
+    for at, tps, mspt, entities, chunks in samples:
         offset = (to_naive(at) - start_n).total_seconds()
         if offset < 0 or offset > span:
             continue
         idx = int(offset / width)
         if idx >= buckets:
             idx = buckets - 1
-        if tps is not None:
-            tps_sum[idx] += tps
-            tps_n[idx] += 1
-        if mspt is not None:
-            mspt_sum[idx] += mspt
-            mspt_n[idx] += 1
+        for key, value in (
+            ("tps", tps),
+            ("mspt", mspt),
+            ("entities", entities),
+            ("chunks", chunks),
+        ):
+            if value is not None:
+                sums[key][idx] += value
+                counts[key][idx] += 1
     out: list[dict[str, Any]] = []
     for i in range(buckets):
         center = start_n + timedelta(seconds=(i + 0.5) * width)
-        out.append(
-            {
-                "at": _to_iso(center),
-                "tps": (tps_sum[i] / tps_n[i]) if tps_n[i] else None,
-                "mspt": (mspt_sum[i] / mspt_n[i]) if mspt_n[i] else None,
-            }
-        )
+        row: dict[str, Any] = {"at": _to_iso(center)}
+        for key in keys:
+            n = counts[key][i]
+            row[key] = (sums[key][i] / n) if n else None
+        out.append(row)
     return out
 
 
@@ -180,6 +191,8 @@ def _maybe_import_legacy(db: Session) -> None:
                     sampled_at=at,
                     tps=_as_float(row.get("tps")),
                     mspt=_as_float(row.get("mspt")),
+                    entities=_as_float(row.get("entities")),
+                    chunks=_as_float(row.get("chunks")),
                 )
             )
     ephemeral_delete(LEGACY_KV_KEY)
@@ -296,6 +309,10 @@ def load_status(db: Session | None = None) -> dict[str, Any]:
                 "message": str(data.get("message") or ""),
                 "tps": _as_float(data.get("tps")),
                 "mspt": _as_float(data.get("mspt")),
+                "entity_total": _as_float(
+                    data.get("entity_total", data.get("entities"))
+                ),
+                "chunks": _as_float(data.get("chunks")),
                 "at": str(data.get("at") or ""),
             }
     if db is None:
@@ -312,6 +329,8 @@ def load_status(db: Session | None = None) -> dict[str, Any]:
         "message": "",
         "tps": last.tps,
         "mspt": last.mspt,
+        "entity_total": last.entities,
+        "chunks": last.chunks,
         "at": _to_iso(last.sampled_at),
     }
 
@@ -334,6 +353,8 @@ def collect_perf(db: Session) -> None:
                 "message": "未配置 RCON",
                 "tps": None,
                 "mspt": None,
+                "entity_total": None,
+                "chunks": None,
                 "at": "",
             }
         )
@@ -343,11 +364,37 @@ def collect_perf(db: Session) -> None:
     db.commit()
     stamp = now().isoformat(timespec="seconds")
     sampled_at = now_naive()
+    collect_entities(host, port, password)
+    entities_state = load_entities()
+    entities_total = (
+        float(int(entities_state.get("total") or 0))
+        if entities_state.get("ok")
+        else None
+    )
+
+    chunks_total: float | None = None
+    try:
+        chunk_hit = query_chunks(host, port, password)
+        if chunk_hit and chunk_hit.get("chunks") is not None:
+            chunks_total = float(int(chunk_hit["chunks"]))
+    except MinecraftRconError as exc:
+        logger.info("minecraft rcon chunks: %s", exc.message)
+    except OSError as exc:
+        logger.info("minecraft rcon chunks os: %s", exc)
+
     try:
         parsed = query_perf(host, port, password)
         tps = _as_float(parsed.get("tps"))
         mspt = _as_float(parsed.get("mspt"))
-        db.add(MinecraftPerfSample(sampled_at=sampled_at, tps=tps, mspt=mspt))
+        db.add(
+            MinecraftPerfSample(
+                sampled_at=sampled_at,
+                tps=tps,
+                mspt=mspt,
+                entities=entities_total,
+                chunks=chunks_total,
+            )
+        )
         db.commit()
         _save_status(
             {
@@ -355,6 +402,8 @@ def collect_perf(db: Session) -> None:
                 "message": "",
                 "tps": tps,
                 "mspt": mspt,
+                "entity_total": entities_total,
+                "chunks": chunks_total,
                 "at": stamp,
             }
         )
@@ -366,6 +415,8 @@ def collect_perf(db: Session) -> None:
                 "message": exc.message,
                 "tps": None,
                 "mspt": None,
+                "entity_total": entities_total,
+                "chunks": chunks_total,
                 "at": stamp,
             }
         )
@@ -378,11 +429,12 @@ def collect_perf(db: Session) -> None:
                 "message": str(exc) or "无法连接 RCON",
                 "tps": None,
                 "mspt": None,
+                "entity_total": entities_total,
+                "chunks": chunks_total,
                 "at": stamp,
             }
         )
         logger.info("minecraft rcon perf os: %s", exc)
-    collect_entities(host, port, password)
 
 
 def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
@@ -391,7 +443,10 @@ def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
     enabled, _host, _port, _password = _rcon_ready(db)
     start_n, end_n = resolve_window(db, range_key)
     rows = _fetch_samples(db, start_n, end_n)
-    tuples = [(row.sampled_at, row.tps, row.mspt) for row in rows]
+    tuples = [
+        (row.sampled_at, row.tps, row.mspt, row.entities, row.chunks)
+        for row in rows
+    ]
     samples = bucket_series(tuples, start_n, end_n) if tuples else []
     status = load_status(db)
     message = str(status.get("message") or "")
@@ -404,6 +459,7 @@ def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
         "message": message,
         "tps": status.get("tps") if enabled else None,
         "mspt": status.get("mspt") if enabled else None,
+        "chunks": status.get("chunks") if enabled else None,
         "range": range_key,
         "range_start": _to_iso(start_n),
         "range_end": _to_iso(end_n),

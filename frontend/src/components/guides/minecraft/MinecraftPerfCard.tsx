@@ -86,128 +86,148 @@ export function MinecraftPerfCard() {
 
   return (
     <>
-    <Card
-      size="small"
-      title="性能"
-      extra={
-        perf?.enabled ? (
-          <Tag color={perf.connected ? "green" : "default"}>
-            {perf.connected ? "RCON 已连接" : "RCON 未连接"}
-          </Tag>
-        ) : null
-      }
-    >
-      <div className={styles.perfToolbar}>
-        <Radio.Group
-          size="small"
-          optionType="button"
-          value={range}
-          onChange={(e) => setRange(e.target.value as PerfRange)}
-          options={[...PERF_RANGES]}
-        />
-      </div>
-      {query.isError ? (
-        <Typography.Text type="secondary">
-          {apiError(query.error, "无法读取性能")}
-        </Typography.Text>
-      ) : !perf?.enabled && !hasPoint ? (
-        <Typography.Text type="secondary">
-          {perf?.message || "暂无性能数据"}
-        </Typography.Text>
-      ) : (
-        <>
-          {perf?.message && !perf.ok ? (
-            <Typography.Text type="secondary">{perf.message}</Typography.Text>
-          ) : null}
+      <Card
+        size="small"
+        title="性能"
+        extra={
+          perf?.enabled ? (
+            <Tag color={perf.connected ? "green" : "default"}>
+              {perf.connected ? "RCON 已连接" : "RCON 未连接"}
+            </Tag>
+          ) : null
+        }
+      >
+        <div className={styles.perfToolbar}>
           {hasPoint ? (
-            <DualAxes
-              height={240}
-              autoFit
-              data={chartData}
-              xField="t"
-              legend
-              scale={{
-                x: {
-                  type: "linear",
-                  domainMin: xDomainMin,
-                  domainMax: xDomainMax,
-                  tickCount: 6,
-                  nice: false,
-                },
-              }}
-              axis={{
-                x: {
-                  title: false,
-                  labelFormatter: (value: number) =>
-                    formatAxisTick(Number(value), spanMs),
-                },
-              }}
-              tooltip={{
-                title: (d: { t?: number }) =>
-                  formatTooltipTime(Number(d?.t), spanMs),
-              }}
-              children={[
-                {
-                  type: "line",
-                  yField: "tps",
-                  shapeField: "smooth",
-                  style: { stroke: "#5b8ff9", lineWidth: 2 },
-                  scale: {
-                    y: {
-                      domainMin: 0,
-                      domainMax: 20,
-                      independent: true,
-                      nice: false,
-                    },
-                  },
-                  axis: { y: { title: "TPS", position: "left" } },
-                  tooltip: {
-                    items: [
-                      {
-                        field: "tps",
-                        name: "TPS",
-                        valueFormatter: (v: number) => formatTps(v),
-                      },
-                    ],
-                  },
-                },
-                {
-                  type: "line",
-                  yField: "mspt",
-                  shapeField: "smooth",
-                  style: { stroke: "#faad14", lineWidth: 2 },
-                  scale: {
-                    y: {
-                      domainMin: 0,
-                      domainMax: msptMax,
-                      independent: true,
-                      nice: false,
-                    },
-                  },
-                  axis: { y: { title: "MSPT", position: "right" } },
-                  tooltip: {
-                    items: [
-                      {
-                        field: "mspt",
-                        name: "MSPT",
-                        valueFormatter: (v: number) => formatMspt(v),
-                      },
-                    ],
-                  },
-                },
-              ]}
-            />
+            <div className={styles.perfLegend} aria-hidden>
+              <span className={styles.perfLegendItem}>
+                <span
+                  className={styles.perfLegendDot}
+                  style={{ background: "#5b8ff9" }}
+                />
+                TPS
+              </span>
+              <span className={styles.perfLegendItem}>
+                <span
+                  className={styles.perfLegendDot}
+                  style={{ background: "#faad14" }}
+                />
+                MSPT
+              </span>
+            </div>
           ) : (
-            <Typography.Text type="secondary">
-              {range === "30m"
-                ? "正在采集，片刻后显示折线"
-                : "该时间段暂无样本"}
-            </Typography.Text>
+            <span />
           )}
-        </>
-      )}
-    </Card>
-    <MinecraftEntitiesCard entities={perf?.entities} />
+          <Radio.Group
+            size="small"
+            optionType="button"
+            value={range}
+            onChange={(e) => setRange(e.target.value as PerfRange)}
+            options={[...PERF_RANGES]}
+          />
+        </div>
+        {query.isError ? (
+          <Typography.Text type="secondary">
+            {apiError(query.error, "无法读取性能")}
+          </Typography.Text>
+        ) : !perf?.enabled && !hasPoint ? (
+          <Typography.Text type="secondary">
+            {perf?.message || "暂无性能数据"}
+          </Typography.Text>
+        ) : (
+          <>
+            {perf?.message && !perf.ok ? (
+              <Typography.Text type="secondary">{perf.message}</Typography.Text>
+            ) : null}
+            {hasPoint ? (
+              <DualAxes
+                height={240}
+                autoFit
+                data={chartData}
+                xField="t"
+                legend={false}
+                scale={{
+                  x: {
+                    type: "linear",
+                    domainMin: xDomainMin,
+                    domainMax: xDomainMax,
+                    tickCount: 6,
+                    nice: false,
+                  },
+                }}
+                axis={{
+                  x: {
+                    title: false,
+                    labelFormatter: (value: number) =>
+                      formatAxisTick(Number(value), spanMs),
+                  },
+                }}
+                tooltip={{
+                  title: (d: { t?: number }) =>
+                    formatTooltipTime(Number(d?.t), spanMs),
+                }}
+                children={[
+                  {
+                    type: "line",
+                    yField: "tps",
+                    shapeField: "smooth",
+                    style: { stroke: "#5b8ff9", lineWidth: 2 },
+                    scale: {
+                      y: {
+                        domainMin: 0,
+                        domainMax: 20,
+                        independent: true,
+                        nice: false,
+                      },
+                    },
+                    axis: { y: { title: "TPS", position: "left" } },
+                    tooltip: {
+                      items: [
+                        {
+                          field: "tps",
+                          name: "TPS",
+                          valueFormatter: (v: number) => formatTps(v),
+                        },
+                      ],
+                    },
+                  },
+                  {
+                    type: "line",
+                    yField: "mspt",
+                    shapeField: "smooth",
+                    style: { stroke: "#faad14", lineWidth: 2 },
+                    scale: {
+                      y: {
+                        domainMin: 0,
+                        domainMax: msptMax,
+                        independent: true,
+                        nice: false,
+                      },
+                    },
+                    axis: { y: { title: "MSPT", position: "right" } },
+                    tooltip: {
+                      items: [
+                        {
+                          field: "mspt",
+                          name: "MSPT",
+                          valueFormatter: (v: number) => formatMspt(v),
+                        },
+                      ],
+                    },
+                  },
+                ]}
+              />
+            ) : (
+              <Typography.Text type="secondary">
+                {range === "30m"
+                  ? "正在采集，片刻后显示折线"
+                  : "该时间段暂无样本"}
+              </Typography.Text>
+            )}
+          </>
+        )}
+      </Card>
+      <MinecraftEntitiesCard entities={perf?.entities} />
     </>
   );
 }

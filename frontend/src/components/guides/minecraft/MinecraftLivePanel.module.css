@@ -147,9 +147,34 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 8px 12px;
   margin-bottom: 8px;
+  min-height: 24px;
+}
+
+.perfLegend {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  line-height: 24px;
+}
+
+.perfLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.perfLegendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .rosterScroll {
@@ -159,7 +184,7 @@
 .rosterMarks {
   position: relative;
   height: 20px;
-  margin: 0 80px 8px 120px;
+  margin: 0 80px 8px 184px;
 }
 
 .rosterMark {
@@ -179,11 +204,13 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  width: 112px;
+  width: 176px;
   padding-left: 4px;
 }
 
 .rosterName {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
@@ -229,44 +256,112 @@
   min-width: 72px;
 }
 
-.entitySummary {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
+.entityWorlds {
+  display: block;
+  font-size: 12px;
   margin-bottom: 12px;
 }
 
-.entityTotal {
+.entityChartTitle {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.entityPieWrap {
+  position: relative;
+}
+
+.entityPieCenter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  min-width: 88px;
+  align-items: center;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.entityTotalNum {
-  font-size: 28px;
+.entityPieCenterNum {
+  font-size: 22px;
   font-weight: 650;
   line-height: 1.1;
+  color: rgba(0, 0, 0, 0.88);
 }
 
-.entityTotalLabel {
+.entityPieCenterLabel {
+  margin-top: 2px;
   font-size: 12px;
   color: rgba(0, 0, 0, 0.45);
-  margin-top: 4px;
 }
 
-.entityCats {
-  flex: 1;
+.entityTypeList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.entityTypeRow {
+  display: grid;
+  grid-template-columns: 20px minmax(72px, 108px) minmax(0, 1fr) 40px;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 22px;
+}
+
+.entityIcon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.entityIconFallback {
+  display: inline-block;
+  border-radius: 3px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+}
+
+.entityTypeName {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.88);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entityTypeBarTrack {
+  height: 10px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  overflow: hidden;
   min-width: 0;
 }
 
-.entityWorlds {
-  display: block;
-  margin-bottom: 12px;
+.entityTypeBarFill {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+}
+
+.entityTypeCount {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.65);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .rosterShell {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr) max-content;
+  grid-template-columns: 176px minmax(0, 1fr) max-content;
   column-gap: 8px;
   row-gap: 10px;
   align-items: center;
@@ -277,7 +372,28 @@
 }
 
 .head {
+  flex: 0 0 24px;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px;
+  min-height: 24px;
   image-rendering: pixelated;
+}
+
+.head :global(img) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  object-position: center;
+}
+
+.headOffline {
+  opacity: 0.38;
+  filter: grayscale(0.25);
+}
+
+.rosterNameOffline {
+  color: rgba(0, 0, 0, 0.45);
 }
 
 @media (max-width: 720px) {

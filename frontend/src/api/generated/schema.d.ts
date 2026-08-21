@@ -6465,6 +6465,8 @@ export interface components {
             tps?: number | null;
             /** Mspt */
             mspt?: number | null;
+            /** Chunks */
+            chunks?: number | null;
             /**
              * Range
              * @default 30m
@@ -6496,6 +6498,10 @@ export interface components {
             tps?: number | null;
             /** Mspt */
             mspt?: number | null;
+            /** Entities */
+            entities?: number | null;
+            /** Chunks */
+            chunks?: number | null;
         };
         /** MinecraftPlaybookOut */
         MinecraftPlaybookOut: {

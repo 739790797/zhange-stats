@@ -311,6 +311,8 @@ class MinecraftPerfSampleOut(BaseModel):
     at: str = ""
     tps: float | None = None
     mspt: float | None = None
+    entities: float | None = None
+    chunks: float | None = None
 
 
 class MinecraftPerfOut(BaseModel):
@@ -320,6 +322,7 @@ class MinecraftPerfOut(BaseModel):
     message: str = ""
     tps: float | None = None
     mspt: float | None = None
+    chunks: float | None = None
     range: Literal["30m", "1h", "12h", "24h", "30d", "all"] = "30m"
     range_start: str = ""
     range_end: str = ""

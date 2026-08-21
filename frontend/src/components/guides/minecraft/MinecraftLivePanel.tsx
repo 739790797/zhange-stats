@@ -153,10 +153,13 @@ function RosterCard({
   const rows = useMemo(() => {
     const byKey = new Map<string, PresenceRow>();
     for (const row of presenceQuery.data?.rows ?? []) {
-      byKey.set(row.player_key, { ...row, segments: [...(row.segments ?? [])] });
+      byKey.set(row.player_key, {
+        ...row,
+        online: Boolean(row.online),
+        segments: [...(row.segments ?? [])],
+      });
     }
     for (const live of roster) {
-      if (!live.online) continue;
       const key = rosterPlayerKey(live);
       if (!key) continue;
       const hit =
@@ -165,7 +168,7 @@ function RosterCard({
           (row) => row.name.toLowerCase() === live.name.toLowerCase(),
         );
       if (hit) {
-        hit.online = true;
+        if (live.online) hit.online = true;
         hit.name = live.name || hit.name;
         if (live.id) hit.id = live.id;
         continue;
@@ -174,7 +177,7 @@ function RosterCard({
         player_key: key,
         name: live.name,
         id: live.id || "",
-        online: true,
+        online: Boolean(live.online),
         online_seconds: 0,
         offline_seconds: 0,
         segments: [],
@@ -182,19 +185,9 @@ function RosterCard({
     }
     return [...byKey.values()].sort((a, b) => {
       if (a.online !== b.online) return a.online ? -1 : 1;
-      if (b.online_seconds !== a.online_seconds) {
-        return b.online_seconds - a.online_seconds;
-      }
-      return a.name.localeCompare(b.name, "en");
+      return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
     });
   }, [presenceQuery.data, roster]);
-
-  const visible = rows.filter(
-    (row) =>
-      row.online ||
-      row.online_seconds > 0 ||
-      (row.segments ?? []).some((seg) => seg.status === "online"),
-  );
 
   const shift = (dir: -1 | 1) => {
     setAnchor((cur) =>
@@ -271,7 +264,7 @@ function RosterCard({
       ) : null}
 
       <Spin spinning={presenceQuery.isFetching && !presenceQuery.data}>
-        {visible.length ? (
+        {rows.length ? (
           <div className={styles.rosterScroll}>
             <div
               style={{
@@ -290,18 +283,25 @@ function RosterCard({
               ))}
             </div>
             <div className={styles.rosterShell}>
-              {visible.map((row) => (
+              {rows.map((row) => (
                 <div key={row.player_key} className={styles.rosterRow}>
                   <div className={styles.rosterLabel}>
                     <Avatar
                       size={24}
                       shape="square"
                       src={minecraftHeadUrl(row)}
-                      className={styles.head}
+                      className={`${styles.head}${
+                        row.online ? "" : ` ${styles.headOffline}`
+                      }`}
                     >
                       {row.name.slice(0, 1)}
                     </Avatar>
-                    <span className={styles.rosterName} title={row.name}>
+                    <span
+                      className={`${styles.rosterName}${
+                        row.online ? "" : ` ${styles.rosterNameOffline}`
+                      }`}
+                      title={row.name}
+                    >
                       {row.name}
                     </span>
                   </div>
@@ -477,13 +477,13 @@ export function MinecraftLivePanel() {
         )}
       </Card>
 
-      <MinecraftPerfCard />
-
       <RosterCard
         roster={roster}
         onlineCount={onlineCount}
         max={status?.players_max}
       />
+
+      <MinecraftPerfCard />
     </div>
   );
 }

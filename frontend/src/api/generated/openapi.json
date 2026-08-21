@@ -16278,6 +16278,17 @@
             ],
             "title": "Mspt"
           },
+          "chunks": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunks"
+          },
           "range": {
             "type": "string",
             "enum": [
@@ -16343,6 +16354,28 @@
               }
             ],
             "title": "Mspt"
+          },
+          "entities": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entities"
+          },
+          "chunks": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunks"
           }
         },
         "type": "object",
