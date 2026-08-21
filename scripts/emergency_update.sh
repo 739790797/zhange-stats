@@ -123,9 +123,15 @@ if [[ -d /run/systemd/system ]] && command -v systemctl >/dev/null 2>&1; then
   systemctl restart "${SERVICE_NAME}"
   sleep 2
   systemctl --no-pager --full status "${SERVICE_NAME}" || true
-  if curl -fsS "http://127.0.0.1:8000/health" >/dev/null 2>&1; then
-    log "健康检查通过: $(curl -fsS http://127.0.0.1:8000/health)"
-  else
+  HEALTH_OK=0
+  for port in 8080 8000; do
+    if curl -fsS "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
+      log "健康检查通过 (:${port}): $(curl -fsS "http://127.0.0.1:${port}/health")"
+      HEALTH_OK=1
+      break
+    fi
+  done
+  if [[ "${HEALTH_OK}" -ne 1 ]]; then
     log "WARN: /health 尚未就绪，请 journalctl -u ${SERVICE_NAME} -n 80 --no-pager"
   fi
 else
