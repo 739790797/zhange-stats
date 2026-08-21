@@ -1,7 +1,7 @@
 """register_challenges: composite PK (email, purpose).
 
-Revision ID: 20260821_0056
-Revises: 20260821_0055
+Revision ID: 20260821_0058
+Revises: 20260821_0057
 Create Date: 2026-08-21
 
 Ephemeral verification codes; drop/recreate is safe.
@@ -14,8 +14,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "20260821_0056"
-down_revision: Union[str, Sequence[str], None] = "20260821_0055"
+revision: str = "20260821_0058"
+down_revision: Union[str, Sequence[str], None] = "20260821_0057"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
