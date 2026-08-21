@@ -1,6 +1,6 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.38** — 修复 Alembic 0056 修订号冲突（找回密码迁移改为 0058）。
+**v0.2.39** — 生产应急更新脚本 + 迁移自愈（修复 v0.2.37 卡死）。
 
 ## 功能
 
@@ -87,7 +87,12 @@ sudo systemctl start zhange-stats
 3. **`os.execv` 同 PID 换码**（无需 `systemctl`、无需 root）  
 4. 安装树须属服务用户（`zhange`）可写；勿用 root 手改代码属主
 
-应急排障（非常规升级路径）：`sudo systemctl restart zhange-stats`。
+应急排障（非常规升级路径）：`sudo systemctl restart zhange-stats`。  
+若卡在 **v0.2.37 Alembic 双 0056** 导致进程起不来、无法用管理端更新，在主机执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts/emergency_update.sh | sudo bash
+```
 
 **部署形态**：单 `app` 进程。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移均非多实例安全。水平扩展前须另行解决调度选举、共享 `DATA_DIR`/`SECRET_KEY`、迁移单点，以及共享 `REDIS_URL`。
 

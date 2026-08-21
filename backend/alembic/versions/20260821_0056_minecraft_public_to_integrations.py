@@ -55,28 +55,35 @@ def _write_integrations(bind, row, stored: dict) -> None:
 
 def upgrade() -> None:
     bind = op.get_bind()
-    profile = bind.execute(
-        sa.text(
-            "SELECT public_host, public_port FROM minecraft_server_profiles WHERE id = 1"
-        )
-    ).mappings().first()
-    if profile:
-        host = (profile["public_host"] or "").strip()
-        try:
-            port = int(profile["public_port"] or 25565)
-        except (TypeError, ValueError):
-            port = 25565
-        if port < 1 or port > 65535:
-            port = 25565
-        if host or port != 25565:
-            row, stored = _load_integrations(bind)
-            if host:
-                stored.setdefault("minecraft_public_host", host)
-            stored.setdefault("minecraft_public_port", port)
-            _write_integrations(bind, row, stored)
+    cols = {c["name"] for c in sa.inspect(bind).get_columns("minecraft_server_profiles")}
+    if "public_host" not in cols and "public_port" not in cols:
+        return
 
-    op.drop_column("minecraft_server_profiles", "public_port")
-    op.drop_column("minecraft_server_profiles", "public_host")
+    if "public_host" in cols and "public_port" in cols:
+        profile = bind.execute(
+            sa.text(
+                "SELECT public_host, public_port FROM minecraft_server_profiles WHERE id = 1"
+            )
+        ).mappings().first()
+        if profile:
+            host = (profile["public_host"] or "").strip()
+            try:
+                port = int(profile["public_port"] or 25565)
+            except (TypeError, ValueError):
+                port = 25565
+            if port < 1 or port > 65535:
+                port = 25565
+            if host or port != 25565:
+                row, stored = _load_integrations(bind)
+                if host:
+                    stored.setdefault("minecraft_public_host", host)
+                stored.setdefault("minecraft_public_port", port)
+                _write_integrations(bind, row, stored)
+
+    if "public_port" in cols:
+        op.drop_column("minecraft_server_profiles", "public_port")
+    if "public_host" in cols:
+        op.drop_column("minecraft_server_profiles", "public_host")
 
 
 def downgrade() -> None:

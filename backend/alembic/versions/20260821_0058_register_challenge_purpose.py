@@ -21,6 +21,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    cols = {c["name"] for c in sa.inspect(bind).get_columns("register_challenges")}
+    pk = sa.inspect(bind).get_pk_constraint("register_challenges") or {}
+    pk_cols = list(pk.get("constrained_columns") or [])
+    if "purpose" in cols and pk_cols == ["email", "purpose"]:
+        return
+
     op.drop_table("register_challenges")
     op.create_table(
         "register_challenges",
