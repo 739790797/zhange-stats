@@ -1,3 +1,4 @@
+import { apiError } from "@/lib/apiError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spin } from "antd";
 import L from "leaflet";
@@ -309,7 +310,7 @@ export function TarkovMapViewer({
       .catch((exc: unknown) => {
         if (cancelled) return;
         setLoading(false);
-        setError(exc instanceof Error ? exc.message : "地图加载失败");
+        setError(apiError(exc, "地图加载失败"));
       });
 
     return () => {

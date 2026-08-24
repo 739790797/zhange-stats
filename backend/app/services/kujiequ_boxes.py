@@ -348,7 +348,13 @@ def get_ww_box_for_member(
         _save_creds(bind, creds)
         db.commit()
 
-    roles = list_roles_for_game(creds, GAME_WW)
+    roles: list[GameRole] | None = None
+    if not force:
+        from app.services.box_role_cache import kujiequ_ww_roles_from_raws
+
+        roles = kujiequ_ww_roles_from_raws(db, member.id)
+    if roles is None:
+        roles = list_roles_for_game(creds, GAME_WW)
     if not roles:
         raise KujiequApiError("未找到鸣潮绑定角色")
 
@@ -360,8 +366,8 @@ def get_ww_box_for_member(
         role = roles[0]
     if role is None:
         raise KujiequApiError("UID 不在当前鸣潮绑定列表中")
-    if not role.role_id or not role.server_id:
-        raise KujiequApiError("鸣潮角色缺少 roleId/serverId，请重新绑定库街区")
+    if not role.role_id:
+        raise KujiequApiError("鸣潮角色缺少 roleId，请重新绑定库街区")
 
     row = (
         db.query(KujiequWwBoxRaw)
@@ -371,6 +377,14 @@ def get_ww_box_for_member(
         )
         .one_or_none()
     )
+    if (force or row is None) and not role.server_id:
+        roles = list_roles_for_game(creds, GAME_WW)
+        if target_uid:
+            role = next((r for r in roles if r.role_id == target_uid), None)
+        else:
+            role = roles[0] if roles else None
+        if role is None or not role.role_id or not role.server_id:
+            raise KujiequApiError("鸣潮角色缺少 roleId/serverId，请重新绑定库街区")
     stale = False
     if force or row is None:
         try:

@@ -10,6 +10,7 @@ export const CHECKIN_PLATFORM_LABELS: Record<string, string> = {
   taygedo: "塔吉多",
   exilium: "追放",
   kujiequ: "库街区",
+  mihoyo: "米游社",
 };
 
 /** 各平台「社区」签到的 game_code，展示时排最前 */
@@ -17,6 +18,7 @@ export const COMMUNITY_CHECKIN_GAME_CODES = new Set([
   "app", // 塔吉多
   "kujiequ", // 库街区
   "exilium_bbs", // 追放
+  "mihoyo", // 米游社
 ]);
 
 export function isCommunityCheckinGame(gameCode?: string | null) {

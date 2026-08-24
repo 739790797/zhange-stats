@@ -78,9 +78,7 @@ export default function SystemUpdatePage() {
           if (st?.error) {
             message.error(st.error);
           } else {
-            message.error(
-              e instanceof Error ? e.message : "请手动刷新确认是否已更新",
-            );
+            message.error(apiError(e, "请手动刷新确认是否已更新"));
           }
         } finally {
           setWaitingRestart(false);

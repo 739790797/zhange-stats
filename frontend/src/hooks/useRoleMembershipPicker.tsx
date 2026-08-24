@@ -12,6 +12,7 @@ const STATUS_QUERY_KEY: Record<CheckinPlatformKey, string[]> = {
   taygedo: ["taygedo-status"],
   exilium: ["exilium-status"],
   kujiequ: ["kujiequ-status"],
+  mihoyo: ["mihoyo-status"],
 };
 
 /**

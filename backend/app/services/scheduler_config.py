@@ -18,9 +18,12 @@ JOB_IDS = (
     "skland_checkin",
     "arknights_box_sync",
     "arknights_catalog_sync",
+    "game_schedule_arknights_sync",
+    "game_schedule_endfield_sync",
     "taygedo_checkin",
     "exilium_checkin",
     "kujiequ_checkin",
+    "mihoyo_checkin",
     "tarkov_items_sync",
     "tarkov_tasks_sync",
     "tarkov_traders_sync",
@@ -81,6 +84,16 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "hour": _clamp_hour(s.ARKNIGHTS_CATALOG_SYNC_HOUR),
             "minute": _clamp_minute(s.ARKNIGHTS_CATALOG_SYNC_MINUTE),
         },
+        "game_schedule_arknights_sync": {
+            "enabled": bool(s.GAME_SCHEDULE_SYNC_ENABLED),
+            "hour": _clamp_hour(s.GAME_SCHEDULE_SYNC_HOUR),
+            "minute": _clamp_minute(s.GAME_SCHEDULE_SYNC_MINUTE),
+        },
+        "game_schedule_endfield_sync": {
+            "enabled": bool(s.GAME_SCHEDULE_SYNC_ENABLED),
+            "hour": _clamp_hour(s.GAME_SCHEDULE_SYNC_HOUR),
+            "minute": _clamp_minute(s.GAME_SCHEDULE_SYNC_MINUTE),
+        },
         "tarkov_items_sync": {
             "enabled": bool(
                 getattr(s, "TARKOV_ITEMS_SYNC_ENABLED", True)
@@ -127,6 +140,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(s.KUJIEQU_CHECKIN_ENABLED),
             "hour": _clamp_hour(s.KUJIEQU_CHECKIN_HOUR),
             "minute": _clamp_minute(s.KUJIEQU_CHECKIN_MINUTE),
+        },
+        "mihoyo_checkin": {
+            "enabled": bool(s.MIHOYO_CHECKIN_ENABLED),
+            "hour": _clamp_hour(s.MIHOYO_CHECKIN_HOUR),
+            "minute": _clamp_minute(s.MIHOYO_CHECKIN_MINUTE),
         },
         "job_runs_prune": {
             "enabled": True,
@@ -192,6 +210,13 @@ def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
                 if isinstance(stored.get(legacy), dict):
                     item = stored[legacy]
                     break
+        if not isinstance(item, dict) and jid in (
+            "game_schedule_arknights_sync",
+            "game_schedule_endfield_sync",
+        ):
+            legacy = stored.get("game_schedule_sync")
+            if isinstance(legacy, dict):
+                item = legacy
         if isinstance(item, dict):
             out[jid] = _normalize_job(jid, item, fallback)
         else:

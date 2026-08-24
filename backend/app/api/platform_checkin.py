@@ -79,7 +79,6 @@ def build_checkin_status(
     today_results: list[ResultT] = []
     token_ok: bool | None = None
     token_error: str | None = None
-    summary = getattr(bind, "last_checkin_summary", None)
 
     try:
         live = query_today(db, bind, force=force)
@@ -105,8 +104,6 @@ def build_checkin_status(
             db.refresh(bind)
         today_results = [result_cls(**r) for r in raw_results]
         token_ok = True
-        if live.get("summary"):
-            summary = str(live["summary"])
     except api_error_cls as exc:  # type: ignore[misc]
         token_ok = False
         token_error = getattr(exc, "message", str(exc))
@@ -129,17 +126,12 @@ def build_checkin_status(
                 token_error = token_error or msg
             roles = []
 
-    last_date = getattr(bind, "last_checkin_date", None)
     fields: dict[str, Any] = {
         "bound": True,
         "auto_checkin": bool(getattr(bind, "auto_checkin", False)),
         "checkin_hour": int(getattr(bind, "checkin_hour", 0)),
         "checkin_minute": int(getattr(bind, "checkin_minute", 0)),
         "bound_at": getattr(bind, "bound_at", None),
-        "last_checkin_at": getattr(bind, "last_checkin_at", None),
-        "last_checkin_date": last_date.isoformat() if last_date else None,
-        "last_checkin_ok": getattr(bind, "last_checkin_ok", None),
-        "last_checkin_summary": summary,
         "token_ok": token_ok,
         "token_error": token_error,
         "roles": roles,

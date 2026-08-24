@@ -13,7 +13,7 @@ import {
 } from "antd";
 import { useState } from "react";
 import { fetchArknightsAttendanceCalendar } from "@/api/client";
-import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
+import { CheckinAwardsLine, CHECKIN_CALENDAR_AWARD_ICON_SIZE } from "@/components/CheckinAwardsLine";
 import { apiError } from "@/lib/apiError";
 import { isBilibiliArknightsChannel } from "@/lib/arknightsChannel";
 
@@ -185,7 +185,11 @@ export function ArknightsAttendanceCalendarButton({
                       ) : null}
                     </Space>
                     <div style={{ marginTop: 8 }}>
-                      <CheckinAwardsLine awards={day.awards} fallback="—" />
+                      <CheckinAwardsLine
+                        awards={day.awards}
+                        fallback="—"
+                        iconSize={CHECKIN_CALENDAR_AWARD_ICON_SIZE}
+                      />
                     </div>
                   </div>
                 );

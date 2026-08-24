@@ -83,6 +83,7 @@ def _profile_from_member(
     taygedo = getattr(member, "taygedo_bind", None)
     exilium = getattr(member, "exilium_bind", None)
     kujiequ = getattr(member, "kujiequ_bind", None)
+    mihoyo = getattr(member, "mihoyo_bind", None)
     return MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
@@ -101,6 +102,9 @@ def _profile_from_member(
         kujiequ_bound=kujiequ is not None,
         kujiequ_auto_checkin=bool(kujiequ.auto_checkin) if kujiequ is not None else None,
         kujiequ_phone_mask=kujiequ.phone_mask if kujiequ is not None else None,
+        mihoyo_bound=mihoyo is not None,
+        mihoyo_auto_checkin=bool(mihoyo.auto_checkin) if mihoyo is not None else None,
+        mihoyo_phone_mask=mihoyo.phone_mask if mihoyo is not None else None,
         qq_bound=bool(member.qq_openid),
         qq_nickname=member.qq_nickname,
         qq_avatar_url=member.qq_avatar_url,
@@ -119,6 +123,7 @@ def _user_brief(u: User) -> UserBrief:
     taygedo = getattr(member, "taygedo_bind", None) if member else None
     exilium = getattr(member, "exilium_bind", None) if member else None
     kujiequ = getattr(member, "kujiequ_bind", None) if member else None
+    mihoyo = getattr(member, "mihoyo_bind", None) if member else None
     return UserBrief(
         id=u.id,
         username=u.username,
@@ -134,6 +139,7 @@ def _user_brief(u: User) -> UserBrief:
         taygedo_bound=taygedo is not None,
         exilium_bound=exilium is not None,
         kujiequ_bound=kujiequ is not None,
+        mihoyo_bound=mihoyo is not None,
         qq_bound=bool(member and member.qq_openid),
     )
 

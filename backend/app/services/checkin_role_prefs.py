@@ -14,6 +14,7 @@ PLATFORM_SKLAND = "skland"
 PLATFORM_TAYGEDO = "taygedo"
 PLATFORM_EXILIUM = "exilium"
 PLATFORM_KUJIEQU = "kujiequ"
+PLATFORM_MIHOYO = "mihoyo"
 
 RoleKey = tuple[str, str]  # (game_code, role_uid)
 

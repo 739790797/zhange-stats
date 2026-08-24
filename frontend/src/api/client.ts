@@ -108,9 +108,11 @@ export type { SetupStatus, SetupAdminResult } from "./setupApi";
 export {
   fetchSklandStatus,
   fetchEndfieldBox,
+  fetchEndfieldAttendanceCalendar,
   fetchArknightsCompareCandidates,
   fetchArknightsBoxCompare,
   fetchArknightsAttendanceCalendar,
+  fetchSklandGameEvents,
   fetchArknightsRogue,
   bindSklandPassword,
   sendSklandSms,
@@ -164,6 +166,21 @@ export {
   fetchKujiequAttendanceCalendar,
   fetchWwBox,
 } from "./kujiequApi";
+
+export {
+  fetchMihoyoStatus,
+  sendMihoyoSms,
+  bindMihoyoSms,
+  bindMihoyoPassword,
+  startMihoyoQrBind,
+  pollMihoyoQrBind,
+  unbindMihoyo,
+  updateMihoyoBind,
+  updateMihoyoRolePref,
+  triggerMihoyoCheckin,
+  fetchMihoyoExchange,
+  exchangeMihoyoItem,
+} from "./mihoyoApi";
 
 export {
   fetchRoleMembershipTree,

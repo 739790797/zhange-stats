@@ -2,8 +2,9 @@ from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.arknights import ArknightsBoxSnapshot, ArknightsCatalogMeta, ArknightsOperator
 from app.models.arknights_rogue import ArknightsRogueRaw
-from app.models.endfield import EndfieldBoxRaw
+from app.models.endfield import EndfieldAttendanceRaw, EndfieldBoxRaw
 from app.models.exastris import ExastrisBoxRaw
+from app.models.game_schedule import GameScheduleRaw
 from app.models.oauth_ticket import OAuthExchangeTicket
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -20,6 +21,7 @@ from app.models.kujiequ import (
     KujiequCheckinLog,
     KujiequWwBoxRaw,
 )
+from app.models.mihoyo import MihoyoBind, MihoyoCheckinLog
 from app.models.minecraft import (
     MinecraftPerfSample,
     MinecraftPresenceSegment,
@@ -66,13 +68,17 @@ __all__ = [
     "KujiequCheckinLog",
     "KujiequAttendanceRaw",
     "KujiequWwBoxRaw",
+    "MihoyoBind",
+    "MihoyoCheckinLog",
     "CheckinRolePref",
     "ArknightsOperator",
     "ArknightsCatalogMeta",
     "ArknightsBoxSnapshot",
     "ArknightsRogueRaw",
     "EndfieldBoxRaw",
+    "EndfieldAttendanceRaw",
     "ExastrisBoxRaw",
+    "GameScheduleRaw",
     "TarkovItemsRaw",
     "TarkovItemsMeta",
     "TarkovAmmo",

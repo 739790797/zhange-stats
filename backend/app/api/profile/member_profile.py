@@ -78,6 +78,7 @@ def get_member_profile(
             joinedload(Member.taygedo_bind),
             joinedload(Member.exilium_bind),
             joinedload(Member.kujiequ_bind),
+            joinedload(Member.mihoyo_bind),
         )
         .filter(Member.id == member_id)
         .first()

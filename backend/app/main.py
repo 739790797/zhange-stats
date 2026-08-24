@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, exilium, guides, jobs, kujiequ, members, napcat, profile, setup, skland, steam, taygedo
+from app.api import auth, exilium, guides, jobs, kujiequ, members, mihoyo, napcat, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
@@ -17,12 +17,14 @@ from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
+from app.core.request_log_middleware import RequestLogMiddleware
 from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
 from app.models import kujiequ as _kujiequ  # noqa: F401
+from app.models import mihoyo as _mihoyo  # noqa: F401
 from app.models import job_run as _job_run  # noqa: F401
 from app.models import member as _member  # noqa: F401
 from app.models import play_session as _play_session  # noqa: F401
@@ -132,6 +134,7 @@ else:
     # 本地 Vite（任意端口）；生产同域部署一般不触发跨域
     _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
 
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
 app.add_middleware(SetupRequiredMiddleware)
 
@@ -150,6 +153,7 @@ api.include_router(skland.router)
 api.include_router(taygedo.router)
 api.include_router(exilium.router)
 api.include_router(kujiequ.router)
+api.include_router(mihoyo.router)
 api.include_router(napcat.router)
 api.include_router(guides.router)
 app.include_router(api)

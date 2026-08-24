@@ -277,12 +277,19 @@ def get_exastris_box_for_member(
         raise TaygedoApiError("尚未绑定塔吉多")
 
     creds = _load_creds(bind)
-    working = ensure_session(creds)
-    if working.access_token != creds.access_token or working.refresh_token != creds.refresh_token:
-        _save_creds(bind, working)
-        db.commit()
+    roles: list[TaygedoRole] | None = None
+    if not force:
+        from app.services.box_role_cache import taygedo_nte_roles_from_raws
 
-    roles = list_nte_roles(working)
+        roles = taygedo_nte_roles_from_raws(db, member.id)
+
+    working = None
+    if roles is None:
+        working = ensure_session(creds)
+        if working.access_token != creds.access_token or working.refresh_token != creds.refresh_token:
+            _save_creds(bind, working)
+            db.commit()
+        roles = list_nte_roles(working)
     if not roles:
         raise TaygedoApiError("未找到异环绑定角色")
 
@@ -308,6 +315,14 @@ def get_exastris_box_for_member(
     stale = False
     if force or row is None:
         try:
+            if working is None:
+                working = ensure_session(creds)
+                if (
+                    working.access_token != creds.access_token
+                    or working.refresh_token != creds.refresh_token
+                ):
+                    _save_creds(bind, working)
+                    db.commit()
             raw = fetch_exastris_characters(working, role.role_id)
             raw_json = json.dumps(raw, ensure_ascii=False)
             from app.services.raw_payload_monitor import note_raw_payload

@@ -66,3 +66,9 @@ class Member(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    mihoyo_bind = relationship(
+        "MihoyoBind",
+        back_populates="member",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -4,6 +4,7 @@ export const PLATFORM_ICON_SRC = {
   taygedo: "/platform-icons/taygedo.png",
   exilium: "/platform-icons/exilium.png",
   kujiequ: "/platform-icons/kujiequ.png",
+  mihoyo: "/platform-icons/mihoyo.png",
   // 游戏：App Store / 官网应用图标
   arknights: "/platform-icons/arknights.png",
   endfield: "/platform-icons/endfield.png",
@@ -24,6 +25,7 @@ const FEATURE_ICON_BY_ID: Record<string, PlatformIconName> = {
   taygedo: "taygedo",
   exilium: "exilium",
   kujiequ: "kujiequ",
+  mihoyo: "mihoyo",
   "skland.arknights": "arknights",
   "skland.endfield": "endfield",
   "taygedo.exastris": "exastris",
@@ -51,6 +53,12 @@ const CHECKIN_GAME_ICON: Record<string, PlatformIconName> = {
   app: "taygedo", // 塔吉多 APP 社区
   // 库街区
   kujiequ: "kujiequ", // 社区
+  mihoyo: "mihoyo", // 米游社社区
+  genshin: "mihoyo",
+  bh3: "mihoyo",
+  starrail: "mihoyo",
+  zzz: "mihoyo",
+  bh2: "mihoyo",
   game_2: "pgr", // 战双
   game_3: "ww", // 鸣潮
   // 追放社区

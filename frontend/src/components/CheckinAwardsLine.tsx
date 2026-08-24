@@ -10,14 +10,20 @@ export type CheckinAward = {
   icon_url?: string | null;
 };
 
-const iconStyle: CSSProperties = {
-  width: 20,
-  height: 20,
+const DEFAULT_ICON_SIZE = 20;
+
+/** 签到日历弹窗内奖励图标尺寸（各 *AttendanceCalendar 统一引用） */
+export const CHECKIN_CALENDAR_AWARD_ICON_SIZE = 32;
+
+const iconStyle = (size: number): CSSProperties => ({
+  width: size,
+  height: size,
   objectFit: "contain",
   verticalAlign: "middle",
-  borderRadius: 3,
+  borderRadius: 4,
   background: "rgba(0,0,0,0.04)",
-};
+  flexShrink: 0,
+});
 
 function resolveAwardIconUrl(a: CheckinAward): string | null {
   const direct = (a.icon_url || "").trim();
@@ -39,10 +45,13 @@ export function CheckinAwardsLine({
   awards,
   awardsText,
   fallback = "-",
+  iconSize = DEFAULT_ICON_SIZE,
 }: {
   awards?: CheckinAward[] | null;
   awardsText?: string | null;
   fallback?: string;
+  /** 奖励图标边长（px）；签到日历请用 CHECKIN_CALENDAR_AWARD_ICON_SIZE */
+  iconSize?: number;
 }) {
   const list = (awards || []).filter((a) => a?.name);
   if (list.length) {
@@ -55,20 +64,20 @@ export function CheckinAwardsLine({
       );
     }
     return (
-      <Space size={10} wrap>
+      <Space size={iconSize > DEFAULT_ICON_SIZE ? 12 : 10} wrap>
         {list.map((a, idx) => {
           const count = a.count ?? 1;
           const key = `${a.resource_id || a.resource_type || a.name}-${idx}`;
           const iconUrl = resolveAwardIconUrl(a);
           return (
-            <Space key={key} size={4}>
+            <Space key={key} size={6} align="center">
               {iconUrl ? (
                 <img
                   src={iconUrl}
                   alt={a.name}
-                  width={20}
-                  height={20}
-                  style={iconStyle}
+                  width={iconSize}
+                  height={iconSize}
+                  style={iconStyle(iconSize)}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   onError={(e) => {

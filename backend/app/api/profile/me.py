@@ -78,7 +78,8 @@ def get_my_profile(
             joinedload(Member.skland_bind),
             joinedload(Member.taygedo_bind),
             joinedload(Member.exilium_bind),
-            joinedload(Member.kujiequ_bind),
+                joinedload(Member.kujiequ_bind),
+                joinedload(Member.mihoyo_bind),
         )
         .filter(Member.id == member.id)
         .first()

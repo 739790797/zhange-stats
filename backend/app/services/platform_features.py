@@ -69,12 +69,28 @@ FEATURE_TREE: list[dict[str, Any]] = [
                         "job_id": "arknights_catalog_sync",
                         "schedule": "cron",
                     },
+                    {
+                        "id": "skland.arknights.schedule_sync",
+                        "name": "活动日历更新",
+                        "kind": "job",
+                        "job_id": "game_schedule_arknights_sync",
+                        "schedule": "cron",
+                    },
                 ],
             },
             {
                 "id": "skland.endfield",
                 "name": "明日方舟：终末地",
                 "kind": "game",
+                "children": [
+                    {
+                        "id": "skland.endfield.schedule_sync",
+                        "name": "活动日历更新",
+                        "kind": "job",
+                        "job_id": "game_schedule_endfield_sync",
+                        "schedule": "cron",
+                    },
+                ],
             },
         ],
     },
@@ -155,6 +171,50 @@ FEATURE_TREE: list[dict[str, Any]] = [
         ],
     },
     {
+        "id": "mihoyo",
+        "name": "米游社",
+        "kind": "platform",
+        "children": [
+            {
+                "id": "mihoyo.checkin",
+                "name": "每日签到",
+                "kind": "job",
+                "job_id": "mihoyo_checkin",
+            },
+            {
+                "id": "mihoyo.exchange",
+                "name": "兑换",
+                "kind": "feature",
+            },
+            {
+                "id": "mihoyo.genshin",
+                "name": "原神",
+                "kind": "game",
+            },
+            {
+                "id": "mihoyo.bh3",
+                "name": "崩坏3",
+                "kind": "game",
+            },
+            {
+                "id": "mihoyo.starrail",
+                "name": "星穹铁道",
+                "kind": "game",
+            },
+            {
+                "id": "mihoyo.zzz",
+                "name": "绝区零",
+                "kind": "game",
+            },
+            {
+                "id": "mihoyo.bh2",
+                "name": "崩坏2",
+                "kind": "game",
+                "reserved": True,
+            },
+        ],
+    },
+    {
         "id": "guides",
         "name": "游戏",
         "kind": "platform",
@@ -225,9 +285,12 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "skland_checkin": "skland.checkin",
     "arknights_box_sync": "skland.arknights.box_sync",
     "arknights_catalog_sync": "skland.arknights.catalog_sync",
+    "game_schedule_arknights_sync": "skland.arknights.schedule_sync",
+    "game_schedule_endfield_sync": "skland.endfield.schedule_sync",
     "taygedo_checkin": "taygedo.checkin",
     "exilium_checkin": "exilium.checkin",
     "kujiequ_checkin": "kujiequ.checkin",
+    "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_items_sync": "guides.tarkov.items_sync",
     "tarkov_tasks_sync": "guides.tarkov.tasks_sync",
     "tarkov_traders_sync": "guides.tarkov.traders_sync",
@@ -240,6 +303,7 @@ CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
     "taygedo": "taygedo.checkin",
     "exilium": "exilium.checkin",
     "kujiequ": "kujiequ.checkin",
+    "mihoyo": "mihoyo.checkin",
 }
 
 PLATFORM_SHORT_NAMES: dict[str, str] = {
@@ -248,7 +312,10 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "taygedo": "塔吉多",
     "exilium": "追放",
     "kujiequ": "库街区",
+    "mihoyo": "米游社",
     "arknights_box": "干员练度更新",
+    "arknights_schedule": "明日方舟活动日历",
+    "endfield_schedule": "终末地活动日历",
     "guides": "游戏",
     "minecraft": "Minecraft",
     "tarkov_items": "物品数据更新",
@@ -331,6 +398,13 @@ def load_feature_flags(db: Session) -> dict[str, bool]:
                     known = [bool(v) for v in legacy if v is not None]
                     if known:
                         base["guides.tarkov.items_sync"] = all(known)
+                # 旧合并活动日历 → 按游戏拆分
+                if "skland.game_schedule_sync" in flags:
+                    legacy_on = bool(flags["skland.game_schedule_sync"])
+                    if "skland.arknights.schedule_sync" not in flags:
+                        base["skland.arknights.schedule_sync"] = legacy_on
+                    if "skland.endfield.schedule_sync" not in flags:
+                        base["skland.endfield.schedule_sync"] = legacy_on
     # 预留节点始终视为开启（无独立门控）
     for fid in _RESERVED_FEATURE_IDS:
         base[fid] = True

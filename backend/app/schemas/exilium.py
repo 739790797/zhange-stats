@@ -53,10 +53,6 @@ class ExiliumStatusOut(BaseModel):
     checkin_minute: int | None = None
     phone_mask: str | None = None
     bound_at: datetime | None = None
-    last_checkin_at: datetime | None = None
-    last_checkin_date: str | None = None
-    last_checkin_ok: bool | None = None
-    last_checkin_summary: str | None = None
     token_ok: bool | None = None
     token_error: str | None = None
     roles: list[ExiliumRoleOut] = Field(default_factory=list)

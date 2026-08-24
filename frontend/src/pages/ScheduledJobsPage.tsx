@@ -45,6 +45,7 @@ const PLATFORM_OPTIONS = [
   { value: "taygedo", label: "塔吉多" },
   { value: "exilium", label: "追放" },
   { value: "kujiequ", label: "库街区" },
+  { value: "mihoyo", label: "米游社" },
 ];
 
 type RoleLeaf = UserCheckinTask & {

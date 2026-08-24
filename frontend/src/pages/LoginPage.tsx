@@ -51,9 +51,9 @@ export default function LoginPage() {
             replace: true,
             state: needComplete ? { promptCompleteProfile: true } : undefined,
           });
-        } catch {
+        } catch (e: unknown) {
           useAuthStore.getState().logout();
-          setError("QQ 登录失败，请重试");
+          setError(apiError(e, "QQ 登录失败，请重试"));
           setQqCompleting(false);
         }
       })();

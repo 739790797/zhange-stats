@@ -34,6 +34,7 @@ _REQUIRED_TABLES = (
     "taygedo_binds",
     "exilium_binds",
     "kujiequ_binds",
+    "mihoyo_binds",
     "checkin_role_prefs",
     "oauth_exchange_tickets",
 )

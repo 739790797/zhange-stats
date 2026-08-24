@@ -102,6 +102,10 @@ def _checkin_log_model(platform: str):
         from app.models.kujiequ import KujiequCheckinLog
 
         return KujiequCheckinLog
+    if platform == "mihoyo":
+        from app.models.mihoyo import MihoyoCheckinLog
+
+        return MihoyoCheckinLog
     return None
 
 
@@ -122,6 +126,10 @@ def _bind_model(platform: str):
         from app.models.kujiequ import KujiequBind
 
         return KujiequBind
+    if platform == "mihoyo":
+        from app.models.mihoyo import MihoyoBind
+
+        return MihoyoBind
     return None
 
 

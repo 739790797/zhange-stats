@@ -234,10 +234,6 @@ class SklandStatusOut(BaseModel):
     checkin_hour: int | None = None
     checkin_minute: int | None = None
     bound_at: datetime | None = None
-    last_checkin_at: datetime | None = None
-    last_checkin_date: str | None = None
-    last_checkin_ok: bool | None = None
-    last_checkin_summary: str | None = None
     token_ok: bool | None = None
     token_error: str | None = None
     roles: list[SklandRoleOut] = Field(default_factory=list)
@@ -282,6 +278,39 @@ class ArknightsAttendanceCalendarOut(BaseModel):
     roles: list[SklandRoleOut] = Field(default_factory=list)
     synced_at: str | None = None
     stale: bool = False
+
+
+class EndfieldAttendanceCalendarOut(ArknightsAttendanceCalendarOut):
+    """终末地签到周期日历（字段同方舟）。"""
+
+
+class GameScheduleEventOut(BaseModel):
+    """game-schedule 活动条目（进行中 / 未开始）。"""
+
+    id: str
+    game: str
+    title: str
+    start_time: str
+    end_time: str
+    status: str
+    banner: str | None = None
+    link_url: str | None = None
+    event_type: str | None = None
+
+
+class GameScheduleCalendarOut(BaseModel):
+    """明日方舟 / 终末地活动日历（代理 game-schedule）。"""
+
+    game: str
+    source: str = "game-schedule"
+    synced_at: str | None = None
+    stale: bool = False
+    ongoing_count: int = 0
+    upcoming_count: int = 0
+    permanent_count: int = 0
+    events: list[GameScheduleEventOut] = Field(default_factory=list)
+    # 跨度过长的常驻/新手活动：单独列表，不进时间轴
+    permanent_events: list[GameScheduleEventOut] = Field(default_factory=list)
 
 
 class ArknightsRogueTopicOut(BaseModel):

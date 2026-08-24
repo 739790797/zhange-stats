@@ -2467,6 +2467,24 @@
             "description": "logger 名前缀，如 zhange"
           },
           {
+            "name": "biz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "业务标记前缀，如 skland / checkin",
+              "title": "Biz"
+            },
+            "description": "业务标记前缀，如 skland / checkin"
+          },
+          {
             "name": "q",
             "in": "query",
             "required": false,
@@ -2496,6 +2514,18 @@
               "title": "After Id"
             },
             "description": "仅返回 id 大于该值的新行"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "ring=内存环缓冲；file=持久化 JSONL；all=合并（推荐）",
+              "default": "all",
+              "title": "Source"
+            },
+            "description": "ring=内存环缓冲；file=持久化 JSONL；all=合并（推荐）"
           }
         ],
         "responses": {
@@ -2520,32 +2550,6 @@
             }
           }
         }
-      }
-    },
-    "/api/settings/runtime-logs/clear": {
-      "post": {
-        "tags": [
-          "settings"
-        ],
-        "summary": "Clear Runtime Logs",
-        "operationId": "clear_runtime_logs_api_settings_runtime_logs_clear_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RuntimeLogsClearOut"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
       }
     },
     "/api/settings/runtime-health": {
@@ -4396,6 +4400,148 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EndfieldBoxOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/endfield/attendance-calendar": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Endfield Attendance Calendar",
+        "description": "终末地签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。",
+        "operationId": "skland_endfield_attendance_calendar_api_skland_endfield_attendance_calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndfieldAttendanceCalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/game-events": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Game Events",
+        "description": "明日方舟 / 终末地活动日历（game-schedule 上游）；默认读缓存，force 回源。",
+        "operationId": "skland_game_events_api_skland_game_events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "arknights",
+                "endfield"
+              ],
+              "type": "string",
+              "description": "arknights | endfield",
+              "title": "Game"
+            },
+            "description": "arknights | endfield"
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          },
+          {
+            "name": "include_ended",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Ended"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameScheduleCalendarOut"
                 }
               }
             }
@@ -6536,6 +6682,697 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WwBoxOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mihoyo/status": {
+      "get": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Status",
+        "operationId": "mihoyo_status_api_mihoyo_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "include_roles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Roles"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+              "default": true,
+              "title": "Force"
+            },
+            "description": "展示路径默认回源官方；传 false 仅供内部/排障读今日 logs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mihoyo/logs": {
+      "get": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Logs",
+        "operationId": "mihoyo_logs_api_mihoyo_logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mihoyo/bind/sms/send": {
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Bind Sms Send",
+        "operationId": "mihoyo_bind_sms_send_api_mihoyo_bind_sms_send_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MihoyoBindSmsSendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoBindSmsSendResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/bind/sms": {
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Bind Sms",
+        "operationId": "mihoyo_bind_sms_api_mihoyo_bind_sms_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MihoyoBindSmsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/bind/password": {
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Bind Password",
+        "operationId": "mihoyo_bind_password_api_mihoyo_bind_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MihoyoBindPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoBindPasswordResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/qr/start": {
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Qr Start",
+        "operationId": "mihoyo_qr_start_api_mihoyo_qr_start_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoQrStartResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/qr/poll": {
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Qr Poll",
+        "operationId": "mihoyo_qr_poll_api_mihoyo_qr_poll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MihoyoQrPollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoQrPollResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/bind": {
+      "delete": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Unbind",
+        "operationId": "mihoyo_unbind_api_mihoyo_bind_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoStatusOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Update Bind",
+        "operationId": "mihoyo_update_bind_api_mihoyo_bind_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MihoyoBindUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/role-prefs": {
+      "patch": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Update Role Pref",
+        "operationId": "mihoyo_update_role_pref_api_mihoyo_role_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinRolePrefUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/role-tree": {
+      "get": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Role Tree",
+        "operationId": "mihoyo_role_tree_api_mihoyo_role_tree_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMembershipTreeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/role-memberships": {
+      "put": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Replace Role Memberships",
+        "operationId": "mihoyo_replace_role_memberships_api_mihoyo_role_memberships_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMembershipReplaceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/checkin": {
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Checkin Now",
+        "operationId": "mihoyo_checkin_now_api_mihoyo_checkin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CheckinNowBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/exchange": {
+      "get": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Exchange Shop",
+        "operationId": "mihoyo_exchange_shop_api_mihoyo_exchange_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoExchangeShopOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Do Exchange",
+        "operationId": "mihoyo_do_exchange_api_mihoyo_exchange_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MihoyoExchangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoExchangeResultOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/mihoyo/points-logs": {
+      "get": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Points Logs",
+        "operationId": "mihoyo_points_logs_api_mihoyo_points_logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoPointsLogOut"
                 }
               }
             }
@@ -12038,6 +12875,80 @@
         ],
         "title": "EmailTestRequest"
       },
+      "EndfieldAttendanceCalendarOut": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name"
+          },
+          "claimed_days": {
+            "type": "integer",
+            "title": "Claimed Days",
+            "default": 0
+          },
+          "total_days": {
+            "type": "integer",
+            "title": "Total Days",
+            "default": 0
+          },
+          "has_today_claim": {
+            "type": "boolean",
+            "title": "Has Today Claim",
+            "default": false
+          },
+          "progress_reliable": {
+            "type": "boolean",
+            "title": "Progress Reliable",
+            "default": true
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ArknightsAttendanceDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/SklandRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid",
+          "role_name",
+          "channel_name"
+        ],
+        "title": "EndfieldAttendanceCalendarOut",
+        "description": "终末地签到周期日历（字段同方舟）。"
+      },
       "EndfieldBoxOut": {
         "properties": {
           "uid": {
@@ -13009,51 +13920,6 @@
             ],
             "title": "Bound At"
           },
-          "last_checkin_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin At"
-          },
-          "last_checkin_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Date"
-          },
-          "last_checkin_ok": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Ok"
-          },
-          "last_checkin_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Summary"
-          },
           "token_ok": {
             "anyOf": [
               {
@@ -13103,6 +13969,142 @@
           "bound"
         ],
         "title": "ExiliumStatusOut"
+      },
+      "GameScheduleCalendarOut": {
+        "properties": {
+          "game": {
+            "type": "string",
+            "title": "Game"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "game-schedule"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "ongoing_count": {
+            "type": "integer",
+            "title": "Ongoing Count",
+            "default": 0
+          },
+          "upcoming_count": {
+            "type": "integer",
+            "title": "Upcoming Count",
+            "default": 0
+          },
+          "permanent_count": {
+            "type": "integer",
+            "title": "Permanent Count",
+            "default": 0
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/GameScheduleEventOut"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "permanent_events": {
+            "items": {
+              "$ref": "#/components/schemas/GameScheduleEventOut"
+            },
+            "type": "array",
+            "title": "Permanent Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "game"
+        ],
+        "title": "GameScheduleCalendarOut",
+        "description": "明日方舟 / 终末地活动日历（代理 game-schedule）。"
+      },
+      "GameScheduleEventOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "game": {
+            "type": "string",
+            "title": "Game"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "start_time": {
+            "type": "string",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "string",
+            "title": "End Time"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "banner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Banner"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Url"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "game",
+          "title",
+          "start_time",
+          "end_time",
+          "status"
+        ],
+        "title": "GameScheduleEventOut",
+        "description": "game-schedule 活动条目（进行中 / 未开始）。"
       },
       "HTTPValidationError": {
         "properties": {
@@ -14402,51 +15404,6 @@
             ],
             "title": "Bound At"
           },
-          "last_checkin_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin At"
-          },
-          "last_checkin_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Date"
-          },
-          "last_checkin_ok": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Ok"
-          },
-          "last_checkin_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Summary"
-          },
           "token_ok": {
             "anyOf": [
               {
@@ -14864,6 +15821,33 @@
             ],
             "title": "Kujiequ Phone Mask"
           },
+          "mihoyo_bound": {
+            "type": "boolean",
+            "title": "Mihoyo Bound",
+            "default": false
+          },
+          "mihoyo_auto_checkin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mihoyo Auto Checkin"
+          },
+          "mihoyo_phone_mask": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mihoyo Phone Mask"
+          },
           "qq_bound": {
             "type": "boolean",
             "title": "Qq Bound",
@@ -15004,6 +15988,659 @@
         },
         "type": "object",
         "title": "MemberProfileUpdate"
+      },
+      "MihoyoBindPasswordRequest": {
+        "properties": {
+          "account": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 5,
+            "title": "Account"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "title": "Password"
+          },
+          "geetest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geetest"
+          },
+          "mmt_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mmt Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "password"
+        ],
+        "title": "MihoyoBindPasswordRequest"
+      },
+      "MihoyoBindPasswordResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "need_geetest": {
+            "type": "boolean",
+            "title": "Need Geetest",
+            "default": false
+          },
+          "captcha_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captcha Id"
+          },
+          "mmt_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mmt Key"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MihoyoStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "MihoyoBindPasswordResponse"
+      },
+      "MihoyoBindSmsRequest": {
+        "properties": {
+          "phone": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 6,
+            "title": "Phone"
+          },
+          "captcha": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 4,
+            "title": "Captcha"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phone",
+          "captcha"
+        ],
+        "title": "MihoyoBindSmsRequest"
+      },
+      "MihoyoBindSmsSendRequest": {
+        "properties": {
+          "phone": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 6,
+            "title": "Phone"
+          },
+          "geetest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geetest"
+          },
+          "mmt_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mmt Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phone"
+        ],
+        "title": "MihoyoBindSmsSendRequest"
+      },
+      "MihoyoBindSmsSendResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "验证码已发送"
+          },
+          "need_geetest": {
+            "type": "boolean",
+            "title": "Need Geetest",
+            "default": false
+          },
+          "captcha_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captcha Id"
+          },
+          "mmt_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mmt Key"
+          }
+        },
+        "type": "object",
+        "title": "MihoyoBindSmsSendResponse"
+      },
+      "MihoyoBindUpdate": {
+        "properties": {
+          "auto_checkin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Checkin"
+          },
+          "checkin_hour": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 23.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Hour"
+          },
+          "checkin_minute": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 59.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Minute"
+          }
+        },
+        "type": "object",
+        "title": "MihoyoBindUpdate"
+      },
+      "MihoyoExchangeItemOut": {
+        "properties": {
+          "goods_id": {
+            "type": "string",
+            "title": "Goods Id"
+          },
+          "goods_name": {
+            "type": "string",
+            "title": "Goods Name"
+          },
+          "goods_num": {
+            "type": "integer",
+            "title": "Goods Num",
+            "default": 1
+          },
+          "goods_img": {
+            "type": "string",
+            "title": "Goods Img",
+            "default": ""
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price",
+            "default": 0
+          },
+          "exchange_limit": {
+            "type": "integer",
+            "title": "Exchange Limit",
+            "default": 0
+          },
+          "exchanged_count": {
+            "type": "integer",
+            "title": "Exchanged Count",
+            "default": 0
+          },
+          "next_exchange_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Exchange Time"
+          },
+          "game_biz": {
+            "type": "string",
+            "title": "Game Biz",
+            "default": ""
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "goods_id",
+          "goods_name"
+        ],
+        "title": "MihoyoExchangeItemOut"
+      },
+      "MihoyoExchangeRequest": {
+        "properties": {
+          "goods_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Goods Id"
+          },
+          "game_biz": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Game Biz",
+            "default": ""
+          },
+          "region": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Region",
+            "default": ""
+          },
+          "role_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Role Uid",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "goods_id"
+        ],
+        "title": "MihoyoExchangeRequest"
+      },
+      "MihoyoExchangeResultOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MihoyoExchangeItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "MihoyoExchangeResultOut"
+      },
+      "MihoyoExchangeShopOut": {
+        "properties": {
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MihoyoExchangeItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "title": "MihoyoExchangeShopOut"
+      },
+      "MihoyoPointsLogItemOut": {
+        "properties": {
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          },
+          "log_time": {
+            "type": "string",
+            "title": "Log Time",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MihoyoPointsLogItemOut"
+      },
+      "MihoyoPointsLogOut": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/MihoyoPointsLogItemOut"
+            },
+            "type": "array",
+            "title": "List"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 50
+          }
+        },
+        "type": "object",
+        "title": "MihoyoPointsLogOut"
+      },
+      "MihoyoQrPollRequest": {
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Scan Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scan_id"
+        ],
+        "title": "MihoyoQrPollRequest"
+      },
+      "MihoyoQrPollResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "MihoyoQrPollResponse"
+      },
+      "MihoyoQrStartResponse": {
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "title": "Scan Id"
+          },
+          "scan_url": {
+            "type": "string",
+            "title": "Scan Url"
+          },
+          "qr_image": {
+            "type": "string",
+            "title": "Qr Image"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "default": 180
+          }
+        },
+        "type": "object",
+        "required": [
+          "scan_id",
+          "scan_url",
+          "qr_image"
+        ],
+        "title": "MihoyoQrStartResponse"
+      },
+      "MihoyoRoleOut": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "title": "Game Code"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name"
+          },
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "game_name",
+          "uid",
+          "role_name",
+          "channel_name"
+        ],
+        "title": "MihoyoRoleOut"
+      },
+      "MihoyoStatusOut": {
+        "properties": {
+          "bound": {
+            "type": "boolean",
+            "title": "Bound"
+          },
+          "auto_checkin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Checkin"
+          },
+          "checkin_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Hour"
+          },
+          "checkin_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Minute"
+          },
+          "phone_mask": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Mask"
+          },
+          "bound_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bound At"
+          },
+          "token_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Ok"
+          },
+          "token_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Error"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/MihoyoRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "today_results": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinResultItem"
+            },
+            "type": "array",
+            "title": "Today Results"
+          },
+          "today_logs": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinLogOut"
+            },
+            "type": "array",
+            "title": "Today Logs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bound"
+        ],
+        "title": "MihoyoStatusOut"
       },
       "MinecraftAppliedModOut": {
         "properties": {
@@ -17900,6 +19537,16 @@
             "type": "string",
             "title": "Logger"
           },
+          "biz": {
+            "type": "string",
+            "title": "Biz",
+            "default": ""
+          },
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "default": ""
+          },
           "message": {
             "type": "string",
             "title": "Message"
@@ -17915,22 +19562,6 @@
         ],
         "title": "RuntimeLogLineOut"
       },
-      "RuntimeLogsClearOut": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok",
-            "default": true
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "default": "已清空内存日志缓冲"
-          }
-        },
-        "type": "object",
-        "title": "RuntimeLogsClearOut"
-      },
       "RuntimeLogsOut": {
         "properties": {
           "capacity": {
@@ -17940,6 +19571,44 @@
           "buffered": {
             "type": "integer",
             "title": "Buffered"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "ring"
+          },
+          "file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Path"
+          },
+          "file_lines": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Lines"
+          },
+          "file_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Bytes"
           },
           "lines": {
             "items": {
@@ -18574,51 +20243,6 @@
               }
             ],
             "title": "Bound At"
-          },
-          "last_checkin_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin At"
-          },
-          "last_checkin_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Date"
-          },
-          "last_checkin_ok": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Ok"
-          },
-          "last_checkin_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Summary"
           },
           "token_ok": {
             "anyOf": [
@@ -23977,51 +25601,6 @@
             ],
             "title": "Bound At"
           },
-          "last_checkin_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin At"
-          },
-          "last_checkin_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Date"
-          },
-          "last_checkin_ok": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Ok"
-          },
-          "last_checkin_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Summary"
-          },
           "token_ok": {
             "anyOf": [
               {
@@ -24294,6 +25873,11 @@
           "kujiequ_bound": {
             "type": "boolean",
             "title": "Kujiequ Bound",
+            "default": false
+          },
+          "mihoyo_bound": {
+            "type": "boolean",
+            "title": "Mihoyo Bound",
             "default": false
           },
           "qq_bound": {

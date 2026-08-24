@@ -10,6 +10,8 @@ from app.core.deps import get_current_user
 from app.core.platform_deps import require_feature
 from app.models.user import User
 from app.schemas import (
+    ArknightsAttendanceDayOut,
+    EndfieldAttendanceCalendarOut,
     EndfieldBoxOut,
     EndfieldCharOut,
     EndfieldEquipOut,
@@ -17,7 +19,11 @@ from app.schemas import (
     EndfieldWeaponOut,
     SklandRoleOut,
 )
-from app.services.skland_checkin import get_endfield_box_for_member
+from app.schemas.checkin import CheckinAwardItem
+from app.services.skland_checkin import (
+    get_endfield_attendance_calendar_for_member,
+    get_endfield_box_for_member,
+)
 from app.services.skland_client import SklandApiError
 
 router = APIRouter(tags=["skland"])
@@ -129,3 +135,58 @@ def skland_endfield_box(
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return _endfield_box_out(box, role, roles, synced_at, stale)
+
+
+@router.get(
+    "/endfield/attendance-calendar",
+    response_model=EndfieldAttendanceCalendarOut,
+    dependencies=[Depends(require_feature("skland.checkin"))],
+)
+def skland_endfield_attendance_calendar(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    uid: str | None = Query(default=None, max_length=64),
+    force: bool = Query(default=False),
+):
+    """终末地签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。"""
+    member = _member_or_404(db, user)
+    try:
+        parsed, role, roles, synced_at, stale = (
+            get_endfield_attendance_calendar_for_member(
+                db, member, uid, force=force
+            )
+        )
+    except SklandApiError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+
+    days = [
+        ArknightsAttendanceDayOut(
+            day=int(d["day"]),
+            claimed=bool(d["claimed"]),
+            awards=[CheckinAwardItem(**a) for a in (d.get("awards") or [])],
+        )
+        for d in (parsed.get("days") or [])
+        if isinstance(d, dict)
+    ]
+    return EndfieldAttendanceCalendarOut(
+        uid=role.uid,
+        role_name=role.role_name,
+        channel_name=role.channel_name,
+        claimed_days=int(parsed.get("claimed_days") or 0),
+        total_days=int(parsed.get("total_days") or 0),
+        has_today_claim=bool(parsed.get("has_today_claim")),
+        progress_reliable=bool(parsed.get("progress_reliable", True)),
+        days=days,
+        roles=[
+            SklandRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.uid,
+                role_name=r.role_name,
+                channel_name=r.channel_name,
+            )
+            for r in roles
+        ],
+        synced_at=synced_at.isoformat() if synced_at else None,
+        stale=stale,
+    )

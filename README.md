@@ -127,11 +127,12 @@ users 1 ── 1 members ── * play_sessions / presence_segments
                                          └── * exastris_box_raws
                       └── 0..1 exilium_binds ── * exilium_checkin_logs
                       └── 0..1 kujiequ_binds ── * kujiequ_checkin_logs
+                      └── 0..1 mihoyo_binds ── * mihoyo_checkin_logs
                                          └── * kujiequ_attendance_raws
                                          └── * kujiequ_ww_box_raws
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
-arknights_operators · arknights_catalog_meta
+arknights_operators · arknights_catalog_meta · game_schedule_raws
 tarkov_items_raws · tarkov_items_meta
 tarkov_ammo · tarkov_ammo_meta
 tarkov_guns · tarkov_gun_meta
@@ -153,7 +154,9 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `checkin_role_prefs` | 各平台按角色的「加入本站」(`included`) 与自动签到开关/北京时间（`platform`+`game_code`+`role_uid`）；签到页与调度仅处理 `included`；`enabled` 另控自动签到 |
 | `skland_checkin_logs` | 森空岛角色签到记录（展示路径打开页始终回源后 upsert；`source`=`status` 查询 / `action` 真正执行，不驱动产品 UI；含 `awards_text` / `awards_json`；调度可按今日成功态跳过；超期由 `job_runs_prune` 清理） |
 | `skland_attendance_raws` | 明日方舟签到日历 GET attendance 原始 JSON（按 member+uid 最新一份；跨月或 force / 签到后回源） |
+| `game_schedule_raws` | 活动日历上游原始 JSON（按游戏 `arknights` / `endfield` 各一份；读库优先；定时 / force 回源；失败不覆盖） |
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
+| `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
 | `tarkov_items_raws` | 逃离塔科夫物品上游原始 JSON（全站最新一份；GraphQL split 或 json.tarkov.dev items；弹药/枪械共用；失败不覆盖） |
@@ -184,6 +187,8 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `exilium_checkin_logs` | 追放社区签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
 | `kujiequ_binds` | 库街区凭证（加密）；`auto_checkin` 为角色偏好派生摘要 |
 | `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
+| `mihoyo_binds` | 米游社 Cookie/Stoken（加密）；`auto_checkin` 为角色偏好派生摘要 |
+| `mihoyo_checkin_logs` | 米游社社区 / 原神 / 崩坏3 / 星铁 / 绝区零等签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理 |

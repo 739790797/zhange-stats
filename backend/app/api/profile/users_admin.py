@@ -91,6 +91,7 @@ def list_users(
             joinedload(User.member).joinedload(Member.taygedo_bind),
             joinedload(User.member).joinedload(Member.exilium_bind),
             joinedload(User.member).joinedload(Member.kujiequ_bind),
+            joinedload(User.member).joinedload(Member.mihoyo_bind),
         )
         .order_by(User.id.asc())
         .all()

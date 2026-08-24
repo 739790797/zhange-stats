@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
-from app.models.endfield import EndfieldBoxRaw
+from app.models.endfield import EndfieldAttendanceRaw, EndfieldBoxRaw
 from app.models.member import Member
 from app.models.skland import SklandAttendanceRaw, SklandBind, SklandCheckinLog
 from app.services.checkin_adapter import CheckinAdapterBase, CheckinRunOutcome
@@ -37,6 +37,7 @@ from app.services.skland_client import (
     GAME_ENDFIELD,
     SklandApiError,
     SklandRole,
+    SklandSession,
     checkin_role,
     fetch_arknights_box,
     fetch_endfield_card_detail,
@@ -51,10 +52,12 @@ from app.services.skland_client import (
     query_today_all as skland_query_today_all,
     sort_skland_results,
 )
+from app.services.endfield_calendar import parse_endfield_attendance_calendar
 from app.services.skland_calendar import parse_arknights_attendance_calendar
 from app.services.skland_attendance import (
     _is_arknights_bilibili,
     fetch_arknights_attendance,
+    fetch_endfield_attendance,
 )
 
 logger = logging.getLogger(__name__)
@@ -247,8 +250,23 @@ def get_arknights_attendance_calendar_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session = _session_for_bind(bind)
-    roles = [r for r in list_roles(session) if r.game_code == GAME_ARKNIGHTS]
+    session: SklandSession | None = None
+
+    def _ensure_session() -> SklandSession:
+        nonlocal session
+        if session is None:
+            session = _session_for_bind(bind)
+        return session
+
+    roles: list[SklandRole] | None = None
+    if not force:
+        from app.services.box_role_cache import skland_arknights_roles_from_raws
+
+        roles = skland_arknights_roles_from_raws(db, member.id)
+    if roles is None:
+        roles = [
+            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS
+        ]
     if not roles:
         raise SklandApiError("未找到明日方舟绑定角色")
     target_uid = str(uid or "").strip()
@@ -279,7 +297,7 @@ def get_arknights_attendance_calendar_for_member(
     need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
     if need_fetch:
         try:
-            resp = fetch_arknights_attendance(session, role)
+            resp = fetch_arknights_attendance(_ensure_session(), role)
             raw_json = json.dumps(resp, ensure_ascii=False)
             note_raw_payload(
                 "skland_attendance_raw",
@@ -346,6 +364,172 @@ def invalidate_arknights_attendance_raws(
     q.delete(synchronize_session=False)
 
 
+def _endfield_today_log_hint(
+    db: Session, *, member_id: int, role_uid: str
+) -> bool:
+    """今日本地签到日志是否已成功（供日历 hasToday 回退）。"""
+    from app.services.checkin_common import SUCCESS_STATUSES
+
+    row = (
+        db.query(SklandCheckinLog)
+        .filter(
+            SklandCheckinLog.member_id == member_id,
+            SklandCheckinLog.role_uid == role_uid,
+            SklandCheckinLog.game_code == GAME_ENDFIELD,
+            SklandCheckinLog.checkin_date == today(),
+            SklandCheckinLog.status.in_(tuple(SUCCESS_STATUSES)),
+        )
+        .one_or_none()
+    )
+    return row is not None
+
+
+def get_endfield_attendance_calendar_for_member(
+    db: Session,
+    member: Member,
+    uid: str | None = None,
+    *,
+    force: bool = False,
+) -> tuple[dict[str, Any], SklandRole, list[SklandRole], datetime | None, bool]:
+    """读库二次加工终末地签到日历；无记录、跨月或 force 时回源落库。"""
+    import json
+
+    from app.core.timeutil import BEIJING, now as beijing_now
+    from app.services.raw_payload_monitor import note_raw_payload
+
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise SklandApiError("尚未绑定森空岛")
+    session: SklandSession | None = None
+
+    def _ensure_session() -> SklandSession:
+        nonlocal session
+        if session is None:
+            session = _session_for_bind(bind)
+        return session
+
+    roles: list[SklandRole] | None = None
+    if not force:
+        from app.services.box_role_cache import skland_endfield_roles_from_raws
+
+        roles = skland_endfield_roles_from_raws(db, member.id)
+    if roles is None:
+        roles = [
+            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ENDFIELD
+        ]
+    if not roles:
+        raise SklandApiError("未找到终末地绑定角色")
+    target_uid = str(uid or "").strip()
+    role = None
+    if target_uid:
+        role = next(
+            (
+                r
+                for r in roles
+                if r.uid == target_uid or r.role_id == target_uid
+            ),
+            None,
+        )
+    else:
+        role = roles[0]
+    if role is None:
+        raise SklandApiError("UID 不在当前终末地绑定列表中")
+    if not role.role_id:
+        raise SklandApiError("终末地角色缺少 roleId，请重新绑定森空岛")
+
+    row = (
+        db.query(EndfieldAttendanceRaw)
+        .filter(
+            EndfieldAttendanceRaw.member_id == member.id,
+            EndfieldAttendanceRaw.role_id == str(role.role_id),
+        )
+        .one_or_none()
+    )
+
+    def _same_beijing_month(synced_at: datetime | None) -> bool:
+        if synced_at is None:
+            return False
+        now = beijing_now()
+        if synced_at.tzinfo is None:
+            synced = synced_at.replace(tzinfo=BEIJING)
+        else:
+            synced = synced_at.astimezone(BEIJING)
+        return (synced.year, synced.month) == (now.year, now.month)
+
+    stale = False
+    need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
+    if need_fetch:
+        try:
+            resp = fetch_endfield_attendance(_ensure_session(), role)
+            raw_json = json.dumps(resp, ensure_ascii=False)
+            note_raw_payload(
+                "endfield_attendance_raw",
+                raw_json,
+                member_id=member.id,
+                uid=role.uid,
+            )
+            synced = now_naive()
+            if row is None:
+                row = EndfieldAttendanceRaw(
+                    member_id=member.id,
+                    role_id=str(role.role_id),
+                    server_id=str(role.server_id or ""),
+                    uid=role.uid,
+                    role_name=role.role_name,
+                    channel_name=role.channel_name,
+                    raw_json=raw_json,
+                    synced_at=synced,
+                )
+                db.add(row)
+            else:
+                row.server_id = str(role.server_id or "")
+                row.uid = role.uid
+                row.role_name = role.role_name
+                row.channel_name = role.channel_name
+                row.raw_json = raw_json
+                row.synced_at = synced
+            db.commit()
+            db.refresh(row)
+        except SklandApiError as exc:
+            if row is None:
+                raise SklandApiError(friendly_error_message(exc.message)) from exc
+            stale = True
+            logger.warning(
+                "endfield attendance refresh failed member_id=%s role_id=%s: %s",
+                member.id,
+                role.role_id,
+                exc.message,
+            )
+
+    try:
+        resp = json.loads(row.raw_json)
+    except json.JSONDecodeError as exc:
+        raise SklandApiError("签到日历数据损坏，请刷新重试") from exc
+    if not isinstance(resp, dict):
+        raise SklandApiError("签到日历数据格式异常，请刷新重试")
+
+    log_today = _endfield_today_log_hint(
+        db, member_id=member.id, role_uid=role.uid
+    )
+    parsed = parse_endfield_attendance_calendar(
+        resp,
+        fallback_has_today=True if log_today else None,
+    )
+    return parsed, role, roles, row.synced_at, stale
+
+
+def invalidate_endfield_attendance_raws(
+    db: Session, member_id: int, *, uids: list[str] | None = None
+) -> None:
+    """签到成功后丢弃终末地日历 raw，下次打开页回源。"""
+    q = db.query(EndfieldAttendanceRaw).filter(
+        EndfieldAttendanceRaw.member_id == member_id
+    )
+    if uids:
+        q = q.filter(EndfieldAttendanceRaw.uid.in_(uids))
+    q.delete(synchronize_session=False)
+
+
 def get_endfield_box_for_member(
     db: Session,
     member: Member,
@@ -359,8 +543,23 @@ def get_endfield_box_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session = _session_for_bind(bind)
-    roles = [r for r in list_roles(session) if r.game_code == GAME_ENDFIELD]
+    session: SklandSession | None = None
+
+    def _ensure_session() -> SklandSession:
+        nonlocal session
+        if session is None:
+            session = _session_for_bind(bind)
+        return session
+
+    roles: list[SklandRole] | None = None
+    if not force:
+        from app.services.box_role_cache import skland_endfield_roles_from_raws
+
+        roles = skland_endfield_roles_from_raws(db, member.id)
+    if roles is None:
+        roles = [
+            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ENDFIELD
+        ]
     if not roles:
         raise SklandApiError("未找到终末地绑定角色")
     target_uid = str(uid or "").strip()
@@ -392,7 +591,7 @@ def get_endfield_box_for_member(
     stale = False
     if force or row is None:
         try:
-            raw = fetch_endfield_card_detail(session, role)
+            raw = fetch_endfield_card_detail(_ensure_session(), role)
             raw_json = json.dumps(raw, ensure_ascii=False)
             from app.services.raw_payload_monitor import note_raw_payload
 
@@ -464,8 +663,23 @@ def get_arknights_rogue_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session = _session_for_bind(bind)
-    roles = [r for r in list_roles(session) if r.game_code == GAME_ARKNIGHTS]
+    session: SklandSession | None = None
+
+    def _ensure_session() -> SklandSession:
+        nonlocal session
+        if session is None:
+            session = _session_for_bind(bind)
+        return session
+
+    roles: list[SklandRole] | None = None
+    if not force:
+        from app.services.box_role_cache import skland_arknights_roles_from_raws
+
+        roles = skland_arknights_roles_from_raws(db, member.id)
+    if roles is None:
+        roles = [
+            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS
+        ]
     if not roles:
         raise SklandApiError("未找到明日方舟绑定角色")
     target_uid = str(uid or "").strip()
@@ -490,11 +704,12 @@ def get_arknights_rogue_for_member(
     stale = False
     if force or row is None:
         try:
-            raw = fetch_arknights_rogue(session, uid=str(role.uid), topic_id=topic)
+            sess = _ensure_session()
+            raw = fetch_arknights_rogue(sess, uid=str(role.uid), topic_id=topic)
             # user_id 可能在本次拉取中补齐，写回会话缓存
             token = decrypt_secret(bind.token_enc)
-            if token and session.user_id:
-                put_cached_skland_session(member.id, token, session)
+            if token and sess.user_id:
+                put_cached_skland_session(member.id, token, sess)
             raw_json = json.dumps(raw, ensure_ascii=False)
             from app.services.raw_payload_monitor import note_raw_payload
 
@@ -724,6 +939,13 @@ class SklandCheckinAdapter(CheckinAdapterBase):
             invalidate_arknights_attendance_raws(
                 db, bind.member_id, uids=ak_uids
             )
+        ef_uids = [
+            r.role_uid
+            for r in results
+            if r.game_code == GAME_ENDFIELD and is_success_status(r.status)
+        ]
+        if ef_uids:
+            invalidate_endfield_attendance_raws(db, bind.member_id, uids=ef_uids)
 
     def friendly_error(self, message: str) -> str:
         return friendly_error_message(message)

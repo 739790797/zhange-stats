@@ -6,6 +6,8 @@ import type {
   ArknightsCompareCandidate,
   ArknightsRogue,
   EndfieldBox,
+  EndfieldAttendanceCalendar,
+  GameScheduleCalendar,
   SklandCheckinResponse,
   SklandQrPoll,
   SklandQrStart,
@@ -32,6 +34,23 @@ export async function fetchEndfieldBox(uid?: string, force = false) {
     },
     timeout: 60000,
   });
+  return data;
+}
+
+export async function fetchEndfieldAttendanceCalendar(
+  uid?: string,
+  force = false,
+) {
+  const { data } = await client.get<EndfieldAttendanceCalendar>(
+    "/skland/endfield/attendance-calendar",
+    {
+      params: {
+        ...(uid ? { uid } : {}),
+        force,
+      },
+      timeout: 60000,
+    },
+  );
   return data;
 }
 
@@ -76,6 +95,21 @@ export async function fetchArknightsAttendanceCalendar(
         ...(uid ? { uid } : {}),
         force,
       },
+      timeout: 60000,
+    },
+  );
+  return data;
+}
+
+/** 活动日历（game-schedule 代理）；force 回源。 */
+export async function fetchSklandGameEvents(
+  game: "arknights" | "endfield",
+  force = false,
+) {
+  const { data } = await client.get<GameScheduleCalendar>(
+    "/skland/game-events",
+    {
+      params: { game, force },
       timeout: 60000,
     },
   );

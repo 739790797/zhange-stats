@@ -51,9 +51,6 @@ export interface CheckinPageStatus {
   checkin_hour?: number | null;
   checkin_minute?: number | null;
   phone_mask?: string | null;
-  last_checkin_date?: string | null;
-  last_checkin_ok?: boolean | null;
-  last_checkin_summary?: string | null;
   token_ok?: boolean | null;
   token_error?: string | null;
   roles?: CheckinPageRole[];

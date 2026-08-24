@@ -77,6 +77,12 @@ def _run_sync_role_checkin(
 
         runners[job_id] = run_checkin_for_member
         error_types[job_id] = KujiequApiError
+    elif job_id == "mihoyo_checkin":
+        from app.services.mihoyo_checkin import run_checkin_for_member
+        from app.services.mihoyo_client import MihoyoApiError
+
+        runners[job_id] = run_checkin_for_member
+        error_types[job_id] = MihoyoApiError
     else:
         raise HTTPException(status_code=400, detail="该任务不支持角色级同步执行")
 

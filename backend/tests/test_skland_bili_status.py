@@ -6,8 +6,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import app.services.skland_client  # noqa: F401 — 解开 attendance↔client 环依赖
-from app.services.checkin_common import STATUS_UNKNOWN, CheckinResult
-from app.services.skland_attendance import checkin_arknights, query_role_today
+from app.services.checkin_common import STATUS_ERROR, STATUS_UNKNOWN, CheckinResult
+from app.services.skland_attendance import (
+    _arknights_game_ids,
+    checkin_arknights,
+    query_role_today,
+)
 from app.services.skland_awards import arknights_result_needs_award_icons
 from app.services.skland_client import GAME_ARKNIGHTS
 
@@ -157,3 +161,16 @@ def test_bilibili_cached_awards_do_not_force_icon_refresh() -> None:
         awards=None,
     )
     assert arknights_result_needs_award_icons(bare) is False
+
+
+def test_bilibili_missing_channel_master_id_no_game_id_fallback() -> None:
+    """B 服缺 channelMasterId 时不得回退官服 gameId=1。"""
+    role = _bili_role(channel_master_id="")
+    assert _arknights_game_ids(role) == []
+
+
+def test_bilibili_checkin_missing_channel_master_id_fails() -> None:
+    role = _bili_role(channel_master_id="")
+    result = checkin_arknights(SimpleNamespace(), role)  # type: ignore[arg-type]
+    assert result.status == STATUS_ERROR
+    assert "channelMasterId" in (result.message or "")

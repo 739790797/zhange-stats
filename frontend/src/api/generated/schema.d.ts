@@ -868,23 +868,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/settings/runtime-logs/clear": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Clear Runtime Logs */
-        post: operations["clear_runtime_logs_api_settings_runtime_logs_clear_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/settings/runtime-health": {
         parameters: {
             query?: never;
@@ -1522,6 +1505,46 @@ export interface paths {
          * @description 终末地养成盒：默认读库二次加工；force 或首次回源落库。
          */
         get: operations["skland_endfield_box_api_skland_endfield_box_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/endfield/attendance-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Endfield Attendance Calendar
+         * @description 终末地签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。
+         */
+        get: operations["skland_endfield_attendance_calendar_api_skland_endfield_attendance_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/game-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Game Events
+         * @description 明日方舟 / 终末地活动日历（game-schedule 上游）；默认读缓存，force 回源。
+         */
+        get: operations["skland_game_events_api_skland_game_events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2215,6 +2238,246 @@ export interface paths {
          * @description 鸣潮资料卡（roleBox）：默认读库二次加工；force 或首次回源落库。
          */
         get: operations["kujiequ_ww_box_api_kujiequ_ww_box_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mihoyo Status */
+        get: operations["mihoyo_status_api_mihoyo_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mihoyo Logs */
+        get: operations["mihoyo_logs_api_mihoyo_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/bind/sms/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mihoyo Bind Sms Send */
+        post: operations["mihoyo_bind_sms_send_api_mihoyo_bind_sms_send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/bind/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mihoyo Bind Sms */
+        post: operations["mihoyo_bind_sms_api_mihoyo_bind_sms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/bind/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mihoyo Bind Password */
+        post: operations["mihoyo_bind_password_api_mihoyo_bind_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/qr/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mihoyo Qr Start */
+        post: operations["mihoyo_qr_start_api_mihoyo_qr_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/qr/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mihoyo Qr Poll */
+        post: operations["mihoyo_qr_poll_api_mihoyo_qr_poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Mihoyo Unbind */
+        delete: operations["mihoyo_unbind_api_mihoyo_bind_delete"];
+        options?: never;
+        head?: never;
+        /** Mihoyo Update Bind */
+        patch: operations["mihoyo_update_bind_api_mihoyo_bind_patch"];
+        trace?: never;
+    };
+    "/api/mihoyo/role-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mihoyo Update Role Pref */
+        patch: operations["mihoyo_update_role_pref_api_mihoyo_role_prefs_patch"];
+        trace?: never;
+    };
+    "/api/mihoyo/role-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mihoyo Role Tree */
+        get: operations["mihoyo_role_tree_api_mihoyo_role_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/role-memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mihoyo Replace Role Memberships */
+        put: operations["mihoyo_replace_role_memberships_api_mihoyo_role_memberships_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mihoyo Checkin Now */
+        post: operations["mihoyo_checkin_now_api_mihoyo_checkin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mihoyo Exchange Shop */
+        get: operations["mihoyo_exchange_shop_api_mihoyo_exchange_get"];
+        put?: never;
+        /** Mihoyo Do Exchange */
+        post: operations["mihoyo_do_exchange_api_mihoyo_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mihoyo/points-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mihoyo Points Logs */
+        get: operations["mihoyo_points_logs_api_mihoyo_points_logs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4435,6 +4698,49 @@ export interface components {
              */
             to_email: string;
         };
+        /**
+         * EndfieldAttendanceCalendarOut
+         * @description 终末地签到周期日历（字段同方舟）。
+         */
+        EndfieldAttendanceCalendarOut: {
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /** Channel Name */
+            channel_name: string;
+            /**
+             * Claimed Days
+             * @default 0
+             */
+            claimed_days: number;
+            /**
+             * Total Days
+             * @default 0
+             */
+            total_days: number;
+            /**
+             * Has Today Claim
+             * @default false
+             */
+            has_today_claim: boolean;
+            /**
+             * Progress Reliable
+             * @default true
+             */
+            progress_reliable: boolean;
+            /** Days */
+            days?: components["schemas"]["ArknightsAttendanceDayOut"][];
+            /** Roles */
+            roles?: components["schemas"]["SklandRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
         /** EndfieldBoxOut */
         EndfieldBoxOut: {
             /** Uid */
@@ -4912,14 +5218,6 @@ export interface components {
             phone_mask?: string | null;
             /** Bound At */
             bound_at?: string | null;
-            /** Last Checkin At */
-            last_checkin_at?: string | null;
-            /** Last Checkin Date */
-            last_checkin_date?: string | null;
-            /** Last Checkin Ok */
-            last_checkin_ok?: boolean | null;
-            /** Last Checkin Summary */
-            last_checkin_summary?: string | null;
             /** Token Ok */
             token_ok?: boolean | null;
             /** Token Error */
@@ -4930,6 +5228,69 @@ export interface components {
             today_results?: components["schemas"]["CheckinResultItem"][];
             /** Today Logs */
             today_logs?: components["schemas"]["CheckinLogOut"][];
+        };
+        /**
+         * GameScheduleCalendarOut
+         * @description 明日方舟 / 终末地活动日历（代理 game-schedule）。
+         */
+        GameScheduleCalendarOut: {
+            /** Game */
+            game: string;
+            /**
+             * Source
+             * @default game-schedule
+             */
+            source: string;
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Ongoing Count
+             * @default 0
+             */
+            ongoing_count: number;
+            /**
+             * Upcoming Count
+             * @default 0
+             */
+            upcoming_count: number;
+            /**
+             * Permanent Count
+             * @default 0
+             */
+            permanent_count: number;
+            /** Events */
+            events?: components["schemas"]["GameScheduleEventOut"][];
+            /** Permanent Events */
+            permanent_events?: components["schemas"]["GameScheduleEventOut"][];
+        };
+        /**
+         * GameScheduleEventOut
+         * @description game-schedule 活动条目（进行中 / 未开始）。
+         */
+        GameScheduleEventOut: {
+            /** Id */
+            id: string;
+            /** Game */
+            game: string;
+            /** Title */
+            title: string;
+            /** Start Time */
+            start_time: string;
+            /** End Time */
+            end_time: string;
+            /** Status */
+            status: string;
+            /** Banner */
+            banner?: string | null;
+            /** Link Url */
+            link_url?: string | null;
+            /** Event Type */
+            event_type?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -5523,14 +5884,6 @@ export interface components {
             phone_mask?: string | null;
             /** Bound At */
             bound_at?: string | null;
-            /** Last Checkin At */
-            last_checkin_at?: string | null;
-            /** Last Checkin Date */
-            last_checkin_date?: string | null;
-            /** Last Checkin Ok */
-            last_checkin_ok?: boolean | null;
-            /** Last Checkin Summary */
-            last_checkin_summary?: string | null;
             /** Token Ok */
             token_ok?: boolean | null;
             /** Token Error */
@@ -5669,6 +6022,15 @@ export interface components {
             /** Kujiequ Phone Mask */
             kujiequ_phone_mask?: string | null;
             /**
+             * Mihoyo Bound
+             * @default false
+             */
+            mihoyo_bound: boolean;
+            /** Mihoyo Auto Checkin */
+            mihoyo_auto_checkin?: boolean | null;
+            /** Mihoyo Phone Mask */
+            mihoyo_phone_mask?: string | null;
+            /**
              * Qq Bound
              * @default false
              */
@@ -5701,6 +6063,282 @@ export interface components {
             steam_id?: string | null;
             /** Qq Number */
             qq_number?: string | null;
+        };
+        /** MihoyoBindPasswordRequest */
+        MihoyoBindPasswordRequest: {
+            /** Account */
+            account: string;
+            /** Password */
+            password: string;
+            /** Geetest */
+            geetest?: string | null;
+            /** Mmt Key */
+            mmt_key?: string | null;
+        };
+        /** MihoyoBindPasswordResponse */
+        MihoyoBindPasswordResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Need Geetest
+             * @default false
+             */
+            need_geetest: boolean;
+            /** Captcha Id */
+            captcha_id?: string | null;
+            /** Mmt Key */
+            mmt_key?: string | null;
+            status?: components["schemas"]["MihoyoStatusOut"] | null;
+        };
+        /** MihoyoBindSmsRequest */
+        MihoyoBindSmsRequest: {
+            /** Phone */
+            phone: string;
+            /** Captcha */
+            captcha: string;
+        };
+        /** MihoyoBindSmsSendRequest */
+        MihoyoBindSmsSendRequest: {
+            /** Phone */
+            phone: string;
+            /** Geetest */
+            geetest?: string | null;
+            /** Mmt Key */
+            mmt_key?: string | null;
+        };
+        /** MihoyoBindSmsSendResponse */
+        MihoyoBindSmsSendResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default 验证码已发送
+             */
+            message: string;
+            /**
+             * Need Geetest
+             * @default false
+             */
+            need_geetest: boolean;
+            /** Captcha Id */
+            captcha_id?: string | null;
+            /** Mmt Key */
+            mmt_key?: string | null;
+        };
+        /** MihoyoBindUpdate */
+        MihoyoBindUpdate: {
+            /** Auto Checkin */
+            auto_checkin?: boolean | null;
+            /** Checkin Hour */
+            checkin_hour?: number | null;
+            /** Checkin Minute */
+            checkin_minute?: number | null;
+        };
+        /** MihoyoExchangeItemOut */
+        MihoyoExchangeItemOut: {
+            /** Goods Id */
+            goods_id: string;
+            /** Goods Name */
+            goods_name: string;
+            /**
+             * Goods Num
+             * @default 1
+             */
+            goods_num: number;
+            /**
+             * Goods Img
+             * @default
+             */
+            goods_img: string;
+            /**
+             * Price
+             * @default 0
+             */
+            price: number;
+            /**
+             * Exchange Limit
+             * @default 0
+             */
+            exchange_limit: number;
+            /**
+             * Exchanged Count
+             * @default 0
+             */
+            exchanged_count: number;
+            /** Next Exchange Time */
+            next_exchange_time?: string | null;
+            /**
+             * Game Biz
+             * @default
+             */
+            game_biz: string;
+            /**
+             * Game Name
+             * @default
+             */
+            game_name: string;
+        };
+        /** MihoyoExchangeRequest */
+        MihoyoExchangeRequest: {
+            /** Goods Id */
+            goods_id: string;
+            /**
+             * Game Biz
+             * @default
+             */
+            game_biz: string;
+            /**
+             * Region
+             * @default
+             */
+            region: string;
+            /**
+             * Role Uid
+             * @default
+             */
+            role_uid: string;
+        };
+        /** MihoyoExchangeResultOut */
+        MihoyoExchangeResultOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Points */
+            points?: number | null;
+            item?: components["schemas"]["MihoyoExchangeItemOut"] | null;
+        };
+        /** MihoyoExchangeShopOut */
+        MihoyoExchangeShopOut: {
+            /**
+             * Points
+             * @default 0
+             */
+            points: number;
+            /** Items */
+            items?: components["schemas"]["MihoyoExchangeItemOut"][];
+        };
+        /** MihoyoPointsLogItemOut */
+        MihoyoPointsLogItemOut: {
+            /**
+             * Points
+             * @default 0
+             */
+            points: number;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Log Time
+             * @default
+             */
+            log_time: string;
+        };
+        /** MihoyoPointsLogOut */
+        MihoyoPointsLogOut: {
+            /** List */
+            list?: components["schemas"]["MihoyoPointsLogItemOut"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 50
+             */
+            page_size: number;
+        };
+        /** MihoyoQrPollRequest */
+        MihoyoQrPollRequest: {
+            /** Scan Id */
+            scan_id: string;
+        };
+        /** MihoyoQrPollResponse */
+        MihoyoQrPollResponse: {
+            /** Status */
+            status: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        };
+        /** MihoyoQrStartResponse */
+        MihoyoQrStartResponse: {
+            /** Scan Id */
+            scan_id: string;
+            /** Scan Url */
+            scan_url: string;
+            /** Qr Image */
+            qr_image: string;
+            /**
+             * Expires In
+             * @default 180
+             */
+            expires_in: number;
+        };
+        /** MihoyoRoleOut */
+        MihoyoRoleOut: {
+            /** Game Code */
+            game_code: string;
+            /** Game Name */
+            game_name: string;
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /** Channel Name */
+            channel_name: string;
+        };
+        /** MihoyoStatusOut */
+        MihoyoStatusOut: {
+            /** Bound */
+            bound: boolean;
+            /** Auto Checkin */
+            auto_checkin?: boolean | null;
+            /** Checkin Hour */
+            checkin_hour?: number | null;
+            /** Checkin Minute */
+            checkin_minute?: number | null;
+            /** Phone Mask */
+            phone_mask?: string | null;
+            /** Bound At */
+            bound_at?: string | null;
+            /** Token Ok */
+            token_ok?: boolean | null;
+            /** Token Error */
+            token_error?: string | null;
+            /** Roles */
+            roles?: components["schemas"]["MihoyoRoleOut"][];
+            /** Today Results */
+            today_results?: components["schemas"]["CheckinResultItem"][];
+            /** Today Logs */
+            today_logs?: components["schemas"]["CheckinLogOut"][];
         };
         /** MinecraftAppliedModOut */
         MinecraftAppliedModOut: {
@@ -7182,20 +7820,17 @@ export interface components {
             level: string;
             /** Logger */
             logger: string;
+            /**
+             * Biz
+             * @default
+             */
+            biz: string;
+            /**
+             * Context
+             * @default
+             */
+            context: string;
             /** Message */
-            message: string;
-        };
-        /** RuntimeLogsClearOut */
-        RuntimeLogsClearOut: {
-            /**
-             * Ok
-             * @default true
-             */
-            ok: boolean;
-            /**
-             * Message
-             * @default 已清空内存日志缓冲
-             */
             message: string;
         };
         /** RuntimeLogsOut */
@@ -7204,6 +7839,17 @@ export interface components {
             capacity: number;
             /** Buffered */
             buffered: number;
+            /**
+             * Source
+             * @default ring
+             */
+            source: string;
+            /** File Path */
+            file_path?: string | null;
+            /** File Lines */
+            file_lines?: number | null;
+            /** File Bytes */
+            file_bytes?: number | null;
             /** Lines */
             lines?: components["schemas"]["RuntimeLogLineOut"][];
         };
@@ -7439,14 +8085,6 @@ export interface components {
             checkin_minute?: number | null;
             /** Bound At */
             bound_at?: string | null;
-            /** Last Checkin At */
-            last_checkin_at?: string | null;
-            /** Last Checkin Date */
-            last_checkin_date?: string | null;
-            /** Last Checkin Ok */
-            last_checkin_ok?: boolean | null;
-            /** Last Checkin Summary */
-            last_checkin_summary?: string | null;
             /** Token Ok */
             token_ok?: boolean | null;
             /** Token Error */
@@ -10109,14 +10747,6 @@ export interface components {
             phone_mask?: string | null;
             /** Bound At */
             bound_at?: string | null;
-            /** Last Checkin At */
-            last_checkin_at?: string | null;
-            /** Last Checkin Date */
-            last_checkin_date?: string | null;
-            /** Last Checkin Ok */
-            last_checkin_ok?: boolean | null;
-            /** Last Checkin Summary */
-            last_checkin_summary?: string | null;
             /** Token Ok */
             token_ok?: boolean | null;
             /** Token Error */
@@ -10215,6 +10845,11 @@ export interface components {
              * @default false
              */
             kujiequ_bound: boolean;
+            /**
+             * Mihoyo Bound
+             * @default false
+             */
+            mihoyo_bound: boolean;
             /**
              * Qq Bound
              * @default false
@@ -12193,10 +12828,14 @@ export interface operations {
                 level?: string | null;
                 /** @description logger 名前缀，如 zhange */
                 logger?: string | null;
+                /** @description 业务标记前缀，如 skland / checkin */
+                biz?: string | null;
                 /** @description 消息或 logger 子串 */
                 q?: string | null;
                 /** @description 仅返回 id 大于该值的新行 */
                 after_id?: number;
+                /** @description ring=内存环缓冲；file=持久化 JSONL；all=合并（推荐） */
+                source?: string;
             };
             header?: never;
             path?: never;
@@ -12220,26 +12859,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    clear_runtime_logs_api_settings_runtime_logs_clear_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RuntimeLogsClearOut"];
                 };
             };
         };
@@ -13323,6 +13942,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EndfieldBoxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skland_endfield_attendance_calendar_api_skland_endfield_attendance_calendar_get: {
+        parameters: {
+            query?: {
+                uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndfieldAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skland_game_events_api_skland_game_events_get: {
+        parameters: {
+            query: {
+                /** @description arknights | endfield */
+                game: "arknights" | "endfield";
+                force?: boolean;
+                include_ended?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameScheduleCalendarOut"];
                 };
             };
             /** @description Validation Error */
@@ -14704,6 +15389,479 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WwBoxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_status_api_mihoyo_status_get: {
+        parameters: {
+            query?: {
+                include_roles?: boolean;
+                /** @description 展示路径默认回源官方；传 false 仅供内部/排障读今日 logs */
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_logs_api_mihoyo_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_bind_sms_send_api_mihoyo_bind_sms_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MihoyoBindSmsSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoBindSmsSendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_bind_sms_api_mihoyo_bind_sms_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MihoyoBindSmsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_bind_password_api_mihoyo_bind_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MihoyoBindPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoBindPasswordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_qr_start_api_mihoyo_qr_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoQrStartResponse"];
+                };
+            };
+        };
+    };
+    mihoyo_qr_poll_api_mihoyo_qr_poll_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MihoyoQrPollRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoQrPollResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_unbind_api_mihoyo_bind_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoStatusOut"];
+                };
+            };
+        };
+    };
+    mihoyo_update_bind_api_mihoyo_bind_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MihoyoBindUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_update_role_pref_api_mihoyo_role_prefs_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckinRolePrefUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_role_tree_api_mihoyo_role_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMembershipTreeOut"];
+                };
+            };
+        };
+    };
+    mihoyo_replace_role_memberships_api_mihoyo_role_memberships_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMembershipReplaceBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_checkin_now_api_mihoyo_checkin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckinNowBody"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckinResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_exchange_shop_api_mihoyo_exchange_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoExchangeShopOut"];
+                };
+            };
+        };
+    };
+    mihoyo_do_exchange_api_mihoyo_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MihoyoExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoExchangeResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mihoyo_points_logs_api_mihoyo_points_logs_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoPointsLogOut"];
                 };
             };
             /** @description Validation Error */

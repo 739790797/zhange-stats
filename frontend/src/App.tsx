@@ -20,6 +20,7 @@ import SteamCalendarPage from "@/pages/SteamCalendarPage";
 import TaygedoPage from "@/pages/TaygedoPage";
 import ExiliumPage from "@/pages/ExiliumPage";
 import KujiequPage from "@/pages/KujiequPage";
+import MihoyoPage from "@/pages/MihoyoPage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import TaskConfigPage from "@/pages/TaskConfigPage";
 import UserManagementPage from "@/pages/UserManagementPage";
@@ -148,6 +149,14 @@ export default function App() {
                 element={
                   <PlatformRoute featureId="kujiequ">
                     <KujiequPage />
+                  </PlatformRoute>
+                }
+              />
+              <Route
+                path="/mihoyo"
+                element={
+                  <PlatformRoute featureId="mihoyo">
+                    <MihoyoPage />
                   </PlatformRoute>
                 }
               />

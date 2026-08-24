@@ -17,12 +17,13 @@ export const PLATFORM_NAV: {
   path: string;
   featureId: string;
   label: string;
-  icon: "steam" | "skland" | "taygedo" | "exilium" | "kujiequ";
+  icon: "steam" | "skland" | "taygedo" | "exilium" | "kujiequ" | "mihoyo";
 }[] = [
   { path: "/steam", featureId: "steam", label: "Steam", icon: "steam" },
   { path: "/skland", featureId: "skland", label: "森空岛", icon: "skland" },
   { path: "/taygedo", featureId: "taygedo", label: "塔吉多", icon: "taygedo" },
   { path: "/kujiequ", featureId: "kujiequ", label: "库街区", icon: "kujiequ" },
+  { path: "/mihoyo", featureId: "mihoyo", label: "米游社", icon: "mihoyo" },
   { path: "/exilium", featureId: "exilium", label: "追放", icon: "exilium" },
 ];
 

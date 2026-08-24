@@ -224,11 +224,12 @@ def test_query_today_uses_cache(monkeypatch) -> None:
     assert adapter.queries == 0
 
 
-def test_registry_has_four_platforms() -> None:
+def test_registry_has_checkin_platforms() -> None:
     from app.services.checkin_registry import get_checkin_adapters
     from app.services.checkin_role_prefs import (
         PLATFORM_EXILIUM,
         PLATFORM_KUJIEQU,
+        PLATFORM_MIHOYO,
         PLATFORM_SKLAND,
         PLATFORM_TAYGEDO,
     )
@@ -239,4 +240,5 @@ def test_registry_has_four_platforms() -> None:
         PLATFORM_TAYGEDO,
         PLATFORM_EXILIUM,
         PLATFORM_KUJIEQU,
+        PLATFORM_MIHOYO,
     }

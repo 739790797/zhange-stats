@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.biz_logging import log_context
 from app.core.timeutil import now_naive, today
 from app.models.job_run import JobRun
 from app.services.checkin_adapter import (
@@ -264,24 +265,45 @@ def checkin_job_wrapper(
     db.add(job)
     db.commit()
     db.refresh(job)
-    try:
-        stats = run_checkin_job(
-            adapter, db, due_only=due_only, member_id=member_id
-        )
-        job.status = "ok"
-        job.message = (
-            f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
-            f"跳过 {stats['skipped']}（共 {stats['total']}）"
-        )
-        job.stats = stats
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("%s checkin job crashed", adapter.platform)
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()
-        lock.release()
+    ctx_kwargs: dict[str, str | int | None] = {
+        "platform": adapter.platform,
+        "job": "checkin",
+    }
+    if member_id is not None:
+        ctx_kwargs["member_id"] = member_id
+    with log_context(**ctx_kwargs):
+        try:
+            logger.info(
+                "%s checkin job begin due_only=%s member_id=%s",
+                adapter.platform,
+                due_only,
+                member_id,
+            )
+            stats = run_checkin_job(
+                adapter, db, due_only=due_only, member_id=member_id
+            )
+            logger.info(
+                "%s checkin job done ok=%s failed=%s skipped=%s total=%s",
+                adapter.platform,
+                stats["ok"],
+                stats["failed"],
+                stats["skipped"],
+                stats["total"],
+            )
+            job.status = "ok"
+            job.message = (
+                f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
+                f"跳过 {stats['skipped']}（共 {stats['total']}）"
+            )
+            job.stats = stats
+            job.finished_at = now_naive()
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("%s checkin job crashed", adapter.platform)
+            job.status = "error"
+            job.message = str(exc)
+            job.finished_at = now_naive()
+            db.commit()
+        finally:
+            db.close()
+            lock.release()

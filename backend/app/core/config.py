@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     ARKNIGHTS_CATALOG_SYNC_ENABLED: bool = True
     ARKNIGHTS_CATALOG_SYNC_HOUR: int = 4
     ARKNIGHTS_CATALOG_SYNC_MINUTE: int = 0
+    # 森空岛活动日历（game-schedule，默认 05:00）
+    GAME_SCHEDULE_SYNC_ENABLED: bool = True
+    GAME_SCHEDULE_SYNC_HOUR: int = 5
+    GAME_SCHEDULE_SYNC_MINUTE: int = 0
     # 逃离塔科夫物品（弹药+枪械，默认 04:30）
     TARKOV_ITEMS_SYNC_ENABLED: bool = True
     TARKOV_ITEMS_SYNC_HOUR: int = 4
@@ -121,8 +125,18 @@ class Settings(BaseSettings):
     KUJIEQU_CHECKIN_ENABLED: bool = True
     KUJIEQU_CHECKIN_HOUR: int = 0
     KUJIEQU_CHECKIN_MINUTE: int = 1
+
+    MIHOYO_CHECKIN_ENABLED: bool = True
+    MIHOYO_CHECKIN_HOUR: int = 0
+    MIHOYO_CHECKIN_MINUTE: int = 1
     # 运行时数据目录（密钥等；勿挂到公开静态路径）
     DATA_DIR: str = "data"
+    # 应用日志：级别 / 内存环缓冲 / JSONL 持久化（DATA_DIR/logs/app.jsonl）
+    APP_LOG_LEVEL: str = "INFO"
+    APP_LOG_RING_CAPACITY: int = 5000
+    APP_LOG_FILE: bool = True
+    APP_LOG_FILE_MAX_MB: int = 50
+    APP_LOG_FILE_BACKUP_COUNT: int = 5
     # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
     UPLOAD_DIR: str = "uploads"
 
@@ -150,6 +164,9 @@ class Settings(BaseSettings):
     UPDATE_GITHUB_REPO: str = "739790797/zhange-stats"
     UPDATE_GITHUB_API: str = "https://api.github.com"
     UPDATE_GITHUB_TOKEN: str = ""
+
+    # 活动日历上游（game-schedule Cloudflare Worker，见 jacket-sikaha/game-schedule）
+    GAME_SCHEDULE_BASE_URL: str = "https://gebc.lee-sikaha.cloudns.ch"
 
     @property
     def cors_origin_list(self) -> list[str]:

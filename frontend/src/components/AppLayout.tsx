@@ -71,6 +71,7 @@ const leafKeys = [
   "/skland",
   "/taygedo",
   "/kujiequ",
+  "/mihoyo",
   "/exilium",
   "/daily",
   "/profile",
@@ -243,6 +244,7 @@ export function AppLayout() {
       if (hit) return hit;
     }
     if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
+    if (location.pathname.startsWith("/mihoyo")) return "/mihoyo";
     if (location.pathname.startsWith("/exilium")) return "/exilium";
     if (location.pathname.startsWith("/taygedo")) return "/taygedo";
     if (location.pathname.startsWith("/skland")) return "/skland";

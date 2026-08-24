@@ -31,6 +31,10 @@ def test_runtime_log_buffer_snapshot_filters() -> None:
 
     _, prefixed = buf.snapshot(limit=10, logger_prefix="zhange.test")
     assert len(prefixed) == 3
+    assert all(x.biz == "test.buffer" for x in prefixed)
+
+    _, biz_lines = buf.snapshot(limit=10, biz_prefix="test")
+    assert len(biz_lines) == 3
 
     last_id = lines[-1].id
     _, newer = buf.snapshot(limit=10, after_id=last_id)

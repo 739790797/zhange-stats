@@ -1,16 +1,23 @@
 /** 四平台角色「加入本站」探测 / 批量写入。 */
 
 import { client } from "./http";
-import type { RoleMembershipTree } from "@/components/RoleMembershipTreeModal";
+import type { components } from "@/api/generated/schema";
 
-export type CheckinPlatformKey = "skland" | "taygedo" | "exilium" | "kujiequ";
+export type CheckinPlatformKey = "skland" | "taygedo" | "exilium" | "kujiequ" | "mihoyo";
 
-export type RoleMembershipReplaceBody = {
-  roles: Array<{
-    game_code: string;
-    role_uid: string;
-    included: boolean;
-  }>;
+export type RoleMembershipReplaceBody =
+  components["schemas"]["RoleMembershipReplaceBody"];
+export type RoleMembershipTreeOut =
+  components["schemas"]["RoleMembershipTreeOut"];
+export type RoleMembershipNode =
+  components["schemas"]["RoleMembershipNodeOut"];
+
+/** 前端树组件用：channel_name 非空、included 布尔化 */
+export type RoleMembershipTree = {
+  platform: string;
+  roles: Array<
+    RoleMembershipNode & { channel_name: string; included: boolean }
+  >;
 };
 
 const STATUS_PATH: Record<CheckinPlatformKey, string> = {
@@ -18,18 +25,7 @@ const STATUS_PATH: Record<CheckinPlatformKey, string> = {
   taygedo: "/taygedo",
   exilium: "/exilium",
   kujiequ: "/kujiequ",
-};
-
-type RoleMembershipTreeOut = {
-  platform: string;
-  roles?: Array<{
-    game_code: string;
-    game_name: string;
-    role_uid: string;
-    role_name: string;
-    channel_name?: string | null;
-    included?: boolean;
-  }>;
+  mihoyo: "/mihoyo",
 };
 
 export async function fetchRoleMembershipTree(

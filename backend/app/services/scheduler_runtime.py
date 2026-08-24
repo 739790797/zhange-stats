@@ -9,6 +9,7 @@ from collections.abc import Callable
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
 
+from app.core.biz_logging import wrap_scheduled_job
 from app.core.timeutil import BEIJING
 from app.services.arknights_box_compare import (
     box_sync_job_wrapper as arknights_box_sync_job_wrapper,
@@ -16,10 +17,15 @@ from app.services.arknights_box_compare import (
 from app.services.arknights_catalog import (
     catalog_sync_job_wrapper as arknights_catalog_sync_job_wrapper,
 )
+from app.services.game_schedule import (
+    game_schedule_arknights_sync_job_wrapper as game_schedule_arknights_sync_job_wrapper,
+    game_schedule_endfield_sync_job_wrapper as game_schedule_endfield_sync_job_wrapper,
+)
 from app.services.exilium_checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
 from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
 from app.services.kujiequ_checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
+from app.services.mihoyo_checkin import checkin_job_wrapper as mihoyo_checkin_job_wrapper
 from app.services.minecraft_presence import poll_job_wrapper as minecraft_presence_job
 from app.services.minecraft_perf import (
     SAMPLE_INTERVAL_SEC as MINECRAFT_PERF_INTERVAL_SEC,
@@ -57,6 +63,7 @@ CHECKIN_JOB_IDS = (
     "taygedo_checkin",
     "exilium_checkin",
     "kujiequ_checkin",
+    "mihoyo_checkin",
 )
 
 CHECKIN_DUE_HANDLERS: dict[str, Callable[[], None]] = {
@@ -64,6 +71,7 @@ CHECKIN_DUE_HANDLERS: dict[str, Callable[[], None]] = {
     "taygedo_checkin": lambda: taygedo_checkin_job_wrapper(due_only=True),
     "exilium_checkin": lambda: exilium_checkin_job_wrapper(due_only=True),
     "kujiequ_checkin": lambda: kujiequ_checkin_job_wrapper(due_only=True),
+    "mihoyo_checkin": lambda: mihoyo_checkin_job_wrapper(due_only=True),
 }
 
 CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., None]] = {
@@ -71,11 +79,14 @@ CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., None]] = {
     "taygedo_checkin": taygedo_checkin_job_wrapper,
     "exilium_checkin": exilium_checkin_job_wrapper,
     "kujiequ_checkin": kujiequ_checkin_job_wrapper,
+    "mihoyo_checkin": mihoyo_checkin_job_wrapper,
 }
 
 SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     "arknights_box_sync": arknights_box_sync_job_wrapper,
     "arknights_catalog_sync": arknights_catalog_sync_job_wrapper,
+    "game_schedule_arknights_sync": game_schedule_arknights_sync_job_wrapper,
+    "game_schedule_endfield_sync": game_schedule_endfield_sync_job_wrapper,
     "tarkov_items_sync": tarkov_items_sync_job_wrapper,
     "tarkov_tasks_sync": tarkov_tasks_sync_job_wrapper,
     "tarkov_traders_sync": tarkov_traders_sync_job_wrapper,
@@ -107,20 +118,20 @@ def resolve_job_callable(
     if not _job_feature_allowed(db, job_id):
         raise RuntimeError("该任务所属功能未启用")
     if job_id == "steam_presence":
-        return poll_job_wrapper
+        return wrap_scheduled_job(job_id, poll_job_wrapper)
     if job_id == "minecraft_presence":
-        return minecraft_presence_job
+        return wrap_scheduled_job(job_id, minecraft_presence_job)
     if job_id in CHECKIN_MANUAL_HANDLERS:
         handler = CHECKIN_MANUAL_HANDLERS[job_id]
 
         def _run() -> None:
             handler(due_only=False, member_id=member_id)
 
-        return _run
+        return wrap_scheduled_job(job_id, _run)
     handler = SYSTEM_CRON_HANDLERS.get(job_id)
     if handler is None:
         raise KeyError(job_id)
-    return handler
+    return wrap_scheduled_job(job_id, handler)
 
 
 def try_acquire_manual_trigger(job_id: str) -> bool:
@@ -168,7 +179,7 @@ def register_scheduler_jobs(
         # 是否注册只认平台功能开关；interval/cron 时刻仍读 scheduler_jobs
         if _job_feature_allowed(db, "steam_presence") and steam_key:
             scheduler.add_job(
-                poll_job_wrapper,
+                wrap_scheduled_job("steam_presence", poll_job_wrapper),
                 "interval",
                 minutes=interval,
                 id="steam_presence",
@@ -183,7 +194,7 @@ def register_scheduler_jobs(
         mc_interval = max(1, int(mc_cfg.get("interval_minutes") or 1))
         if _job_feature_allowed(db, "minecraft_presence"):
             scheduler.add_job(
-                minecraft_presence_job,
+                wrap_scheduled_job("minecraft_presence", minecraft_presence_job),
                 "interval",
                 minutes=mc_interval,
                 id="minecraft_presence",
@@ -197,7 +208,7 @@ def register_scheduler_jobs(
             if not _job_feature_allowed(db, job_id):
                 continue
             scheduler.add_job(
-                func,
+                wrap_scheduled_job(job_id, func),
                 "interval",
                 minutes=1,
                 id=job_id,
@@ -216,7 +227,7 @@ def register_scheduler_jobs(
             hour = max(0, min(23, int(job_cfg.get("hour", 0))))
             minute = max(0, min(59, int(job_cfg.get("minute", 0))))
             scheduler.add_job(
-                func,
+                wrap_scheduled_job(job_id, func),
                 "cron",
                 hour=hour,
                 minute=minute,
@@ -230,7 +241,7 @@ def register_scheduler_jobs(
         _remove_job(scheduler, "minecraft_rcon_perf")
         if is_feature_enabled(db, "guides.minecraft"):
             scheduler.add_job(
-                minecraft_rcon_perf_job,
+                wrap_scheduled_job("minecraft_rcon_perf", minecraft_rcon_perf_job),
                 "interval",
                 seconds=MINECRAFT_PERF_INTERVAL_SEC,
                 id="minecraft_rcon_perf",

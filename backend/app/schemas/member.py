@@ -28,6 +28,7 @@ class UserBrief(OrmModel):
     taygedo_bound: bool = False
     exilium_bound: bool = False
     kujiequ_bound: bool = False
+    mihoyo_bound: bool = False
     qq_bound: bool = False
 
 
@@ -65,6 +66,9 @@ class MemberProfileOut(BaseModel):
     kujiequ_bound: bool = False
     kujiequ_auto_checkin: bool | None = None
     kujiequ_phone_mask: str | None = None
+    mihoyo_bound: bool = False
+    mihoyo_auto_checkin: bool | None = None
+    mihoyo_phone_mask: str | None = None
     qq_bound: bool = False
     qq_nickname: str | None = None
     qq_avatar_url: str | None = None

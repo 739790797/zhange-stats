@@ -13,6 +13,7 @@ import {
   unbindTaygedo,
   unbindExilium,
   unbindKujiequ,
+  unbindMihoyo,
   updateMemberProfile,
   updateMyProfile,
   uploadMemberAvatar,
@@ -52,6 +53,7 @@ export default function ProfileSettingsPage() {
   const showTaygedo = isFeatureOn(featuresQuery.data, "taygedo");
   const showExilium = isFeatureOn(featuresQuery.data, "exilium");
   const showKujiequ = isFeatureOn(featuresQuery.data, "kujiequ");
+  const showMihoyo = isFeatureOn(featuresQuery.data, "mihoyo");
   const isAdmin = isAdminUser(authUser);
   const integrationsStatus = useIntegrationsStatus(showSteam);
 
@@ -186,6 +188,16 @@ export default function ProfileSettingsPage() {
     onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
   });
 
+  const unbindMihoyoMut = useMutation({
+    mutationFn: unbindMihoyo,
+    onSuccess: () => {
+      message.success("已解除米游社绑定");
+      invalidateProfile();
+      queryClient.invalidateQueries({ queryKey: ["mihoyo-status"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "解绑失败")),
+  });
+
   const uploadAvatar = useMutation({
     mutationFn: async (file: File) =>
       isAdminEdit
@@ -223,6 +235,7 @@ export default function ProfileSettingsPage() {
   const taygedoBound = Boolean(data?.taygedo_bound);
   const exiliumBound = Boolean(data?.exilium_bound);
   const kujiequBound = Boolean(data?.kujiequ_bound);
+  const mihoyoBound = Boolean(data?.mihoyo_bound);
   const displayName =
     data?.display_name ||
     data?.nickname ||
@@ -281,6 +294,7 @@ export default function ProfileSettingsPage() {
         showTaygedo={showTaygedo}
         showExilium={showExilium}
         showKujiequ={showKujiequ}
+        showMihoyo={showMihoyo}
         steamBound={steamBound}
         steamConfigured={integrationsStatus.data?.steam_configured}
         isAdminUser={isAdmin}
@@ -289,6 +303,7 @@ export default function ProfileSettingsPage() {
         taygedoBound={taygedoBound}
         exiliumBound={exiliumBound}
         kujiequBound={kujiequBound}
+        mihoyoBound={mihoyoBound}
         startSteamBindPending={startSteamBind.isPending}
         unbindSteamPending={unbindSteam.isPending}
         onStartSteamBind={() => startSteamBind.mutate()}
@@ -305,6 +320,8 @@ export default function ProfileSettingsPage() {
         onUnbindExilium={() => unbindExiliumMut.mutate()}
         unbindKujiequPending={unbindKujiequMut.isPending}
         onUnbindKujiequ={() => unbindKujiequMut.mutate()}
+        unbindMihoyoPending={unbindMihoyoMut.isPending}
+        onUnbindMihoyo={() => unbindMihoyoMut.mutate()}
         invalidateProfile={invalidateProfile}
       />
     </div>

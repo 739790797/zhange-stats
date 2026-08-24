@@ -23,6 +23,7 @@ _CHECKIN_LOG_MODELS: tuple[tuple[str, str], ...] = (
     ("taygedo", "app.models.taygedo.TaygedoCheckinLog"),
     ("exilium", "app.models.exilium.ExiliumCheckinLog"),
     ("kujiequ", "app.models.kujiequ.KujiequCheckinLog"),
+    ("mihoyo", "app.models.mihoyo.MihoyoCheckinLog"),
 )
 
 

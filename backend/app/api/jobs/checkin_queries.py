@@ -40,7 +40,7 @@ from app.services.platform_features import CHECKIN_PLATFORM_FEATURES, PLATFORM_S
 router = APIRouter()
 
 # 各平台「社区」签到 game_code：用户任务树内排最前
-_COMMUNITY_GAME_CODES = frozenset({"app", "kujiequ", "exilium_bbs"})
+_COMMUNITY_GAME_CODES = frozenset({"app", "kujiequ", "exilium_bbs", "mihoyo"})
 
 
 def _game_code_sort_key(game_code: str | None) -> tuple[int, str]:

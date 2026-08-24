@@ -1,3 +1,4 @@
+import { QqOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -22,8 +23,10 @@ import {
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
+import type { PlatformIconName } from "@/lib/platformIcons";
 import { useAuthStore } from "@/stores/authStore";
 
 type UserFormValues = {
@@ -41,18 +44,48 @@ type BindPlatform = {
     | "taygedo_bound"
     | "exilium_bound"
     | "kujiequ_bound"
+    | "mihoyo_bound"
     | "qq_bound"
   >;
   label: string;
+  icon: PlatformIconName | "qq";
 };
 
+const BIND_ICON_SIZE = 14;
+
 const BASE_PLATFORMS: BindPlatform[] = [
-  { key: "steam_bound", label: "Steam" },
-  { key: "skland_bound", label: "森空岛" },
-  { key: "taygedo_bound", label: "塔吉多" },
-  { key: "exilium_bound", label: "追放" },
-  { key: "kujiequ_bound", label: "库街区" },
+  { key: "steam_bound", label: "Steam", icon: "steam" },
+  { key: "skland_bound", label: "森空岛", icon: "skland" },
+  { key: "taygedo_bound", label: "塔吉多", icon: "taygedo" },
+  { key: "exilium_bound", label: "追放", icon: "exilium" },
+  { key: "kujiequ_bound", label: "库街区", icon: "kujiequ" },
+  { key: "mihoyo_bound", label: "米游社", icon: "mihoyo" },
 ];
+
+function BindPlatformMark({ icon }: { icon: PlatformIconName | "qq" }) {
+  if (icon === "qq") {
+    return (
+      <span
+        className="anticon"
+        role="img"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: BIND_ICON_SIZE,
+          height: BIND_ICON_SIZE,
+          fontSize: BIND_ICON_SIZE,
+          verticalAlign: "-0.125em",
+          flexShrink: 0,
+          color: "#12b7f5",
+        }}
+      >
+        <QqOutlined />
+      </span>
+    );
+  }
+  return <PlatformIcon name={icon} size={BIND_ICON_SIZE} />;
+}
 
 function BindStatusTags({
   row,
@@ -66,9 +99,17 @@ function BindStatusTags({
       {platforms.map((p) => {
         const bound = Boolean(row[p.key]);
         return (
-          <Tag key={p.key} color={bound ? "success" : undefined}>
-            {p.label}
-            {bound ? " · 已绑" : " · 未绑"}
+          <Tag key={p.key} color={bound ? "success" : undefined} title={p.label}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <BindPlatformMark icon={p.icon} />
+              {bound ? "已绑" : "未绑"}
+            </span>
           </Tag>
         );
       })}
@@ -98,7 +139,7 @@ export default function UserManagementPage() {
   const platforms = useMemo(() => {
     const list = [...BASE_PLATFORMS];
     if (integrations?.qq_configured) {
-      list.push({ key: "qq_bound", label: "QQ" });
+      list.push({ key: "qq_bound", label: "QQ", icon: "qq" });
     }
     return list;
   }, [integrations?.qq_configured]);

@@ -7,6 +7,7 @@ import {
   updateSklandRolePref,
 } from "@/api/client";
 import { ArknightsAttendanceCalendarButton } from "@/components/ArknightsAttendanceCalendar";
+import { EndfieldAttendanceCalendarButton } from "@/components/EndfieldAttendanceCalendar";
 import { ArknightsTabPanel } from "@/components/arknights/ArknightsTabPanel";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { EndfieldBoxPanel } from "@/components/EndfieldBoxPanel";
@@ -52,24 +53,35 @@ export default function SklandPage() {
         label: "签到",
         children: (
           <CheckinPageTemplate
-            contentOnly
-            title="森空岛"
-            bindName="森空岛"
-            statusQueryKey={["skland-status"]}
-            fetchStatus={fetchSklandStatus}
-            triggerCheckin={triggerSklandCheckin}
-            updateRolePref={updateSklandRolePref}
-            platformIcon="skland"
-            renderResultExtra={(row) => {
-              if (row.game_code !== "arknights") return null;
-              if (!row.role_uid) return null;
-              return (
-                <ArknightsAttendanceCalendarButton
-                  uid={row.role_uid}
-                  roleName={row.role_name}
-                  channelName={row.channel_name}
-                />
-              );
+              contentOnly
+              title="森空岛"
+              bindName="森空岛"
+              statusQueryKey={["skland-status"]}
+              fetchStatus={fetchSklandStatus}
+              triggerCheckin={triggerSklandCheckin}
+              updateRolePref={updateSklandRolePref}
+              platformIcon="skland"
+              renderResultExtra={(row) => {
+                if (!row.role_uid) return null;
+                if (row.game_code === "arknights") {
+                  return (
+                    <ArknightsAttendanceCalendarButton
+                      uid={row.role_uid}
+                      roleName={row.role_name}
+                      channelName={row.channel_name}
+                    />
+                  );
+                }
+                if (row.game_code === "endfield") {
+                  return (
+                    <EndfieldAttendanceCalendarButton
+                      uid={row.role_uid}
+                      roleName={row.role_name}
+                      channelName={row.channel_name}
+                    />
+                  );
+                }
+                return null;
             }}
           />
         ),

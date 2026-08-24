@@ -545,7 +545,7 @@ taygedo_adapter = TaygedoCheckinAdapter()
 def query_today_for_bind(
     db: Session, bind: TaygedoBind, *, force: bool = False
 ) -> dict[str, Any]:
-    """今日签到状态：有今日日志则读库；否则查官方并落库。"""
+    """今日签到状态：HTTP 展示路径 force 默认 true，始终查官方并落库。"""
     return _orch_query_today(taygedo_adapter, db, bind, force=force)
 
 

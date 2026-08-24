@@ -19,12 +19,20 @@ export type TaygedoAttendanceCalendar =
   components["schemas"]["TaygedoAttendanceCalendarOut"];
 export type ExiliumStatus = components["schemas"]["ExiliumStatusOut"];
 export type KujiequStatus = components["schemas"]["KujiequStatusOut"];
+export type MihoyoStatus = components["schemas"]["MihoyoStatusOut"];
+export type MihoyoBindSmsSendResponse =
+  components["schemas"]["MihoyoBindSmsSendResponse"];
+export type MihoyoBindPasswordResponse =
+  components["schemas"]["MihoyoBindPasswordResponse"];
+export type MihoyoQrStart = components["schemas"]["MihoyoQrStartResponse"];
+export type MihoyoQrPoll = components["schemas"]["MihoyoQrPollResponse"];
 
 export type CheckinResponse = components["schemas"]["CheckinResponse"];
 export type SklandCheckinResponse = CheckinResponse;
 export type TaygedoCheckinResponse = CheckinResponse;
 export type ExiliumCheckinResponse = CheckinResponse;
 export type KujiequCheckinResponse = CheckinResponse;
+export type MihoyoCheckinResponse = CheckinResponse;
 
 /** Steam / 盒子对比等与 OpenAPI 对齐。 */
 export type SteamNowItem = components["schemas"]["SteamNowItem"];
@@ -38,6 +46,12 @@ export type ArknightsRogueRecord =
 export type ArknightsBoxCompare = components["schemas"]["ArknightsBoxCompareOut"];
 export type ArknightsAttendanceCalendar =
   components["schemas"]["ArknightsAttendanceCalendarOut"];
+export type EndfieldAttendanceCalendar =
+  components["schemas"]["EndfieldAttendanceCalendarOut"];
+export type GameScheduleEvent =
+  components["schemas"]["GameScheduleEventOut"];
+export type GameScheduleCalendar =
+  components["schemas"]["GameScheduleCalendarOut"];
 
 export type ArknightsOperator = components["schemas"]["ArknightsOperatorOut"];
 export type ArknightsOwnedChar = components["schemas"]["ArknightsOwnedCharOut"];
@@ -72,6 +86,12 @@ export type KujiequExchangeShop =
   components["schemas"]["KujiequExchangeShopOut"];
 export type KujiequExchangeResult =
   components["schemas"]["KujiequExchangeResultOut"];
+export type MihoyoExchangeItem =
+  components["schemas"]["MihoyoExchangeItemOut"];
+export type MihoyoExchangeShop =
+  components["schemas"]["MihoyoExchangeShopOut"];
+export type MihoyoExchangeResult =
+  components["schemas"]["MihoyoExchangeResultOut"];
 export type KujiequExchangeRole =
   components["schemas"]["KujiequExchangeRoleOut"];
 

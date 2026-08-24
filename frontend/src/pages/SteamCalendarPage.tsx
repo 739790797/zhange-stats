@@ -131,7 +131,7 @@ export default function SteamCalendarPage() {
       queryClient.invalidateQueries({ queryKey: ["steam-timeline"] });
       queryClient.invalidateQueries({ queryKey: ["steam-now"] });
     },
-    onError: () => message.error("轮询请求失败"),
+    onError: (e: unknown) => message.error(apiError(e, "轮询请求失败")),
   });
 
   const startSteamBind = useMutation({

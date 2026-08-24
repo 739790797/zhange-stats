@@ -4,20 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { apiError } from "@/lib/apiError";
 import { CheckinTreeNameLabel } from "@/components/checkinTaskDisplay";
 import { CHECKIN_PLATFORM_LABELS } from "@/lib/checkinDisplay";
+import type {
+  RoleMembershipNode,
+  RoleMembershipTree,
+} from "@/api/roleMembershipApi";
 
-export type RoleMembershipNode = {
-  game_code: string;
-  game_name: string;
-  role_uid: string;
-  role_name: string;
-  channel_name?: string;
-  included?: boolean;
-};
-
-export type RoleMembershipTree = {
-  platform: string;
-  roles: RoleMembershipNode[];
-};
+export type { RoleMembershipNode, RoleMembershipTree };
 
 function leafKey(gameCode: string, roleUid: string) {
   return `role:${gameCode}:${roleUid}`;

@@ -5,6 +5,7 @@ import {
   Alert,
   Button,
   Empty,
+  Segmented,
   Select,
   Space,
   Spin,
@@ -13,6 +14,7 @@ import {
   Typography,
   message,
 } from "antd";
+import { SklandGameEventsPanel } from "@/components/SklandGameEventsPanel";
 import { ReloadOutlined } from "@ant-design/icons";
 import { fetchEndfieldBox } from "@/api/client";
 import type {
@@ -454,7 +456,9 @@ type Props = {
   enabled: boolean;
 };
 
-export function EndfieldBoxPanel({ enabled }: Props) {
+type Pane = "calendar" | "box";
+
+function EndfieldBoxContent({ enabled }: Props) {
   const queryClient = useQueryClient();
   const [uid, setUid] = useState<string | undefined>(undefined);
   const [rarityTab, setRarityTab] = useState<string>("all");
@@ -463,7 +467,7 @@ export function EndfieldBoxPanel({ enabled }: Props) {
 
   const boxQuery = useQuery({
     queryKey: ["endfield-box", uid || "default"],
-    queryFn: () => fetchEndfieldBox(uid),
+    queryFn: () => fetchEndfieldBox(uid, false),
     enabled,
     retry: false,
   });
@@ -656,6 +660,29 @@ export function EndfieldBoxPanel({ enabled }: Props) {
         </div>
       ) : (
         <Empty description="该筛选下无干员" style={{ marginTop: 24 }} />
+      )}
+    </div>
+  );
+}
+
+export function EndfieldBoxPanel({ enabled }: Props) {
+  const [pane, setPane] = useState<Pane>("calendar");
+
+  return (
+    <div>
+      <Segmented
+        style={{ marginBottom: 16 }}
+        value={pane}
+        options={[
+          { label: "活动日历", value: "calendar" as const },
+          { label: "养成", value: "box" as const },
+        ]}
+        onChange={(v) => setPane(v as Pane)}
+      />
+      {pane === "calendar" ? (
+        <SklandGameEventsPanel game="endfield" />
+      ) : (
+        <EndfieldBoxContent enabled={enabled} />
       )}
     </div>
   );

@@ -92,7 +92,9 @@ function ServiceChip({ item }: { item: RuntimeHealthService }) {
 export default function PlatformLogsPage() {
   const queryClient = useQueryClient();
   const [level, setLevel] = useState<string | undefined>("INFO");
-  const [loggerPrefix, setLoggerPrefix] = useState("zhange");
+  const [loggerPrefix, setLoggerPrefix] = useState("");
+  const [bizPrefix, setBizPrefix] = useState("");
+  const [logSource, setLogSource] = useState<"all" | "ring" | "file">("all");
   const [q, setQ] = useState("");
   const [qApplied, setQApplied] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -106,13 +108,15 @@ export default function PlatformLogsPage() {
   });
 
   const logsQuery = useQuery({
-    queryKey: ["runtime-logs", level, loggerPrefix, qApplied],
+    queryKey: ["runtime-logs", level, loggerPrefix, bizPrefix, logSource, qApplied],
     queryFn: () =>
       fetchRuntimeLogs({
         limit: 400,
         level: level || null,
         logger: loggerPrefix.trim() || null,
+        biz: bizPrefix.trim() || null,
         q: qApplied.trim() || null,
+        source: logSource,
       }),
     refetchInterval: autoRefresh ? 2500 : false,
   });
@@ -127,10 +131,7 @@ export default function PlatformLogsPage() {
   });
 
   const lines = logsQuery.data?.lines ?? [];
-  const buffered = logsQuery.data?.buffered ?? 0;
-  const capacity = logsQuery.data?.capacity ?? 0;
   const lastLineId = lines.length ? lines[lines.length - 1].id : 0;
-  const overall = healthMeta(healthQuery.data?.overall ?? "");
   const services = healthQuery.data?.services ?? [];
 
   useEffect(() => {
@@ -139,6 +140,15 @@ export default function PlatformLogsPage() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [lastLineId, stickBottom]);
+
+  const sourceOptions = useMemo(
+    () => [
+      { value: "all", label: "全部（推荐）" },
+      { value: "ring", label: "实时缓冲" },
+      { value: "file", label: "持久化文件" },
+    ],
+    [],
+  );
 
   const levelOptions = useMemo(
     () => [
@@ -156,7 +166,6 @@ export default function PlatformLogsPage() {
     <div>
       <PageHeader
         title="平台日志"
-        subtitle={`服务健康 + 进程内日志（内存环缓冲 ${buffered}/${capacity}）。重启后日志清空；不等同于 journalctl 全量。`}
         extra={
           <Space wrap>
             <Switch
@@ -191,17 +200,6 @@ export default function PlatformLogsPage() {
       />
 
       <div style={{ marginBottom: 16 }}>
-        <Space wrap size="middle" style={{ marginBottom: 10 }}>
-          <Typography.Text strong>服务健康</Typography.Text>
-          {healthQuery.data ? (
-            <Tag color={overall.color}>整体 {overall.label}</Tag>
-          ) : null}
-          {healthQuery.data?.checked_at ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              检测于 {healthQuery.data.checked_at}
-            </Typography.Text>
-          ) : null}
-        </Space>
         {healthQuery.isError ? (
           <Typography.Text type="danger">
             {apiError(healthQuery.error, "加载服务健康失败")}
@@ -220,6 +218,12 @@ export default function PlatformLogsPage() {
 
       <Space wrap style={{ marginBottom: 16 }} size="middle">
         <Select
+          style={{ width: 150 }}
+          value={logSource}
+          options={sourceOptions}
+          onChange={setLogSource}
+        />
+        <Select
           style={{ width: 140 }}
           value={level}
           options={levelOptions}
@@ -234,9 +238,32 @@ export default function PlatformLogsPage() {
           placeholder="全部 logger"
           onChange={(v) => setLoggerPrefix(v ?? "")}
           options={[
+            { value: "app", label: "app.*" },
             { value: "zhange", label: "zhange.*" },
             { value: "uvicorn", label: "uvicorn.*" },
             { value: "alembic", label: "alembic.*" },
+          ]}
+        />
+        <Select
+          style={{ width: 170 }}
+          value={bizPrefix || undefined}
+          allowClear
+          placeholder="全部业务"
+          onChange={(v) => setBizPrefix(v ?? "")}
+          options={[
+            { value: "skland", label: "skland.*" },
+            { value: "taygedo", label: "taygedo.*" },
+            { value: "exilium", label: "exilium.*" },
+            { value: "kujiequ", label: "kujiequ.*" },
+            { value: "mihoyo", label: "mihoyo.*" },
+            { value: "checkin", label: "checkin.*" },
+            { value: "steam", label: "steam.*" },
+            { value: "minecraft", label: "minecraft.*" },
+            { value: "tarkov", label: "tarkov.*" },
+            { value: "arknights", label: "arknights.*" },
+            { value: "infra", label: "infra.*" },
+            { value: "http", label: "http.*" },
+            { value: "scheduler", label: "scheduler" },
           ]}
         />
         <Input.Search
@@ -278,7 +305,7 @@ export default function PlatformLogsPage() {
         ) : null}
         {!logsQuery.isError && lines.length === 0 ? (
           <Typography.Text style={{ color: "rgba(214,222,235,0.55)" }}>
-            暂无匹配日志。可放宽级别 / logger，或触发一次签到与调度后再看。
+            暂无匹配日志。可放宽级别 / 业务 / logger，或触发一次签到与调度后再看。
           </Typography.Text>
         ) : null}
         {lines.map((line) => (
@@ -286,7 +313,7 @@ export default function PlatformLogsPage() {
             key={line.id}
             style={{
               display: "grid",
-              gridTemplateColumns: "148px 78px minmax(120px, 180px) 1fr",
+              gridTemplateColumns: "148px 78px 120px minmax(100px, 140px) minmax(120px, 180px) 1fr",
               gap: 8,
               padding: "2px 0",
               borderBottom: "1px solid rgba(255,255,255,0.04)",
@@ -305,6 +332,17 @@ export default function PlatformLogsPage() {
             </span>
             <span
               style={{
+                color: "#c3e88d",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={line.biz || "—"}
+            >
+              {line.biz || "—"}
+            </span>
+            <span
+              style={{
                 color: "#82aaff",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -313,6 +351,17 @@ export default function PlatformLogsPage() {
               title={line.logger}
             >
               {line.logger}
+            </span>
+            <span
+              style={{
+                color: "rgba(214,222,235,0.45)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={line.context || undefined}
+            >
+              {line.context || "—"}
             </span>
             <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
               {line.message}

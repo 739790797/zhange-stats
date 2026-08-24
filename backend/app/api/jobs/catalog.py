@@ -40,6 +40,20 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "arknights_catalog",
     },
     {
+        "id": "game_schedule_arknights_sync",
+        "name": "活动日历更新",
+        "description": "从 game-schedule 同步明日方舟活动日历并落库",
+        "kind": "cron",
+        "platform": "arknights_schedule",
+    },
+    {
+        "id": "game_schedule_endfield_sync",
+        "name": "活动日历更新",
+        "description": "从 game-schedule 同步终末地活动日历并落库",
+        "kind": "cron",
+        "platform": "endfield_schedule",
+    },
+    {
         "id": "tarkov_items_sync",
         "name": "物品数据更新",
         "description": "从 tarkov.dev 同步物品（弹药+枪械一次回源；失败回退 json.tarkov.dev）",
@@ -96,6 +110,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "kujiequ",
     },
     {
+        "id": "mihoyo_checkin",
+        "name": "米游社每日签到",
+        "description": "按用户自设时间巡检签到",
+        "kind": "user_schedule",
+        "platform": "mihoyo",
+    },
+    {
         "id": "job_runs_prune",
         "name": "任务日志清理",
         "description": "删除超过保留期的 job_runs 与 *_checkin_logs（默认 90 天，可配 retention_days）",
@@ -104,13 +125,14 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
 ]
 
-_CHECKIN_PLATFORMS = frozenset({"skland", "taygedo", "exilium", "kujiequ"})
+_CHECKIN_PLATFORMS = frozenset({"skland", "taygedo", "exilium", "kujiequ", "mihoyo"})
 # 与侧栏平台菜单顺序一致（不含 Steam）
 CHECKIN_PLATFORM_ORDER: tuple[str, ...] = (
     "skland",
     "taygedo",
-    "exilium",
     "kujiequ",
+    "mihoyo",
+    "exilium",
 )
 _KNOWN_JOB_IDS = {str(m["id"]) for m in JOB_CATALOG}
 _PLATFORM_TO_JOB = {str(m["platform"]): str(m["id"]) for m in JOB_CATALOG if m.get("platform")}

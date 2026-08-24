@@ -8,6 +8,7 @@ from typing import Any
 
 from app.services.checkin_common import (
     CheckinResult,
+    STATUS_ERROR,
     STATUS_UNKNOWN,
     format_upstream_request,
     format_upstream_response,
@@ -258,10 +259,13 @@ def _arknights_game_ids(role: SklandRole) -> list[str]:
     """方舟 attendance 只用角色自身 channelMasterId，禁止回退到官服 1。
 
     回退到 1 会把官服 records/奖励串到 B 服角色上。
+    B 服缺 channelMasterId 时不得猜测 gameId。
     """
     mid = str(role.channel_master_id or "").strip()
     if mid:
         return [mid]
+    if _is_arknights_bilibili(role):
+        return []
     return ["1"]
 
 
@@ -287,6 +291,43 @@ def fetch_arknights_attendance(
     if last_resp is None:
         raise SklandApiError("获取签到日历失败")
     return last_resp
+
+
+def fetch_endfield_attendance(
+    session: SklandSession, role: SklandRole
+) -> dict[str, Any]:
+    """GET 终末地签到日历（calendar + resourceInfoMap + hasToday）。"""
+    import urllib.parse
+
+    if not role.role_id or not role.server_id:
+        raise SklandApiError("缺少终末地角色参数，无法获取签到日历")
+    params = {
+        "uid": role.uid,
+        "gameId": "3",
+        "roleId": str(role.role_id),
+        "serverId": str(role.server_id),
+    }
+    query = urllib.parse.urlencode(params)
+    url = f"{ENDFIELD_ATTENDANCE_URL}?{query}"
+    headers = _signed_headers(session, url, "get", None)
+    headers["sk-game-role"] = f"3_{role.role_id}_{role.server_id}"
+    resp = _http_json("GET", url, headers=headers)
+    if resp.get("code") != 0:
+        raise SklandApiError(
+            resp.get("message") or "获取终末地签到日历失败",
+            code=resp.get("code"),
+        )
+    data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+    if not data.get("calendar"):
+        role_str = f"3_{role.role_id}_{role.server_id}"
+        headers2 = _signed_headers(session, ENDFIELD_ATTENDANCE_URL, "get", None)
+        headers2["sk-game-role"] = role_str
+        resp2 = _http_json("GET", ENDFIELD_ATTENDANCE_URL, headers=headers2)
+        if resp2.get("code") == 0:
+            data2 = resp2.get("data") if isinstance(resp2.get("data"), dict) else {}
+            if data2.get("calendar"):
+                return resp2
+    return resp
 
 
 def fetch_today_awards(
@@ -474,7 +515,19 @@ def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult
     gameId 用绑定 channelMasterId（官服=1，B服=2）。
     B 服奖励只信本次 POST data.awards（GET records 常为空，不做回源补奖）。
     """
-    game_id = str(role.channel_master_id or "").strip() or "1"
+    game_id = str(role.channel_master_id or "").strip()
+    if not game_id:
+        if _is_arknights_bilibili(role):
+            return CheckinResult(
+                game_code=role.game_code,
+                game_name=role.game_name,
+                role_uid=role.uid,
+                role_name=role.role_name,
+                channel_name=role.channel_name,
+                status=STATUS_ERROR,
+                message="B服角色缺少 channelMasterId，请重新绑定森空岛",
+            )
+        game_id = "1"
     body = {"uid": role.uid, "gameId": game_id}
     headers = _signed_headers(session, ARKNIGHTS_ATTENDANCE_URL, "post", body)
     resp = _http_json("POST", ARKNIGHTS_ATTENDANCE_URL, headers=headers, body=body)

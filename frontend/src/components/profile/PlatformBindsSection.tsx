@@ -4,12 +4,14 @@ import { useState } from "react";
 import {
   fetchExiliumStatus,
   fetchKujiequStatus,
+  fetchMihoyoStatus,
   fetchSklandStatus,
   fetchTaygedoStatus,
 } from "@/api/client";
 import type { MemberProfile } from "@/api/types";
 import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
 import { KujiequBindPanel } from "@/components/KujiequBindPanel";
+import { MihoyoBindPanel } from "@/components/MihoyoBindPanel";
 import { PlatformBindRow } from "@/components/profile/PlatformBindRow";
 import { QqBindRow } from "@/components/profile/QqBindRow";
 import { SteamBindRow } from "@/components/profile/SteamBindRow";
@@ -27,6 +29,7 @@ type PlatformBindsSectionProps = {
   showTaygedo: boolean;
   showExilium: boolean;
   showKujiequ: boolean;
+  showMihoyo: boolean;
   steamBound: boolean;
   steamConfigured?: boolean;
   isAdminUser?: boolean;
@@ -35,6 +38,7 @@ type PlatformBindsSectionProps = {
   taygedoBound: boolean;
   exiliumBound: boolean;
   kujiequBound: boolean;
+  mihoyoBound: boolean;
   startSteamBindPending: boolean;
   unbindSteamPending: boolean;
   onStartSteamBind: () => void;
@@ -51,6 +55,8 @@ type PlatformBindsSectionProps = {
   onUnbindExilium: () => void;
   unbindKujiequPending: boolean;
   onUnbindKujiequ: () => void;
+  unbindMihoyoPending: boolean;
+  onUnbindMihoyo: () => void;
   invalidateProfile: () => void;
 };
 
@@ -64,6 +70,7 @@ export function PlatformBindsSection({
   showTaygedo,
   showExilium,
   showKujiequ,
+  showMihoyo,
   steamBound,
   steamConfigured,
   isAdminUser = false,
@@ -72,6 +79,7 @@ export function PlatformBindsSection({
   taygedoBound,
   exiliumBound,
   kujiequBound,
+  mihoyoBound,
   startSteamBindPending,
   unbindSteamPending,
   onStartSteamBind,
@@ -88,6 +96,8 @@ export function PlatformBindsSection({
   onUnbindExilium,
   unbindKujiequPending,
   onUnbindKujiequ,
+  unbindMihoyoPending,
+  onUnbindMihoyo,
   invalidateProfile,
 }: PlatformBindsSectionProps) {
   const queryClient = useQueryClient();
@@ -95,12 +105,14 @@ export function PlatformBindsSection({
   const [taygedoModalOpen, setTaygedoModalOpen] = useState(false);
   const [exiliumModalOpen, setExiliumModalOpen] = useState(false);
   const [kujiequModalOpen, setKujiequModalOpen] = useState(false);
+  const [mihoyoModalOpen, setMihoyoModalOpen] = useState(false);
 
   // 角色树挂在本区（不随绑定 Modal destroyOnClose 卸载），避免「弹一下就消失」
   const sklandRoles = useRoleMembershipPicker("skland");
   const taygedoRoles = useRoleMembershipPicker("taygedo");
   const exiliumRoles = useRoleMembershipPicker("exilium");
   const kujiequRoles = useRoleMembershipPicker("kujiequ");
+  const mihoyoRoles = useRoleMembershipPicker("mihoyo");
 
   // 本人个人中心：探测已绑定平台凭证（与签到页共用 queryKey）
   const probeSelf = !isAdminEdit;
@@ -132,6 +144,13 @@ export function PlatformBindsSection({
     staleTime: 60_000,
     retry: false,
   });
+  const mihoyoStatusQuery = useQuery({
+    queryKey: ["mihoyo-status"],
+    queryFn: () => fetchMihoyoStatus(false, true),
+    enabled: probeSelf && showMihoyo && mihoyoBound,
+    staleTime: 60_000,
+    retry: false,
+  });
 
   const sklandCredOk = !sklandBound
     ? undefined
@@ -160,6 +179,13 @@ export function PlatformBindsSection({
       ? false
       : kujiequStatusQuery.data
         ? kujiequStatusQuery.data.token_ok !== false
+        : null;
+  const mihoyoCredOk = !mihoyoBound
+    ? undefined
+    : mihoyoStatusQuery.isError
+      ? false
+      : mihoyoStatusQuery.data
+        ? mihoyoStatusQuery.data.token_ok !== false
         : null;
 
   return (
@@ -230,6 +256,21 @@ export function PlatformBindsSection({
             onOpenModal={() => setKujiequModalOpen(true)}
             onOpenRoles={() => kujiequRoles.openPicker()}
             onUnbind={onUnbindKujiequ}
+          />
+        ) : null}
+
+        {!isAdminEdit && showMihoyo ? (
+          <PlatformBindRow
+            name="米游社"
+            bound={mihoyoBound}
+            credentialOk={mihoyoCredOk}
+            errMsg={errMsg}
+            borderTop
+            unbindConfirmTitle="确认解除米游社绑定？"
+            unbindPending={unbindMihoyoPending}
+            onOpenModal={() => setMihoyoModalOpen(true)}
+            onOpenRoles={() => mihoyoRoles.openPicker()}
+            onUnbind={onUnbindMihoyo}
           />
         ) : null}
 
@@ -336,10 +377,32 @@ export function PlatformBindsSection({
         ) : null}
       </Modal>
 
+      <Modal
+        title={mihoyoBound ? "更换米游社绑定" : "绑定米游社"}
+        open={mihoyoModalOpen && !isAdminEdit}
+        footer={null}
+        onCancel={() => setMihoyoModalOpen(false)}
+        destroyOnClose
+        width={480}
+      >
+        {mihoyoModalOpen && !isAdminEdit ? (
+          <MihoyoBindPanel
+            title=""
+            openRolePickerOnBind={false}
+            onSuccess={() => {
+              invalidateProfile();
+              setMihoyoModalOpen(false);
+              window.setTimeout(() => mihoyoRoles.openPicker(), 0);
+            }}
+          />
+        ) : null}
+      </Modal>
+
       {sklandRoles.modal}
       {taygedoRoles.modal}
       {exiliumRoles.modal}
       {kujiequRoles.modal}
+      {mihoyoRoles.modal}
     </>
   );
 }
