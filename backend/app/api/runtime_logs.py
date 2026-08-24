@@ -111,3 +111,10 @@ def get_runtime_logs(
         file_bytes=file_bytes,
         lines=[_to_out(x) for x in lines],
     )
+
+
+@router.post("/clear", response_model=RuntimeLogsClearOut)
+def clear_runtime_logs(_: User = Depends(require_admin)) -> RuntimeLogsClearOut:
+    """仅清空内存环缓冲；持久化 JSONL 文件不删除。"""
+    get_runtime_log_buffer().clear()
+    return RuntimeLogsClearOut()

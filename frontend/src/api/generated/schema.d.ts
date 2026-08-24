@@ -868,6 +868,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/runtime-logs/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Runtime Logs
+         * @description 仅清空内存环缓冲；持久化 JSONL 文件不删除。
+         */
+        post: operations["clear_runtime_logs_api_settings_runtime_logs_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/runtime-health": {
         parameters: {
             query?: never;
@@ -7833,6 +7853,19 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** RuntimeLogsClearOut */
+        RuntimeLogsClearOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Message
+             * @default 已清空内存日志缓冲
+             */
+            message: string;
+        };
         /** RuntimeLogsOut */
         RuntimeLogsOut: {
             /** Capacity */
@@ -12859,6 +12892,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_runtime_logs_api_settings_runtime_logs_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeLogsClearOut"];
                 };
             };
         };

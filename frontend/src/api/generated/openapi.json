@@ -2552,6 +2552,33 @@
         }
       }
     },
+    "/api/settings/runtime-logs/clear": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Clear Runtime Logs",
+        "description": "仅清空内存环缓冲；持久化 JSONL 文件不删除。",
+        "operationId": "clear_runtime_logs_api_settings_runtime_logs_clear_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeLogsClearOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/runtime-health": {
       "get": {
         "tags": [
@@ -19561,6 +19588,22 @@
           "message"
         ],
         "title": "RuntimeLogLineOut"
+      },
+      "RuntimeLogsClearOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "已清空内存日志缓冲"
+          }
+        },
+        "type": "object",
+        "title": "RuntimeLogsClearOut"
       },
       "RuntimeLogsOut": {
         "properties": {
