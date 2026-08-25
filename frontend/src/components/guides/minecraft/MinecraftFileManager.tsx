@@ -353,7 +353,7 @@ export function MinecraftFileManager() {
         description="填好 Panel 地址、Client Token 和这台服的 UUID 之后，才能管理服内文件。"
         action={
           <Link to="/settings/integrations">
-            <Button type="primary" style={{ background: "#1a2332", borderColor: "#1a2332" }}>
+            <Button type="primary" size="small">
               去集成密钥配置
             </Button>
           </Link>
@@ -394,9 +394,10 @@ export function MinecraftFileManager() {
               }
             }}
           >
-            <Button icon={<UploadOutlined />}>上传</Button>
+            <Button size="small" icon={<UploadOutlined />}>上传</Button>
           </Upload>
           <Button
+            size="small"
             icon={<FileAddOutlined />}
             onClick={() => {
               setEditor({ mode: "create", name: "", content: "" });
@@ -406,6 +407,7 @@ export function MinecraftFileManager() {
             新建文件
           </Button>
           <Button
+            size="small"
             icon={<FolderAddOutlined />}
             onClick={() => {
               folderForm.resetFields();
@@ -415,6 +417,7 @@ export function MinecraftFileManager() {
             新建目录
           </Button>
           <Button
+            size="small"
             disabled={!selected.length}
             onClick={() => {
               compressForm.setFieldsValue({ archive_name: "", extension: "zip" });
@@ -424,6 +427,7 @@ export function MinecraftFileManager() {
             压缩
           </Button>
           <Button
+            size="small"
             disabled={!selected.length}
             onClick={() => {
               setChmodNames(selected);
@@ -433,6 +437,7 @@ export function MinecraftFileManager() {
             权限
           </Button>
           <Button
+            size="small"
             danger
             disabled={!selected.length}
             icon={<DeleteOutlined />}
@@ -440,8 +445,8 @@ export function MinecraftFileManager() {
           >
             删除
           </Button>
-          <Button onClick={() => setPullOpen(true)}>从 URL 拉取</Button>
-          <Button icon={<ReloadOutlined />} onClick={() => listQuery.refetch()}>
+          <Button size="small" onClick={() => setPullOpen(true)}>从 URL 拉取</Button>
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => listQuery.refetch()}>
             刷新
           </Button>
         </Space>
@@ -453,6 +458,7 @@ export function MinecraftFileManager() {
       >
         <Breadcrumb items={crumbs} />
         <Input.Search
+          size="small"
           allowClear
           placeholder="筛选当前目录"
           style={{ width: 220 }}
@@ -493,6 +499,7 @@ export function MinecraftFileManager() {
             render: (name: string, row) => (
               <Button
                 type="link"
+                size="small"
                 style={{ padding: 0, height: "auto" }}
                 onClick={() => onNameClick(row)}
               >
@@ -530,7 +537,7 @@ export function MinecraftFileManager() {
             render: (_, row) =>
               row.name === ".." ? null : (
                 <Dropdown menu={{ items: rowMenu(row) }} trigger={["click"]}>
-                  <Button type="text" icon={<MoreOutlined />} />
+                  <Button type="text" size="small" icon={<MoreOutlined />} />
                 </Dropdown>
               ),
           },

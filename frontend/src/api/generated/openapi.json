@@ -7494,161 +7494,6 @@
         }
       }
     },
-    "/api/napcat/test": {
-      "post": {
-        "tags": [
-          "napcat"
-        ],
-        "summary": "Test Napcat Connection",
-        "operationId": "test_napcat_connection_api_napcat_test_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NapCatTestRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NapCatTestResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/napcat/groups": {
-      "get": {
-        "tags": [
-          "napcat"
-        ],
-        "summary": "List Groups",
-        "operationId": "list_groups_api_napcat_groups_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "force",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "强制不走 NapCat 缓存",
-              "default": false,
-              "title": "Force"
-            },
-            "description": "强制不走 NapCat 缓存"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NapCatGroupsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/napcat/groups/{group_id}/members": {
-      "get": {
-        "tags": [
-          "napcat"
-        ],
-        "summary": "List Group Members",
-        "operationId": "list_group_members_api_napcat_groups__group_id__members_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "force",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "强制不走 NapCat 缓存",
-              "default": false,
-              "title": "Force"
-            },
-            "description": "强制不走 NapCat 缓存"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NapCatGroupMembersResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/guides/tarkov/items/sync": {
       "post": {
         "tags": [
@@ -14734,26 +14579,6 @@
             "title": "Qq Callback Url",
             "default": ""
           },
-          "napcat_base_url": {
-            "type": "string",
-            "title": "Napcat Base Url",
-            "default": ""
-          },
-          "napcat_token": {
-            "type": "string",
-            "title": "Napcat Token",
-            "default": ""
-          },
-          "napcat_token_set": {
-            "type": "boolean",
-            "title": "Napcat Token Set",
-            "default": false
-          },
-          "napcat_configured": {
-            "type": "boolean",
-            "title": "Napcat Configured",
-            "default": false
-          },
           "github_token": {
             "type": "string",
             "title": "Github Token",
@@ -14865,10 +14690,6 @@
             "type": "boolean",
             "title": "Qq Configured"
           },
-          "napcat_configured": {
-            "type": "boolean",
-            "title": "Napcat Configured"
-          },
           "pelican_configured": {
             "type": "boolean",
             "title": "Pelican Configured",
@@ -14878,8 +14699,7 @@
         "type": "object",
         "required": [
           "steam_configured",
-          "qq_configured",
-          "napcat_configured"
+          "qq_configured"
         ],
         "title": "IntegrationsStatusOut",
         "description": "登录用户可见：仅布尔就绪态，不含密钥。"
@@ -14927,33 +14747,6 @@
           "clear_qq_app_key": {
             "type": "boolean",
             "title": "Clear Qq App Key",
-            "default": false
-          },
-          "napcat_base_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Napcat Base Url"
-          },
-          "napcat_token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Napcat Token"
-          },
-          "clear_napcat_token": {
-            "type": "boolean",
-            "title": "Clear Napcat Token",
             "default": false
           },
           "github_token": {
@@ -16453,17 +16246,6 @@
             ],
             "title": "Qq Avatar Url"
           },
-          "qq_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Qq Number"
-          },
           "user_id": {
             "anyOf": [
               {
@@ -16550,18 +16332,6 @@
               }
             ],
             "title": "Steam Id"
-          },
-          "qq_number": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 20
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Qq Number"
           }
         },
         "type": "object",
@@ -20324,240 +20094,6 @@
           "ping_online"
         ],
         "title": "MinecraftStatusOut"
-      },
-      "NapCatGroupMemberOut": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "title": "User Id"
-          },
-          "nickname": {
-            "type": "string",
-            "title": "Nickname",
-            "default": ""
-          },
-          "card": {
-            "type": "string",
-            "title": "Card",
-            "default": ""
-          },
-          "role": {
-            "type": "string",
-            "title": "Role",
-            "default": ""
-          },
-          "title": {
-            "type": "string",
-            "title": "Title",
-            "default": ""
-          },
-          "site_member": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NapCatSiteMemberOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id"
-        ],
-        "title": "NapCatGroupMemberOut"
-      },
-      "NapCatGroupMembersResponse": {
-        "properties": {
-          "group_id": {
-            "type": "string",
-            "title": "Group Id"
-          },
-          "members": {
-            "items": {
-              "$ref": "#/components/schemas/NapCatGroupMemberOut"
-            },
-            "type": "array",
-            "title": "Members"
-          },
-          "site_bound_count": {
-            "type": "integer",
-            "title": "Site Bound Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "group_id",
-          "members",
-          "site_bound_count"
-        ],
-        "title": "NapCatGroupMembersResponse"
-      },
-      "NapCatGroupOut": {
-        "properties": {
-          "group_id": {
-            "type": "string",
-            "title": "Group Id"
-          },
-          "group_name": {
-            "type": "string",
-            "title": "Group Name"
-          },
-          "member_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Member Count"
-          },
-          "max_member_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Member Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "group_id",
-          "group_name"
-        ],
-        "title": "NapCatGroupOut"
-      },
-      "NapCatGroupsResponse": {
-        "properties": {
-          "configured": {
-            "type": "boolean",
-            "title": "Configured"
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/NapCatGroupOut"
-            },
-            "type": "array",
-            "title": "Groups"
-          }
-        },
-        "type": "object",
-        "required": [
-          "configured",
-          "groups"
-        ],
-        "title": "NapCatGroupsResponse"
-      },
-      "NapCatSiteMemberOut": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "nickname": {
-            "type": "string",
-            "title": "Nickname"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id"
-          },
-          "qq_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Qq Number"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "nickname"
-        ],
-        "title": "NapCatSiteMemberOut"
-      },
-      "NapCatTestRequest": {
-        "properties": {
-          "base_url": {
-            "type": "string",
-            "title": "Base Url",
-            "default": ""
-          },
-          "token": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 512
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Token"
-          }
-        },
-        "type": "object",
-        "title": "NapCatTestRequest",
-        "description": "表单草稿可测：未填 Token 时回退已保存密钥。"
-      },
-      "NapCatTestResponse": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id"
-          },
-          "nickname": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nickname"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ok",
-          "message"
-        ],
-        "title": "NapCatTestResponse"
       },
       "PasswordPolicyOut": {
         "properties": {

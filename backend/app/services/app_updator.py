@@ -22,6 +22,8 @@ from urllib.parse import urljoin
 import httpx
 
 from app.core.config import get_settings
+from app.core.paths import resolve_install_dir as resolve_install_dir_from_env
+from app.core.paths import resolve_runtime_path
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,7 @@ SOURCE_WHITELIST: tuple[str, ...] = (
 
 PROTECTED_PREFIXES: tuple[str, ...] = (
     ".env",
+    "var/",
     "data/",
     "uploads/",
     "backend/.venv/",
@@ -80,10 +83,10 @@ class _UpdateLock:
             return False
         try:
             settings = get_settings()
-            install = resolve_install_dir()
-            data = Path(settings.DATA_DIR).expanduser()
-            if not data.is_absolute():
-                data = (install / data).resolve()
+            data = resolve_runtime_path(
+                settings.DATA_DIR,
+                configured_install=getattr(settings, "APP_INSTALL_DIR", "") or "",
+            )
             data.mkdir(parents=True, exist_ok=True)
             lock_path = data / "update.lock"
             try:
@@ -213,19 +216,7 @@ def compare_version(v1: str, v2: str) -> int:
 
 def resolve_install_dir() -> Path:
     settings = get_settings()
-    raw = (settings.APP_INSTALL_DIR or "").strip()
-    if raw:
-        return Path(raw).expanduser().resolve()
-    # Prefer repo root that contains VERSION next to backend/
-    here = Path(__file__).resolve()
-    for candidate in (
-        here.parents[3],  # .../zhange-stats from backend/app/services/
-        Path.cwd().parent if Path.cwd().name == "backend" else Path.cwd(),
-        Path.cwd(),
-    ):
-        if (candidate / "VERSION").is_file() and (candidate / "backend").is_dir():
-            return candidate.resolve()
-    return Path.cwd().resolve()
+    return resolve_install_dir_from_env(configured=(settings.APP_INSTALL_DIR or "").strip())
 
 
 def _writable_hint(path: Path) -> str:
@@ -239,9 +230,10 @@ def _writable_hint(path: Path) -> str:
 def _check_install_writable(install: Path) -> tuple[bool, str]:
     """Ensure service user can overwrite whitelist paths / update lock."""
     settings = get_settings()
-    data = Path(settings.DATA_DIR).expanduser()
-    if not data.is_absolute():
-        data = (install / data).resolve()
+    data = resolve_runtime_path(
+        settings.DATA_DIR,
+        configured_install=getattr(settings, "APP_INSTALL_DIR", "") or "",
+    )
     candidates = [
         install / "VERSION",
         install / "backend" / "app",
@@ -757,11 +749,10 @@ async def _apply_update_core(
     version (avoids Alembic crash → systemd restart → 502 loops).
     """
     settings = get_settings()
-    tmp_root = Path(settings.DATA_DIR).expanduser()
-    if not tmp_root.is_absolute():
-        tmp_root = (install_dir / tmp_root).resolve()
-    else:
-        tmp_root = tmp_root.resolve()
+    tmp_root = resolve_runtime_path(
+        settings.DATA_DIR,
+        configured_install=getattr(settings, "APP_INSTALL_DIR", "") or "",
+    )
     work = tmp_root / "update-tmp"
     rollback_dir = work / "rollback-src"
 

@@ -1,9 +1,9 @@
-import { Alert, Button, Card, Form, Input, Space, Typography, message } from "antd";
+import { Alert, Button, Form, Input, Space, message } from "antd";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { fetchMe, register, sendRegisterCode } from "@/api/client";
 import { apiError } from "@/lib/apiError";
-import { AppVersion } from "@/components/AppVersion";
+import { AuthGuestShell } from "@/components/AuthGuestShell";
 import { QqLoginButton } from "@/components/QqLoginButton";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -75,32 +75,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "radial-gradient(ellipse at top left, #2c3e50 0%, #1a2332 45%, #0f1419 100%)",
-        padding: 24,
-      }}
-    >
-      <Card
-        style={{
-          width: 420,
-          maxWidth: "100%",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
-          border: "1px solid rgba(232,184,109,0.25)",
-        }}
-        styles={{ body: { padding: "40px 36px" } }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <Typography.Title level={2} style={{ margin: 0, color: "#1a2332" }}>
-            注册账号
-          </Typography.Title>
-        </div>
-
+    <AuthGuestShell title="注册账号">
         {error ? (
           <Alert
             type="error"
@@ -190,7 +165,6 @@ export default function RegisterPage() {
             size="large"
             block
             loading={loading}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             注册
           </Button>
@@ -200,10 +174,6 @@ export default function RegisterPage() {
         </Form>
 
         <QqLoginButton dividerText="或使用 QQ 登录" />
-      </Card>
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
-        <AppVersion light />
-      </div>
-    </div>
+    </AuthGuestShell>
   );
 }

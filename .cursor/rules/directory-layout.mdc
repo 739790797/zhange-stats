@@ -1,0 +1,14 @@
+---
+description: 目录收口：新平台进 services/<域> 与 components/<域>，勿堆根目录
+globs: backend/app/services/**/*.py,frontend/src/components/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# 目录收口
+
+新平台 / 新盒子 / 新日历：**进子包**，不要在 `backend/app/services/` 或 `frontend/src/components/` 根上新增 `*_client.py`、`*BindPanel.tsx`。
+
+- 后端：`services/<platform>/client.py` + `attendance.py` + Adapter 注册进 `services/checkin/`
+- 前端：面板进 `components/<platform>/`，页仍套 `CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton`
+- 横切（邮件、调度、更新）可留在 `services/` 根
+- 完整映射与步骤：[`docs/directory-layout.md`](../../docs/directory-layout.md)

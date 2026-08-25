@@ -1,5 +1,5 @@
-from app.services.minecraft_eggs import infer_loader, pick_egg, score_egg, wrap_boot_command
-from app.services.pelican_client import (
+from app.services.minecraft.eggs import infer_loader, pick_egg, score_egg, wrap_boot_command
+from app.services.minecraft.pelican import (
     parse_application_server,
     startup_command,
     startup_details,
@@ -97,7 +97,7 @@ def test_parse_application_server_reads_container():
 
 
 def test_collect_eggs_does_not_inspect_current_server(monkeypatch):
-    from app.services import minecraft_eggs as eggs
+    from app.services.minecraft import eggs as eggs
 
     monkeypatch.setattr(
         eggs,

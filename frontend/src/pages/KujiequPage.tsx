@@ -7,11 +7,11 @@ import {
   updateKujiequRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { KujiequAttendanceCalendarButton } from "@/components/KujiequAttendanceCalendar";
-import { KujiequBindPanel } from "@/components/KujiequBindPanel";
-import { KujiequExchangePanel } from "@/components/KujiequExchangePanel";
+import { KujiequAttendanceCalendarButton } from "@/components/kujiequ/KujiequAttendanceCalendar";
+import { KujiequBindPanel } from "@/components/kujiequ/KujiequBindPanel";
+import { KujiequExchangePanel } from "@/components/kujiequ/KujiequExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
-import { WwBoxPanel } from "@/components/WwBoxPanel";
+import { WwBoxPanel } from "@/components/kujiequ/WwBoxPanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { hasKujiequAttendanceCalendar } from "@/lib/kujiequAttendance";
 import { isFeatureOn } from "@/lib/platformFeatures";

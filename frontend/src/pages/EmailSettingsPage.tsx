@@ -121,7 +121,7 @@ export default function EmailSettingsPage() {
           label="验证码有效期（分钟）"
           rules={[{ required: true, message: "请填写有效期" }]}
         >
-          <InputNumber min={1} max={1440} style={{ width: "100%" }} size="large" />
+          <InputNumber min={1} max={1440} style={{ width: "100%" }} />
         </Form.Item>
 
         <Form.Item noStyle shouldUpdate={(prev, cur) => prev.enabled !== cur.enabled}>
@@ -138,7 +138,7 @@ export default function EmailSettingsPage() {
                       : undefined
                   }
                 >
-                  <Input placeholder="如 2753478236@qq.com" size="large" />
+                  <Input placeholder="如 2753478236@qq.com" />
                 </Form.Item>
 
                 <Form.Item
@@ -150,7 +150,7 @@ export default function EmailSettingsPage() {
                     </Typography.Text>
                   }
                 >
-                  <Input placeholder="可选" size="large" />
+                  <Input placeholder="可选" />
                 </Form.Item>
 
                 <Form.Item
@@ -171,13 +171,12 @@ export default function EmailSettingsPage() {
                 >
                   <Input.Password
                     placeholder="请输入 SMTP 密码"
-                    size="large"
                     autoComplete="new-password"
                   />
                 </Form.Item>
 
                 <Form.Item name="display_name" label="显示名称">
-                  <Input placeholder="如 战鸽波波" size="large" />
+                  <Input placeholder="如 战鸽波波" />
                 </Form.Item>
 
                 <Form.Item
@@ -189,7 +188,7 @@ export default function EmailSettingsPage() {
                       : undefined
                   }
                 >
-                  <Input placeholder="如 smtp.qq.com" size="large" />
+                  <Input placeholder="如 smtp.qq.com" />
                 </Form.Item>
 
                 <Form.Item
@@ -205,14 +204,12 @@ export default function EmailSettingsPage() {
                     min={1}
                     max={65535}
                     style={{ width: "100%" }}
-                    size="large"
                     placeholder="如 465"
                   />
                 </Form.Item>
 
                 <Form.Item name="encryption" label="加密方式">
                   <Select
-                    size="large"
                     options={[
                       { value: "SSL", label: "SSL" },
                       { value: "STARTTLS", label: "STARTTLS" },
@@ -227,7 +224,6 @@ export default function EmailSettingsPage() {
 
         <Space size={12} style={{ marginTop: 8 }}>
           <Button
-            size="large"
             onClick={() => {
               const user = form.getFieldValue("smtp_user") || "";
               setTestTo(user);
@@ -239,9 +235,7 @@ export default function EmailSettingsPage() {
           <Button
             type="primary"
             htmlType="submit"
-            size="large"
             loading={save.isPending}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             保存
           </Button>

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from app.services import tarkov_catalog as catalog
-from app.services import tarkov_search as search
-from app.services import tarkov_tasks as tasks
-from app.services.tarkov_ammo import SOURCE_JSON_API
+from app.services.tarkov import catalog as catalog
+from app.services.tarkov import search as search
+from app.services.tarkov import tasks as tasks
+from app.services.tarkov.ammo import SOURCE_JSON_API
 
 from tests.test_tarkov_catalog import _json_envelope
 from tests.test_tarkov_tasks import _envelope as _task_envelope

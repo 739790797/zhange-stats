@@ -182,11 +182,13 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
           </Typography.Text>
         )}
         <Segmented
+          size="small"
           value={topicId}
           options={topicOptions}
           onChange={(v) => setTopicId(String(v))}
         />
         <Button
+          size="small"
           icon={<ReloadOutlined />}
           loading={refreshing}
           onClick={() => void onRefresh()}

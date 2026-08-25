@@ -5,8 +5,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 # 先加载 client，避免 attendance↔client 循环导入
-import app.services.taygedo_client  # noqa: F401
-from app.services.taygedo_attendance import (
+import app.services.taygedo.client  # noqa: F401
+from app.services.taygedo.attendance import (
     _parse_shop_goods,
     _tasks_extra_text,
     checkin_target,
@@ -16,7 +16,7 @@ from app.services.taygedo_attendance import (
     query_app_today,
     query_today_all,
 )
-from app.services.taygedo_client import (
+from app.services.taygedo.client import (
     GAME_APP,
     GAME_APP_NAME,
     GAME_NTE,
@@ -37,7 +37,7 @@ def _creds() -> TaygedoCredentials:
 
 def test_query_app_today_pending() -> None:
     with patch(
-        "app.services.taygedo_attendance._get_app_sign_state", return_value=False
+        "app.services.taygedo.attendance._get_app_sign_state", return_value=False
     ):
         r = query_app_today(_creds())
     assert r.game_code == GAME_APP
@@ -51,14 +51,14 @@ def test_query_app_today_pending() -> None:
 def test_query_app_today_already_with_awards() -> None:
     with (
         patch(
-            "app.services.taygedo_attendance._get_app_sign_state", return_value=True
+            "app.services.taygedo.attendance._get_app_sign_state", return_value=True
         ),
         patch(
-            "app.services.taygedo_attendance._app_signin_awards_from_tasks",
+            "app.services.taygedo.attendance._app_signin_awards_from_tasks",
             return_value=("塔塔币+40", [{"name": "塔塔币", "count": 40, "resource_type": "gold"}]),
         ),
         patch(
-            "app.services.taygedo_attendance.complete_daily_tasks",
+            "app.services.taygedo.attendance.complete_daily_tasks",
             return_value={
                 "text": "每日任务：浏览 5/5(+5) · 点赞 5/5(+5) · 分享 1/1(+20)",
                 "all_done": True,
@@ -76,7 +76,7 @@ def test_query_app_today_already_with_awards() -> None:
 
 def test_query_app_today_state_unavailable() -> None:
     with patch(
-        "app.services.taygedo_attendance._get_app_sign_state", return_value=None
+        "app.services.taygedo.attendance._get_app_sign_state", return_value=None
     ):
         r = query_app_today(_creds())
     assert r.status == "error"
@@ -92,11 +92,11 @@ def test_list_checkin_targets_includes_app_first() -> None:
     )
     with (
         patch(
-            "app.services.taygedo_attendance.ensure_session",
+            "app.services.taygedo.attendance.ensure_session",
             return_value=_creds(),
         ),
         patch(
-            "app.services.taygedo_attendance.list_all_game_roles",
+            "app.services.taygedo.attendance.list_all_game_roles",
             return_value=[role],
         ),
     ):
@@ -107,8 +107,8 @@ def test_list_checkin_targets_includes_app_first() -> None:
 
 
 def test_sort_taygedo_results_community_first() -> None:
-    from app.services.checkin_common import CheckinResult
-    from app.services.taygedo_attendance import sort_taygedo_results
+    from app.services.checkin.common import CheckinResult
+    from app.services.taygedo.attendance import sort_taygedo_results
 
     rows = [
         CheckinResult(
@@ -135,10 +135,10 @@ def test_sort_taygedo_results_community_first() -> None:
 
 
 def test_app_signin_awards_from_tasks_defaults() -> None:
-    from app.services.taygedo_attendance import _app_signin_awards_from_tasks
+    from app.services.taygedo.attendance import _app_signin_awards_from_tasks
 
     with patch(
-        "app.services.taygedo_attendance.get_user_tasks",
+        "app.services.taygedo.attendance.get_user_tasks",
         return_value={
             "signin_c": {
                 "taskKey": "signin_c",
@@ -167,15 +167,15 @@ def test_query_today_all_community_first() -> None:
     game = MagicMock(game_code=GAME_NTE, role_uid="r1", role_name="主角")
     with (
         patch(
-            "app.services.taygedo_attendance.list_checkin_targets",
+            "app.services.taygedo.attendance.list_checkin_targets",
             return_value=(_creds(), [(GAME_APP, None), (GAME_NTE, role)]),
         ),
         patch(
-            "app.services.taygedo_attendance.query_app_today",
+            "app.services.taygedo.attendance.query_app_today",
             return_value=community,
         ) as q_app,
         patch(
-            "app.services.taygedo_attendance.query_game_today",
+            "app.services.taygedo.attendance.query_game_today",
             return_value=game,
         ) as q_game,
     ):
@@ -190,7 +190,7 @@ def test_query_today_all_community_first() -> None:
 def test_checkin_target_app_calls_signin() -> None:
     expected = MagicMock(game_code=GAME_APP, channel_name="社区")
     with patch(
-        "app.services.taygedo_attendance.app_signin", return_value=expected
+        "app.services.taygedo.attendance.app_signin", return_value=expected
     ) as sign:
         out = checkin_target(_creds(), game_code=GAME_APP, role=None)
     assert out is expected
@@ -198,18 +198,18 @@ def test_checkin_target_app_calls_signin() -> None:
 
 
 def test_app_signin_channel_name_is_community() -> None:
-    from app.services.taygedo_attendance import app_signin
+    from app.services.taygedo.attendance import app_signin
 
     with (
         patch(
-            "app.services.taygedo_attendance._http",
+            "app.services.taygedo.attendance._http",
             return_value=(
                 200,
                 {"code": 0, "data": {"exp": 10, "goldCoin": 40}},
             ),
         ),
         patch(
-            "app.services.taygedo_attendance.complete_daily_tasks",
+            "app.services.taygedo.attendance.complete_daily_tasks",
             return_value={"text": "每日任务：浏览 5/5 · 点赞 5/5 · 分享 1/1"},
         ),
     ):
@@ -378,7 +378,7 @@ def test_list_shop_goods_parses_payload() -> None:
         },
     }
     with patch(
-        "app.services.taygedo_attendance._http",
+        "app.services.taygedo.attendance._http",
         return_value=(200, payload),
     ):
         items, tabs = list_shop_goods(_creds(), tab="all")
@@ -400,7 +400,7 @@ def test_exchange_shop_goods_uses_app_headers_and_count() -> None:
         captured["body"] = body or ""
         return 200, {"code": 0, "data": {"ok": True}}
 
-    with patch("app.services.taygedo_attendance._http", side_effect=_fake_http):
+    with patch("app.services.taygedo.attendance._http", side_effect=_fake_http):
         out = exchange_shop_goods(
             _creds(), goods_id="12", game_id="1289", role_id="219000995082"
         )

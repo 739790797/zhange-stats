@@ -29,12 +29,12 @@ from app.services.avatar_store import (
     save_avatar_upload,
 )
 from app.services.member_sync import delete_user_with_member, ensure_user_member
-from app.services.steam_bind import (
+from app.services.steam.bind import (
     PRIVACY_HINT,
     require_public_steam_profile,
     steam_profile_public_dict,
 )
-from app.services.steam_openid import (
+from app.services.steam.openid import (
     build_steam_login_url,
     create_openid_state,
     decode_openid_state,
@@ -56,7 +56,6 @@ from app.api.profile.helpers import (
     _normalize_email,
     _profile_from_member,
     _require_steam_feature,
-    _set_qq_number,
     _set_qq_profile,
     _set_steam_id,
     _user_brief,
@@ -70,7 +69,7 @@ def preview_steam_bind(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> SteamBindPreviewResponse:
-    from app.services.steam_bind import lookup_steam_profile
+    from app.services.steam.bind import lookup_steam_profile
 
     _require_steam_feature(db)
     try:

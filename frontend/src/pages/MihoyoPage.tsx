@@ -7,9 +7,9 @@ import {
   updateMihoyoRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { MihoyoAttendanceCalendarButton } from "@/components/MihoyoAttendanceCalendar";
-import { MihoyoBindPanel } from "@/components/MihoyoBindPanel";
-import { MihoyoExchangePanel } from "@/components/MihoyoExchangePanel";
+import { MihoyoAttendanceCalendarButton } from "@/components/mihoyo/MihoyoAttendanceCalendar";
+import { MihoyoBindPanel } from "@/components/mihoyo/MihoyoBindPanel";
+import { MihoyoExchangePanel } from "@/components/mihoyo/MihoyoExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { hasMihoyoAttendanceCalendar } from "@/lib/mihoyoAttendance";

@@ -1,8 +1,9 @@
-import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
+import { Alert, Button, Form, Input, message } from "antd";
 import { useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { resendCode, verifyEmail } from "@/api/client";
 import { apiError } from "@/lib/apiError";
+import { AuthGuestShell } from "@/components/AuthGuestShell";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function VerifyEmailPage() {
@@ -55,35 +56,11 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "radial-gradient(ellipse at top left, #2c3e50 0%, #1a2332 45%, #0f1419 100%)",
-        padding: 24,
-      }}
+    <AuthGuestShell
+      title="验证邮箱"
+      subtitle="输入邮箱收到的 6 位验证码"
+      showVersion={false}
     >
-      <Card
-        style={{
-          width: 420,
-          maxWidth: "100%",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
-          border: "1px solid rgba(232,184,109,0.25)",
-        }}
-        styles={{ body: { padding: "40px 36px" } }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <Typography.Title level={2} style={{ margin: 0, color: "#1a2332" }}>
-            验证邮箱
-          </Typography.Title>
-          <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
-            输入邮箱收到的 6 位验证码
-          </Typography.Paragraph>
-        </div>
-
         {error ? (
           <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />
         ) : null}
@@ -120,7 +97,6 @@ export default function VerifyEmailPage() {
             size="large"
             block
             loading={loading}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             完成验证
           </Button>
@@ -141,7 +117,6 @@ export default function VerifyEmailPage() {
             <Link to="/login">返回登录</Link>
           </div>
         </Form>
-      </Card>
-    </div>
+    </AuthGuestShell>
   );
 }

@@ -25,6 +25,9 @@ def test_issue_and_consume_once() -> None:
     code = issue_oauth_ticket(db, "jwt-token-abc")
     db.commit()
     assert len(code) >= 16
+    row = db.get(OAuthExchangeTicket, code)
+    assert row is not None
+    assert row.access_token.startswith("enc:v1:")
     token = consume_oauth_ticket(db, code)
     db.commit()
     assert token == "jwt-token-abc"

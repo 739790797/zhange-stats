@@ -72,7 +72,6 @@ class MemberProfileOut(BaseModel):
     qq_bound: bool = False
     qq_nickname: str | None = None
     qq_avatar_url: str | None = None
-    qq_number: str | None = None
     user_id: int | None = None
     username: str | None = None
     email: str | None = None
@@ -83,7 +82,6 @@ class MemberProfileOut(BaseModel):
 class MemberProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     steam_id: str | None = Field(default=None, max_length=512)
-    qq_number: str | None = Field(default=None, max_length=20)
 
 
 class QqOAuthStartResponse(BaseModel):

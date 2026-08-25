@@ -16,6 +16,7 @@
 | [`.cursor/rules/platform-raw-cache.mdc`](../.cursor/rules/platform-raw-cache.mdc) | 已有：平台 raw / 签到 |
 | [`.cursor/rules/skland-upstream.mdc`](../.cursor/rules/skland-upstream.mdc) | 森空岛官服/B服、补奖、cred（2026-08-07） |
 | [`.cursor/rules/db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | 已有：Alembic |
+| [`.cursor/rules/testing.mdc`](../.cursor/rules/testing.mdc) | 自测分层 / 补测门槛（2026-08-25） |
 
 以下为原始方案正文（归档备查）。
 
@@ -245,7 +246,7 @@ Cursor 对 alwaysApply 过载会稀释注意力。本方案建议：
 
 1. **默认**：开 Agent 会话 → 加载架构索引 → 按打开文件加载 frontend/backend/apiError/raw/db 规则。  
 2. **人**：改功能前扫一眼 `AGENTS.md` 禁止清单；PR 描述可勾选「OpenAPI / 迁移 / apiError」。  
-3. **CI**：继续用 openapi-drift、lint、pytest 做客观门禁；规则负责主观架构，CI 负责可机器验证项。  
+3. **CI**：继续用 openapi-drift、lint、vitest、pytest 做客观门禁；规则负责主观架构，CI 负责可机器验证项。  
 4. **演进**：新平台接入时，只改 `platform-raw-cache` + backend 约定中的「新平台 checklist」，不扩 alwaysApply 长文。  
 5. **复评画布**：工程项可标注「约定已规则化」，避免重复口头强调。
 

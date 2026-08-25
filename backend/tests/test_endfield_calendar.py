@@ -1,6 +1,6 @@
 """终末地签到周期日历解析。"""
 
-from app.services.endfield_calendar import parse_endfield_attendance_calendar
+from app.services.skland.endfield_calendar import parse_endfield_attendance_calendar
 
 
 def test_parse_endfield_calendar_done_flags() -> None:

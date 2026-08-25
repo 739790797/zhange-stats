@@ -1,11 +1,11 @@
 """塔吉多 / 追放结构化奖励解析与公共 award_item。"""
 
-import app.services.exilium_client  # noqa: F401
-import app.services.taygedo_client  # noqa: F401
-from app.services.checkin_common import award_item, awards_text_from_items, loads_awards_json
-from app.services.exilium_attendance import sign_in
-from app.services.exilium_client import ExiliumCredentials
-from app.services.taygedo_attendance import _awards_from_sign_payload, _item_award_dict
+import app.services.exilium.client  # noqa: F401
+import app.services.taygedo.client  # noqa: F401
+from app.services.checkin.common import award_item, awards_text_from_items, loads_awards_json
+from app.services.exilium.attendance import sign_in
+from app.services.exilium.client import ExiliumCredentials
+from app.services.taygedo.attendance import _awards_from_sign_payload, _item_award_dict
 
 
 def test_award_item_and_text() -> None:
@@ -91,7 +91,7 @@ def test_exilium_sign_in_structured(monkeypatch) -> None:
         }
         return data, {"code": 0, "data": data}
 
-    monkeypatch.setattr("app.services.exilium_attendance._http_full", fake_http_full)
+    monkeypatch.setattr("app.services.exilium.attendance._http_full", fake_http_full)
     creds = ExiliumCredentials(
         token="t",
         account_name="u",

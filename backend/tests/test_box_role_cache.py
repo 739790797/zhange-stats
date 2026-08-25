@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.services.box_role_cache import skland_endfield_roles_from_raws
-from app.services.skland_client import GAME_ENDFIELD
+from app.services.skland.client import GAME_ENDFIELD
 
 
 def test_skland_endfield_roles_from_raws() -> None:

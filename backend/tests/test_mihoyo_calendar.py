@@ -1,6 +1,6 @@
 """米游社游戏福利签到日历解析。"""
 
-from app.services.mihoyo_calendar import (
+from app.services.mihoyo.calendar import (
     parse_mihoyo_attendance_calendar,
     select_today_awards,
 )

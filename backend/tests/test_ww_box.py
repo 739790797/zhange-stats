@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from app.services.kujiequ_boxes import parse_ww_box, unwrap_aki_data
-from app.services.kujiequ_client import GameRole
+from app.services.kujiequ.boxes import parse_ww_box, unwrap_aki_data
+from app.services.kujiequ.client import GameRole
 
 
 def _role() -> GameRole:
@@ -139,8 +139,8 @@ def test_parse_ww_box_fallback_box_list():
 
 
 def test_rolebox_headers_omit_user_token_for_data_apis():
-    from app.services.kujiequ_boxes import _rolebox_headers
-    from app.services.kujiequ_client import KujiequCredentials
+    from app.services.kujiequ.boxes import _rolebox_headers
+    from app.services.kujiequ.client import KujiequCredentials
 
     creds = KujiequCredentials(
         token="user-jwt-token",

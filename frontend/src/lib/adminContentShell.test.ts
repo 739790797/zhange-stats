@@ -21,7 +21,6 @@ describe("adminContentShell", () => {
     expect(adminContentShell("/settings/jobs")).toBe("wide");
     expect(adminContentShell("/settings/task-config")).toBe("wide");
     expect(adminContentShell("/settings/logs")).toBe("wide");
-    expect(adminContentShell("/settings/qq-groups")).toBe("wide");
   });
 
   it("uses wide width for Minecraft guide", () => {

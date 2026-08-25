@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from app.services.minecraft_mod_catalog import (
+from app.services.minecraft.mod_catalog import (
     mcmod_class_id,
     pick_curseforge_url,
     pick_modrinth_hit,
     pick_modrinth_mod_url,
     query_from_jar,
 )
-from app.services.minecraft_profile import (
+from app.services.minecraft.profile import (
     jar_display_name,
     merge_overview_mods,
     merge_roster,

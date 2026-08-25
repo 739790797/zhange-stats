@@ -38,7 +38,7 @@ from app.schemas import (
     SklandRoleOut,
     SklandStatusOut,
 )
-from app.services.skland_checkin import (
+from app.services.skland.checkin import (
     bind_skland,
     bind_skland_with_password,
     bind_skland_with_sms,
@@ -49,8 +49,8 @@ from app.services.skland_checkin import (
     send_skland_sms,
     unbind_skland,
 )
-from app.services.skland_client import SklandApiError
-from app.services.skland_qr import poll_qr_bind, start_qr_bind
+from app.services.skland.client import SklandApiError
+from app.services.skland.qr import poll_qr_bind, start_qr_bind
 
 router = APIRouter(tags=["skland"])
 
@@ -235,7 +235,7 @@ def skland_update_bind(
 ):
     member = _member_or_404(db, user)
     try:
-        from app.services.skland_checkin import update_bind_prefs
+        from app.services.skland.checkin import update_bind_prefs
 
         update_bind_prefs(
             db,
@@ -263,7 +263,7 @@ def skland_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定森空岛")
-    from app.services.checkin_role_prefs import PLATFORM_SKLAND
+    from app.services.checkin.role_prefs import PLATFORM_SKLAND
 
     apply_role_pref_update(
         db=db,
@@ -288,8 +288,8 @@ def skland_role_tree(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定森空岛")
-    from app.services.checkin_role_prefs import PLATFORM_SKLAND
-    from app.services.skland_client import SklandApiError
+    from app.services.checkin.role_prefs import PLATFORM_SKLAND
+    from app.services.skland.client import SklandApiError
 
     return build_role_membership_tree(
         db=db,
@@ -315,7 +315,7 @@ def skland_replace_role_memberships(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定森空岛")
-    from app.services.checkin_role_prefs import PLATFORM_SKLAND
+    from app.services.checkin.role_prefs import PLATFORM_SKLAND
 
     apply_role_membership_replace(
         db=db,

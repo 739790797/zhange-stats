@@ -1,6 +1,6 @@
 """塔吉多签到周期日历解析。"""
 
-from app.services.taygedo_calendar import parse_taygedo_attendance_calendar
+from app.services.taygedo.calendar import parse_taygedo_attendance_calendar
 
 
 def test_parse_rewards_with_days() -> None:

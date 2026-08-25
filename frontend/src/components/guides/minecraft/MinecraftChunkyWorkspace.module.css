@@ -35,27 +35,6 @@
   margin-bottom: 6px;
 }
 
-.presets {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.presetLabel {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
-  margin-right: 4px;
-}
-
-.secondaryActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-}
-
 .progressPane {
   background: #f7f8fa;
   border-radius: 10px;

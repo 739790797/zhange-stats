@@ -1,10 +1,8 @@
-import { ConfigProvider } from "antd";
 import { Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovItemDetail } from "@/api/guidesApi";
 import { TarkovItemDetailPanel } from "@/components/guides/tarkov/TarkovItemDetailPanel";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
   ITEMS_BASE_PATH,
@@ -48,9 +46,7 @@ export default function TarkovItemDetailPage() {
     <div className={styles.inner}>
       <div className={styles.detailBody}>
         <TarkovItemsBreadcrumb items={crumbs} />
-        <ConfigProvider theme={TARKOV_ANTD_DARK}>
-          {itemId ? <TarkovItemDetailPanel itemId={itemId} /> : null}
-        </ConfigProvider>
+        {itemId ? <TarkovItemDetailPanel itemId={itemId} /> : null}
       </div>
     </div>
   );

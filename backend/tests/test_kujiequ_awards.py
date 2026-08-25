@@ -1,8 +1,8 @@
 """库街区奖励文案解析（无网络）。"""
 
 # 先加载 client，避免 attendance↔client 循环导入
-import app.services.kujiequ_client  # noqa: F401
-from app.services.kujiequ_attendance import _format_goods_rows
+import app.services.kujiequ.client  # noqa: F401
+from app.services.kujiequ.attendance import _format_goods_rows
 
 
 def test_format_goods_skips_generic_reward_name() -> None:

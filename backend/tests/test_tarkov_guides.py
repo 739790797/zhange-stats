@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.services.tarkov_guides import parse_barters, parse_crafts, parse_hideout_stations
-from app.services.tarkov_tasks import TRADER_BY_ID
+from app.services.tarkov.guides import parse_barters, parse_crafts, parse_hideout_stations
+from app.services.tarkov.tasks import TRADER_BY_ID
 
 PRAPOR = next(tid for tid, (slug, _name) in TRADER_BY_ID.items() if slug == "prapor")
 STATION_ID = "station-workbench"

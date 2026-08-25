@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from app.services.minecraft_profile import (
+from app.services.minecraft.profile import (
     _STAGE_KEY,
     desired_snapshot,
     is_playbook_dirty,

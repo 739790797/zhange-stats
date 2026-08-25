@@ -5,7 +5,8 @@ import {
   Button,
   Card,
   Form,
-  InputNumber,
+  Input,
+  Modal,
   Popconfirm,
   Select,
   Space,
@@ -13,7 +14,7 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   applyMinecraftModToolPreset,
@@ -21,11 +22,16 @@ import {
   fetchMinecraftModToolPreset,
   runMinecraftModToolCommand,
   saveMinecraftModToolPreset,
-  type MinecraftModCommandArg,
   type MinecraftModTool,
   type MinecraftModTools,
 } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
+import {
+  applySuggestionLine,
+  completeLine,
+  parseCommandLine,
+  suggestionsForLine,
+} from "./minecraftModCommandComplete";
 import { MinecraftConfigFilesModal } from "./MinecraftConfigFilesModal";
 import { MinecraftChunkyWorkspace } from "./MinecraftChunkyWorkspace";
 import { MinecraftModToolInstallModal } from "./MinecraftModToolInstallModal";
@@ -105,24 +111,20 @@ function CommandBar({
   disabled: boolean;
 }) {
   const queryClient = useQueryClient();
-  const tree = (tool.command_tree || []).filter((node) => node.show_in_bar !== false);
-  const [commandId, setCommandId] = useState(tree[0]?.id || "");
-  const [args, setArgs] = useState<Record<string, string | number | null>>({});
+  const boxRef = useRef<HTMLDivElement>(null);
+  const tree = useMemo(
+    () =>
+      (tool.command_tree || []).filter((node) => node.show_in_bar !== false),
+    [tool.command_tree],
+  );
+  const [line, setLine] = useState("");
   const [raw, setRaw] = useState("");
-  const node = tree.find((row) => row.id === commandId) || null;
 
   const run = useMutation({
-    mutationFn: () => {
-      const cleaned: Record<string, string | number> = {};
-      for (const [key, value] of Object.entries(args)) {
-        if (value == null || value === "") continue;
-        cleaned[key] = value;
-      }
-      return runMinecraftModToolCommand(tool.id, {
-        command_id: commandId,
-        args: cleaned,
-      });
-    },
+    mutationFn: (payload: {
+      command_id: string;
+      args: Record<string, string | number>;
+    }) => runMinecraftModToolCommand(tool.id, payload),
     onSuccess: (res) => {
       if (res.message) message.success(res.message);
       else message.success("已发送");
@@ -132,96 +134,116 @@ function CommandBar({
     onError: (e: unknown) => message.error(apiError(e, "指令失败")),
   });
 
+  const hits = useMemo(
+    () => suggestionsForLine(line, tree, worlds),
+    [line, tree, worlds],
+  );
+  const options = hits.map((row) => ({
+    value: row.line,
+    label: row.token,
+  }));
+
+  const focusEnd = (next: string) => {
+    requestAnimationFrame(() => {
+      const el = boxRef.current?.querySelector("input");
+      if (!el) return;
+      el.focus();
+      const at = next.length;
+      el.setSelectionRange(at, at);
+    });
+  };
+
+  const fillLine = (next: string) => {
+    setLine(next);
+    focusEnd(next);
+  };
+
+  const submit = () => {
+    if (disabled) return;
+    const parsed = parseCommandLine(line, tree);
+    if ("error" in parsed) {
+      message.error(parsed.error);
+      return;
+    }
+    const node = tree.find((row) => row.id === parsed.commandId);
+    const send = () =>
+      run.mutate({ command_id: parsed.commandId, args: parsed.args });
+    if (node?.confirm) {
+      Modal.confirm({
+        title: node.confirm,
+        okText: "发送",
+        cancelText: "返回",
+        onOk: send,
+      });
+      return;
+    }
+    send();
+  };
+
   if (!tree.length) return null;
 
-  const pickCommand = (id: string) => {
-    setCommandId(id);
-    setArgs({});
-  };
-
-  const setArg = (id: string, value: string | number | null) => {
-    setArgs((prev) => ({ ...prev, [id]: value }));
-  };
-
-  const renderArg = (arg: MinecraftModCommandArg) => {
-    if (arg.kind === "enum" || arg.kind === "world") {
-      const options =
-        arg.kind === "world"
-          ? worlds.map((name) => ({ value: name, label: name }))
-          : (arg.options || []).map((row) => ({
-              value: row.value,
-              label: row.label || row.value,
-            }));
-      return (
-        <Select
-          allowClear={arg.optional}
-          showSearch={arg.kind === "world"}
-          placeholder={arg.label}
-          value={(args[arg.id] as string | undefined) || undefined}
-          onChange={(value) => setArg(arg.id, value ?? null)}
-          options={options}
-          style={{ minWidth: 140 }}
-        />
-      );
-    }
-    if (arg.kind === "int") {
-      return (
-        <InputNumber
-          placeholder={arg.label}
-          value={(args[arg.id] as number | null) ?? null}
-          min={arg.min_value ?? undefined}
-          max={arg.max_value ?? undefined}
-          onChange={(value) => setArg(arg.id, value)}
-          style={{ width: 120 }}
-        />
-      );
-    }
-    return null;
-  };
-
-  const send = (
-    <Button
-      type="primary"
-      disabled={disabled || !commandId}
-      loading={run.isPending}
-      onClick={() => run.mutate()}
-    >
-      发送
-    </Button>
-  );
-
   return (
-    <div className={styles.section}>
-      <div className={styles.sectionTitle}>执行指令</div>
-      <div className={styles.commandRow}>
-        <Select
-          value={commandId || undefined}
-          placeholder="选择指令"
-          onChange={pickCommand}
-          options={tree.map((row) => ({ value: row.id, label: row.label }))}
-          style={{ minWidth: 160 }}
-        />
-        {(node?.args || []).map((arg) => (
-          <div key={arg.id} className={styles.commandField}>
-            <label>{arg.label}</label>
-            {renderArg(arg)}
-          </div>
-        ))}
-        {node?.confirm ? (
-          <Popconfirm
-            title={node.confirm}
-            okText="发送"
-            cancelText="返回"
-            disabled={disabled || !commandId}
-            onConfirm={() => run.mutate()}
+    <>
+      <div className={styles.sectionHead}>
+        <div className={styles.sectionTitle}>执行指令</div>
+        <div className={styles.commandRow} ref={boxRef}>
+          <div
+            className={styles.commandInputWrap}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              event.preventDefault();
+              fillLine(completeLine(line, tree, worlds));
+            }}
           >
-            <Button type="primary" disabled={disabled || !commandId} loading={run.isPending}>
-              发送
-            </Button>
-          </Popconfirm>
-        ) : (
-          send
-        )}
+            <Input
+              value={line}
+              placeholder="world"
+              spellCheck={false}
+              autoComplete="off"
+              className={styles.commandInput}
+              onChange={(event) => {
+                setLine(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const parsed = parseCommandLine(line, tree);
+                  if ("error" in parsed && line.trim() && hits.length) {
+                    fillLine(applySuggestionLine(hits[0].line, tree));
+                    return;
+                  }
+                  submit();
+                }
+              }}
+            />
+            {options.length ? (
+              <ul className={styles.commandSuggest} role="listbox">
+                {options.map((row) => (
+                  <li key={row.value}>
+                    <button
+                      type="button"
+                      className={styles.commandSuggestItem}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        fillLine(applySuggestionLine(row.value, tree));
+                      }}
+                    >
+                      {row.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          <Button
+            type="primary"
+            disabled={disabled || run.isPending}
+            loading={run.isPending}
+            onClick={submit}
+          >
+            发送
+          </Button>
+        </div>
       </div>
       {raw ? (
         <details className={styles.logDetails}>
@@ -229,7 +251,7 @@ function CommandBar({
           <pre className={styles.log}>{raw}</pre>
         </details>
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -479,81 +501,89 @@ export function MinecraftModToolCard({
             {catalog?.message ? (
               <Alert type="warning" showIcon message={catalog.message} />
             ) : null}
-
-            {!data.rcon_configured && hasCap(tool, "commands") ? (
-              <Alert
-                type="warning"
-                showIcon
-                message={
-                  <span>
-                    尚未配置 RCON，无法发送指令。{" "}
-                    <Link to="/settings/integrations">去集成密钥</Link>
-                  </span>
-                }
-              />
-            ) : null}
-
-            {data.rcon_configured && !tool.loaded && hasCap(tool, "commands") ? (
-              <Alert
-                type="info"
-                showIcon
-                message="找到了模组文件，但当前命令不可用。通常是服未开、模组还没进进程，或 RCON 没连上。"
-              />
-            ) : null}
           </div>
 
           {hasCap(tool, "config") && tool.config_directory ? (
             <div className={styles.section}>
-              <div className={styles.sectionTitle}>配置文件</div>
-              <Space wrap>
-                <Button
-                  disabled={!data.pelican_configured}
-                  onClick={() => void openConfig()}
-                >
-                  编辑配置
-                </Button>
-                {presets.length > 1 ? (
-                  <Select
-                    value={activePreset?.id}
-                    onChange={setActivePresetId}
-                    options={presets.map((row) => ({
-                      value: row.id,
-                      label: row.title,
-                    }))}
-                    style={{ minWidth: 140 }}
-                  />
-                ) : null}
-                {activePreset ? (
-                  <>
-                    <Button
-                      disabled={busy}
-                      onClick={() => setPresetEditorOpen(true)}
-                    >
-                      编辑预设
-                    </Button>
-                    <Popconfirm
-                      title={`写入「${activePreset.title}」会覆盖服上主配置文件`}
-                      description="不会改 tasks 等运行时目录。没有草稿时用出厂模板。"
-                      okText="写入"
-                      cancelText="返回"
-                      disabled={!data.pelican_configured || busy}
-                      onConfirm={() => preset.mutate(activePreset.id)}
-                    >
+              <div className={styles.sectionHead}>
+                <div className={styles.sectionTitle}>配置文件</div>
+                <Space wrap>
+                  <Button
+                    disabled={!data.pelican_configured}
+                    onClick={() => void openConfig()}
+                  >
+                    编辑配置
+                  </Button>
+                  {presets.length > 1 ? (
+                    <Select
+                      value={activePreset?.id}
+                      onChange={setActivePresetId}
+                      options={presets.map((row) => ({
+                        value: row.id,
+                        label: row.title,
+                      }))}
+                      style={{ minWidth: 140 }}
+                    />
+                  ) : null}
+                  {activePreset ? (
+                    <>
                       <Button
-                        loading={preset.isPending}
-                        disabled={!data.pelican_configured || busy}
+                        disabled={busy}
+                        onClick={() => setPresetEditorOpen(true)}
                       >
-                        写入预设
+                        编辑预设
                       </Button>
-                    </Popconfirm>
-                  </>
-                ) : null}
-              </Space>
+                      <Popconfirm
+                        title={`写入「${activePreset.title}」会覆盖服上主配置文件`}
+                        description="不会改 tasks 等运行时目录。没有草稿时用出厂模板。"
+                        okText="写入"
+                        cancelText="返回"
+                        disabled={!data.pelican_configured || busy}
+                        onConfirm={() => preset.mutate(activePreset.id)}
+                      >
+                        <Button
+                          loading={preset.isPending}
+                          disabled={!data.pelican_configured || busy}
+                        >
+                          写入预设
+                        </Button>
+                      </Popconfirm>
+                    </>
+                  ) : null}
+                </Space>
+              </div>
             </div>
           ) : null}
 
           {hasCap(tool, "commands") ? (
-            <CommandBar tool={tool} worlds={worlds} disabled={!canCommand} />
+            <div className={styles.section}>
+              {!data.rcon_configured ? (
+                <Alert
+                  className={styles.commandAlert}
+                  type="warning"
+                  showIcon
+                  message={
+                    <span>
+                      尚未配置 RCON，无法发送指令。{" "}
+                      <Link to="/settings/integrations">去集成密钥</Link>
+                    </span>
+                  }
+                />
+              ) : null}
+              {data.rcon_configured && !tool.loaded ? (
+                <Alert
+                  className={styles.commandAlert}
+                  type="info"
+                  showIcon
+                  message="找到了模组文件，但当前命令不可用。通常是服未开、模组还没进进程，或 RCON 没连上。"
+                />
+              ) : null}
+              <CommandBar
+                tool={tool}
+                worlds={worlds}
+                disabled={!canCommand}
+              />
+            </div>
           ) : null}
 
           {tool.id === "chunky" ? (

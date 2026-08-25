@@ -8,7 +8,8 @@ alwaysApply: false
 
 ## 目录
 
-- `pages/`：路由页；`components/`：可复用 UI
+- `pages/`：路由页；`components/`：可复用 UI。根上只留跨平台外壳（`CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton` 等）；平台面板进 `components/<platform>/`，攻略进 `guides/`
+- `src/data/`：源码资源（如塔科夫地图 JSON）；运行时/缓存在仓库根 `var/`，勿往 `frontend/data` 写
 - `api/`：`http.ts` + 域 `*Api.ts`；`client.ts` 再导出
 - `stores/authStore.ts`：仅 JWT + 用户（localStorage）
 - `lib/apiError.ts`：用户可见错误文案
@@ -21,10 +22,15 @@ alwaysApply: false
 ## 数据与 UI
 
 - 远端状态用 TanStack Query；勿把服务端列表塞进 zustand
-- UI 沿用 Ant Design
+- UI：Ant Design 5 + `antdAppTheme`；按钮角色/尺寸见 `frontend-ui.mdc`
 - **新签到内容**套 `CheckinPageTemplate`（`contentOnly` 嵌入平台 Tabs）
 - **新兑换内容**套 `ExchangePageTemplate` + `ExchangeGoodsCard`（商品字段/确认流由平台注入）
 - **平台页外壳**套 `PlatformFeatureTabsPage`（绑定门禁 + feature Tabs）
+- **新签到日历**套 `AttendanceCalendarButton`（禁止再复制五份 Modal）
+- **新盒子**先套 `BoxPanelChrome`（禁止复制未绑定 / 加载 / 失败 / 刷新条）；角色卡仍由面板自己画
+- **新扫码绑定**走 `useQrBindSession`（短信/密码/极验仍留 BindPanel；表单走 `PhoneAuthBindTemplate`）
+- **认证未登录页**套 `AuthGuestShell`（登录/注册/找回/验证/安装）
+- 塔科夫 antd 暗色只走 `TarkovGuideShell` 的 `TarkovThemed` 一层，详情页不要再包 `ConfigProvider`
 - 盒子读库优先；**签到展示**打开页始终 `force` 回源（见 `platform-raw-cache`）
 - 平台积分/代币兑换：页签与任务配置统一称 **「兑换」**（勿写「库洛币兑换」「积分兑换」等）；面板标题用「兑换商城」，货币名仅在余额/消耗文案中出现
 

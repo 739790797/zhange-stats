@@ -12,8 +12,8 @@ from app.core.database import get_db
 from app.core.deps import require_admin
 from app.core.platform_deps import require_feature
 from app.models.user import User
-from app.services import minecraft_files as files_svc
-from app.services import pelican_client as pelican
+from app.services.minecraft import files as files_svc
+from app.services.minecraft import pelican as pelican
 
 router = APIRouter(prefix="/files", tags=["minecraft"])
 _FEATURE = Depends(require_feature("guides.minecraft"))

@@ -1,10 +1,8 @@
-import { ConfigProvider } from "antd";
 import { Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovMapDetail } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TarkovMapDetailPanel } from "@/components/guides/tarkov/TarkovMapDetailPanel";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import {
   MAPS_HREF,
   TARKOV_HOME_PATH,
@@ -42,9 +40,7 @@ export default function TarkovMapDetailPage() {
           { label: crumbLabel },
         ]}
       />
-      <ConfigProvider theme={TARKOV_ANTD_DARK}>
-        <TarkovMapDetailPanel slug={mapSlug} />
-      </ConfigProvider>
+      <TarkovMapDetailPanel slug={mapSlug} />
     </div>
   );
 }

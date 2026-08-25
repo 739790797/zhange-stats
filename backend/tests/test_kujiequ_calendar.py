@@ -1,6 +1,6 @@
 """库街区鸣潮 / 战双签到周期日历解析。"""
 
-from app.services.kujiequ_calendar import parse_kujiequ_attendance_calendar
+from app.services.kujiequ.calendar import parse_kujiequ_attendance_calendar
 
 
 def test_parse_sign_in_goods_configs() -> None:

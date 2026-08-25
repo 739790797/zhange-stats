@@ -9,13 +9,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.minecraft_pack import (
+from app.services.minecraft.pack import (
     merge_rcon_properties,
     parse_properties,
     redact_properties,
 )
-from app.services.minecraft_profile import desired_snapshot, playbook_from_snapshot
-from app.services.minecraft_rcon import (
+from app.services.minecraft.profile import desired_snapshot, playbook_from_snapshot
+from app.services.minecraft.rcon import (
     TYPE_AUTH,
     TYPE_EXEC,
     TYPE_RESPONSE,

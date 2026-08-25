@@ -1,4 +1,4 @@
-"""ASGI /health 契约（AsyncClient，避免同步 TestClient / lifespan migrate）。"""
+"""ASGI /health 契约（唯一一份字段断言；勿再写平行 health 测）。"""
 
 import anyio
 import httpx

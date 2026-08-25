@@ -1,6 +1,6 @@
 import { theme, type ThemeConfig } from "antd";
 
-/** 塔科夫攻略内页：嵌套 ConfigProvider，对齐首页橙黑配色。 */
+/** 塔科夫攻略暗色主题。由 `TarkovThemed` / GuideShell 套一层，详情页不要再包。 */
 export const TARKOV_ANTD_DARK: ThemeConfig = {
   algorithm: theme.darkAlgorithm,
   token: {

@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.timeutil import BEIJING, now_naive
 from app.models.minecraft import MinecraftPresenceSegment
-from app.services.minecraft_presence import (
+from app.services.minecraft.presence import (
     apply_snapshot,
     build_presence_range,
     _clip_to_window,
 )
-from app.services.minecraft_rcon import parse_list_names
+from app.services.minecraft.rcon import parse_list_names
 
 
 def _session() -> Session:

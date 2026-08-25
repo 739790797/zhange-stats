@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from app.core.timeutil import BEIJING
-from app.services.skland_calendar import parse_arknights_attendance_calendar
+from app.services.skland.calendar import parse_arknights_attendance_calendar
 
 
 def test_parse_calendar_list_with_records() -> None:
@@ -201,7 +201,7 @@ def test_count_claims_unique_days() -> None:
     """同一天 first + daily 两条 records 只计 1 天。"""
     now = datetime(2026, 8, 6, 12, 0, tzinfo=BEIJING)
     day_ts = int(datetime(2026, 8, 3, 0, 0, tzinfo=BEIJING).timestamp())
-    from app.services.skland_calendar import count_claims_this_month
+    from app.services.skland.calendar import count_claims_this_month
 
     n = count_claims_this_month(
         [

@@ -50,10 +50,12 @@ def test_path_whitelist_and_protected(tmp_path: Path):
     assert u._path_allowed_from_whitelist("backend/app/main.py")
     assert u._path_allowed_from_whitelist("VERSION")
     assert not u._path_allowed_from_whitelist("data/secret")
+    assert not u._path_allowed_from_whitelist("var/data/secret")
     assert not u._path_allowed_from_whitelist(".env")
     assert not u._path_allowed_from_whitelist("backend/.venv/lib/x")
     assert not u._path_allowed_from_whitelist("static/index.html")
     assert u._is_protected("uploads/avatars/a.png")
+    assert u._is_protected("var/data/secret")
 
 
 def test_apply_source_zip_whitelist_only(tmp_path: Path):

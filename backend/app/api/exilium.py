@@ -41,7 +41,7 @@ from app.schemas import (
     RoleMembershipReplaceBody,
     RoleMembershipTreeOut,
 )
-from app.services.exilium_checkin import (
+from app.services.exilium.checkin import (
     bind_with_password,
     bind_with_sms,
     fetch_exchange_shop,
@@ -54,7 +54,7 @@ from app.services.exilium_checkin import (
     unbind_exilium,
     update_bind_prefs,
 )
-from app.services.exilium_client import (
+from app.services.exilium.client import (
     ExiliumApiError,
     ExiliumNeedGraphCaptcha,
     send_sms,
@@ -214,7 +214,7 @@ def exilium_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定追放社区")
-    from app.services.checkin_role_prefs import PLATFORM_EXILIUM
+    from app.services.checkin.role_prefs import PLATFORM_EXILIUM
 
     apply_role_pref_update(
         db=db,
@@ -241,8 +241,8 @@ def exilium_role_tree(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定追放社区")
-    from app.services.checkin_role_prefs import PLATFORM_EXILIUM
-    from app.services.exilium_client import ExiliumApiError
+    from app.services.checkin.role_prefs import PLATFORM_EXILIUM
+    from app.services.exilium.client import ExiliumApiError
 
     return build_role_membership_tree(
         db=db,
@@ -270,7 +270,7 @@ def exilium_replace_role_memberships(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定追放社区")
-    from app.services.checkin_role_prefs import PLATFORM_EXILIUM
+    from app.services.checkin.role_prefs import PLATFORM_EXILIUM
 
     apply_role_membership_replace(
         db=db,

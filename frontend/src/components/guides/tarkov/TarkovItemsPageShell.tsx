@@ -1,10 +1,8 @@
 import type { ReactNode } from "react";
-import { ConfigProvider } from "antd";
 import {
   TarkovItemsBreadcrumb,
   type TarkovCrumb,
 } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import styles from "./TarkovItemsPageShell.module.css";
 
 type Props = {
@@ -56,7 +54,7 @@ export function TarkovItemsPageShell({
           </div>
         </>
       )}
-      <ConfigProvider theme={TARKOV_ANTD_DARK}>{children}</ConfigProvider>
+      {children}
     </div>
   );
 }

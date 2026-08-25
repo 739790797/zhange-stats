@@ -12,7 +12,7 @@ export type CheckinAward = {
 
 const DEFAULT_ICON_SIZE = 20;
 
-/** 签到日历弹窗内奖励图标尺寸（各 *AttendanceCalendar 统一引用） */
+/** 签到日历弹窗内奖励图标尺寸（`AttendanceCalendarButton` 引用） */
 export const CHECKIN_CALENDAR_AWARD_ICON_SIZE = 32;
 
 const iconStyle = (size: number): CSSProperties => ({

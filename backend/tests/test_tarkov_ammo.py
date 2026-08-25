@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from app.services import tarkov_ammo as svc
+from app.services.tarkov import ammo as svc
 
 
 def test_normalize_caliber():

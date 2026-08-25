@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.minecraft_entities import (
+from app.services.minecraft.entities import (
     entity_category,
     parse_entity_list,
     summarize_entities,

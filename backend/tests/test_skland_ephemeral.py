@@ -13,8 +13,8 @@ from app.core.ephemeral_kv import (
     ephemeral_set,
     reset_ephemeral_kv_for_tests,
 )
-from app.services.skland_client import SklandSession
-from app.services.skland_session_cache import (
+from app.services.skland.client import SklandSession
+from app.services.skland.session_cache import (
     get_cached_skland_session,
     invalidate_skland_session,
     put_cached_skland_session,
@@ -73,7 +73,7 @@ def test_skland_session_invalidate():
 
 
 def test_qr_pending_json_roundtrip():
-    from app.services import skland_qr
+    from app.services.skland import qr
 
     payload = {
         "user_id": 1,
@@ -83,8 +83,8 @@ def test_qr_pending_json_roundtrip():
         "created_at": time.time(),
         "completed": False,
     }
-    skland_qr._save_pending("scan-1", payload, remaining_ttl=60)
-    loaded = skland_qr._load_pending("scan-1")
+    qr._save_pending("scan-1", payload, remaining_ttl=60)
+    loaded = qr._load_pending("scan-1")
     assert loaded is not None
     assert loaded["device_id"] == "abc"
     assert json.loads(ephemeral_get("skland:qr:scan-1") or "{}")["user_id"] == 1

@@ -7,11 +7,11 @@ import {
   updateTaygedoRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { ExastrisBoxPanel } from "@/components/ExastrisBoxPanel";
+import { ExastrisBoxPanel } from "@/components/taygedo/ExastrisBoxPanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
-import { TaygedoAttendanceCalendarButton } from "@/components/TaygedoAttendanceCalendar";
-import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
-import { TaygedoExchangePanel } from "@/components/TaygedoExchangePanel";
+import { TaygedoAttendanceCalendarButton } from "@/components/taygedo/TaygedoAttendanceCalendar";
+import { TaygedoBindPanel } from "@/components/taygedo/TaygedoBindPanel";
+import { TaygedoExchangePanel } from "@/components/taygedo/TaygedoExchangePanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
 import { hasTaygedoAttendanceCalendar } from "@/lib/taygedoAttendance";

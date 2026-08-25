@@ -23,7 +23,6 @@ _PLATFORM_PREFIXES: tuple[str, ...] = (
     "minecraft",
     "tarkov",
     "arknights",
-    "napcat",
     "pelican",
     "qq",
 )
@@ -67,6 +66,8 @@ def resolve_biz_tag(logger_name: str) -> str:
 
     if section == "services" and len(parts) >= 3:
         svc = parts[2]
+        if len(parts) >= 4 and (svc in _PLATFORM_PREFIXES or svc == "checkin"):
+            return f"{svc}.{parts[3]}"
         for platform in _PLATFORM_PREFIXES:
             if svc == platform:
                 return platform

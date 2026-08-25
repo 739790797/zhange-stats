@@ -7,8 +7,8 @@ import {
   updateExiliumRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
-import { ExiliumExchangePanel } from "@/components/ExiliumExchangePanel";
+import { ExiliumBindPanel } from "@/components/exilium/ExiliumBindPanel";
+import { ExiliumExchangePanel } from "@/components/exilium/ExiliumExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";

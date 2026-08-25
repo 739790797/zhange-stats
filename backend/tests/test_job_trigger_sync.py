@@ -36,7 +36,7 @@ def test_sync_role_checkin_returns_exchanges(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(
-        "app.services.skland_checkin.run_checkin_for_member",
+        "app.services.skland.checkin.run_checkin_for_member",
         _fake_run,
     )
 

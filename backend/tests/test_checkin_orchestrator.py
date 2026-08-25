@@ -7,17 +7,17 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-from app.services.checkin_adapter import (
+from app.services.checkin.adapter import (
     CheckinAdapterBase,
     CheckinRunOutcome,
     SkipPolicy,
 )
-from app.services.checkin_common import CheckinResult
-from app.services.checkin_orchestrator import (
+from app.services.checkin.common import CheckinResult
+from app.services.checkin.orchestrator import (
     query_today_for_bind,
     run_checkin_for_bind,
 )
-from app.services.checkin_role_prefs import RoleKey
+from app.services.checkin.role_prefs import RoleKey
 
 
 class _FakeApiError(Exception):
@@ -103,15 +103,15 @@ def test_skip_policy_logs_authority_skips_when_done(monkeypatch) -> None:
     done = [_result("already")]
 
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.today_done_from_logs",
+        "app.services.checkin.orchestrator.today_done_from_logs",
         lambda *a, **k: done,
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.load_day_checkin_results",
+        "app.services.checkin.orchestrator.load_day_checkin_results",
         lambda *a, **k: done,
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.day_results_payload",
+        "app.services.checkin.orchestrator.day_results_payload",
         lambda results: {
             "summary": "今日已签到",
             "results": [r.to_api_dict() for r in results],
@@ -119,7 +119,7 @@ def test_skip_policy_logs_authority_skips_when_done(monkeypatch) -> None:
         },
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.today",
+        "app.services.checkin.orchestrator.today",
         lambda: date(2026, 8, 6),
     )
 
@@ -140,23 +140,23 @@ def test_skip_policy_always_run_ignores_logs(monkeypatch) -> None:
     )
 
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.today",
+        "app.services.checkin.orchestrator.today",
         lambda: date(2026, 8, 6),
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.now_naive",
+        "app.services.checkin.orchestrator.now_naive",
         lambda: date(2026, 8, 6),
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.apply_bind_last_checkin",
+        "app.services.checkin.orchestrator.apply_bind_last_checkin",
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.upsert_and_reload_day_results",
+        "app.services.checkin.orchestrator.upsert_and_reload_day_results",
         lambda *a, **k: [_result("ok")],
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.results_to_api",
+        "app.services.checkin.orchestrator.results_to_api",
         lambda results: [r.to_api_dict() for r in results],
     )
 
@@ -177,15 +177,15 @@ def test_skip_returns_empty_exchanges(monkeypatch) -> None:
     done = [_result("already")]
 
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.today_done_from_logs",
+        "app.services.checkin.orchestrator.today_done_from_logs",
         lambda *a, **k: done,
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.load_day_checkin_results",
+        "app.services.checkin.orchestrator.load_day_checkin_results",
         lambda *a, **k: done,
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.day_results_payload",
+        "app.services.checkin.orchestrator.day_results_payload",
         lambda results: {
             "summary": "今日已签到",
             "results": [r.to_api_dict() for r in results],
@@ -193,7 +193,7 @@ def test_skip_returns_empty_exchanges(monkeypatch) -> None:
         },
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.today",
+        "app.services.checkin.orchestrator.today",
         lambda: date(2026, 8, 6),
     )
 
@@ -207,15 +207,15 @@ def test_query_today_uses_cache(monkeypatch) -> None:
     cached = [_result("already")]
 
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.today",
+        "app.services.checkin.orchestrator.today",
         lambda: date(2026, 8, 6),
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.load_day_checkin_results",
+        "app.services.checkin.orchestrator.load_day_checkin_results",
         lambda *a, **k: cached,
     )
     monkeypatch.setattr(
-        "app.services.checkin_orchestrator.day_results_payload",
+        "app.services.checkin.orchestrator.day_results_payload",
         lambda results: {"ok": True, "results": results, "summary": "s"},
     )
 
@@ -225,8 +225,8 @@ def test_query_today_uses_cache(monkeypatch) -> None:
 
 
 def test_registry_has_checkin_platforms() -> None:
-    from app.services.checkin_registry import get_checkin_adapters
-    from app.services.checkin_role_prefs import (
+    from app.services.checkin.registry import get_checkin_adapters
+    from app.services.checkin.role_prefs import (
         PLATFORM_EXILIUM,
         PLATFORM_KUJIEQU,
         PLATFORM_MIHOYO,

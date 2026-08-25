@@ -6,13 +6,13 @@ import {
   triggerSklandCheckin,
   updateSklandRolePref,
 } from "@/api/client";
-import { ArknightsAttendanceCalendarButton } from "@/components/ArknightsAttendanceCalendar";
-import { EndfieldAttendanceCalendarButton } from "@/components/EndfieldAttendanceCalendar";
+import { ArknightsAttendanceCalendarButton } from "@/components/arknights/ArknightsAttendanceCalendar";
+import { EndfieldAttendanceCalendarButton } from "@/components/endfield/EndfieldAttendanceCalendar";
 import { ArknightsTabPanel } from "@/components/arknights/ArknightsTabPanel";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { EndfieldBoxPanel } from "@/components/EndfieldBoxPanel";
+import { EndfieldBoxPanel } from "@/components/endfield/EndfieldBoxPanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
-import { SklandBindPanel } from "@/components/SklandBindPanel";
+import { SklandBindPanel } from "@/components/skland/SklandBindPanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
 

@@ -9,14 +9,14 @@ import {
   fetchTaygedoStatus,
 } from "@/api/client";
 import type { MemberProfile } from "@/api/types";
-import { ExiliumBindPanel } from "@/components/ExiliumBindPanel";
-import { KujiequBindPanel } from "@/components/KujiequBindPanel";
-import { MihoyoBindPanel } from "@/components/MihoyoBindPanel";
+import { ExiliumBindPanel } from "@/components/exilium/ExiliumBindPanel";
+import { KujiequBindPanel } from "@/components/kujiequ/KujiequBindPanel";
+import { MihoyoBindPanel } from "@/components/mihoyo/MihoyoBindPanel";
 import { PlatformBindRow } from "@/components/profile/PlatformBindRow";
 import { QqBindRow } from "@/components/profile/QqBindRow";
 import { SteamBindRow } from "@/components/profile/SteamBindRow";
-import { SklandBindPanel } from "@/components/SklandBindPanel";
-import { TaygedoBindPanel } from "@/components/TaygedoBindPanel";
+import { SklandBindPanel } from "@/components/skland/SklandBindPanel";
+import { TaygedoBindPanel } from "@/components/taygedo/TaygedoBindPanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 
 type PlatformBindsSectionProps = {

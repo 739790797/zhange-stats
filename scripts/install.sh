@@ -6,8 +6,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="${REPO_ROOT}/backend"
 VENV_DIR="${BACKEND_DIR}/.venv"
 STATIC_DIR="${REPO_ROOT}/static"
-DATA_DIR="${REPO_ROOT}/data"
-UPLOAD_DIR="${REPO_ROOT}/uploads"
+# 已有安装根 data/ 则沿用；否则用 var/（与代码树隔离）
+if [[ -d "${REPO_ROOT}/data" && ! -e "${REPO_ROOT}/var/data/.secret_key" ]]; then
+  DATA_DIR="${REPO_ROOT}/data"
+  UPLOAD_DIR="${REPO_ROOT}/uploads"
+else
+  DATA_DIR="${REPO_ROOT}/var/data"
+  UPLOAD_DIR="${REPO_ROOT}/var/uploads"
+fi
 SERVICE_SRC="${REPO_ROOT}/deploy/systemd/zhange-stats.service"
 SERVICE_NAME="zhange-stats.service"
 SERVICE_USER="${ZHANGE_USER:-zhange}"
@@ -112,8 +118,9 @@ if [[ -d /run/systemd/system ]] && command -v systemctl >/dev/null 2>&1; then
   if [[ "$(id -u)" -eq 0 ]]; then
     ensure_service_user
     chown -R "${SERVICE_USER}:${SERVICE_USER}" \
-      "${REPO_ROOT}/data" "${REPO_ROOT}/uploads" "${REPO_ROOT}/static" \
-      "${REPO_ROOT}/backend/.venv" || true
+      "${DATA_DIR}" "${UPLOAD_DIR}" "${STATIC_DIR}" \
+      "${REPO_ROOT}/var" "${REPO_ROOT}/data" "${REPO_ROOT}/uploads" \
+      "${REPO_ROOT}/backend/.venv" 2>/dev/null || true
     # 代码树需可读；更新时服务用户要能写白名单路径
     chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_ROOT}"
     install -m 644 "${UNIT_TMP}" "/etc/systemd/system/${SERVICE_NAME}"

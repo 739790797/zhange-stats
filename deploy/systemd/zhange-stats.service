@@ -11,9 +11,8 @@ WorkingDirectory=/opt/zhange-stats/backend
 EnvironmentFile=-/opt/zhange-stats/.env
 Environment=APP_INSTALL_DIR=/opt/zhange-stats
 Environment=STATIC_DIR=/opt/zhange-stats/static
-Environment=DATA_DIR=/opt/zhange-stats/data
-Environment=UPLOAD_DIR=/opt/zhange-stats/uploads
 Environment=APP_ENV=production
+# DATA_DIR / UPLOAD_DIR 以 .env 为准（install.sh 写入）；勿在此写死以免盖掉已有路径
 ExecStart=/opt/zhange-stats/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=3

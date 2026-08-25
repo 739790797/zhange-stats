@@ -26,14 +26,22 @@ export function parseBeijing(input: ConfigType): Dayjs {
   if (input == null || input === "") {
     return dayjs(NaN);
   }
-  if (typeof input === "string") {
-    const s = input.trim();
-    if (HAS_OFFSET.test(s)) {
-      return dayjs(s).tz(BEIJING_TZ);
+  try {
+    if (typeof input === "string") {
+      const s = input.trim();
+      if (!s) return dayjs(NaN);
+      if (HAS_OFFSET.test(s)) {
+        const d = dayjs(s).tz(BEIJING_TZ);
+        return d.isValid() ? d : dayjs(NaN);
+      }
+      const d = dayjs.tz(s, BEIJING_TZ);
+      return d.isValid() ? d : dayjs(NaN);
     }
-    return dayjs.tz(s, BEIJING_TZ);
+    const d = dayjs(input).tz(BEIJING_TZ);
+    return d.isValid() ? d : dayjs(NaN);
+  } catch {
+    return dayjs(NaN);
   }
-  return dayjs(input).tz(BEIJING_TZ);
 }
 
 export function formatBeijing(

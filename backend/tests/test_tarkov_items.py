@@ -14,10 +14,10 @@ from app.models.tarkov import (
     TarkovItemsMeta,
     TarkovItemsRaw,
 )
-from app.services import tarkov_ammo as ammo_svc
-from app.services import tarkov_guns as gun_svc
-from app.services import tarkov_items as svc
-from app.services.tarkov_ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
+from app.services.tarkov import ammo as ammo_svc
+from app.services.tarkov import guns as gun_svc
+from app.services.tarkov import items as svc
+from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
 
 
 class _FakeQuery:

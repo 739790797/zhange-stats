@@ -1,14 +1,14 @@
 """库街区每日任务文案与商品解析（无网络）。"""
 
 # 先加载 client，避免 attendance↔client 循环导入
-import app.services.kujiequ_client  # noqa: F401
-from app.services.checkin_common import CheckinResult
-from app.services.kujiequ_attendance import (
+import app.services.kujiequ.client  # noqa: F401
+from app.services.checkin.common import CheckinResult
+from app.services.kujiequ.attendance import (
     _daily_task_counts,
     _tasks_extra_text,
     sort_kujiequ_results,
 )
-from app.services.kujiequ_client import CommodityItem, _parse_commodity
+from app.services.kujiequ.client import CommodityItem, _parse_commodity
 
 
 def test_tasks_extra_text_format() -> None:

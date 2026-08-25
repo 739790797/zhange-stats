@@ -217,6 +217,7 @@ function RosterCard({
         </Space>
         <Space wrap>
           <Radio.Group
+            size="small"
             value={granularity}
             onChange={(e) => {
               const next = e.target.value as "day" | "week";
@@ -231,11 +232,12 @@ function RosterCard({
               { label: "周", value: "week" },
             ]}
           />
-          <Button size="small" icon={<LeftOutlined />} onClick={() => shift(-1)} />
+          <Button type="text" size="small" icon={<LeftOutlined />} onClick={() => shift(-1)} />
           {granularity === "week" ? (
             <DatePicker
               picker="week"
               locale={datePickerLocale}
+              size="small"
               value={anchor}
               allowClear={false}
               onChange={onAnchorChange}
@@ -244,13 +246,14 @@ function RosterCard({
           ) : (
             <DatePicker
               locale={datePickerLocale}
+              size="small"
               value={anchor}
               allowClear={false}
               onChange={onAnchorChange}
               style={{ width: 148 }}
             />
           )}
-          <Button size="small" icon={<RightOutlined />} onClick={() => shift(1)} />
+          <Button type="text" size="small" icon={<RightOutlined />} onClick={() => shift(1)} />
         </Space>
       </div>
 

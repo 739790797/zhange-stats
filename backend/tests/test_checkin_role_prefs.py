@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from app.services.checkin_role_prefs import (
+from app.services.checkin.role_prefs import (
     enrich_result_dicts,
     matches_role_filter,
     role_key,
@@ -50,7 +50,7 @@ def test_enrich_result_dicts_from_pref() -> None:
 
 
 def test_filter_included_results() -> None:
-    from app.services.checkin_role_prefs import filter_included_results
+    from app.services.checkin.role_prefs import filter_included_results
 
     rows = [
         {"game_code": "a", "role_uid": "1", "included": True},
@@ -60,7 +60,7 @@ def test_filter_included_results() -> None:
 
 
 def test_build_membership_tree_from_roles() -> None:
-    from app.services.checkin_role_prefs import build_membership_tree_from_roles
+    from app.services.checkin.role_prefs import build_membership_tree_from_roles
 
     pref = SimpleNamespace(included=True)
     nodes = build_membership_tree_from_roles(
@@ -82,7 +82,7 @@ def test_build_membership_tree_from_roles() -> None:
 
 
 def test_today_done_role_keys() -> None:
-    from app.services.checkin_common import CheckinResult, is_success_status, today_done_from_logs
+    from app.services.checkin.common import CheckinResult, is_success_status, today_done_from_logs
 
     class FakeQuery:
         def __init__(self, rows):

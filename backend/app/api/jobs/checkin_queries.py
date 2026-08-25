@@ -28,7 +28,7 @@ from app.models.checkin_role_pref import CheckinRolePref
 from app.models.member import Member
 from app.models.user import User
 from app.schemas.checkin import CheckinAwardItem
-from app.services.checkin_common import (
+from app.services.checkin.common import (
     LOG_SOURCE_ACTION,
     display_checkin_awards_summary,
     is_success_status,

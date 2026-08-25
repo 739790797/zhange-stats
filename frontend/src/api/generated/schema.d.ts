@@ -2526,57 +2526,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/napcat/test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Test Napcat Connection */
-        post: operations["test_napcat_connection_api_napcat_test_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/napcat/groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Groups */
-        get: operations["list_groups_api_napcat_groups_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/napcat/groups/{group_id}/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Group Members */
-        get: operations["list_group_members_api_napcat_groups__group_id__members_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/guides/tarkov/items/sync": {
         parameters: {
             query?: never;
@@ -5485,26 +5434,6 @@ export interface components {
              */
             qq_callback_url: string;
             /**
-             * Napcat Base Url
-             * @default
-             */
-            napcat_base_url: string;
-            /**
-             * Napcat Token
-             * @default
-             */
-            napcat_token: string;
-            /**
-             * Napcat Token Set
-             * @default false
-             */
-            napcat_token_set: boolean;
-            /**
-             * Napcat Configured
-             * @default false
-             */
-            napcat_configured: boolean;
-            /**
              * Github Token
              * @default
              */
@@ -5604,8 +5533,6 @@ export interface components {
             steam_configured: boolean;
             /** Qq Configured */
             qq_configured: boolean;
-            /** Napcat Configured */
-            napcat_configured: boolean;
             /**
              * Pelican Configured
              * @default false
@@ -5630,15 +5557,6 @@ export interface components {
              * @default false
              */
             clear_qq_app_key: boolean;
-            /** Napcat Base Url */
-            napcat_base_url?: string | null;
-            /** Napcat Token */
-            napcat_token?: string | null;
-            /**
-             * Clear Napcat Token
-             * @default false
-             */
-            clear_napcat_token: boolean;
             /** Github Token */
             github_token?: string | null;
             /**
@@ -6199,8 +6117,6 @@ export interface components {
             qq_nickname?: string | null;
             /** Qq Avatar Url */
             qq_avatar_url?: string | null;
-            /** Qq Number */
-            qq_number?: string | null;
             /** User Id */
             user_id?: number | null;
             /** Username */
@@ -6221,8 +6137,6 @@ export interface components {
             display_name?: string | null;
             /** Steam Id */
             steam_id?: string | null;
-            /** Qq Number */
-            qq_number?: string | null;
         };
         /** MihoyoAttendanceCalendarOut */
         MihoyoAttendanceCalendarOut: {
@@ -8324,94 +8238,6 @@ export interface components {
             whitelist?: components["schemas"]["MinecraftPlayerOut"][];
             /** Roster */
             roster?: components["schemas"]["MinecraftRosterPlayerOut"][];
-        };
-        /** NapCatGroupMemberOut */
-        NapCatGroupMemberOut: {
-            /** User Id */
-            user_id: string;
-            /**
-             * Nickname
-             * @default
-             */
-            nickname: string;
-            /**
-             * Card
-             * @default
-             */
-            card: string;
-            /**
-             * Role
-             * @default
-             */
-            role: string;
-            /**
-             * Title
-             * @default
-             */
-            title: string;
-            site_member?: components["schemas"]["NapCatSiteMemberOut"] | null;
-        };
-        /** NapCatGroupMembersResponse */
-        NapCatGroupMembersResponse: {
-            /** Group Id */
-            group_id: string;
-            /** Members */
-            members: components["schemas"]["NapCatGroupMemberOut"][];
-            /** Site Bound Count */
-            site_bound_count: number;
-        };
-        /** NapCatGroupOut */
-        NapCatGroupOut: {
-            /** Group Id */
-            group_id: string;
-            /** Group Name */
-            group_name: string;
-            /** Member Count */
-            member_count?: number | null;
-            /** Max Member Count */
-            max_member_count?: number | null;
-        };
-        /** NapCatGroupsResponse */
-        NapCatGroupsResponse: {
-            /** Configured */
-            configured: boolean;
-            /** Groups */
-            groups: components["schemas"]["NapCatGroupOut"][];
-        };
-        /** NapCatSiteMemberOut */
-        NapCatSiteMemberOut: {
-            /** Id */
-            id: number;
-            /** Nickname */
-            nickname: string;
-            /** User Id */
-            user_id?: number | null;
-            /** Qq Number */
-            qq_number?: string | null;
-        };
-        /**
-         * NapCatTestRequest
-         * @description 表单草稿可测：未填 Token 时回退已保存密钥。
-         */
-        NapCatTestRequest: {
-            /**
-             * Base Url
-             * @default
-             */
-            base_url: string;
-            /** Token */
-            token?: string | null;
-        };
-        /** NapCatTestResponse */
-        NapCatTestResponse: {
-            /** Ok */
-            ok: boolean;
-            /** Message */
-            message: string;
-            /** User Id */
-            user_id?: string | null;
-            /** Nickname */
-            nickname?: string | null;
         };
         /** PasswordPolicyOut */
         PasswordPolicyOut: {
@@ -16823,105 +16649,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MihoyoAttendanceCalendarOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    test_napcat_connection_api_napcat_test_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NapCatTestRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NapCatTestResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_groups_api_napcat_groups_get: {
-        parameters: {
-            query?: {
-                /** @description 强制不走 NapCat 缓存 */
-                force?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NapCatGroupsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_group_members_api_napcat_groups__group_id__members_get: {
-        parameters: {
-            query?: {
-                /** @description 强制不走 NapCat 缓存 */
-                force?: boolean;
-            };
-            header?: never;
-            path: {
-                group_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NapCatGroupMembersResponse"];
                 };
             };
             /** @description Validation Error */

@@ -1,10 +1,8 @@
-import { ConfigProvider } from "antd";
 import { Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovHideoutStation } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TarkovHideoutPanel } from "@/components/guides/tarkov/TarkovHideoutPanel";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import {
   TARKOV_HIDEOUT_PATH,
   TARKOV_HOME_PATH,
@@ -35,9 +33,7 @@ export default function TarkovHideoutDetailPage() {
           { label: title },
         ]}
       />
-      <ConfigProvider theme={TARKOV_ANTD_DARK}>
-        <TarkovHideoutPanel stationSlug={stationSlug} />
-      </ConfigProvider>
+      <TarkovHideoutPanel stationSlug={stationSlug} />
     </div>
   );
 }

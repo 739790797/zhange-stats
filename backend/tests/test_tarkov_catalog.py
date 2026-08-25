@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from app.services import tarkov_catalog as catalog
-from app.services.tarkov_ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
-from app.services.tarkov_items import GRAPHQL_SPLIT_FORMAT, TarkovItemsError
+from app.services.tarkov import catalog as catalog
+from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
+from app.services.tarkov.items import GRAPHQL_SPLIT_FORMAT, TarkovItemsError
 
 
 HEADSET_CAT = "5b5f6f3c86f774094242ef87"

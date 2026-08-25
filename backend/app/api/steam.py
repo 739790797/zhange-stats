@@ -17,9 +17,9 @@ from app.schemas import (
     SteamOverviewResponse,
     SteamPollResult,
 )
-from app.services.steam_game_names import get_store_card, resolve_app_icons
-from app.services.steam_poller import run_steam_presence_poll
-from app.services.steam_stats import (
+from app.services.steam.game_names import get_store_card, resolve_app_icons
+from app.services.steam.poller import run_steam_presence_poll
+from app.services.steam.stats import (
     build_calendar,
     build_range_detail,
     build_member_play_stats,

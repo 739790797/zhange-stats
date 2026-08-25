@@ -326,7 +326,6 @@ export default function TaskConfigPage() {
                 }
                 save.mutate({ features, jobs });
               }}
-              style={{ background: "#1a2332", borderColor: "#1a2332" }}
             >
               保存并应用
             </Button>

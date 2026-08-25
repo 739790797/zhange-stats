@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import tarkov_tracker as tracker
+from app.services.tarkov import tracker as tracker
 
 
 def test_parse_token_accepts_org_format():

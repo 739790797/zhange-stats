@@ -14,13 +14,13 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
 from app.models.user import User
-from app.services import minecraft_console as console_svc
-from app.services import minecraft_mod_tools as mod_tools_svc
-from app.services import minecraft_modrinth as modrinth
-from app.services import minecraft_perf as perf_svc
-from app.services import minecraft_presence as presence_svc
-from app.services import minecraft_profile as profile_svc
-from app.services import pelican_client as pelican
+from app.services.minecraft import console as console_svc
+from app.services.minecraft import mod_tools as mod_tools_svc
+from app.services.minecraft import modrinth as modrinth
+from app.services.minecraft import perf as perf_svc
+from app.services.minecraft import presence as presence_svc
+from app.services.minecraft import profile as profile_svc
+from app.services.minecraft import pelican as pelican
 from app.services.integrations_config import get_pelican_credentials
 
 router = APIRouter(prefix="/minecraft", tags=["minecraft"])
@@ -715,7 +715,7 @@ def minecraft_sync_egg(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> MinecraftEggsOut:
-    from app.services import minecraft_eggs as eggs_svc
+    from app.services.minecraft import eggs as eggs_svc
 
     payload = body or MinecraftEggSyncIn()
     row = profile_svc.get_or_create_profile(db)
@@ -757,7 +757,7 @@ def minecraft_eggs(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> MinecraftEggsOut:
-    from app.services import minecraft_eggs as eggs_svc
+    from app.services.minecraft import eggs as eggs_svc
 
     return MinecraftEggsOut.model_validate(eggs_svc.collect_eggs(db, loader=loader))
 

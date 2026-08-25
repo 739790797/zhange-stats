@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Segmented } from "antd";
-import { SklandGameEventsPanel } from "@/components/SklandGameEventsPanel";
+import { SklandGameEventsPanel } from "@/components/skland/SklandGameEventsPanel";
 import { ArknightsBoxCompare } from "./ArknightsBoxCompare";
 import { ArknightsRoguePanel } from "./ArknightsRoguePanel";
 

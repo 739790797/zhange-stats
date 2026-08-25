@@ -22,7 +22,6 @@ from app.services.email_config import (
 )
 from app.services.integrations_config import (
     get_minecraft_rcon_credentials,
-    get_napcat_credentials,
     get_pelican_credentials,
     get_qq_credentials,
     get_steam_api_key,
@@ -84,10 +83,6 @@ class IntegrationsOut(BaseModel):
     qq_configured: bool
     steam_configured: bool
     qq_callback_url: str = ""
-    napcat_base_url: str = ""
-    napcat_token: str = ""
-    napcat_token_set: bool = False
-    napcat_configured: bool = False
     github_token: str = ""
     github_token_set: bool = False
     github_configured: bool = False
@@ -114,9 +109,6 @@ class IntegrationsUpdate(BaseModel):
     qq_app_key: str | None = None
     clear_steam_api_key: bool = False
     clear_qq_app_key: bool = False
-    napcat_base_url: str | None = None
-    napcat_token: str | None = None
-    clear_napcat_token: bool = False
     github_token: str | None = None
     clear_github_token: bool = False
     pelican_base_url: str | None = None
@@ -233,7 +225,6 @@ class IntegrationsStatusOut(BaseModel):
 
     steam_configured: bool
     qq_configured: bool
-    napcat_configured: bool
     pelican_configured: bool = False
 
 
@@ -244,12 +235,10 @@ def get_integrations_status(
 ) -> IntegrationsStatusOut:
     steam = bool(get_steam_api_key(db))
     qq_id, qq_key = get_qq_credentials(db)
-    napcat_url, napcat_token = get_napcat_credentials(db)
     pelican_url, pelican_token, pelican_uuid = get_pelican_credentials(db)
     return IntegrationsStatusOut(
         steam_configured=steam,
         qq_configured=bool(qq_id and qq_key),
-        napcat_configured=bool(napcat_url and napcat_token),
         pelican_configured=bool(pelican_url and pelican_token and pelican_uuid),
     )
 
@@ -299,7 +288,7 @@ def test_pelican_connection(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> PelicanTestResponse:
-    from app.services.pelican_client import (
+    from app.services.minecraft.pelican import (
         PelicanError,
         get_resources,
         get_server,
@@ -351,7 +340,7 @@ def test_minecraft_rcon_connection(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> MinecraftRconTestResponse:
-    from app.services.minecraft_rcon import MinecraftRconError, query_list
+    from app.services.minecraft.rcon import MinecraftRconError, query_list
 
     saved_host, saved_port, saved_password = get_minecraft_rcon_credentials(db)
     host = (body.host or "").strip() or saved_host

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.minecraft_files import normalize_mode
-from app.services.pelican_client import (
+from app.services.minecraft.files import normalize_mode
+from app.services.minecraft.pelican import (
     PelicanError,
     join_remote_path,
     normalize_remote_directory,
@@ -80,7 +80,7 @@ def test_parse_file_object_wings_file_flag():
 
 
 def test_chmod_mode():
-    from app.services.minecraft_files import MinecraftFilesError
+    from app.services.minecraft.files import MinecraftFilesError
 
     assert normalize_mode("644") == "644"
     assert normalize_mode("0755") == "0755"
@@ -89,7 +89,7 @@ def test_chmod_mode():
 
 
 def test_list_files_parses_collection(monkeypatch):
-    from app.services.pelican_client import list_files
+    from app.services.minecraft.pelican import list_files
 
     captured: dict[str, str] = {}
 
@@ -102,19 +102,19 @@ def test_list_files_parses_collection(monkeypatch):
             ]
         }
 
-    monkeypatch.setattr("app.services.pelican_client._request", fake_request)
+    monkeypatch.setattr("app.services.minecraft.pelican._request", fake_request)
     rows = list_files("https://p.example", "tok", "abcd", "mods")
     assert [r["name"] for r in rows] == ["config", "eula.txt"]
     assert "directory=%2Fmods" in captured["url"]
 
 
 def test_get_file_contents_keeps_json_text(monkeypatch):
-    from app.services.pelican_client import get_file_contents
+    from app.services.minecraft.pelican import get_file_contents
 
     def fake_request(method, url, token, **kwargs):
         assert kwargs.get("decode") == "text"
         return '{"motd":"hi"}'
 
-    monkeypatch.setattr("app.services.pelican_client._request", fake_request)
+    monkeypatch.setattr("app.services.minecraft.pelican._request", fake_request)
     text = get_file_contents("https://p.example", "tok", "abcd", "server.properties")
     assert text == '{"motd":"hi"}'

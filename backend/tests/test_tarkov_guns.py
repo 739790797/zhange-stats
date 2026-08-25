@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from app.services import tarkov_guns as svc
-from app.services.tarkov_ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
+from app.services.tarkov import guns as svc
+from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
 
 
 def test_parse_graphql_guns():

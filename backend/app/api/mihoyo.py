@@ -49,8 +49,8 @@ from app.schemas import (
     RoleMembershipReplaceBody,
     RoleMembershipTreeOut,
 )
-from app.services.mihoyo_auth import MihoyoNeedGeetest
-from app.services.mihoyo_checkin import (
+from app.services.mihoyo.auth import MihoyoNeedGeetest
+from app.services.mihoyo.checkin import (
     bind_member_with_password,
     bind_member_with_sms,
     fetch_exchange_shop,
@@ -65,8 +65,8 @@ from app.services.mihoyo_checkin import (
     unbind_mihoyo,
     update_bind_prefs,
 )
-from app.services.mihoyo_client import MihoyoApiError
-from app.services.mihoyo_qr import poll_qr_bind, start_qr_bind
+from app.services.mihoyo.client import MihoyoApiError
+from app.services.mihoyo.qr import poll_qr_bind, start_qr_bind
 
 router = APIRouter(
     prefix="/mihoyo",
@@ -273,7 +273,7 @@ def mihoyo_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定米游社")
-    from app.services.checkin_role_prefs import PLATFORM_MIHOYO
+    from app.services.checkin.role_prefs import PLATFORM_MIHOYO
 
     apply_role_pref_update(
         db=db,
@@ -300,7 +300,7 @@ def mihoyo_role_tree(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定米游社")
-    from app.services.checkin_role_prefs import PLATFORM_MIHOYO
+    from app.services.checkin.role_prefs import PLATFORM_MIHOYO
 
     return build_role_membership_tree(
         db=db,
@@ -328,7 +328,7 @@ def mihoyo_replace_role_memberships(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定米游社")
-    from app.services.checkin_role_prefs import PLATFORM_MIHOYO
+    from app.services.checkin.role_prefs import PLATFORM_MIHOYO
 
     apply_role_membership_replace(
         db=db,

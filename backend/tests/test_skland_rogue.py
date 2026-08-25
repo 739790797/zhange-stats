@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.skland_rogue import normalize_topic_id, parse_arknights_rogue
+from app.services.skland.rogue import normalize_topic_id, parse_arknights_rogue
 
 
 def test_normalize_topic_id_cn_and_default():

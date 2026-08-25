@@ -309,9 +309,6 @@ export function MinecraftAdminPanel() {
       title,
       content,
       okText,
-      okButtonProps: {
-        style: { background: "#1a2332", borderColor: "#1a2332" },
-      },
       onOk: () => run(),
     });
   };
@@ -458,7 +455,7 @@ export function MinecraftAdminPanel() {
         </Space>
       }
       extra={
-        <Button onClick={() => save.mutate()} loading={save.isPending}>
+        <Button type="primary" onClick={() => save.mutate()} loading={save.isPending}>
           保存草稿
         </Button>
       }
@@ -612,7 +609,6 @@ export function MinecraftAdminPanel() {
                         () => bootstrap.mutateAsync(),
                       )
                     }
-                    style={{ background: "#1a2332", borderColor: "#1a2332" }}
                   >
                     用 Egg 开服
                   </Button>
@@ -721,7 +717,6 @@ export function MinecraftAdminPanel() {
                   () => syncMods.mutateAsync(),
                 )
               }
-              style={{ background: "#1a2332", borderColor: "#1a2332" }}
             >
               同步模组并重启
             </Button>
@@ -880,7 +875,6 @@ export function MinecraftAdminPanel() {
                     () => applyConfig.mutateAsync(),
                   )
                 }
-                style={{ background: "#1a2332", borderColor: "#1a2332" }}
               >
                 写入配置并重启
               </Button>

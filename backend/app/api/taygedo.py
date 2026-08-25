@@ -48,8 +48,8 @@ from app.schemas import (
     TaygedoStatusOut,
 )
 from app.schemas.checkin import CheckinAwardItem
-from app.services.taygedo_boxes import get_exastris_box_for_member
-from app.services.taygedo_checkin import (
+from app.services.taygedo.boxes import get_exastris_box_for_member
+from app.services.taygedo.checkin import (
     bind_with_credentials_json,
     bind_with_password,
     bind_with_sms,
@@ -63,7 +63,7 @@ from app.services.taygedo_checkin import (
     unbind_taygedo,
     update_bind_prefs,
 )
-from app.services.taygedo_client import TaygedoApiError, send_sms_captcha
+from app.services.taygedo.client import TaygedoApiError, send_sms_captcha
 
 router = APIRouter(
     prefix="/taygedo",
@@ -223,7 +223,7 @@ def taygedo_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
-    from app.services.checkin_role_prefs import PLATFORM_TAYGEDO
+    from app.services.checkin.role_prefs import PLATFORM_TAYGEDO
 
     apply_role_pref_update(
         db=db,
@@ -248,7 +248,7 @@ def taygedo_role_tree(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
-    from app.services.checkin_role_prefs import PLATFORM_TAYGEDO
+    from app.services.checkin.role_prefs import PLATFORM_TAYGEDO
 
     return build_role_membership_tree(
         db=db,
@@ -274,7 +274,7 @@ def taygedo_replace_role_memberships(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise_api_error(TaygedoApiError("尚未绑定塔吉多"), TaygedoApiError)
-    from app.services.checkin_role_prefs import PLATFORM_TAYGEDO
+    from app.services.checkin.role_prefs import PLATFORM_TAYGEDO
 
     apply_role_membership_replace(
         db=db,

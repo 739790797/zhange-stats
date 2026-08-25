@@ -46,8 +46,8 @@ from app.schemas import (
     WwBoxOut,
 )
 from app.schemas.checkin import CheckinAwardItem
-from app.services.kujiequ_boxes import get_ww_box_for_member
-from app.services.kujiequ_checkin import (
+from app.services.kujiequ.boxes import get_ww_box_for_member
+from app.services.kujiequ.checkin import (
     bind_with_sms,
     bind_with_token,
     fetch_exchange_shop,
@@ -60,7 +60,7 @@ from app.services.kujiequ_checkin import (
     unbind_kujiequ,
     update_bind_prefs,
 )
-from app.services.kujiequ_client import KujiequApiError, send_sms_captcha
+from app.services.kujiequ.client import KujiequApiError, send_sms_captcha
 
 router = APIRouter(
     prefix="/kujiequ",
@@ -214,7 +214,7 @@ def kujiequ_update_role_pref(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定库街区")
-    from app.services.checkin_role_prefs import PLATFORM_KUJIEQU
+    from app.services.checkin.role_prefs import PLATFORM_KUJIEQU
 
     apply_role_pref_update(
         db=db,
@@ -241,7 +241,7 @@ def kujiequ_role_tree(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定库街区")
-    from app.services.checkin_role_prefs import PLATFORM_KUJIEQU
+    from app.services.checkin.role_prefs import PLATFORM_KUJIEQU
 
     return build_role_membership_tree(
         db=db,
@@ -269,7 +269,7 @@ def kujiequ_replace_role_memberships(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise HTTPException(status_code=400, detail="尚未绑定库街区")
-    from app.services.checkin_role_prefs import PLATFORM_KUJIEQU
+    from app.services.checkin.role_prefs import PLATFORM_KUJIEQU
 
     apply_role_membership_replace(
         db=db,

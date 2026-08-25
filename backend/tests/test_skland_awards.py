@@ -1,13 +1,13 @@
 """森空岛方舟奖励解析与图标 URL。"""
 
-from app.services.skland_awards import (
+from app.services.skland.awards import (
     arknights_awards_from_sign_resp,
     arknights_item_icon_url,
     arknights_result_needs_award_icons,
     enrich_arknights_award_icons,
     format_award_items,
 )
-from app.services.checkin_common import CheckinResult
+from app.services.checkin.common import CheckinResult
 
 
 def test_arknights_item_icon_url() -> None:

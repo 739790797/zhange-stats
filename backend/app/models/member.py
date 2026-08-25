@@ -25,9 +25,6 @@ class Member(Base):
     )
     qq_nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
     qq_avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    qq_number: Mapped[str | None] = mapped_column(
-        String(20), unique=True, nullable=True, index=True
-    )
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), unique=True, nullable=True
     )

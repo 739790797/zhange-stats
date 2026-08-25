@@ -1,8 +1,6 @@
-import { ConfigProvider } from "antd";
 import { Navigate, useParams } from "react-router-dom";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TarkovTraderPanel } from "@/components/guides/tarkov/TarkovTraderPanel";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import {
   TARKOV_HOME_PATH,
   TARKOV_TRADERS,
@@ -28,9 +26,7 @@ export default function TarkovTraderPage() {
           { label: crumbLabel },
         ]}
       />
-      <ConfigProvider theme={TARKOV_ANTD_DARK}>
-        <TarkovTraderPanel slug={traderSlug} />
-      </ConfigProvider>
+      <TarkovTraderPanel slug={traderSlug} />
     </div>
   );
 }

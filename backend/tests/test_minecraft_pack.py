@@ -6,12 +6,12 @@ import json
 import zipfile
 from io import BytesIO
 
-from app.services.minecraft_pack import (
+from app.services.minecraft.pack import (
     build_mrpack_bytes,
     merge_properties,
     parse_properties,
 )
-from app.services.minecraft_status import (
+from app.services.minecraft.status import (
     flatten_chat,
     flatten_legacy_motd,
     pack_varint,
@@ -19,7 +19,7 @@ from app.services.minecraft_status import (
     sanitize_favicon,
     strip_section_codes,
 )
-from app.services.pelican_client import (
+from app.services.minecraft.pelican import (
     friendly_error,
     normalize_pelican_base_url,
     pelican_configured,

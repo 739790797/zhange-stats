@@ -28,12 +28,7 @@ def is_custom_avatar_url(url: str | None) -> bool:
 
 
 def avatar_dir() -> Path:
-    settings = get_settings()
-    path = Path(settings.UPLOAD_DIR).expanduser()
-    if not path.is_absolute():
-        # 相对路径相对 backend/ 目录（uvicorn 通常在此启动）
-        path = Path.cwd() / path
-    path = path.resolve() / "avatars"
+    path = get_settings().upload_dir_path / "avatars"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

@@ -1,9 +1,9 @@
-import { Alert, Button, Card, Form, Input, Space, Typography, message } from "antd";
+import { Alert, Button, Form, Input, Space, message } from "antd";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { resetPassword, sendResetPasswordCode } from "@/api/client";
 import { apiError } from "@/lib/apiError";
-import { AppVersion } from "@/components/AppVersion";
+import { AuthGuestShell } from "@/components/AuthGuestShell";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function ForgotPasswordPage() {
@@ -65,35 +65,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "radial-gradient(ellipse at top left, #2c3e50 0%, #1a2332 45%, #0f1419 100%)",
-        padding: 24,
-      }}
+    <AuthGuestShell
+      title="找回密码"
+      subtitle="通过已验证邮箱接收验证码并设置新密码"
     >
-      <Card
-        style={{
-          width: 420,
-          maxWidth: "100%",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
-          border: "1px solid rgba(232,184,109,0.25)",
-        }}
-        styles={{ body: { padding: "40px 36px" } }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <Typography.Title level={2} style={{ margin: 0, color: "#1a2332" }}>
-            找回密码
-          </Typography.Title>
-          <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-            通过已验证邮箱接收验证码并设置新密码
-          </Typography.Paragraph>
-        </div>
-
         {error ? (
           <Alert
             type="error"
@@ -183,7 +158,6 @@ export default function ForgotPasswordPage() {
             size="large"
             block
             loading={loading}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             重置密码
           </Button>
@@ -191,10 +165,6 @@ export default function ForgotPasswordPage() {
             <Link to="/login">返回登录</Link>
           </div>
         </Form>
-      </Card>
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
-        <AppVersion light />
-      </div>
-    </div>
+    </AuthGuestShell>
   );
 }

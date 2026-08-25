@@ -16,7 +16,7 @@
 - **游戏**
   - 逃离塔科夫：物品 / 任务 / 商人 / BOSS / 地图攻略，弹药与枪械表，Tarkov Tracker 进度
   - Minecraft：圈子单服代操（服况、启停、开服选型、模组 / 配置）
-- **管理端**：用户、任务配置、定时任务、集成密钥、QQ 群、邮箱、系统更新
+- **管理端**：用户、任务配置、定时任务、集成密钥、邮箱、系统更新
 
 ## 技术栈
 
@@ -64,7 +64,7 @@ cd frontend && npm install && npm run dev
 
 - API：http://127.0.0.1:6130/docs · 前端：http://127.0.0.1:6131  
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 `backend/alembic/README.md`）  
-- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地 `data/`、`uploads/`）。  
+- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `var/data/`、`var/uploads/`；相对路径相对仓库根，不跟 `backend/` cwd）。  
 - 平台可用性：管理员在 **管理 → 任务配置** 按平台 / 游戏 / 任务级联开关  
 - **管理端一键更新仅面向 production / LXC**；Windows 开发机默认不可用（`APP_ENV=development`）
 
@@ -102,7 +102,7 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 发版：推送到 `main` 时 CI 按根目录 `VERSION` 创建/更新 GitHub Release（tag `v{VERSION}`），并上传 `zhange-stats-{VERSION}-static.tar.gz`。
 
-持久化目录：`data/`（含 `.secret_key`）、`uploads/`、`.env`（更新白名单不会覆盖）。
+持久化目录：`var/data/`（含 `.secret_key` 与日志）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。
 
 ## 目录
 
@@ -110,10 +110,13 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 zhange-stats/
   .env.example · VERSION · scripts/install.sh
   deploy/systemd/zhange-stats.service
-  frontend/                 # React
-  backend/app/              # api · core · models · services
-  backend/alembic/          # 迁移（表结构以 versions/ 为准）
+  var/                    # 运行时（gitignore；仅 README 入库）
+  frontend/               # React（src/data 为源码资源，不是运行时）
+  backend/app/            # api · core · models · services/<域>
+  backend/alembic/        # 迁移（表结构以 versions/ 为准）
 ```
+目录细则见 [`docs/directory-layout.md`](docs/directory-layout.md)。
+
 ## 数据库
 
 改表须新增 Alembic 迁移，并更新本节总览。细节以 `models/` + `alembic/versions/` 为准。
@@ -151,7 +154,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | 表 | 用途 |
 |---|---|
 | `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin` |
-| `members` | 档案、站内头像/昵称、Steam 绑定（含 `steam_persona_name` / `steam_avatar_url`）、QQ 互联（`qq_openid` 等）与 `qq_number`（群成员匹配） |
+| `members` | 档案、站内头像/昵称、Steam 绑定（含 `steam_persona_name` / `steam_avatar_url`）、QQ 互联（`qq_openid` 等） |
 | `play_sessions` | 游戏中会话（热力）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
 | `presence_segments` | 离线/在线/游戏中（日时间轴）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
 | `skland_binds` | 森空岛凭证（加密）；`auto_checkin` 为各角色偏好派生摘要；`checkin_hour` / `checkin_minute` 仅作旧数据种子 |
@@ -219,12 +222,12 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 - 森空岛支持扫码 / 短信 / 密码绑定，凭证加密存库；勿在 App 退出登录以免失效
 - 塔吉多使用手机号验证码或密码登录老虎官方接口，凭证加密存库；用于社区 APP + 异环 / 幻塔每日签到，并完成社区每日任务（浏览/点赞/分享）与兑换
 - 库街区使用手机号短信验证码绑定，凭证加密存库
-- 勿提交 `.env`、`data/`、`uploads/`
+- 勿提交 `.env`、`var/`、`data/`、`uploads/`
 
 - **Minecraft / Pelican**：圈子只有 Pelican 里那一台服。战鸽不另开 Java。在管理端「集成密钥」填 Panel 根地址、Client API Token（需 files + power）、Server UUID，以及 RCON 地址/端口/密码（服内自行 `enable-rcon`，不要对公网开放）。首次把 Egg 启动改成 `bash zhange/boot.sh <原来的 java 命令>`（示例见页面提示）。写操作走 Pelican Client API，与网页同一入口；在线人数是对公开端口的 status ping，TPS/MSPT 走 RCON。模组版本钉死，不会每次开服拉 latest。
 
 - 平台数据约定：养成盒 / 旁路（含肉鸽等）存 raw（体积超阈值会打监控日志）；签到状态/奖励按「今日」写入 `*_checkin_logs`（回源后落库，调度可跳过），`bind.last_checkin_*` 仅为签到动作后的反规范化摘要。**签到页展示始终 force 回源官方**；已签才展示今日奖励；不展示执行记录。详见 [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc)。森空岛官服/B服与补奖见 [`.cursor/rules/skland-upstream.mdc`](.cursor/rules/skland-upstream.mdc)。
-- 工程：GitHub Actions 在 PR/push 上跑前端 lint+build、后端 pytest、OpenAPI drift；`main` 推送再按 `VERSION` 发 GitHub Release（含预构建 static）。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 `frontend/src/api/generated/README.md`）。
+- 工程：GitHub Actions 在 PR/push 上跑前端 lint+vitest+build、后端 pytest、OpenAPI drift；`main` 推送再按 `VERSION` 发 GitHub Release（含预构建 static）。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 `frontend/src/api/generated/README.md`）。自测分层见 [`.cursor/rules/testing.mdc`](.cursor/rules/testing.mdc)。
 - 健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。
 - 本地无 SMTP 时需设 `ALLOW_EMAIL_CODE_LOG=true` 才能用日志收验证码；`APP_ENV=production` 时启动会硬拒绝该开关。
-- 应用内更新：仅管理员；默认仅 `APP_ENV=production` 允许（可用 `ALLOW_IN_APP_UPDATE` 覆盖）。更新会覆盖白名单路径，不碰 `.env` / `data/` / `uploads/` / `.venv`。
+- 应用内更新：仅管理员；默认仅 `APP_ENV=production` 允许（可用 `ALLOW_IN_APP_UPDATE` 覆盖）。更新会覆盖白名单路径，不碰 `.env` / `var/` / `data/` / `uploads/` / `.venv`。

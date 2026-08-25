@@ -126,11 +126,7 @@ export function MinecraftManagePanel() {
           description="填好 Panel 地址、Client Token 和这台服的 UUID 之后，才能在这里启停和控制台。游戏进程仍在 Pelican 里，战鸽只作为操作入口。"
         />
         <Link to="/settings/integrations">
-          <Button
-            type="primary"
-            size="large"
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
-          >
+          <Button type="primary">
             去集成密钥配置
           </Button>
         </Link>

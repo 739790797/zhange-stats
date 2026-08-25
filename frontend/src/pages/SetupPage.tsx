@@ -1,9 +1,8 @@
-import { Alert, Button, Card, Form, Input, Typography, message } from "antd";
+import { Alert, Button, Form, Input, message } from "antd";
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { completeSetupAdmin, fetchMe, fetchSetupStatus } from "@/api/client";
-import { AppVersion } from "@/components/AppVersion";
-import { BrandLogo } from "@/components/BrandLogo";
+import { AuthGuestShell } from "@/components/AuthGuestShell";
 import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -69,54 +68,13 @@ export default function SetupPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "radial-gradient(ellipse at top left, #2c3e50 0%, #1a2332 45%, #0f1419 100%)",
-        padding: 24,
-      }}
+    <AuthGuestShell
+      width={440}
+      brand
+      brandTitleSize={32}
+      headerMarginBottom={28}
+      subtitle="首次安装 · 创建管理员账号"
     >
-      <Card
-        style={{
-          width: 440,
-          maxWidth: "100%",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
-          border: "1px solid rgba(232,184,109,0.25)",
-        }}
-        styles={{ body: { padding: "40px 36px" } }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              marginBottom: 8,
-            }}
-          >
-            <BrandLogo size={48} color="#1a2332" />
-            <Typography.Title
-              level={1}
-              style={{
-                margin: 0,
-                fontSize: 32,
-                color: "#1a2332",
-                letterSpacing: 2,
-              }}
-            >
-              战鸽数据
-            </Typography.Title>
-          </div>
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            首次安装 · 创建管理员账号
-          </Typography.Paragraph>
-        </div>
-
         {error ? (
           <Alert
             type="error"
@@ -168,19 +126,11 @@ export default function SetupPage() {
             size="large"
             block
             loading={loading || needsSetup === null}
-            style={{
-              background: "#1a2332",
-              borderColor: "#1a2332",
-              marginTop: 8,
-            }}
+            style={{ marginTop: 8 }}
           >
             完成安装并进入
           </Button>
         </Form>
-      </Card>
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
-        <AppVersion light />
-      </div>
-    </div>
+    </AuthGuestShell>
   );
 }

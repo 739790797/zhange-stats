@@ -24,7 +24,6 @@ import MihoyoPage from "@/pages/MihoyoPage";
 import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
 import TaskConfigPage from "@/pages/TaskConfigPage";
 import UserManagementPage from "@/pages/UserManagementPage";
-import QqGroupsPage from "@/pages/QqGroupsPage";
 import SystemUpdatePage from "@/pages/SystemUpdatePage";
 import PlatformLogsPage from "@/pages/PlatformLogsPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
@@ -53,6 +52,7 @@ import MinecraftPage from "@/pages/guides/MinecraftPage";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { PlatformRoute } from "@/components/PlatformRoute";
 import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
+import { antdAppTheme } from "@/theme/antdApp";
 
 function TarkovGuidesOutlet() {
   return (
@@ -85,15 +85,7 @@ export default function App() {
           cancelText: "取消",
         },
       }}
-      theme={{
-        token: {
-          colorPrimary: "#1a2332",
-          colorLink: "#2f6f4e",
-          borderRadius: 6,
-          fontFamily:
-            '"Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
-        },
-      }}
+      theme={antdAppTheme}
     >
       <BrowserRouter>
         <SetupGate>
@@ -263,14 +255,6 @@ export default function App() {
                 element={
                   <AdminPage>
                     <IntegrationsSettingsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/qq-groups"
-                element={
-                  <AdminPage>
-                    <QqGroupsPage />
                   </AdminPage>
                 }
               />

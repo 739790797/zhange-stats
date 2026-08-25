@@ -1,0 +1,38 @@
+---
+description: 前端 Ant Design 主题、按钮角色/尺寸、禁止内联主色
+globs: frontend/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# 前端 UI
+
+唯一框架：Ant Design 5。不引入第二套组件库。主题只走 `antdAppTheme`（`App.tsx`）；塔科夫只在 `TarkovGuideShell` 套一层 `TarkovThemed`（`TARKOV_ANTD_DARK`），详情页不要再包。
+
+## 按钮角色
+
+| 角色 | 写法 | size |
+|------|------|------|
+| 页内主 CTA（一区一个） | `type="primary"` | 省略（middle） |
+| 认证/安装满宽表单 | `type="primary"` + `block`（Input 已是 large） | `large` |
+| 次要 / 取消 / 刷新 | 省略 `type` | 与所在区主按钮同档 |
+| 表格行、日历、工具条、Alert action | `type="link"` 或省略 `type` | `small` |
+| 图标按钮 | `type="text"` | `small` |
+| 破坏性 | `danger` + `Popconfirm`/`Modal` | 与所在区同档 |
+
+```tsx
+// ❌ 锁死品牌色、盖掉 hover
+<Button type="primary" style={{ background: "#1a2332", borderColor: "#1a2332" }}>保存</Button>
+<Button type="link">编辑</Button> // 曾经发绿：colorLink 必须等于 colorPrimary
+
+// ✅
+<Button type="primary">保存</Button>
+<Button type="link" size="small">编辑</Button>
+```
+
+禁止：`size="middle"`（省略即可）；同一操作区混用 large/small；业务页原生 `<button>` 充当主操作。
+
+## 例外（勿扩散）
+
+- `QqLoginButton`：官方图
+- 塔科夫 CSS 模块 / Minecraft 向导自绘控件
+- `ExchangeGoodsCard.buttonColor`：仅兑换底栏平台色

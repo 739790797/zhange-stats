@@ -1,10 +1,8 @@
-import { ConfigProvider } from "antd";
 import { Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBossDetail } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TarkovBossPanel } from "@/components/guides/tarkov/TarkovBossPanel";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import {
   TARKOV_BOSSES,
   TARKOV_BOSSES_PATH,
@@ -42,9 +40,7 @@ export default function TarkovBossPage() {
           { label: crumbLabel },
         ]}
       />
-      <ConfigProvider theme={TARKOV_ANTD_DARK}>
-        <TarkovBossPanel slug={bossSlug} />
-      </ConfigProvider>
+      <TarkovBossPanel slug={bossSlug} />
     </div>
   );
 }

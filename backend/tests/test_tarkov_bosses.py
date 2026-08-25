@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services import tarkov_bosses as bosses
+from app.services.tarkov import bosses as bosses
 
 
 def _envelope() -> dict:

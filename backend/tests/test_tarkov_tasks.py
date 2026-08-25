@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services import tarkov_tasks as tasks
+from app.services.tarkov import tasks as tasks
 
 PRAPOR = "54cb50c76803fa8b248b4571"
 THERAPIST = "54cb57776803fa99248b456e"

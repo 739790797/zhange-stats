@@ -189,20 +189,6 @@ export {
 } from "./roleMembershipApi";
 export type { CheckinPlatformKey } from "./roleMembershipApi";
 
-export type {
-  NapCatGroup,
-  NapCatSiteMember,
-  NapCatGroupMember,
-  NapCatGroupsResponse,
-  NapCatGroupMembersResponse,
-} from "./napcatApi";
-
-export {
-  testNapCatConnection,
-  fetchNapCatGroups,
-  fetchNapCatGroupMembers,
-} from "./napcatApi";
-
 export {
   fetchMinecraftStatus,
   fetchMinecraftPresence,

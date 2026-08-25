@@ -120,7 +120,6 @@ export function ExchangeGoodsCard({
         onClick={onClick}
         style={{
           borderRadius: 0,
-          height: 40,
           background: disabled ? undefined : buttonColor,
           borderColor: disabled ? undefined : buttonColor,
         }}

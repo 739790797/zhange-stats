@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.minecraft_mod_registry import (
+from app.services.minecraft.mod_registry import (
     SPECS,
     assemble_mod_command,
     command_tree_out,
@@ -16,7 +16,7 @@ from app.services.minecraft_mod_registry import (
     spec_links_out,
     version_from_jar,
 )
-from app.services.minecraft_mod_tools import (
+from app.services.minecraft.mod_tools import (
     build_chunky_commands,
     is_unknown_command,
     parse_chunky_state,
@@ -173,7 +173,7 @@ def test_chunky_catalog_links_and_version():
 
 
 def test_collect_detects_chunky_plugin_without_rcon(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc,
@@ -223,7 +223,7 @@ def test_collect_detects_chunky_plugin_without_rcon(monkeypatch):
 
 
 def test_collect_ignores_unrelated_jars(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc,
@@ -255,7 +255,7 @@ def test_collect_ignores_unrelated_jars(monkeypatch):
 
 
 def test_mc_version_skips_latest_placeholder():
-    from app.services.minecraft_mod_tools import _mc_version_from_variables
+    from app.services.minecraft.mod_tools import _mc_version_from_variables
 
     assert (
         _mc_version_from_variables(
@@ -271,7 +271,7 @@ def test_mc_version_skips_latest_placeholder():
 
 
 def test_infer_runtime_loader_plugins_and_neoforge():
-    from app.services.minecraft_mod_tools import _infer_runtime_loader
+    from app.services.minecraft.mod_tools import _infer_runtime_loader
 
     assert _infer_runtime_loader("java -jar neoforge-21.1.jar") == "neoforge"
     assert _infer_runtime_loader("paper-1.21.1.jar") == "paper"
@@ -279,7 +279,7 @@ def test_infer_runtime_loader_plugins_and_neoforge():
 
 
 def test_catalog_same_version_is_not_update_even_if_filename_differs(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc,
@@ -303,7 +303,7 @@ def test_catalog_same_version_is_not_update_even_if_filename_differs(monkeypatch
 
 
 def test_catalog_newer_version_is_update(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc,
@@ -324,7 +324,7 @@ def test_catalog_newer_version_is_update(monkeypatch):
 
 
 def test_server_context_is_current_server_only(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc, "_live_egg_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"}
@@ -334,16 +334,16 @@ def test_server_context_is_current_server_only(monkeypatch):
 
 
 def test_server_context_stays_empty_when_live_unknown(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(svc, "_live_egg_context", lambda _db: {"loader": "", "mc_version": ""})
     assert svc._server_context(object()) == {"loader": "", "mc_version": ""}
 
 
 def test_live_egg_context_reads_inspect(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
-    from app.services import minecraft_eggs as eggs
-    from app.services import pelican_client as pelican
+    from app.services.minecraft import mod_tools as svc
+    from app.services.minecraft import eggs as eggs
+    from app.services.minecraft import pelican as pelican
 
     monkeypatch.setattr(svc, "get_pelican_credentials", lambda _db: ("https://p", "tok", "uuid"))
     monkeypatch.setattr(pelican, "pelican_configured", lambda *_a: True)
@@ -361,9 +361,9 @@ def test_live_egg_context_reads_inspect(monkeypatch):
 
 
 def test_live_context_uses_root_installer_when_egg_is_generic(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
-    from app.services import minecraft_eggs as eggs
-    from app.services import pelican_client as pelican
+    from app.services.minecraft import mod_tools as svc
+    from app.services.minecraft import eggs as eggs
+    from app.services.minecraft import pelican as pelican
 
     monkeypatch.setattr(svc, "get_pelican_credentials", lambda _db: ("https://p", "tok", "uuid"))
     monkeypatch.setattr(pelican, "pelican_configured", lambda *_a: True)
@@ -390,8 +390,8 @@ def test_live_context_uses_root_installer_when_egg_is_generic(monkeypatch):
 
 
 def test_live_disk_loader_reads_libraries_net(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
-    from app.services import pelican_client as pelican
+    from app.services.minecraft import mod_tools as svc
+    from app.services.minecraft import pelican as pelican
 
     def fake_list(_base, _token, _uuid, directory):
         if directory == "/":
@@ -405,7 +405,7 @@ def test_live_disk_loader_reads_libraries_net(monkeypatch):
 
 
 def test_chunky_factory_file_follows_loader():
-    from app.services.minecraft_mod_registry import (
+    from app.services.minecraft.mod_registry import (
         preset_by_id,
         preset_file_for_loader,
         resolve_preset_body,
@@ -433,7 +433,7 @@ def test_chunky_factory_file_follows_loader():
 
 
 def test_pick_install_pin_requires_matching_version():
-    from app.services.minecraft_mod_tools import MinecraftModToolsError, pick_install_pin
+    from app.services.minecraft.mod_tools import MinecraftModToolsError, pick_install_pin
 
     rows = [
         {"version_id": "aaa", "version_number": "1.4.20", "filename": "a.jar"},
@@ -448,7 +448,7 @@ def test_pick_install_pin_requires_matching_version():
 
 
 def test_catalog_includes_modrinth_project_id(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc,
@@ -466,7 +466,7 @@ def test_catalog_includes_modrinth_project_id(monkeypatch):
 
 
 def test_list_tool_versions_filters_by_live_server(monkeypatch):
-    from app.services import minecraft_mod_tools as svc
+    from app.services.minecraft import mod_tools as svc
 
     monkeypatch.setattr(
         svc,

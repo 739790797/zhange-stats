@@ -1,6 +1,6 @@
 """Minecraft game version catalog (Mojang manifest, Fabric fallback)."""
 
-from app.services import minecraft_profile as profile_svc
+from app.services.minecraft import profile as profile_svc
 
 
 def test_mojang_manifest_maps_type_and_release_time(monkeypatch):

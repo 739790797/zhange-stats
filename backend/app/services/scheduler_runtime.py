@@ -11,40 +11,40 @@ from sqlalchemy.orm import Session
 
 from app.core.biz_logging import wrap_scheduled_job
 from app.core.timeutil import BEIJING
-from app.services.arknights_box_compare import (
+from app.services.skland.arknights_box_compare import (
     box_sync_job_wrapper as arknights_box_sync_job_wrapper,
 )
-from app.services.arknights_catalog import (
+from app.services.skland.arknights_catalog import (
     catalog_sync_job_wrapper as arknights_catalog_sync_job_wrapper,
 )
 from app.services.game_schedule import (
     game_schedule_arknights_sync_job_wrapper as game_schedule_arknights_sync_job_wrapper,
     game_schedule_endfield_sync_job_wrapper as game_schedule_endfield_sync_job_wrapper,
 )
-from app.services.exilium_checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
+from app.services.exilium.checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
 from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
-from app.services.kujiequ_checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
-from app.services.mihoyo_checkin import checkin_job_wrapper as mihoyo_checkin_job_wrapper
-from app.services.minecraft_presence import poll_job_wrapper as minecraft_presence_job
-from app.services.minecraft_perf import (
+from app.services.kujiequ.checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
+from app.services.mihoyo.checkin import checkin_job_wrapper as mihoyo_checkin_job_wrapper
+from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
+from app.services.minecraft.perf import (
     SAMPLE_INTERVAL_SEC as MINECRAFT_PERF_INTERVAL_SEC,
 )
-from app.services.minecraft_perf import poll_job_wrapper as minecraft_rcon_perf_job
+from app.services.minecraft.perf import poll_job_wrapper as minecraft_rcon_perf_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
-from app.services.skland_checkin import checkin_job_wrapper as skland_checkin_job_wrapper
-from app.services.steam_poller import poll_job_wrapper
-from app.services.taygedo_checkin import checkin_job_wrapper as taygedo_checkin_job_wrapper
-from app.services.tarkov_bosses import (
+from app.services.skland.checkin import checkin_job_wrapper as skland_checkin_job_wrapper
+from app.services.steam.poller import poll_job_wrapper
+from app.services.taygedo.checkin import checkin_job_wrapper as taygedo_checkin_job_wrapper
+from app.services.tarkov.bosses import (
     bosses_sync_job_wrapper as tarkov_bosses_sync_job_wrapper,
 )
-from app.services.tarkov_guides import (
+from app.services.tarkov.guides import (
     guides_sync_job_wrapper as tarkov_guides_sync_job_wrapper,
 )
-from app.services.tarkov_items import items_sync_job_wrapper as tarkov_items_sync_job_wrapper
-from app.services.tarkov_tasks import tasks_sync_job_wrapper as tarkov_tasks_sync_job_wrapper
-from app.services.tarkov_traders import (
+from app.services.tarkov.items import items_sync_job_wrapper as tarkov_items_sync_job_wrapper
+from app.services.tarkov.tasks import tasks_sync_job_wrapper as tarkov_tasks_sync_job_wrapper
+from app.services.tarkov.traders import (
     traders_sync_job_wrapper as tarkov_traders_sync_job_wrapper,
 )
 

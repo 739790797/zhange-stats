@@ -40,8 +40,6 @@ const PATTERN_OPTIONS = [
   { value: "spiral", label: "螺旋" },
 ];
 
-const RADIUS_PRESETS = [500, 1000, 2000, 5000, 10000];
-
 const STATE_TAG: Record<string, { color: string; label: string }> = {
   running: { color: "green", label: "生成中" },
   paused: { color: "orange", label: "已暂停" },
@@ -194,27 +192,6 @@ export function MinecraftChunkyWorkspace({
                 style={{ width: "100%" }}
               />
             </div>
-          </div>
-          <div className={styles.presets}>
-            <span className={styles.presetLabel}>常用半径</span>
-            {RADIUS_PRESETS.map((value) => (
-              <Button
-                key={value}
-                size="small"
-                type={radius === value ? "primary" : "default"}
-                onClick={() => setRadius(value)}
-              >
-                {value.toLocaleString("zh-CN")}
-              </Button>
-            ))}
-          </div>
-          <div className={styles.secondaryActions}>
-            <Button
-              disabled={!canCommand || busy}
-              onClick={() => run.mutate("apply")}
-            >
-              应用到选择
-            </Button>
           </div>
         </section>
 

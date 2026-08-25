@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from app.services.checkin_common import (
+from app.services.checkin.common import (
     CheckinResult,
     apply_bind_last_checkin,
     is_placeholder_awards,
@@ -45,7 +45,7 @@ def test_prefer_richer_awards() -> None:
 
 
 def test_prefer_richer_drops_polluted_task_exp_awards() -> None:
-    from app.services.checkin_common import (
+    from app.services.checkin.common import (
         is_polluted_task_exp_awards,
         prefer_richer_award_items,
     )

@@ -154,15 +154,12 @@ export default function AuthSettingsPage() {
               step={1}
               precision={0}
               style={{ width: "100%" }}
-              size="large"
             />
           </Form.Item>
           <Button
             type="primary"
             htmlType="submit"
-            size="large"
             loading={saveSession.isPending}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             保存
           </Button>
@@ -200,7 +197,7 @@ export default function AuthSettingsPage() {
               { type: "number", min: 6, max: 72, message: "范围 6～72" },
             ]}
           >
-            <InputNumber min={6} max={72} style={{ width: "100%" }} size="large" />
+            <InputNumber min={6} max={72} style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item
             name="reject_mode"
@@ -216,7 +213,6 @@ export default function AuthSettingsPage() {
             }
           >
             <Select
-              size="large"
               options={[
                 {
                   value: "follow",
@@ -238,9 +234,7 @@ export default function AuthSettingsPage() {
           <Button
             type="primary"
             htmlType="submit"
-            size="large"
             loading={savePolicy.isPending}
-            style={{ background: "#1a2332", borderColor: "#1a2332" }}
           >
             保存策略
           </Button>

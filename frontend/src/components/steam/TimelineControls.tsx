@@ -27,6 +27,7 @@ export function TimelineControls({
   return (
     <Space style={{ marginBottom: 16 }} wrap>
       <Radio.Group
+        size="small"
         value={granularity}
         onChange={(e) => onGranularityChange(e.target.value)}
         optionType="button"
@@ -39,13 +40,14 @@ export function TimelineControls({
       />
       {!isPendingGranularity && (
         <>
-          <Button onClick={() => onShift(-1)}>
+          <Button size="small" onClick={() => onShift(-1)}>
             {granularity === "day" ? "向前12小时" : "上一段"}
           </Button>
           {granularity === "week" ? (
             <DatePicker
               picker="week"
               locale={datePickerLocale}
+              size="small"
               value={anchor}
               allowClear={false}
               onChange={(d) =>
@@ -60,6 +62,7 @@ export function TimelineControls({
             <DatePicker
               className="day-window-picker"
               locale={datePickerLocale}
+              size="small"
               value={anchor}
               allowClear={false}
               format={(value) => {
@@ -81,7 +84,7 @@ export function TimelineControls({
               style={{ width: 320 }}
             />
           )}
-          <Button onClick={() => onShift(1)}>
+          <Button size="small" onClick={() => onShift(1)}>
             {granularity === "day" ? "向后12小时" : "下一段"}
           </Button>
         </>

@@ -5,15 +5,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import app.services.skland_client  # noqa: F401 — 解开 attendance↔client 环依赖
-from app.services.checkin_common import STATUS_ERROR, STATUS_UNKNOWN, CheckinResult
-from app.services.skland_attendance import (
+import app.services.skland.client  # noqa: F401 — 解开 attendance↔client 环依赖
+from app.services.checkin.common import STATUS_ERROR, STATUS_UNKNOWN, CheckinResult
+from app.services.skland.attendance import (
     _arknights_game_ids,
     checkin_arknights,
     query_role_today,
 )
-from app.services.skland_awards import arknights_result_needs_award_icons
-from app.services.skland_client import GAME_ARKNIGHTS
+from app.services.skland.awards import arknights_result_needs_award_icons
+from app.services.skland.client import GAME_ARKNIGHTS
 
 
 def _bili_role(**kwargs: object) -> SimpleNamespace:
@@ -36,7 +36,7 @@ def test_bilibili_empty_records_is_unknown_not_pending() -> None:
     empty = {"code": 0, "data": {"records": [], "calendar": [{"done": False}]}}
 
     with patch(
-        "app.services.skland_attendance._attendance_get",
+        "app.services.skland.attendance._attendance_get",
         return_value=empty,
     ):
         result = query_role_today(SimpleNamespace(), role)  # type: ignore[arg-type]
@@ -68,15 +68,15 @@ def test_bilibili_checkin_ok_trusts_post_awards_only() -> None:
 
     with (
         patch(
-            "app.services.skland_attendance._signed_headers",
+            "app.services.skland.attendance._signed_headers",
             return_value={},
         ),
         patch(
-            "app.services.skland_attendance._http_json",
+            "app.services.skland.attendance._http_json",
             return_value=post_resp,
         ) as http,
         patch(
-            "app.services.skland_attendance.fetch_today_awards",
+            "app.services.skland.attendance.fetch_today_awards",
             fetch_mock,
         ),
     ):
@@ -97,15 +97,15 @@ def test_bilibili_already_does_not_fetch_get_awards() -> None:
 
     with (
         patch(
-            "app.services.skland_attendance._signed_headers",
+            "app.services.skland.attendance._signed_headers",
             return_value={},
         ),
         patch(
-            "app.services.skland_attendance._http_json",
+            "app.services.skland.attendance._http_json",
             return_value=already_resp,
         ),
         patch(
-            "app.services.skland_attendance.fetch_today_awards",
+            "app.services.skland.attendance.fetch_today_awards",
             fetch_mock,
         ),
     ):
@@ -129,15 +129,15 @@ def test_official_already_still_fetches_get_awards() -> None:
 
     with (
         patch(
-            "app.services.skland_attendance._signed_headers",
+            "app.services.skland.attendance._signed_headers",
             return_value={},
         ),
         patch(
-            "app.services.skland_attendance._http_json",
+            "app.services.skland.attendance._http_json",
             return_value=already_resp,
         ),
         patch(
-            "app.services.skland_attendance.fetch_today_awards",
+            "app.services.skland.attendance.fetch_today_awards",
             fetch_mock,
         ),
     ):

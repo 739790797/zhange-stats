@@ -2,9 +2,9 @@
 
 import pytest
 
-from app.services.checkin_common import CheckinResult
-from app.services.mihoyo_attendance import _community_result, query_today_all
-from app.services.mihoyo_client import GameRole, MihoyoApiError, MihoyoCredentials
+from app.services.checkin.common import CheckinResult
+from app.services.mihoyo.attendance import _community_result, query_today_all
+from app.services.mihoyo.client import GameRole, MihoyoApiError, MihoyoCredentials
 
 
 def _creds() -> MihoyoCredentials:
@@ -16,7 +16,7 @@ def test_community_query_raises_on_forum_auth(monkeypatch):
         raise MihoyoApiError("登录失效", code=-100)
 
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._community_signed_from_missions",
+        "app.services.mihoyo.attendance._community_signed_from_missions",
         boom,
     )
     with pytest.raises(MihoyoApiError, match="登录失效"):
@@ -28,7 +28,7 @@ def test_community_query_treats_non_auth_as_pending(monkeypatch):
         raise MihoyoApiError("网络超时")
 
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._community_signed_from_missions",
+        "app.services.mihoyo.attendance._community_signed_from_missions",
         boom,
     )
     result = _community_result(_creds(), do_sign=False, attach_tasks=False)
@@ -38,7 +38,7 @@ def test_community_query_treats_non_auth_as_pending(monkeypatch):
 
 def test_community_query_already_from_missions(monkeypatch):
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._community_signed_from_missions",
+        "app.services.mihoyo.attendance._community_signed_from_missions",
         lambda _c: True,
     )
     result = _community_result(_creds(), do_sign=False, attach_tasks=False)
@@ -46,10 +46,10 @@ def test_community_query_already_from_missions(monkeypatch):
 
 
 def test_community_signed_from_missions_task_58(monkeypatch):
-    from app.services.mihoyo_attendance import _community_signed_from_missions
+    from app.services.mihoyo.attendance import _community_signed_from_missions
 
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._http_json",
+        "app.services.mihoyo.attendance._http_json",
         lambda *_a, **_k: {
             "retcode": 0,
             "data": {
@@ -58,9 +58,9 @@ def test_community_signed_from_missions_task_58(monkeypatch):
             },
         },
     )
-    monkeypatch.setattr("app.services.mihoyo_attendance._mission_headers", lambda _c: {})
+    monkeypatch.setattr("app.services.mihoyo.attendance._mission_headers", lambda _c: {})
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance.call_with_cookie_refresh",
+        "app.services.mihoyo.attendance.call_with_cookie_refresh",
         lambda _c, fn: fn(_c),
     )
     assert _community_signed_from_missions(_creds()) is True
@@ -68,11 +68,11 @@ def test_community_signed_from_missions_task_58(monkeypatch):
 
 def test_query_today_keeps_games_when_one_game_auth_fails(monkeypatch):
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance.ensure_session",
+        "app.services.mihoyo.attendance.ensure_session",
         lambda c: c,
     )
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._community_result",
+        "app.services.mihoyo.attendance._community_result",
         lambda *_a, **_k: CheckinResult(
             game_code="mihoyo",
             game_name="米游社",
@@ -84,7 +84,7 @@ def test_query_today_keeps_games_when_one_game_auth_fails(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance.list_game_roles",
+        "app.services.mihoyo.attendance.list_game_roles",
         lambda _c: [
             GameRole(
                 game_biz="hk4e_cn",
@@ -102,7 +102,7 @@ def test_query_today_keeps_games_when_one_game_auth_fails(monkeypatch):
         raise MihoyoApiError("登录已失效，请重新绑定", code=-100)
 
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._query_game_signed",
+        "app.services.mihoyo.attendance._query_game_signed",
         boom,
     )
     _working, results = query_today_all(_creds())
@@ -113,7 +113,7 @@ def test_query_today_keeps_games_when_one_game_auth_fails(monkeypatch):
 
 def test_query_today_community_auth_does_not_kill_status(monkeypatch):
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance.ensure_session",
+        "app.services.mihoyo.attendance.ensure_session",
         lambda c: c,
     )
 
@@ -121,11 +121,11 @@ def test_query_today_community_auth_does_not_kill_status(monkeypatch):
         raise MihoyoApiError("登录失效", code=-100)
 
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._community_result",
+        "app.services.mihoyo.attendance._community_result",
         boom_community,
     )
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance.list_game_roles",
+        "app.services.mihoyo.attendance.list_game_roles",
         lambda _c: [
             GameRole(
                 game_biz="hk4e_cn",
@@ -139,7 +139,7 @@ def test_query_today_community_auth_does_not_kill_status(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        "app.services.mihoyo_attendance._query_game_signed",
+        "app.services.mihoyo.attendance._query_game_signed",
         lambda *_a, **_k: (False, None, []),
     )
     _working, results = query_today_all(_creds())

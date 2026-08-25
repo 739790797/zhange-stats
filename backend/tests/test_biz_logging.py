@@ -12,17 +12,17 @@ from app.core.biz_logging import (
 
 
 def test_resolve_biz_tag_platform_services() -> None:
-    assert resolve_biz_tag("app.services.skland_checkin") == "skland.checkin"
-    assert resolve_biz_tag("app.services.taygedo_boxes") == "taygedo.boxes"
-    assert resolve_biz_tag("app.services.mihoyo_checkin") == "mihoyo.checkin"
-    assert resolve_biz_tag("app.services.checkin_orchestrator") == "checkin.orchestrator"
+    assert resolve_biz_tag("app.services.skland.checkin") == "skland.checkin"
+    assert resolve_biz_tag("app.services.taygedo.boxes") == "taygedo.boxes"
+    assert resolve_biz_tag("app.services.mihoyo.checkin") == "mihoyo.checkin"
+    assert resolve_biz_tag("app.services.checkin.orchestrator") == "checkin.orchestrator"
     assert resolve_biz_tag("zhange.scheduler") == "scheduler"
     assert resolve_biz_tag("uvicorn.access") == "infra.http"
 
 
 def test_biz_tag_filter_and_context() -> None:
     record = logging.LogRecord(
-        name="app.services.skland_checkin",
+        name="app.services.skland.checkin",
         level=logging.INFO,
         pathname=__file__,
         lineno=1,

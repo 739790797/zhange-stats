@@ -1,10 +1,8 @@
-import { ConfigProvider } from "antd";
 import { Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovTaskDetail } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TarkovTaskDetailPanel } from "@/components/guides/tarkov/TarkovTaskDetailPanel";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
 import { TARKOV_HOME_PATH, TARKOV_TASKS_PATH } from "@/lib/tarkovHomeNav";
 import { useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
@@ -34,9 +32,7 @@ export default function TarkovTaskDetailPage() {
           { label: title },
         ]}
       />
-      <ConfigProvider theme={TARKOV_ANTD_DARK}>
-        <TarkovTaskDetailPanel taskId={taskId} />
-      </ConfigProvider>
+      <TarkovTaskDetailPanel taskId={taskId} />
     </div>
   );
 }

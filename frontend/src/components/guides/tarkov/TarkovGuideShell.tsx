@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ConfigProvider } from "antd";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
@@ -13,7 +12,7 @@ import {
   tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
-import { TARKOV_ANTD_DARK } from "@/lib/tarkovAntdDark";
+import { TarkovThemed } from "@/components/guides/tarkov/TarkovThemed";
 import { TarkovTrackerBindButton } from "@/components/guides/tarkov/TarkovTrackerBindButton";
 import styles from "./TarkovGuideShell.module.css";
 
@@ -183,6 +182,7 @@ export function TarkovGuideShell({ children }: Props) {
   }, [bossesQuery.data]);
 
   return (
+    <TarkovThemed>
     <div className={styles.shell}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
@@ -276,14 +276,13 @@ export function TarkovGuideShell({ children }: Props) {
               <kbd className={styles.topKbd}>/</kbd>
             </form>
             <div className={styles.tracker}>
-              <ConfigProvider theme={TARKOV_ANTD_DARK}>
-                <TarkovTrackerBindButton />
-              </ConfigProvider>
+              <TarkovTrackerBindButton />
             </div>
           </div>
         </div>
       </header>
       <div className={styles.body}>{children}</div>
     </div>
+    </TarkovThemed>
   );
 }

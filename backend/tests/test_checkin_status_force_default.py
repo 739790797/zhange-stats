@@ -1,4 +1,4 @@
-"""签到展示 /status：force 默认 true（OpenAPI 契约不变量）。"""
+"""OpenAPI 不变量：签到 status force 默认、已弃用路径标记。"""
 
 from app.main import app
 

@@ -85,7 +85,7 @@ def build_checkin_status(
         raw_results = list(live.get("results") or [])
         if role_pref_platform and raw_results:
             from app.api.jobs.checkin_queries import attach_last_checkin_to_result_dicts
-            from app.services.checkin_role_prefs import attach_prefs_to_status_results
+            from app.services.checkin.role_prefs import attach_prefs_to_status_results
 
             raw_results = attach_prefs_to_status_results(
                 db,
@@ -174,7 +174,7 @@ def apply_role_pref_update(
         payload.checkin_hour is None or payload.checkin_minute is None
     ):
         raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
-    from app.services.checkin_role_prefs import upsert_role_pref
+    from app.services.checkin.role_prefs import upsert_role_pref
 
     try:
         upsert_role_pref(
@@ -202,7 +202,7 @@ def build_role_membership_tree(
     member: Member,
     api_error_cls: type[Exception],
 ) -> RoleMembershipTreeOut:
-    from app.services.checkin_role_prefs import (
+    from app.services.checkin.role_prefs import (
         build_membership_tree_from_roles,
         load_pref_map,
     )
@@ -230,7 +230,7 @@ def apply_role_membership_replace(
     bind: Any,
     body: RoleMembershipReplaceBody,
 ) -> None:
-    from app.services.checkin_role_prefs import apply_role_memberships
+    from app.services.checkin.role_prefs import apply_role_memberships
 
     apply_role_memberships(
         db,

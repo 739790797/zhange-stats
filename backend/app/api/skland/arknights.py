@@ -30,23 +30,23 @@ from app.schemas import (
     SklandRoleOut,
 )
 from app.schemas.checkin import CheckinAwardItem
-from app.services.arknights_box_compare import (
+from app.services.skland.arknights_box_compare import (
     build_box_compare,
     list_compare_candidates,
 )
-from app.services.arknights_catalog import (
+from app.services.skland.arknights_catalog import (
     ArknightsCatalogError,
     ensure_catalog,
     get_catalog_meta,
     list_operators,
     sync_from_upstream,
 )
-from app.services.skland_checkin import (
+from app.services.skland.checkin import (
     get_arknights_attendance_calendar_for_member,
     get_arknights_box_for_member,
     get_arknights_rogue_for_member,
 )
-from app.services.skland_client import SklandApiError
+from app.services.skland.client import SklandApiError
 
 router = APIRouter(tags=["skland"])
 

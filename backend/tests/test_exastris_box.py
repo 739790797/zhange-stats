@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from app.services.taygedo_boxes import (
+from app.services.taygedo.boxes import (
     normalize_element_label,
     normalize_group_label,
     normalize_quality,
     parse_exastris_box,
     portrait_url_for,
 )
-from app.services.taygedo_client import TaygedoRole
+from app.services.taygedo.client import TaygedoRole
 
 
 def _role() -> TaygedoRole:

@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.timeutil import BEIJING, now_naive
 from app.models.minecraft import MinecraftPerfSample
-from app.services.minecraft_perf import bucket_series, resolve_window
-from app.services.minecraft_rcon import parse_chunks_text
+from app.services.minecraft.perf import bucket_series, resolve_window
+from app.services.minecraft.rcon import parse_chunks_text
 
 
 def test_bucket_series_even_centers_and_edges() -> None:

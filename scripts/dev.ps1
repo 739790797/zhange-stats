@@ -18,10 +18,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$DevDir = Join-Path $RepoRoot ".dev"
+$DevDir = Join-Path $RepoRoot "var\dev"
 $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend"
 $PythonExe = Join-Path $BackendDir ".venv\Scripts\python.exe"
+$env:PYTHONPYCACHEPREFIX = Join-Path $RepoRoot "var\cache\pycache"
 
 $BackendPort = 6130
 $FrontendPort = 6131

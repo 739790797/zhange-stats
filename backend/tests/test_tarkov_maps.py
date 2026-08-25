@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import time
 
-from app.services.tarkov_bosses import map_xyz
-from app.services.tarkov_maps import (
+from app.services.tarkov.bosses import map_xyz
+from app.services.tarkov.maps import (
     HUB_SKIP,
     _apply_graphql_markers,
     _marker_cache,

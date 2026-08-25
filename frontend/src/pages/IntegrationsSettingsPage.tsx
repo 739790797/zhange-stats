@@ -1,8 +1,4 @@
-import {
-  GithubOutlined,
-  QqOutlined,
-  RobotOutlined,
-} from "@ant-design/icons";
+import { GithubOutlined, QqOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -22,7 +18,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 import {
   fetchIntegrationsSettings,
-  testNapCatConnection,
   testPelicanConnection,
   testMinecraftRconConnection,
   updateIntegrationsSettings,
@@ -35,8 +30,6 @@ type FormValues = {
   steam_api_key?: string;
   qq_app_id?: string;
   qq_app_key?: string;
-  napcat_base_url?: string;
-  napcat_token?: string;
   github_token?: string;
   pelican_base_url?: string;
   pelican_client_token?: string;
@@ -132,8 +125,6 @@ export default function IntegrationsSettingsPage() {
       steam_api_key: data.steam_api_key || "",
       qq_app_id: data.qq_app_id || "",
       qq_app_key: data.qq_app_key || "",
-      napcat_base_url: data.napcat_base_url || "",
-      napcat_token: data.napcat_token || "",
       github_token: data.github_token || "",
       pelican_base_url: data.pelican_base_url || "",
       pelican_client_token: data.pelican_client_token || "",
@@ -154,29 +145,11 @@ export default function IntegrationsSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["integrations-settings"] });
       queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["napcat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["app-update-status"] });
       queryClient.invalidateQueries({ queryKey: ["minecraft-perf"] });
       queryClient.invalidateQueries({ queryKey: ["minecraft-status"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
-  });
-
-  const testNapcat = useMutation({
-    mutationFn: async () => {
-      const values = form.getFieldsValue();
-      const base_url = (values.napcat_base_url || "").trim();
-      const token = (values.napcat_token || "").trim();
-      return testNapCatConnection({
-        base_url,
-        token: token || null,
-      });
-    },
-    onSuccess: (res) => {
-      if (res.ok) message.success(res.message);
-      else message.warning(res.message);
-    },
-    onError: (e: unknown) => message.error(apiError(e, "测试失败")),
   });
 
   const testPelican = useMutation({
@@ -231,7 +204,6 @@ export default function IntegrationsSettingsPage() {
         onFinish={(values) => {
         const steam = values.steam_api_key?.trim() || "";
         const qqKey = values.qq_app_key?.trim() || "";
-        const napcatToken = values.napcat_token?.trim() || "";
         const githubToken = values.github_token?.trim() || "";
         const pelicanToken = values.pelican_client_token?.trim() || "";
         const pelicanAppToken = values.pelican_application_token?.trim() || "";
@@ -242,9 +214,6 @@ export default function IntegrationsSettingsPage() {
           qq_app_key: qqKey || null,
           clear_steam_api_key: !steam,
           clear_qq_app_key: !qqKey,
-          napcat_base_url: values.napcat_base_url ?? "",
-          napcat_token: napcatToken || null,
-          clear_napcat_token: !napcatToken,
           github_token: githubToken || null,
           clear_github_token: !githubToken,
           pelican_base_url: values.pelican_base_url ?? "",
@@ -326,47 +295,6 @@ export default function IntegrationsSettingsPage() {
                 placeholder="请输入 QQ App Key"
                 autoComplete="new-password"
               />
-            </Form.Item>
-          </Col>
-        </Row>
-      </IntegrationBlock>
-
-      <IntegrationBlock
-        icon={
-          <IntegrationMark>
-            <RobotOutlined />
-          </IntegrationMark>
-        }
-        title="NapCat"
-        configured={data?.napcat_configured}
-      >
-        <Row gutter={16}>
-          <Col xs={24} sm={12}>
-            <Form.Item
-              name="napcat_base_url"
-              label="Base URL"
-              style={{ marginBottom: 0 }}
-            >
-              <Input placeholder="http://127.0.0.1:3000" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12}>
-            <Form.Item label="Token" style={{ marginBottom: 0 }}>
-              <Space.Compact style={{ width: "100%" }}>
-                <Form.Item name="napcat_token" noStyle>
-                  <Input.Password
-                    placeholder="请输入 HTTP 服务 Token"
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Button
-                  htmlType="button"
-                  loading={testNapcat.isPending}
-                  onClick={() => testNapcat.mutate()}
-                >
-                  测试连接
-                </Button>
-              </Space.Compact>
             </Form.Item>
           </Col>
         </Row>

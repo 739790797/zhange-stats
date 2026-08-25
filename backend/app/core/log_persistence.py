@@ -39,10 +39,7 @@ def resolve_log_file_path() -> Path | None:
     settings = get_settings()
     if not settings.APP_LOG_FILE:
         return None
-    root = Path(settings.DATA_DIR).expanduser()
-    if not root.is_absolute():
-        root = Path.cwd() / root
-    return (root.resolve() / "logs" / "app.jsonl")
+    return settings.data_dir_path / "logs" / "app.jsonl"
 
 
 def install_file_log_handler(*, level: int) -> RotatingFileHandler | None:

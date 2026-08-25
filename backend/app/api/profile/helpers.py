@@ -108,7 +108,6 @@ def _profile_from_member(
         qq_bound=bool(member.qq_openid),
         qq_nickname=member.qq_nickname,
         qq_avatar_url=member.qq_avatar_url,
-        qq_number=member.qq_number,
         user_id=member.user_id,
         username=user.username if user else None,
         email=(user.email if user else None) if show_email else None,
@@ -161,8 +160,8 @@ def _require_steam_feature(db: Session) -> None:
 
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
     """绑定或解绑 Steam；仅同步 Steam 专用昵称/头像，不改站内身份。"""
-    from app.services.steam_bind import require_public_steam_profile
-    from app.services.steam_persona import force_set_steam_persona_name
+    from app.services.steam.bind import require_public_steam_profile
+    from app.services.steam.persona import force_set_steam_persona_name
 
     value = (steam_id or "").strip() or None
     if not value:
@@ -203,26 +202,6 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
     return profile.persona_name
 
 
-def _set_qq_number(db: Session, member: Member, raw: str | None) -> None:
-    if raw is None:
-        member.qq_number = None
-        return
-    value = str(raw).strip()
-    if not value:
-        member.qq_number = None
-        return
-    if not value.isdigit() or not (5 <= len(value) <= 12):
-        raise HTTPException(status_code=400, detail="QQ 号须为 5–12 位数字")
-    conflict = (
-        db.query(Member)
-        .filter(Member.qq_number == value, Member.id != member.id)
-        .first()
-    )
-    if conflict:
-        raise HTTPException(status_code=400, detail="该 QQ 号已被其他账号使用")
-    member.qq_number = value
-
-
 def _apply_profile_fields(
     db: Session,
     user: User,
@@ -241,7 +220,5 @@ def _apply_profile_fields(
     steam_persona: str | None = None
     if "steam_id" in data:
         steam_persona = _set_steam_id(db, member, data["steam_id"])
-    if "qq_number" in data:
-        _set_qq_number(db, member, data["qq_number"])
     return steam_persona
 

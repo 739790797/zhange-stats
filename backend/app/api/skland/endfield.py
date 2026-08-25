@@ -20,11 +20,11 @@ from app.schemas import (
     SklandRoleOut,
 )
 from app.schemas.checkin import CheckinAwardItem
-from app.services.skland_checkin import (
+from app.services.skland.checkin import (
     get_endfield_attendance_calendar_for_member,
     get_endfield_box_for_member,
 )
-from app.services.skland_client import SklandApiError
+from app.services.skland.client import SklandApiError
 
 router = APIRouter(tags=["skland"])
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.services import tarkov_traders as traders
-from app.services.tarkov_ammo import SOURCE_JSON_API
+from app.services.tarkov import traders as traders
+from app.services.tarkov.ammo import SOURCE_JSON_API
 
 PRAPOR = "54cb50c76803fa8b248b4571"
 THERAPIST = "54cb57776803fa99248b456e"

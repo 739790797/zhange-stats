@@ -10,7 +10,6 @@ import {
   SettingOutlined,
   TeamOutlined,
   UserOutlined,
-  UsergroupAddOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -56,7 +55,6 @@ const JOBS_CHILD_KEYS = ["/settings/task-config", "/settings/jobs"] as const;
 
 const ADMIN_LEAF_KEYS = [
   "/settings/users",
-  "/settings/qq-groups",
   ...JOBS_CHILD_KEYS,
   "/settings/logs",
   ...SYSTEM_CHILD_KEYS,
@@ -132,11 +130,6 @@ function buildAdminMenuItems(): MenuProps["items"] {
       key: "/settings/logs",
       icon: <FileTextOutlined />,
       label: <Link to="/settings/logs">平台日志</Link>,
-    },
-    {
-      key: "/settings/qq-groups",
-      icon: <UsergroupAddOutlined />,
-      label: <Link to="/settings/qq-groups">QQ群</Link>,
     },
   ];
 }
@@ -508,6 +501,7 @@ export function AppLayout() {
                 <Tooltip title="退出登录">
                   <Button
                     type="text"
+                    size="small"
                     className="sider-logout-btn"
                     icon={<LogoutOutlined />}
                     aria-label="退出登录"

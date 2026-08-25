@@ -264,12 +264,13 @@ export default function UserManagementPage() {
               const isAdmin = isAdminUser(row);
               return (
                 <Space>
-                  <Button type="link" onClick={() => openEdit(row)}>
+                  <Button type="link" size="small" onClick={() => openEdit(row)}>
                     编辑
                   </Button>
                   {row.member_id != null ? (
                     <Button
                       type="link"
+                      size="small"
                       onClick={() => navigate(`/members/${row.member_id}/profile`)}
                     >
                       资料
@@ -283,7 +284,7 @@ export default function UserManagementPage() {
                     cancelText="取消"
                     onConfirm={() => removeUser.mutate(row.id)}
                   >
-                    <Button type="link" danger disabled={isSelf || isAdmin}>
+                    <Button type="link" size="small" danger disabled={isSelf || isAdmin}>
                       删除
                     </Button>
                   </Popconfirm>

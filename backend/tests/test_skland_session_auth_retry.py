@@ -7,11 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.services.skland_checkin import (
+from app.services.skland.checkin import (
     _looks_like_skland_auth_error,
     query_today_for_bind,
 )
-from app.services.skland_client import SklandApiError, SklandSession
+from app.services.skland.client import SklandApiError, SklandSession
 
 
 def test_looks_like_skland_auth_error():
@@ -36,13 +36,13 @@ def test_query_today_retries_once_after_auth_error(monkeypatch):
     fresh = MagicMock(return_value=session)
 
     monkeypatch.setattr(
-        "app.services.skland_checkin._orch_query_today", orch
+        "app.services.skland.checkin._orch_query_today", orch
     )
     monkeypatch.setattr(
-        "app.services.skland_session_cache.invalidate_skland_session", inv
+        "app.services.skland.session_cache.invalidate_skland_session", inv
     )
     monkeypatch.setattr(
-        "app.services.skland_checkin._session_for_bind", fresh
+        "app.services.skland.checkin._session_for_bind", fresh
     )
 
     out = query_today_for_bind(MagicMock(), bind, force=False)
@@ -59,7 +59,7 @@ def test_query_today_does_not_retry_non_auth(monkeypatch):
         raise SklandApiError("网络超时")
 
     monkeypatch.setattr(
-        "app.services.skland_checkin._orch_query_today", orch
+        "app.services.skland.checkin._orch_query_today", orch
     )
     with pytest.raises(SklandApiError, match="网络超时"):
         query_today_for_bind(MagicMock(), bind, force=True)

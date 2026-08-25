@@ -227,14 +227,14 @@ export function PersonalInfoSection({
                   },
                 ]}
               >
-                <Input size="large" autoComplete="username" maxLength={32} />
+                <Input autoComplete="username" maxLength={32} />
               </Form.Item>
               <Form.Item
                 name="current_password"
                 label="当前密码"
                 rules={[{ required: true, message: "请输入当前密码以确认" }]}
               >
-                <Input.Password size="large" autoComplete="current-password" />
+                <Input.Password autoComplete="current-password" />
               </Form.Item>
             </Form>
           </Modal>
@@ -264,7 +264,7 @@ export function PersonalInfoSection({
                 label="当前密码"
                 rules={[{ required: true, message: "请输入当前密码" }]}
               >
-                <Input.Password size="large" autoComplete="current-password" />
+                <Input.Password autoComplete="current-password" />
               </Form.Item>
               <Form.Item
                 name="new_password"
@@ -274,7 +274,7 @@ export function PersonalInfoSection({
                   { min: minLen, message: `至少 ${minLen} 位` },
                 ]}
               >
-                <Input.Password size="large" autoComplete="new-password" />
+                <Input.Password autoComplete="new-password" />
               </Form.Item>
               <Form.Item
                 name="confirm_password"
@@ -292,7 +292,7 @@ export function PersonalInfoSection({
                   }),
                 ]}
               >
-                <Input.Password size="large" autoComplete="new-password" />
+                <Input.Password autoComplete="new-password" />
               </Form.Item>
             </Form>
           </Modal>

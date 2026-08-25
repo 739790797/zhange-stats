@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from app.services.mihoyo_auth import (
+from app.services.mihoyo.auth import (
     MihoyoNeedGeetest,
     _aigis_from_geetest,
     _assert_account_ok,
@@ -19,7 +19,7 @@ from app.services.mihoyo_auth import (
     rsa_encrypt,
     send_login_sms,
 )
-from app.services.mihoyo_client import (
+from app.services.mihoyo.client import (
     MihoyoApiError,
     generate_ds_discuss,
     generate_ds_sign,
@@ -53,7 +53,7 @@ def test_generate_ds_discuss_format():
 
 
 def test_generate_ds_web_and_x4_format():
-    from app.services.mihoyo_client import generate_ds_web, generate_ds_x4
+    from app.services.mihoyo.client import generate_ds_web, generate_ds_x4
 
     web = generate_ds_web()
     parts = web.split(",")
@@ -99,7 +99,7 @@ def test_stoken_from_qr_tokens():
 
 
 def test_region_label_maps_hoyoverse_codes():
-    from app.services.mihoyo_client import region_label
+    from app.services.mihoyo.client import region_label
 
     assert region_label("cn_gf01") == "官服"
     assert region_label("cn_qd01") == "B服"
@@ -202,7 +202,7 @@ def test_send_login_sms_uses_passport_api(monkeypatch):
         return {"action_type": "login_by_mobile_captcha"}, {}
 
     monkeypatch.setattr(
-        "app.services.mihoyo_auth._passport_post",
+        "app.services.mihoyo.auth._passport_post",
         fake_post,
     )
     out = send_login_sms("13800138000")
@@ -216,7 +216,7 @@ def test_send_login_sms_uses_passport_api(monkeypatch):
 
 
 def test_is_auth_failure():
-    from app.services.mihoyo_client import is_auth_failure
+    from app.services.mihoyo.client import is_auth_failure
 
     assert is_auth_failure(code=-100)
     assert is_auth_failure(code="-100")
@@ -231,7 +231,7 @@ def test_is_auth_failure():
 
 def test_game_biz_meta_matches_mihoyobbstools():
     from app.services.mihoyo_bbs import setting as bbs_setting
-    from app.services.mihoyo_client import GAME_BIZ_META
+    from app.services.mihoyo.client import GAME_BIZ_META
 
     assert GAME_BIZ_META["hk4e_cn"]["act_id"] == bbs_setting.genshin_act_id == "e202311201442471"
     assert GAME_BIZ_META["hk4e_cn"]["sign_kind"] == "luna"
@@ -244,13 +244,13 @@ def test_game_biz_meta_matches_mihoyobbstools():
 
 
 def test_compact_json_body_matches_ds2():
-    from app.services.mihoyo_client import compact_json_body
+    from app.services.mihoyo.client import compact_json_body
 
     assert compact_json_body({"gids": "2"}) == '{"gids":"2"}'
 
 
 def test_game_headers_include_signgame():
-    from app.services.mihoyo_client import (
+    from app.services.mihoyo.client import (
         GAME_BIZ_META,
         MihoyoCredentials,
         _game_headers_for_meta,
@@ -267,7 +267,7 @@ def test_game_headers_include_signgame():
 
 
 def test_bbs_headers_use_okhttp_and_stoken_cookie():
-    from app.services.mihoyo_client import BBS_OKHTTP_UA, MihoyoCredentials, _bbs_headers
+    from app.services.mihoyo.client import BBS_OKHTTP_UA, MihoyoCredentials, _bbs_headers
 
     creds = MihoyoCredentials(
         cookie="ltuid=1; stoken=v2_abc; mid=m1",
@@ -283,7 +283,7 @@ def test_bbs_headers_use_okhttp_and_stoken_cookie():
 
 
 def test_call_with_cookie_refresh_retries_once(monkeypatch):
-    from app.services.mihoyo_client import (
+    from app.services.mihoyo.client import (
         MihoyoApiError,
         MihoyoCredentials,
         call_with_cookie_refresh,
@@ -297,7 +297,7 @@ def test_call_with_cookie_refresh_retries_once(monkeypatch):
         c.cookie = "ltuid=1; stoken=s; cookie_token=new"
         return c
 
-    monkeypatch.setattr("app.services.mihoyo_client.refresh_cookie_token", refresh)
+    monkeypatch.setattr("app.services.mihoyo.client.refresh_cookie_token", refresh)
 
     def fn(_c):
         calls["n"] += 1
@@ -311,9 +311,9 @@ def test_call_with_cookie_refresh_retries_once(monkeypatch):
 
 
 def test_welfare_urls_follow_mihoyobbstools():
-    from app.services.mihoyo_attendance import _welfare_info_url, _welfare_sign_url
+    from app.services.mihoyo.attendance import _welfare_info_url, _welfare_sign_url
     from app.services.mihoyo_bbs import setting as bbs_setting
-    from app.services.mihoyo_client import GAME_BIZ_META
+    from app.services.mihoyo.client import GAME_BIZ_META
 
     assert _welfare_info_url(GAME_BIZ_META["hk4e_cn"]) == bbs_setting.cn_game_is_signurl
     assert _welfare_sign_url(GAME_BIZ_META["hk4e_cn"]) == bbs_setting.cn_game_sign_url
@@ -334,7 +334,7 @@ def test_mall_urls_follow_mystool():
 
 
 def test_list_exchange_goods_uses_point_sn_and_partitions(monkeypatch):
-    from app.services.mihoyo_client import MihoyoCredentials, list_exchange_goods
+    from app.services.mihoyo.client import MihoyoCredentials, list_exchange_goods
 
     calls: list[tuple[str, str, dict]] = []
 
@@ -377,7 +377,7 @@ def test_list_exchange_goods_uses_point_sn_and_partitions(monkeypatch):
             }
         return {"retcode": 0, "data": {"list": []}}
 
-    monkeypatch.setattr("app.services.mihoyo_client._http_json", fake_http)
+    monkeypatch.setattr("app.services.mihoyo.client._http_json", fake_http)
     items = list_exchange_goods(MihoyoCredentials(cookie="ltuid=1; cookie_token=c"))
     assert len(items) == 1
     assert items[0].game_code == "genshin"
@@ -387,7 +387,7 @@ def test_list_exchange_goods_uses_point_sn_and_partitions(monkeypatch):
 
 
 def test_get_points_balance_uses_homutreasure(monkeypatch):
-    from app.services.mihoyo_client import MihoyoCredentials, get_points_balance
+    from app.services.mihoyo.client import MihoyoCredentials, get_points_balance
 
     def fake_http(method, url, *, headers, params=None, json_body=None, raw_body=None):
         del method, headers, json_body, raw_body
@@ -395,12 +395,12 @@ def test_get_points_balance_uses_homutreasure(monkeypatch):
         assert (params or {}).get("point_sn") == "myb"
         return {"retcode": 0, "data": {"points": 1234}}
 
-    monkeypatch.setattr("app.services.mihoyo_client._http_json", fake_http)
+    monkeypatch.setattr("app.services.mihoyo.client._http_json", fake_http)
     assert get_points_balance(MihoyoCredentials(cookie="ltuid=1; cookie_token=c")) == 1234
 
 
 def test_exchange_goods_uid_is_game_role(monkeypatch):
-    from app.services.mihoyo_client import MihoyoCredentials, exchange_goods
+    from app.services.mihoyo.client import MihoyoCredentials, exchange_goods
 
     captured: dict = {}
 
@@ -412,7 +412,7 @@ def test_exchange_goods_uid_is_game_role(monkeypatch):
         captured["headers"] = headers
         return {"retcode": 0, "data": {}}
 
-    monkeypatch.setattr("app.services.mihoyo_client._http_json", fake_http)
+    monkeypatch.setattr("app.services.mihoyo.client._http_json", fake_http)
     exchange_goods(
         MihoyoCredentials(cookie="ltuid=1; cookie_token=c", stuid="bbs-uid"),
         goods_id="1001",

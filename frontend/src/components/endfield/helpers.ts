@@ -5,12 +5,7 @@ export function skillBgForChar(char: EndfieldChar) {
   return PROPERTY_SKILL_BG[char.property_name || ""] || "#8a9099";
 }
 
-export function formatSyncedAt(iso?: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("zh-CN", { hour12: false });
-}
+export { formatSyncedAt } from "@/lib/formatSyncedAt";
 
 export function formatOwnTs(ts?: number | null) {
   if (!ts) return null;

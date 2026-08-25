@@ -152,7 +152,7 @@ export function MinecraftSetupPicker({
               {[kind?.name, core?.name].filter(Boolean).join(" · ") || "未选核心"}
             </div>
           </div>
-          <Button type="link" onClick={onEdit}>
+          <Button type="link" size="small" onClick={onEdit}>
             更改
           </Button>
         </div>

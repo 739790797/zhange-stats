@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
-from app.services.checkin_common import (
+from app.services.checkin.common import (
     LOG_SOURCE_ACTION,
     LOG_SOURCE_STATUS,
     CheckinResult,

@@ -1,0 +1,40 @@
+---
+description: 前后端自测分层、补测门槛、禁止同层重复
+globs: backend/tests/**/*.py,frontend/**/*.test.ts,frontend/src/lib/**/*.ts,backend/app/services/**/*.py
+alwaysApply: false
+---
+
+# 自测约定
+
+形态：纯函数 / 服务单测。不写组件测、不写真 MySQL、不用同步 TestClient 打 lifespan。
+
+## 分层
+
+| 层 | 放哪 | 测什么 |
+|---|---|---|
+| 后端 | `backend/tests/test_*.py` | services 解析、策略、密钥、OpenAPI 不变量 |
+| 前端 | 与源文件并列 `*.test.ts` | `lib/` 与组件旁展示纯函数（文案、slug、路径、localStorage、补全） |
+
+规则在哪层实现，就在哪层测。前端不要再断言一遍后端投影（payload 解析、slug 规范化、奖品择优）。两端各有实现时，只测该层差量（展示文案 vs 投影字段），勿把同一夹具当两套「源数据测」。
+
+## 必补（先测后改）
+
+- 森空岛官/B服、补奖、`unknown` → `test_skland_*`
+- 签到编排 / `checkin_common` / 奖品择优 / logs 权威
+- `GET …/status` 的 `force` 默认 → `test_checkin_status_force_default`
+- 运行时路径相对安装根、密钥从 `backend/data` 迁出 → `test_paths`
+- 弱口令、限流、oauth ticket、生产禁邮件日志
+- 前端：凭证失效文案、B服渠道识别、北京墙钟、`formatRequestError`
+
+触及 Steam / NapCat / 扫码绑定时，给该次改动涉及的纯函数补测。
+
+## 禁止
+
+- 再写一份 `/health` 字段断言（只留 ASGI：`test_health_api`）
+- 再拷 `_db_with_stored`（用 `tests/integrations_fakes.py`）
+- oauth issue/consume happy path 再抄一份（Fernet 往返 vs SQLite 过期/清理分开）
+- 为新日历平台再抄「解析 / 未签 / fallback 含今日」空壳；只测该平台差量
+- 用 `...(force ? { force: true } : {})` 省略参数还声称测过 status
+- vitest 挂 jsdom 测整页；pytest 打真实上游
+
+双数据源（guns GraphQL / JSON）可以平行测。常量表快照仅在防回归需要时保留。

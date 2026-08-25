@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.paths import DEFAULT_DATA_DIR, DEFAULT_UPLOAD_DIR, resolve_runtime_path
 from app.core.secret import DEFAULT_SECRET_KEY, ensure_secret_key
 
 
@@ -66,10 +67,6 @@ class Settings(BaseSettings):
     QQ_APP_ID: str = ""
     QQ_APP_KEY: str = ""
 
-    # NapCat OneBot HTTP（群列表 / 群成员；库配置优先）
-    NAPCAT_BASE_URL: str = ""
-    NAPCAT_TOKEN: str = ""
-
     # 森空岛每日签到（明日方舟 / 终末地）— 默认北京时间 00:01
     SKLAND_CHECKIN_ENABLED: bool = True
     SKLAND_CHECKIN_HOUR: int = 0
@@ -129,16 +126,16 @@ class Settings(BaseSettings):
     MIHOYO_CHECKIN_ENABLED: bool = True
     MIHOYO_CHECKIN_HOUR: int = 0
     MIHOYO_CHECKIN_MINUTE: int = 1
-    # 运行时数据目录（密钥等；勿挂到公开静态路径）
-    DATA_DIR: str = "data"
+    # 运行时数据目录（密钥/日志等；相对路径相对安装根，默认 var/data）
+    DATA_DIR: str = DEFAULT_DATA_DIR
     # 应用日志：级别 / 内存环缓冲 / JSONL 持久化（DATA_DIR/logs/app.jsonl）
     APP_LOG_LEVEL: str = "INFO"
     APP_LOG_RING_CAPACITY: int = 5000
     APP_LOG_FILE: bool = True
     APP_LOG_FILE_MAX_MB: int = 50
     APP_LOG_FILE_BACKUP_COUNT: int = 5
-    # 头像等本地上传目录（相对 backend 工作目录或绝对路径）
-    UPLOAD_DIR: str = "uploads"
+    # 头像等本地上传目录（相对安装根或绝对路径，默认 var/uploads）
+    UPLOAD_DIR: str = DEFAULT_UPLOAD_DIR
 
     # 邮件（不配置则默认拒绝发码；本地可开 ALLOW_EMAIL_CODE_LOG 把验证码打到日志）
     SMTP_HOST: str = ""
@@ -189,6 +186,14 @@ class Settings(BaseSettings):
             return bool(self.REJECT_WEAK_ADMIN_PASSWORD)
         return self.is_production
 
+    @property
+    def data_dir_path(self) -> Path:
+        return resolve_runtime_path(self.DATA_DIR, configured_install=self.APP_INSTALL_DIR)
+
+    @property
+    def upload_dir_path(self) -> Path:
+        return resolve_runtime_path(self.UPLOAD_DIR, configured_install=self.APP_INSTALL_DIR)
+
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
@@ -196,5 +201,6 @@ def get_settings() -> Settings:
         settings.SECRET_KEY,
         data_dir=settings.DATA_DIR,
         upload_dir=settings.UPLOAD_DIR,
+        install_dir=settings.APP_INSTALL_DIR,
     )
     return settings

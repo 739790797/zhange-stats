@@ -51,7 +51,6 @@ export function SteamBindEntry({
       <Card>
         <Button
           type="primary"
-          size="large"
           block
           loading={loading}
           disabled={notConfigured || steamConfigured === undefined}

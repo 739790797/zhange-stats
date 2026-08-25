@@ -21,7 +21,7 @@ from app.models.member import Member
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
 from app.models.user import User, UserRole
-from app.services.steam_game_names import display_name_for
+from app.services.steam.game_names import display_name_for
 
 DEMO_SOURCE = "demo"
 

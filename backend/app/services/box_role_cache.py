@@ -9,14 +9,14 @@ from app.models.endfield import EndfieldBoxRaw
 from app.models.exastris import ExastrisBoxRaw
 from app.models.kujiequ import KujiequWwBoxRaw
 from app.models.skland import SklandAttendanceRaw
-from app.services.kujiequ_client import GAME_NAMES, GAME_WW, GameRole
-from app.services.skland_client import (
+from app.services.kujiequ.client import GAME_NAMES, GAME_WW, GameRole
+from app.services.skland.client import (
     GAME_ARKNIGHTS,
     GAME_ENDFIELD,
     GAME_META,
     SklandRole,
 )
-from app.services.taygedo_client import GAME_NTE, GAME_NTE_NAME, TaygedoRole
+from app.services.taygedo.client import GAME_NTE, GAME_NTE_NAME, TaygedoRole
 
 
 def skland_arknights_roles_from_raws(

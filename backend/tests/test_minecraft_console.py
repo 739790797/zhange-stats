@@ -6,12 +6,12 @@ import json
 
 import pytest
 
-from app.services.minecraft_console import (
+from app.services.minecraft.console import (
     client_command_to_wings,
     parse_stats_payload,
     parse_wings_message,
 )
-from app.services.pelican_client import PelicanError, parse_websocket_credentials
+from app.services.minecraft.pelican import PelicanError, parse_websocket_credentials
 
 
 def test_parse_websocket_credentials_pterodactyl_shape():
@@ -84,7 +84,7 @@ def test_parse_wings_console_and_stats():
 
 
 def test_parse_server_meta_name_and_default_allocation():
-    from app.services.pelican_client import parse_server_meta
+    from app.services.minecraft.pelican import parse_server_meta
 
     meta = parse_server_meta(
         {
@@ -123,7 +123,7 @@ def test_parse_server_meta_name_and_default_allocation():
 
 
 def test_parse_server_meta_reads_panel_resource_limits():
-    from app.services.pelican_client import parse_server_meta
+    from app.services.minecraft.pelican import parse_server_meta
 
     meta = parse_server_meta(
         {

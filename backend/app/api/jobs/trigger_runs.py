@@ -54,32 +54,32 @@ def _run_sync_role_checkin(
     error_types: dict[str, type[Exception]] = {}
 
     if job_id == "skland_checkin":
-        from app.services.skland_checkin import run_checkin_for_member
-        from app.services.skland_client import SklandApiError
+        from app.services.skland.checkin import run_checkin_for_member
+        from app.services.skland.client import SklandApiError
 
         runners[job_id] = run_checkin_for_member
         error_types[job_id] = SklandApiError
     elif job_id == "taygedo_checkin":
-        from app.services.taygedo_checkin import run_checkin_for_member
-        from app.services.taygedo_client import TaygedoApiError
+        from app.services.taygedo.checkin import run_checkin_for_member
+        from app.services.taygedo.client import TaygedoApiError
 
         runners[job_id] = run_checkin_for_member
         error_types[job_id] = TaygedoApiError
     elif job_id == "exilium_checkin":
-        from app.services.exilium_checkin import run_checkin_for_member
-        from app.services.exilium_client import ExiliumApiError
+        from app.services.exilium.checkin import run_checkin_for_member
+        from app.services.exilium.client import ExiliumApiError
 
         runners[job_id] = run_checkin_for_member
         error_types[job_id] = ExiliumApiError
     elif job_id == "kujiequ_checkin":
-        from app.services.kujiequ_checkin import run_checkin_for_member
-        from app.services.kujiequ_client import KujiequApiError
+        from app.services.kujiequ.checkin import run_checkin_for_member
+        from app.services.kujiequ.client import KujiequApiError
 
         runners[job_id] = run_checkin_for_member
         error_types[job_id] = KujiequApiError
     elif job_id == "mihoyo_checkin":
-        from app.services.mihoyo_checkin import run_checkin_for_member
-        from app.services.mihoyo_client import MihoyoApiError
+        from app.services.mihoyo.checkin import run_checkin_for_member
+        from app.services.mihoyo.client import MihoyoApiError
 
         runners[job_id] = run_checkin_for_member
         error_types[job_id] = MihoyoApiError

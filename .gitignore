@@ -17,17 +17,25 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
-
 # IDE / OS
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
 
-# Uploads / runtime data（仅仓库根 data/，不要误伤 frontend/src/data）
-uploads/
-backend/uploads/
+# Runtime / uploads / 生产 static（相对路径一律相对安装根，勿写进 backend/ frontend/）
+/var/*
+!/var/README.md
 /data/
+/uploads/
+/static/
+backend/data/
+frontend/data/
+backend/var/
+frontend/var/
+backend/uploads/
+frontend/uploads/
+uploads/
 **/.secret_key
 
 # Local scratch

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, exilium, guides, jobs, kujiequ, members, mihoyo, napcat, profile, setup, skland, steam, taygedo
+from app.api import auth, exilium, guides, jobs, kujiequ, members, mihoyo, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
@@ -17,6 +17,7 @@ from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.core.migrate import run_migrations
+from app.core.paths import hydrate_legacy_runtime, resolve_install_dir, resolve_runtime_path
 from app.core.request_log_middleware import RequestLogMiddleware
 from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
@@ -47,11 +48,7 @@ install_runtime_log_buffer()
 
 
 def _ensure_upload_root() -> Path:
-    settings = get_settings()
-    path = Path(settings.UPLOAD_DIR).expanduser()
-    if not path.is_absolute():
-        path = Path.cwd() / path
-    path = path.resolve()
+    path = get_settings().upload_dir_path
     (path / "avatars").mkdir(parents=True, exist_ok=True)
     return path
 
@@ -78,7 +75,11 @@ async def lifespan(_: FastAPI):
 
     logger.info("startup step 2/8: ensure upload root (%s)", cfg.UPLOAD_DIR)
     upload_path = _ensure_upload_root()
-    logger.info("startup step 2/8 done: upload_root=%s", upload_path)
+    hydrate_legacy_runtime(
+        dest_data=cfg.data_dir_path,
+        install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
+    )
+    logger.info("startup step 2/8 done: upload_root=%s data_root=%s", upload_path, cfg.data_dir_path)
 
     db = SessionLocal()
     try:
@@ -161,7 +162,6 @@ api.include_router(taygedo.router)
 api.include_router(exilium.router)
 api.include_router(kujiequ.router)
 api.include_router(mihoyo.router)
-api.include_router(napcat.router)
 api.include_router(guides.router)
 app.include_router(api)
 
@@ -200,11 +200,11 @@ def health():
     return JSONResponse(content=body, status_code=200 if db_ok else 503)
 
 
-_static_dir = Path(settings.STATIC_DIR).expanduser() if settings.STATIC_DIR else None
-if _static_dir and not _static_dir.is_absolute():
-    _static_dir = (Path.cwd() / _static_dir).resolve()
-elif _static_dir:
-    _static_dir = _static_dir.resolve()
+_static_dir = (
+    resolve_runtime_path(settings.STATIC_DIR, configured_install=settings.APP_INSTALL_DIR)
+    if settings.STATIC_DIR
+    else None
+)
 
 if _static_dir and _static_dir.is_dir():
     assets_dir = _static_dir / "assets"

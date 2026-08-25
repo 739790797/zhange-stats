@@ -40,17 +40,17 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
 from app.models.user import User
-from app.services import tarkov_ammo as ammo_svc
-from app.services import tarkov_bosses as bosses_svc
-from app.services import tarkov_catalog as catalog_svc
-from app.services import tarkov_guides as guides_svc
-from app.services import tarkov_guns as gun_svc
-from app.services import tarkov_items as items_svc
-from app.services import tarkov_maps as maps_svc
-from app.services import tarkov_tasks as tasks_svc
-from app.services import tarkov_traders as traders_svc
-from app.services import tarkov_search as search_svc
-from app.services import tarkov_tracker as tracker_svc
+from app.services.tarkov import ammo as ammo_svc
+from app.services.tarkov import bosses as bosses_svc
+from app.services.tarkov import catalog as catalog_svc
+from app.services.tarkov import guides as guides_svc
+from app.services.tarkov import guns as gun_svc
+from app.services.tarkov import items as items_svc
+from app.services.tarkov import maps as maps_svc
+from app.services.tarkov import tasks as tasks_svc
+from app.services.tarkov import traders as traders_svc
+from app.services.tarkov import search as search_svc
+from app.services.tarkov import tracker as tracker_svc
 
 router = APIRouter(prefix="/tarkov")
 

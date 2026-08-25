@@ -64,7 +64,6 @@ export async function unbindQq(memberId?: number) {
 export async function updateMyProfile(payload: {
   display_name?: string;
   steam_id?: string | null;
-  qq_number?: string | null;
 }) {
   const { data } = await client.patch<MemberProfile>("/profile/me", payload);
   return data;
@@ -102,7 +101,6 @@ export async function updateMemberProfile(
   payload: {
     display_name?: string;
     steam_id?: string | null;
-    qq_number?: string | null;
   },
 ) {
   const { data } = await client.patch<MemberProfile>(
