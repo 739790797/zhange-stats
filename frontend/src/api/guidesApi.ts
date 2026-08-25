@@ -118,11 +118,13 @@ export async function fetchTarkovTasks(opts: {
   progressStatus?: string;
   page?: number;
   pageSize?: number;
+  layout?: "table" | "chain";
 }) {
   const q = (opts.q || "").trim();
   const trader = (opts.trader || "").trim();
   const map = (opts.map || "").trim();
   const progressStatus = (opts.progressStatus || "").trim();
+  const layout = opts.layout === "chain" ? "chain" : undefined;
   const { data } = await client.get<TarkovTaskCatalog>("/guides/tarkov/tasks", {
     params: {
       ...(q ? { q } : {}),
@@ -133,8 +135,13 @@ export async function fetchTarkovTasks(opts: {
       ...(opts.progress === true && progressStatus
         ? { progress_status: progressStatus }
         : {}),
-      page: opts.page ?? 1,
-      page_size: opts.pageSize ?? 50,
+      ...(layout ? { layout } : {}),
+      ...(layout === "chain"
+        ? {}
+        : {
+            page: opts.page ?? 1,
+            page_size: opts.pageSize ?? 50,
+          }),
     },
     timeout: 120_000,
   });

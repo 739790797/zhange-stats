@@ -21,7 +21,7 @@ from app.models.kujiequ import (
     KujiequCheckinLog,
     KujiequWwBoxRaw,
 )
-from app.models.mihoyo import MihoyoBind, MihoyoCheckinLog
+from app.models.mihoyo import MihoyoAttendanceRaw, MihoyoBind, MihoyoCheckinLog
 from app.models.minecraft import (
     MinecraftPerfSample,
     MinecraftPresenceSegment,
@@ -70,6 +70,7 @@ __all__ = [
     "KujiequWwBoxRaw",
     "MihoyoBind",
     "MihoyoCheckinLog",
+    "MihoyoAttendanceRaw",
     "CheckinRolePref",
     "ArknightsOperator",
     "ArknightsCatalogMeta",

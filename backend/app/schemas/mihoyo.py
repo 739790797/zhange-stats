@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.checkin import CheckinLogOut, CheckinResultItem, CheckinResponse
+from app.schemas.checkin import CheckinAwardItem, CheckinLogOut, CheckinResultItem, CheckinResponse
 
 
 class MihoyoBindSmsSendRequest(BaseModel):
@@ -101,12 +101,24 @@ class MihoyoExchangeItemOut(BaseModel):
     exchanged_count: int = 0
     next_exchange_time: str | None = None
     game_biz: str = ""
+    game_code: str = ""
     game_name: str = ""
+
+
+class MihoyoExchangeRoleOut(BaseModel):
+    game_biz: str
+    game_code: str
+    game_name: str = ""
+    role_uid: str
+    role_name: str = ""
+    region: str = ""
+    channel_name: str = ""
 
 
 class MihoyoExchangeShopOut(BaseModel):
     points: int = 0
     items: list[MihoyoExchangeItemOut] = Field(default_factory=list)
+    roles: list[MihoyoExchangeRoleOut] = Field(default_factory=list)
 
 
 class MihoyoExchangeRequest(BaseModel):
@@ -140,3 +152,26 @@ class MihoyoPointsLogOut(BaseModel):
     total: int = 0
     page: int = 1
     page_size: int = 50
+
+
+class MihoyoAttendanceDayOut(BaseModel):
+    """签到周期第 N 天（非公历日期）。"""
+
+    day: int
+    claimed: bool
+    awards: list[CheckinAwardItem] = Field(default_factory=list)
+
+
+class MihoyoAttendanceCalendarOut(BaseModel):
+    game_code: str
+    game_name: str
+    uid: str
+    role_name: str
+    claimed_days: int = 0
+    total_days: int = 0
+    has_today_claim: bool = False
+    progress_reliable: bool = True
+    days: list[MihoyoAttendanceDayOut] = Field(default_factory=list)
+    roles: list[MihoyoRoleOut] = Field(default_factory=list)
+    synced_at: str | None = None
+    stale: bool = False

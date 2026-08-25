@@ -57,10 +57,13 @@ import {
   joinMinecraftPath,
   parentMinecraftPath,
 } from "./minecraftUi";
+import {
+  MinecraftTextFileFormModal,
+  type MinecraftTextFileEditorValues,
+} from "./MinecraftTextFileEditor";
 
 type NameForm = { name: string };
 type RenameForm = { dest: string };
-type EditorForm = { name: string; content: string };
 type ChmodForm = { mode: string };
 type PullForm = { url: string; filename: string };
 type CompressForm = { archive_name: string; extension: "zip" | "tar.gz" };
@@ -93,7 +96,7 @@ export function MinecraftFileManager() {
   const [compressOpen, setCompressOpen] = useState(false);
   const [folderForm] = Form.useForm<NameForm>();
   const [renameForm] = Form.useForm<RenameForm>();
-  const [editorForm] = Form.useForm<EditorForm>();
+  const [editorForm] = Form.useForm<MinecraftTextFileEditorValues>();
   const [chmodForm] = Form.useForm<ChmodForm>();
   const [pullForm] = Form.useForm<PullForm>();
   const [compressForm] = Form.useForm<CompressForm>();
@@ -583,35 +586,15 @@ export function MinecraftFileManager() {
         </Form>
       </Modal>
 
-      <Modal
+      <MinecraftTextFileFormModal
         title={editor?.mode === "create" ? "新建文件" : `编辑 ${editor?.name || ""}`}
         open={Boolean(editor)}
-        width={840}
-        okText="保存"
+        nameDisabled={editor?.mode === "edit"}
         confirmLoading={saveEditor.isPending}
+        form={editorForm}
         onCancel={() => setEditor(null)}
         onOk={() => saveEditor.mutate()}
-      >
-        <Form form={editorForm} layout="vertical">
-          <Form.Item
-            name="name"
-            label="文件名"
-            rules={[{ required: true, message: "请输入文件名" }]}
-          >
-            <Input disabled={editor?.mode === "edit"} placeholder="eula.txt" />
-          </Form.Item>
-          <Form.Item name="content" label="内容">
-            <Input.TextArea
-              rows={18}
-              style={{
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                fontSize: 13,
-              }}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+      />
 
       <Modal
         title="修改权限"

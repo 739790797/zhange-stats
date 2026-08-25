@@ -1,20 +1,22 @@
 # 战鸽数据 · Zhange Stats
 
-**v0.2.39** — 生产应急更新脚本 + 迁移自愈（修复 v0.2.37 卡死）。
+圈子成员站：Steam 游玩统计、多平台签到 / 养成盒，以及塔科夫 / Minecraft 攻略与服务。
 
 ## 功能
 
-- 邮箱注册 / 登录（JWT）；管理员与普通用户；支持 QQ 互联登录 / 绑定
-- Steam OpenID 绑定、自定义头像、Steam 日历（日时间轴 + 周/月/年热力；站内用户互看）
-- 我的日常：本人各平台签到任务与日志；管理端任务配置按平台 / 游戏 / 任务级联开关
-- 管理端：用户 / 集成密钥（含 NapCat、Pelican、Minecraft RCON）/ QQ 群 / 邮箱 / 可配置定时任务 / **系统更新**
-- **游戏**：逃离塔科夫攻略站（全站搜索、物品分类、任务 / 商人 / BOSS、Tarkov Tracker 进度）；弹药穿透对照与枪械总表（定时自 tarkov.dev 同步）；**Minecraft 单服**（Pelican 代操：服况、启停、开服选型与 Egg 剧本、模组/配置覆盖）
-- 森空岛绑定与每日自动签到（明日方舟、明日方舟：终末地）
-- 明日方舟干员盒子对比（多渠道服、练度悬浮、日更缓存）；终末地盒子 raw 缓存；开源图鉴同步
-- 塔吉多绑定与每日自动签到（社区 APP + 异环 / 幻塔）；社区每日任务与兑换
-- 追放社区绑定、签到、每日任务与兑换
-- 库街区绑定与每日自动签到（社区 + 鸣潮 / 战双）；兑换；鸣潮资料卡（roleBox raw 缓存）
-- 生产（LXC）：管理端一键从 GitHub Release 更新代码与预构建前端
+- **账号**：邮箱注册 / 登录，支持 QQ 互联；管理员与普通用户
+- **Steam**：绑定账号与自定义头像；日时间轴 + 周/月/年热力日历，站内成员互看
+- **我的日常**：汇总各平台签到任务与日志
+- **签到平台**（绑定后手动 / 定时自动签到；部分支持兑换与养成盒）
+  - 森空岛：明日方舟、明日方舟：终末地；干员盒子对比
+  - 塔吉多：社区 + 异环 / 幻塔；每日任务与兑换
+  - 库街区：社区 + 鸣潮 / 战双；兑换、鸣潮资料卡
+  - 米游社：社区 + 原神 / 崩坏3 / 崩坏2 / 星铁 / 绝区零；兑换
+  - 追放：社区签到、每日任务与兑换
+- **游戏**
+  - 逃离塔科夫：物品 / 任务 / 商人 / BOSS / 地图攻略，弹药与枪械表，Tarkov Tracker 进度
+  - Minecraft：圈子单服代操（服况、启停、开服选型、模组 / 配置）
+- **管理端**：用户、任务配置、定时任务、集成密钥、QQ 群、邮箱、系统更新
 
 ## 技术栈
 
@@ -127,9 +129,10 @@ users 1 ── 1 members ── * play_sessions / presence_segments
                                          └── * exastris_box_raws
                       └── 0..1 exilium_binds ── * exilium_checkin_logs
                       └── 0..1 kujiequ_binds ── * kujiequ_checkin_logs
-                      └── 0..1 mihoyo_binds ── * mihoyo_checkin_logs
                                          └── * kujiequ_attendance_raws
                                          └── * kujiequ_ww_box_raws
+                      └── 0..1 mihoyo_binds ── * mihoyo_checkin_logs
+                                         └── * mihoyo_attendance_raws
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta · game_schedule_raws
@@ -174,7 +177,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（全站最新一份；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
 | `tarkov_guides_meta` | 藏身处与交换同步元数据（单行，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
-| `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
+| `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组草稿预设（按 tool / preset 存正文，出厂模板仍在代码里）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON 性能采样（约 10 秒一条：TPS/MSPT，以及可选的实体总数 / 已加载区块；总览折线按时间窗分桶，空桶表示停采） |
 | `minecraft_presence_segments` | Minecraft 玩家在线/离线片段（总览时间轴）；索引含 `(player_key, started_at)` / `(player_key, ended_at)` |
 | `arknights_box_snapshots` | 明日方舟盒子练度快照（按 member + uid 日更；`payload_json` LONGTEXT） |
@@ -189,6 +192,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_presence_segmen
 | `kujiequ_checkin_logs` | 库街区社区 / 鸣潮 / 战双签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
 | `mihoyo_binds` | 米游社 Cookie/Stoken（加密）；`auto_checkin` 为角色偏好派生摘要 |
 | `mihoyo_checkin_logs` | 米游社社区 / 原神 / 崩坏3 / 星铁 / 绝区零等签到记录（`source` status/action；含 `awards_text` / `awards_json`） |
+| `mihoyo_attendance_raws` | 原神 / 崩坏3 / 星铁 / 绝区零 / 崩坏2 福利签到日历（info + home）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理 |

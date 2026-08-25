@@ -6,6 +6,7 @@ import type {
   MihoyoCheckinResponse,
   MihoyoExchangeResult,
   MihoyoExchangeShop,
+  MihoyoAttendanceCalendar,
   MihoyoQrPoll,
   MihoyoQrStart,
   MihoyoStatus,
@@ -126,6 +127,24 @@ export async function exchangeMihoyoItem(payload: {
     "/mihoyo/exchange",
     payload,
     { timeout: 60000 },
+  );
+  return data;
+}
+
+export async function fetchMihoyoAttendanceCalendar(
+  gameCode: string,
+  roleUid?: string | null,
+  force = false,
+) {
+  const { data } = await client.get<MihoyoAttendanceCalendar>(
+    "/mihoyo/attendance-calendar",
+    {
+      params: {
+        game_code: gameCode,
+        ...(roleUid ? { role_uid: roleUid } : {}),
+        force,
+      },
+    },
   );
   return data;
 }

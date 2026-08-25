@@ -7417,6 +7417,83 @@
         }
       }
     },
+    "/api/mihoyo/attendance-calendar": {
+      "get": {
+        "tags": [
+          "mihoyo"
+        ],
+        "summary": "Mihoyo Attendance Calendar",
+        "description": "游戏福利签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。",
+        "operationId": "mihoyo_attendance_calendar_api_mihoyo_attendance_calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "title": "Game Code"
+            }
+          },
+          {
+            "name": "role_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Uid"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MihoyoAttendanceCalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/napcat/test": {
       "post": {
         "tags": [
@@ -7997,7 +8074,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Catalog",
-        "description": "任务目录：商人 / 地图 / Kappa / 关键词过滤，分页返回。",
+        "description": "任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。",
         "operationId": "guides_tarkov_task_catalog_api_guides_tarkov_tasks_get",
         "security": [
           {
@@ -8120,6 +8197,24 @@
               "minimum": 1,
               "default": 50,
               "title": "Page Size"
+            }
+          },
+          {
+            "name": "layout",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "table",
+              "title": "Layout"
             }
           }
         ],
@@ -10581,6 +10676,462 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/guides/minecraft/mod-tools": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tools",
+        "operationId": "minecraft_mod_tools_api_guides_minecraft_mod_tools_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "跳过短时文件扫描缓存",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "跳过短时文件扫描缓存"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mod-tools/chunky": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Chunky Command",
+        "operationId": "minecraft_chunky_command_api_guides_minecraft_mod_tools_chunky_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftModToolCommandIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolCommandOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/minecraft/mod-tools/{tool_id}/command": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Command",
+        "operationId": "minecraft_mod_tool_command_api_guides_minecraft_mod_tools__tool_id__command_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftModToolExecIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolCommandOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mod-tools/{tool_id}/install": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Install",
+        "operationId": "minecraft_mod_tool_install_api_guides_minecraft_mod_tools__tool_id__install_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MinecraftModToolInstallIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolInstallOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mod-tools/{tool_id}/versions": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Versions",
+        "operationId": "minecraft_mod_tool_versions_api_guides_minecraft_mod_tools__tool_id__versions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolVersionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mod-tools/{tool_id}/config": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Config",
+        "operationId": "minecraft_mod_tool_config_api_guides_minecraft_mod_tools__tool_id__config_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MinecraftModToolPresetIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolPresetApplyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mod-tools/{tool_id}/presets/{preset_id}": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Preset Get",
+        "operationId": "minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          },
+          {
+            "name": "preset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Preset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolPresetDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Preset Put",
+        "operationId": "minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          },
+          {
+            "name": "preset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Preset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftModToolPresetDraftIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolPresetDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/health": {
@@ -16016,6 +16567,110 @@
         "type": "object",
         "title": "MemberProfileUpdate"
       },
+      "MihoyoAttendanceCalendarOut": {
+        "properties": {
+          "game_code": {
+            "type": "string",
+            "title": "Game Code"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name"
+          },
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "claimed_days": {
+            "type": "integer",
+            "title": "Claimed Days",
+            "default": 0
+          },
+          "total_days": {
+            "type": "integer",
+            "title": "Total Days",
+            "default": 0
+          },
+          "has_today_claim": {
+            "type": "boolean",
+            "title": "Has Today Claim",
+            "default": false
+          },
+          "progress_reliable": {
+            "type": "boolean",
+            "title": "Progress Reliable",
+            "default": true
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/MihoyoAttendanceDayOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/MihoyoRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_code",
+          "game_name",
+          "uid",
+          "role_name"
+        ],
+        "title": "MihoyoAttendanceCalendarOut"
+      },
+      "MihoyoAttendanceDayOut": {
+        "properties": {
+          "day": {
+            "type": "integer",
+            "title": "Day"
+          },
+          "claimed": {
+            "type": "boolean",
+            "title": "Claimed"
+          },
+          "awards": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinAwardItem"
+            },
+            "type": "array",
+            "title": "Awards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "claimed"
+        ],
+        "title": "MihoyoAttendanceDayOut",
+        "description": "签到周期第 N 天（非公历日期）。"
+      },
       "MihoyoBindPasswordRequest": {
         "properties": {
           "account": {
@@ -16313,6 +16968,11 @@
             "title": "Game Biz",
             "default": ""
           },
+          "game_code": {
+            "type": "string",
+            "title": "Game Code",
+            "default": ""
+          },
           "game_name": {
             "type": "string",
             "title": "Game Name",
@@ -16396,6 +17056,49 @@
         "type": "object",
         "title": "MihoyoExchangeResultOut"
       },
+      "MihoyoExchangeRoleOut": {
+        "properties": {
+          "game_biz": {
+            "type": "string",
+            "title": "Game Biz"
+          },
+          "game_code": {
+            "type": "string",
+            "title": "Game Code"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name",
+            "default": ""
+          },
+          "role_uid": {
+            "type": "string",
+            "title": "Role Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name",
+            "default": ""
+          },
+          "region": {
+            "type": "string",
+            "title": "Region",
+            "default": ""
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_biz",
+          "game_code",
+          "role_uid"
+        ],
+        "title": "MihoyoExchangeRoleOut"
+      },
       "MihoyoExchangeShopOut": {
         "properties": {
           "points": {
@@ -16409,6 +17112,13 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/MihoyoExchangeRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
           }
         },
         "type": "object",
@@ -16835,6 +17545,146 @@
           "message"
         ],
         "title": "MinecraftApplyOut"
+      },
+      "MinecraftChunkyStatusOut": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "idle"
+          },
+          "world": {
+            "type": "string",
+            "title": "World",
+            "default": ""
+          },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "default": ""
+          },
+          "pattern": {
+            "type": "string",
+            "title": "Pattern",
+            "default": ""
+          },
+          "center_x": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Center X"
+          },
+          "center_z": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Center Z"
+          },
+          "radius": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "chunks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunks"
+          },
+          "chunks_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunks Total"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "eta": {
+            "type": "string",
+            "title": "Eta",
+            "default": ""
+          },
+          "chunk_x": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk X"
+          },
+          "chunk_z": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Z"
+          },
+          "needs_confirm": {
+            "type": "boolean",
+            "title": "Needs Confirm",
+            "default": false
+          },
+          "raw": {
+            "type": "string",
+            "title": "Raw",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftChunkyStatusOut"
       },
       "MinecraftEggCurrentOut": {
         "properties": {
@@ -17655,6 +18505,116 @@
         ],
         "title": "MinecraftLoaderVersionOut"
       },
+      "MinecraftModCommandArgOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "token"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModCommandOptionOut"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "min_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Value"
+          },
+          "max_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Value"
+          },
+          "optional": {
+            "type": "boolean",
+            "title": "Optional",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftModCommandArgOut"
+      },
+      "MinecraftModCommandNodeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm",
+            "default": ""
+          },
+          "show_in_bar": {
+            "type": "boolean",
+            "title": "Show In Bar",
+            "default": true
+          },
+          "args": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModCommandArgOut"
+            },
+            "type": "array",
+            "title": "Args"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftModCommandNodeOut"
+      },
+      "MinecraftModCommandOptionOut": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "MinecraftModCommandOptionOut"
+      },
       "MinecraftModPinIn": {
         "properties": {
           "project_id": {
@@ -17784,6 +18744,697 @@
           "hits"
         ],
         "title": "MinecraftModSearchOut"
+      },
+      "MinecraftModToolCatalogOut": {
+        "properties": {
+          "loader": {
+            "type": "string",
+            "title": "Loader",
+            "default": ""
+          },
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version",
+            "default": ""
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": ""
+          },
+          "installed_version": {
+            "type": "string",
+            "title": "Installed Version",
+            "default": ""
+          },
+          "latest_version": {
+            "type": "string",
+            "title": "Latest Version",
+            "default": ""
+          },
+          "latest_filename": {
+            "type": "string",
+            "title": "Latest Filename",
+            "default": ""
+          },
+          "compatible": {
+            "type": "boolean",
+            "title": "Compatible",
+            "default": false
+          },
+          "update_available": {
+            "type": "boolean",
+            "title": "Update Available",
+            "default": false
+          },
+          "target_directory": {
+            "type": "string",
+            "title": "Target Directory",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolCatalogOut"
+      },
+      "MinecraftModToolCommandIn": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "progress",
+              "selection",
+              "start",
+              "pause",
+              "continue",
+              "cancel",
+              "confirm",
+              "spawn",
+              "worldborder",
+              "apply"
+            ],
+            "title": "Action"
+          },
+          "world": {
+            "type": "string",
+            "title": "World",
+            "default": ""
+          },
+          "shape": {
+            "type": "string",
+            "title": "Shape",
+            "default": ""
+          },
+          "pattern": {
+            "type": "string",
+            "title": "Pattern",
+            "default": ""
+          },
+          "center_x": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Center X"
+          },
+          "center_z": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Center Z"
+          },
+          "radius": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "MinecraftModToolCommandIn"
+      },
+      "MinecraftModToolCommandOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": ""
+          },
+          "commands": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Commands"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "raw": {
+            "type": "string",
+            "title": "Raw",
+            "default": ""
+          },
+          "status": {
+            "$ref": "#/components/schemas/MinecraftChunkyStatusOut"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolCommandOut"
+      },
+      "MinecraftModToolExecIn": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "title": "Command Id"
+          },
+          "args": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Args"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id"
+        ],
+        "title": "MinecraftModToolExecIn"
+      },
+      "MinecraftModToolFileOut": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "MinecraftModToolFileOut"
+      },
+      "MinecraftModToolInstallIn": {
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "title": "Version Id",
+            "default": ""
+          },
+          "preset_id": {
+            "type": "string",
+            "title": "Preset Id",
+            "default": ""
+          },
+          "restart": {
+            "type": "boolean",
+            "title": "Restart",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolInstallIn"
+      },
+      "MinecraftModToolInstallOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "tool_id": {
+            "type": "string",
+            "title": "Tool Id",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": ""
+          },
+          "version_number": {
+            "type": "string",
+            "title": "Version Number",
+            "default": ""
+          },
+          "config_path": {
+            "type": "string",
+            "title": "Config Path",
+            "default": ""
+          },
+          "restarted": {
+            "type": "boolean",
+            "title": "Restarted",
+            "default": false
+          },
+          "restart_required": {
+            "type": "boolean",
+            "title": "Restart Required",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolInstallOut"
+      },
+      "MinecraftModToolLinksOut": {
+        "properties": {
+          "modrinth_url": {
+            "type": "string",
+            "title": "Modrinth Url",
+            "default": ""
+          },
+          "curseforge_url": {
+            "type": "string",
+            "title": "Curseforge Url",
+            "default": ""
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url",
+            "default": ""
+          },
+          "github_url": {
+            "type": "string",
+            "title": "Github Url",
+            "default": ""
+          },
+          "mcmod_url": {
+            "type": "string",
+            "title": "Mcmod Url",
+            "default": ""
+          },
+          "icon_url": {
+            "type": "string",
+            "title": "Icon Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolLinksOut"
+      },
+      "MinecraftModToolOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "present": {
+            "type": "boolean",
+            "title": "Present",
+            "default": false
+          },
+          "loaded": {
+            "type": "boolean",
+            "title": "Loaded",
+            "default": false
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolFileOut"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "icon_url": {
+            "type": "string",
+            "title": "Icon Url",
+            "default": ""
+          },
+          "links": {
+            "$ref": "#/components/schemas/MinecraftModToolLinksOut"
+          },
+          "catalog": {
+            "$ref": "#/components/schemas/MinecraftModToolCatalogOut"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetOut"
+            },
+            "type": "array",
+            "title": "Presets"
+          },
+          "config_directory": {
+            "type": "string",
+            "title": "Config Directory",
+            "default": ""
+          },
+          "command_tree": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModCommandNodeOut"
+            },
+            "type": "array",
+            "title": "Command Tree"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftModToolOut"
+      },
+      "MinecraftModToolPresetApplyOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "tool_id": {
+            "type": "string",
+            "title": "Tool Id",
+            "default": ""
+          },
+          "preset_id": {
+            "type": "string",
+            "title": "Preset Id",
+            "default": ""
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "factory",
+              "draft"
+            ],
+            "title": "Source",
+            "default": "factory"
+          },
+          "reloaded": {
+            "type": "boolean",
+            "title": "Reloaded",
+            "default": false
+          },
+          "restart_required": {
+            "type": "boolean",
+            "title": "Restart Required",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetApplyOut"
+      },
+      "MinecraftModToolPresetDraftIn": {
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "restore": {
+            "type": "boolean",
+            "title": "Restore",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetDraftIn"
+      },
+      "MinecraftModToolPresetDraftOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "tool_id": {
+            "type": "string",
+            "title": "Tool Id",
+            "default": ""
+          },
+          "preset_id": {
+            "type": "string",
+            "title": "Preset Id",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "factory",
+              "draft"
+            ],
+            "title": "Source",
+            "default": "factory"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetDraftOut"
+      },
+      "MinecraftModToolPresetIn": {
+        "properties": {
+          "preset_id": {
+            "type": "string",
+            "title": "Preset Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetIn"
+      },
+      "MinecraftModToolPresetOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftModToolPresetOut"
+      },
+      "MinecraftModToolVersionsOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "tool_id": {
+            "type": "string",
+            "title": "Tool Id",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "modrinth"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader",
+            "default": ""
+          },
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModPinOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolVersionsOut"
+      },
+      "MinecraftModToolsOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "pelican_configured": {
+            "type": "boolean",
+            "title": "Pelican Configured",
+            "default": false
+          },
+          "rcon_configured": {
+            "type": "boolean",
+            "title": "Rcon Configured",
+            "default": false
+          },
+          "rcon_connected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rcon Connected"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader",
+            "default": ""
+          },
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "worlds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Worlds"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolOut"
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "chunky": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinecraftChunkyStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolsOut"
       },
       "MinecraftModUpdateOut": {
         "properties": {
@@ -23987,6 +25638,13 @@
             ],
             "title": "Progress Status"
           },
+          "task_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
+            },
+            "type": "array",
+            "title": "Task Requirements"
+          },
           "source": {
             "anyOf": [
               {
@@ -24004,13 +25662,6 @@
             },
             "type": "array",
             "title": "Objectives"
-          },
-          "task_requirements": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
-            },
-            "type": "array",
-            "title": "Task Requirements"
           },
           "successor_tasks": {
             "items": {
@@ -24035,6 +25686,9 @@
             },
             "type": "array",
             "title": "Needed Keys"
+          },
+          "neighborhood": {
+            "$ref": "#/components/schemas/TarkovTaskNeighborhoodOut"
           },
           "restartable": {
             "type": "boolean",
@@ -24174,6 +25828,13 @@
               }
             ],
             "title": "Progress Status"
+          },
+          "task_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
+            },
+            "type": "array",
+            "title": "Task Requirements"
           }
         },
         "type": "object",
@@ -24236,6 +25897,88 @@
           "map"
         ],
         "title": "TarkovTaskNeededKeysOut"
+      },
+      "TarkovTaskNeighborhoodEdgeOut": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id"
+        ],
+        "title": "TarkovTaskNeighborhoodEdgeOut"
+      },
+      "TarkovTaskNeighborhoodNodeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "hop": {
+            "type": "integer",
+            "title": "Hop",
+            "default": 0
+          },
+          "progress_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovTaskNeighborhoodNodeOut"
+      },
+      "TarkovTaskNeighborhoodOut": {
+        "properties": {
+          "current_id": {
+            "type": "string",
+            "title": "Current Id",
+            "default": ""
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNeighborhoodNodeOut"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNeighborhoodEdgeOut"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskNeighborhoodOut"
       },
       "TarkovTaskObjectiveOut": {
         "properties": {

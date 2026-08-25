@@ -11,8 +11,6 @@ import { apiError } from "@/lib/apiError";
 import {
   TARKOV_TRADERS,
   tarkovTaskHref,
-  traderIconUrl,
-  traderPortraitUrl,
 } from "@/lib/tarkovHomeNav";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import {
@@ -20,7 +18,9 @@ import {
   tarkovTaskProgressLabel,
   useTarkovTaskMineMode,
 } from "@/lib/tarkovTaskProgress";
+import { TarkovTaskChains } from "@/components/guides/tarkov/TarkovTaskChains";
 import { TarkovTaskProgressSwitch } from "@/components/guides/tarkov/TarkovTaskProgressSwitch";
+import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalog from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovTasksPanel.module.css";
@@ -38,46 +38,14 @@ function traderFilterLabel(slug: string, apiName: string): {
   return { english: apiName, chinese: "" };
 }
 
-function TraderThumb({
-  slug,
-  size = 40,
-  title,
-}: {
-  slug: string;
-  size?: number;
-  title?: string;
-}) {
-  const [kind, setKind] = useState<"icon" | "portrait" | "none">("icon");
-  if (kind === "none") {
-    return (
-      <span
-        className={styles.traderThumbFallback}
-        style={{ width: size, height: size }}
-        title={title}
-      />
-    );
-  }
-  return (
-    <img
-      className={styles.traderThumb}
-      src={kind === "icon" ? traderIconUrl(slug) : traderPortraitUrl(slug)}
-      alt=""
-      width={size}
-      height={size}
-      title={title}
-      onError={() => setKind((prev) => (prev === "icon" ? "portrait" : "none"))}
-    />
-  );
-}
-
-const PAGE_SIZE_DEFAULT = 20;
-const PAGE_SIZE_OPTIONS = [20, 50, 100];
-
 function factionSuffix(value: string | undefined): string {
   const v = (value || "").trim();
   if (!v || v === "Any") return "";
   return ` (${v})`;
 }
+
+const PAGE_SIZE_DEFAULT = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 export function TarkovTasksPanel() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -85,6 +53,7 @@ export function TarkovTasksPanel() {
   const pstatus = (searchParams.get("pstatus") || "").trim();
   const q = (searchParams.get("q") || "").trim();
   const kappa = searchParams.get("kappa") === "1";
+  const view = searchParams.get("view") === "table" ? "table" : "chain";
   const pageNo = readPositiveInt(searchParams.get("page"), 1);
   const pageSize = readAllowedInt(
     searchParams.get("pageSize"),
@@ -133,6 +102,7 @@ export function TarkovTasksPanel() {
       mine,
       statusFilter,
       kappa,
+      view,
     ],
     queryFn: () =>
       fetchTarkovTasks({
@@ -146,6 +116,7 @@ export function TarkovTasksPanel() {
           mine && statusFilter && statusFilter !== "all"
             ? statusFilter
             : undefined,
+        layout: view === "chain" ? "chain" : "table",
       }),
     staleTime: 5 * 60_000,
     retry: 1,
@@ -178,6 +149,14 @@ export function TarkovTasksPanel() {
     setSearchParams(next, { replace: true });
   };
 
+  const setView = (nextView: "chain" | "table") => {
+    const next = new URLSearchParams(searchParams);
+    if (nextView === "table") next.set("view", "table");
+    else next.delete("view");
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
+
   const onTableChange: TableProps<TarkovTaskListItem>["onChange"] = (
     _pagination,
     filters,
@@ -203,7 +182,7 @@ export function TarkovTasksPanel() {
         return (
           <span className={styles.taskCell}>
             {row.trader_slug ? (
-              <TraderThumb slug={row.trader_slug} size={40} title={traderName} />
+              <TarkovTraderThumb slug={row.trader_slug} size={40} title={traderName} />
             ) : (
               <span className={styles.traderThumbFallback} />
             )}
@@ -327,6 +306,26 @@ export function TarkovTasksPanel() {
               setSearchParams(next, { replace: true });
             }}
           />
+          <div className={styles.viewBar} role="radiogroup" aria-label="任务展示">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={view === "chain"}
+              className={`${styles.viewBtn} ${view === "chain" ? styles.viewBtnOn : ""}`}
+              onClick={() => setView("chain")}
+            >
+              任务线
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={view === "table"}
+              className={`${styles.viewBtn} ${view === "table" ? styles.viewBtnOn : ""}`}
+              onClick={() => setView("table")}
+            >
+              查找
+            </button>
+          </div>
           <label className={styles.toggle}>
             <input
               type="checkbox"
@@ -350,7 +349,7 @@ export function TarkovTasksPanel() {
                   className={`${styles.traderBtn} ${selected ? styles.traderBtnOn : ""}`}
                   onClick={() => setTraderFilter(item.slug)}
                 >
-                  <TraderThumb slug={item.slug} size={40} />
+                  <TarkovTraderThumb slug={item.slug} size={40} />
                 </button>
               );
             })}
@@ -371,6 +370,35 @@ export function TarkovTasksPanel() {
             placeholder="按任务名称筛选"
             aria-label="搜索任务"
           />
+          {mine && view === "chain" ? (
+            <div className={styles.statusBar} role="radiogroup" aria-label="按进度筛选">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={!pstatus || pstatus === "all"}
+                className={`${styles.viewBtn} ${
+                  !pstatus || pstatus === "all" ? styles.viewBtnOn : ""
+                }`}
+                onClick={() => setStatusFilter("all")}
+              >
+                全部
+              </button>
+              {TARKOV_TASK_PROGRESS_FILTERS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={pstatus === item.id}
+                  className={`${styles.viewBtn} ${
+                    pstatus === item.id ? styles.viewBtnOn : ""
+                  }`}
+                  onClick={() => setStatusFilter(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -392,37 +420,49 @@ export function TarkovTasksPanel() {
       ) : null}
 
       <div className={catalog.panel}>
-        <Table<TarkovTaskListItem>
-          className={tableStyles.table}
-          size="small"
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
-          loading={catalogQuery.isFetching}
-          onChange={onTableChange}
-          pagination={{
-            current: pageNo,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-            showTotal: (count, range) => `${range[0]}–${range[1]} / ${count}`,
-            onChange: (nextPage, nextSize) => {
-              const params = new URLSearchParams(searchParams);
-              if (nextPage <= 1) params.delete("page");
-              else params.set("page", String(nextPage));
-              if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
-              else params.set("pageSize", String(nextSize));
-              setSearchParams(params, { replace: true });
-            },
-          }}
-          scroll={{ x: 720 }}
-          locale={{
-            emptyText: "当前筛选下无任务",
-            filterReset: "全部",
-            filterConfirm: "筛选",
-          }}
-        />
+        {view === "chain" ? (
+          <TarkovTaskChains
+            items={rows}
+            traders={traders.map((item) => ({
+              slug: item.slug,
+              name: item.name,
+            }))}
+            mine={mine}
+            showTraderHead={allOn}
+          />
+        ) : (
+          <Table<TarkovTaskListItem>
+            className={tableStyles.table}
+            size="small"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={catalogQuery.isFetching}
+            onChange={onTableChange}
+            pagination={{
+              current: pageNo,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+              showTotal: (count, range) => `${range[0]}–${range[1]} / ${count}`,
+              onChange: (nextPage, nextSize) => {
+                const params = new URLSearchParams(searchParams);
+                if (nextPage <= 1) params.delete("page");
+                else params.set("page", String(nextPage));
+                if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
+                else params.set("pageSize", String(nextSize));
+                setSearchParams(params, { replace: true });
+              },
+            }}
+            scroll={{ x: 720 }}
+            locale={{
+              emptyText: "当前筛选下无任务",
+              filterReset: "全部",
+              filterConfirm: "筛选",
+            }}
+          />
+        )}
       </div>
     </div>
   );

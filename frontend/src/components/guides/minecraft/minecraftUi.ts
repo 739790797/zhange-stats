@@ -471,7 +471,15 @@ export function powerLabel(state: string | null | undefined) {
 
 export function loaderLabel(loader: string | null | undefined) {
   const hit = LOADERS.find((row) => row.value === loader);
-  return hit?.label || loader || "—";
+  if (hit) return hit.label;
+  const extra: Record<string, string> = {
+    paper: "Paper",
+    purpur: "Purpur",
+    spigot: "Spigot",
+    bukkit: "Bukkit",
+  };
+  const key = (loader || "").trim().toLowerCase();
+  return extra[key] || loader || "—";
 }
 
 export function isServerLive(state: string | null | undefined) {
@@ -556,11 +564,38 @@ export function joinMinecraftPath(directory: string, name: string) {
   return `${prefix}/${name}`;
 }
 
+export function normalizeMinecraftPath(path: string) {
+  const parts = (path || "/").replace(/\\/g, "/").split("/").filter(Boolean);
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "." || part === "") continue;
+    if (part === "..") {
+      out.pop();
+      continue;
+    }
+    out.push(part);
+  }
+  return out.length ? `/${out.join("/")}` : "/";
+}
+
 export function parentMinecraftPath(directory: string) {
   if (!directory || directory === "/") return "/";
   const parts = directory.split("/").filter(Boolean);
   parts.pop();
   return parts.length ? `/${parts.join("/")}` : "/";
+}
+
+export function isMinecraftPathWithin(root: string, path: string) {
+  const base = normalizeMinecraftPath(root);
+  const target = normalizeMinecraftPath(path);
+  if (base === "/") return true;
+  return target === base || target.startsWith(`${base}/`);
+}
+
+export function parentMinecraftPathWithin(root: string, directory: string) {
+  const parent = parentMinecraftPath(directory);
+  if (!isMinecraftPathWithin(root, parent)) return normalizeMinecraftPath(root);
+  return parent;
 }
 
 export function isMinecraftArchive(name: string) {

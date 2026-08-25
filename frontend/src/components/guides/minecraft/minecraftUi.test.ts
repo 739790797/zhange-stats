@@ -14,11 +14,15 @@ import {
   isMinecraftTextFile,
   joinHints,
   joinMinecraftPath,
+  loaderLabel,
   minecraftHeadUrl,
   modLoaderOfCore,
+  normalizeMinecraftPath,
   occupancyPercent,
   overviewModTitle,
   parentMinecraftPath,
+  parentMinecraftPathWithin,
+  isMinecraftPathWithin,
   pickSelectedEggId,
   pingBadge,
   setupIcon,
@@ -34,6 +38,24 @@ describe("minecraft file paths", () => {
     expect(parentMinecraftPath("/mods/config")).toBe("/mods");
     expect(parentMinecraftPath("/mods")).toBe("/");
     expect(parentMinecraftPath("/")).toBe("/");
+  });
+
+  it("keeps relative paths inside a config root", () => {
+    expect(normalizeMinecraftPath("/config/chunky/../chunky")).toBe(
+      "/config/chunky",
+    );
+    expect(isMinecraftPathWithin("/config/chunky", "/config/chunky/config.yml")).toBe(
+      true,
+    );
+    expect(isMinecraftPathWithin("/config/chunky", "/config/other.yml")).toBe(
+      false,
+    );
+    expect(parentMinecraftPathWithin("/config/chunky", "/config/chunky/tasks")).toBe(
+      "/config/chunky",
+    );
+    expect(parentMinecraftPathWithin("/config/chunky", "/config/chunky")).toBe(
+      "/config/chunky",
+    );
   });
 
   it("detects editable text and archives", () => {
@@ -55,6 +77,12 @@ describe("minecraft file paths", () => {
     ).toBe(false);
     expect(isMinecraftArchive("world.tar.gz")).toBe(true);
     expect(isMinecraftArchive("eula.txt")).toBe(false);
+  });
+
+  it("labels loaders including paper-family aliases", () => {
+    expect(loaderLabel("neoforge")).toBe("NeoForge");
+    expect(loaderLabel("paper")).toBe("Paper");
+    expect(loaderLabel("")).toBe("—");
   });
 });
 

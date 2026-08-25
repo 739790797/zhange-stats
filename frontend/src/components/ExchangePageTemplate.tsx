@@ -2,12 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { apiError } from "@/lib/apiError";
 import { Alert, Card, Empty, Space, Typography } from "antd";
 import type { ReactNode } from "react";
+import {
+  bindTokenErrorMessage,
+  isBindTokenBroken,
+} from "@/lib/checkinStatus";
 
 /** 兑换页绑定门禁所需的最小 status 面 */
 export type ExchangeBindStatus = {
   bound: boolean;
   token_ok?: boolean | null;
   token_error?: string | null;
+  today_results?: Array<{
+    status?: string | null;
+    message?: string | null;
+  }>;
 };
 
 export type ExchangePageTemplateProps<TShop> = {
@@ -71,7 +79,7 @@ export function ExchangePageTemplate<TShop>({
   });
 
   const bound = Boolean(statusQuery.data?.bound);
-  const tokenBroken = bound && statusQuery.data?.token_ok === false;
+  const tokenBroken = isBindTokenBroken(statusQuery.data);
   const canUse = bound && !tokenBroken;
 
   const shopQuery = useQuery({
@@ -96,11 +104,12 @@ export function ExchangePageTemplate<TShop>({
               ? `${bindName}凭证可能已失效`
               : unboundMessage || `尚未绑定${bindName}`
           }
-          description={
-            tokenBroken
-              ? statusQuery.data?.token_error || "请重新绑定后再兑换。"
-              : undefined
-          }
+            description={
+              tokenBroken
+                ? bindTokenErrorMessage(statusQuery.data) ||
+                  "请重新绑定后再兑换。"
+                : undefined
+            }
         />
         <Card>{bindPanel}</Card>
         {bindFooter}

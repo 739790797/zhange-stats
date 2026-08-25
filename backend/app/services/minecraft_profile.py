@@ -83,6 +83,7 @@ def get_or_create_profile(db: Session) -> MinecraftServerProfile:
         startup="",
         mods_json=[],
         overrides_json={},
+        mod_presets_json={},
     )
     db.add(row)
     db.commit()

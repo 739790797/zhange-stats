@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from app.services.mihoyo_client import (
     MihoyoApiError,
     MihoyoCredentials,
+    MYS_VERSION,
     REQUEST_TIMEOUT,
     USER_AGENT,
     bind_with_cookie,
@@ -90,6 +91,11 @@ def _parse_geetest(raw: str | dict[str, Any] | None) -> dict[str, Any] | None:
     return data
 
 
+# 通行证风控：-3101 需极验，结果经 x-rpc-aigis 回传
+AIGIS_NEED_CODE = -3101
+SMS_ACTION_TYPE = "login_by_mobile_captcha"
+
+
 def _account_headers() -> dict[str, str]:
     return {
         "Accept": "application/json, text/plain, */*",
@@ -111,6 +117,31 @@ def _passport_headers(*, device_id: str) -> dict[str, str]:
         "x-rpc-device_id": device_id,
         "x-rpc-device_fp": device_id[:13],
     }
+
+
+def _login_passport_headers(*, device_id: str, aigis: str | None = None) -> dict[str, str]:
+    """短信/密码登录：对齐 TeyvatGuide / Snap Hutao 的 app 通行证头。"""
+    return {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
+        "Origin": "https://user.miyoushe.com",
+        "Referer": "https://user.miyoushe.com/",
+        "x-rpc-aigis": aigis or "",
+        "x-rpc-app_id": APP_ID,
+        "x-rpc-app_version": MYS_VERSION,
+        "x-rpc-client_type": "2",
+        "x-rpc-device_id": device_id,
+        "x-rpc-device_fp": device_id[:13],
+        "x-rpc-device_name": "Android",
+        "x-rpc-device_model": "Unspecified",
+        "x-rpc-game_biz": "bbs_cn",
+        "x-rpc-sdk_version": "2.16.0",
+    }
+
+
+def _stable_device_id(seed: str) -> str:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"zhange-mihoyo:{seed.strip()}").hex
 
 
 def _qr_passport_headers(*, device_id: str) -> dict[str, str]:
@@ -175,16 +206,187 @@ def _passport_retcode(payload: dict[str, Any], *, default: int = -1) -> int:
         return default
 
 
+def _extract_error_text(item: Any) -> str:
+    """从通行证错误体抽出可读文案，避免把整段 JSON 甩到前端。"""
+    if item is None:
+        return ""
+    if isinstance(item, str):
+        text = item.strip()
+        if not text:
+            return ""
+        if text[:1] in "{[":
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                return text
+            nested = _extract_error_text(parsed)
+            return nested or text
+        return text
+    if isinstance(item, dict):
+        for key in ("msg", "message", "info"):
+            val = item.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        nested = item.get("data")
+        if nested is not None and nested is not item:
+            return _extract_error_text(nested)
+    return ""
+
+
+def _humanize_passport_error(payload: dict[str, Any]) -> str:
+    for item in (payload.get("message"), payload.get("msg"), payload.get("data"), payload):
+        text = _extract_error_text(item)
+        if text:
+            return text
+    return "通行证请求失败"
+
+
+def _parse_aigis_challenge(raw: str | None) -> tuple[str, str]:
+    """解析响应头 x-rpc-aigis → (session_id, captcha_id)。"""
+    text = (raw or "").strip()
+    if not text:
+        return "", ""
+    try:
+        info = json.loads(text)
+    except json.JSONDecodeError:
+        return "", ""
+    if not isinstance(info, dict):
+        return "", ""
+    session_id = str(info.get("session_id") or "").strip()
+    data_raw = info.get("data")
+    data: dict[str, Any] = {}
+    if isinstance(data_raw, dict):
+        data = data_raw
+    elif isinstance(data_raw, str) and data_raw.strip():
+        try:
+            parsed = json.loads(data_raw)
+            if isinstance(parsed, dict):
+                data = parsed
+        except json.JSONDecodeError:
+            data = {}
+    captcha_id = str(data.get("gt") or data.get("captcha_id") or "").strip()
+    return session_id, captcha_id
+
+
+def _build_aigis_header(session_id: str, geetest: dict[str, Any]) -> str:
+    payload = json.dumps(geetest, ensure_ascii=False, separators=(",", ":"))
+    encoded = base64.b64encode(payload.encode("utf-8")).decode("ascii")
+    return f"{session_id};{encoded}"
+
+
+def _aigis_from_geetest(
+    geetest: str | dict[str, Any] | None,
+    mmt_key: str | None,
+) -> str | None:
+    gt_data = _parse_geetest(geetest)
+    session_id = (mmt_key or "").strip()
+    if not gt_data or not session_id:
+        return None
+    return _build_aigis_header(session_id, gt_data)
+
+
+def _raise_need_geetest_or_error(resp: httpx.Response, payload: dict[str, Any]) -> None:
+    retcode = _passport_retcode(payload, default=-1)
+    if retcode == AIGIS_NEED_CODE:
+        session_id, captcha_id = _parse_aigis_challenge(resp.headers.get("x-rpc-aigis"))
+        if session_id and captcha_id:
+            raise MihoyoNeedGeetest(captcha_id=captcha_id, mmt_key=session_id)
+        raise MihoyoApiError(
+            _humanize_passport_error(payload) or "需要人机验证，请稍后重试",
+            code=retcode,
+        )
+    if retcode != 0:
+        raise MihoyoApiError(_humanize_passport_error(payload), code=retcode)
+
+
+def _passport_post(
+    url: str,
+    *,
+    device_id: str,
+    body: dict[str, Any],
+    aigis: str | None = None,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    headers = _login_passport_headers(device_id=device_id, aigis=aigis)
+    try:
+        with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
+            resp = client.post(url, headers=headers, json=body)
+            try:
+                payload = resp.json()
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise MihoyoApiError("通行证返回异常") from exc
+            set_cookies = _cookies_from_response(resp)
+    except MihoyoApiError:
+        raise
+    except httpx.HTTPError as exc:
+        raise MihoyoApiError("通行证请求失败，请稍后重试") from exc
+    if not isinstance(payload, dict):
+        raise MihoyoApiError("通行证返回异常")
+    _raise_need_geetest_or_error(resp, payload)
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    return data, set_cookies
+
+
+def _creds_from_passport_login(
+    *, data: dict[str, Any], set_cookies: dict[str, str]
+) -> MihoyoCredentials:
+    """短信/密码登录成功：token + user_info，结构接近扫码确认。"""
+    cookies = dict(set_cookies)
+    login_ticket = str(data.get("login_ticket") or cookies.get("login_ticket") or "").strip()
+    if login_ticket:
+        cookies.setdefault("login_ticket", login_ticket)
+
+    extra_tokens: list[Any] = []
+    tokens = data.get("tokens") if isinstance(data.get("tokens"), list) else []
+    extra_tokens.extend(tokens)
+    token_raw = data.get("token")
+    if isinstance(token_raw, dict):
+        extra_tokens.insert(0, token_raw)
+    elif isinstance(token_raw, str) and token_raw.strip():
+        extra_tokens.insert(
+            0, {"token_type": 1, "name": "stoken", "token": token_raw.strip()}
+        )
+
+    synthetic = {
+        "user_info": data.get("user_info") if isinstance(data.get("user_info"), dict) else {},
+        "tokens": extra_tokens,
+    }
+    return _creds_from_qr_confirmed(data=synthetic, set_cookies=cookies)
+
+
 def _assert_account_ok(payload: dict[str, Any]) -> dict[str, Any]:
-    if int(payload.get("code") or 0) != 200:
-        raise MihoyoApiError(str(payload.get("data") or payload) or "通行证请求失败")
+    code = payload.get("code")
+    if code is not None and int(code or 0) != 200:
+        raise MihoyoApiError(
+            _humanize_passport_error(payload),
+            code=int(code) if str(code).lstrip("-").isdigit() else None,
+        )
     data = payload.get("data")
+    if isinstance(data, str):
+        try:
+            parsed = json.loads(data)
+        except json.JSONDecodeError:
+            parsed = None
+        data = parsed if isinstance(parsed, dict) else data
     if not isinstance(data, dict):
+        retcode = _passport_retcode(payload, default=0)
+        if retcode != 0:
+            raise MihoyoApiError(_humanize_passport_error(payload), code=retcode)
         raise MihoyoApiError("通行证返回异常")
     status = data.get("status")
+    nested_retcode = data.get("retcode")
     if status not in (1, "1", None):
-        msg = str(data.get("msg") or data.get("info") or "操作失败")
-        raise MihoyoApiError(msg, code=int(status) if str(status).lstrip("-").isdigit() else None)
+        msg = _extract_error_text(data) or "操作失败"
+        code_val = status if str(status).lstrip("-").isdigit() else nested_retcode
+        raise MihoyoApiError(
+            msg,
+            code=int(code_val) if str(code_val).lstrip("-").isdigit() else None,
+        )
+    if nested_retcode not in (0, "0", None, 1, "1"):
+        msg = _extract_error_text(data) or "操作失败"
+        raise MihoyoApiError(
+            msg,
+            code=int(nested_retcode) if str(nested_retcode).lstrip("-").isdigit() else None,
+        )
     return data
 
 
@@ -237,45 +439,22 @@ def send_login_sms(
     if not phone:
         raise MihoyoApiError("手机号不能为空")
 
-    gt_data = _parse_geetest(geetest)
-    key = (mmt_key or "").strip()
-    if not key:
-        mmt = create_mmt(action_type="login_by_mobile_captcha")
-        if mmt["need_geetest"] and not gt_data:
-            raise MihoyoNeedGeetest(
-                captcha_id=str(mmt["captcha_id"]),
-                mmt_key=str(mmt["mmt_key"]),
-            )
-        key = str(mmt["mmt_key"])
-        if mmt["need_geetest"] and gt_data and not gt_data.get("captcha_id"):
-            gt_data["captcha_id"] = mmt["captcha_id"]
-
-    params: dict[str, Any] = {
-        "action_type": "login",
-        "mmt_key": key,
-        "mobile": phone,
-        "t": _now_ms(),
+    aigis = _aigis_from_geetest(geetest, mmt_key)
+    body = {
+        "area_code": rsa_encrypt("+86"),
+        "mobile": rsa_encrypt(phone),
     }
-    if gt_data:
-        params["geetest_v4_data"] = json.dumps(gt_data, ensure_ascii=False, separators=(",", ":"))
-
-    url = f"{ACCOUNT_API}/Api/create_mobile_captcha?{urlencode(params)}"
-    with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = client.post(url, headers=_account_headers())
-        payload = resp.json()
-    try:
-        _assert_account_ok(payload)
-    except MihoyoApiError as exc:
-        # -302 图形验证失败 → 让前端重新走极验
-        if exc.code == -302 or "验证" in (exc.message or ""):
-            mmt = create_mmt(action_type="login_by_mobile_captcha")
-            if mmt["need_geetest"]:
-                raise MihoyoNeedGeetest(
-                    captcha_id=str(mmt["captcha_id"]),
-                    mmt_key=str(mmt["mmt_key"]),
-                ) from exc
-        raise
-    return {"ok": True, "message": "验证码已发送", "mmt_key": key}
+    _passport_post(
+        f"{PASSPORT_API}/account/ma-cn-verifier/verifier/createLoginCaptcha",
+        device_id=_stable_device_id(phone),
+        body=body,
+        aigis=aigis,
+    )
+    return {
+        "ok": True,
+        "message": "验证码已发送",
+        "mmt_key": (mmt_key or "").strip() or None,
+    }
 
 
 def _creds_from_login_ticket(
@@ -309,37 +488,24 @@ def login_with_sms(phone: str, captcha: str) -> MihoyoCredentials:
     code = captcha.strip()
     if not phone or not code:
         raise MihoyoApiError("手机号或验证码不能为空")
-    params = {
-        "mobile": phone,
-        "mobile_captcha": code,
-        "source": "user.mihoyo.com",
-        "t": _now_ms(),
+    body = {
+        "area_code": rsa_encrypt("+86"),
+        "mobile": rsa_encrypt(phone),
+        "action_type": SMS_ACTION_TYPE,
+        "captcha": code,
     }
-    url = f"{ACCOUNT_API}/Api/login_by_mobilecaptcha?{urlencode(params)}"
-    with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = client.post(url, headers=_account_headers())
-        payload = resp.json()
-        set_cookies = dict(resp.cookies)
-    data = _assert_account_ok(payload)
-    info = data.get("account_info") if isinstance(data.get("account_info"), dict) else {}
-    ticket = str(
-        info.get("weblogin_token")
-        or set_cookies.get("login_ticket")
-        or ""
-    ).strip()
-    account_id = str(
-        info.get("account_id")
-        or set_cookies.get("account_id_v2")
-        or set_cookies.get("account_id")
-        or ""
-    ).strip()
-    if not ticket or not account_id:
-        raise MihoyoApiError("登录成功但未返回凭证，请重试")
-    return _creds_from_login_ticket(
-        login_ticket=ticket,
-        account_id=account_id,
-        cookie_extra={k: v for k, v in set_cookies.items()},
-    )
+    try:
+        data, set_cookies = _passport_post(
+            f"{PASSPORT_API}/account/ma-cn-passport/app/loginByMobileCaptcha",
+            device_id=_stable_device_id(phone),
+            body=body,
+        )
+    except MihoyoNeedGeetest as exc:
+        raise MihoyoApiError(
+            "登录需要人机验证，请重新获取验证码后再试",
+            code=exc.code,
+        ) from exc
+    return _creds_from_passport_login(data=data, set_cookies=set_cookies)
 
 
 def login_with_password(
@@ -354,69 +520,18 @@ def login_with_password(
     if not account or not password:
         raise MihoyoApiError("账号或密码不能为空")
 
-    gt_data = _parse_geetest(geetest)
-    key = (mmt_key or "").strip()
-    if not key:
-        mmt = create_mmt(action_type="login_by_password", account=account)
-        if mmt["need_geetest"] and not gt_data:
-            raise MihoyoNeedGeetest(
-                captcha_id=str(mmt["captcha_id"]),
-                mmt_key=str(mmt["mmt_key"]),
-            )
-        key = str(mmt["mmt_key"])
-        if mmt["need_geetest"] and gt_data and not gt_data.get("captcha_id"):
-            gt_data["captcha_id"] = mmt["captcha_id"]
-
-    body: dict[str, Any] = {
-        "mmt_key": key,
-        "account": account,
+    aigis = _aigis_from_geetest(geetest, mmt_key)
+    body = {
+        "account": rsa_encrypt(account),
         "password": rsa_encrypt(password),
-        "is_crypto": "true",
-        "source": "user.mihoyo.com",
-        "t": _now_ms(),
     }
-    if gt_data:
-        body["geetest_v4_data"] = json.dumps(
-            gt_data, ensure_ascii=False, separators=(",", ":")
-        )
-
-    url = f"{ACCOUNT_API}/Api/login_by_password"
-    with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = client.post(
-            url,
-            headers={**_account_headers(), "Content-Type": "application/x-www-form-urlencoded"},
-            data=body,
-        )
-        payload = resp.json()
-        set_cookies = dict(resp.cookies)
-    try:
-        data = _assert_account_ok(payload)
-    except MihoyoApiError as exc:
-        if exc.code == -302 or "验证" in (exc.message or ""):
-            mmt = create_mmt(action_type="login_by_password", account=account)
-            if mmt["need_geetest"]:
-                raise MihoyoNeedGeetest(
-                    captcha_id=str(mmt["captcha_id"]),
-                    mmt_key=str(mmt["mmt_key"]),
-                ) from exc
-        raise
-    info = data.get("account_info") if isinstance(data.get("account_info"), dict) else {}
-    ticket = str(
-        info.get("weblogin_token") or set_cookies.get("login_ticket") or ""
-    ).strip()
-    account_id = str(
-        info.get("account_id")
-        or set_cookies.get("account_id_v2")
-        or set_cookies.get("account_id")
-        or ""
-    ).strip()
-    if not ticket or not account_id:
-        raise MihoyoApiError("登录成功但未返回凭证，请重试")
-    return _creds_from_login_ticket(
-        login_ticket=ticket,
-        account_id=account_id,
-        cookie_extra={k: v for k, v in set_cookies.items()},
+    data, set_cookies = _passport_post(
+        f"{PASSPORT_API}/account/ma-cn-passport/app/loginByPassword",
+        device_id=_stable_device_id(account),
+        body=body,
+        aigis=aigis,
     )
+    return _creds_from_passport_login(data=data, set_cookies=set_cookies)
 
 
 def create_qr_login(*, device_id: str | None = None) -> dict[str, str]:

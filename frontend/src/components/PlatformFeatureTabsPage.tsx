@@ -3,6 +3,10 @@ import { Alert, Card, Tabs } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import type { ExchangeBindStatus } from "@/components/ExchangePageTemplate";
+import {
+  bindTokenErrorMessage,
+  isBindTokenBroken,
+} from "@/lib/checkinStatus";
 
 export type PlatformFeatureTabItem = {
   key: string;
@@ -63,7 +67,7 @@ export function PlatformFeatureTabsPage({
   }, [tab, tabItems]);
 
   const bound = Boolean(statusQuery.data?.bound);
-  const tokenBroken = bound && statusQuery.data?.token_ok === false;
+  const tokenBroken = isBindTokenBroken(statusQuery.data);
   const needsBind = (!bound || tokenBroken) && !statusQuery.isLoading;
 
   return (
@@ -89,7 +93,8 @@ export function PlatformFeatureTabsPage({
             }
             description={
               tokenBroken
-                ? statusQuery.data?.token_error || "请重新绑定后再试。"
+                ? bindTokenErrorMessage(statusQuery.data) ||
+                  "请重新绑定后再试。"
                 : undefined
             }
           />

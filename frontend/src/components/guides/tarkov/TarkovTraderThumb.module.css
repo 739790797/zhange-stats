@@ -1,0 +1,12 @@
+.thumb {
+  display: block;
+  object-fit: cover;
+  object-position: top center;
+  flex: none;
+}
+
+.fallback {
+  display: inline-block;
+  flex: none;
+  background: #101010;
+}

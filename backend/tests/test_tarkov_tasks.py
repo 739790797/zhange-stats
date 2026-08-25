@@ -101,6 +101,9 @@ def test_parse_locale_and_trader_map():
     assert by_id["t2"]["name"] == "验收"
     assert by_id["t3"]["trader_slug"] == "therapist"
     assert by_id["t3"]["map_name"] == "海关"
+    assert by_id["t1"]["task_requirements"][0]["id"] == "t2"
+    assert by_id["t1"]["task_requirements"][0]["name"] == "验收"
+    assert by_id["t2"]["task_requirements"] == []
 
 
 def test_filter_trader_kappa_search():
@@ -163,6 +166,54 @@ def test_project_detail_resolves_locale_and_prereq():
     assert detail["finish_rewards"]["trader_standing"][0]["slug"] == "prapor"
     assert detail["needed_keys"][0]["map"]["name"] == "塔科夫街区"
     assert detail["objectives"][0]["required_keys"][0][0]["id"] == "key1"
+
+
+def test_neighborhood_two_hops_and_fork():
+    payload = {
+        "tasks": {
+            "a": {
+                "id": "a",
+                "name": "A",
+                "trader": PRAPOR,
+                "taskRequirements": [],
+            },
+            "b": {
+                "id": "b",
+                "name": "B",
+                "trader": PRAPOR,
+                "taskRequirements": [{"task": "a", "status": ["complete"]}],
+            },
+            "c": {
+                "id": "c",
+                "name": "C",
+                "trader": PRAPOR,
+                "taskRequirements": [{"task": "b", "status": ["complete"]}],
+            },
+            "d": {
+                "id": "d",
+                "name": "D",
+                "trader": PRAPOR,
+                "taskRequirements": [{"task": "c", "status": ["complete"]}],
+            },
+            "fork": {
+                "id": "fork",
+                "name": "Fork",
+                "trader": PRAPOR,
+                "taskRequirements": [{"task": "c", "status": ["complete"]}],
+            },
+        },
+        "locale": {"b name": "中段"},
+    }
+    nb = tasks.build_task_neighborhood("b", payload["tasks"], payload["locale"], hops=2)
+    hops = {node["id"]: node["hop"] for node in nb["nodes"]}
+    assert hops == {"a": -1, "b": 0, "c": 1, "d": 2, "fork": 2}
+    names = {node["id"]: node["name"] for node in nb["nodes"]}
+    assert names["b"] == "中段"
+    edges = {(row["source_id"], row["target_id"]) for row in nb["edges"]}
+    assert edges == {("a", "b"), ("b", "c"), ("c", "d"), ("c", "fork")}
+
+    near = tasks.build_task_neighborhood("b", payload["tasks"], payload["locale"], hops=1)
+    assert {node["id"] for node in near["nodes"]} == {"a", "b", "c"}
 
 
 def test_required_keys_or_groups_and_fallback_needed_keys():

@@ -6,12 +6,12 @@ import { fetchTarkovTaskDetail } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import {
   TARKOV_TRADERS,
-  tarkovTaskHref,
   tarkovTraderHref,
   traderIconUrl,
   traderPortraitUrl,
 } from "@/lib/tarkovHomeNav";
 import { TarkovTaskProgressSwitch } from "@/components/guides/tarkov/TarkovTaskProgressSwitch";
+import { TarkovTaskNeighborhood } from "@/components/guides/tarkov/TarkovTaskNeighborhood";
 import { TarkovTaskObjectivesRewards } from "@/components/guides/tarkov/TarkovTaskObjectivesRewards";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { tarkovTaskProgressLabel, useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
@@ -89,8 +89,6 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
   const traderFallback = detail.trader_slug
     ? traderPortraitUrl(detail.trader_slug)
     : "";
-  const reqs = detail.task_requirements || [];
-  const nextTasks = detail.successor_tasks || [];
   const traderHref = detail.trader_slug
     ? tarkovTraderHref(detail.trader_slug)
     : "";
@@ -200,55 +198,12 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
             </div>
           </div>
 
-          <div className={styles.related}>
-            <div className={styles.relatedCol}>
-              <h3>前置任务</h3>
-              {reqs.length ? (
-                <div className={styles.relatedList}>
-                  {reqs.map((req) => (
-                    <Link
-                      key={req.id}
-                      className={`${styles.relatedLink} ${
-                        mine && req.met === true
-                          ? styles.relatedMet
-                          : mine && req.met === false
-                            ? styles.relatedUnmet
-                            : ""
-                      }`}
-                      to={tarkovTaskHref(req.id)}
-                    >
-                      {req.name || req.id}
-                      {mine && req.met === true
-                        ? " · 已满足"
-                        : mine && req.met === false
-                          ? " · 未完成"
-                          : ""}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className={styles.relatedEmpty}>无前置</div>
-              )}
-            </div>
-            <div className={styles.relatedCol}>
-              <h3>后续任务</h3>
-              {nextTasks.length ? (
-                <div className={styles.relatedList}>
-                  {nextTasks.map((req) => (
-                    <Link
-                      key={req.id}
-                      className={styles.relatedLink}
-                      to={tarkovTaskHref(req.id)}
-                    >
-                      {req.name || req.id}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className={styles.relatedEmpty}>无后续</div>
-              )}
-            </div>
-          </div>
+          <TarkovTaskNeighborhood
+            currentId={detail.id}
+            nodes={detail.neighborhood?.nodes ?? []}
+            edges={detail.neighborhood?.edges ?? []}
+            showProgress={mine}
+          />
         </div>
 
         <div className={styles.posterWrap}>

@@ -180,6 +180,7 @@ export {
   triggerMihoyoCheckin,
   fetchMihoyoExchange,
   exchangeMihoyoItem,
+  fetchMihoyoAttendanceCalendar,
 } from "./mihoyoApi";
 
 export {
@@ -235,6 +236,13 @@ export {
   decompressMinecraftFile,
   chmodMinecraftFiles,
   pullMinecraftFile,
+  fetchMinecraftModTools,
+  fetchMinecraftModToolVersions,
+  runMinecraftChunkyCommand,
+  installMinecraftModTool,
+  applyMinecraftModToolPreset,
+  fetchMinecraftModToolPreset,
+  saveMinecraftModToolPreset,
 } from "./minecraftApi";
 export type {
   MinecraftStatus,

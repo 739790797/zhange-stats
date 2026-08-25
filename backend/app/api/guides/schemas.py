@@ -149,6 +149,32 @@ class TarkovTaskTraderReqOut(BaseModel):
     compare_method: str = ""
 
 
+class TarkovTaskRequirementOut(BaseModel):
+    id: str
+    name: str = ""
+    status: list[str] = Field(default_factory=list)
+    met: bool | None = None
+
+
+class TarkovTaskNeighborhoodNodeOut(BaseModel):
+    id: str
+    name: str = ""
+    trader_slug: str = ""
+    hop: int = 0
+    progress_status: str | None = None
+
+
+class TarkovTaskNeighborhoodEdgeOut(BaseModel):
+    source_id: str
+    target_id: str
+
+
+class TarkovTaskNeighborhoodOut(BaseModel):
+    current_id: str = ""
+    nodes: list[TarkovTaskNeighborhoodNodeOut] = Field(default_factory=list)
+    edges: list[TarkovTaskNeighborhoodEdgeOut] = Field(default_factory=list)
+
+
 class TarkovTaskListItemOut(BaseModel):
     id: str
     name: str
@@ -168,6 +194,7 @@ class TarkovTaskListItemOut(BaseModel):
     wiki_link: str = ""
     objective_count: int = 0
     progress_status: str | None = None
+    task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)
 
 
 class TarkovTaskCatalogOut(BaseModel):
@@ -195,13 +222,6 @@ class TarkovTaskObjectiveOut(BaseModel):
     required_keys: list[list[TarkovTaskNamedRefOut]] = Field(default_factory=list)
     exit_status: list[str] = Field(default_factory=list)
     exit_name: str = ""
-
-
-class TarkovTaskRequirementOut(BaseModel):
-    id: str
-    name: str = ""
-    status: list[str] = Field(default_factory=list)
-    met: bool | None = None
 
 
 class TarkovTaskRewardItemOut(BaseModel):
@@ -233,13 +253,15 @@ class TarkovTaskNeededKeysOut(BaseModel):
 class TarkovTaskDetailOut(TarkovTaskListItemOut):
     source: str | None = None
     objectives: list[TarkovTaskObjectiveOut] = Field(default_factory=list)
-    task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)
     successor_tasks: list[TarkovTaskRequirementOut] = Field(default_factory=list)
     trader_requirements: list[TarkovTaskTraderReqOut] = Field(default_factory=list)
     finish_rewards: TarkovTaskFinishRewardsOut = Field(
         default_factory=TarkovTaskFinishRewardsOut
     )
     needed_keys: list[TarkovTaskNeededKeysOut] = Field(default_factory=list)
+    neighborhood: TarkovTaskNeighborhoodOut = Field(
+        default_factory=TarkovTaskNeighborhoodOut
+    )
     restartable: bool = False
     progress_bound: bool = False
     progress_ready: bool = False

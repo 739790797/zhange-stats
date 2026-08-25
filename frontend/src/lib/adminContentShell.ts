@@ -1,4 +1,4 @@
-/** 管理后台内容区宽度：表单页窄栏，列表页宽栏，均在灰底上水平居中。 */
+/** 内容区宽度：表单页窄栏，列表/控制台宽栏，均在灰底上水平居中。 */
 
 export type AdminContentShell = "form" | "wide";
 
@@ -13,6 +13,9 @@ const FORM_PATHS = new Set([
 export function adminContentShell(
   pathname: string,
 ): AdminContentShell | null {
+  if (pathname === "/guides/minecraft" || pathname.startsWith("/guides/minecraft/")) {
+    return "wide";
+  }
   if (pathname !== "/settings" && !pathname.startsWith("/settings/")) {
     return null;
   }

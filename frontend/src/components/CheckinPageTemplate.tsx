@@ -20,6 +20,9 @@ import type { components } from "@/api/generated/schema";
 import {
   checkinDialogTitle,
   classifyCheckinDialog,
+  isBindTokenBroken,
+  bindTokenErrorMessage,
+  hasCredentialRowError,
   isCheckinSuccess,
   type CheckinDialogKind,
 } from "@/lib/checkinStatus";
@@ -343,12 +346,19 @@ export function CheckinPageTemplate({
       setCheckingKey(`${payload.game_code}::${payload.role_uid}`);
       return triggerCheckin(payload);
     },
-    onSuccess: (data) => {
+    onSuccess: (data, payload) => {
       const results = data.results ?? [];
-      const primary = results[0];
+      const primary =
+        results.find(
+          (row) =>
+            row.game_code === payload.game_code &&
+            row.role_uid === payload.role_uid,
+        ) ??
+        results.find((row) => row.game_code === payload.game_code) ??
+        results[0];
       const kind = classifyCheckinDialog({
         skipped: data.skipped,
-        ok: data.ok,
+        ok: isCheckinSuccess(primary?.status) || data.ok,
         summary: data.summary,
         status: primary?.status,
         message: primary?.message || data.summary,
@@ -402,9 +412,12 @@ export function CheckinPageTemplate({
 
   const bound = Boolean(statusQuery.data?.bound);
   const todayResults = statusQuery.data?.today_results || [];
-  const tokenBroken = bound && statusQuery.data?.token_ok === false;
+  const tokenBroken = isBindTokenBroken(statusQuery.data);
+  const credentialRowError = hasCredentialRowError(statusQuery.data);
   const needsBind =
     (!bound || tokenBroken) && Boolean(bindPanel) && !statusQuery.isLoading;
+
+  const dismissDialog = () => setDialog(null);
 
   const statusCard = (
     <Card
@@ -421,6 +434,17 @@ export function CheckinPageTemplate({
             statusQuery.data
               ? "下方为最近一次成功结果；可稍后切换回本页重试刷新。"
               : undefined
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+      {credentialRowError && !tokenBroken ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={`${bindName}凭证可能已失效`}
+          description={
+            bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。"
           }
           style={{ marginBottom: 16 }}
         />
@@ -465,7 +489,6 @@ export function CheckinPageTemplate({
                       }}
                     >
                       {group.items.map((row, index) => {
-                        const autoOn = Boolean(row.auto_checkin);
                         const signed = isCheckinSuccess(row.status);
                         const canCheckin =
                           Boolean(row.game_code && row.role_uid) && !signed;
@@ -492,18 +515,12 @@ export function CheckinPageTemplate({
                             ) : (
                               <span />
                             )}
-                            {autoOn ? (
-                              <CheckinStatusTag
-                                status={row.status}
-                                statusLabel={row.status_label}
-                              />
-                            ) : (
-                              <Tag>关闭</Tag>
-                            )}
+                            <CheckinStatusTag
+                              status={row.status}
+                              statusLabel={row.status_label}
+                            />
                             <span style={{ minWidth: 0 }}>
-                              {autoOn
-                                ? (renderResultExtra?.(row) ?? null)
-                                : null}
+                              {renderResultExtra?.(row) ?? null}
                             </span>
                             <RoleAutoCheckinControls
                               row={row}
@@ -548,8 +565,8 @@ export function CheckinPageTemplate({
                                     : undefined,
                               }}
                             >
-                              {autoOn ? <TodayAwardsBlock row={row} /> : null}
-                              {autoOn && row.extra_text ? (
+                              <TodayAwardsBlock row={row} />
+                              {row.extra_text ? (
                                 <ExtraTextRows text={row.extra_text} />
                               ) : null}
                             </div>
@@ -588,8 +605,8 @@ export function CheckinPageTemplate({
     <Modal
       open={Boolean(dialog)}
       title={dialog ? checkinDialogTitle(dialog.kind) : undefined}
-      onCancel={() => setDialog(null)}
-      onOk={() => setDialog(null)}
+      onCancel={dismissDialog}
+      onOk={dismissDialog}
       cancelButtonProps={{ style: { display: "none" } }}
       okText="知道了"
       destroyOnClose
@@ -648,7 +665,7 @@ export function CheckinPageTemplate({
         }
         description={
           tokenBroken
-            ? statusQuery.data?.token_error || "请重新绑定后再试。"
+            ? bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。"
             : undefined
         }
       />

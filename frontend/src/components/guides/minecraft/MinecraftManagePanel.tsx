@@ -9,15 +9,17 @@ import {
   Button,
   Card,
   Col,
+  Divider,
   Popconfirm,
   Row,
   Space,
+  Spin,
   Tag,
   Typography,
   message,
 } from "antd";
 import { Link } from "react-router-dom";
-import type { ReactNode } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import {
   fetchMinecraftStatus,
   sendMinecraftPower,
@@ -34,6 +36,12 @@ import {
   powerLabel,
 } from "./minecraftUi";
 import { useMinecraftConsole } from "./useMinecraftConsole";
+
+const MinecraftFileManager = lazy(() =>
+  import("./MinecraftFileManager").then((m) => ({
+    default: m.MinecraftFileManager,
+  })),
+);
 
 function InfoTile({
   label,
@@ -314,6 +322,20 @@ export function MinecraftManagePanel() {
         rxTotal={stats?.network_rx_bytes || 0}
         txTotal={stats?.network_tx_bytes || 0}
       />
+
+      <Divider style={{ margin: "32px 0 16px" }} />
+
+      <Suspense
+        fallback={
+          <div style={{ padding: 48, textAlign: "center" }}>
+            <Spin>
+              <Typography.Text type="secondary">加载文件管理…</Typography.Text>
+            </Spin>
+          </div>
+        }
+      >
+        <MinecraftFileManager />
+      </Suspense>
     </div>
   );
 }

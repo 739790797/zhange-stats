@@ -92,6 +92,10 @@ export type MihoyoExchangeShop =
   components["schemas"]["MihoyoExchangeShopOut"];
 export type MihoyoExchangeResult =
   components["schemas"]["MihoyoExchangeResultOut"];
+export type MihoyoExchangeRole =
+  components["schemas"]["MihoyoExchangeRoleOut"];
+export type MihoyoAttendanceCalendar =
+  components["schemas"]["MihoyoAttendanceCalendarOut"];
 export type KujiequExchangeRole =
   components["schemas"]["KujiequExchangeRoleOut"];
 

@@ -23,4 +23,9 @@ describe("adminContentShell", () => {
     expect(adminContentShell("/settings/logs")).toBe("wide");
     expect(adminContentShell("/settings/qq-groups")).toBe("wide");
   });
+
+  it("uses wide width for Minecraft guide", () => {
+    expect(adminContentShell("/guides/minecraft")).toBe("wide");
+    expect(adminContentShell("/guides/minecraft/extra")).toBe("wide");
+  });
 });

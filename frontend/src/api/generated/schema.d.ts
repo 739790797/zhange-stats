@@ -2506,6 +2506,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mihoyo/attendance-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mihoyo Attendance Calendar
+         * @description 游戏福利签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。
+         */
+        get: operations["mihoyo_attendance_calendar_api_mihoyo_attendance_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/napcat/test": {
         parameters: {
             query?: never;
@@ -2766,7 +2786,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Task Catalog
-         * @description 任务目录：商人 / 地图 / Kappa / 关键词过滤，分页返回。
+         * @description 任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。
          */
         get: operations["guides_tarkov_task_catalog_api_guides_tarkov_tasks_get"];
         put?: never;
@@ -3663,6 +3683,126 @@ export interface paths {
         /** Minecraft Mod Updates */
         get: operations["minecraft_mod_updates_api_guides_minecraft_mods_updates_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Tools */
+        get: operations["minecraft_mod_tools_api_guides_minecraft_mod_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/chunky": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Chunky Command */
+        post: operations["minecraft_chunky_command_api_guides_minecraft_mod_tools_chunky_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/command": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Mod Tool Command */
+        post: operations["minecraft_mod_tool_command_api_guides_minecraft_mod_tools__tool_id__command_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Mod Tool Install */
+        post: operations["minecraft_mod_tool_install_api_guides_minecraft_mod_tools__tool_id__install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Tool Versions */
+        get: operations["minecraft_mod_tool_versions_api_guides_minecraft_mod_tools__tool_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Mod Tool Config */
+        post: operations["minecraft_mod_tool_config_api_guides_minecraft_mod_tools__tool_id__config_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/presets/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Tool Preset Get */
+        get: operations["minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__get"];
+        /** Minecraft Mod Tool Preset Put */
+        put: operations["minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -6084,6 +6224,60 @@ export interface components {
             /** Qq Number */
             qq_number?: string | null;
         };
+        /** MihoyoAttendanceCalendarOut */
+        MihoyoAttendanceCalendarOut: {
+            /** Game Code */
+            game_code: string;
+            /** Game Name */
+            game_name: string;
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /**
+             * Claimed Days
+             * @default 0
+             */
+            claimed_days: number;
+            /**
+             * Total Days
+             * @default 0
+             */
+            total_days: number;
+            /**
+             * Has Today Claim
+             * @default false
+             */
+            has_today_claim: boolean;
+            /**
+             * Progress Reliable
+             * @default true
+             */
+            progress_reliable: boolean;
+            /** Days */
+            days?: components["schemas"]["MihoyoAttendanceDayOut"][];
+            /** Roles */
+            roles?: components["schemas"]["MihoyoRoleOut"][];
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
+         * MihoyoAttendanceDayOut
+         * @description 签到周期第 N 天（非公历日期）。
+         */
+        MihoyoAttendanceDayOut: {
+            /** Day */
+            day: number;
+            /** Claimed */
+            claimed: boolean;
+            /** Awards */
+            awards?: components["schemas"]["CheckinAwardItem"][];
+        };
         /** MihoyoBindPasswordRequest */
         MihoyoBindPasswordRequest: {
             /** Account */
@@ -6204,6 +6398,11 @@ export interface components {
              */
             game_biz: string;
             /**
+             * Game Code
+             * @default
+             */
+            game_code: string;
+            /**
              * Game Name
              * @default
              */
@@ -6245,6 +6444,35 @@ export interface components {
             points?: number | null;
             item?: components["schemas"]["MihoyoExchangeItemOut"] | null;
         };
+        /** MihoyoExchangeRoleOut */
+        MihoyoExchangeRoleOut: {
+            /** Game Biz */
+            game_biz: string;
+            /** Game Code */
+            game_code: string;
+            /**
+             * Game Name
+             * @default
+             */
+            game_name: string;
+            /** Role Uid */
+            role_uid: string;
+            /**
+             * Role Name
+             * @default
+             */
+            role_name: string;
+            /**
+             * Region
+             * @default
+             */
+            region: string;
+            /**
+             * Channel Name
+             * @default
+             */
+            channel_name: string;
+        };
         /** MihoyoExchangeShopOut */
         MihoyoExchangeShopOut: {
             /**
@@ -6254,6 +6482,8 @@ export interface components {
             points: number;
             /** Items */
             items?: components["schemas"]["MihoyoExchangeItemOut"][];
+            /** Roles */
+            roles?: components["schemas"]["MihoyoExchangeRoleOut"][];
         };
         /** MihoyoPointsLogItemOut */
         MihoyoPointsLogItemOut: {
@@ -6477,6 +6707,62 @@ export interface components {
              */
             inferred_loader: string;
             stages?: components["schemas"]["MinecraftPlaybookStagesOut"];
+        };
+        /** MinecraftChunkyStatusOut */
+        MinecraftChunkyStatusOut: {
+            /**
+             * State
+             * @default idle
+             */
+            state: string;
+            /**
+             * World
+             * @default
+             */
+            world: string;
+            /**
+             * Shape
+             * @default
+             */
+            shape: string;
+            /**
+             * Pattern
+             * @default
+             */
+            pattern: string;
+            /** Center X */
+            center_x?: number | null;
+            /** Center Z */
+            center_z?: number | null;
+            /** Radius */
+            radius?: number | null;
+            /** Percent */
+            percent?: number | null;
+            /** Chunks */
+            chunks?: number | null;
+            /** Chunks Total */
+            chunks_total?: number | null;
+            /** Rate */
+            rate?: number | null;
+            /**
+             * Eta
+             * @default
+             */
+            eta: string;
+            /** Chunk X */
+            chunk_x?: number | null;
+            /** Chunk Z */
+            chunk_z?: number | null;
+            /**
+             * Needs Confirm
+             * @default false
+             */
+            needs_confirm: boolean;
+            /**
+             * Raw
+             * @default
+             */
+            raw: string;
         };
         /** MinecraftEggCurrentOut */
         MinecraftEggCurrentOut: {
@@ -6940,6 +7226,64 @@ export interface components {
             /** Versions */
             versions: string[];
         };
+        /** MinecraftModCommandArgOut */
+        MinecraftModCommandArgOut: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Kind
+             * @default token
+             */
+            kind: string;
+            /** Options */
+            options?: components["schemas"]["MinecraftModCommandOptionOut"][];
+            /** Min Value */
+            min_value?: number | null;
+            /** Max Value */
+            max_value?: number | null;
+            /**
+             * Optional
+             * @default false
+             */
+            optional: boolean;
+        };
+        /** MinecraftModCommandNodeOut */
+        MinecraftModCommandNodeOut: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Confirm
+             * @default
+             */
+            confirm: string;
+            /**
+             * Show In Bar
+             * @default true
+             */
+            show_in_bar: boolean;
+            /** Args */
+            args?: components["schemas"]["MinecraftModCommandArgOut"][];
+        };
+        /** MinecraftModCommandOptionOut */
+        MinecraftModCommandOptionOut: {
+            /** Value */
+            value: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
         /** MinecraftModPinIn */
         MinecraftModPinIn: {
             /** Project Id */
@@ -7019,6 +7363,493 @@ export interface components {
         MinecraftModSearchOut: {
             /** Hits */
             hits: components["schemas"]["MinecraftModSearchHitOut"][];
+        };
+        /** MinecraftModToolCatalogOut */
+        MinecraftModToolCatalogOut: {
+            /**
+             * Loader
+             * @default
+             */
+            loader: string;
+            /**
+             * Mc Version
+             * @default
+             */
+            mc_version: string;
+            /**
+             * Project Id
+             * @default
+             */
+            project_id: string;
+            /**
+             * Installed Version
+             * @default
+             */
+            installed_version: string;
+            /**
+             * Latest Version
+             * @default
+             */
+            latest_version: string;
+            /**
+             * Latest Filename
+             * @default
+             */
+            latest_filename: string;
+            /**
+             * Compatible
+             * @default false
+             */
+            compatible: boolean;
+            /**
+             * Update Available
+             * @default false
+             */
+            update_available: boolean;
+            /**
+             * Target Directory
+             * @default
+             */
+            target_directory: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        };
+        /** MinecraftModToolCommandIn */
+        MinecraftModToolCommandIn: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "progress" | "selection" | "start" | "pause" | "continue" | "cancel" | "confirm" | "spawn" | "worldborder" | "apply";
+            /**
+             * World
+             * @default
+             */
+            world: string;
+            /**
+             * Shape
+             * @default
+             */
+            shape: string;
+            /**
+             * Pattern
+             * @default
+             */
+            pattern: string;
+            /** Center X */
+            center_x?: number | null;
+            /** Center Z */
+            center_z?: number | null;
+            /** Radius */
+            radius?: number | null;
+        };
+        /** MinecraftModToolCommandOut */
+        MinecraftModToolCommandOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Action
+             * @default
+             */
+            action: string;
+            /** Commands */
+            commands?: string[];
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Raw
+             * @default
+             */
+            raw: string;
+            status?: components["schemas"]["MinecraftChunkyStatusOut"];
+        };
+        /** MinecraftModToolExecIn */
+        MinecraftModToolExecIn: {
+            /** Command Id */
+            command_id: string;
+            /** Args */
+            args?: {
+                [key: string]: string | number | null;
+            };
+        };
+        /** MinecraftModToolFileOut */
+        MinecraftModToolFileOut: {
+            /** Filename */
+            filename: string;
+            /**
+             * Directory
+             * @default
+             */
+            directory: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+        };
+        /** MinecraftModToolInstallIn */
+        MinecraftModToolInstallIn: {
+            /**
+             * Version Id
+             * @default
+             */
+            version_id: string;
+            /**
+             * Preset Id
+             * @default
+             */
+            preset_id: string;
+            /**
+             * Restart
+             * @default false
+             */
+            restart: boolean;
+        };
+        /** MinecraftModToolInstallOut */
+        MinecraftModToolInstallOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Tool Id
+             * @default
+             */
+            tool_id: string;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Directory
+             * @default
+             */
+            directory: string;
+            /**
+             * Version Number
+             * @default
+             */
+            version_number: string;
+            /**
+             * Config Path
+             * @default
+             */
+            config_path: string;
+            /**
+             * Restarted
+             * @default false
+             */
+            restarted: boolean;
+            /**
+             * Restart Required
+             * @default true
+             */
+            restart_required: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        };
+        /** MinecraftModToolLinksOut */
+        MinecraftModToolLinksOut: {
+            /**
+             * Modrinth Url
+             * @default
+             */
+            modrinth_url: string;
+            /**
+             * Curseforge Url
+             * @default
+             */
+            curseforge_url: string;
+            /**
+             * Wiki Url
+             * @default
+             */
+            wiki_url: string;
+            /**
+             * Github Url
+             * @default
+             */
+            github_url: string;
+            /**
+             * Mcmod Url
+             * @default
+             */
+            mcmod_url: string;
+            /**
+             * Icon Url
+             * @default
+             */
+            icon_url: string;
+        };
+        /** MinecraftModToolOut */
+        MinecraftModToolOut: {
+            /** Id */
+            id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Present
+             * @default false
+             */
+            present: boolean;
+            /**
+             * Loaded
+             * @default false
+             */
+            loaded: boolean;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Directory
+             * @default
+             */
+            directory: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /** Files */
+            files?: components["schemas"]["MinecraftModToolFileOut"][];
+            /** Capabilities */
+            capabilities?: string[];
+            /**
+             * Icon Url
+             * @default
+             */
+            icon_url: string;
+            links?: components["schemas"]["MinecraftModToolLinksOut"];
+            catalog?: components["schemas"]["MinecraftModToolCatalogOut"];
+            /** Presets */
+            presets?: components["schemas"]["MinecraftModToolPresetOut"][];
+            /**
+             * Config Directory
+             * @default
+             */
+            config_directory: string;
+            /** Command Tree */
+            command_tree?: components["schemas"]["MinecraftModCommandNodeOut"][];
+        };
+        /** MinecraftModToolPresetApplyOut */
+        MinecraftModToolPresetApplyOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Tool Id
+             * @default
+             */
+            tool_id: string;
+            /**
+             * Preset Id
+             * @default
+             */
+            preset_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /**
+             * Source
+             * @default factory
+             * @enum {string}
+             */
+            source: "factory" | "draft";
+            /**
+             * Reloaded
+             * @default false
+             */
+            reloaded: boolean;
+            /**
+             * Restart Required
+             * @default true
+             */
+            restart_required: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        };
+        /** MinecraftModToolPresetDraftIn */
+        MinecraftModToolPresetDraftIn: {
+            /** Content */
+            content?: string | null;
+            /**
+             * Restore
+             * @default false
+             */
+            restore: boolean;
+        };
+        /** MinecraftModToolPresetDraftOut */
+        MinecraftModToolPresetDraftOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Tool Id
+             * @default
+             */
+            tool_id: string;
+            /**
+             * Preset Id
+             * @default
+             */
+            preset_id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Source
+             * @default factory
+             * @enum {string}
+             */
+            source: "factory" | "draft";
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** MinecraftModToolPresetIn */
+        MinecraftModToolPresetIn: {
+            /**
+             * Preset Id
+             * @default
+             */
+            preset_id: string;
+        };
+        /** MinecraftModToolPresetOut */
+        MinecraftModToolPresetOut: {
+            /** Id */
+            id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+        };
+        /** MinecraftModToolVersionsOut */
+        MinecraftModToolVersionsOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Tool Id
+             * @default
+             */
+            tool_id: string;
+            /**
+             * Source
+             * @default modrinth
+             */
+            source: string;
+            /**
+             * Loader
+             * @default
+             */
+            loader: string;
+            /**
+             * Mc Version
+             * @default
+             */
+            mc_version: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Versions */
+            versions?: components["schemas"]["MinecraftModPinOut"][];
+        };
+        /** MinecraftModToolsOut */
+        MinecraftModToolsOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Pelican Configured
+             * @default false
+             */
+            pelican_configured: boolean;
+            /**
+             * Rcon Configured
+             * @default false
+             */
+            rcon_configured: boolean;
+            /** Rcon Connected */
+            rcon_connected?: boolean | null;
+            /**
+             * Loader
+             * @default
+             */
+            loader: string;
+            /**
+             * Mc Version
+             * @default
+             */
+            mc_version: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Worlds */
+            worlds?: string[];
+            /** Tools */
+            tools?: components["schemas"]["MinecraftModToolOut"][];
+            chunky?: components["schemas"]["MinecraftChunkyStatusOut"] | null;
         };
         /** MinecraftModUpdateOut */
         MinecraftModUpdateOut: {
@@ -9918,12 +10749,12 @@ export interface components {
             objective_count: number;
             /** Progress Status */
             progress_status?: string | null;
+            /** Task Requirements */
+            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
             /** Source */
             source?: string | null;
             /** Objectives */
             objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
-            /** Task Requirements */
-            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
             /** Successor Tasks */
             successor_tasks?: components["schemas"]["TarkovTaskRequirementOut"][];
             /** Trader Requirements */
@@ -9931,6 +10762,7 @@ export interface components {
             finish_rewards?: components["schemas"]["TarkovTaskFinishRewardsOut"];
             /** Needed Keys */
             needed_keys?: components["schemas"]["TarkovTaskNeededKeysOut"][];
+            neighborhood?: components["schemas"]["TarkovTaskNeighborhoodOut"];
             /**
              * Restartable
              * @default false
@@ -10037,6 +10869,8 @@ export interface components {
             objective_count: number;
             /** Progress Status */
             progress_status?: string | null;
+            /** Task Requirements */
+            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
         };
         /** TarkovTaskNamedRefOut */
         TarkovTaskNamedRefOut: {
@@ -10065,6 +10899,47 @@ export interface components {
             map: components["schemas"]["TarkovTaskNamedRefOut"];
             /** Keys */
             keys?: components["schemas"]["TarkovTaskNamedRefOut"][];
+        };
+        /** TarkovTaskNeighborhoodEdgeOut */
+        TarkovTaskNeighborhoodEdgeOut: {
+            /** Source Id */
+            source_id: string;
+            /** Target Id */
+            target_id: string;
+        };
+        /** TarkovTaskNeighborhoodNodeOut */
+        TarkovTaskNeighborhoodNodeOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Hop
+             * @default 0
+             */
+            hop: number;
+            /** Progress Status */
+            progress_status?: string | null;
+        };
+        /** TarkovTaskNeighborhoodOut */
+        TarkovTaskNeighborhoodOut: {
+            /**
+             * Current Id
+             * @default
+             */
+            current_id: string;
+            /** Nodes */
+            nodes?: components["schemas"]["TarkovTaskNeighborhoodNodeOut"][];
+            /** Edges */
+            edges?: components["schemas"]["TarkovTaskNeighborhoodEdgeOut"][];
         };
         /** TarkovTaskObjectiveOut */
         TarkovTaskObjectiveOut: {
@@ -15928,6 +16803,39 @@ export interface operations {
             };
         };
     };
+    mihoyo_attendance_calendar_api_mihoyo_attendance_calendar_get: {
+        parameters: {
+            query: {
+                game_code: string;
+                role_uid?: string | null;
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MihoyoAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     test_napcat_connection_api_napcat_test_post: {
         parameters: {
             query?: never;
@@ -16286,6 +17194,7 @@ export interface operations {
                 progress_status?: string | null;
                 page?: number;
                 page_size?: number;
+                layout?: string | null;
             };
             header?: never;
             path?: never;
@@ -17782,6 +18691,275 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MinecraftModUpdateOut"][];
+                };
+            };
+        };
+    };
+    minecraft_mod_tools_api_guides_minecraft_mod_tools_get: {
+        parameters: {
+            query?: {
+                /** @description 跳过短时文件扫描缓存 */
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_chunky_command_api_guides_minecraft_mod_tools_chunky_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftModToolCommandIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolCommandOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_command_api_guides_minecraft_mod_tools__tool_id__command_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftModToolExecIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolCommandOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_install_api_guides_minecraft_mod_tools__tool_id__install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MinecraftModToolInstallIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolInstallOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_versions_api_guides_minecraft_mod_tools__tool_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolVersionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_config_api_guides_minecraft_mod_tools__tool_id__config_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MinecraftModToolPresetIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolPresetApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolPresetDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftModToolPresetDraftIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolPresetDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

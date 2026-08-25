@@ -1,0 +1,175 @@
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 20px;
+}
+
+.paneTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 6px;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.presetLabel {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-right: 4px;
+}
+
+.secondaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.progressPane {
+  background: #f7f8fa;
+  border-radius: 10px;
+  padding: 16px 18px 18px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.percentRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.percent {
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.percentUnit {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 14px 0 16px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.statValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  word-break: break-all;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.controlRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.controlRow :global(.ant-btn) {
+  width: 100%;
+}
+
+.logDetails {
+  margin-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 12px;
+}
+
+.logDetails summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  user-select: none;
+}
+
+.logDetails summary:hover {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.log {
+  margin: 10px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: #0b1220;
+  color: #b6e36a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid,
+  .stats,
+  .controlRow {
+    grid-template-columns: 1fr;
+  }
+}

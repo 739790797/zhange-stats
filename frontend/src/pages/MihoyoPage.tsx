@@ -7,10 +7,12 @@ import {
   updateMihoyoRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
+import { MihoyoAttendanceCalendarButton } from "@/components/MihoyoAttendanceCalendar";
 import { MihoyoBindPanel } from "@/components/MihoyoBindPanel";
 import { MihoyoExchangePanel } from "@/components/MihoyoExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
+import { hasMihoyoAttendanceCalendar } from "@/lib/mihoyoAttendance";
 import { isFeatureOn } from "@/lib/platformFeatures";
 
 type TabKey = "checkin" | "exchange";
@@ -48,6 +50,24 @@ export default function MihoyoPage() {
             updateRolePref={updateMihoyoRolePref}
             platformIcon="mihoyo"
             showPhoneMask
+            renderResultExtra={(row) => {
+              const gameCode = row.game_code;
+              if (
+                !gameCode ||
+                !row.role_uid ||
+                !hasMihoyoAttendanceCalendar(gameCode)
+              ) {
+                return null;
+              }
+              return (
+                <MihoyoAttendanceCalendarButton
+                  gameCode={gameCode}
+                  roleUid={row.role_uid}
+                  roleName={row.role_name}
+                  gameName={row.game_name}
+                />
+              );
+            }}
           />
         ),
       });

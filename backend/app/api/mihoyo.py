@@ -20,9 +20,12 @@ from app.core.platform_deps import require_feature
 from app.core.rate_limit import client_ip, platform_limiter
 from app.models.member import Member
 from app.models.user import User
+from app.schemas.checkin import CheckinAwardItem
 from app.schemas import (
     CheckinNowBody,
     CheckinRolePrefUpdate,
+    MihoyoAttendanceCalendarOut,
+    MihoyoAttendanceDayOut,
     MihoyoBindPasswordRequest,
     MihoyoBindPasswordResponse,
     MihoyoBindSmsRequest,
@@ -34,6 +37,7 @@ from app.schemas import (
     MihoyoExchangeItemOut,
     MihoyoExchangeRequest,
     MihoyoExchangeResultOut,
+    MihoyoExchangeRoleOut,
     MihoyoExchangeShopOut,
     MihoyoPointsLogItemOut,
     MihoyoPointsLogOut,
@@ -52,6 +56,7 @@ from app.services.mihoyo_checkin import (
     fetch_exchange_shop,
     fetch_points_logs,
     get_bind_for_member,
+    get_mihoyo_attendance_calendar_for_member,
     preview_roles,
     query_today_for_bind,
     run_checkin_for_member,
@@ -375,6 +380,7 @@ def mihoyo_exchange_shop(
     return MihoyoExchangeShopOut(
         points=int(data.get("points") or 0),
         items=[MihoyoExchangeItemOut(**item) for item in data.get("items") or []],
+        roles=[MihoyoExchangeRoleOut(**role) for role in data.get("roles") or []],
     )
 
 
@@ -428,4 +434,64 @@ def mihoyo_points_logs(
         total=int(data.get("total") or 0),
         page=int(data.get("page") or page),
         page_size=int(data.get("page_size") or page_size),
+    )
+
+
+@router.get(
+    "/attendance-calendar",
+    response_model=MihoyoAttendanceCalendarOut,
+    dependencies=[Depends(require_feature("mihoyo.checkin"))],
+)
+def mihoyo_attendance_calendar(
+    db: Session = Depends(get_db),
+    member: Member = Depends(require_user_member),
+    game_code: str = Query(..., min_length=1, max_length=32),
+    role_uid: str | None = Query(default=None, max_length=64),
+    force: bool = Query(default=False),
+):
+    """游戏福利签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。"""
+    try:
+        parsed, role, roles, synced_at, stale = (
+            get_mihoyo_attendance_calendar_for_member(
+                db,
+                member,
+                game_code=game_code,
+                role_uid=role_uid,
+                force=force,
+            )
+        )
+    except MihoyoApiError as exc:
+        raise_api_error(exc, MihoyoApiError)
+
+    days = [
+        MihoyoAttendanceDayOut(
+            day=int(d["day"]),
+            claimed=bool(d["claimed"]),
+            awards=[CheckinAwardItem(**a) for a in (d.get("awards") or [])],
+        )
+        for d in (parsed.get("days") or [])
+        if isinstance(d, dict)
+    ]
+    return MihoyoAttendanceCalendarOut(
+        game_code=role.game_code,
+        game_name=role.game_name,
+        uid=role.role_uid,
+        role_name=role.role_name,
+        claimed_days=int(parsed.get("claimed_days") or 0),
+        total_days=int(parsed.get("total_days") or 0),
+        has_today_claim=bool(parsed.get("has_today_claim")),
+        progress_reliable=bool(parsed.get("progress_reliable", True)),
+        days=days,
+        roles=[
+            MihoyoRoleOut(
+                game_code=r.game_code,
+                game_name=r.game_name,
+                uid=r.role_uid,
+                role_name=r.role_name,
+                channel_name=r.channel_name,
+            )
+            for r in roles
+        ],
+        synced_at=synced_at.isoformat() if synced_at else None,
+        stale=stale,
     )

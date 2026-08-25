@@ -92,6 +92,38 @@
   letter-spacing: 0.04em;
 }
 
+.viewBar,
+.statusBar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  border: 1px solid #2a2a2a;
+}
+
+.viewBtn {
+  margin: 0;
+  padding: 0 10px;
+  height: 36px;
+  border: 0;
+  border-right: 1px solid #2a2a2a;
+  background: #1a1b14;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.viewBtn:last-child {
+  border-right: 0;
+}
+
+.viewBtn:hover,
+.viewBtnOn {
+  background: #101010;
+  color: var(--hb-orange, #c8932a);
+}
+
 .traderThumbFallback {
   display: inline-block;
   width: 40px;

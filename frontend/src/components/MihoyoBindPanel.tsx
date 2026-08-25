@@ -50,17 +50,12 @@ export function MihoyoBindPanel({
   };
 
   const finishOk = async (
-    status?: MihoyoStatus | null,
+    _status?: MihoyoStatus | null,
     msg = "米游社绑定成功",
   ) => {
     await queryClient.cancelQueries({ queryKey: STATUS_KEY });
-    let next = status;
-    if (!next?.bound || next.token_ok === false) {
-      next = await fetchMihoyoStatus(true, true);
-    }
-    if (next?.bound) {
-      queryClient.setQueryData(STATUS_KEY, next);
-    }
+    const next = await fetchMihoyoStatus(true, true);
+    queryClient.setQueryData(STATUS_KEY, next);
     if (next?.bound && next.token_ok === false) {
       message.warning(
         next.token_error || "绑定已写入，但凭证校验未通过，请稍后刷新或重试",

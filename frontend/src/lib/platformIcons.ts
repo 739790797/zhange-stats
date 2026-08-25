@@ -12,6 +12,11 @@ export const PLATFORM_ICON_SRC = {
   tower: "/platform-icons/tower.png",
   ww: "/platform-icons/ww.png",
   pgr: "/platform-icons/pgr.png",
+  genshin: "/platform-icons/genshin.png",
+  bh3: "/platform-icons/bh3.png",
+  starrail: "/platform-icons/starrail.png",
+  zzz: "/platform-icons/zzz.png",
+  bh2: "/platform-icons/bh2.png",
   tarkov: "/platform-icons/tarkov.png",
   minecraft: "/platform-icons/minecraft.png",
 } as const;
@@ -26,6 +31,11 @@ const FEATURE_ICON_BY_ID: Record<string, PlatformIconName> = {
   exilium: "exilium",
   kujiequ: "kujiequ",
   mihoyo: "mihoyo",
+  "mihoyo.genshin": "genshin",
+  "mihoyo.bh3": "bh3",
+  "mihoyo.starrail": "starrail",
+  "mihoyo.zzz": "zzz",
+  "mihoyo.bh2": "bh2",
   "skland.arknights": "arknights",
   "skland.endfield": "endfield",
   "taygedo.exastris": "exastris",
@@ -54,11 +64,11 @@ const CHECKIN_GAME_ICON: Record<string, PlatformIconName> = {
   // 库街区
   kujiequ: "kujiequ", // 社区
   mihoyo: "mihoyo", // 米游社社区
-  genshin: "mihoyo",
-  bh3: "mihoyo",
-  starrail: "mihoyo",
-  zzz: "mihoyo",
-  bh2: "mihoyo",
+  genshin: "genshin",
+  bh3: "bh3",
+  starrail: "starrail",
+  zzz: "zzz",
+  bh2: "bh2",
   game_2: "pgr", // 战双
   game_3: "ww", // 鸣潮
   // 追放社区

@@ -6,13 +6,21 @@ describe("formatRequestError", () => {
     expect(formatRequestError(null, "兜底")).toBe("兜底");
   });
 
-  it("prefers FastAPI string detail", () => {
+  it("unwraps JSON string detail with msg", () => {
     expect(
       formatRequestError(
-        { response: { status: 400, data: { detail: "手机号无效" } } },
+        {
+          response: {
+            status: 400,
+            data: {
+              detail:
+                '{"retcode": -464, "msg": "请使用最新版本产品/链接以获得更佳体验，或前往user.mihoyo.com完成操作。"}',
+            },
+          },
+        },
         "失败",
       ),
-    ).toBe("手机号无效");
+    ).toBe("请使用最新版本产品/链接以获得更佳体验，或前往user.mihoyo.com完成操作。");
   });
 
   it("joins validation array detail", () => {

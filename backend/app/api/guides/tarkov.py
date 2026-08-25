@@ -392,10 +392,11 @@ def guides_tarkov_task_catalog(
     progress_status: str | None = Query(default=None, max_length=16),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
+    layout: str | None = Query(default="table", max_length=16),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """任务目录：商人 / 地图 / Kappa / 关键词过滤，分页返回。"""
+    """任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。"""
     bound, snap = False, None
     if progress or (progress_status or "").strip():
         bound, snap = tracker_svc.user_progress_snapshot(db, user)
@@ -408,6 +409,7 @@ def guides_tarkov_task_catalog(
             q=q,
             page=page,
             page_size=page_size,
+            layout=layout,
             progress=snap if progress else None,
             progress_status=progress_status if progress and snap else None,
             progress_bound=bound if progress else False,

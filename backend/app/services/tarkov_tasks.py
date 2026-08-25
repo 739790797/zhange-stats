@@ -28,6 +28,10 @@ RAW_ROW_ID = 1
 TASKS_JOB_KEY = "tarkov_tasks_sync"
 TASKS_PAGE_SIZE_DEFAULT = 50
 TASKS_PAGE_SIZE_MAX = 100
+TASKS_LAYOUT_TABLE = "table"
+TASKS_LAYOUT_CHAIN = "chain"
+NEIGHBORHOOD_HOPS = 2
+NEIGHBORHOOD_NODE_MAX = 36
 DOWNLOAD_TIMEOUT = 180
 
 TARKOV_JSON_TASKS_URL = "https://json.tarkov.dev/regular/tasks"
@@ -504,10 +508,149 @@ def _compact_task_requirements(raw: dict[str, Any]) -> list[dict[str, Any]]:
         out.append(
             {
                 "id": ident,
+                "name": "",
                 "status": [str(s).lower() for s in statuses if s is not None and str(s).strip()],
             }
         )
     return out
+
+
+def _fill_requirement_names(
+    rows: list[dict[str, Any]],
+    locale: dict[str, Any],
+) -> None:
+    by_id = {str(row.get("id") or ""): row for row in rows if row.get("id")}
+    for row in rows:
+        filled: list[dict[str, Any]] = []
+        for req in row.get("task_requirements") or []:
+            if not isinstance(req, dict):
+                continue
+            ident = str(req.get("id") or "").strip()
+            if not ident:
+                continue
+            name = str(req.get("name") or "").strip()
+            other = by_id.get(ident)
+            if other and other.get("name"):
+                name = str(other["name"])
+            if not name or _is_placeholder_name(ident, name):
+                name = _locale_lookup(locale, f"{ident} name", f"{ident} Name") or ident
+            filled.append({**req, "id": ident, "name": name})
+        row["task_requirements"] = filled
+
+
+def _requirement_parent_ids(
+    raw: dict[str, Any],
+    known: set[str],
+) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for row in raw.get("taskRequirements") or []:
+        if not isinstance(row, dict):
+            continue
+        ident = _id_of(row.get("task"))
+        if not ident or ident not in known or ident in seen:
+            continue
+        seen.add(ident)
+        out.append(ident)
+    return out
+
+
+def _unlock_maps(
+    tasks_by_id: dict[str, dict[str, Any]],
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    known = {str(tid) for tid in tasks_by_id}
+    parents: dict[str, list[str]] = {}
+    children: dict[str, list[str]] = {tid: [] for tid in known}
+    for tid, raw in tasks_by_id.items():
+        ident = str(tid)
+        if not isinstance(raw, dict):
+            parents[ident] = []
+            continue
+        prefs = _requirement_parent_ids(raw, known)
+        parents[ident] = prefs
+        for pid in prefs:
+            children.setdefault(pid, []).append(ident)
+    return parents, children
+
+
+def build_task_neighborhood(
+    task_id: str,
+    tasks_by_id: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+    *,
+    hops: int = NEIGHBORHOOD_HOPS,
+    progress: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """当前任务前后各 hops 跳的解锁邻域（前置 ← 当前 → 后续）。"""
+    empty = {"current_id": task_id, "nodes": [], "edges": []}
+    if not task_id or task_id not in tasks_by_id:
+        return empty
+    hops = max(1, int(hops))
+    parents, children = _unlock_maps(tasks_by_id)
+    hop_of: dict[str, int] = {task_id: 0}
+
+    frontier = [task_id]
+    for dist in range(1, hops + 1):
+        nxt: list[str] = []
+        for tid in frontier:
+            for pid in parents.get(tid) or []:
+                if pid in hop_of:
+                    continue
+                hop_of[pid] = -dist
+                nxt.append(pid)
+        frontier = nxt
+
+    frontier = [task_id]
+    for dist in range(1, hops + 1):
+        nxt = []
+        for tid in frontier:
+            for cid in children.get(tid) or []:
+                if cid in hop_of:
+                    continue
+                hop_of[cid] = dist
+                nxt.append(cid)
+        frontier = nxt
+
+    if len(hop_of) > NEIGHBORHOOD_NODE_MAX and hops > 1:
+        return build_task_neighborhood(
+            task_id,
+            tasks_by_id,
+            locale,
+            hops=1,
+            progress=progress,
+        )
+
+    included = set(hop_of)
+    nodes: list[dict[str, Any]] = []
+    for tid, hop in sorted(hop_of.items(), key=lambda item: (item[1], item[0])):
+        raw = tasks_by_id.get(tid)
+        if not isinstance(raw, dict):
+            continue
+        summary = project_task_summary(raw, locale)
+        if not summary:
+            continue
+        node: dict[str, Any] = {
+            "id": tid,
+            "name": summary["name"],
+            "trader_slug": str(summary.get("trader_slug") or ""),
+            "hop": hop,
+        }
+        if progress is not None:
+            node["progress_status"] = classify_task_progress(summary, progress)
+        nodes.append(node)
+
+    edges: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for tid in included:
+        for pid in parents.get(tid) or []:
+            if pid not in included:
+                continue
+            key = (pid, tid)
+            if key in seen:
+                continue
+            seen.add(key)
+            edges.append({"source_id": pid, "target_id": tid})
+    return {"current_id": task_id, "nodes": nodes, "edges": edges}
 
 
 def tracker_task_flag(task_id: str, tasks: dict[str, Any]) -> str:
@@ -920,6 +1063,7 @@ def parse_task_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
             str(r.get("name") or ""),
         )
     )
+    _fill_requirement_names(rows, locale)
     return rows
 
 
@@ -1199,6 +1343,20 @@ def load_parsed_tasks(
     return source, rows, locale, synced_at, note
 
 
+def _apply_requirement_progress_rows(
+    rows: list[dict[str, Any]],
+    progress: dict[str, Any],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        reqs = apply_requirement_progress(
+            list(row.get("task_requirements") or []),
+            progress,
+        )
+        out.append({**row, "task_requirements": reqs})
+    return out
+
+
 def list_tasks(
     db: Session,
     *,
@@ -1208,12 +1366,15 @@ def list_tasks(
     q: str | None = None,
     page: int = 1,
     page_size: int = TASKS_PAGE_SIZE_DEFAULT,
+    layout: str | None = None,
     progress: dict[str, Any] | None = None,
     progress_status: str | None = None,
     progress_bound: bool = False,
 ) -> dict[str, Any]:
     source, rows, _locale, synced_at, note = load_parsed_tasks(db)
     annotated = annotate_task_progress(rows, progress) if progress is not None else rows
+    if progress is not None:
+        annotated = _apply_requirement_progress_rows(annotated, progress)
     status_filter = (progress_status or "").strip().lower() if progress is not None else ""
     if status_filter and status_filter not in PROGRESS_STATUSES:
         status_filter = ""
@@ -1226,7 +1387,16 @@ def list_tasks(
         progress_status=status_filter or None,
     )
     ordered = sort_task_rows(filtered, by_progress=progress is not None)
-    paged = paginate_task_rows(ordered, page=page, page_size=page_size)
+    layout_key = (layout or TASKS_LAYOUT_TABLE).strip().lower()
+    if layout_key == TASKS_LAYOUT_CHAIN:
+        paged = {
+            "items": ordered,
+            "task_count": len(ordered),
+            "page": 1,
+            "page_size": len(ordered) or TASKS_PAGE_SIZE_DEFAULT,
+        }
+    else:
+        paged = paginate_task_rows(ordered, page=page, page_size=page_size)
     return {
         "items": paged["items"],
         "task_count": paged["task_count"],
@@ -1275,6 +1445,13 @@ def get_task_detail(
             list(detail.get("task_requirements") or []),
             progress,
         )
+    detail["neighborhood"] = build_task_neighborhood(
+        task_id,
+        tasks,
+        _locale_map(payload),
+        hops=NEIGHBORHOOD_HOPS,
+        progress=progress,
+    )
     return detail
 
 

@@ -46,6 +46,52 @@ export function isCredentialFailureMessage(text: string | null | undefined): boo
   return /凭证|登录|登陆|token|授权|重新绑定|已失效|过期|未登录|请重新/.test(t);
 }
 
+/** 绑定门禁：status.token_ok 或今日结果里的凭证失败文案 */
+export type BindTokenStatus = {
+  bound?: boolean;
+  token_ok?: boolean | null;
+  token_error?: string | null;
+  today_results?: Array<{
+    status?: string | null;
+    message?: string | null;
+  }>;
+};
+
+export function isBindTokenBroken(
+  status: BindTokenStatus | null | undefined,
+): boolean {
+  if (!status?.bound) return false;
+  return status.token_ok === false;
+}
+
+/** 今日结果里是否有凭证失败（列表内提示，不作为整页重绑门禁） */
+export function hasCredentialRowError(
+  status: BindTokenStatus | null | undefined,
+): boolean {
+  return (status?.today_results || []).some(
+    (row) =>
+      row.status === CHECKIN_STATUS.ERROR &&
+      isCredentialFailureMessage(row.message),
+  );
+}
+
+export function bindTokenErrorMessage(
+  status: BindTokenStatus | null | undefined,
+): string | null {
+  const direct = (status?.token_error || "").trim();
+  if (direct) return direct;
+  for (const row of status?.today_results || []) {
+    if (
+      row.status === CHECKIN_STATUS.ERROR &&
+      isCredentialFailureMessage(row.message)
+    ) {
+      const msg = (row.message || "").trim();
+      if (msg) return msg;
+    }
+  }
+  return null;
+}
+
 export type CheckinDialogKind =
   | "success"
   | "already"

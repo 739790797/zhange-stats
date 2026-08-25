@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive
 from app.models.member import Member
-from app.models.mihoyo import MihoyoBind, MihoyoCheckinLog
+from app.models.mihoyo import MihoyoAttendanceRaw, MihoyoBind, MihoyoCheckinLog
 from app.services.checkin_adapter import (
     CheckinAdapterBase,
     CheckinRunOutcome,
@@ -32,6 +32,7 @@ from app.services.checkin_orchestrator import (
 )
 from app.services.checkin_role_prefs import PLATFORM_MIHOYO, RoleKey
 from app.services.mihoyo_attendance import (
+    CALENDAR_GAME_CODES,
     GAME_CODE,
     query_today_all as mihoyo_query_today_all,
     run_all_checkins,
@@ -236,9 +237,26 @@ def fetch_exchange_shop(db: Session, member: Member) -> dict[str, Any]:
     working = _session_for_bind(db, bind)
     items = list_exchange_goods(working)
     points = get_points_balance(working)
+    roles = []
+    try:
+        for role in list_game_roles(working):
+            roles.append(
+                {
+                    "game_biz": role.game_biz,
+                    "game_code": role.game_code,
+                    "game_name": role.game_name,
+                    "role_uid": role.role_uid,
+                    "role_name": role.role_name,
+                    "region": role.region,
+                    "channel_name": role.channel_name,
+                }
+            )
+    except MihoyoApiError as exc:
+        logger.warning("mihoyo exchange list_game_roles failed: %s", exc.message)
     return {
         "points": points,
         "items": [item.to_dict() for item in items],
+        "roles": roles,
     }
 
 
@@ -262,12 +280,25 @@ def run_exchange_for_member(
     points_before = get_points_balance(working)
     if points_before < target.price:
         raise MihoyoApiError(f"米游币不足（需要 {target.price}，当前 {points_before}）")
+    biz = game_biz or target.game_biz
+    uid = str(role_uid or "").strip()
+    reg = str(region or "").strip()
+    if uid and not reg:
+        try:
+            for role in list_game_roles(working):
+                if role.role_uid == uid:
+                    reg = role.region
+                    biz = biz or role.game_biz
+                    break
+        except MihoyoApiError:
+            pass
     exchange_goods(
         working,
         goods_id=target.goods_id,
-        game_biz=game_biz or target.game_biz,
-        region=region,
-        role_uid=role_uid,
+        game_biz=biz,
+        region=reg,
+        role_uid=uid,
+        goods_type=target.goods_type,
     )
     points_after = get_points_balance(working)
     return {
@@ -349,6 +380,19 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
             return summary
         return f"{summary}\n" + "\n".join(extra_parts)
 
+    def after_checkin(
+        self, db: Session, bind: MihoyoBind, results: list[CheckinResult]
+    ) -> None:
+        cal_uids = [
+            r.role_uid
+            for r in results
+            if r.game_code in CALENDAR_GAME_CODES and is_success_status(r.status)
+        ]
+        if cal_uids:
+            invalidate_mihoyo_attendance_raws(
+                db, bind.member_id, role_uids=cal_uids
+            )
+
     def mark_as_skipped(
         self,
         bind: MihoyoBind,
@@ -421,3 +465,164 @@ def run_mihoyo_checkin_job(
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
     _orch_job_wrapper(mihoyo_adapter, due_only=due_only, member_id=member_id)
+
+
+def invalidate_mihoyo_attendance_raws(
+    db: Session,
+    member_id: int,
+    *,
+    game_code: str | None = None,
+    role_uids: list[str] | None = None,
+) -> None:
+    """签到成功后丢弃日历 raw，下次打开页回源。"""
+    q = db.query(MihoyoAttendanceRaw).filter(
+        MihoyoAttendanceRaw.member_id == member_id
+    )
+    if game_code:
+        q = q.filter(MihoyoAttendanceRaw.game_code == game_code)
+    if role_uids:
+        q = q.filter(MihoyoAttendanceRaw.role_uid.in_(role_uids))
+    q.delete(synchronize_session=False)
+
+
+def _mihoyo_today_log_hint(
+    db: Session, *, member_id: int, game_code: str, role_uid: str
+) -> bool:
+    from app.core.timeutil import today as beijing_today
+
+    day = beijing_today()
+    row = (
+        db.query(MihoyoCheckinLog)
+        .filter(
+            MihoyoCheckinLog.member_id == member_id,
+            MihoyoCheckinLog.checkin_date == day,
+            MihoyoCheckinLog.game_code == game_code,
+            MihoyoCheckinLog.role_uid == role_uid,
+        )
+        .one_or_none()
+    )
+    return bool(row and is_success_status(row.status))
+
+
+def get_mihoyo_attendance_calendar_for_member(
+    db: Session,
+    member: Member,
+    *,
+    game_code: str,
+    role_uid: str | None = None,
+    force: bool = False,
+) -> tuple[dict[str, Any], Any, list[Any], Any, bool]:
+    """读库二次加工游戏福利签到日历；无记录、跨月或 force 时回源落库。"""
+    from datetime import datetime
+
+    from app.core.timeutil import BEIJING, now as beijing_now
+    from app.services.mihoyo_attendance import fetch_game_attendance_bundle
+    from app.services.mihoyo_calendar import parse_mihoyo_attendance_calendar
+    from app.services.raw_payload_monitor import note_raw_payload
+
+    game_code = str(game_code or "").strip()
+    if game_code not in CALENDAR_GAME_CODES:
+        raise MihoyoApiError("该游戏不支持签到日历")
+
+    bind = get_bind_for_member(db, member.id)
+    if bind is None:
+        raise MihoyoApiError("尚未绑定米游社")
+
+    working = _session_for_bind(db, bind)
+    try:
+        roles = [r for r in list_game_roles(working) if r.game_code == game_code]
+    except MihoyoApiError as exc:
+        raise MihoyoApiError(friendly_error_message(exc.message)) from exc
+    _save_creds(bind, working)
+    db.commit()
+
+    if not roles:
+        raise MihoyoApiError("未找到该游戏绑定角色")
+
+    target_uid = str(role_uid or "").strip()
+    role = (
+        next((r for r in roles if r.role_uid == target_uid), None)
+        if target_uid
+        else roles[0]
+    )
+    if role is None:
+        raise MihoyoApiError("角色不在当前米游社绑定列表中")
+
+    row = (
+        db.query(MihoyoAttendanceRaw)
+        .filter(
+            MihoyoAttendanceRaw.member_id == member.id,
+            MihoyoAttendanceRaw.game_code == game_code,
+            MihoyoAttendanceRaw.role_uid == role.role_uid,
+        )
+        .one_or_none()
+    )
+
+    def _same_beijing_month(synced_at: datetime | None) -> bool:
+        if synced_at is None:
+            return False
+        now = beijing_now()
+        if synced_at.tzinfo is None:
+            synced = synced_at.replace(tzinfo=BEIJING)
+        else:
+            synced = synced_at.astimezone(BEIJING)
+        return (synced.year, synced.month) == (now.year, now.month)
+
+    stale = False
+    need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
+    if need_fetch:
+        try:
+            bundle = fetch_game_attendance_bundle(working, role)
+            raw_json = json.dumps(bundle, ensure_ascii=False)
+            note_raw_payload(
+                "mihoyo_attendance_raw",
+                raw_json,
+                member_id=member.id,
+                uid=role.role_uid,
+            )
+            synced = now_naive()
+            if row is None:
+                row = MihoyoAttendanceRaw(
+                    member_id=member.id,
+                    game_code=game_code,
+                    role_uid=role.role_uid,
+                    role_name=role.role_name,
+                    game_name=role.game_name,
+                    raw_json=raw_json,
+                    synced_at=synced,
+                )
+                db.add(row)
+            else:
+                row.role_name = role.role_name
+                row.game_name = role.game_name
+                row.raw_json = raw_json
+                row.synced_at = synced
+            db.commit()
+            db.refresh(row)
+        except MihoyoApiError as exc:
+            if row is None:
+                raise MihoyoApiError(friendly_error_message(exc.message)) from exc
+            stale = True
+            logger.warning(
+                "mihoyo attendance refresh failed member_id=%s game=%s role=%s: %s",
+                member.id,
+                game_code,
+                role.role_uid,
+                exc.message,
+            )
+
+    try:
+        resp = json.loads(row.raw_json)
+    except json.JSONDecodeError as exc:
+        raise MihoyoApiError("签到日历数据损坏，请刷新重试") from exc
+    if not isinstance(resp, dict):
+        raise MihoyoApiError("签到日历数据格式异常，请刷新重试")
+
+    log_today = _mihoyo_today_log_hint(
+        db, member_id=member.id, game_code=game_code, role_uid=role.role_uid
+    )
+    parsed = parse_mihoyo_attendance_calendar(
+        resp,
+        fallback_has_today=True if log_today else None,
+    )
+    return parsed, role, roles, row.synced_at, stale

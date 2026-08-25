@@ -2,7 +2,25 @@
 
 function detailText(detail: unknown): string | null {
   if (detail == null) return null;
-  if (typeof detail === "string") return detail.trim() || null;
+  if (typeof detail === "string") {
+    const trimmed = detail.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed) as {
+          msg?: unknown;
+          message?: unknown;
+        };
+        const nested = parsed.msg ?? parsed.message;
+        if (typeof nested === "string" && nested.trim()) {
+          return nested.trim();
+        }
+      } catch {
+        /* 保持原文字 */
+      }
+    }
+    return trimmed;
+  }
   if (Array.isArray(detail)) {
     const parts = detail
       .map((item) => {

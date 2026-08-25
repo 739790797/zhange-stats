@@ -15,6 +15,8 @@ class MinecraftServerProfile(Base):
 
     行内字段只描述下次要应用的剧本（版本 / 加载器 / Egg / 启动命令 / 模组 / 配置），
     不镜像当前 Pelican 服的实时状态。`applied_json` 是上次成功应用时的快照。
+    `mod_presets_json` 是模组草稿预设（按 tool_id / preset_id 存正文），
+    出厂模板仍在代码里；写入服上走 Pelican。
     """
 
     __tablename__ = "minecraft_server_profiles"
@@ -30,6 +32,9 @@ class MinecraftServerProfile(Base):
         JSON, nullable=False, default=dict
     )
     applied_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    mod_presets_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
     last_applied_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
