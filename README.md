@@ -86,11 +86,12 @@ sudo systemctl start zhange-stats
 
 1. 管理端 → **系统更新** → 检查 / 一键更新  
 2. 进程内下载 GitHub Release 源码 zip + 预构建 `static` → pip  
-3. **`os.execv` 同 PID 换码**（无需 `systemctl`、无需 root）  
-4. 安装树须属服务用户（`zhange`）可写；勿用 root 手改代码属主
+3. **先跑 Alembic 迁移**；失败则回滚白名单代码、**不重启**（避免迁移挂死 → 502）  
+4. 迁移成功后再 **`os.execv` 同 PID 换码**（无需 `systemctl`、无需 root）  
+5. 安装树须属服务用户（`zhange`）可写；勿用 root 手改代码属主
 
 应急排障（非常规升级路径）：`sudo systemctl restart zhange-stats`。  
-若卡在 **v0.2.37 Alembic 双 0056** 导致进程起不来、无法用管理端更新，在主机执行：
+若迁移半完成 / 历史 **Alembic 双 0056** 导致进程起不来、无法用管理端更新，在主机执行：
 
 ```bash
 # 推荐：拉主干源码（含自愈）+ 最新 Release 的 static

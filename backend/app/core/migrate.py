@@ -241,10 +241,22 @@ def run_migrations() -> None:
             command.upgrade(cfg, "head")
     except Exception as exc:
         msg = str(exc)
+        logger.exception("Database migration failed: %s", msg)
         if "present more than once" in msg or "overlaps with other requested revisions" in msg:
             raise RuntimeError(
                 "Alembic 修订号冲突（常见于 v0.2.37 双 0056）。"
                 "请在主机执行应急更新：\n"
+                "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
+                "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
+            ) from exc
+        if (
+            "Duplicate column" in msg
+            or "1060" in msg
+            or "already exists" in msg.lower()
+        ):
+            raise RuntimeError(
+                "迁移半完成（对象已存在但 alembic_version 未前进；常见于 MySQL/MariaDB "
+                "非事务 DDL）。请确认迁移幂等后重试，或执行应急更新：\n"
                 "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
                 "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
             ) from exc

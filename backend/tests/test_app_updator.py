@@ -211,6 +211,120 @@ def test_resolve_target_latest_and_explicit():
     assert "未找到" in missing.message
 
 
+def test_snapshot_and_restore_source_paths(tmp_path: Path):
+    install = tmp_path / "install"
+    (install / "backend" / "app").mkdir(parents=True)
+    (install / "backend" / "alembic").mkdir(parents=True)
+    (install / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    (install / "backend" / "app" / "keep.py").write_text("old\n", encoding="utf-8")
+    (install / "backend" / "requirements.txt").write_text("x==1\n", encoding="utf-8")
+
+    backup = tmp_path / "rollback"
+    saved = u.snapshot_source_paths(install, backup)
+    assert "VERSION" in saved
+    assert any("backend/app" in s or s == "backend/app" for s in saved)
+
+    (install / "VERSION").write_text("9.9.9\n", encoding="utf-8")
+    (install / "backend" / "app" / "keep.py").write_text("new\n", encoding="utf-8")
+    u.restore_source_paths(install, backup)
+    assert (install / "VERSION").read_text(encoding="utf-8") == "0.3.0\n"
+    assert (install / "backend" / "app" / "keep.py").read_text(encoding="utf-8") == "old\n"
+
+
+def test_run_install_migrations_raises_on_nonzero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    install = tmp_path / "install"
+    (install / "backend").mkdir(parents=True)
+    fake_py = install / "backend" / ".venv" / "bin" / "python"
+    fake_py.parent.mkdir(parents=True)
+    fake_py.write_text("", encoding="utf-8")
+
+    class FakeProc:
+        returncode = 1
+        stdout = ""
+        stderr = "CAST AS JSON not supported"
+
+    monkeypatch.setattr(u.subprocess, "run", lambda *a, **k: FakeProc())
+    with pytest.raises(RuntimeError, match="数据库迁移失败"):
+        u.run_install_migrations(install)
+
+
+def test_apply_update_core_rolls_back_when_migrate_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    install = tmp_path / "install"
+    (install / "backend" / "app").mkdir(parents=True)
+    (install / "backend" / "alembic").mkdir(parents=True)
+    (install / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    (install / "backend" / "app" / "x.py").write_text("old\n", encoding="utf-8")
+    (install / "backend" / "requirements.txt").write_text("httpx\n", encoding="utf-8")
+    (install / "static").mkdir()
+    data = install / "data"
+    data.mkdir()
+
+    zip_path_holder: dict[str, Path] = {}
+
+    async def fake_download(url: str, dest: Path, proxy: str | None = None) -> None:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.name == "source.zip":
+            root = "zhange-stats-x/"
+            with zipfile.ZipFile(dest, "w") as zf:
+                zf.writestr(root + "VERSION", "0.3.1\n")
+                zf.writestr(root + "backend/app/x.py", "new\n")
+                zf.writestr(root + "backend/requirements.txt", "httpx\n")
+                zf.writestr(root + "backend/alembic/.keep", "")
+            zip_path_holder["zip"] = dest
+        else:
+            dest.write_bytes(b"")
+
+    monkeypatch.setattr(u, "_download", fake_download)
+    monkeypatch.setattr(u, "pip_install_requirements", lambda *_a, **_k: None)
+    monkeypatch.setattr(u, "apply_static_tar", lambda *_a, **_k: None)
+
+    def boom(_install: Path) -> None:
+        # Simulate on-disk new code already applied, then migrate fails.
+        assert (install / "VERSION").read_text(encoding="utf-8").strip() == "0.3.1"
+        raise RuntimeError("数据库迁移失败，已中止重启以免服务挂死。详情: boom")
+
+    monkeypatch.setattr(u, "run_install_migrations", boom)
+    monkeypatch.setattr(
+        u,
+        "get_settings",
+        lambda: type(
+            "S",
+            (),
+            {
+                "DATA_DIR": str(data),
+                "STATIC_DIR": str(install / "static"),
+                "UPDATE_GITHUB_REPO": "739790797/zhange-stats",
+                "APP_VERSION": "0.3.0",
+            },
+        )(),
+    )
+
+    target = u.ReleaseInfo(
+        tag_name="v0.3.1",
+        name="v0.3.1",
+        body="",
+        published_at="",
+        zipball_url="https://example.com/src.zip",
+        static_asset_url="",
+    )
+    import asyncio
+
+    result = asyncio.run(
+        u._apply_update_core(
+            target=target,
+            proxy=None,
+            reboot=True,
+            install_dir=install,
+        )
+    )
+    assert result.ok is False
+    assert "回滚" in result.message
+    assert (install / "VERSION").read_text(encoding="utf-8").strip() == "0.3.0"
+    assert (install / "backend" / "app" / "x.py").read_text(encoding="utf-8") == "old\n"
+
+
 def test_update_lock_rejects_concurrent(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(u, "update_allowed", lambda: (True, ""))
 

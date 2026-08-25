@@ -618,6 +618,97 @@ def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
     return applied
 
 
+def snapshot_source_paths(install_dir: Path, backup_dir: Path) -> list[str]:
+    """Copy current whitelist paths aside so a failed migrate can restore disk."""
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[str] = []
+    for rel in SOURCE_WHITELIST:
+        src = install_dir / rel
+        if not src.exists():
+            continue
+        dest = backup_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_dir():
+            shutil.copytree(src, dest)
+        else:
+            shutil.copy2(src, dest)
+        saved.append(rel)
+    return saved
+
+
+def restore_source_paths(install_dir: Path, backup_dir: Path) -> None:
+    """Restore whitelist paths from ``snapshot_source_paths`` backup."""
+    if not backup_dir.is_dir():
+        raise RuntimeError(f"回滚目录不存在: {backup_dir}")
+    for rel in SOURCE_WHITELIST:
+        dest = install_dir / rel
+        src = backup_dir / rel
+        if dest.exists():
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+        if not src.exists():
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_dir():
+            shutil.copytree(src, dest)
+        else:
+            shutil.copy2(src, dest)
+
+
+def _resolve_venv_python(install_dir: Path) -> Path:
+    backend = install_dir / "backend"
+    candidates = [
+        backend / ".venv" / "bin" / "python",
+        backend / ".venv" / "Scripts" / "python.exe",
+        Path(sys.executable),
+    ]
+    python = next((p for p in candidates if p.is_file()), None)
+    if python is None:
+        raise RuntimeError("找不到 Python（请先 scripts/install.sh 创建 backend/.venv）")
+    return python
+
+
+def run_install_migrations(install_dir: Path) -> None:
+    """Run Alembic with *on-disk* new code before ``os.execv`` (subprocess).
+
+    Keeps a migrate failure from taking down the still-running old process.
+    """
+    backend = install_dir / "backend"
+    python = _resolve_venv_python(install_dir)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(backend.resolve())
+    # Fresh settings / engine in the child (avoid stale lru_cache from parent).
+    cmd = [
+        str(python),
+        "-c",
+        "from app.core.config import get_settings; get_settings.cache_clear(); "
+        "from app.core.migrate import run_migrations; run_migrations()",
+    ]
+    logger.info("pre-restart migrate: %s (cwd=%s)", " ".join(cmd), backend)
+    proc = subprocess.run(
+        cmd,
+        cwd=str(backend),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        if proc.stdout.strip():
+            logger.info("pre-restart migrate stdout:\n%s", proc.stdout.strip())
+        return
+    detail = (proc.stderr or proc.stdout or "").strip() or f"exit={proc.returncode}"
+    logger.error("pre-restart migrate failed:\n%s", detail)
+    raise RuntimeError(
+        "数据库迁移失败，已中止重启以免服务挂死。"
+        f"详情: {detail[:2000]}"
+    )
+
+
 def apply_static_tar(tar_path: Path, static_dir: Path) -> None:
     static_dir.mkdir(parents=True, exist_ok=True)
     # Clear existing static contents but keep directory
@@ -639,17 +730,17 @@ def pip_install_requirements(install_dir: Path) -> None:
     req = backend / "requirements.txt"
     if not req.is_file():
         raise RuntimeError("缺少 backend/requirements.txt")
-    candidates = [
-        backend / ".venv" / "bin" / "python",
-        backend / ".venv" / "Scripts" / "python.exe",
-        Path(sys.executable),
-    ]
-    python = next((p for p in candidates if p.is_file()), None)
-    if python is None:
-        raise RuntimeError("找不到 Python（请先 scripts/install.sh 创建 backend/.venv）")
+    python = _resolve_venv_python(install_dir)
     cmd = [str(python), "-m", "pip", "install", "-r", str(req)]
     logger.info("pip install: %s", " ".join(cmd))
     subprocess.run(cmd, check=True, cwd=str(backend))
+
+
+_EMERGENCY_UPDATE_HINT = (
+    "若库结构已半更新、管理端也无法再升，请在主机执行："
+    "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
+    "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
+)
 
 
 async def _apply_update_core(
@@ -659,7 +750,12 @@ async def _apply_update_core(
     reboot: bool,
     install_dir: Path,
 ) -> UpdateResult:
-    """Download + apply + pip. Caller holds update lock."""
+    """Download + apply + pip + pre-restart migrate. Caller holds update lock.
+
+    Migrations run *before* ``os.execv``. On migrate failure the whitelist source
+    tree is restored so the still-running process keeps serving the previous
+    version (avoids Alembic crash → systemd restart → 502 loops).
+    """
     settings = get_settings()
     tmp_root = Path(settings.DATA_DIR).expanduser()
     if not tmp_root.is_absolute():
@@ -667,6 +763,7 @@ async def _apply_update_core(
     else:
         tmp_root = tmp_root.resolve()
     work = tmp_root / "update-tmp"
+    rollback_dir = work / "rollback-src"
 
     _set_progress(
         busy=True,
@@ -699,6 +796,9 @@ async def _apply_update_core(
             logger.warning("下载 static 资产失败: %s", e)
             static_path = Path("")
 
+    _set_progress(busy=True, phase="snapshot", message="备份当前代码（迁移失败可回滚）…")
+    await asyncio.to_thread(snapshot_source_paths, install_dir, rollback_dir)
+
     _set_progress(busy=True, phase="apply", message="覆盖代码（白名单）…")
     applied = await asyncio.to_thread(apply_source_zip, zip_path, install_dir)
     logger.info("applied source paths: %s", applied)
@@ -718,6 +818,25 @@ async def _apply_update_core(
 
     _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
     await asyncio.to_thread(pip_install_requirements, install_dir)
+
+    _set_progress(busy=True, phase="migrate", message="应用数据库迁移…")
+    try:
+        await asyncio.to_thread(run_install_migrations, install_dir)
+    except Exception as exc:
+        logger.exception("pre-restart migrate failed; restoring previous source")
+        try:
+            await asyncio.to_thread(restore_source_paths, install_dir, rollback_dir)
+        except Exception:
+            logger.exception("source rollback failed after migrate error")
+            msg = (
+                f"数据库迁移失败且代码回滚也失败: {exc}。"
+                f"{_EMERGENCY_UPDATE_HINT}"
+            )
+            _set_progress(phase="error", message="更新失败", error=msg, busy=False)
+            return UpdateResult(ok=False, message=msg)
+        msg = f"{exc} 已回滚代码，当前进程继续运行。{_EMERGENCY_UPDATE_HINT}"
+        _set_progress(phase="error", message="更新失败（已回滚）", error=msg, busy=False)
+        return UpdateResult(ok=False, message=msg)
 
     new_ver = (install_dir / "VERSION").read_text(encoding="utf-8").strip()
     invalidate_check_cache()

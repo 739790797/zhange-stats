@@ -62,6 +62,65 @@ jobs:
           python -m pip install -r requirements.txt -r requirements-dev.txt
           python -m pytest -q
 
+  # 生产是 MariaDB：用同引擎跑 alembic，拦住 CAST(... AS JSON) 等方言坑
+  backend-migrate-mariadb:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: zhange_ci
+          MYSQL_USER: zhange
+          MYSQL_PASSWORD: zhange
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend deps
+        working-directory: backend
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Alembic upgrade head (twice for idempotency)
+        working-directory: backend
+        env:
+          DATABASE_URL: "mysql+pymysql://zhange:zhange@127.0.0.1:3306/zhange_ci"
+          SECRET_KEY: "ci-mariadb-migrate-check-not-for-prod"
+          APP_ENV: "development"
+          ALLOW_ENV_ADMIN_SEED: "false"
+        run: |
+          python <<'PY'
+          from sqlalchemy import create_engine, text
+          from app.core.config import get_settings
+          from app.core.migrate import run_migrations
+
+          get_settings.cache_clear()
+          run_migrations()
+          print("upgrade-1-ok")
+          get_settings.cache_clear()
+          run_migrations()
+          print("upgrade-2-ok")
+          s = get_settings()
+          with create_engine(s.DATABASE_URL).connect() as conn:
+              rev = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+          print("rev", rev)
+          assert rev, "alembic_version empty"
+          PY
+
   openapi-drift:
     runs-on: ubuntu-latest
     steps:
@@ -95,7 +154,7 @@ jobs:
           git diff --exit-code -- frontend/src/api/generated/openapi.json frontend/src/api/generated/schema.d.ts
 
   publish-release:
-    needs: [frontend-quality, backend-tests, openapi-drift]
+    needs: [frontend-quality, backend-tests, backend-migrate-mariadb, openapi-drift]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:

@@ -67,7 +67,14 @@ async def lifespan(_: FastAPI):
     )
 
     logger.info("startup step 1/8: alembic migrate")
-    run_migrations()
+    try:
+        run_migrations()
+    except Exception:
+        logger.exception(
+            "startup migrate failed — process will exit; "
+            "fix the migration or run scripts/emergency_update.sh on the host"
+        )
+        raise
 
     logger.info("startup step 2/8: ensure upload root (%s)", cfg.UPLOAD_DIR)
     upload_path = _ensure_upload_root()
