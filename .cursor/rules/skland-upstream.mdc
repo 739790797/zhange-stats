@@ -19,7 +19,7 @@ alwaysApply: false
 
 - `skland_session_cache`：只缓存 cred/sign_token，TTL ~20min，bind/unbind 失效。
 - 鉴权类错误：invalidate → 换票 → `force=True` 再查一次（仅森空岛）。
-- 扫码 pending 与 cred 共用 `ephemeral_kv`；**多实例必须共享 Redis**（见 `backend-conventions` / README）。
+- 扫码 pending 与 cred 共用 `ephemeral_kv`；**多实例必须共享 Redis**（见 `backend-conventions` / `docs/deploy.md`）。
 
 ## 改 attendance / Adapter 前
 

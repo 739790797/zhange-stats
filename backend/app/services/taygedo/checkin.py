@@ -27,15 +27,21 @@ from app.services.checkin.orchestrator import (
 from app.services.checkin.orchestrator import (
     run_checkin_for_bind as _orch_run_checkin,
 )
-from app.services.checkin.orchestrator import (
-    run_checkin_job as _orch_run_job,
-)
 from app.services.checkin.role_prefs import (
     PLATFORM_TAYGEDO,
     RoleKey,
     matches_role_filter,
 )
 from app.services.taygedo.calendar import parse_taygedo_attendance_calendar
+from app.services.taygedo.attendance import (
+    checkin_target,
+    exchange_shop_goods,
+    friendly_error_message,
+    get_user_coin_state,
+    list_shop_goods,
+    query_today_all as taygedo_query_today_all,
+    sort_taygedo_results,
+)
 from app.services.taygedo.client import (
     GAME_APP,
     GAME_APP_NAME,
@@ -46,18 +52,11 @@ from app.services.taygedo.client import (
     TaygedoApiError,
     TaygedoCredentials,
     TaygedoRole,
-    checkin_target,
-    exchange_shop_goods,
-    friendly_error_message,
-    get_user_coin_state,
     list_all_game_roles,
-    list_shop_goods,
     login_with_password,
     login_with_sms,
     mask_phone,
-    query_today_all as taygedo_query_today_all,
     refresh_access_token,
-    sort_taygedo_results,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,10 +168,6 @@ def unbind_taygedo(db: Session, member: Member) -> None:
     db.commit()
 
 
-def set_auto_checkin(db: Session, member: Member, enabled: bool) -> TaygedoBind:
-    return update_bind_prefs(db, member, auto_checkin=bool(enabled))
-
-
 def update_bind_prefs(
     db: Session,
     member: Member,
@@ -204,7 +199,7 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
     creds = _load_creds(bind)
-    from app.services.taygedo.client import ensure_session
+    from app.services.taygedo.attendance import ensure_session
 
     working = ensure_session(creds)
     roles = list_all_game_roles(working)
@@ -242,7 +237,7 @@ _GAME_NAMES = {
 
 
 def _session_for_bind(db: Session, bind: TaygedoBind) -> TaygedoCredentials:
-    from app.services.taygedo.client import ensure_session
+    from app.services.taygedo.attendance import ensure_session
 
     creds = _load_creds(bind)
     working = ensure_session(creds)
@@ -412,7 +407,7 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
         force: bool,
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
-        from app.services.taygedo.client import list_checkin_targets
+        from app.services.taygedo.attendance import list_checkin_targets
 
         working, targets = list_checkin_targets(session)
 
@@ -547,15 +542,6 @@ def query_today_for_bind(
 ) -> dict[str, Any]:
     """今日签到状态：HTTP 展示路径 force 默认 true，始终查官方并落库。"""
     return _orch_query_today(taygedo_adapter, db, bind, force=force)
-
-
-def query_today_for_member(
-    db: Session, member: Member, *, force: bool = False
-) -> dict[str, Any]:
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        raise TaygedoApiError("尚未绑定塔吉多")
-    return query_today_for_bind(db, bind, force=force)
 
 
 def _taygedo_today_log_hint(
@@ -747,17 +733,6 @@ def run_checkin_for_member(
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def run_taygedo_checkin_job(
-    db: Session,
-    *,
-    due_only: bool = False,
-    member_id: int | None = None,
-) -> dict[str, Any]:
-    return _orch_run_job(
-        taygedo_adapter, db, due_only=due_only, member_id=member_id
-    )
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:

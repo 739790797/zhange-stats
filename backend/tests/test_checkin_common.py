@@ -4,13 +4,13 @@ from datetime import date
 
 from app.services.checkin.common import (
     CheckinResult,
-    apply_bind_last_checkin,
     is_placeholder_awards,
     is_success_status,
     prefer_richer_awards,
     status_label,
     summarize_results,
     upsert_and_reload_day_results,
+    display_checkin_awards_summary,
 )
 
 
@@ -84,23 +84,6 @@ def test_summarize_results() -> None:
     assert "已" in summary or "成功" in summary
 
 
-def test_apply_bind_last_checkin() -> None:
-    class Bind:
-        last_checkin_at = None
-        last_checkin_date = None
-        last_checkin_ok = None
-        last_checkin_summary = None
-        updated_at = None
-
-    bind = Bind()
-    apply_bind_last_checkin(
-        bind, now="now", checkin_date="2026-08-05", ok=True, summary="ok"
-    )
-    assert bind.last_checkin_ok is True
-    assert bind.last_checkin_summary == "ok"
-    assert bind.updated_at == "now"
-
-
 def test_upsert_and_reload_preserves_extra_text() -> None:
     """logs 无 extra_text 列；读回后须从现场 results 回填（追放每日任务）。"""
 
@@ -169,3 +152,45 @@ def test_upsert_and_reload_preserves_extra_text() -> None:
     assert merged[0].awards_text == "积分+40"
     # message 落库时会并入 extra_text，但 API 展示字段仍独立
     assert "每日任务" in (db.rows[0].message or "")
+
+
+def test_display_checkin_awards_summary_skips_status_copy() -> None:
+    assert (
+        display_checkin_awards_summary(
+            awards_text=None, message="今日已签到", status="already"
+        )
+        is None
+    )
+    assert (
+        display_checkin_awards_summary(
+            awards_text=None,
+            message="今日已签到：原石×20",
+            status="already",
+        )
+        == "原石×20"
+    )
+    assert (
+        display_checkin_awards_summary(
+            awards_text=None,
+            message="今日已签到，获得：合成玉x80",
+            status="already",
+        )
+        == "合成玉x80"
+    )
+    assert (
+        display_checkin_awards_summary(
+            awards_text="积分+40",
+            message="今日已签到",
+            status="already",
+        )
+        == "积分+40"
+    )
+    assert (
+        display_checkin_awards_summary(
+            awards_text=None,
+            message="今日已签到",
+            status="already",
+            channel_name="Bilibili",
+        )
+        == "B服不支持查询"
+    )

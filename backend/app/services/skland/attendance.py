@@ -234,8 +234,6 @@ def friendly_error_message(msg: str) -> str:
     return text
 
 
-_friendly_error_message = friendly_error_message  # 兼容旧引用
-
 def _attendance_get(
     session: SklandSession,
     url_base: str,
@@ -543,7 +541,7 @@ def checkin_arknights(session: SklandSession, role: SklandRole) -> CheckinResult
     ):
         awards_text, awards_items = fetch_today_awards(session, role)
     if status == "error":
-        message = _friendly_error_message(raw_message)
+        message = friendly_error_message(raw_message)
     else:
         message = awards_text or ""
     return CheckinResult(
@@ -610,7 +608,7 @@ def checkin_endfield(session: SklandSession, role: SklandRole) -> CheckinResult:
             f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
         )
     elif status == "error":
-        message = _friendly_error_message(message)
+        message = friendly_error_message(message)
     return CheckinResult(
         game_code=role.game_code,
         game_name=role.game_name,
@@ -640,63 +638,6 @@ def checkin_role(session: SklandSession, role: SklandRole) -> CheckinResult:
         status="skipped",
         message="不支持的游戏",
     )
-
-
-def checkin_all_roles(session: SklandSession) -> list[CheckinResult]:
-    roles = list_roles(session)
-    results: list[CheckinResult] = []
-    for role in roles:
-        try:
-            results.append(checkin_role(session, role))
-        except SklandApiError as exc:
-            msg = exc.message or ""
-            already = "请勿重复签到" in msg or "重复签到" in msg
-            # B 服方舟：重复签到也不 GET 补奖（只信此前 POST 落库的 awards）
-            if already and not (
-                role.game_code == GAME_ARKNIGHTS and _is_arknights_bilibili(role)
-            ):
-                awards_text, awards_items = fetch_today_awards(session, role)
-            else:
-                awards_text, awards_items = None, []
-            results.append(
-                CheckinResult(
-                    game_code=role.game_code,
-                    game_name=role.game_name,
-                    role_uid=role.uid,
-                    role_name=role.role_name,
-                    channel_name=role.channel_name,
-                    status="already" if already else "error",
-                    message=(
-                        (awards_text or "")
-                        if already and role.game_code == GAME_ARKNIGHTS
-                        else (
-                            (
-                                f"今日已签到，获得：{awards_text}"
-                                if awards_text
-                                else "今日已签到"
-                            )
-                            if already
-                            else _friendly_error_message(msg)
-                        )
-                    ),
-                    awards_text=awards_text,
-                    awards=awards_items or None,
-                )
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("skland checkin unexpected error")
-            results.append(
-                CheckinResult(
-                    game_code=role.game_code,
-                    game_name=role.game_name,
-                    role_uid=role.uid,
-                    role_name=role.role_name,
-                    channel_name=role.channel_name,
-                    status="error",
-                    message=_friendly_error_message(str(exc)),
-                )
-            )
-    return results
 
 
 

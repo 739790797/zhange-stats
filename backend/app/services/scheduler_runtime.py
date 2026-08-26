@@ -6,6 +6,8 @@ import logging
 import threading
 from collections.abc import Callable
 
+from datetime import datetime
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
 
@@ -178,17 +180,20 @@ def register_scheduler_jobs(
 
         # 是否注册只认平台功能开关；interval/cron 时刻仍读 scheduler_jobs
         if _job_feature_allowed(db, "steam_presence") and steam_key:
+            steam_job: dict = {
+                "id": "steam_presence",
+                "replace_existing": True,
+                "max_instances": 1,
+            }
+            if run_steam_once:
+                steam_job["next_run_time"] = datetime.now(tz=BEIJING)
             scheduler.add_job(
                 wrap_scheduled_job("steam_presence", poll_job_wrapper),
                 "interval",
                 minutes=interval,
-                id="steam_presence",
-                replace_existing=True,
-                max_instances=1,
+                **steam_job,
             )
             started = True
-            if run_steam_once:
-                poll_job_wrapper()
 
         mc_cfg = cfg.get("minecraft_presence") or {}
         mc_interval = max(1, int(mc_cfg.get("interval_minutes") or 1))

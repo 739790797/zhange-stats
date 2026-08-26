@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-import urllib.error
-import urllib.request
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
+from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTrackerBind
 from app.models.user import User
@@ -51,36 +50,33 @@ def game_mode_label(mode: str) -> str:
 
 def _http_json(path: str, token: str) -> dict[str, Any]:
     url = f"{TRACKER_API_BASE}{path}"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        },
-        method="GET",
-    )
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
     try:
-        with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp:
-            raw = resp.read()
-    except urllib.error.HTTPError as exc:
+        resp = http_request("GET", url, headers=headers, timeout=DOWNLOAD_TIMEOUT)
+    except HttpRequestError as exc:
+        raise TarkovTrackerError(f"无法连接 Tarkov Tracker: {exc}", status_code=502) from exc
+    if resp.status_code >= 400:
         body = ""
         try:
-            body = exc.read().decode("utf-8", errors="replace")[:400]
+            body = resp.content.decode("utf-8", errors="replace")[:400]
         except Exception:  # noqa: BLE001
             body = ""
-        if exc.code == 401:
-            raise TarkovTrackerError("Token 无效或已撤销", status_code=401) from exc
-        if exc.code == 403:
+        if resp.status_code == 401:
+            raise TarkovTrackerError("Token 无效或已撤销", status_code=401)
+        if resp.status_code == 403:
             raise TarkovTrackerError(
                 "Token 缺少「Get progression」权限，请在 Tarkov Tracker 重新创建",
                 status_code=403,
-            ) from exc
-        if exc.code == 429:
+            )
+        if resp.status_code == 429:
             raise TarkovTrackerError(
                 "Tarkov Tracker 请求过于频繁，请稍后再试",
                 status_code=429,
-            ) from exc
+            )
         detail = ""
         try:
             parsed = json.loads(body) if body else {}
@@ -88,14 +84,12 @@ def _http_json(path: str, token: str) -> dict[str, Any]:
                 detail = str(parsed.get("error") or parsed.get("message") or "")
         except json.JSONDecodeError:
             detail = ""
-        msg = f"Tarkov Tracker 请求失败 HTTP {exc.code}"
+        msg = f"Tarkov Tracker 请求失败 HTTP {resp.status_code}"
         if detail:
             msg = f"{msg}：{detail}"
-        raise TarkovTrackerError(msg, status_code=502) from exc
-    except urllib.error.URLError as exc:
-        raise TarkovTrackerError(f"无法连接 Tarkov Tracker: {exc}", status_code=502) from exc
+        raise TarkovTrackerError(msg, status_code=502)
     try:
-        payload = json.loads(raw.decode("utf-8"))
+        payload = json.loads(resp.content.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise TarkovTrackerError("Tarkov Tracker 响应无法解析", status_code=502) from exc
     if not isinstance(payload, dict):

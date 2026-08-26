@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   bindTokenErrorMessage,
+  checkinDialogTitle,
   hasCredentialRowError,
   isBindTokenBroken,
   isCredentialFailureMessage,
 } from "./checkinStatus";
+
+describe("checkinDialogTitle", () => {
+  it("uses non-scolding copy for already signed", () => {
+    expect(checkinDialogTitle("already")).toBe("今日已签到");
+    expect(checkinDialogTitle("success")).toBe("签到成功");
+  });
+});
 
 describe("isCredentialFailureMessage", () => {
   it("matches login expired copy", () => {

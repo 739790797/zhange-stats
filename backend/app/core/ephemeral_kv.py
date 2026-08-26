@@ -13,37 +13,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_redis_client: Any | None = None
-_redis_checked = False
-
 _lock = threading.Lock()
 _memory: dict[str, tuple[str, float]] = {}
 
 
 def _get_redis() -> Any | None:
-    global _redis_client, _redis_checked
-    if _redis_checked:
-        return _redis_client
-    _redis_checked = True
-    try:
-        from app.core.config import get_settings
+    from app.core.redis_client import get_redis
 
-        url = (get_settings().REDIS_URL or "").strip()
-    except Exception:  # noqa: BLE001
-        return None
-    if not url:
-        return None
-    try:
-        import redis
-
-        client = redis.Redis.from_url(url, decode_responses=True)
-        client.ping()
-        _redis_client = client
-        logger.info("ephemeral_kv: using Redis backend")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("ephemeral_kv: Redis unavailable (%s), fallback to memory", exc)
-        _redis_client = None
-    return _redis_client
+    return get_redis()
 
 
 def ephemeral_set(key: str, value: str, *, ttl_sec: int) -> None:
@@ -106,8 +83,8 @@ def _purge_memory_locked(now: float) -> None:
 
 def reset_ephemeral_kv_for_tests() -> None:
     """测试用：清空内存态并重置 Redis 探测。"""
-    global _redis_client, _redis_checked
-    _redis_client = None
-    _redis_checked = False
+    from app.core.redis_client import reset_redis_for_tests
+
+    reset_redis_for_tests()
     with _lock:
         _memory.clear()

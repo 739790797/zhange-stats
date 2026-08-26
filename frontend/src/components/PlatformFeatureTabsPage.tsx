@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Tabs } from "antd";
-import { useEffect, useState, type ReactNode } from "react";
+import { Alert, Card, Spin, Tabs } from "antd";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { PanelFallback } from "@/components/RouteFallback";
 import type { ExchangeBindStatus } from "@/components/ExchangePageTemplate";
 import {
   bindTokenErrorMessage,
   isBindTokenBroken,
 } from "@/lib/checkinStatus";
+import { isInitialQueryPending } from "@/lib/queryCache";
+import { SKLAND_APP_LOGOUT_HINT } from "@/lib/sklandCredentialCopy";
 
 export type PlatformFeatureTabItem = {
   key: string;
@@ -35,6 +38,7 @@ export type PlatformFeatureTabsPageProps = {
 /**
  * 平台页外壳：PageHeader + 绑定门禁 + feature 开关驱动的 Tabs。
  * 签到 / 兑换等子内容由 tabItems 注入（签到用 CheckinPageTemplate contentOnly）。
+ * 未激活 Tab 会卸载，避免默认签到页同时打盒子/日历/兑换上游。
  */
 export function PlatformFeatureTabsPage({
   title,
@@ -68,7 +72,15 @@ export function PlatformFeatureTabsPage({
 
   const bound = Boolean(statusQuery.data?.bound);
   const tokenBroken = isBindTokenBroken(statusQuery.data);
-  const needsBind = (!bound || tokenBroken) && !statusQuery.isLoading;
+  const needsBind =
+    (!bound || tokenBroken) && !isInitialQueryPending(statusQuery);
+
+  const tabNodes = tabItems.map((item) => ({
+    ...item,
+    children: (
+      <Suspense fallback={<PanelFallback />}>{item.children}</Suspense>
+    ),
+  }));
 
   return (
     <div>
@@ -93,15 +105,31 @@ export function PlatformFeatureTabsPage({
             }
             description={
               tokenBroken
-                ? bindTokenErrorMessage(statusQuery.data) ||
-                  "请重新绑定后再试。"
-                : undefined
+                ? [
+                    bindTokenErrorMessage(statusQuery.data) ||
+                      "请重新绑定后再试。",
+                    bindName === "森空岛" ? SKLAND_APP_LOGOUT_HINT : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                : bindName === "森空岛"
+                  ? SKLAND_APP_LOGOUT_HINT
+                  : undefined
             }
           />
           <Card>{bindPanel}</Card>
         </div>
-      ) : !featuresReady ? null : tabItems.length ? (
-        <Tabs activeKey={tab} onChange={setTab} items={tabItems} />
+      ) : !featuresReady ? (
+        <div style={{ textAlign: "center", padding: 48 }}>
+          <Spin />
+        </div>
+      ) : tabItems.length ? (
+        <Tabs
+          activeKey={tab}
+          onChange={setTab}
+          items={tabNodes}
+          destroyInactiveTabPane
+        />
       ) : (
         <Alert
           type="info"

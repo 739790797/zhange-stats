@@ -8,11 +8,21 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-)
+_url = settings.DATABASE_URL
+_is_mysql = _url.startswith("mysql")
+_engine_kwargs: dict = {
+    "pool_pre_ping": True,
+    "pool_recycle": 3600,
+}
+if _is_mysql:
+    _engine_kwargs.update(
+        pool_size=max(1, int(settings.DB_POOL_SIZE)),
+        max_overflow=max(0, int(settings.DB_MAX_OVERFLOW)),
+        pool_timeout=max(1, int(settings.DB_POOL_TIMEOUT)),
+        connect_args={"charset": "utf8mb4"},
+    )
+
+engine = create_engine(_url, **_engine_kwargs)
 
 
 @event.listens_for(Engine, "connect")
@@ -24,7 +34,6 @@ def _set_session_timezone(dbapi_conn, connection_record) -> None:
     cursor = dbapi_conn.cursor()
     try:
         cursor.execute("SET time_zone = '+08:00'")
-        cursor.execute("SET NAMES utf8mb4")
     finally:
         cursor.close()
 
@@ -40,5 +49,8 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

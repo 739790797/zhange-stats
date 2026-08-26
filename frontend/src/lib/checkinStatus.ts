@@ -122,7 +122,7 @@ export function checkinDialogTitle(kind: CheckinDialogKind): string {
     case "success":
       return "签到成功";
     case "already":
-      return "请勿重复签到";
+      return "今日已签到";
     case "failure":
     case "credential":
       return "签到失败";

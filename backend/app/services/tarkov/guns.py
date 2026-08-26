@@ -18,8 +18,6 @@ from app.services.tarkov.ammo import (
     SOURCE_GRAPHQL,
     SOURCE_JSON_API,
     TARKOV_GRAPHQL_URL,
-    TARKOV_JSON_ITEMS_LOCALE_URL,
-    TARKOV_JSON_ITEMS_URL,
     TarkovAmmoError,
     _http_request,
     normalize_caliber,
@@ -491,43 +489,6 @@ def download_graphql_guns(*, lang: str = "zh") -> GunUpstreamBundle:
     if last_error:
         raise last_error
     raise TarkovGunError("tarkov.dev guns 拉取失败")
-
-
-def download_json_api_guns(*, lang: str = "zh") -> GunUpstreamBundle:
-    try:
-        raw = _http_request(TARKOV_JSON_ITEMS_URL, timeout=180)
-    except TarkovAmmoError as exc:
-        raise TarkovGunError(str(exc)) from exc
-    try:
-        items_payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovGunError("json.tarkov.dev items 解析失败") from exc
-    if not isinstance(items_payload, dict):
-        raise TarkovGunError("json.tarkov.dev items 格式无效")
-
-    locale: dict[str, Any] | None = None
-    try:
-        loc_raw = _http_request(
-            TARKOV_JSON_ITEMS_LOCALE_URL.format(lang=lang),
-            timeout=60,
-        )
-        loc_payload = json.loads(loc_raw.decode("utf-8"))
-        if isinstance(loc_payload, dict) and isinstance(loc_payload.get("data"), dict):
-            locale = loc_payload["data"]
-    except TarkovAmmoError:
-        logger.warning("json.tarkov.dev items_%s locale unavailable", lang)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        logger.warning("json.tarkov.dev items_%s locale parse failed", lang)
-
-    envelope: dict[str, Any] = {"items": items_payload, "locale": locale}
-    rows = parse_gun_raw(SOURCE_JSON_API, envelope)
-    if not rows:
-        raise TarkovGunError("json.tarkov.dev 未解析到枪械")
-    return GunUpstreamBundle(
-        source=SOURCE_JSON_API,
-        payload=envelope,
-        note="json.tarkov.dev/regular/items (guns)",
-    )
 
 
 def gun_count(db: Session) -> int:

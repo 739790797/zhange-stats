@@ -8,8 +8,6 @@ export type PlatformFeaturesResponse = components["schemas"]["PlatformFeaturesOu
 export type PlatformFeaturesUpdate = components["schemas"]["PlatformFeaturesUpdate"];
 export type JobTriggerResult = components["schemas"]["JobTriggerOut"];
 export type JobTriggerRequest = components["schemas"]["JobTriggerRequest"];
-export type CheckinLogItem = components["schemas"]["CheckinLogItemOut"];
-export type CheckinLogsPage = components["schemas"]["CheckinLogsPageOut"];
 export type JobMemberOption = components["schemas"]["JobMemberOptionOut"];
 export type UserCheckinTask = components["schemas"]["UserCheckinTaskOut"];
 export type UserCheckinTasksPage = components["schemas"]["UserCheckinTasksPageOut"];
@@ -64,19 +62,6 @@ export async function triggerScheduledJob(
   return data;
 }
 
-export async function fetchJobCheckinLogs(params?: {
-  platform?: string | null;
-  member_id?: number | null;
-  page?: number;
-  page_size?: number;
-}) {
-  const { data } = await client.get<CheckinLogsPage>(
-    "/settings/jobs/checkin-logs",
-    { params },
-  );
-  return data;
-}
-
 export async function fetchJobFilterMembers() {
   const { data } = await client.get<JobMemberOption[]>("/settings/jobs/members");
   return data;
@@ -102,18 +87,6 @@ export async function fetchMyDailyTasks(params?: {
 }) {
   const { data } = await client.get<UserCheckinTasksPage>(
     "/profile/daily-tasks",
-    { params },
-  );
-  return data;
-}
-
-export async function fetchMyDailyTaskLogs(params?: {
-  platform?: string | null;
-  page?: number;
-  page_size?: number;
-}) {
-  const { data } = await client.get<CheckinLogsPage>(
-    "/profile/daily-task-logs",
     { params },
   );
   return data;

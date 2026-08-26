@@ -1,5 +1,6 @@
-import { Tag, Typography } from "antd";
+import { Tag, Tooltip, Typography } from "antd";
 import {
+  CHECKIN_STATUS,
   checkinStatusLabel,
   checkinStatusTagColor,
 } from "@/lib/checkinStatus";
@@ -15,9 +16,17 @@ export function CheckinStatusTag({
   if (!status && !statusLabel) {
     return <Typography.Text type="secondary">-</Typography.Text>;
   }
-  return (
+  const tag = (
     <Tag color={checkinStatusTagColor(status)}>
       {checkinStatusLabel(status, statusLabel)}
     </Tag>
   );
+  if (status === CHECKIN_STATUS.UNKNOWN) {
+    return (
+      <Tooltip title="上游未返回明确状态，可手动点签到确认">
+        {tag}
+      </Tooltip>
+    );
+  }
+  return tag;
 }

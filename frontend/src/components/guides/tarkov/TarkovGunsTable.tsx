@@ -315,7 +315,11 @@ export function TarkovGunsTable({
       rowKey="id"
       columns={columns}
       dataSource={rows}
-      pagination={false}
+      pagination={{
+        pageSize: 50,
+        showSizeChanger: true,
+        pageSizeOptions: ["20", "50", "100"],
+      }}
       scroll={{ x: 1100 }}
       onChange={onTableChange}
       locale={{ emptyText: "当前筛选下无枪械" }}

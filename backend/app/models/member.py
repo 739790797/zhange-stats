@@ -26,7 +26,10 @@ class Member(Base):
     qq_nickname: Mapped[str | None] = mapped_column(String(64), nullable=True)
     qq_avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id"), unique=True, nullable=True
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=True,
     )
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

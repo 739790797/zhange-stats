@@ -76,12 +76,12 @@ export function ExiliumExchangePanel() {
   return (
     <ExchangePageTemplate<Shop>
       bindName="追放"
-      unboundMessage="尚未绑定追放社区"
+      unboundMessage="尚未绑定追放"
       statusQueryKey={["exilium-status"]}
       fetchStatus={() => fetchExiliumStatus(true, true)}
       bindPanel={
         <ExiliumBindPanel
-          title="绑定追放社区账号"
+          title="绑定追放账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
             window.setTimeout(() => rolePicker.openPicker(), 0);

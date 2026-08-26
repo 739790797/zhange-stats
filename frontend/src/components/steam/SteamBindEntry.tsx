@@ -45,7 +45,7 @@ export function SteamBindEntry({
           showIcon
           style={{ marginBottom: 16 }}
           message="尚未绑定 Steam"
-          description="绑定后可查看自己与 Steam 好友的游玩时间轴。"
+          description="绑定后可查看自己与圈子成员的游玩时间轴。"
         />
       )}
       <Card>

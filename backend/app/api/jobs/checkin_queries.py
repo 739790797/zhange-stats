@@ -213,6 +213,8 @@ def query_user_checkin_tasks(
                             game_name=game_name,
                             role_uid=str(pref.role_uid),
                             role_name=role_name,
+                            channel_name=tmeta.get("channel_name")
+                            or meta.get("channel_name"),
                             today_status=tmeta.get("status"),
                             today_status_label=tmeta.get("status_label"),
                             today_awards_text=tmeta.get("awards_text"),
@@ -233,7 +235,15 @@ def query_user_checkin_tasks(
                         )
                     )
             else:
-                # 尚未写出角色偏好：回退展示 bind 级摘要
+                # 尚未写出角色偏好：时间仍用 bind 种子；上次执行只信 logs
+                latest_meta: dict[str, Any] = {}
+                for meta in log_meta.values():
+                    checked = meta.get("checked_at")
+                    if checked is None:
+                        continue
+                    prev = latest_meta.get("checked_at")
+                    if prev is None or checked > prev:
+                        latest_meta = meta
                 items.append(
                     UserCheckinTaskOut(
                         task_key=f"{p}:{bind.member_id}",
@@ -246,12 +256,14 @@ def query_user_checkin_tasks(
                         auto_checkin=bool(bind.auto_checkin),
                         checkin_hour=int(bind.checkin_hour),
                         checkin_minute=int(bind.checkin_minute),
-                        last_checkin_at=_fmt_dt(bind.last_checkin_at),
-                        last_checkin_date=bind.last_checkin_date.isoformat()
-                        if bind.last_checkin_date
-                        else None,
-                        last_checkin_ok=bind.last_checkin_ok,
-                        last_checkin_summary=bind.last_checkin_summary,
+                        last_checkin_at=_fmt_dt(latest_meta.get("checked_at")),
+                        last_checkin_date=(
+                            latest_meta["checkin_date"].isoformat()
+                            if latest_meta.get("checkin_date") is not None
+                            else None
+                        ),
+                        last_checkin_ok=latest_meta.get("ok"),
+                        last_checkin_summary=latest_meta.get("summary"),
                         bound_at=_fmt_dt(bind.bound_at),
                     )
                 )
@@ -328,6 +340,8 @@ def _role_log_meta(
             "ok": ok,
             "summary": summary,
             "awards": loads_awards_json(getattr(row, "awards_json", None)) or [],
+            "channel_name": str(getattr(row, "channel_name", None) or "").strip()
+            or None,
         }
     return out
 
@@ -369,6 +383,8 @@ def _role_today_status_meta(
             "awards": loads_awards_json(getattr(row, "awards_json", None)) or [],
             "game_name": row.game_name,
             "role_name": row.role_name,
+            "channel_name": str(getattr(row, "channel_name", None) or "").strip()
+            or None,
         }
     return out
 

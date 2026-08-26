@@ -9,9 +9,9 @@ import logging
 import random
 import string
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
+
+from app.core.http_client import HttpRequestError, http_request
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -144,19 +144,12 @@ def _http(
     if headers:
         req_headers.update(headers)
     data = body.encode("utf-8") if body is not None else None
-    req = urllib.request.Request(url, data=data, headers=req_headers, method=method.upper())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            status = resp.status
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
-        status = exc.code
-        try:
-            raw = exc.read().decode("utf-8", errors="replace")
-        except Exception:
-            raw = str(exc)
-    except urllib.error.URLError as exc:
-        raise TaygedoApiError(f"网络错误：{exc.reason}") from exc
+        resp = http_request(method, url, headers=req_headers, content=data, timeout=timeout)
+        status = resp.status_code
+        raw = resp.content.decode("utf-8", errors="replace")
+    except HttpRequestError as exc:
+        raise TaygedoApiError(f"网络错误：{exc}") from exc
 
     if not raw.strip():
         if status in (401, 402, 403):
@@ -459,6 +452,8 @@ def ensure_access_token(creds: TaygedoCredentials) -> TaygedoCredentials:
 
 
 def list_game_roles(creds: TaygedoCredentials, game_id: str, game_name: str) -> list[TaygedoRole]:
+    from app.services.taygedo.attendance import friendly_error_message, is_auth_failure
+
     status, data = _http(
         "GET",
         f"{TAYGEDO_BASE}/usercenter/api/v2/getGameRoles?gameId={urllib.parse.quote(game_id)}",
@@ -500,6 +495,8 @@ def list_nte_roles(creds: TaygedoCredentials) -> list[TaygedoRole]:
 
 def list_all_game_roles(creds: TaygedoCredentials) -> list[TaygedoRole]:
     """异环 + 幻塔已绑定角色。"""
+    from app.services.taygedo.attendance import is_auth_failure
+
     out: list[TaygedoRole] = []
     last_auth: TaygedoApiError | None = None
     for game_id, game_name in GAME_SIGN_IDS:
@@ -514,27 +511,3 @@ def list_all_game_roles(creds: TaygedoCredentials) -> list[TaygedoRole]:
     if not out and last_auth is not None:
         raise last_auth
     return out
-
-
-
-# 签到逻辑拆至 taygedo_attendance，此处再导出保持原 import 路径兼容
-from app.services.taygedo.attendance import (  # noqa: E402
-    ShopGoods,
-    app_signin,
-    checkin_all,
-    checkin_target,
-    ensure_session,
-    exchange_shop_goods,
-    fetch_today_awards,
-    friendly_error_message,
-    game_signin,
-    get_shop_goods_detail,
-    get_user_coin_state,
-    is_auth_failure,
-    list_checkin_targets,
-    list_shop_goods,
-    query_app_today,
-    query_game_today,
-    query_today_all,
-    sort_taygedo_results,
-)

@@ -361,24 +361,6 @@ def list_enabled_role_keys_for_member(
     return {role_key(r.game_code, r.role_uid) for r in rows}
 
 
-def list_included_role_keys_for_member(
-    db: Session,
-    *,
-    platform: str,
-    member_id: int,
-) -> set[RoleKey]:
-    rows = (
-        db.query(CheckinRolePref)
-        .filter(
-            CheckinRolePref.platform == platform,
-            CheckinRolePref.member_id == int(member_id),
-            CheckinRolePref.included.is_(True),
-        )
-        .all()
-    )
-    return {role_key(r.game_code, r.role_uid) for r in rows}
-
-
 def matches_role_filter(
     game_code: str,
     role_uid: str,

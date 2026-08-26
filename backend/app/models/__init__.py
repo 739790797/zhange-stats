@@ -24,6 +24,7 @@ from app.models.kujiequ import (
 from app.models.mihoyo import MihoyoAttendanceRaw, MihoyoBind, MihoyoCheckinLog
 from app.models.minecraft import (
     MinecraftPerfSample,
+    MinecraftPerfRollup,
     MinecraftPresenceSegment,
     MinecraftServerProfile,
 )
@@ -97,5 +98,6 @@ __all__ = [
     "TarkovTrackerBind",
     "MinecraftServerProfile",
     "MinecraftPerfSample",
+    "MinecraftPerfRollup",
     "MinecraftPresenceSegment",
 ]

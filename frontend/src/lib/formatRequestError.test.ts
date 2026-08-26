@@ -43,7 +43,7 @@ describe("formatRequestError", () => {
         { isAxiosError: true, message: "Network Error", request: {} },
         "失败",
       ),
-    ).toBe("无法连接服务器，请确认服务已启动");
+    ).toBe("暂时连不上服务器，请稍后重试");
   });
 
   it("keeps plain Error.message", () => {

@@ -13,7 +13,6 @@ import {
   Popconfirm,
   Row,
   Space,
-  Spin,
   Tag,
   Typography,
   message,
@@ -27,7 +26,6 @@ import {
 } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
 import { MinecraftConsoleView } from "./MinecraftConsole";
-import { MinecraftResourceCharts } from "./MinecraftResourceCharts";
 import {
   formatBytes,
   formatLimit,
@@ -36,10 +34,17 @@ import {
   powerLabel,
 } from "./minecraftUi";
 import { useMinecraftConsole } from "./useMinecraftConsole";
+import { PanelFallback } from "@/components/RouteFallback";
 
 const MinecraftFileManager = lazy(() =>
   import("./MinecraftFileManager").then((m) => ({
     default: m.MinecraftFileManager,
+  })),
+);
+
+const MinecraftResourceCharts = lazy(() =>
+  import("./MinecraftResourceCharts").then((m) => ({
+    default: m.MinecraftResourceCharts,
   })),
 );
 
@@ -136,7 +141,7 @@ export function MinecraftManagePanel() {
 
   const stats = console.stats;
   const meta = console.meta;
-  // 上限只用来自 Pelican 面板的 limits（开服/资源配置，0 = 不限制）。
+  // 上限只用来自 Pelican 面板的 limits（资源配置，0 = 不限制）。
   // 不要用 Wings stats.*_limit_bytes：限额为 0 时它会回报整机内存。
   const memLimit = meta?.memory_limit_mb
     ? meta.memory_limit_mb * 1024 * 1024
@@ -309,26 +314,22 @@ export function MinecraftManagePanel() {
         empty={!console.hasOutput}
       />
 
-      <MinecraftResourceCharts
-        history={console.history}
-        cpu={stats?.cpu || 0}
-        cpuLimit={cpuLimit}
-        memory={stats?.memory_bytes || 0}
-        memoryLimit={memLimit}
-        rxTotal={stats?.network_rx_bytes || 0}
-        txTotal={stats?.network_tx_bytes || 0}
-      />
+      <Suspense fallback={<PanelFallback tip="加载资源图…" />}>
+        <MinecraftResourceCharts
+          history={console.history}
+          cpu={stats?.cpu || 0}
+          cpuLimit={cpuLimit}
+          memory={stats?.memory_bytes || 0}
+          memoryLimit={memLimit}
+          rxTotal={stats?.network_rx_bytes || 0}
+          txTotal={stats?.network_tx_bytes || 0}
+        />
+      </Suspense>
 
       <Divider style={{ margin: "32px 0 16px" }} />
 
       <Suspense
-        fallback={
-          <div style={{ padding: 48, textAlign: "center" }}>
-            <Spin>
-              <Typography.Text type="secondary">加载文件管理…</Typography.Text>
-            </Spin>
-          </div>
-        }
+        fallback={<PanelFallback tip="加载文件管理…" />}
       >
         <MinecraftFileManager />
       </Suspense>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import secrets
 import string
+import threading
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,25 @@ from app.services.member_sync import ensure_user_member
 from app.services.password_policy import PasswordPolicyError, validate_password
 
 SETUP_COMPLETED_KEY = "setup_completed"
+
+_setup_done = False
+_setup_lock = threading.Lock()
+
+
+def is_setup_complete_cached() -> bool:
+    return _setup_done
+
+
+def mark_setup_complete() -> None:
+    global _setup_done
+    with _setup_lock:
+        _setup_done = True
+
+
+def reset_setup_complete_for_tests() -> None:
+    global _setup_done
+    with _setup_lock:
+        _setup_done = False
 
 
 class SetupError(Exception):
@@ -103,5 +123,6 @@ def complete_initial_admin(
         db.add(SystemConfig(key=SETUP_COMPLETED_KEY, value="1"))
     db.commit()
     db.refresh(user)
-    token = create_access_token(user.username)
+    mark_setup_complete()
+    token = create_access_token(user.username, user_id=user.id)
     return user, token

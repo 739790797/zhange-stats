@@ -27,6 +27,7 @@ import { useBindRedirectEffects } from "@/components/profile/useBindRedirectEffe
 import { useIntegrationsStatus } from "@/hooks/useIntegrationsStatus";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
 import { useAuthStore } from "@/stores/authStore";
 
 type ProfilePayload = {
@@ -46,7 +47,7 @@ export default function ProfileSettingsPage() {
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
   const showSteam = isFeatureOn(featuresQuery.data, "steam");
   const showSkland = isFeatureOn(featuresQuery.data, "skland");
@@ -67,6 +68,7 @@ export default function ProfileSettingsPage() {
       isAdminEdit ? fetchMemberProfile(targetMemberId) : fetchMyProfile(),
     enabled: !isAdminEdit || Number.isFinite(targetMemberId),
     retry: false,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   useBindRedirectEffects({
@@ -171,7 +173,7 @@ export default function ProfileSettingsPage() {
   const unbindExiliumMut = useMutation({
     mutationFn: unbindExilium,
     onSuccess: () => {
-      message.success("已解除追放社区绑定");
+      message.success("已解除追放绑定");
       invalidateProfile();
       queryClient.invalidateQueries({ queryKey: ["exilium-status"] });
     },
@@ -253,7 +255,7 @@ export default function ProfileSettingsPage() {
         subtitle={
           isAdminEdit
             ? `正在编辑：${subjectLabel}（管理员代操作：需用目标 Steam 账号完成登录）`
-            : "绑定平台账号；可修改登录密码与头像"
+            : "绑定平台账号、选择加入本站的角色；也可修改登录密码与头像"
         }
         extra={
           isAdminEdit ? <Link to="/settings/users">返回用户管理</Link> : undefined

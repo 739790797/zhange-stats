@@ -1194,63 +1194,6 @@ def list_checkin_targets(
     return working, targets
 
 
-def _app_meta(creds: TaygedoCredentials) -> dict[str, str]:
-    return {
-        "game_code": GAME_APP,
-        "game_name": GAME_APP_NAME,
-        "role_uid": creds.uid,
-        "role_name": "社区账号",
-        "channel_name": "社区",
-    }
-
-
-def checkin_all(creds: TaygedoCredentials) -> tuple[TaygedoCredentials, list[CheckinResult]]:
-    """返回可能刷新后的凭证 + 签到结果（社区 + 异环 / 幻塔）。"""
-    working, targets = list_checkin_targets(creds)
-    results: list[CheckinResult] = []
-
-    def _run(game_code: str, role: TaygedoRole | None) -> CheckinResult:
-        nonlocal working
-        try:
-            return checkin_target(working, game_code=game_code, role=role)
-        except TaygedoApiError as exc:
-            if is_auth_failure(code=exc.code, message=exc.message):
-                working = refresh_access_token(working)
-                return checkin_target(working, game_code=game_code, role=role)
-            raise
-
-    for game_code, role in targets:
-        try:
-            results.append(_run(game_code, role))
-        except TaygedoApiError as exc:
-            if game_code == GAME_APP or role is None:
-                meta = _app_meta(working)
-                results.append(
-                    CheckinResult(
-                        game_code=meta["game_code"],
-                        game_name=meta["game_name"],
-                        role_uid=meta["role_uid"],
-                        role_name=meta["role_name"],
-                        channel_name=meta["channel_name"],
-                        status="error",
-                        message=friendly_error_message(exc.message),
-                    )
-                )
-            else:
-                results.append(
-                    CheckinResult(
-                        game_code=role.game_code,
-                        game_name=role.game_name,
-                        role_uid=role.role_id,
-                        role_name=role.role_name,
-                        channel_name=role.game_name,
-                        status="error",
-                        message=friendly_error_message(exc.message),
-                    )
-                )
-    return working, sort_taygedo_results(results)
-
-
 def _to_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
@@ -1465,24 +1408,6 @@ def list_shop_goods(
     if not tabs:
         tabs = [{"tab": "all", "name": "全部"}]
     return items, tabs
-
-
-def get_shop_goods_detail(
-    creds: TaygedoCredentials, *, goods_id: str
-) -> dict[str, Any]:
-    """GET /apihub/api/shop/getGoodsDetail。"""
-    query = urllib.parse.urlencode({"goodsId": str(goods_id)})
-    status, data = _http(
-        "GET",
-        f"{TAYGEDO_BASE}/apihub/api/shop/getGoodsDetail?{query}",
-        headers=_h5_headers(creds),
-    )
-    if status != 200 or data.get("code") != 0:
-        _raise_if_auth_failure(status=status, data=data, fallback="查询商品详情失败")
-        msg = str(data.get("msg") or data.get("message") or "查询商品详情失败")
-        raise TaygedoApiError(friendly_error_message(msg), code=data.get("code"))
-    payload = data.get("data")
-    return payload if isinstance(payload, dict) else {}
 
 
 def exchange_shop_goods(

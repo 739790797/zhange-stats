@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Empty, message } from "antd";
+import { Alert, Button, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -17,6 +17,10 @@ import { clipTimelineToNoonWindow } from "@/components/steam/timelineUtils";
 import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
+import {
+  steamPrivacySkipHint,
+  steamTimelineEmptyText,
+} from "@/lib/steamTimelineCopy";
 import { rememberSteamIcons } from "@/lib/steamIconCache";
 import { nowBeijing, parseBeijing } from "@/lib/time";
 import { useIntegrationsStatus } from "@/hooks/useIntegrationsStatus";
@@ -44,8 +48,7 @@ export default function SteamCalendarPage() {
     granularity === "day" && dayStartHour === 12
       ? anchor.add(1, "day").format("YYYY-MM-DD")
       : undefined;
-  const isPendingGranularity =
-    granularity === "month" || granularity === "year";
+  const isPendingGranularity = false;
 
   const timelineRange =
     granularity === "week"
@@ -184,6 +187,12 @@ export default function SteamCalendarPage() {
     dayStartHour,
   ]);
 
+  const timelineRows = timelineData?.timeline ?? [];
+  const privacyHint = steamPrivacySkipHint(
+    timelineData?.visibility,
+    timelineRows.length,
+  );
+
   return (
     <div>
       <PageHeader
@@ -206,14 +215,14 @@ export default function SteamCalendarPage() {
         />
       ) : (
         <>
-          {timelineData?.visibility?.hint && (
+          {privacyHint ? (
             <Alert
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
-              message={timelineData.visibility.hint}
+              message={privacyHint}
             />
-          )}
+          ) : null}
 
           {nowPlaying && nowPlaying.length > 0 ? (
             <NowPlayingPanel items={nowPlaying} />
@@ -240,14 +249,12 @@ export default function SteamCalendarPage() {
               loading={timelineLoading || timelineFetching}
               spanSeconds={spanSeconds}
               rangeStart={timelineStart}
+              emptyText={steamTimelineEmptyText({
+                rowCount: timelineRows.length,
+                visibleMemberCount:
+                  timelineData?.visibility?.visible_member_count,
+              })}
             />
-          )}
-
-          {granularity === "month" && (
-            <Empty description="月统计待开发" style={{ marginTop: 48 }} />
-          )}
-          {granularity === "year" && (
-            <Empty description="年统计待开发" style={{ marginTop: 48 }} />
           )}
         </>
       )}

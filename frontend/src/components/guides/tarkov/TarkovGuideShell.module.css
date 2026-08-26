@@ -197,7 +197,8 @@
 }
 
 .navItem:hover > .dropdown,
-.navItem:focus-within > .dropdown {
+.navItem:focus-within > .dropdown,
+.navItemOpen > .dropdown {
   display: flex;
   gap: 18px;
 }

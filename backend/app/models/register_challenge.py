@@ -14,4 +14,6 @@ class RegisterChallenge(Base):
     email: Mapped[str] = mapped_column(String(128), primary_key=True)
     purpose: Mapped[str] = mapped_column(String(16), primary_key=True)
     code: Mapped[str] = mapped_column(String(16), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )

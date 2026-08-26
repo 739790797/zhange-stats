@@ -2,10 +2,9 @@ import { Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { ReactNode } from "react";
 import type { UserCheckinTask } from "@/api/client";
-import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
+import { TodayCheckinAwards } from "@/components/CheckinAwardsLine";
 import { CheckinStatusTag } from "@/components/CheckinStatusTag";
 import { formatCheckinTime } from "@/lib/checkinDisplay";
-import { isCheckinSuccess } from "@/lib/checkinStatus";
 
 function autoEnabledTag(enabled: boolean | "partial") {
   if (enabled === true) return <Tag color="success">开启</Tag>;
@@ -13,7 +12,7 @@ function autoEnabledTag(enabled: boolean | "partial") {
   return <Tag>关闭</Tag>;
 }
 
-/** 角色级任务共用列：启用 / 计划 / 今日签到 / 签到奖励（已签才展示） */
+/** 角色级任务共用列：启用 / 计划 / 今日签到 / 签到奖励（未签给提示） */
 export function buildCheckinTaskScheduleColumns<T>(options: {
   /** 仅叶子行（角色任务）渲染内容 */
   isLeaf: (row: T) => boolean;
@@ -28,7 +27,7 @@ export function buildCheckinTaskScheduleColumns<T>(options: {
 
   return [
     {
-      title: "是否启用",
+      title: "自动签到",
       key: "auto",
       width: 100,
       align: "center",
@@ -67,17 +66,15 @@ export function buildCheckinTaskScheduleColumns<T>(options: {
       key: "today_summary",
       ellipsis: true,
       render: (_, row) =>
-        leaf(row, (t) =>
-          isCheckinSuccess(t.today_status) ? (
-            <CheckinAwardsLine
-              awards={t.today_awards}
-              awardsText={t.today_awards_text}
-              fallback="-"
-            />
-          ) : (
-            <Typography.Text type="secondary">-</Typography.Text>
-          ),
-        ),
+        leaf(row, (t) => (
+          <TodayCheckinAwards
+            status={t.today_status}
+            awards={t.today_awards}
+            awardsText={t.today_awards_text}
+            gameCode={t.game_code}
+            channelName={t.channel_name}
+          />
+        )),
     },
   ];
 }

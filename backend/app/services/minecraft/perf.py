@@ -23,6 +23,12 @@ from app.services.minecraft.rcon import (
     reset_session,
     session_connected,
 )
+from app.services.minecraft.perf_rollup import (
+    RANGE_GRAIN,
+    earliest_archive_at,
+    fetch_rollup_tuples,
+    maintain_perf_archive,
+)
 from app.services.platform_features import is_feature_enabled
 
 logger = logging.getLogger(__name__)
@@ -31,7 +37,7 @@ LEGACY_KV_KEY = "minecraft:rcon_perf:v1"
 STATUS_KEY = "minecraft:rcon_perf:status:v1"
 ENTITY_KEY = "minecraft:rcon_entities:v1"
 STATUS_TTL_SEC = 2 * 3600
-SAMPLE_INTERVAL_SEC = 10
+SAMPLE_INTERVAL_SEC = 15
 ENTITY_INTERVAL_SEC = 30
 CHART_BUCKETS = 180
 RAW_CAP = 4000
@@ -127,7 +133,7 @@ def resolve_window(
         raise ValueError("不支持的时间段")
     end_n = to_naive(end) if end is not None else now_naive()
     if range_key == "all":
-        first = db.query(func.min(MinecraftPerfSample.sampled_at)).scalar()
+        first = earliest_archive_at(db)
         if first is None:
             start_n = end_n - timedelta(seconds=RANGE_SECONDS["30m"])
         else:
@@ -396,6 +402,12 @@ def collect_perf(db: Session) -> None:
             )
         )
         db.commit()
+        try:
+            maintain_perf_archive(db, now=sampled_at, prune=False)
+            db.commit()
+        except Exception:
+            logger.exception("minecraft perf rollup failed")
+            db.rollback()
         _save_status(
             {
                 "ok": True,
@@ -442,11 +454,24 @@ def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
     db.commit()
     enabled, _host, _port, _password = _rcon_ready(db)
     start_n, end_n = resolve_window(db, range_key)
-    rows = _fetch_samples(db, start_n, end_n)
-    tuples = [
-        (row.sampled_at, row.tps, row.mspt, row.entities, row.chunks)
-        for row in rows
+    grain = RANGE_GRAIN.get(range_key)
+    tuples: list[
+        tuple[datetime, float | None, float | None, float | None, float | None]
     ]
+    if grain:
+        tuples = fetch_rollup_tuples(db, grain=grain, start=start_n, end=end_n)
+        if not tuples:
+            rows = _fetch_samples(db, start_n, end_n)
+            tuples = [
+                (row.sampled_at, row.tps, row.mspt, row.entities, row.chunks)
+                for row in rows
+            ]
+    else:
+        rows = _fetch_samples(db, start_n, end_n)
+        tuples = [
+            (row.sampled_at, row.tps, row.mspt, row.entities, row.chunks)
+            for row in rows
+        ]
     samples = bucket_series(tuples, start_n, end_n) if tuples else []
     status = load_status(db)
     message = str(status.get("message") or "")

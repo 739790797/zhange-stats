@@ -26,6 +26,7 @@ npm run gen:api             # 生成 src/api/generated/schema.d.ts
 
 ## 权限
 
-- `PrivateRoute`：需登录
-- `AdminRoute`：`role === admin`（或派生 `is_admin`）
-- `PlatformRoute`：受 `platform_features` 有效开关控制
+- `PrivateRoute`：需登录；未登录进登录页并记住回跳路径
+- `AdminRoute`：`role === admin`（或派生 `is_admin`）；非管理员看 403 页
+- `PlatformRoute`：受 `platform_features` 有效开关控制；关闭时看功能不可用页
+- 未知路径：`NotFoundPage`

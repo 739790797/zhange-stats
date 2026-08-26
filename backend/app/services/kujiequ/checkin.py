@@ -27,11 +27,14 @@ from app.services.checkin.orchestrator import (
 from app.services.checkin.orchestrator import (
     run_checkin_for_bind as _orch_run_checkin,
 )
-from app.services.checkin.orchestrator import (
-    run_checkin_job as _orch_run_job,
-)
 from app.services.checkin.role_prefs import PLATFORM_KUJIEQU, RoleKey
 from app.services.kujiequ.calendar import parse_kujiequ_attendance_calendar
+from app.services.kujiequ.attendance import (
+    friendly_error_message,
+    query_today_all as kujiequ_query_today_all,
+    run_all_checkins,
+    sort_kujiequ_results,
+)
 from app.services.kujiequ.client import (
     GAME_NAMES,
     GAME_PGR,
@@ -40,7 +43,6 @@ from app.services.kujiequ.client import (
     KujiequApiError,
     KujiequCredentials,
     exchange_commodity,
-    friendly_error_message,
     get_total_gold,
     list_all_game_roles,
     list_commodities,
@@ -48,9 +50,6 @@ from app.services.kujiequ.client import (
     login_with_sms,
     login_with_token,
     mask_phone,
-    query_today_all as kujiequ_query_today_all,
-    run_all_checkins,
-    sort_kujiequ_results,
 )
 
 logger = logging.getLogger(__name__)
@@ -131,10 +130,6 @@ def unbind_kujiequ(db: Session, member: Member) -> None:
         return
     db.delete(bind)
     db.commit()
-
-
-def set_auto_checkin(db: Session, member: Member, enabled: bool) -> KujiequBind:
-    return update_bind_prefs(db, member, auto_checkin=bool(enabled))
 
 
 def update_bind_prefs(
@@ -377,11 +372,8 @@ class KujiequCheckinAdapter(CheckinAdapterBase):
         community = next((r for r in results if r.game_code == "kujiequ"), None)
         if community is None:
             return False
-        return bool(
-            bind.last_checkin_date == checkin_date
-            and bind.last_checkin_ok
-            and community.status == "already"
-        )
+        _ = (bind, checkin_date)
+        return bool(community.status == "already")
 
 
 kujiequ_adapter = KujiequCheckinAdapter()
@@ -582,17 +574,6 @@ def run_checkin_for_member(
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def run_kujiequ_checkin_job(
-    db: Session,
-    *,
-    due_only: bool = False,
-    member_id: int | None = None,
-) -> dict[str, Any]:
-    return _orch_run_job(
-        kujiequ_adapter, db, due_only=due_only, member_id=member_id
-    )
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:

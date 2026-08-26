@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, type ReactNode } from "react";
+import { lazy, useMemo, type ReactNode } from "react";
 import {
   fetchExiliumStatus,
   fetchPlatformFeaturesEffective,
@@ -8,10 +8,16 @@ import {
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { ExiliumBindPanel } from "@/components/exilium/ExiliumBindPanel";
-import { ExiliumExchangePanel } from "@/components/exilium/ExiliumExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
+
+const ExiliumExchangePanel = lazy(() =>
+  import("@/components/exilium/ExiliumExchangePanel").then((m) => ({
+    default: m.ExiliumExchangePanel,
+  })),
+);
 
 type TabKey = "checkin" | "exchange";
 
@@ -22,7 +28,7 @@ export default function ExiliumPage() {
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const featuresReady =
@@ -42,13 +48,14 @@ export default function ExiliumPage() {
           <CheckinPageTemplate
             contentOnly
             title="追放"
-            bindName="追放社区"
+            bindName="追放"
             statusQueryKey={["exilium-status"]}
             fetchStatus={fetchExiliumStatus}
             triggerCheckin={triggerExiliumCheckin}
             updateRolePref={updateExiliumRolePref}
             platformIcon="exilium"
             showPhoneMask
+            onSelectRoles={() => rolePicker.openPicker()}
           />
         ),
       });
@@ -61,18 +68,18 @@ export default function ExiliumPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange]);
+  }, [showCheckin, showExchange, rolePicker.openPicker]);
 
   return (
     <PlatformFeatureTabsPage
       title="追放"
       bindName="追放"
-      unboundMessage="尚未绑定追放社区"
+      unboundMessage="尚未绑定追放"
       statusQueryKey={["exilium-status"]}
       fetchStatus={() => fetchExiliumStatus(true, true)}
       bindPanel={
         <ExiliumBindPanel
-          title="绑定追放社区账号"
+          title="绑定追放账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
             window.setTimeout(() => rolePicker.openPicker(), 0);

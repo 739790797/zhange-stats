@@ -164,15 +164,6 @@ export async function unbindSkland() {
   return data;
 }
 
-export async function updateSklandBind(payload: {
-  auto_checkin?: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
-  const { data } = await client.patch<SklandStatus>("/skland/bind", payload);
-  return data;
-}
-
 export async function updateSklandRolePref(
   payload: components["schemas"]["CheckinRolePrefUpdate"],
 ) {

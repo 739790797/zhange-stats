@@ -1,113 +1,57 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/lib/apiError";
-import { Alert, Table, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { useEffect, useMemo, useState, type Key } from "react";
+import { Alert, Button } from "antd";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
+  fetchExiliumStatus,
+  fetchKujiequStatus,
+  fetchMihoyoStatus,
   fetchMyDailyTasks,
-  type UserCheckinTask,
+  fetchSklandStatus,
+  fetchTaygedoStatus,
 } from "@/api/client";
+import { MyDailyBoard } from "@/components/daily/MyDailyBoard";
 import { PageHeader } from "@/components/PageHeader";
-import { buildCheckinTaskScheduleColumns } from "@/components/checkinTaskColumns";
-import { CheckinTreeNameLabel } from "@/components/checkinTaskDisplay";
 import {
-  CHECKIN_PLATFORM_LABELS,
-  CHECKIN_PLATFORM_ORDER,
-  communityGameRank,
-} from "@/lib/checkinDisplay";
+  buildDailyPlatformGroups,
+  overlayDailyLiveStatus,
+  summarizeDailyTasks,
+  type DailyLivePlatformStatus,
+} from "@/lib/myDaily";
+import { nowBeijing } from "@/lib/time";
 
-type RoleLeaf = UserCheckinTask & {
-  rowKey: string;
-  rowType: "role";
-};
-
-type GameGroupRow = {
-  rowKey: string;
-  rowType: "game";
-  platform: string;
-  game_code: string;
-  game_name: string;
-  children: RoleLeaf[];
-};
-
-type PlatformGroupRow = {
-  rowKey: string;
-  rowType: "platform";
-  platform: string;
-  platform_name: string;
-  children: Array<GameGroupRow | RoleLeaf>;
-};
-
-type DailyRow = PlatformGroupRow | GameGroupRow | RoleLeaf;
-
-function buildDailyTree(tasks: UserCheckinTask[]): PlatformGroupRow[] {
-  const byPlatform = new Map<string, UserCheckinTask[]>();
-  for (const task of tasks) {
-    const list = byPlatform.get(task.platform) || [];
-    list.push(task);
-    byPlatform.set(task.platform, list);
+const DAILY_STATUS_FETCHERS: Record<
+  string,
+  {
+    queryKey: string[];
+    fetch: () => Promise<DailyLivePlatformStatus>;
   }
-
-  const platforms = [
-    ...CHECKIN_PLATFORM_ORDER.filter((p) => byPlatform.has(p)),
-    ...[...byPlatform.keys()].filter(
-      (p) => !CHECKIN_PLATFORM_ORDER.includes(p),
-    ),
-  ];
-
-  return platforms.map((platform) => {
-    const list = byPlatform.get(platform) || [];
-    const platformName =
-      CHECKIN_PLATFORM_LABELS[platform] || list[0]?.platform_name || platform;
-
-    const withGame = list.filter((t) => t.game_code);
-    const legacy = list.filter((t) => !t.game_code);
-
-    const byGame = new Map<string, UserCheckinTask[]>();
-    for (const task of withGame) {
-      const gc = String(task.game_code);
-      const gList = byGame.get(gc) || [];
-      gList.push(task);
-      byGame.set(gc, gList);
-    }
-
-    const gameChildren: GameGroupRow[] = [...byGame.entries()]
-      .sort(
-        ([a], [b]) =>
-          communityGameRank(a) - communityGameRank(b) || a.localeCompare(b),
-      )
-      .map(([gameCode, roles]) => ({
-        rowKey: `game:${platform}:${gameCode}`,
-        rowType: "game" as const,
-        platform,
-        game_code: gameCode,
-        game_name: roles[0]?.game_name || gameCode,
-        children: roles.map((t) => ({
-          ...t,
-          rowKey: t.task_key,
-          rowType: "role" as const,
-        })),
-      }));
-
-    const legacyLeaves: RoleLeaf[] = legacy.map((t) => ({
-      ...t,
-      rowKey: t.task_key,
-      rowType: "role" as const,
-    }));
-
-    return {
-      rowKey: `platform:${platform}`,
-      rowType: "platform" as const,
-      platform,
-      platform_name: platformName,
-      children: [...gameChildren, ...legacyLeaves],
-    };
-  });
-}
+> = {
+  skland: {
+    queryKey: ["skland-status"],
+    fetch: () => fetchSklandStatus(true, true),
+  },
+  taygedo: {
+    queryKey: ["taygedo-status"],
+    fetch: () => fetchTaygedoStatus(true, true),
+  },
+  exilium: {
+    queryKey: ["exilium-status"],
+    fetch: () => fetchExiliumStatus(true, true),
+  },
+  kujiequ: {
+    queryKey: ["kujiequ-status"],
+    fetch: () => fetchKujiequStatus(true, true),
+  },
+  mihoyo: {
+    queryKey: ["mihoyo-status"],
+    fetch: () => fetchMihoyoStatus(true, true),
+  },
+};
 
 export default function MyDailyPage() {
-  const [expandedKeys, setExpandedKeys] = useState<Key[]>([]);
-
+  const queryClient = useQueryClient();
   const tasksQuery = useQuery({
     queryKey: ["my-daily-tasks"],
     queryFn: async () => {
@@ -124,75 +68,67 @@ export default function MyDailyPage() {
     refetchInterval: 30_000,
   });
 
-  const treeData = useMemo(() => {
-    // 只读展示已加入本站的角色（角色管理在个人中心）
-    const included = (tasksQuery.data?.items || []).filter(
-      (t) => t.included !== false,
-    );
-    return buildDailyTree(included);
-  }, [tasksQuery.data?.items]);
-
-  useEffect(() => {
-    const keys: Key[] = [];
-    for (const plat of treeData) {
-      keys.push(plat.rowKey);
-      for (const child of plat.children) {
-        if (child.rowType === "game") keys.push(child.rowKey);
+  const included = useMemo(
+    () => (tasksQuery.data?.items || []).filter((task) => task.included !== false),
+    [tasksQuery.data?.items],
+  );
+  const statusPlatforms = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const task of included) {
+      if (!DAILY_STATUS_FETCHERS[task.platform] || seen.has(task.platform)) {
+        continue;
       }
+      seen.add(task.platform);
+      list.push(task.platform);
     }
-    setExpandedKeys(keys);
-  }, [treeData]);
+    return list;
+  }, [included]);
 
-  const taskColumns: ColumnsType<DailyRow> = [
-    {
-      title: "平台 / 游戏 / 角色",
-      key: "name",
-      width: 280,
-      render: (_, row) => {
-        if (row.rowType === "platform") {
-          return (
-            <CheckinTreeNameLabel
-              kind="platform"
-              platform={row.platform}
-              label={
-                CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name
-              }
-              strong
-            />
-          );
-        }
-        if (row.rowType === "game") {
-          return (
-            <CheckinTreeNameLabel
-              kind="game"
-              platform={row.platform}
-              gameCode={row.game_code}
-              label={row.game_name}
-              style={{ paddingLeft: 4 }}
-            />
-          );
-        }
-        if (row.game_code) {
-          return (
-            <Typography.Text type="secondary" style={{ paddingLeft: 8 }}>
-              {row.role_name || row.role_uid}
-            </Typography.Text>
-          );
-        }
-        return (
-          <Typography.Text type="secondary">整平台（未配置角色）</Typography.Text>
-        );
-      },
-    },
-    ...buildCheckinTaskScheduleColumns<DailyRow>({
-      isLeaf: (row) => row.rowType === "role",
-      getTask: (row) => row as RoleLeaf,
+  const statusQueries = useQueries({
+    queries: statusPlatforms.map((platform) => {
+      const spec = DAILY_STATUS_FETCHERS[platform];
+      return {
+        queryKey: spec.queryKey,
+        queryFn: spec.fetch,
+        retry: false,
+        staleTime: 30_000,
+      };
     }),
-  ];
+  });
+
+  const liveByPlatform = useMemo(() => {
+    const out: Record<string, DailyLivePlatformStatus | undefined> = {};
+    statusPlatforms.forEach((platform, index) => {
+      const data = statusQueries[index]?.data;
+      if (data) out[platform] = data;
+    });
+    return out;
+  }, [statusPlatforms, statusQueries]);
+
+  const overlaid = useMemo(
+    () => overlayDailyLiveStatus(included, liveByPlatform),
+    [included, liveByPlatform],
+  );
+  const groups = useMemo(
+    () => buildDailyPlatformGroups(overlaid),
+    [overlaid],
+  );
+  const summary = useMemo(() => summarizeDailyTasks(overlaid), [overlaid]);
+  const todayLabel = nowBeijing().format("M月D日 dddd");
+  const statusFetching = statusQueries.some((query) => query.isFetching);
 
   return (
     <div>
-      <PageHeader title="我的日常" />
+      <PageHeader
+        title="我的日常"
+        subtitle={todayLabel}
+        extra={
+          <Link to="/profile">
+            <Button>管理角色</Button>
+          </Link>
+        }
+      />
 
       {tasksQuery.isError ? (
         <Alert
@@ -204,19 +140,19 @@ export default function MyDailyPage() {
         />
       ) : null}
 
-      <Table
-        rowKey="rowKey"
+      <MyDailyBoard
+        groups={groups}
+        summary={summary}
         loading={tasksQuery.isLoading}
-        columns={taskColumns}
-        dataSource={treeData}
-        expandable={{
-          expandedRowKeys: expandedKeys,
-          onExpandedRowsChange: (keys) => setExpandedKeys([...keys]),
+        refreshing={tasksQuery.isFetching || statusFetching}
+        onRefresh={() => {
+          void tasksQuery.refetch();
+          for (const platform of statusPlatforms) {
+            void queryClient.invalidateQueries({
+              queryKey: DAILY_STATUS_FETCHERS[platform].queryKey,
+            });
+          }
         }}
-        locale={{ emptyText: "暂无已加入本站的角色" }}
-        pagination={false}
-        size="middle"
-        scroll={{ x: 1000 }}
       />
     </div>
   );

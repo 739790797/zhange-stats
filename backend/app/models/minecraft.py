@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.mysql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,11 +11,10 @@ PROFILE_ROW_ID = 1
 
 
 class MinecraftServerProfile(Base):
-    """圈子 Minecraft 开服剧本草稿（永远一行 id=1）。
+    """圈子 Minecraft 单行档案（永远一行 id=1）。
 
-    行内字段只描述下次要应用的剧本（版本 / 加载器 / Egg / 启动命令 / 模组 / 配置），
-    不镜像当前 Pelican 服的实时状态。`applied_json` 是上次成功应用时的快照。
-    `mod_presets_json` 是模组草稿预设（按 tool_id / preset_id 存正文），
+    `applied_json` 是上次成功应用时的快照，总览用它回填模组标题/版本。
+    `mod_presets_json` 是模组工具草稿预设（按 tool_id / preset_id 存正文），
     出厂模板仍在代码里；写入服上走 Pelican。
     """
 
@@ -48,10 +47,10 @@ class MinecraftServerProfile(Base):
 
 
 class MinecraftPerfSample(Base):
-    """RCON 性能采样（约 10 秒一次；总览按时间窗分桶展示）。
+    """RCON 性能采样（约 10 秒一次；只保留最近约 48 小时）。
 
-    `entities` / `chunks` 为可选旁路指标（实体来自 entity list 缓存；
-    区块来自 Essentials `gc` 等尽力解析，拿不到则为空）。
+    更长窗口读 `minecraft_perf_rollups`。`entities` / `chunks` 为可选旁路指标
+    （实体来自 entity list 缓存；区块来自 Essentials `gc` 等尽力解析）。
     """
 
     __tablename__ = "minecraft_perf_samples"
@@ -66,6 +65,36 @@ class MinecraftPerfSample(Base):
     chunks: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class MinecraftPerfRollup(Base):
+    """性能采样聚合档：1 分钟 / 1 小时 / 1 天各一份桶。
+
+    30m/1h 读原始 10 秒点；12h/24h 读 1m；30d 读 1h；all 读 1d。
+    1m 保留约 30 天，1h/1d 永久。
+    """
+
+    __tablename__ = "minecraft_perf_rollups"
+    __table_args__ = (
+        UniqueConstraint("grain", "bucket_at", name="uq_mc_perf_rollup_grain_bucket"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    grain: Mapped[str] = mapped_column(String(8), nullable=False)
+    bucket_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tps_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tps_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tps_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mspt_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mspt_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mspt_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    entities_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    entities_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chunks_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chunks_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
 class MinecraftPresenceSegment(Base):
     """Minecraft 玩家在线/离线片段（总览时间轴）。"""
 
@@ -76,11 +105,11 @@ class MinecraftPresenceSegment(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    player_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    player_key: Mapped[str] = mapped_column(String(80), nullable=False)
     player_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     player_uuid: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     # online | offline
-    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )

@@ -1,0 +1,230 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--daily-line, rgba(0, 0, 0, 0.06));
+  border-radius: 8px;
+}
+
+.summaryScore {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.summaryNums {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+
+.summarySigned {
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.summaryBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.summaryMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.summaryMetaItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.section {
+  background: #fff;
+  border: 1px solid var(--daily-line, rgba(0, 0, 0, 0.06));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--daily-line, rgba(0, 0, 0, 0.06));
+}
+
+.sectionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sectionAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.credRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.credRow + .credRow {
+  border-top: 1px solid var(--daily-line, rgba(0, 0, 0, 0.06));
+}
+
+.credCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.roleRow,
+.colHead {
+  display: grid;
+  grid-template-columns:
+    minmax(7rem, 10.5rem)
+    minmax(3.75rem, 5.5rem)
+    minmax(5rem, 7.5rem)
+    5.25rem
+    minmax(0, 1fr)
+    4.75rem;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.roleRow {
+  padding: 8px 14px;
+}
+
+.colHead {
+  padding: 4px 14px 6px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  line-height: 1.2;
+  border-bottom: 1px solid var(--daily-line, rgba(0, 0, 0, 0.06));
+}
+
+.colHead span:last-child {
+  text-align: right;
+}
+
+.roleRow + .roleRow {
+  border-top: 1px solid var(--daily-line, rgba(0, 0, 0, 0.06));
+}
+
+.roleRow:hover {
+  background: var(--daily-hover);
+}
+
+.roleRowFailed {
+  background: var(--daily-fail-bg);
+}
+
+.roleRowFailed:hover {
+  background: var(--daily-fail-bg);
+}
+
+.roleRowSigned {
+  opacity: 0.82;
+}
+
+.gameCell,
+.roleName,
+.channelCell {
+  min-width: 0;
+  justify-self: start;
+  text-align: left;
+}
+
+.statusCell {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.statusCell :global(.ant-tag) {
+  margin-inline: 0;
+}
+
+.awards {
+  min-width: 0;
+}
+
+.autoCell {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.autoHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .summary {
+    flex-wrap: wrap;
+  }
+
+  .colHead {
+    display: none;
+  }
+
+  .roleRow {
+    grid-template-columns: minmax(0, 1fr) 5.25rem 4.75rem;
+  }
+
+  .gameCell {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .channelCell {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .roleName {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
+  .statusCell {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .autoCell {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .awards {
+    grid-column: 1 / -1;
+  }
+}

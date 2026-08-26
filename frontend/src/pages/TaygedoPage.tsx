@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, type ReactNode } from "react";
+import { lazy, useMemo, type ReactNode } from "react";
 import {
   fetchPlatformFeaturesEffective,
   fetchTaygedoStatus,
@@ -7,14 +7,25 @@ import {
   updateTaygedoRolePref,
 } from "@/api/client";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { ExastrisBoxPanel } from "@/components/taygedo/ExastrisBoxPanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { TaygedoAttendanceCalendarButton } from "@/components/taygedo/TaygedoAttendanceCalendar";
 import { TaygedoBindPanel } from "@/components/taygedo/TaygedoBindPanel";
-import { TaygedoExchangePanel } from "@/components/taygedo/TaygedoExchangePanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
 import { hasTaygedoAttendanceCalendar } from "@/lib/taygedoAttendance";
+
+const TaygedoExchangePanel = lazy(() =>
+  import("@/components/taygedo/TaygedoExchangePanel").then((m) => ({
+    default: m.TaygedoExchangePanel,
+  })),
+);
+
+const ExastrisBoxPanel = lazy(() =>
+  import("@/components/taygedo/ExastrisBoxPanel").then((m) => ({
+    default: m.ExastrisBoxPanel,
+  })),
+);
 
 type TabKey = "checkin" | "exchange" | "exastris";
 
@@ -25,7 +36,7 @@ export default function TaygedoPage() {
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const statusQuery = useQuery({
@@ -61,6 +72,7 @@ export default function TaygedoPage() {
             triggerCheckin={triggerTaygedoCheckin}
             updateRolePref={updateTaygedoRolePref}
             platformIcon="taygedo"
+            onSelectRoles={() => rolePicker.openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               const roleUid = row.role_uid;
@@ -105,7 +117,7 @@ export default function TaygedoPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange, showExastris, statusQuery.data]);
+  }, [showCheckin, showExchange, showExastris, statusQuery.data, rolePicker.openPicker]);
 
   return (
     <PlatformFeatureTabsPage

@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 import logging
+import time
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, ORJSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import auth, exilium, guides, jobs, kujiequ, members, mihoyo, profile, setup, skland, steam, taygedo
@@ -16,6 +17,7 @@ from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
+from app.core.http_client import close_http_client
 from app.core.migrate import run_migrations
 from app.core.paths import hydrate_legacy_runtime, resolve_install_dir, resolve_runtime_path
 from app.core.request_log_middleware import RequestLogMiddleware
@@ -45,6 +47,37 @@ from app.services.member_sync import sync_users_and_members
 logger = logging.getLogger("zhange.startup")
 scheduler = BackgroundScheduler()
 install_runtime_log_buffer()
+
+_HEALTH_DB_TTL_SEC = 1.0
+_health_db_ok: bool | None = None
+_health_db_at = 0.0
+
+
+class ImmutableStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs):  # type: ignore[override]
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
+def _ping_database() -> bool:
+    """SELECT 1，1 秒内复用结果，避免探针打满连接池。"""
+    global _health_db_ok, _health_db_at
+    now = time.monotonic()
+    if _health_db_ok is not None and now - _health_db_at < _HEALTH_DB_TTL_SEC:
+        return _health_db_ok
+    from sqlalchemy import text
+
+    ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        ok = True
+    except Exception:  # noqa: BLE001
+        ok = False
+    _health_db_ok = ok
+    _health_db_at = now
+    return ok
 
 
 def _ensure_upload_root() -> Path:
@@ -117,6 +150,7 @@ async def lifespan(_: FastAPI):
     yield
 
     logger.info("shutdown begin")
+    close_http_client()
     if scheduler.running:
         logger.info("shutdown: stopping scheduler")
         scheduler.shutdown(wait=False)
@@ -124,10 +158,15 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
+_disable_docs = settings.is_production
 app = FastAPI(
     title="战鸽数据",
     description="Zhange Stats · Steam 游玩统计与圈子成员管理",
     lifespan=lifespan,
+    default_response_class=ORJSONResponse,
+    docs_url=None if _disable_docs else "/docs",
+    redoc_url=None if _disable_docs else "/redoc",
+    openapi_url=None if _disable_docs else "/openapi.json",
 )
 
 _cors_origins = settings.cors_origin_list
@@ -179,16 +218,8 @@ app.mount(
 def health():
     """存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。"""
     from fastapi.responses import JSONResponse
-    from sqlalchemy import text
 
-    db_ok = False
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        db_ok = True
-    except Exception:  # noqa: BLE001
-        db_ok = False
-
+    db_ok = _ping_database()
     sched_ok = bool(scheduler.running) if scheduler else False
     status = "ok" if db_ok else "degraded"
     body = {
@@ -209,7 +240,7 @@ _static_dir = (
 if _static_dir and _static_dir.is_dir():
     assets_dir = _static_dir / "assets"
     if assets_dir.is_dir():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        app.mount("/assets", ImmutableStaticFiles(directory=str(assets_dir)), name="assets")
 
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str) -> FileResponse:
@@ -224,8 +255,13 @@ if _static_dir and _static_dir.is_dir():
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="Not Found") from exc
         if full_path and candidate.is_file():
-            return FileResponse(candidate)
+            resp = FileResponse(candidate)
+            if full_path.startswith("assets/"):
+                resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
         index = _static_dir / "index.html"
         if not index.is_file():
             raise HTTPException(status_code=404, detail="Frontend not found")
-        return FileResponse(index)
+        resp = FileResponse(index)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp

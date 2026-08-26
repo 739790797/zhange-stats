@@ -135,8 +135,6 @@ def test_skip_policy_always_run_ignores_logs(monkeypatch) -> None:
     bind = SimpleNamespace(
         member_id=1,
         id=10,
-        last_checkin_date=None,
-        last_checkin_ok=False,
     )
 
     monkeypatch.setattr(
@@ -146,10 +144,6 @@ def test_skip_policy_always_run_ignores_logs(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.checkin.orchestrator.now_naive",
         lambda: date(2026, 8, 6),
-    )
-    monkeypatch.setattr(
-        "app.services.checkin.orchestrator.apply_bind_last_checkin",
-        lambda *a, **k: None,
     )
     monkeypatch.setattr(
         "app.services.checkin.orchestrator.upsert_and_reload_day_results",

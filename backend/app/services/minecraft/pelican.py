@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import json
 import logging
-import urllib.error
 import urllib.parse
-import urllib.request
 from typing import Any
+
+from app.core.http_client import HttpRequestError, http_request
 
 logger = logging.getLogger(__name__)
 
@@ -124,11 +124,7 @@ def _server_root(base_url: str, server_uuid: str) -> str:
     return f"{root}/api/client/servers/{urllib.parse.quote(ident, safe='-')}"
 
 
-def _read_error_body(exc: urllib.error.HTTPError) -> str:
-    try:
-        raw = exc.read().decode("utf-8", errors="replace")
-    except Exception:  # noqa: BLE001
-        return ""
+def _read_error_body(raw: str) -> str:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
@@ -180,28 +176,35 @@ def _request(
         data = raw_body
     elif json_body is not None:
         data = json.dumps(json_body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = resp.read()
-            if decode == "bytes":
-                return payload
-            if not payload:
-                return "" if decode == "text" else None
-            text = payload.decode("utf-8", errors="replace")
-            if decode == "text":
-                return text
-            try:
-                return json.loads(text)
-            except json.JSONDecodeError:
-                return text
-    except urllib.error.HTTPError as exc:
-        detail = _read_error_body(exc)
-        raise PelicanError(friendly_error(exc.code, detail), status_code=exc.code) from exc
-    except urllib.error.URLError as exc:
-        raise PelicanError(f"无法连接 Pelican：{exc.reason}") from exc
-    except TimeoutError as exc:
-        raise PelicanError("连接 Pelican 超时") from exc
+        resp = http_request(
+            method, url, headers=headers, content=data, timeout=timeout
+        )
+        payload = resp.content
+        if resp.status_code >= 400:
+            detail = _read_error_body(payload.decode("utf-8", errors="replace"))
+            raise PelicanError(
+                friendly_error(resp.status_code, detail),
+                status_code=resp.status_code,
+            )
+        if decode == "bytes":
+            return payload
+        if not payload:
+            return "" if decode == "text" else None
+        text = payload.decode("utf-8", errors="replace")
+        if decode == "text":
+            return text
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return text
+    except PelicanError:
+        raise
+    except HttpRequestError as exc:
+        msg = str(exc)
+        if "超时" in msg:
+            raise PelicanError("连接 Pelican 超时") from exc
+        raise PelicanError(f"无法连接 Pelican：{exc}") from exc
 
 
 def get_server(base_url: str, token: str, server_uuid: str) -> dict[str, Any]:
@@ -715,22 +718,6 @@ def update_startup_variable(
     )
 
 
-def _application_root(base_url: str) -> str:
-    root = normalize_pelican_base_url(base_url)
-    if not root:
-        raise PelicanError("未配置 Pelican Panel 地址")
-    return f"{root}/api/application"
-
-
-def parse_internal_id(data: Any) -> int:
-    if not isinstance(data, dict):
-        return 0
-    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else data
-    if not isinstance(attrs, dict):
-        return 0
-    return _as_int(attrs.get("internal_id") or attrs.get("id"))
-
-
 def parse_application_server(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return {
@@ -757,188 +744,3 @@ def parse_application_server(data: Any) -> dict[str, Any]:
         "image": str(container.get("image") or ""),
         "environment": environment,
     }
-
-
-def get_application_server(
-    base_url: str,
-    application_token: str,
-    server_id: int,
-) -> dict[str, Any]:
-    url = f"{_application_root(base_url)}/servers/{int(server_id)}"
-    data = _request("GET", url, application_token)
-    parsed = parse_application_server(data)
-    if not parsed.get("id"):
-        raise PelicanError("Pelican 未返回 Application 服务器")
-    return parsed
-
-
-def find_application_server(
-    base_url: str,
-    application_token: str,
-    server_uuid: str,
-) -> dict[str, Any] | None:
-    ident = normalize_server_uuid(server_uuid)
-    if not ident:
-        return None
-    for key, value in (("uuid", ident), ("uuid_short", ident)):
-        q = urllib.parse.urlencode({f"filter[{key}]": value, "per_page": "1"})
-        url = f"{_application_root(base_url)}/servers?{q}"
-        data = _request("GET", url, application_token)
-        if not isinstance(data, dict):
-            continue
-        rows = data.get("data")
-        if not isinstance(rows, list) or not rows:
-            continue
-        parsed = parse_application_server(rows[0])
-        if parsed.get("id"):
-            return parsed
-    return None
-
-
-def update_application_startup(
-    base_url: str,
-    application_token: str,
-    server_id: int,
-    *,
-    startup: str,
-    environment: dict[str, str],
-    egg_id: int,
-    image: str,
-    skip_scripts: bool = True,
-) -> dict[str, Any]:
-    url = f"{_application_root(base_url)}/servers/{int(server_id)}/startup"
-    data = _request(
-        "PATCH",
-        url,
-        application_token,
-        json_body={
-            "startup": startup,
-            "environment": environment,
-            "egg": int(egg_id),
-            "image": image,
-            "skip_scripts": bool(skip_scripts),
-        },
-    )
-    return parse_application_server(data) if isinstance(data, dict) else {}
-
-
-def get_application_egg(
-    base_url: str,
-    application_token: str,
-    egg_id: int,
-) -> dict[str, Any]:
-    url = f"{_application_root(base_url)}/eggs/{int(egg_id)}?include=variables"
-    data = _request("GET", url, application_token)
-    return data if isinstance(data, dict) else {}
-
-
-def parse_egg_variable_defaults(data: Any) -> dict[str, str]:
-    if not isinstance(data, dict):
-        return {}
-    rel = data.get("relationships") if isinstance(data.get("relationships"), dict) else {}
-    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else {}
-    if not rel and isinstance(attrs.get("relationships"), dict):
-        rel = attrs["relationships"]
-    block = rel.get("variables") if isinstance(rel, dict) else None
-    rows = block.get("data") if isinstance(block, dict) else None
-    if not isinstance(rows, list):
-        return {}
-    out: dict[str, str] = {}
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        item = row.get("attributes") if isinstance(row.get("attributes"), dict) else row
-        if not isinstance(item, dict):
-            continue
-        key = str(item.get("env_variable") or item.get("env") or "").strip()
-        if not key:
-            continue
-        default = item.get("default_value")
-        out[key] = "" if default is None else str(default)
-    return out
-
-
-def parse_egg_startup_and_image(data: Any) -> tuple[str, str]:
-    if not isinstance(data, dict):
-        return "", ""
-    attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else data
-    if not isinstance(attrs, dict):
-        return "", ""
-    startup = str(attrs.get("startup") or "")
-    commands = attrs.get("startup_commands")
-    if not startup and isinstance(commands, dict):
-        startup = str(next(iter(commands.values()), "") or "")
-    elif not startup and isinstance(commands, list) and commands:
-        startup = str(commands[0] or "")
-    docker = attrs.get("docker_images")
-    image = ""
-    if isinstance(docker, dict) and docker:
-        image = str(next(iter(docker.values()), "") or "")
-    elif isinstance(docker, list) and docker:
-        image = str(docker[0] or "")
-    if not image:
-        image = str(attrs.get("docker_image") or "")
-    return startup, image
-
-
-def list_application_eggs(base_url: str, application_token: str) -> list[dict[str, Any]]:
-    """用 Application API 列出 Nest 下全部 Egg（用于匹配 Minecraft 加载器）。"""
-    token = (application_token or "").strip()
-    if not token:
-        return []
-    url = f"{_application_root(base_url)}/nests?include=eggs&per_page=100"
-    data = _request("GET", url, token)
-    if not isinstance(data, dict):
-        return []
-    nests = data.get("data")
-    if not isinstance(nests, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for nest in nests:
-        if not isinstance(nest, dict):
-            continue
-        nest_attrs = (
-            nest.get("attributes") if isinstance(nest.get("attributes"), dict) else nest
-        )
-        nest_name = str(nest_attrs.get("name") or "")
-        nest_id = nest_attrs.get("id")
-        rel = nest.get("relationships") if isinstance(nest.get("relationships"), dict) else {}
-        if not rel and isinstance(nest_attrs, dict):
-            rel = nest_attrs.get("relationships") if isinstance(nest_attrs.get("relationships"), dict) else {}
-        eggs_block = rel.get("eggs") if isinstance(rel, dict) else None
-        eggs = eggs_block.get("data") if isinstance(eggs_block, dict) else None
-        if not isinstance(eggs, list):
-            continue
-        for egg in eggs:
-            if not isinstance(egg, dict):
-                continue
-            attrs = egg.get("attributes") if isinstance(egg.get("attributes"), dict) else egg
-            if not isinstance(attrs, dict):
-                continue
-            docker = attrs.get("docker_images")
-            images: list[str] = []
-            if isinstance(docker, dict):
-                images = [str(v) for v in docker.values() if v]
-            elif isinstance(docker, list):
-                images = [str(v) for v in docker if v]
-            try:
-                parsed_egg_id = int(attrs.get("id")) if attrs.get("id") is not None else None
-            except (TypeError, ValueError):
-                parsed_egg_id = None
-            try:
-                parsed_nest_id = int(nest_id) if nest_id is not None else None
-            except (TypeError, ValueError):
-                parsed_nest_id = None
-            out.append(
-                {
-                    "egg_id": parsed_egg_id,
-                    "uuid": str(attrs.get("uuid") or ""),
-                    "name": str(attrs.get("name") or ""),
-                    "description": str(attrs.get("description") or ""),
-                    "nest": nest_name,
-                    "nest_id": parsed_nest_id,
-                    "docker_images": images,
-                    "startup": str(attrs.get("startup") or ""),
-                }
-            )
-    return out

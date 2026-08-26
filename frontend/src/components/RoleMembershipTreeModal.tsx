@@ -146,7 +146,7 @@ export function RoleMembershipTreeModal({
       included: checked.has(leafKey(r.game_code, r.role_uid)),
     }));
     if (!payload.some((r) => r.included)) {
-      message.warning("未选择角色：签到页将为空，可稍后在「我的日常」添加");
+      message.warning("未选择角色：签到页将为空，可稍后在个人中心添加");
     }
     setSaving(true);
     try {
@@ -174,7 +174,7 @@ export function RoleMembershipTreeModal({
       width={520}
     >
       <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        仅勾选的角色会出现在签到页；自动签到可在「我的日常」或签到页另行开启。
+        仅勾选的角色会出现在签到页；自动签到可在对应平台的签到页开启。
       </Typography.Paragraph>
       {loadError ? (
         <Alert type="error" showIcon message={loadError} style={{ marginBottom: 12 }} />
@@ -188,7 +188,7 @@ export function RoleMembershipTreeModal({
           type="info"
           showIcon
           message="未探测到可加入的角色"
-          description="账号下可能暂无支持的游戏角色，可稍后在「我的日常」同步。"
+          description="账号下可能暂无支持的游戏角色，可稍后在个人中心重新探测。"
         />
       ) : (
         <Tree

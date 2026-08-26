@@ -81,8 +81,8 @@ def test_build_membership_tree_from_roles() -> None:
     assert nodes[0]["role_uid"] == "1"
 
 
-def test_today_done_role_keys() -> None:
-    from app.services.checkin.common import CheckinResult, is_success_status, today_done_from_logs
+def test_today_done_from_logs_role_keys() -> None:
+    from app.services.checkin.common import today_done_from_logs
 
     class FakeQuery:
         def __init__(self, rows):
@@ -101,20 +101,49 @@ def test_today_done_role_keys() -> None:
         def query(self, model):
             return FakeQuery(self._rows)
 
-    # today_done_from_logs uses load_day_checkin_results which queries logs;
-    # exercise matches via direct CheckinResult filter helper path instead.
-    cached = [
-        CheckinResult("arknights", "方舟", "1", "A", "官服", "ok", "ok"),
-        CheckinResult("endfield", "终末地", "2", "B", "国服", "pending", "未签"),
+    rows = [
+        SimpleNamespace(
+            game_code="arknights",
+            game_name="方舟",
+            role_uid="1",
+            role_name="A",
+            channel_name="官服",
+            status="ok",
+            message="ok",
+            awards_text=None,
+            awards_json=None,
+        ),
+        SimpleNamespace(
+            game_code="endfield",
+            game_name="终末地",
+            role_uid="2",
+            role_name="B",
+            channel_name="国服",
+            status="pending",
+            message="未签",
+            awards_text=None,
+            awards_json=None,
+        ),
     ]
-    # Simulate role_keys-only success check inline (same logic as today_done)
-    role_keys = {("arknights", "1")}
-    by_key = {(r.game_code, r.role_uid): r for r in cached}
-    assert all(
-        k in by_key and is_success_status(by_key[k].status) for k in role_keys
+    db = FakeDb(rows)
+    log_model = SimpleNamespace(member_id=None, checkin_date=None)
+    done = today_done_from_logs(
+        db,
+        log_model,
+        member_id=1,
+        checkin_date="2026-08-26",
+        role_keys={("arknights", "1")},
     )
-    role_keys2 = {("arknights", "1"), ("endfield", "2")}
-    assert not all(
-        k in by_key and is_success_status(by_key[k].status) for k in role_keys2
+    assert done is not None
+    assert len(done) == 1
+    assert done[0].role_uid == "1"
+    assert (
+        today_done_from_logs(
+            db,
+            log_model,
+            member_id=1,
+            checkin_date="2026-08-26",
+            role_keys={("arknights", "1"), ("endfield", "2")},
+        )
+        is None
     )
-    _ = (FakeDb, today_done_from_logs)

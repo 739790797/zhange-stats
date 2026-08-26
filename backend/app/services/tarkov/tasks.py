@@ -10,8 +10,6 @@ import json
 import logging
 import re
 import threading
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTasksMeta, TarkovTasksRaw
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API, TARKOV_GRAPHQL_URL
+from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -161,23 +160,14 @@ def _http_request(
     headers: dict[str, str] | None = None,
     timeout: int = DOWNLOAD_TIMEOUT,
 ) -> bytes:
-    req_headers = {"User-Agent": "zhange-stats/1.0", **(headers or {})}
-    req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as exc:
-        detail = ""
-        try:
-            detail = exc.read().decode("utf-8", errors="replace")[:300]
-        except Exception:  # noqa: BLE001
-            detail = ""
-        msg = f"下载失败 HTTP {exc.code}: {url}"
-        if detail:
-            msg = f"{msg} ({detail})"
-        raise TarkovTasksError(msg) from exc
-    except urllib.error.URLError as exc:
-        raise TarkovTasksError(f"无法连接资源站: {exc}") from exc
+    return download_bytes(
+        url,
+        method=method,
+        body=body,
+        headers=headers,
+        timeout=timeout,
+        error_cls=TarkovTasksError,
+    )
 
 
 def _as_int(value: Any, default: int = 0) -> int:

@@ -27,23 +27,6 @@ def check_email_code_log_policy() -> None:
         )
 
 
-def warn_if_weak_admin_password(db: Session | None = None) -> None:
-    """兼容旧入口：优先连库体检。"""
-    if db is None:
-        from app.core.database import SessionLocal
-
-        try:
-            session = SessionLocal()
-        except Exception:  # noqa: BLE001
-            return
-        try:
-            check_admin_password_health(session)
-        finally:
-            session.close()
-        return
-    check_admin_password_health(db)
-
-
 def check_admin_password_health(db: Session) -> None:
     if needs_setup(db):
         logger.info("尚未初始化管理员，请打开站点完成安装向导")

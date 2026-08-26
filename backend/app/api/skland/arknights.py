@@ -13,10 +13,8 @@ from app.schemas import (
     ArknightsAttendanceCalendarOut,
     ArknightsAttendanceDayOut,
     ArknightsBoxCompareOut,
-    ArknightsBoxOut,
     ArknightsCatalogOut,
     ArknightsCatalogSyncOut,
-    ArknightsCharOut,
     ArknightsCompareCandidateOut,
     ArknightsCompareRoleOut,
     ArknightsCompareRowOut,
@@ -43,7 +41,6 @@ from app.services.skland.arknights_catalog import (
 )
 from app.services.skland.checkin import (
     get_arknights_attendance_calendar_for_member,
-    get_arknights_box_for_member,
     get_arknights_rogue_for_member,
 )
 from app.services.skland.client import SklandApiError
@@ -204,87 +201,6 @@ def skland_arknights_rogue(
         ],
         synced_at=synced_at.isoformat() if synced_at else None,
         stale=stale,
-    )
-
-
-@router.get(
-    "/arknights/box",
-    response_model=ArknightsBoxOut,
-    dependencies=[Depends(require_feature("skland.arknights"))],
-    deprecated=True,
-)
-def skland_arknights_box(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    uid: str | None = Query(default=None, max_length=32),
-):
-    """明日方舟干员盒子（每次直连上游 player/info）。
-
-    **已废弃**：前端个人盒已移除，圈子对比请用 `/arknights/box/compare`（日更快照）。
-    本端点无 raw 落库、无 force/stale；保留仅为兼容旧客户端。需要个人盒时应对齐
-    endfield_box_raws 模式再恢复产品入口。
-    """
-    member = _member_or_404(db, user)
-    try:
-        box, role, roles = get_arknights_box_for_member(db, member, uid)
-    except SklandApiError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
-    return ArknightsBoxOut(
-        uid=box.uid,
-        name=box.name,
-        level=box.level,
-        register_ts=box.register_ts,
-        ap_current=box.ap_current,
-        ap_max=box.ap_max,
-        char_count=box.char_count,
-        channel_name=role.channel_name,
-        role_name=role.role_name,
-        chars=[
-            ArknightsCharOut(
-                char_id=c.char_id,
-                name=c.name,
-                rarity=c.rarity,
-                profession=c.profession,
-                profession_label=c.profession_label,
-                level=c.level,
-                evolve_phase=c.evolve_phase,
-                potential_rank=c.potential_rank,
-                favor_percent=c.favor_percent,
-                skin_id=c.skin_id,
-                avatar_url=c.avatar_url,
-                obtain_ts=c.obtain_ts,
-                main_skill_lvl=c.main_skill_lvl,
-                skills=[
-                    {
-                        "skill_id": s.skill_id,
-                        "specialize_level": s.specialize_level,
-                        "label": s.label,
-                    }
-                    for s in (c.skills or [])
-                ],
-                equips=[
-                    {
-                        "equip_id": e.equip_id,
-                        "name": e.name,
-                        "level": e.level,
-                        "type_icon": e.type_icon,
-                        "locked": e.locked,
-                    }
-                    for e in (c.equips or [])
-                ],
-            )
-            for c in box.chars
-        ],
-        roles=[
-            SklandRoleOut(
-                game_code=r.game_code,
-                game_name=r.game_name,
-                uid=r.uid,
-                role_name=r.role_name,
-                channel_name=r.channel_name,
-            )
-            for r in roles
-        ],
     )
 
 

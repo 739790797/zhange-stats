@@ -34,8 +34,6 @@ export function TimelineControls({
         options={[
           { label: "日", value: "day" },
           { label: "周", value: "week" },
-          { label: "月", value: "month" },
-          { label: "年", value: "year" },
         ]}
       />
       {!isPendingGranularity && (
@@ -81,7 +79,7 @@ export function TimelineControls({
                   parseBeijing(d.format("YYYY-MM-DD")).startOf("day"),
                 );
               }}
-              style={{ width: 320 }}
+              style={{ width: 220, maxWidth: "100%" }}
             />
           )}
           <Button size="small" onClick={() => onShift(1)}>

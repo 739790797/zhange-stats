@@ -380,8 +380,19 @@ def display_checkin_awards_summary(
             return "B服不支持查询"
         if pending_like:
             return None
-        if msg.startswith("今日已签到") or msg.startswith("签到成功") or "获得" in msg:
-            return msg
+        # 「今日已签到」是状态句，不是奖励；只抽取「获得：」后的明细
+        for prefix in (
+            "今日已签到，获得：",
+            "今日已签到：",
+            "签到成功，获得：",
+            "签到成功：",
+        ):
+            if msg.startswith(prefix):
+                rest = msg[len(prefix) :].strip()
+                return rest or None
+        if "获得：" in msg:
+            rest = msg.split("获得：", 1)[1].strip()
+            return rest or None
         return None
     return msg or None
 
@@ -481,26 +492,6 @@ def today_done_from_logs(
             return None
         selected.append(row)
     return selected if selected else None
-
-
-def apply_bind_last_checkin(
-    bind: Any,
-    *,
-    now: Any,
-    checkin_date: Any,
-    ok: bool,
-    summary: str,
-) -> None:
-    """写入 bind.last_checkin_*（反规范化：任务列表 / 兼容旧跳过逻辑）。
-
-    今日按角色详情只信 *_checkin_logs；status 查询路径不得调用本函数。
-    """
-    bind.last_checkin_at = now
-    bind.last_checkin_date = checkin_date
-    bind.last_checkin_ok = ok
-    bind.last_checkin_summary = summary
-    if hasattr(bind, "updated_at"):
-        bind.updated_at = now
 
 
 def upsert_day_checkin_logs(
@@ -664,35 +655,4 @@ def upsert_and_reload_day_results(
         if text:
             row.extra_text = text
     return cached
-
-
-def log_row_to_api(
-    *,
-    id: int,
-    game_code: str,
-    game_name: str,
-    role_uid: str,
-    role_name: str | None,
-    channel_name: str | None,
-    status: str,
-    message: str | None,
-    awards_text: str | None,
-    checkin_date: str,
-    checked_at: Any,
-) -> dict[str, Any]:
-    """统一签到记录 API 字段（含 status_label）。"""
-    return {
-        "id": id,
-        "game_code": game_code,
-        "game_name": game_name,
-        "role_uid": role_uid,
-        "role_name": role_name,
-        "channel_name": channel_name,
-        "status": status,
-        "status_label": status_label(status),
-        "message": message,
-        "awards_text": awards_text,
-        "checkin_date": checkin_date,
-        "checked_at": checked_at,
-    }
 

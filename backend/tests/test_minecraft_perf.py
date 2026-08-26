@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.timeutil import BEIJING, now_naive
-from app.models.minecraft import MinecraftPerfSample
+from app.models.minecraft import MinecraftPerfRollup, MinecraftPerfSample
 from app.services.minecraft.perf import bucket_series, resolve_window
 from app.services.minecraft.rcon import parse_chunks_text
 
@@ -77,6 +77,7 @@ def test_parse_chunks_missing() -> None:
 def _session() -> Session:
     engine = create_engine("sqlite:///:memory:")
     MinecraftPerfSample.__table__.create(bind=engine)
+    MinecraftPerfRollup.__table__.create(bind=engine)
     return sessionmaker(bind=engine)()
 
 

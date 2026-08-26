@@ -1,68 +1,89 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { ConfigProvider } from "antd";
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
-import { AppLayout } from "@/components/AppLayout";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
+import { HomeRedirect } from "@/components/HomeRedirect";
+import { NotFoundPage } from "@/components/NotFoundPage";
+import { PlatformRoute } from "@/components/PlatformRoute";
+import { RouteFallback } from "@/components/RouteFallback";
 import { SetupGate } from "@/components/SetupGate";
 import { antdLocale } from "@/locales/zhCN";
-import EmailSettingsPage from "@/pages/EmailSettingsPage";
-import AuthSettingsPage from "@/pages/AuthSettingsPage";
-import IntegrationsSettingsPage from "@/pages/IntegrationsSettingsPage";
-import LoginPage from "@/pages/LoginPage";
-import MemberDetailPage from "@/pages/MemberDetailPage";
-import MyDailyPage from "@/pages/MyDailyPage";
-import ProfileSettingsPage from "@/pages/ProfileSettingsPage";
-import RegisterPage from "@/pages/RegisterPage";
-import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
-import SetupPage from "@/pages/SetupPage";
-import SklandPage from "@/pages/SklandPage";
-import SteamCalendarPage from "@/pages/SteamCalendarPage";
-import TaygedoPage from "@/pages/TaygedoPage";
-import ExiliumPage from "@/pages/ExiliumPage";
-import KujiequPage from "@/pages/KujiequPage";
-import MihoyoPage from "@/pages/MihoyoPage";
-import ScheduledJobsPage from "@/pages/ScheduledJobsPage";
-import TaskConfigPage from "@/pages/TaskConfigPage";
-import UserManagementPage from "@/pages/UserManagementPage";
-import SystemUpdatePage from "@/pages/SystemUpdatePage";
-import PlatformLogsPage from "@/pages/PlatformLogsPage";
-import VerifyEmailPage from "@/pages/VerifyEmailPage";
-import TarkovHomePage from "@/pages/guides/TarkovHomePage";
-import TarkovItemsHubPage from "@/pages/guides/TarkovItemsHubPage";
-import TarkovItemTypePage from "@/pages/guides/TarkovItemTypePage";
-import TarkovItemDetailPage from "@/pages/guides/TarkovItemDetailPage";
-import TarkovTasksPage from "@/pages/guides/TarkovTasksPage";
-import TarkovTaskDetailPage from "@/pages/guides/TarkovTaskDetailPage";
-import TarkovTradersPage from "@/pages/guides/TarkovTradersPage";
-import TarkovTraderPage from "@/pages/guides/TarkovTraderPage";
-import TarkovBossesPage from "@/pages/guides/TarkovBossesPage";
-import TarkovBossPage from "@/pages/guides/TarkovBossPage";
-import TarkovMapsPage from "@/pages/guides/TarkovMapsPage";
-import TarkovMapDetailPage from "@/pages/guides/TarkovMapDetailPage";
-import TarkovHideoutPage from "@/pages/guides/TarkovHideoutPage";
-import TarkovHideoutDetailPage from "@/pages/guides/TarkovHideoutDetailPage";
-import TarkovBartersPage from "@/pages/guides/TarkovBartersPage";
-import TarkovCraftsPage from "@/pages/guides/TarkovCraftsPage";
-import TarkovLootTiersPage from "@/pages/guides/TarkovLootTiersPage";
-import TarkovHideoutCostPage from "@/pages/guides/TarkovHideoutCostPage";
-import TarkovWipeLengthPage from "@/pages/guides/TarkovWipeLengthPage";
-import TarkovBitcoinFarmPage from "@/pages/guides/TarkovBitcoinFarmPage";
-import TarkovProgressionPage from "@/pages/guides/TarkovProgressionPage";
-import MinecraftPage from "@/pages/guides/MinecraftPage";
-import { HomeRedirect } from "@/components/HomeRedirect";
-import { PlatformRoute } from "@/components/PlatformRoute";
-import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
 import { antdAppTheme } from "@/theme/antdApp";
 
-function TarkovGuidesOutlet() {
-  return (
-    <PlatformRoute featureId="guides.tarkov">
-      <TarkovGuideShell>
-        <Outlet />
-      </TarkovGuideShell>
-    </PlatformRoute>
-  );
-}
+const AppLayout = lazy(() =>
+  import("@/components/AppLayout").then((m) => ({ default: m.AppLayout })),
+);
+const SetupPage = lazy(() => import("@/pages/SetupPage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
+const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
+const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
+const SteamCalendarPage = lazy(() => import("@/pages/SteamCalendarPage"));
+const SklandPage = lazy(() => import("@/pages/SklandPage"));
+const TaygedoPage = lazy(() => import("@/pages/TaygedoPage"));
+const ExiliumPage = lazy(() => import("@/pages/ExiliumPage"));
+const KujiequPage = lazy(() => import("@/pages/KujiequPage"));
+const MihoyoPage = lazy(() => import("@/pages/MihoyoPage"));
+const MemberDetailPage = lazy(() => import("@/pages/MemberDetailPage"));
+const MyDailyPage = lazy(() => import("@/pages/MyDailyPage"));
+const ProfileSettingsPage = lazy(() => import("@/pages/ProfileSettingsPage"));
+const UserManagementPage = lazy(() => import("@/pages/UserManagementPage"));
+const IntegrationsSettingsPage = lazy(
+  () => import("@/pages/IntegrationsSettingsPage"),
+);
+const AuthSettingsPage = lazy(() => import("@/pages/AuthSettingsPage"));
+const EmailSettingsPage = lazy(() => import("@/pages/EmailSettingsPage"));
+const TaskConfigPage = lazy(() => import("@/pages/TaskConfigPage"));
+const ScheduledJobsPage = lazy(() => import("@/pages/ScheduledJobsPage"));
+const PlatformLogsPage = lazy(() => import("@/pages/PlatformLogsPage"));
+const SystemUpdatePage = lazy(() => import("@/pages/SystemUpdatePage"));
+const TarkovGuidesOutlet = lazy(
+  () => import("@/pages/guides/TarkovGuidesOutlet"),
+);
+const TarkovHomePage = lazy(() => import("@/pages/guides/TarkovHomePage"));
+const TarkovItemsHubPage = lazy(
+  () => import("@/pages/guides/TarkovItemsHubPage"),
+);
+const TarkovItemTypePage = lazy(
+  () => import("@/pages/guides/TarkovItemTypePage"),
+);
+const TarkovItemDetailPage = lazy(
+  () => import("@/pages/guides/TarkovItemDetailPage"),
+);
+const TarkovTasksPage = lazy(() => import("@/pages/guides/TarkovTasksPage"));
+const TarkovTaskDetailPage = lazy(
+  () => import("@/pages/guides/TarkovTaskDetailPage"),
+);
+const TarkovTradersPage = lazy(() => import("@/pages/guides/TarkovTradersPage"));
+const TarkovTraderPage = lazy(() => import("@/pages/guides/TarkovTraderPage"));
+const TarkovBossesPage = lazy(() => import("@/pages/guides/TarkovBossesPage"));
+const TarkovBossPage = lazy(() => import("@/pages/guides/TarkovBossPage"));
+const TarkovMapsPage = lazy(() => import("@/pages/guides/TarkovMapsPage"));
+const TarkovMapDetailPage = lazy(
+  () => import("@/pages/guides/TarkovMapDetailPage"),
+);
+const TarkovHideoutPage = lazy(() => import("@/pages/guides/TarkovHideoutPage"));
+const TarkovHideoutDetailPage = lazy(
+  () => import("@/pages/guides/TarkovHideoutDetailPage"),
+);
+const TarkovBartersPage = lazy(() => import("@/pages/guides/TarkovBartersPage"));
+const TarkovCraftsPage = lazy(() => import("@/pages/guides/TarkovCraftsPage"));
+const TarkovLootTiersPage = lazy(
+  () => import("@/pages/guides/TarkovLootTiersPage"),
+);
+const TarkovHideoutCostPage = lazy(
+  () => import("@/pages/guides/TarkovHideoutCostPage"),
+);
+const TarkovWipeLengthPage = lazy(
+  () => import("@/pages/guides/TarkovWipeLengthPage"),
+);
+const TarkovBitcoinFarmPage = lazy(
+  () => import("@/pages/guides/TarkovBitcoinFarmPage"),
+);
+const TarkovProgressionPage = lazy(
+  () => import("@/pages/guides/TarkovProgressionPage"),
+);
+const MinecraftPage = lazy(() => import("@/pages/guides/MinecraftPage"));
 
 function AdminPage({ children }: { children: ReactNode }) {
   return <AdminRoute>{children}</AdminRoute>;
@@ -89,226 +110,230 @@ export default function App() {
     >
       <BrowserRouter>
         <SetupGate>
-          <Routes>
-            <Route path="/setup" element={<SetupPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
-            <Route
-              element={
-                <PrivateRoute>
-                  <AppLayout />
-                </PrivateRoute>
-              }
-            >
-              <Route path="/" element={<HomeRedirect />} />
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/setup" element={<SetupPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route
-                path="/steam"
-                element={
-                  <PlatformRoute featureId="steam">
-                    <SteamCalendarPage />
-                  </PlatformRoute>
-                }
+                path="/forgot-password"
+                element={<ForgotPasswordPage />}
               />
-              <Route path="/friends" element={<HomeRedirect />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route
-                path="/skland"
                 element={
-                  <PlatformRoute featureId="skland">
-                    <SklandPage />
-                  </PlatformRoute>
+                  <PrivateRoute>
+                    <Suspense fallback={<RouteFallback />}>
+                      <AppLayout />
+                    </Suspense>
+                  </PrivateRoute>
                 }
-              />
-              <Route
-                path="/taygedo"
-                element={
-                  <PlatformRoute featureId="taygedo">
-                    <TaygedoPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route
-                path="/exilium"
-                element={
-                  <PlatformRoute featureId="exilium">
-                    <ExiliumPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route
-                path="/kujiequ"
-                element={
-                  <PlatformRoute featureId="kujiequ">
-                    <KujiequPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route
-                path="/mihoyo"
-                element={
-                  <PlatformRoute featureId="mihoyo">
-                    <MihoyoPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route path="/members" element={<HomeRedirect />} />
-              <Route
-                path="/members/:id"
-                element={
-                  <PlatformRoute featureId="steam">
-                    <MemberDetailPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route path="/daily" element={<MyDailyPage />} />
-              <Route path="/guides/tarkov" element={<TarkovGuidesOutlet />}>
-                <Route index element={<TarkovHomePage />} />
-                <Route path="items" element={<TarkovItemsHubPage />} />
+              >
+                <Route path="/" element={<HomeRedirect />} />
                 <Route
-                  path="items/:typeSegment/:itemId"
-                  element={<TarkovItemDetailPage />}
+                  path="/steam"
+                  element={
+                    <PlatformRoute featureId="steam">
+                      <SteamCalendarPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route path="/friends" element={<HomeRedirect />} />
+                <Route
+                  path="/skland"
+                  element={
+                    <PlatformRoute featureId="skland">
+                      <SklandPage />
+                    </PlatformRoute>
+                  }
                 />
                 <Route
-                  path="items/:typeSegment"
-                  element={<TarkovItemTypePage />}
-                />
-                <Route path="tasks" element={<TarkovTasksPage />} />
-                <Route
-                  path="tasks/:taskId"
-                  element={<TarkovTaskDetailPage />}
-                />
-                <Route path="maps" element={<TarkovMapsPage />} />
-                <Route path="maps/:mapSlug" element={<TarkovMapDetailPage />} />
-                <Route
-                  path="traders"
-                  element={<TarkovTradersPage />}
+                  path="/taygedo"
+                  element={
+                    <PlatformRoute featureId="taygedo">
+                      <TaygedoPage />
+                    </PlatformRoute>
+                  }
                 />
                 <Route
-                  path="traders/:traderSlug"
-                  element={<TarkovTraderPage />}
+                  path="/exilium"
+                  element={
+                    <PlatformRoute featureId="exilium">
+                      <ExiliumPage />
+                    </PlatformRoute>
+                  }
                 />
                 <Route
-                  path="bosses"
-                  element={<TarkovBossesPage />}
+                  path="/kujiequ"
+                  element={
+                    <PlatformRoute featureId="kujiequ">
+                      <KujiequPage />
+                    </PlatformRoute>
+                  }
                 />
                 <Route
-                  path="bosses/:bossSlug"
-                  element={<TarkovBossPage />}
+                  path="/mihoyo"
+                  element={
+                    <PlatformRoute featureId="mihoyo">
+                      <MihoyoPage />
+                    </PlatformRoute>
+                  }
                 />
-                <Route path="hideout" element={<TarkovHideoutPage />} />
+                <Route path="/members" element={<HomeRedirect />} />
                 <Route
-                  path="hideout/:stationSlug"
-                  element={<TarkovHideoutDetailPage />}
+                  path="/members/:id"
+                  element={
+                    <PlatformRoute featureId="steam">
+                      <MemberDetailPage />
+                    </PlatformRoute>
+                  }
                 />
-                <Route path="barters" element={<TarkovBartersPage />} />
-                <Route path="crafts" element={<TarkovCraftsPage />} />
-                <Route path="loot-tiers" element={<TarkovLootTiersPage />} />
+                <Route path="/daily" element={<MyDailyPage />} />
+                <Route path="/guides/tarkov" element={<TarkovGuidesOutlet />}>
+                  <Route index element={<TarkovHomePage />} />
+                  <Route path="items" element={<TarkovItemsHubPage />} />
+                  <Route
+                    path="items/:typeSegment/:itemId"
+                    element={<TarkovItemDetailPage />}
+                  />
+                  <Route
+                    path="items/:typeSegment"
+                    element={<TarkovItemTypePage />}
+                  />
+                  <Route path="tasks" element={<TarkovTasksPage />} />
+                  <Route
+                    path="tasks/:taskId"
+                    element={<TarkovTaskDetailPage />}
+                  />
+                  <Route path="maps" element={<TarkovMapsPage />} />
+                  <Route
+                    path="maps/:mapSlug"
+                    element={<TarkovMapDetailPage />}
+                  />
+                  <Route path="traders" element={<TarkovTradersPage />} />
+                  <Route
+                    path="traders/:traderSlug"
+                    element={<TarkovTraderPage />}
+                  />
+                  <Route path="bosses" element={<TarkovBossesPage />} />
+                  <Route
+                    path="bosses/:bossSlug"
+                    element={<TarkovBossPage />}
+                  />
+                  <Route path="hideout" element={<TarkovHideoutPage />} />
+                  <Route
+                    path="hideout/:stationSlug"
+                    element={<TarkovHideoutDetailPage />}
+                  />
+                  <Route path="barters" element={<TarkovBartersPage />} />
+                  <Route path="crafts" element={<TarkovCraftsPage />} />
+                  <Route path="loot-tiers" element={<TarkovLootTiersPage />} />
+                  <Route
+                    path="hideout-cost"
+                    element={<TarkovHideoutCostPage />}
+                  />
+                  <Route
+                    path="wipe-length"
+                    element={<TarkovWipeLengthPage />}
+                  />
+                  <Route
+                    path="bitcoin-farm"
+                    element={<TarkovBitcoinFarmPage />}
+                  />
+                  <Route
+                    path="progression"
+                    element={<TarkovProgressionPage />}
+                  />
+                </Route>
                 <Route
-                  path="hideout-cost"
-                  element={<TarkovHideoutCostPage />}
+                  path="/guides/minecraft"
+                  element={
+                    <PlatformRoute featureId="guides.minecraft">
+                      <MinecraftPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route path="/profile" element={<ProfileSettingsPage />} />
+                <Route
+                  path="/members/:id/profile"
+                  element={
+                    <AdminRoute>
+                      <ProfileSettingsPage />
+                    </AdminRoute>
+                  }
                 />
                 <Route
-                  path="wipe-length"
-                  element={<TarkovWipeLengthPage />}
+                  path="/settings"
+                  element={<Navigate to="/settings/users" replace />}
                 />
                 <Route
-                  path="bitcoin-farm"
-                  element={<TarkovBitcoinFarmPage />}
+                  path="/settings/users"
+                  element={
+                    <AdminPage>
+                      <UserManagementPage />
+                    </AdminPage>
+                  }
                 />
                 <Route
-                  path="progression"
-                  element={<TarkovProgressionPage />}
+                  path="/settings/integrations"
+                  element={
+                    <AdminPage>
+                      <IntegrationsSettingsPage />
+                    </AdminPage>
+                  }
                 />
+                <Route
+                  path="/settings/auth"
+                  element={
+                    <AdminPage>
+                      <AuthSettingsPage />
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/settings/email"
+                  element={
+                    <AdminPage>
+                      <EmailSettingsPage />
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/settings/task-config"
+                  element={
+                    <AdminPage>
+                      <TaskConfigPage />
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/settings/jobs"
+                  element={
+                    <AdminPage>
+                      <ScheduledJobsPage />
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/settings/logs"
+                  element={
+                    <AdminPage>
+                      <PlatformLogsPage />
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/settings/system"
+                  element={
+                    <AdminPage>
+                      <SystemUpdatePage />
+                    </AdminPage>
+                  }
+                />
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
-              <Route
-                path="/guides/minecraft"
-                element={
-                  <PlatformRoute featureId="guides.minecraft">
-                    <MinecraftPage />
-                  </PlatformRoute>
-                }
-              />
-              <Route path="/profile" element={<ProfileSettingsPage />} />
-              <Route
-                path="/members/:id/profile"
-                element={
-                  <AdminRoute>
-                    <ProfileSettingsPage />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/settings"
-                element={<Navigate to="/settings/users" replace />}
-              />
-              <Route
-                path="/settings/users"
-                element={
-                  <AdminPage>
-                    <UserManagementPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/integrations"
-                element={
-                  <AdminPage>
-                    <IntegrationsSettingsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/auth"
-                element={
-                  <AdminPage>
-                    <AuthSettingsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/email"
-                element={
-                  <AdminPage>
-                    <EmailSettingsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/task-config"
-                element={
-                  <AdminPage>
-                    <TaskConfigPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/jobs"
-                element={
-                  <AdminPage>
-                    <ScheduledJobsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/logs"
-                element={
-                  <AdminPage>
-                    <PlatformLogsPage />
-                  </AdminPage>
-                }
-              />
-              <Route
-                path="/settings/system"
-                element={
-                  <AdminPage>
-                    <SystemUpdatePage />
-                  </AdminPage>
-                }
-              />
-            </Route>
-            <Route path="*" element={<HomeRedirect />} />
-          </Routes>
+            </Routes>
+          </Suspense>
         </SetupGate>
       </BrowserRouter>
     </ConfigProvider>

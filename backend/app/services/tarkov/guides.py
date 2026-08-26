@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovGuidesMeta, TarkovGuidesRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
+from app.services.tarkov.http import download_bytes
 from app.services.tarkov.tasks import TRADER_BY_ID
 
 logger = logging.getLogger(__name__)
@@ -53,18 +52,7 @@ def _http_request(
     *,
     timeout: int = DOWNLOAD_TIMEOUT,
 ) -> bytes:
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "zhange-stats/1.0"},
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as exc:
-        raise TarkovGuidesError(f"下载失败 HTTP {exc.code}: {url}") from exc
-    except urllib.error.URLError as exc:
-        raise TarkovGuidesError(f"无法连接资源站: {exc}") from exc
+    return download_bytes(url, timeout=timeout, error_cls=TarkovGuidesError)
 
 
 def _as_int(value: Any, default: int = 0) -> int:

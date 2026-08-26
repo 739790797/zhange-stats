@@ -8,7 +8,6 @@ import pytest
 from app.services.mihoyo.auth import (
     MihoyoNeedGeetest,
     _aigis_from_geetest,
-    _assert_account_ok,
     _build_aigis_header,
     _extract_error_text,
     _humanize_passport_error,
@@ -123,19 +122,6 @@ def test_extract_error_text_unwraps_nested_json():
         _humanize_passport_error({"code": 400, "data": raw})
         == "请使用最新版本产品/链接以获得更佳体验"
     )
-
-
-def test_assert_account_ok_raises_readable_464():
-    payload = {
-        "code": 200,
-        "data": {
-            "retcode": -464,
-            "msg": "请使用最新版本产品/链接以获得更佳体验，或前往user.mihoyo.com完成操作。",
-        },
-    }
-    with pytest.raises(MihoyoApiError, match="请使用最新版本产品") as excinfo:
-        _assert_account_ok(payload)
-    assert excinfo.value.code == -464
 
 
 def test_parse_aigis_challenge_reads_gt():
@@ -321,6 +307,13 @@ def test_welfare_urls_follow_mihoyobbstools():
     assert "bbs_sign_reward" not in _welfare_info_url(GAME_BIZ_META["hk4e_cn"])
     assert _welfare_info_url(GAME_BIZ_META["nap_cn"]) == bbs_setting.zzz_game_is_signurl
     assert "act-nap-api" in _welfare_sign_url(GAME_BIZ_META["nap_cn"])
+
+
+def test_bbs_sign_url_has_no_signininfo():
+    from app.services.mihoyo_bbs import setting as bbs_setting
+
+    assert bbs_setting.bbs_sign_url.endswith("/apihub/app/api/signIn")
+    assert not hasattr(bbs_setting, "bbs_sign_info_url")
 
 
 def test_mall_urls_follow_mystool():

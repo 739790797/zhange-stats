@@ -1,6 +1,7 @@
 import { Avatar, Empty, Space, Spin, Tag, Tooltip, Typography } from "antd";
 import { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import type { SteamTimelineRow } from "@/api/types";
 import {
@@ -23,6 +24,7 @@ export function DayTimeline({
   loading,
   spanSeconds,
   rangeStart,
+  emptyText = "暂无绑定 Steam 的圈子成员",
 }: {
   rows: SteamTimelineRow[];
   gamesLegend: {
@@ -33,6 +35,7 @@ export function DayTimeline({
   loading?: boolean;
   spanSeconds: number;
   rangeStart: Dayjs;
+  emptyText?: string;
 }) {
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
   const [showOffline, setShowOffline] = useState(true);
@@ -81,7 +84,7 @@ export function DayTimeline({
   }, [isWeek, dayCount, rangeStart]);
 
   if (!loading && rows.length === 0) {
-    return <Empty description="暂无绑定 Steam 的成员" />;
+    return <Empty description={emptyText} />;
   }
 
   return (
@@ -90,7 +93,15 @@ export function DayTimeline({
       <Space wrap style={{ marginBottom: 12 }}>
         <Tag
           color="#d9d9d9"
+          role="button"
+          tabIndex={0}
           onClick={() => setShowOffline((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setShowOffline((v) => !v);
+            }
+          }}
           title={showOffline ? "点击隐藏离线段" : "点击显示离线段"}
           style={{
             color: "#595959",
@@ -105,7 +116,15 @@ export function DayTimeline({
         </Tag>
         <Tag
           color="#5b8ff9"
+          role="button"
+          tabIndex={0}
           onClick={() => setShowOnline((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setShowOnline((v) => !v);
+            }
+          }}
           title={showOnline ? "点击隐藏在线段" : "点击显示在线段"}
           style={{
             cursor: "pointer",
@@ -234,13 +253,18 @@ export function DayTimeline({
                 <Avatar size={24} src={row.avatar_url || undefined}>
                   {row.member_nickname[0]}
                 </Avatar>
-                <Typography.Text
-                  ellipsis
-                  style={{ maxWidth: 72, fontSize: 13 }}
-                  title={row.member_nickname}
+                <Link
+                  to={`/members/${row.member_id}`}
+                  style={{ minWidth: 0 }}
                 >
-                  {row.member_nickname}
-                </Typography.Text>
+                  <Typography.Text
+                    ellipsis
+                    style={{ maxWidth: 72, fontSize: 13 }}
+                    title={row.member_nickname}
+                  >
+                    {row.member_nickname}
+                  </Typography.Text>
+                </Link>
               </div>
               <div
                 style={{

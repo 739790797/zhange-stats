@@ -7,8 +7,7 @@ import hashlib
 import json
 import logging
 import re
-import urllib.error
-import urllib.request
+from app.core.http_client import HttpRequestError, http_request
 from dataclasses import dataclass
 from typing import Any
 
@@ -191,25 +190,23 @@ def _http_full(
     if token:
         headers["Authorization"] = token
 
-    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            status = getattr(resp, "status", 200)
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
-        status = exc.code
+        resp = http_request(method, url, headers=headers, content=data, timeout=timeout)
+        raw = resp.content.decode("utf-8", errors="replace")
+        status = resp.status_code
+    except HttpRequestError as exc:
+        raise ExiliumApiError(f"无法连接追放社区: {exc}") from exc
+
+    if status >= 400:
         try:
             payload = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
-            raise ExiliumApiError(f"HTTP {status}", code=status) from exc
+            raise ExiliumApiError(f"HTTP {status}", code=status)
         if isinstance(payload, dict):
             code = payload.get("Code")
             msg = str(payload.get("Message") or f"HTTP {status}")
-            raise ExiliumApiError(msg, code=int(code) if code is not None else status, data=payload.get("data")) from exc
-        raise ExiliumApiError(f"HTTP {status}", code=status) from exc
-    except urllib.error.URLError as exc:
-        raise ExiliumApiError(f"无法连接追放社区: {exc}") from exc
+            raise ExiliumApiError(msg, code=int(code) if code is not None else status, data=payload.get("data"))
+        raise ExiliumApiError(f"HTTP {status}", code=status)
 
     try:
         payload = json.loads(raw) if raw else {}
@@ -479,19 +476,3 @@ def list_score_logs(
         "page": page,
         "page_size": page_size,
     }
-
-
-
-# 签到逻辑拆至 exilium_attendance，此处再导出保持原 import 路径兼容
-from app.services.exilium.attendance import (  # noqa: E402
-    checkin,
-    complete_daily_tasks,
-    ensure_session,
-    get_sign_in_status,
-    like_topic,
-    list_topic_ids,
-    query_today,
-    share_topic,
-    sign_in,
-    view_topic,
-)

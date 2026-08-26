@@ -1,6 +1,7 @@
 import { Alert, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
+import { Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchTarkovMapDetail,
@@ -10,9 +11,15 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { tarkovBossHref, tarkovMapHref } from "@/lib/tarkovHomeNav";
-import { TarkovMapViewer } from "@/components/guides/tarkov/TarkovMapViewer";
+import { PanelFallback } from "@/components/RouteFallback";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovMapsPanel.module.css";
+
+const TarkovMapViewer = lazy(() =>
+  import("@/components/guides/tarkov/TarkovMapViewer").then((m) => ({
+    default: m.TarkovMapViewer,
+  })),
+);
 
 type Props = {
   slug: string;
@@ -136,12 +143,14 @@ export function TarkovMapDetailPanel({ slug }: Props) {
         </div>
       </section>
 
-      <TarkovMapViewer
-        slug={slug}
-        parentSlug={detail.parent_slug || undefined}
-        extracts={detail.extracts}
-        bosses={detail.bosses}
-      />
+      <Suspense fallback={<PanelFallback tip="加载地图…" />}>
+        <TarkovMapViewer
+          slug={slug}
+          parentSlug={detail.parent_slug || undefined}
+          extracts={detail.extracts}
+          bosses={detail.bosses}
+        />
+      </Suspense>
 
       {detail.variants?.length ? (
         <div>

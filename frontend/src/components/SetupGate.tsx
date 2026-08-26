@@ -7,6 +7,7 @@ import { fetchSetupStatus } from "@/api/client";
 export function SetupGate({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+  const onSetup = location.pathname === "/setup";
 
   useEffect(() => {
     let cancelled = false;
@@ -21,7 +22,7 @@ export function SetupGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname]);
+  }, [onSetup]);
 
   if (needsSetup === null) {
     return (
@@ -38,7 +39,6 @@ export function SetupGate({ children }: { children: ReactNode }) {
     );
   }
 
-  const onSetup = location.pathname === "/setup";
   if (needsSetup && !onSetup) {
     return <Navigate to="/setup" replace />;
   }

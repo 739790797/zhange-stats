@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { ForbiddenPage } from "@/components/ForbiddenPage";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -19,7 +20,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
   if (!isAdminUser(user)) {
-    return <Navigate to="/" replace />;
+    return <ForbiddenPage />;
   }
   return <>{children}</>;
 }

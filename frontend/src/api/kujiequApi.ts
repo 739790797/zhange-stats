@@ -46,15 +46,6 @@ export async function unbindKujiequ() {
   return data;
 }
 
-export async function updateKujiequBind(payload: {
-  auto_checkin?: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
-  const { data } = await client.patch<KujiequStatus>("/kujiequ/bind", payload);
-  return data;
-}
-
 export async function updateKujiequRolePref(
   payload: components["schemas"]["CheckinRolePrefUpdate"],
 ) {

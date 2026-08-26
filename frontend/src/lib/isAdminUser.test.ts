@@ -42,5 +42,8 @@ describe("platformFeatures", () => {
     expect(firstEnabledPlatformPath({ steam: true, skland: true })).toBe(
       "/steam",
     );
+    expect(firstEnabledPlatformPath({ "guides.tarkov": true })).toBe(
+      "/guides/tarkov",
+    );
   });
 });

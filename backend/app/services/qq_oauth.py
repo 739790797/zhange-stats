@@ -5,15 +5,15 @@ from __future__ import annotations
 import json
 import logging
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from datetime import timedelta
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 
 from app.core.config import get_settings
+from app.core.http_client import HttpRequestError, http_request
 from app.core.security import ALGORITHM
 from app.core.timeutil import utc_now
 
@@ -86,7 +86,7 @@ def decode_qq_oauth_state(token: str) -> dict:
     settings = get_settings()
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise QqOAuthError("QQ 登录状态已过期，请重试") from exc
     purpose = payload.get("purpose")
     if purpose not in (PURPOSE_BIND, PURPOSE_LOGIN):
@@ -115,19 +115,18 @@ def build_qq_authorize_url(*, state: str, backend: str | None = None) -> str:
 
 
 def _http_get_text(url: str, timeout: int = 20) -> str:
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "zhange-stats/1.0"},
-        method="GET",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8", errors="ignore")
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore") if exc.fp else ""
-        raise QqOAuthError(f"QQ 接口 HTTP {exc.code}: {body[:200]}") from exc
-    except urllib.error.URLError as exc:
+        resp = http_request(
+            "GET",
+            url,
+            headers={"User-Agent": "zhange-stats/1.0"},
+            timeout=timeout,
+        )
+    except HttpRequestError as exc:
         raise QqOAuthError(f"无法连接 QQ 接口: {exc}") from exc
+    if resp.status_code >= 400:
+        raise QqOAuthError(f"QQ 接口 HTTP {resp.status_code}: {resp.text[:200]}")
+    return resp.content.decode("utf-8", errors="ignore")
 
 
 def _parse_token_body(text: str) -> dict[str, str]:

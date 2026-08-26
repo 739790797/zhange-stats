@@ -791,10 +791,6 @@ export function formatOfferPrice(offer: VendorOffer): string {
   return formatMoney(offer.priceRub ?? offer.price);
 }
 
-export function namedFromItemField(value: unknown): string {
-  return namedList(value);
-}
-
 export type LinkedItemRef = {
   id: string;
   name: string;

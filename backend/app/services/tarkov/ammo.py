@@ -9,24 +9,19 @@ from __future__ import annotations
 import json
 import logging
 import re
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta
+from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
 
 TARKOV_GRAPHQL_URL = "https://api.tarkov.dev/graphql"
 TARKOV_JSON_ITEMS_URL = "https://json.tarkov.dev/regular/items"
 TARKOV_JSON_ITEMS_LOCALE_URL = "https://json.tarkov.dev/regular/items_{lang}"
-TARKOVDATA_AMMO_URL = (
-    "https://raw.githubusercontent.com/TarkovTracker/tarkovdata/"
-    "master/ammunition.json"
-)
 
 SOURCE_GRAPHQL = "tarkov.dev"
 SOURCE_JSON_API = "json.tarkov.dev"
@@ -152,23 +147,14 @@ def _http_request(
     headers: dict[str, str] | None = None,
     timeout: int = DOWNLOAD_TIMEOUT,
 ) -> bytes:
-    req_headers = {"User-Agent": "zhange-stats/1.0", **(headers or {})}
-    req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as exc:
-        detail = ""
-        try:
-            detail = exc.read().decode("utf-8", errors="replace")[:300]
-        except Exception:  # noqa: BLE001
-            detail = ""
-        msg = f"下载失败 HTTP {exc.code}: {url}"
-        if detail:
-            msg = f"{msg} ({detail})"
-        raise TarkovAmmoError(msg) from exc
-    except urllib.error.URLError as exc:
-        raise TarkovAmmoError(f"无法连接资源站: {exc}") from exc
+    return download_bytes(
+        url,
+        method=method,
+        body=body,
+        headers=headers,
+        timeout=timeout,
+        error_cls=TarkovAmmoError,
+    )
 
 
 def _as_int(value: Any) -> int:
@@ -484,37 +470,6 @@ def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
         payload=envelope,
         note="json.tarkov.dev/regular/items",
     )
-
-
-def download_tarkovdata_ammo() -> AmmoUpstreamBundle:
-    raw = _http_request(TARKOVDATA_AMMO_URL, timeout=90)
-    try:
-        table = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovAmmoError("tarkovdata ammunition.json 解析失败") from exc
-    if not isinstance(table, dict):
-        raise TarkovAmmoError("tarkovdata ammunition.json 格式无效")
-    rows = parse_tarkovdata_ammo(table)
-    if not rows:
-        raise TarkovAmmoError("tarkovdata 未解析到弹药")
-    return AmmoUpstreamBundle(
-        source=SOURCE_TARKOVDATA,
-        payload=table,
-        note="TarkovTracker/tarkovdata ammunition.json",
-    )
-
-
-# 兼容旧测试 / 调用：下载并直接解析为行
-def fetch_ammo_from_graphql(*, lang: str = "zh") -> list[dict[str, Any]]:
-    return parse_ammo_raw(SOURCE_GRAPHQL, download_graphql_ammo(lang=lang).payload)
-
-
-def fetch_ammo_from_json_api(*, lang: str = "zh") -> list[dict[str, Any]]:
-    return parse_ammo_raw(SOURCE_JSON_API, download_json_api_ammo(lang=lang).payload)
-
-
-def fetch_ammo_from_tarkovdata() -> list[dict[str, Any]]:
-    return parse_ammo_raw(SOURCE_TARKOVDATA, download_tarkovdata_ammo().payload)
 
 
 def ammo_count(db: Session) -> int:

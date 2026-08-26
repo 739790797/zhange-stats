@@ -14,7 +14,7 @@ from app.services.minecraft.pack import (
     parse_properties,
     redact_properties,
 )
-from app.services.minecraft.profile import desired_snapshot, playbook_from_snapshot
+from app.services.minecraft.profile import desired_snapshot, view_from_snapshot
 from app.services.minecraft.rcon import (
     TYPE_AUTH,
     TYPE_EXEC,
@@ -87,7 +87,7 @@ def test_redact_and_merge_rcon_properties():
     assert "rcon.password" not in redact_properties(props)
 
 
-def test_playbook_hides_rcon_password():
+def test_applied_view_hides_rcon_password():
     row = SimpleNamespace(
         mc_version="1.21.1",
         loader="neoforge",
@@ -95,10 +95,10 @@ def test_playbook_hides_rcon_password():
         mods_json=[],
         overrides_json={"server.properties": "motd=hi\nrcon.password=supersecret\n"},
     )
-    playbook = playbook_from_snapshot(desired_snapshot(row))
-    assert playbook is not None
-    assert "rcon.password" not in playbook["properties"]
-    assert "rcon_password_set" not in playbook
+    view = view_from_snapshot(desired_snapshot(row))
+    assert view is not None
+    assert "rcon.password" not in view["properties"]
+    assert "rcon_password_set" not in view
 
 
 class FakeRcon:

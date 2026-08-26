@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -20,10 +20,17 @@ class CheckinRolePref(Base):
             "role_uid",
             name="uq_checkin_role_pref",
         ),
+        Index(
+            "ix_checkin_role_prefs_due",
+            "platform",
+            "enabled",
+            "checkin_hour",
+            "checkin_minute",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    platform: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
     member_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False, index=True
     )

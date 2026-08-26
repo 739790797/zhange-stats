@@ -5,14 +5,14 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import time
 import uuid
 from typing import Any
-from urllib.parse import urlencode
 
 import httpx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+
+from app.core.http_client import HttpRequestError, http_request
 
 from app.services.mihoyo.client import (
     MihoyoApiError,
@@ -27,7 +27,6 @@ from app.services.mihoyo.client import (
 
 logger = logging.getLogger(__name__)
 
-ACCOUNT_API = "https://webapi.account.mihoyo.com"
 # 扫码：对齐 MHY_Scanner / C++ GetLoginQrcodeUrl，用 mihoyo.com 而非 miyoushe web
 PASSPORT_API = "https://passport-api.mihoyo.com"
 PASSPORT_MIYOUSHE = "https://passport-api.miyoushe.com"
@@ -60,14 +59,6 @@ class MihoyoNeedGeetest(MihoyoApiError):
         self.mmt_key = mmt_key
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
-def _now_sec() -> int:
-    return int(time.time())
-
-
 def rsa_encrypt(message: str) -> str:
     key = serialization.load_pem_public_key(_RSA_PUBLIC_PEM.encode("ascii"))
     encrypted = key.encrypt(message.encode("utf-8"), padding.PKCS1v15())
@@ -94,15 +85,6 @@ def _parse_geetest(raw: str | dict[str, Any] | None) -> dict[str, Any] | None:
 # 通行证风控：-3101 需极验，结果经 x-rpc-aigis 回传
 AIGIS_NEED_CODE = -3101
 SMS_ACTION_TYPE = "login_by_mobile_captcha"
-
-
-def _account_headers() -> dict[str, str]:
-    return {
-        "Accept": "application/json, text/plain, */*",
-        "User-Agent": USER_AGENT,
-        "Origin": "https://user.mihoyo.com",
-        "Referer": "https://user.mihoyo.com/",
-    }
 
 
 def _passport_headers(*, device_id: str) -> dict[str, str]:
@@ -308,16 +290,17 @@ def _passport_post(
 ) -> tuple[dict[str, Any], dict[str, str]]:
     headers = _login_passport_headers(device_id=device_id, aigis=aigis)
     try:
-        with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-            resp = client.post(url, headers=headers, json=body)
-            try:
-                payload = resp.json()
-            except (json.JSONDecodeError, ValueError) as exc:
-                raise MihoyoApiError("通行证返回异常") from exc
-            set_cookies = _cookies_from_response(resp)
+        resp = http_request(
+            "POST", url, headers=headers, json=body, timeout=REQUEST_TIMEOUT
+        )
+        try:
+            payload = resp.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise MihoyoApiError("通行证返回异常") from exc
+        set_cookies = _cookies_from_response(resp)
     except MihoyoApiError:
         raise
-    except httpx.HTTPError as exc:
+    except HttpRequestError as exc:
         raise MihoyoApiError("通行证请求失败，请稍后重试") from exc
     if not isinstance(payload, dict):
         raise MihoyoApiError("通行证返回异常")
@@ -351,82 +334,6 @@ def _creds_from_passport_login(
         "tokens": extra_tokens,
     }
     return _creds_from_qr_confirmed(data=synthetic, set_cookies=cookies)
-
-
-def _assert_account_ok(payload: dict[str, Any]) -> dict[str, Any]:
-    code = payload.get("code")
-    if code is not None and int(code or 0) != 200:
-        raise MihoyoApiError(
-            _humanize_passport_error(payload),
-            code=int(code) if str(code).lstrip("-").isdigit() else None,
-        )
-    data = payload.get("data")
-    if isinstance(data, str):
-        try:
-            parsed = json.loads(data)
-        except json.JSONDecodeError:
-            parsed = None
-        data = parsed if isinstance(parsed, dict) else data
-    if not isinstance(data, dict):
-        retcode = _passport_retcode(payload, default=0)
-        if retcode != 0:
-            raise MihoyoApiError(_humanize_passport_error(payload), code=retcode)
-        raise MihoyoApiError("通行证返回异常")
-    status = data.get("status")
-    nested_retcode = data.get("retcode")
-    if status not in (1, "1", None):
-        msg = _extract_error_text(data) or "操作失败"
-        code_val = status if str(status).lstrip("-").isdigit() else nested_retcode
-        raise MihoyoApiError(
-            msg,
-            code=int(code_val) if str(code_val).lstrip("-").isdigit() else None,
-        )
-    if nested_retcode not in (0, "0", None, 1, "1"):
-        msg = _extract_error_text(data) or "操作失败"
-        raise MihoyoApiError(
-            msg,
-            code=int(nested_retcode) if str(nested_retcode).lstrip("-").isdigit() else None,
-        )
-    return data
-
-
-def create_mmt(
-    *,
-    action_type: str,
-    account: str | None = None,
-) -> dict[str, Any]:
-    """申请人机验证任务。返回 mmt_key / 可选 gt。"""
-    reason = (
-        "user.mihoyo.com%2523%252Flogin%252Fpassword"
-        if action_type == "login_by_password"
-        else "user.mihoyo.com%2523%252Flogin%252Fcaptcha"
-    )
-    params: dict[str, Any] = {
-        "scene_type": 1,
-        "now": _now_ms(),
-        "reason": reason,
-        "action_type": action_type,
-        "t": _now_ms(),
-    }
-    if account:
-        params["account"] = account.strip()
-    url = f"{ACCOUNT_API}/Api/create_mmt?{urlencode(params)}"
-    with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = client.get(url, headers=_account_headers())
-        payload = resp.json()
-    data = _assert_account_ok(payload)
-    mmt = data.get("mmt_data") if isinstance(data.get("mmt_data"), dict) else {}
-    mmt_key = str(mmt.get("mmt_key") or "").strip()
-    if not mmt_key:
-        raise MihoyoApiError("无法获取人机验证任务")
-    gt = str(mmt.get("gt") or "").strip()
-    need = bool(data.get("mmt_type") == 1 and gt)
-    return {
-        "mmt_key": mmt_key,
-        "captcha_id": gt or None,
-        "need_geetest": need,
-        "mmt_type": int(data.get("mmt_type") or 0),
-    }
 
 
 def send_login_sms(
@@ -538,10 +445,15 @@ def create_qr_login(*, device_id: str | None = None) -> dict[str, str]:
     did = (device_id or uuid.uuid4().hex).strip()
     url = f"{PASSPORT_API}/account/ma-cn-passport/app/createQRLogin"
     try:
-        with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-            resp = client.post(url, headers=_qr_passport_headers(device_id=did), json={})
-            payload = resp.json()
-    except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
+        resp = http_request(
+            "POST",
+            url,
+            headers=_qr_passport_headers(device_id=did),
+            json={},
+            timeout=REQUEST_TIMEOUT,
+        )
+        payload = resp.json()
+    except (HttpRequestError, json.JSONDecodeError, ValueError) as exc:
         raise MihoyoApiError("生成二维码失败，请稍后重试") from exc
     if not isinstance(payload, dict):
         raise MihoyoApiError("生成二维码失败：上游返回异常")
@@ -558,20 +470,21 @@ def create_qr_login(*, device_id: str | None = None) -> dict[str, str]:
 def query_qr_login(*, device_id: str, ticket: str) -> dict[str, Any]:
     url = f"{PASSPORT_API}/account/ma-cn-passport/app/queryQRLoginStatus"
     try:
-        with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-            resp = client.post(
-                url,
-                headers=_qr_passport_headers(device_id=device_id),
-                json={"ticket": ticket},
-            )
-            try:
-                payload = resp.json()
-            except (json.JSONDecodeError, ValueError) as exc:
-                raise MihoyoApiError("扫码状态查询失败：上游返回异常") from exc
-            set_cookies = _cookies_from_response(resp)
+        resp = http_request(
+            "POST",
+            url,
+            headers=_qr_passport_headers(device_id=device_id),
+            json={"ticket": ticket},
+            timeout=REQUEST_TIMEOUT,
+        )
+        try:
+            payload = resp.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise MihoyoApiError("扫码状态查询失败：上游返回异常") from exc
+        set_cookies = _cookies_from_response(resp)
     except MihoyoApiError:
         raise
-    except httpx.HTTPError as exc:
+    except HttpRequestError as exc:
         raise MihoyoApiError("扫码状态查询失败，请稍后重试") from exc
 
     if not isinstance(payload, dict):
@@ -714,16 +627,17 @@ def _creds_from_cookie_token(
         f"?uid={aid}"
     )
     try:
-        with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-            resp = client.get(
-                url,
-                headers={
-                    "User-Agent": USER_AGENT,
-                    "Cookie": cookie,
-                },
-            )
-            payload = resp.json()
-    except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
+        resp = http_request(
+            "GET",
+            url,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Cookie": cookie,
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        payload = resp.json()
+    except (HttpRequestError, json.JSONDecodeError, ValueError) as exc:
         raise MihoyoApiError("无法用 cookie_token 换取 Stoken，请改用短信或密码登录") from exc
     if not isinstance(payload, dict) or _passport_retcode(payload) != 0:
         raise MihoyoApiError(

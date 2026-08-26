@@ -22,6 +22,8 @@ alwaysApply: false
 ## 数据与 UI
 
 - 远端状态用 TanStack Query；勿把服务端列表塞进 zustand
+- 路由页一律 `React.lazy`，`AppLayout` 的 Outlet 外包 `Suspense`；禁止把页面静态引进 `App.tsx`
+- 平台 `PlatformFeatureTabsPage` 保持 `destroyInactiveTabPane`；盒子 / 兑换 / 养成 Tab 按需 lazy
 - UI：Ant Design 5 + `antdAppTheme`；按钮角色/尺寸见 `frontend-ui.mdc`
 - **新签到内容**套 `CheckinPageTemplate`（`contentOnly` 嵌入平台 Tabs）
 - **新兑换内容**套 `ExchangePageTemplate` + `ExchangeGoodsCard`（商品字段/确认流由平台注入）

@@ -20,13 +20,6 @@ def account_id_to_steamid64(account_id: int) -> str:
     return str(STEAMID64_BASE + account_id)
 
 
-def steamid64_to_account_id(steamid64: str) -> int:
-    value = int(steamid64)
-    if value < STEAMID64_BASE:
-        raise ValueError("SteamID64 无效")
-    return value - STEAMID64_BASE
-
-
 def decode_invite_code(code: str) -> str:
     """解码 s.team/p/{code} 中的短码为 SteamID64。"""
     cleaned = re.sub(r"[^0-9a-z]", "", code.lower())

@@ -188,11 +188,6 @@ def fetch_store_details(
     )
 
 
-def fetch_store_name(app_id: str, lang: str = "schinese") -> str | None:
-    details = fetch_store_details(app_id, lang=lang)
-    return details.name if details.success else None
-
-
 def _name_cache_fresh(row: SteamApp, now: datetime) -> bool:
     if row.name:
         return True

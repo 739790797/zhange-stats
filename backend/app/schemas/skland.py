@@ -55,38 +55,6 @@ class ArknightsCharEquipOut(BaseModel):
     locked: bool = False
 
 
-class ArknightsCharOut(BaseModel):
-    char_id: str
-    name: str
-    rarity: int
-    profession: str
-    profession_label: str
-    level: int
-    evolve_phase: int
-    potential_rank: int
-    favor_percent: int | None = None
-    skin_id: str | None = None
-    avatar_url: str | None = None
-    obtain_ts: int | None = None
-    main_skill_lvl: int = 1
-    skills: list[ArknightsCharSkillOut] = Field(default_factory=list)
-    equips: list[ArknightsCharEquipOut] = Field(default_factory=list)
-
-
-class ArknightsBoxOut(BaseModel):
-    uid: str
-    name: str
-    level: int
-    register_ts: int | None = None
-    ap_current: int | None = None
-    ap_max: int | None = None
-    char_count: int
-    channel_name: str | None = None
-    role_name: str | None = None
-    chars: list[ArknightsCharOut] = Field(default_factory=list)
-    roles: list[SklandRoleOut] = Field(default_factory=list)
-
-
 class EndfieldEquipOut(BaseModel):
     slot: str
     item_id: str = ""

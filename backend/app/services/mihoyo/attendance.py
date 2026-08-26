@@ -13,10 +13,7 @@ from app.services.checkin.common import (
     format_upstream_response,
 )
 from app.services.checkin.role_prefs import RoleKey, matches_role_filter
-from app.services.mihoyo.calendar import (
-    award_from_mihoyo_row,
-    select_today_awards,
-)
+from app.services.mihoyo.calendar import parse_today_mihoyo_awards
 from app.services.mihoyo.client import (
     BBS_FORUMS,
     GAME_BIZ_META,
@@ -113,48 +110,37 @@ def _game_sign_body(meta: dict[str, str], region: str, uid: str) -> dict[str, An
     }
 
 
-def _parse_awards_from_info(data: dict[str, Any]) -> tuple[str | None, list[dict[str, Any]]]:
-    awards = data.get("awards") if isinstance(data.get("awards"), list) else []
-    try:
-        total = int(data.get("total_sign_day") or 0)
-    except (TypeError, ValueError):
-        total = 0
-    signed = bool(data.get("is_sign") or data.get("is_signed"))
-    today_raw = data.get("today")
-    today_index = None
-    if isinstance(today_raw, int) and today_raw > 0:
-        today_index = today_raw - 1
-    elif isinstance(today_raw, str) and today_raw.strip().isdigit():
-        today_index = int(today_raw.strip()) - 1
-    items = select_today_awards(
-        awards, signed=signed, total_sign_day=total, today_index=today_index
-    )
-    if not items:
-        for row in awards:
-            item = award_from_mihoyo_row(row)
-            if item:
-                items.append(item)
-                if len(items) >= 3:
-                    break
-    parts = [f"{a['name']}×{a.get('count') or 1}" for a in items]
-    text = " · ".join(parts) if parts else None
-    return text, items
-
-
 def _query_game_signed(
     creds: MihoyoCredentials, meta: dict[str, str], region: str, uid: str
 ) -> tuple[bool, str | None, list[dict[str, Any]]]:
     def _do(working: MihoyoCredentials) -> tuple[bool, str | None, list[dict[str, Any]]]:
-        url = _welfare_info_url(meta)
-        payload = _http_json(
-            "GET",
-            url,
-            headers=_game_headers_for_meta(working, meta),
-            params=_welfare_params(meta, region, uid),
+        headers = _game_headers_for_meta(working, meta)
+        params = _welfare_params(meta, region, uid)
+        data = _assert_ok(
+            _http_json(
+                "GET",
+                _welfare_info_url(meta),
+                headers=headers,
+                params=params,
+            )
         )
-        data = _assert_ok(payload)
         signed = bool(data.get("is_sign") or data.get("is_signed"))
-        awards_text, awards = _parse_awards_from_info(data)
+        awards_text, awards = parse_today_mihoyo_awards(data)
+        # info 通常不含月奖励表；已签且无条目时再拉 home 补 icon
+        if signed and not awards:
+            try:
+                home = _assert_ok(
+                    _http_json(
+                        "GET",
+                        _welfare_home_url(meta),
+                        headers=headers,
+                        params=params,
+                    )
+                )
+            except MihoyoApiError as exc:
+                logger.warning("mihoyo welfare home failed: %s", exc.message)
+                home = {}
+            awards_text, awards = parse_today_mihoyo_awards(data, home)
         return signed, awards_text, awards
 
     return call_with_cookie_refresh(creds, _do)
@@ -231,19 +217,6 @@ def _sign_game_role(creds: MihoyoCredentials, role: Any) -> CheckinResult:
         )
 
     return call_with_cookie_refresh(creds, _do)
-
-
-def _bbs_forum_signed_today(creds: MihoyoCredentials, gid: str) -> bool:
-    url = bbs_setting.bbs_sign_info_url
-    query = f"gids={gid}"
-    payload = _http_json(
-        "GET",
-        url,
-        headers=_bbs_headers(creds, ds=generate_ds_x6(query=query)),
-        params={"gids": gid},
-    )
-    data = _assert_ok(payload)
-    return bool(data.get("is_sign"))
 
 
 def _bbs_forum_sign(creds: MihoyoCredentials, forum: dict[str, str]) -> tuple[str, int | None]:
@@ -404,30 +377,38 @@ def complete_myb_missions(creds: MihoyoCredentials) -> str:
 
 
 def _bbs_sign_all(creds: MihoyoCredentials) -> tuple[int, list[str]]:
+    """对各讨论区 POST signIn。对齐 MihoyoBBSTools：不预检 signInInfo（该路径 404）。"""
     try:
         businesses = set(list_bbs_business_ids(creds))
     except MihoyoApiError as exc:
         logger.warning("mihoyo list_bbs_business_ids skipped: %s", exc.message)
         businesses = set()
     signed_points = 0
-    messages: list[str] = []
+    failures: list[str] = []
     for forum in BBS_FORUMS:
         gid = forum["gid"]
         if businesses and gid not in businesses:
             continue
         try:
-            if _bbs_forum_signed_today(creds, gid):
-                messages.append(f"{forum['name']}已签")
-                continue
-            msg, points = _bbs_forum_sign(creds, forum)
+            _msg, points = _bbs_forum_sign(creds, forum)
             if points:
                 signed_points += points
-            messages.append(f"{forum['name']}：{msg}")
         except MihoyoApiError as exc:
             _reraise_auth(exc)
-            messages.append(f"{forum['name']}失败：{exc.message}")
+            failures.append(f"{forum['name']}失败：{exc.message}")
         time.sleep(0.3)
-    return signed_points, messages
+    return signed_points, failures
+
+
+def _forum_fail_summary(failures: list[str]) -> str:
+    if not failures:
+        return ""
+    shown = failures[:8]
+    text = "；".join(shown)
+    extra = len(failures) - len(shown)
+    if extra > 0:
+        text += f" 等{extra}项"
+    return text
 
 
 def _community_signed_from_missions(creds: MihoyoCredentials) -> bool | None:
@@ -473,9 +454,33 @@ def _community_result(
     uid = _bbs_uid(creds)
     role_name = _role_label(creds)
     points_total = 0
-    detail_parts: list[str] = []
+    awards_text: str | None = None
+    awards: list[dict[str, Any]] | None = None
     if do_sign:
-        points_total, detail_parts = _bbs_sign_all(creds)
+        already: bool | None = None
+        try:
+            already = _community_signed_from_missions(creds)
+        except MihoyoApiError as exc:
+            _reraise_auth(exc)
+        if already is True:
+            status = "already"
+            message = "讨论区今日已签到"
+        else:
+            points_total, failures = _bbs_sign_all(creds)
+            awards_text = f"米游币+{points_total}" if points_total else None
+            awards = (
+                [award_item(name="米游币", count=points_total, resource_type="points")]
+                if points_total
+                else None
+            )
+            fail_text = _forum_fail_summary(failures)
+            if failures:
+                status = "error"
+                prefix = "讨论区部分失败" if points_total else "讨论区签到失败"
+                message = f"{prefix}：{fail_text}"
+            else:
+                status = "ok"
+                message = "讨论区签到完成"
     else:
         try:
             signed = _community_signed_from_missions(creds)
@@ -497,26 +502,7 @@ def _community_result(
             extra = complete_myb_missions(creds)
         except MihoyoApiError as exc:
             extra = f"米游币任务失败：{exc.message}"
-    if do_sign:
-        awards_text = f"米游币+{points_total}" if points_total else None
-        awards = (
-            [award_item(name="米游币", count=points_total, resource_type="points")]
-            if points_total
-            else None
-        )
-        return CheckinResult(
-            game_code=GAME_CODE,
-            game_name=GAME_NAME,
-            role_uid=uid,
-            role_name=role_name,
-            channel_name="社区",
-            status="ok",
-            message="讨论区签到完成" + (f"（{'；'.join(detail_parts[:3])}）" if detail_parts else ""),
-            awards_text=awards_text,
-            awards=awards,
-            extra_text=extra,
-        )
-    result = CheckinResult(
+    return CheckinResult(
         game_code=GAME_CODE,
         game_name=GAME_NAME,
         role_uid=uid,
@@ -524,9 +510,10 @@ def _community_result(
         channel_name="社区",
         status=status,
         message=message,
+        awards_text=awards_text,
+        awards=awards,
         extra_text=extra,
     )
-    return result
 
 
 def query_today_all(

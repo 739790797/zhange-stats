@@ -124,14 +124,17 @@ async def _connect_wings(socket_url: str, panel_origin: str) -> Any:
 
 def _load_console_session(token: str) -> tuple[str, str, str]:
     """校验管理员后返回 panel_base, client_token, server_uuid。"""
-    username = decode_access_token(token)
-    if not username:
+    principal = decode_access_token(token)
+    if not principal or (principal.user_id is None and not principal.username):
         raise PermissionError("unauth")
     db: Session = SessionLocal()
     try:
         if not is_feature_enabled(db, "guides.minecraft"):
             raise PermissionError("feature")
-        user = db.query(User).filter(User.username == username).first()
+        if principal.user_id is not None:
+            user = db.query(User).filter(User.id == principal.user_id).first()
+        else:
+            user = db.query(User).filter(User.username == principal.username).first()
         if user is None:
             raise PermissionError("unauth")
         if not user.is_admin_user:

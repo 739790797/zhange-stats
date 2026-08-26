@@ -56,15 +56,6 @@ export async function unbindTaygedo() {
   return data;
 }
 
-export async function updateTaygedoBind(payload: {
-  auto_checkin?: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
-  const { data } = await client.patch<TaygedoStatus>("/taygedo/bind", payload);
-  return data;
-}
-
 export async function updateTaygedoRolePref(
   payload: components["schemas"]["CheckinRolePrefUpdate"],
 ) {

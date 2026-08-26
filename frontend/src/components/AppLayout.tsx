@@ -6,6 +6,7 @@ import {
   LockOutlined,
   LogoutOutlined,
   MailOutlined,
+  MenuOutlined,
   ScheduleOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -15,6 +16,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Avatar,
   Button,
+  Drawer,
+  Grid,
   Layout,
   Menu,
   Tag,
@@ -23,12 +26,13 @@ import {
   theme,
 } from "antd";
 import type { MenuProps } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
 import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
+import { RouteFallback } from "@/components/RouteFallback";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
@@ -40,6 +44,7 @@ import {
   firstEnabledPlatformPath,
   isFeatureOn,
 } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
@@ -143,23 +148,28 @@ export function AppLayout() {
   const { token } = theme.useToken();
   const [completeOpen, setCompleteOpen] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const screens = Grid.useBreakpoint();
+  const isMobile = screens.md === false;
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const contentShell = adminContentShell(location.pathname);
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const meQuery = useQuery({
     queryKey: ["auth-me"],
     queryFn: fetchMe,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const profileQuery = useQuery({
     queryKey: ["profile-me"],
     queryFn: fetchMyProfile,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   useEffect(() => {
@@ -215,6 +225,10 @@ export function AppLayout() {
     navigate,
     user?.email,
   ]);
+
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
 
   const selected = useMemo(() => {
     if (/^\/members\/\d+\/profile/.test(location.pathname)) {
@@ -330,13 +344,13 @@ export function AppLayout() {
   const adminMenuItems = buildAdminMenuItems();
 
   const menuItems = [
+    { type: "group" as const, label: "我的", children: mineItems },
     ...(platformItems.length
       ? [{ type: "group" as const, label: "平台", children: platformItems }]
       : []),
     ...(guideItems.length
       ? [{ type: "group" as const, label: "游戏", children: guideItems }]
       : []),
-    { type: "group" as const, label: "我的", children: mineItems },
     ...(isAdmin
       ? [
           {
@@ -392,134 +406,154 @@ export function AppLayout() {
     navigate("/login");
   };
 
-  return (
-    <Layout style={{ height: "100vh", overflow: "hidden" }}>
-      <Sider
-        width={220}
+  const siderInner = (
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
+      <Link
+        to="/"
         style={{
-          background: "#1a2332",
-          height: "100vh",
-          position: "sticky",
-          top: 0,
-          left: 0,
-          overflow: "hidden",
+          height: 64,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          flexShrink: 0,
         }}
       >
-        <div
+        <BrandLogo size={32} color="#e8b86d" />
+        <Typography.Text
+          strong
+          style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
+        >
+          战鸽数据
+        </Typography.Text>
+      </Link>
+      <Menu
+        theme="dark"
+        mode="inline"
+        className="sider-menu"
+        selectedKeys={[selected]}
+        openKeys={openKeys}
+        onOpenChange={setOpenKeys}
+        items={menuItems}
+        style={{
+          background: "#1a2332",
+          borderInlineEnd: "none",
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          paddingTop: 8,
+        }}
+      />
+      <div
+        style={{
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ padding: "4px 10px 12px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 10px",
+              borderRadius: 8,
+            }}
+          >
+            <Avatar size={36} src={avatarUrl}>
+              {displayName?.[0] || "?"}
+            </Avatar>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  lineHeight: 1.3,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {displayName}
+              </div>
+              {roleLabel ? (
+                <Tag
+                  style={{
+                    marginTop: 4,
+                    marginInlineEnd: 0,
+                    fontSize: 11,
+                    lineHeight: "18px",
+                    borderColor: "rgba(255,255,255,0.2)",
+                    background: "rgba(255,255,255,0.06)",
+                    color: "rgba(255,255,255,0.75)",
+                  }}
+                >
+                  {roleLabel}
+                </Tag>
+              ) : null}
+            </div>
+            <Tooltip title="退出登录">
+              <Button
+                type="text"
+                size="small"
+                className="sider-logout-btn"
+                icon={<LogoutOutlined />}
+                aria-label="退出登录"
+                onClick={onLogout}
+              />
+            </Tooltip>
+          </div>
+          <div style={{ marginTop: 4, paddingBottom: 2 }}>
+            <AppVersion
+              light
+              hasUpdate={hasAppUpdate}
+              latestVersion={appUpdateQuery.data?.latest_version}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          width={220}
+          closable={false}
+          styles={{
+            body: { padding: 0, background: "#1a2332", height: "100%" },
+          }}
+        >
+          {siderInner}
+        </Drawer>
+      ) : (
+        <Sider
+          width={220}
           style={{
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
+            background: "#1a2332",
+            height: "100vh",
+            position: "sticky",
+            top: 0,
+            left: 0,
             overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              height: 64,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              borderBottom: "1px solid rgba(255,255,255,0.08)",
-              flexShrink: 0,
-            }}
-          >
-            <BrandLogo size={32} color="#e8b86d" />
-            <Typography.Text
-              strong
-              style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
-            >
-              战鸽数据
-            </Typography.Text>
-          </div>
-          <Menu
-            theme="dark"
-            mode="inline"
-            className="sider-menu"
-            selectedKeys={[selected]}
-            openKeys={openKeys}
-            onOpenChange={setOpenKeys}
-            items={menuItems}
-            style={{
-              background: "#1a2332",
-              borderInlineEnd: "none",
-              flex: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              paddingTop: 8,
-            }}
-          />
-          <div
-            style={{
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ padding: "4px 10px 12px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                }}
-              >
-                <Avatar size={36} src={avatarUrl}>
-                  {displayName?.[0] || "?"}
-                </Avatar>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      color: "#fff",
-                      fontWeight: 600,
-                      fontSize: 14,
-                      lineHeight: 1.3,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {displayName}
-                  </div>
-                  {roleLabel ? (
-                    <Tag
-                      style={{
-                        marginTop: 4,
-                        marginInlineEnd: 0,
-                        fontSize: 11,
-                        lineHeight: "18px",
-                        borderColor: "rgba(255,255,255,0.2)",
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(255,255,255,0.75)",
-                      }}
-                    >
-                      {roleLabel}
-                    </Tag>
-                  ) : null}
-                </div>
-                <Tooltip title="退出登录">
-                  <Button
-                    type="text"
-                    size="small"
-                    className="sider-logout-btn"
-                    icon={<LogoutOutlined />}
-                    aria-label="退出登录"
-                    onClick={onLogout}
-                  />
-                </Tooltip>
-              </div>
-              <div style={{ marginTop: 4, paddingBottom: 2 }}>
-                <AppVersion
-                  light
-                  hasUpdate={hasAppUpdate}
-                  latestVersion={appUpdateQuery.data?.latest_version}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </Sider>
+          {siderInner}
+        </Sider>
+      )}
       <Layout
         style={{
           height: "100vh",
@@ -528,18 +562,35 @@ export function AppLayout() {
           flexDirection: "column",
         }}
       >
-        {isTarkovGuide ? null : (
+        {isMobile ? (
           <Header
             style={{
-              background: token.colorBgContainer,
-              padding: "0 24px",
-              height: 56,
-              lineHeight: "56px",
+              background: "#1a2332",
+              padding: "0 12px",
+              height: 48,
+              lineHeight: "48px",
               flexShrink: 0,
-              borderBottom: `1px solid ${token.colorBorderSecondary}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
-          />
-        )}
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<MenuOutlined />}
+              aria-label="打开菜单"
+              onClick={() => setDrawerOpen(true)}
+              style={{ color: "#fff" }}
+            />
+            <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <BrandLogo size={22} color="#e8b86d" />
+              <Typography.Text strong style={{ color: "#e8b86d" }}>
+                战鸽数据
+              </Typography.Text>
+            </Link>
+          </Header>
+        ) : null}
         <Content
           className={isTarkovGuide ? "app-main-tarkov" : "app-main-scroll"}
           style={
@@ -549,13 +600,15 @@ export function AppLayout() {
                   flex: 1,
                   minWidth: 0,
                   minHeight: 0,
-                  margin: 24,
+                  margin: isMobile ? 12 : 24,
                   overflow: "auto",
                 }
           }
         >
           {isTarkovGuide ? (
-            <Outlet />
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
           ) : (
             <div
               className={
@@ -574,7 +627,9 @@ export function AppLayout() {
                     }
               }
             >
-              <Outlet />
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
             </div>
           )}
         </Content>

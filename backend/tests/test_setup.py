@@ -8,7 +8,14 @@ from app.core.security import verify_password
 from app.models.system_config import SystemConfig  # noqa: F401
 from app.models.user import User, UserRole
 from app.models.member import Member  # noqa: F401
-from app.services.setup import SetupError, complete_initial_admin, needs_setup
+from app.services.setup import (
+    SetupError,
+    complete_initial_admin,
+    is_setup_complete_cached,
+    mark_setup_complete,
+    needs_setup,
+    reset_setup_complete_for_tests,
+)
 
 
 def _session():
@@ -30,7 +37,7 @@ def test_complete_initial_admin(monkeypatch) -> None:
         "app.services.setup.get_min_password_length", lambda _db: 8
     )
     monkeypatch.setattr(
-        "app.services.setup.create_access_token", lambda _u: "tok"
+        "app.services.setup.create_access_token", lambda _u, **_kw: "tok"
     )
 
     user, token = complete_initial_admin(
@@ -78,3 +85,12 @@ def test_rejects_weak_password(monkeypatch) -> None:
     assert raised
     assert needs_setup(db) is True
     db.close()
+
+
+def test_setup_complete_cache_sticky() -> None:
+    reset_setup_complete_for_tests()
+    assert is_setup_complete_cached() is False
+    mark_setup_complete()
+    assert is_setup_complete_cached() is True
+    reset_setup_complete_for_tests()
+    assert is_setup_complete_cached() is False

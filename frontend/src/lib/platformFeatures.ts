@@ -1,5 +1,7 @@
 /** 平台功能开关（与后端 FEATURE_TREE id 对齐） */
 
+import { flattenGuideLeaves } from "@/lib/guideNav";
+
 export type PlatformFeatureMap = Record<string, boolean>;
 
 /**
@@ -32,6 +34,9 @@ export function firstEnabledPlatformPath(
 ): string {
   if (!features) return "/profile";
   for (const item of PLATFORM_NAV) {
+    if (isFeatureOn(features, item.featureId)) return item.path;
+  }
+  for (const item of flattenGuideLeaves()) {
     if (isFeatureOn(features, item.featureId)) return item.path;
   }
   return "/profile";

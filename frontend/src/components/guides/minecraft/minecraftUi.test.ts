@@ -1,34 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
-  classifyMcVersion,
   displayJoinHost,
   displayModName,
-  eggMatchesLoader,
-  eggOptionLabel,
-  eggsForLoader,
   formatPropertyValue,
-  groupMcVersions,
-  inferEggLoader,
-  inferSetupFromPlaybook,
   isMinecraftArchive,
   isMinecraftTextFile,
   joinHints,
   joinMinecraftPath,
   loaderLabel,
   minecraftHeadUrl,
-  modLoaderOfCore,
   normalizeMinecraftPath,
   occupancyPercent,
   overviewModTitle,
   parentMinecraftPath,
   parentMinecraftPathWithin,
   isMinecraftPathWithin,
-  pickSelectedEggId,
   pingBadge,
-  setupIcon,
-  setupSummary,
-  versionChannelIcon,
-  MC_ICONS,
 } from "@/components/guides/minecraft/minecraftUi";
 
 describe("minecraft file paths", () => {
@@ -164,147 +151,5 @@ describe("overview helpers", () => {
       }),
     ).toBe("Distant Horizons");
     expect(overviewModTitle({ filename: "extra.jar" })).toBe("extra");
-  });
-});
-
-describe("minecraft version channels", () => {
-  it("classifies release, snapshot, old and april fools", () => {
-    expect(
-      classifyMcVersion({ version: "1.21.1", stable: true, version_type: "release" }),
-    ).toBe("release");
-    expect(
-      classifyMcVersion({
-        version: "24w36a",
-        stable: false,
-        version_type: "snapshot",
-      }),
-    ).toBe("snapshot");
-    expect(
-      classifyMcVersion({
-        version: "a1.1.2_01",
-        version_type: "old_alpha",
-      }),
-    ).toBe("old");
-    expect(
-      classifyMcVersion({
-        version: "24w14potato",
-        version_type: "snapshot",
-      }),
-    ).toBe("fool");
-    expect(classifyMcVersion({ version: "26.2", stable: true })).toBe("release");
-  });
-
-  it("picks latest release/snapshot after grouping", () => {
-    const grouped = groupMcVersions([
-      { version: "26.3-snapshot-9", version_type: "snapshot" },
-      { version: "24w14potato", version_type: "snapshot" },
-      { version: "26.2", version_type: "release" },
-      { version: "1.21.1", version_type: "release" },
-      { version: "b1.8.1", version_type: "old_beta" },
-    ]);
-    expect(grouped.latestRelease?.version).toBe("26.2");
-    expect(grouped.latestSnapshot?.version).toBe("26.3-snapshot-9");
-    expect(grouped.groups.fool.map((row) => row.version)).toEqual(["24w14potato"]);
-    expect(grouped.groups.old.map((row) => row.version)).toEqual(["b1.8.1"]);
-  });
-});
-
-describe("server setup kinds", () => {
-  it("maps playbook loader to kind/core", () => {
-    expect(inferSetupFromPlaybook("1.21.1", "fabric")).toEqual({
-      mcVersion: "1.21.1",
-      kind: "mod",
-      core: "fabric",
-    });
-    expect(inferSetupFromPlaybook("1.20.1", "paper")).toEqual({
-      mcVersion: "1.20.1",
-      kind: "plugin",
-      core: "paper",
-    });
-    expect(inferSetupFromPlaybook("1.20.1", "mohist")).toEqual({
-      mcVersion: "1.20.1",
-      kind: "hybrid",
-      core: "mohist",
-    });
-    expect(inferSetupFromPlaybook("1.21.1", "")).toEqual({
-      mcVersion: "1.21.1",
-      kind: "",
-      core: "",
-    });
-  });
-
-  it("only fabric-family cores count as installed loaders", () => {
-    expect(modLoaderOfCore("neoforge")).toBe("neoforge");
-    expect(modLoaderOfCore("paper")).toBe("");
-    expect(modLoaderOfCore("mohist")).toBe("");
-    expect(setupSummary({ mcVersion: "1.21.1", kind: "mod", core: "fabric" })).toBe(
-      "1.21.1 · 模组端 · Fabric",
-    );
-  });
-
-  it("maps kinds and cores to icon files", () => {
-    expect(versionChannelIcon("snapshot")).toBe(MC_ICONS.snapshot);
-    expect(setupIcon({ kind: "mod", core: "fabric" })).toBe(MC_ICONS.fabric);
-    expect(setupIcon({ kind: "plugin", core: "paper" })).toBe(MC_ICONS.paper);
-    expect(setupIcon({ kind: "hybrid", core: "arclight" })).toBe(MC_ICONS.arclight);
-    expect(setupIcon({ kind: "plugin", core: "" })).toBe(MC_ICONS.kindPlugin);
-    expect(setupIcon({ kind: "", core: "" })).toBe(MC_ICONS.vanilla);
-  });
-});
-
-describe("minecraft egg matching", () => {
-  const fabric = { egg_id: 1, name: "Fabric", nest: "Minecraft", startup: "" };
-  const forge = { egg_id: 2, name: "Forge", nest: "Minecraft", startup: "" };
-  const neo = { egg_id: 3, name: "NeoForge", nest: "Minecraft", startup: "" };
-  const generic = { egg_id: 4, name: "Vanilla", nest: "Minecraft", startup: "" };
-
-  it("matches loader eggs and excludes neighbors", () => {
-    expect(eggMatchesLoader(fabric, "fabric")).toBe(true);
-    expect(eggMatchesLoader(forge, "fabric")).toBe(false);
-    expect(eggMatchesLoader(forge, "forge")).toBe(true);
-    expect(eggMatchesLoader(neo, "forge")).toBe(false);
-    expect(eggMatchesLoader(neo, "neoforge")).toBe(true);
-    expect(inferEggLoader(neo)).toBe("neoforge");
-    expect(inferEggLoader(generic)).toBe("");
-  });
-
-  it("filters by loader and keeps the current egg visible", () => {
-    const rows = eggsForLoader([fabric, forge, neo, generic], "forge", 4);
-    expect(rows.map((row) => row.egg_id)).toEqual([4, 2]);
-    expect(eggsForLoader([generic], "fabric").map((row) => row.egg_id)).toEqual([
-      4,
-    ]);
-  });
-
-  it("keeps a user pick, otherwise prefers current then recommended", () => {
-    expect(
-      pickSelectedEggId({
-        availableIds: [1, 2, 3],
-        currentId: 2,
-        recommendedId: 3,
-        prev: 1,
-      }),
-    ).toBe(1);
-    expect(
-      pickSelectedEggId({
-        availableIds: [2, 3],
-        currentId: 2,
-        recommendedId: 3,
-        prev: 1,
-      }),
-    ).toBe(2);
-    expect(
-      pickSelectedEggId({
-        availableIds: [3],
-        currentId: 2,
-        recommendedId: 3,
-      }),
-    ).toBe(3);
-  });
-
-  it("labels current and recommended eggs", () => {
-    expect(eggOptionLabel(fabric, { current: true, recommended: true })).toBe(
-      "Minecraft / Fabric（当前 · 推荐）",
-    );
   });
 });

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, type ReactNode } from "react";
+import { lazy, useMemo, type ReactNode } from "react";
 import {
   fetchMihoyoStatus,
   fetchPlatformFeaturesEffective,
@@ -9,11 +9,17 @@ import {
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { MihoyoAttendanceCalendarButton } from "@/components/mihoyo/MihoyoAttendanceCalendar";
 import { MihoyoBindPanel } from "@/components/mihoyo/MihoyoBindPanel";
-import { MihoyoExchangePanel } from "@/components/mihoyo/MihoyoExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { hasMihoyoAttendanceCalendar } from "@/lib/mihoyoAttendance";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
+
+const MihoyoExchangePanel = lazy(() =>
+  import("@/components/mihoyo/MihoyoExchangePanel").then((m) => ({
+    default: m.MihoyoExchangePanel,
+  })),
+);
 
 type TabKey = "checkin" | "exchange";
 
@@ -23,7 +29,7 @@ export default function MihoyoPage() {
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const featuresReady =
@@ -50,6 +56,7 @@ export default function MihoyoPage() {
             updateRolePref={updateMihoyoRolePref}
             platformIcon="mihoyo"
             showPhoneMask
+            onSelectRoles={() => rolePicker.openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               if (
@@ -80,7 +87,7 @@ export default function MihoyoPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange]);
+  }, [showCheckin, showExchange, rolePicker.openPicker]);
 
   return (
     <PlatformFeatureTabsPage

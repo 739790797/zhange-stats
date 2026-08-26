@@ -119,7 +119,7 @@ JOB_CATALOG: list[dict[str, Any]] = [
     {
         "id": "job_runs_prune",
         "name": "任务日志清理",
-        "description": "删除超过保留期的 job_runs 与 *_checkin_logs（默认 90 天，可配 retention_days）",
+        "description": "删除超过保留期的 job_runs 与 *_checkin_logs（默认 90 天）；并上卷 Minecraft 性能采样、删除过期 10 秒原始点",
         "kind": "cron",
         "platform": None,
     },

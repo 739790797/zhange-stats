@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     )
 
     DATABASE_URL: str = "mysql+pymysql://root:password@127.0.0.1:3306/zhange_stats_dev"
+    # 请求线程 + 调度任务共用；按 MariaDB max_connections 留余量
+    DB_POOL_SIZE: int = 15
+    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_TIMEOUT: int = 10
     # 留空或保持占位值时，首次启动会自动生成并写入 DATA_DIR/.secret_key
     SECRET_KEY: str = DEFAULT_SECRET_KEY
     # 默认 24 小时；管理端可在 system_configs 再调（最长 1 年）

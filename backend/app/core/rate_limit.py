@@ -13,34 +13,11 @@ from fastapi import HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 
-_redis_client: Any | None = None
-_redis_checked = False
-
 
 def _get_redis() -> Any | None:
-    global _redis_client, _redis_checked
-    if _redis_checked:
-        return _redis_client
-    _redis_checked = True
-    try:
-        from app.core.config import get_settings
+    from app.core.redis_client import get_redis
 
-        url = (get_settings().REDIS_URL or "").strip()
-    except Exception:  # noqa: BLE001
-        return None
-    if not url:
-        return None
-    try:
-        import redis
-
-        client = redis.Redis.from_url(url, decode_responses=True)
-        client.ping()
-        _redis_client = client
-        logger.info("rate_limit: using Redis backend")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("rate_limit: Redis unavailable (%s), fallback to memory", exc)
-        _redis_client = None
-    return _redis_client
+    return get_redis()
 
 
 class RateLimiter:
@@ -122,6 +99,6 @@ def client_ip(request: Request) -> str:
 
 def reset_rate_limit_redis_for_tests() -> None:
     """测试用：清掉 Redis 探测缓存。"""
-    global _redis_client, _redis_checked
-    _redis_client = None
-    _redis_checked = False
+    from app.core.redis_client import reset_redis_for_tests
+
+    reset_redis_for_tests()

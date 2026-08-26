@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.http_client import HttpRequestError, http_request
 from app.services.adapters import BaseGameAdapter
 
 
@@ -79,14 +77,19 @@ class SteamAdapter(BaseGameAdapter):
             "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
             f"?{params}"
         )
-        req = urllib.request.Request(url, headers={"User-Agent": "zhange-stats/1.0"})
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"Steam API HTTP {exc.code}: {body}") from exc
-        except urllib.error.URLError as exc:
+            resp = http_request(
+                "GET",
+                url,
+                headers={"User-Agent": "zhange-stats/1.0"},
+                timeout=20,
+            )
+            if resp.status_code >= 400:
+                raise RuntimeError(
+                    f"Steam API HTTP {resp.status_code}: {resp.text[:200]}"
+                )
+            return resp.json()
+        except HttpRequestError as exc:
             raise RuntimeError(f"Steam API 网络错误: {exc}") from exc
 
     def fetch_player_profile(self, steam_id: str) -> SteamPlayerProfile:
@@ -129,16 +132,21 @@ class SteamAdapter(BaseGameAdapter):
             "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
             f"?{params}"
         )
-        req = urllib.request.Request(url, headers={"User-Agent": "zhange-stats/1.0"})
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code in (401, 403):
+            resp = http_request(
+                "GET",
+                url,
+                headers={"User-Agent": "zhange-stats/1.0"},
+                timeout=30,
+            )
+            if resp.status_code in (401, 403):
                 return {}
-            body = exc.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"Steam GetOwnedGames HTTP {exc.code}: {body}") from exc
-        except urllib.error.URLError as exc:
+            if resp.status_code >= 400:
+                raise RuntimeError(
+                    f"Steam GetOwnedGames HTTP {resp.status_code}: {resp.text[:200]}"
+                )
+            raw = resp.json()
+        except HttpRequestError as exc:
             raise RuntimeError(f"Steam GetOwnedGames 网络错误: {exc}") from exc
 
         games = (raw or {}).get("response", {}).get("games") or []
@@ -173,43 +181,4 @@ class SteamAdapter(BaseGameAdapter):
                     or p.get("avatar"),
                 )
             )
-        return result
-
-    def fetch_user_stats(self, steam_id: str, app_id: int = 730) -> dict[str, Any]:
-        """拉取指定游戏的 Steam 生涯统计（需资料公开）。"""
-        if not self.api_key:
-            raise RuntimeError("STEAM_API_KEY 未配置")
-        params = urllib.parse.urlencode(
-            {
-                "key": self.api_key,
-                "steamid": steam_id,
-                "appid": app_id,
-            }
-        )
-        url = (
-            "https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/"
-            f"?{params}"
-        )
-        req = urllib.request.Request(url, headers={"User-Agent": "zhange-stats/1.0"})
-        try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"Steam Stats HTTP {exc.code}: {body}") from exc
-        except urllib.error.URLError as exc:
-            raise RuntimeError(f"Steam Stats 网络错误: {exc}") from exc
-
-    @staticmethod
-    def stats_to_map(raw: dict[str, Any]) -> dict[str, int]:
-        stats = (raw or {}).get("playerstats", {}).get("stats") or []
-        result: dict[str, int] = {}
-        for item in stats:
-            name = item.get("name")
-            if not name:
-                continue
-            try:
-                result[str(name)] = int(item.get("value") or 0)
-            except (TypeError, ValueError):
-                continue
         return result

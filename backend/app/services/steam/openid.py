@@ -8,7 +8,8 @@ import urllib.parse
 import urllib.request
 from datetime import timedelta
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 
 from app.core.config import get_settings
 from app.core.security import ALGORITHM
@@ -46,7 +47,7 @@ def decode_openid_state(token: str) -> dict:
     settings = get_settings()
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise ValueError("Steam 登录状态已过期，请重试") from exc
     if payload.get("purpose") != "steam_openid_bind":
         raise ValueError("无效的 Steam 登录状态")

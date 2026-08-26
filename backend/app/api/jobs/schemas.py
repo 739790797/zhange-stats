@@ -139,6 +139,7 @@ class UserCheckinTaskOut(BaseModel):
     game_name: str | None = None
     role_uid: str | None = None
     role_name: str | None = None
+    channel_name: str | None = None
     last_checkin_at: str | None = None
     last_checkin_date: str | None = None
     last_checkin_ok: bool | None = None

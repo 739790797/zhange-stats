@@ -390,7 +390,11 @@ export function TarkovAmmoWikiTable({
       rowKey="id"
       columns={visibleColumns}
       dataSource={rows}
-      pagination={false}
+      pagination={{
+        pageSize: 50,
+        showSizeChanger: true,
+        pageSizeOptions: ["20", "50", "100"],
+      }}
       tableLayout={compact ? "fixed" : undefined}
       scroll={compact ? undefined : { x: 1500 }}
       locale={{ emptyText: "当前筛选下无弹药" }}

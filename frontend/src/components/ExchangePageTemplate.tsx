@@ -6,6 +6,7 @@ import {
   bindTokenErrorMessage,
   isBindTokenBroken,
 } from "@/lib/checkinStatus";
+import { isInitialQueryPending } from "@/lib/queryCache";
 
 /** 兑换页绑定门禁所需的最小 status 面 */
 export type ExchangeBindStatus = {
@@ -19,7 +20,7 @@ export type ExchangeBindStatus = {
 };
 
 export type ExchangePageTemplateProps<TShop> = {
-  /** 绑定源名称，如「追放社区」「库街区」「塔吉多」 */
+  /** 绑定源名称，如「追放」「库街区」「塔吉多」 */
   bindName: string;
   /** 未绑定 Alert 主文案；默认「尚未绑定{bindName}」 */
   unboundMessage?: string;
@@ -89,7 +90,7 @@ export function ExchangePageTemplate<TShop>({
     retry: false,
   });
 
-  if (statusQuery.isLoading) {
+  if (isInitialQueryPending(statusQuery)) {
     return <Card loading />;
   }
 
@@ -128,7 +129,7 @@ export function ExchangePageTemplate<TShop>({
     );
   }
 
-  if (shopQuery.isLoading || !shopQuery.data) {
+  if (isInitialQueryPending(shopQuery) || !shopQuery.data) {
     return <Card loading />;
   }
 

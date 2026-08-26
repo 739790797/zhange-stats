@@ -19,8 +19,9 @@ export function CheckinTreeNameLabel(props: {
   strong?: boolean;
   type?: "secondary";
   style?: CSSProperties;
+  iconSize?: number;
 }) {
-  const { kind, platform, label, gameCode, strong, type, style } = props;
+  const { kind, platform, label, gameCode, strong, type, style, iconSize = 16 } = props;
   const platformIcon = featureIconName(platform);
   const iconName =
     kind === "platform"
@@ -29,7 +30,7 @@ export function CheckinTreeNameLabel(props: {
 
   return (
     <span style={{ ...nameLabelStyle, ...style }}>
-      {iconName ? <PlatformIcon name={iconName} size={16} /> : null}
+      {iconName ? <PlatformIcon name={iconName} size={iconSize} /> : null}
       <Typography.Text strong={strong} type={type} ellipsis>
         {label}
       </Typography.Text>

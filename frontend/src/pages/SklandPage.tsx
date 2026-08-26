@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, type ReactNode } from "react";
+import { lazy, useMemo, type ReactNode } from "react";
 import {
   fetchPlatformFeaturesEffective,
   fetchSklandStatus,
@@ -8,13 +8,24 @@ import {
 } from "@/api/client";
 import { ArknightsAttendanceCalendarButton } from "@/components/arknights/ArknightsAttendanceCalendar";
 import { EndfieldAttendanceCalendarButton } from "@/components/endfield/EndfieldAttendanceCalendar";
-import { ArknightsTabPanel } from "@/components/arknights/ArknightsTabPanel";
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
-import { EndfieldBoxPanel } from "@/components/endfield/EndfieldBoxPanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
 import { SklandBindPanel } from "@/components/skland/SklandBindPanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
+
+const ArknightsTabPanel = lazy(() =>
+  import("@/components/arknights/ArknightsTabPanel").then((m) => ({
+    default: m.ArknightsTabPanel,
+  })),
+);
+
+const EndfieldBoxPanel = lazy(() =>
+  import("@/components/endfield/EndfieldBoxPanel").then((m) => ({
+    default: m.EndfieldBoxPanel,
+  })),
+);
 
 type TabKey = "checkin" | "arknights" | "endfield";
 
@@ -25,7 +36,7 @@ export default function SklandPage() {
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const statusQuery = useQuery({
@@ -61,6 +72,7 @@ export default function SklandPage() {
               triggerCheckin={triggerSklandCheckin}
               updateRolePref={updateSklandRolePref}
               platformIcon="skland"
+              onSelectRoles={() => rolePicker.openPicker()}
               renderResultExtra={(row) => {
                 if (!row.role_uid) return null;
                 if (row.game_code === "arknights") {
@@ -114,7 +126,7 @@ export default function SklandPage() {
       });
     }
     return items;
-  }, [showArknights, showCheckin, showEndfield, statusQuery.data]);
+  }, [showArknights, showCheckin, showEndfield, statusQuery.data, rolePicker.openPicker]);
 
   return (
     <PlatformFeatureTabsPage

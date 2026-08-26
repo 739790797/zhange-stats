@@ -21,13 +21,6 @@ class ExiliumBind(Base):
     auto_checkin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     checkin_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     checkin_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    # 反规范化摘要：调度跳过 / 管理端任务列表；今日按角色详情以 logs 为准
-    last_checkin_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_checkin_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    last_checkin_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_checkin_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     bound_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -62,7 +55,7 @@ class ExiliumCheckinLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
     )
     bind_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("exilium_binds.id", ondelete="CASCADE"), nullable=False, index=True

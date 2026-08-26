@@ -1,13 +1,8 @@
-"""Minecraft pack / properties / status helpers."""
+"""Minecraft properties / status helpers."""
 
 from __future__ import annotations
 
-import json
-import zipfile
-from io import BytesIO
-
 from app.services.minecraft.pack import (
-    build_mrpack_bytes,
     merge_properties,
     parse_properties,
 )
@@ -38,37 +33,6 @@ def test_merge_properties_updates_and_appends():
 def test_parse_skips_comments():
     text = "# comment\nmotd=hi\n"
     assert parse_properties(text) == {"motd": "hi"}
-
-
-def test_mrpack_skips_client_only_and_embeds_overrides():
-    blob = build_mrpack_bytes(
-        mc_version="1.21.1",
-        loader="fabric",
-        loader_version="0.16.9",
-        mods=[
-            {
-                "filename": "ok.jar",
-                "download_url": "https://cdn.example/ok.jar",
-                "sha512": "abc",
-                "file_size": 10,
-                "env_server": "required",
-            },
-            {
-                "filename": "client.jar",
-                "download_url": "https://cdn.example/client.jar",
-                "sha512": "def",
-                "env_server": "unsupported",
-            },
-        ],
-        overrides={"server.properties": "motd=zhange\n", "config/foo.toml": "a = 1\n"},
-    )
-    with zipfile.ZipFile(BytesIO(blob)) as zf:
-        index = json.loads(zf.read("modrinth.index.json"))
-        assert index["dependencies"]["minecraft"] == "1.21.1"
-        assert index["dependencies"]["fabric-loader"] == "0.16.9"
-        assert [f["path"] for f in index["files"]] == ["mods/ok.jar"]
-        assert zf.read("server-overrides/server.properties").decode() == "motd=zhange\n"
-        assert "server-overrides/config/foo.toml" in zf.namelist()
 
 
 def test_flatten_motd_and_section_codes():

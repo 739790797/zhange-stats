@@ -221,9 +221,6 @@ export function ammoDetailHref(itemId: string): string {
   return `${ITEMS_BASE_PATH}/ammo/${encodeURIComponent(itemId)}`;
 }
 
-/** @deprecated 旧 ItemType 导航；保留别名以免外部引用炸掉 */
-export type TarkovItemTypeCard = TarkovHandbookRoot & { key: string };
-
 export function itemTypeHref(key: string): string {
   const root =
     handbookRootBySlug(key) ||
@@ -236,22 +233,6 @@ export function resolveItemTypeKey(
 ): string | null {
   const root = handbookRootBySlug(raw);
   return root?.slug ?? null;
-}
-
-export function itemTypeCardByKey(
-  key: string,
-): TarkovHandbookRoot | undefined {
-  return handbookRootBySlug(key);
-}
-
-export const resolveItemTypeTab = resolveItemTypeKey;
-
-export function itemTypeTabParam(key: string): string {
-  return handbookRootBySlug(key)?.slug || key;
-}
-
-export function itemTypePathSegment(key: string): string {
-  return itemTypeTabParam(key);
 }
 
 export type TarkovItemPanel = "ammo" | "guns" | "catalog";
@@ -438,10 +419,6 @@ export function itemHrefFromTypes(
     if (set.has(type)) return itemDetailHref(slug, itemId);
   }
   return itemDetailHref("barter", itemId);
-}
-
-export function handbookSectionCode(slug: string): string {
-  return `DATABASE_SEC_${slug.replace(/-/g, "_").toUpperCase()}`;
 }
 
 const IGNORE_CATEGORY_IDS = new Set([

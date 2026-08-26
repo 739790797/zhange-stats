@@ -1,7 +1,7 @@
-import { Spin } from "antd";
 import { Suspense, lazy } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { TarkovItemsPageShell } from "@/components/guides/tarkov/TarkovItemsPageShell";
+import { PanelFallback } from "@/components/RouteFallback";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
   handbookHref,
@@ -27,18 +27,6 @@ const TarkovItemCatalogPanel = lazy(() =>
     default: m.TarkovItemCatalogPanel,
   })),
 );
-
-void import("@/components/guides/tarkov/TarkovAmmoScatterPanel");
-void import("@/components/guides/tarkov/TarkovGunsPanel");
-void import("@/components/guides/tarkov/TarkovItemCatalogPanel");
-
-function PanelFallback({ tip }: { tip: string }) {
-  return (
-    <div style={{ padding: 48, textAlign: "center", color: "#8a8a8a" }}>
-      <Spin tip={tip} />
-    </div>
-  );
-}
 
 export default function TarkovItemTypePage() {
   const { typeSegment } = useParams<{ typeSegment: string }>();

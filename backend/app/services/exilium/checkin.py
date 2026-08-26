@@ -27,20 +27,20 @@ from app.services.checkin.orchestrator import (
 from app.services.checkin.orchestrator import (
     run_checkin_for_bind as _orch_run_checkin,
 )
-from app.services.checkin.orchestrator import (
-    run_checkin_job as _orch_run_job,
-)
 from app.services.checkin.role_prefs import (
     PLATFORM_EXILIUM,
     RoleKey,
     matches_role_filter,
 )
+from app.services.exilium.attendance import (
+    checkin,
+    ensure_session,
+    query_today,
+)
 from app.services.exilium.client import (
     GAME_CODE,
     ExiliumApiError,
     ExiliumCredentials,
-    checkin,
-    ensure_session,
     exchange_item,
     friendly_error_message,
     get_user_score,
@@ -49,7 +49,6 @@ from app.services.exilium.client import (
     login_with_password,
     login_with_sms,
     mask_account,
-    query_today,
 )
 
 logger = logging.getLogger(__name__)
@@ -126,10 +125,6 @@ def unbind_exilium(db: Session, member: Member) -> None:
         return
     db.delete(bind)
     db.commit()
-
-
-def set_auto_checkin(db: Session, member: Member, enabled: bool) -> ExiliumBind:
-    return update_bind_prefs(db, member, auto_checkin=bool(enabled))
 
 
 def update_bind_prefs(
@@ -315,12 +310,9 @@ class ExiliumCheckinAdapter(CheckinAdapterBase):
     ) -> bool:
         if force or not results:
             return False
+        _ = (bind, checkin_date)
         result = results[0]
-        return bool(
-            bind.last_checkin_date == checkin_date
-            and bind.last_checkin_ok
-            and result.status == "already"
-        )
+        return bool(result.status == "already")
 
 
 exilium_adapter = ExiliumCheckinAdapter()
@@ -355,17 +347,6 @@ def run_checkin_for_member(
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def run_exilium_checkin_job(
-    db: Session,
-    *,
-    due_only: bool = False,
-    member_id: int | None = None,
-) -> dict[str, Any]:
-    return _orch_run_job(
-        exilium_adapter, db, due_only=due_only, member_id=member_id
-    )
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:

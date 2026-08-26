@@ -125,8 +125,12 @@ export function TarkovGuideShell({ children }: Props) {
       ? qParam
       : "",
   );
+  const [openNavId, setOpenNavId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useTarkovDocumentTitle(tarkovPageTitle(pathname));
+  useEffect(() => {
+    setOpenNavId(null);
+  }, [pathname]);
   useEffect(() => {
     if (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`) {
       setDraft(qParam);
@@ -205,11 +209,22 @@ export function TarkovGuideShell({ children }: Props) {
               );
               const bossMenu = item.id === "bosses";
               return (
-                <div key={item.id} className={styles.navItem}>
+                <div
+                  key={item.id}
+                  className={`${styles.navItem} ${openNavId === item.id ? styles.navItemOpen : ""}`}
+                >
                   <Link
                     to={item.href}
                     className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
                     aria-current={active ? "page" : undefined}
+                    aria-expanded={item.groups ? openNavId === item.id : undefined}
+                    onClick={(event) => {
+                      if (!item.groups) return;
+                      if (openNavId !== item.id) {
+                        event.preventDefault();
+                        setOpenNavId(item.id);
+                      }
+                    }}
                   >
                     {item.label}
                     {item.groups ? <NavCaret /> : null}

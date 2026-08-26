@@ -1,6 +1,7 @@
 import { Tabs } from "antd";
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { PanelFallback } from "@/components/RouteFallback";
 
 export type GuideTabItem = {
   key: string;
@@ -60,7 +61,12 @@ export function GuideTabsPage({
         <Tabs
           activeKey={tab}
           onChange={handleChange}
-          items={tabItems}
+          items={tabItems.map((item) => ({
+            ...item,
+            children: (
+              <Suspense fallback={<PanelFallback />}>{item.children}</Suspense>
+            ),
+          }))}
           destroyInactiveTabPane={destroyInactiveTabPane}
         />
       ) : null}

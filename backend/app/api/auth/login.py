@@ -37,5 +37,5 @@ def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="请先完成邮箱验证",
         )
-    token = create_access_token(user.username)
+    token = create_access_token(user.username, user_id=user.id)
     return TokenResponse(access_token=token)

@@ -217,7 +217,7 @@ def qq_oauth_callback(
                     member.avatar_url = profile.avatar_url
 
             db.commit()
-            token = create_access_token(user.username)
+            token = create_access_token(user.username, user_id=user.id)
             from app.services.oauth_ticket import issue_oauth_ticket
 
             ticket = issue_oauth_ticket(db, token)

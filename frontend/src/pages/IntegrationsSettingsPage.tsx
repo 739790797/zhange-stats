@@ -33,7 +33,6 @@ type FormValues = {
   github_token?: string;
   pelican_base_url?: string;
   pelican_client_token?: string;
-  pelican_application_token?: string;
   pelican_server_uuid?: string;
   minecraft_rcon_host?: string;
   minecraft_rcon_port?: number;
@@ -128,7 +127,6 @@ export default function IntegrationsSettingsPage() {
       github_token: data.github_token || "",
       pelican_base_url: data.pelican_base_url || "",
       pelican_client_token: data.pelican_client_token || "",
-      pelican_application_token: data.pelican_application_token || "",
       pelican_server_uuid: data.pelican_server_uuid || "",
       minecraft_rcon_host: data.minecraft_rcon_host || "",
       minecraft_rcon_port: data.minecraft_rcon_port || 25575,
@@ -206,7 +204,6 @@ export default function IntegrationsSettingsPage() {
         const qqKey = values.qq_app_key?.trim() || "";
         const githubToken = values.github_token?.trim() || "";
         const pelicanToken = values.pelican_client_token?.trim() || "";
-        const pelicanAppToken = values.pelican_application_token?.trim() || "";
         const rconPassword = values.minecraft_rcon_password?.trim() || "";
         save.mutate({
           steam_api_key: steam || null,
@@ -218,10 +215,8 @@ export default function IntegrationsSettingsPage() {
           clear_github_token: !githubToken,
           pelican_base_url: values.pelican_base_url ?? "",
           pelican_client_token: pelicanToken || null,
-          pelican_application_token: pelicanAppToken || null,
           pelican_server_uuid: values.pelican_server_uuid ?? "",
           clear_pelican_client_token: !pelicanToken,
-          clear_pelican_application_token: !pelicanAppToken,
           minecraft_rcon_host: values.minecraft_rcon_host ?? "",
           minecraft_rcon_port: values.minecraft_rcon_port || 25575,
           minecraft_rcon_password: rconPassword || null,
@@ -349,12 +344,6 @@ export default function IntegrationsSettingsPage() {
               测试面板
             </Button>
           </Space.Compact>
-        </Form.Item>
-        <Form.Item name="pelican_application_token" label="Application API Token">
-          <Input.Password
-            placeholder="管理后台 Application API key"
-            autoComplete="new-password"
-          />
         </Form.Item>
         <Row gutter={16}>
           <Col xs={24} sm={16}>

@@ -441,7 +441,7 @@ export default function ScheduledJobsPage() {
           );
         }
         return (
-          <Typography.Text type="secondary">整平台（未配置角色）</Typography.Text>
+          <Typography.Text type="secondary">未选择角色的平台任务</Typography.Text>
         );
       },
     },

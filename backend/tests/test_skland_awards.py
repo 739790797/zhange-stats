@@ -4,6 +4,7 @@ from app.services.skland.awards import (
     arknights_awards_from_sign_resp,
     arknights_item_icon_url,
     arknights_result_needs_award_icons,
+    endfield_awards_from_sign_resp,
     enrich_arknights_award_icons,
     format_award_items,
 )
@@ -115,3 +116,41 @@ def test_arknights_result_needs_award_icons() -> None:
         ],
     )
     assert arknights_result_needs_award_icons(with_icon) is False
+
+
+def test_endfield_awards_keep_resource_icon() -> None:
+    text, items = endfield_awards_from_sign_resp(
+        {
+            "data": {
+                "awardIds": [{"id": "1"}],
+                "resourceInfoMap": {
+                    "1": {
+                        "name": "货币",
+                        "count": 3000,
+                        "type": "token",
+                        "icon": "https://example.com/ef.png",
+                    }
+                },
+            }
+        }
+    )
+    assert text == "货币x3000"
+    assert items[0]["icon_url"] == "https://example.com/ef.png"
+
+
+def test_format_award_items_keeps_resource_icon_without_arknights() -> None:
+    _text, items = format_award_items(
+        [
+            {
+                "resource": {
+                    "id": "x",
+                    "type": "token",
+                    "name": "货币",
+                    "icon": "https://example.com/ef.png",
+                },
+                "count": 3000,
+            }
+        ],
+        with_icons=False,
+    )
+    assert items[0]["icon_url"] == "https://example.com/ef.png"

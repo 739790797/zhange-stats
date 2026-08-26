@@ -1,4 +1,4 @@
-"""森空岛 / 鹰角通行证 HTTP 客户端（urllib，带请求签名）。"""
+"""森空岛 / 鹰角通行证 HTTP 客户端（httpx 连接池，带请求签名）。"""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import hashlib
 import hmac
 import json
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
+
+from app.core.http_client import HttpRequestError, http_request
 
 APP_CODE = "4ca99fa6b56cc2ba"
 GRANT_URL = "https://as.hypergryph.com/user/oauth2/v2/grant"
@@ -289,16 +289,15 @@ def _http_json(
     if body is not None:
         data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         req_headers.setdefault("Content-Type", "application/json")
-    req = urllib.request.Request(url, data=data, headers=req_headers, method=method.upper())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read().decode("utf-8", errors="replace")
-        except Exception:
-            detail = str(exc)
-        # 森空岛部分接口用 HTTP 4xx 返回业务 JSON（如「请勿重复签到」）
+        resp = http_request(method, url, headers=req_headers, content=data, timeout=timeout)
+        raw = resp.content
+        status = resp.status_code
+    except HttpRequestError as exc:
+        raise SklandApiError(f"网络错误：{exc}") from exc
+
+    if status >= 400:
+        detail = raw.decode("utf-8", errors="replace")
         try:
             payload = json.loads(detail)
             if isinstance(payload, dict) and (
@@ -307,9 +306,7 @@ def _http_json(
                 return payload
         except json.JSONDecodeError:
             pass
-        raise SklandApiError(f"HTTP {exc.code}: {detail[:200]}") from exc
-    except urllib.error.URLError as exc:
-        raise SklandApiError(f"网络错误：{exc.reason}") from exc
+        raise SklandApiError(f"HTTP {status}: {detail[:200]}")
 
     try:
         return json.loads(raw.decode("utf-8"))
@@ -593,29 +590,3 @@ def ensure_skland_user_id(session: SklandSession) -> str:
         raise SklandApiError("森空岛 userId 为空")
     session.user_id = str(uid).strip()
     return session.user_id
-
-
-
-# 签到 HTTP 拆至 skland_attendance，此处再导出保持原 import 路径兼容
-from app.services.skland.attendance import (  # noqa: E402
-    checkin_all_roles,
-    checkin_arknights,
-    checkin_endfield,
-    checkin_role,
-    fetch_binding_list,
-    fetch_today_awards,
-    friendly_error_message,
-    list_roles,
-    query_role_today,
-    query_today_all,
-    sort_skland_results,
-    sort_skland_roles,
-)
-# 盒子解析拆至 skland_boxes，此处再导出保持原 import 路径兼容
-from app.services.skland.boxes import (  # noqa: E402
-    fetch_arknights_box,
-    fetch_endfield_card_detail,
-    fetch_player_info,
-    parse_arknights_box,
-    parse_endfield_box,
-)

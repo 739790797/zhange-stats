@@ -48,7 +48,7 @@ alwaysApply: false
 
 - 查询与签到后仍 upsert `*_checkin_logs`（status / 奖励文案），供调度跳过与排障。
 - **`source` 字段**（`status`=查询缓存 / `action`=真正执行）可继续写入，**不驱动产品 UI**。
-- `bind.last_checkin_*`：仅签到动作后更新；status 查询不得改写；用户签到页不展示。
+- 上次执行 / 调度跳过只信 `*_checkin_logs`；bind 上已无 `last_checkin_*` 列。`checkin_hour` / `checkin_minute` 仅作 prefs 种子。
 
 ## 不要做的事
 

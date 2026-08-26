@@ -11,11 +11,12 @@ class PlaySession(Base):
     __table_args__ = (
         Index("ix_play_sessions_member_started", "member_id", "started_at"),
         Index("ix_play_sessions_member_ended", "member_id", "ended_at"),
+        Index("ix_play_sessions_source_started", "source", "started_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
     )
     steam_app_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     game_name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -23,7 +24,7 @@ class PlaySession(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), nullable=False, index=True
     )
     ended_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True

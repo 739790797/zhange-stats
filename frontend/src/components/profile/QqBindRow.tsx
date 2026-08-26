@@ -1,7 +1,34 @@
+import { QqOutlined } from "@ant-design/icons";
 import { Avatar, Button, Popconfirm, Typography } from "antd";
 import type { MemberProfile } from "@/api/types";
 import { BindActionSlots } from "@/components/profile/BindActionSlots";
-import { BindStatusTitle } from "@/components/profile/BindStatusTitle";
+import {
+  BIND_ROW_ICON_SIZE,
+  BindStatusTitle,
+} from "@/components/profile/BindStatusTitle";
+
+function QqBindMark() {
+  return (
+    <span
+      className="anticon"
+      role="img"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: BIND_ROW_ICON_SIZE,
+        height: BIND_ROW_ICON_SIZE,
+        borderRadius: Math.max(2, Math.round(BIND_ROW_ICON_SIZE * 0.22)),
+        background: "#12b7f5",
+        color: "#fff",
+        fontSize: Math.round(BIND_ROW_ICON_SIZE * 0.62),
+        flexShrink: 0,
+      }}
+    >
+      <QqOutlined />
+    </span>
+  );
+}
 
 type QqBindRowProps = {
   data: MemberProfile | undefined;
@@ -39,19 +66,20 @@ export function QqBindRow({
           bound={qqBound}
           leading={
             qqBound && data?.qq_avatar_url ? (
-              <Avatar size={28} src={data.qq_avatar_url}>
+              <Avatar size={BIND_ROW_ICON_SIZE} src={data.qq_avatar_url}>
                 Q
               </Avatar>
-            ) : null
+            ) : (
+              <QqBindMark />
+            )
           }
-        />
-        {qqBound ? (
-          <div>
+        >
+          {qqBound ? (
             <Typography.Text type="secondary" style={{ fontSize: 13 }}>
               {`昵称：${data?.qq_nickname || "已绑定"}`}
             </Typography.Text>
-          </div>
-        ) : null}
+          ) : null}
+        </BindStatusTitle>
       </div>
       <BindActionSlots
         primary={

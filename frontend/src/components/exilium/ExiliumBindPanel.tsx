@@ -20,7 +20,7 @@ function asImageSrc(raw: string) {
 }
 
 export function ExiliumBindPanel({
-  title = "绑定追放社区",
+  title = "绑定追放",
   onSuccess,
   openRolePickerOnBind = true,
 }: {
@@ -34,7 +34,7 @@ export function ExiliumBindPanel({
   const [graphImage, setGraphImage] = useState<string | null>(null);
 
   const finishOk = async (status?: { bound?: boolean } | null) => {
-    message.success("追放社区绑定成功");
+    message.success("追放绑定成功");
     setGraphCode("");
     setGraphImage(null);
     if (status?.bound) {

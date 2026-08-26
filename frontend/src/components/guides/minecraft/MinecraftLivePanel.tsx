@@ -14,7 +14,7 @@ import {
   Typography,
 } from "antd";
 import { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import {
   fetchMinecraftPresence,
   fetchMinecraftStatus,
@@ -37,8 +37,14 @@ import {
   pingBadge,
 } from "./minecraftUi";
 import { parseMotdLines, motdColorOnLight } from "./minecraftMotd";
-import { MinecraftPerfCard } from "./MinecraftPerfCard";
+import { PanelFallback } from "@/components/RouteFallback";
 import styles from "./MinecraftLivePanel.module.css";
+
+const MinecraftPerfCard = lazy(() =>
+  import("./MinecraftPerfCard").then((m) => ({
+    default: m.MinecraftPerfCard,
+  })),
+);
 
 type RosterPlayer = components["schemas"]["MinecraftRosterPlayerOut"];
 type PresenceRow = components["schemas"]["MinecraftPresenceRowOut"];
@@ -422,6 +428,15 @@ export function MinecraftLivePanel() {
           message={apiError(statusQuery.error, "无法读取服况")}
         />
       ) : null}
+      {status && status.pelican_configured === false ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="服务器尚未接入"
+          description="请联系管理员配置 Pelican 面板后即可查看服况。"
+        />
+      ) : null}
 
       <Card size="small" title="服况">
         {statusQuery.isLoading && !status ? (
@@ -486,7 +501,9 @@ export function MinecraftLivePanel() {
         max={status?.players_max}
       />
 
-      <MinecraftPerfCard />
+      <Suspense fallback={<PanelFallback tip="加载性能图…" />}>
+        <MinecraftPerfCard />
+      </Suspense>
     </div>
   );
 }

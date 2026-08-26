@@ -1,8 +1,12 @@
 import { Avatar, Button, Popconfirm, Typography } from "antd";
 import { Link } from "react-router-dom";
 import type { MemberProfile } from "@/api/types";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { BindActionSlots } from "@/components/profile/BindActionSlots";
-import { BindStatusTitle } from "@/components/profile/BindStatusTitle";
+import {
+  BIND_ROW_ICON_SIZE,
+  BindStatusTitle,
+} from "@/components/profile/BindStatusTitle";
 
 type SteamBindRowProps = {
   data: MemberProfile | undefined;
@@ -47,35 +51,36 @@ export function SteamBindRow({
           name="Steam"
           bound={steamBound}
           leading={
-            steamBound ? (
-              <Avatar size={28} src={data?.steam_avatar_url || undefined}>
+            steamBound && data?.steam_avatar_url ? (
+              <Avatar size={BIND_ROW_ICON_SIZE} src={data.steam_avatar_url}>
                 S
               </Avatar>
-            ) : null
+            ) : (
+              <PlatformIcon name="steam" size={BIND_ROW_ICON_SIZE} />
+            )
           }
-        />
-        {steamBound ? (
-          <div>
+        >
+          {steamBound ? (
             <Typography.Text type="secondary" style={{ fontSize: 13 }}>
               {`${data?.steam_persona_name || "已绑定"} · SteamID：${data?.steam_id}`}
             </Typography.Text>
-          </div>
-        ) : null}
-        {notConfigured ? (
-          <div>
-            <Typography.Text type="warning" style={{ fontSize: 13 }}>
-              {isAdmin ? (
-                <>
-                  尚未配置 API Key，请先在{" "}
-                  <Link to="/settings/integrations">集成密钥</Link> 填写后才能
-                  {steamBound ? "换绑" : "绑定"}
-                </>
-              ) : (
-                `管理员尚未配置 Steam API Key，暂无法${steamBound ? "换绑" : "绑定"}`
-              )}
-            </Typography.Text>
-          </div>
-        ) : null}
+          ) : null}
+          {notConfigured ? (
+            <div>
+              <Typography.Text type="warning" style={{ fontSize: 13 }}>
+                {isAdmin ? (
+                  <>
+                    尚未配置 API Key，请先在{" "}
+                    <Link to="/settings/integrations">集成密钥</Link> 填写后才能
+                    {steamBound ? "换绑" : "绑定"}
+                  </>
+                ) : (
+                  `管理员尚未配置 Steam API Key，暂无法${steamBound ? "换绑" : "绑定"}`
+                )}
+              </Typography.Text>
+            </div>
+          ) : null}
+        </BindStatusTitle>
       </div>
       <BindActionSlots
         primary={

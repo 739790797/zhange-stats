@@ -37,11 +37,3 @@ def get_checkin_adapters() -> dict[str, CheckinPlatformAdapter]:
     if ADAPTERS is None:
         ADAPTERS = _load_adapters()
     return ADAPTERS
-
-
-def get_checkin_adapter(platform: str) -> CheckinPlatformAdapter:
-    adapters = get_checkin_adapters()
-    try:
-        return adapters[platform]
-    except KeyError as exc:
-        raise KeyError(f"未知签到平台: {platform}") from exc

@@ -18,8 +18,7 @@ from datetime import datetime
 from typing import Any, Callable, TypeVar
 from urllib.parse import unquote
 
-import httpx
-
+from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import BEIJING
 from app.services.mihoyo_bbs import setting as bbs_setting
 
@@ -755,14 +754,20 @@ def _http_json(
         request_kw["content"] = content
     elif json_payload is not None:
         request_kw["json"] = json_payload
-    with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = client.request(method.upper(), url, **request_kw)
-        try:
-            payload = resp.json()
-        except json.JSONDecodeError as exc:
-            raise MihoyoApiError(
-                f"上游返回非 JSON（HTTP {resp.status_code}）"
-            ) from exc
+    try:
+        resp = http_request(
+            method.upper(),
+            url,
+            timeout=REQUEST_TIMEOUT,
+            **request_kw,
+        )
+        payload = resp.json()
+    except HttpRequestError as exc:
+        raise MihoyoApiError(f"网络错误：{exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise MihoyoApiError(
+            f"上游返回非 JSON（HTTP {resp.status_code}）"
+        ) from exc
     if not isinstance(payload, dict):
         raise MihoyoApiError("上游返回格式异常")
     return payload

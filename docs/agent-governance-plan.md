@@ -1,8 +1,7 @@
 # 战鸽数据 · Agent / 开发约定治理方案
 
 > 状态：**已落地**（2026-08-05）  
-> 目的：让后续每次改动都默认对齐架构意图，而不是只靠对话记忆或散落 README。  
-> 决策：按默认推荐——仅架构索引 alwaysApply；`frontend-api-errors` 独立；修订 generated README；遗留 apiError 清偿另开任务。
+> 现行入口：[`AGENTS.md`](../AGENTS.md)、[`.cursor/rules/`](../.cursor/rules/)、[`docs/README.md`](README.md)。下文是当时的方案原文，**不要当现行规范**（例如 bind `last_checkin_*` 已删、表总览在 `docs/database.md` 不在根 README）。
 
 ## 已落地路径
 

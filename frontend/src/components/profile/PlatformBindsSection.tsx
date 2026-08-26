@@ -218,6 +218,7 @@ export function PlatformBindsSection({
         {!isAdminEdit && showSkland ? (
           <PlatformBindRow
             name="森空岛"
+            icon="skland"
             bound={sklandBound}
             credentialOk={sklandCredOk}
             errMsg={errMsg}
@@ -232,6 +233,7 @@ export function PlatformBindsSection({
         {!isAdminEdit && showTaygedo ? (
           <PlatformBindRow
             name="塔吉多"
+            icon="taygedo"
             bound={taygedoBound}
             credentialOk={taygedoCredOk}
             errMsg={errMsg}
@@ -247,6 +249,7 @@ export function PlatformBindsSection({
         {!isAdminEdit && showKujiequ ? (
           <PlatformBindRow
             name="库街区"
+            icon="kujiequ"
             bound={kujiequBound}
             credentialOk={kujiequCredOk}
             errMsg={errMsg}
@@ -262,6 +265,7 @@ export function PlatformBindsSection({
         {!isAdminEdit && showMihoyo ? (
           <PlatformBindRow
             name="米游社"
+            icon="mihoyo"
             bound={mihoyoBound}
             credentialOk={mihoyoCredOk}
             errMsg={errMsg}
@@ -277,11 +281,12 @@ export function PlatformBindsSection({
         {!isAdminEdit && showExilium ? (
           <PlatformBindRow
             name="追放"
+            icon="exilium"
             bound={exiliumBound}
             credentialOk={exiliumCredOk}
             errMsg={errMsg}
             borderTop
-            unbindConfirmTitle="确认解除追放社区绑定？"
+            unbindConfirmTitle="确认解除追放绑定？"
             unbindPending={unbindExiliumPending}
             onOpenModal={() => setExiliumModalOpen(true)}
             onOpenRoles={() => exiliumRoles.openPicker()}

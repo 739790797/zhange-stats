@@ -93,7 +93,7 @@ def register(
     db.refresh(user)
     db.refresh(member)
     user.member = member
-    token = create_access_token(user.username)
+    token = create_access_token(user.username, user_id=user.id)
     return RegisterResponse(
         message="注册成功",
         email=email,

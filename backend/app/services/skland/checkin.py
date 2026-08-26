@@ -24,9 +24,6 @@ from app.services.checkin.orchestrator import (
 from app.services.checkin.orchestrator import (
     run_checkin_for_bind as _orch_run_checkin,
 )
-from app.services.checkin.orchestrator import (
-    run_checkin_job as _orch_run_job,
-)
 from app.services.checkin.role_prefs import (
     PLATFORM_SKLAND,
     RoleKey,
@@ -38,26 +35,28 @@ from app.services.skland.client import (
     SklandApiError,
     SklandRole,
     SklandSession,
-    checkin_role,
-    fetch_arknights_box,
-    fetch_endfield_card_detail,
-    friendly_error_message,
-    list_roles,
     localize_arknights_channel_name,
     localize_endfield_server_name,
     login_with_token,
     normalize_hg_token,
-    parse_endfield_box,
-    query_role_today,
-    query_today_all as skland_query_today_all,
-    sort_skland_results,
 )
 from app.services.skland.endfield_calendar import parse_endfield_attendance_calendar
 from app.services.skland.calendar import parse_arknights_attendance_calendar
 from app.services.skland.attendance import (
     _is_arknights_bilibili,
+    checkin_role,
     fetch_arknights_attendance,
     fetch_endfield_attendance,
+    friendly_error_message,
+    list_roles,
+    query_role_today,
+    query_today_all as skland_query_today_all,
+    sort_skland_results,
+)
+from app.services.skland.boxes import (
+    fetch_arknights_box,
+    fetch_endfield_card_detail,
+    parse_endfield_box,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,10 +152,6 @@ def unbind_skland(db: Session, member: Member) -> None:
     db.delete(bind)
     db.commit()
     invalidate_skland_session(member.id)
-
-
-def set_auto_checkin(db: Session, member: Member, enabled: bool) -> SklandBind:
-    return update_bind_prefs(db, member, auto_checkin=bool(enabled))
 
 
 def update_bind_prefs(
@@ -1004,15 +999,6 @@ def query_today_for_bind(
         return _orch_query_today(skland_adapter, db, bind, force=True)
 
 
-def query_today_for_member(
-    db: Session, member: Member, *, force: bool = False
-) -> dict[str, Any]:
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        raise SklandApiError("尚未绑定森空岛")
-    return query_today_for_bind(db, bind, force=force)
-
-
 def run_checkin_for_bind(
     db: Session,
     bind: SklandBind,
@@ -1040,17 +1026,6 @@ def run_checkin_for_member(
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def run_skland_checkin_job(
-    db: Session,
-    *,
-    due_only: bool = False,
-    member_id: int | None = None,
-) -> dict[str, Any]:
-    return _orch_run_job(
-        skland_adapter, db, due_only=due_only, member_id=member_id
-    )
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:

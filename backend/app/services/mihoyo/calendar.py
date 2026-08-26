@@ -36,6 +36,39 @@ def award_from_mihoyo_row(row: Any) -> dict[str, Any] | None:
     )
 
 
+def parse_today_mihoyo_awards(
+    info: dict[str, Any],
+    home: dict[str, Any] | None = None,
+) -> tuple[str | None, list[dict[str, Any]]]:
+    """从福利 info（及可选 home 月奖励表）取出今日一条，带 icon_url。
+
+    info 接口通常不含月奖励列表；home.awards 才有 name/cnt/icon。
+    """
+    awards_raw: list[Any] = []
+    if isinstance(home, dict):
+        raw = home.get("awards")
+        if isinstance(raw, list) and raw:
+            awards_raw = raw
+    if not awards_raw:
+        raw = info.get("awards") if isinstance(info.get("awards"), list) else []
+        awards_raw = raw
+    try:
+        total = int(info.get("total_sign_day") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    signed = bool(info.get("is_sign") or info.get("is_signed"))
+    items = select_today_awards(
+        awards_raw,
+        signed=signed,
+        total_sign_day=total,
+        today_index=_today_index(info),
+    )
+    if not items:
+        return None, []
+    parts = [f"{a['name']}×{a.get('count') or 1}" for a in items]
+    return " · ".join(parts), items
+
+
 def select_today_awards(
     awards: list[Any],
     *,

@@ -27,9 +27,6 @@ from app.services.checkin.orchestrator import (
 from app.services.checkin.orchestrator import (
     run_checkin_for_bind as _orch_run_checkin,
 )
-from app.services.checkin.orchestrator import (
-    run_checkin_job as _orch_run_job,
-)
 from app.services.checkin.role_prefs import PLATFORM_MIHOYO, RoleKey
 from app.services.mihoyo.attendance import (
     CALENDAR_GAME_CODES,
@@ -47,7 +44,6 @@ from app.services.mihoyo.auth import (
 from app.services.mihoyo.client import (
     MihoyoApiError,
     MihoyoCredentials,
-    bind_with_cookie,
     exchange_goods,
     friendly_error_message,
     get_points_balance,
@@ -97,10 +93,6 @@ def bind_member_with_creds(
     db.refresh(bind)
     _maybe_checkin_after_bind(db, bind)
     return bind
-
-
-def bind_member_with_cookie(db: Session, member: Member, cookie: str) -> MihoyoBind:
-    return bind_member_with_creds(db, member, bind_with_cookie(cookie))
 
 
 def bind_member_with_sms(
@@ -406,10 +398,9 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
         community = next((r for r in results if r.game_code == GAME_CODE), None)
         if community is None:
             return False
+        _ = (bind, checkin_date)
         return bool(
-            bind.last_checkin_date == checkin_date
-            and bind.last_checkin_ok
-            and community.status == "already"
+            community.status == "already"
             and all(
                 r.status in ("already", "ok")
                 for r in results
@@ -450,17 +441,6 @@ def run_checkin_for_member(
     if bind is None:
         raise MihoyoApiError("尚未绑定米游社")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def run_mihoyo_checkin_job(
-    db: Session,
-    *,
-    due_only: bool = False,
-    member_id: int | None = None,
-) -> dict[str, Any]:
-    return _orch_run_job(
-        mihoyo_adapter, db, due_only=due_only, member_id=member_id
-    )
 
 
 def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:

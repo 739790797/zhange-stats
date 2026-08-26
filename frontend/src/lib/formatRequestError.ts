@@ -60,7 +60,7 @@ export function formatRequestError(
       ("isAxiosError" in err &&
         Boolean((err as { isAxiosError?: boolean }).isAxiosError))
     ) {
-      return "无法连接服务器，请确认服务已启动";
+      return "暂时连不上服务器，请稍后重试";
     }
     if (typeof err.message === "string" && err.message.trim()) {
       return err.message.trim();

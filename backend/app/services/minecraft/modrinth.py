@@ -86,45 +86,6 @@ def pin_from_version(
     }
 
 
-def search_mods(
-    query: str,
-    *,
-    loader: str,
-    mc_version: str,
-    limit: int = 20,
-) -> list[dict[str, Any]]:
-    q = (query or "").strip()
-    facets: list[list[str]] = [["project_type:mod"]]
-    if loader:
-        facets.append([f"categories:{loader}"])
-    if mc_version:
-        facets.append([f"versions:{mc_version}"])
-    params = {
-        "query": q,
-        "limit": str(max(1, min(limit, 50))),
-        "facets": json.dumps(facets, ensure_ascii=False),
-    }
-    url = f"{MODRINTH_API}/search?{urllib.parse.urlencode(params)}"
-    data = _get_json(url)
-    hits = data.get("hits") if isinstance(data, dict) else None
-    if not isinstance(hits, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for hit in hits:
-        if not isinstance(hit, dict):
-            continue
-        out.append(
-            {
-                "project_id": str(hit.get("project_id") or ""),
-                "slug": str(hit.get("slug") or ""),
-                "title": str(hit.get("title") or ""),
-                "description": str(hit.get("description") or ""),
-                "icon_url": str(hit.get("icon_url") or ""),
-            }
-        )
-    return [row for row in out if row["project_id"]]
-
-
 def list_versions(
     project_id: str,
     *,
@@ -163,35 +124,6 @@ def list_versions(
         if pin:
             out.append(pin)
     return out
-
-
-def pin_version(
-    project_id: str,
-    version_id: str,
-) -> dict[str, Any]:
-    vid = (version_id or "").strip()
-    pid = (project_id or "").strip()
-    if not vid:
-        raise ModrinthError("缺少 version_id")
-    version = _get_json(f"{MODRINTH_API}/version/{urllib.parse.quote(vid)}")
-    if not isinstance(version, dict):
-        raise ModrinthError("版本不存在")
-    actual_pid = str(version.get("project_id") or pid)
-    title = ""
-    slug = ""
-    try:
-        proj = _get_json(f"{MODRINTH_API}/project/{urllib.parse.quote(actual_pid)}")
-        if isinstance(proj, dict):
-            title = str(proj.get("title") or "")
-            slug = str(proj.get("slug") or "")
-    except ModrinthError:
-        pass
-    pin = pin_from_version(
-        version, project_id=actual_pid, project_title=title, slug=slug
-    )
-    if not pin:
-        raise ModrinthError("该版本没有服务端可用文件")
-    return pin
 
 
 def latest_pin(

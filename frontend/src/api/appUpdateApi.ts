@@ -2,18 +2,12 @@ import { client } from "./http";
 import type { components } from "./generated/schema";
 
 export type AppUpdateStatus = components["schemas"]["AppUpdateStatusOut"];
-export type AppUpdateRelease = components["schemas"]["AppUpdateReleaseOut"];
 export type AppUpdateCheckResult = components["schemas"]["AppUpdateCheckOut"];
 export type AppUpdateDoResult = components["schemas"]["AppUpdateDoOut"];
 export type AppUpdateDoIn = components["schemas"]["AppUpdateDoIn"];
 
 export async function fetchAppUpdateStatus() {
   const { data } = await client.get<AppUpdateStatus>("/settings/app-update/status");
-  return data;
-}
-
-export async function fetchAppUpdateReleases() {
-  const { data } = await client.get<AppUpdateRelease[]>("/settings/app-update/releases");
   return data;
 }
 

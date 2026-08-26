@@ -5,8 +5,6 @@ export function skillBgForChar(char: EndfieldChar) {
   return PROPERTY_SKILL_BG[char.property_name || ""] || "#8a9099";
 }
 
-export { formatSyncedAt } from "@/lib/formatSyncedAt";
-
 export function formatOwnTs(ts?: number | null) {
   if (!ts) return null;
   const ms = ts > 1e12 ? ts : ts * 1000;

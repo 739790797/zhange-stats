@@ -30,7 +30,13 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    member = relationship("Member", back_populates="user", uselist=False)
+    member = relationship(
+        "Member",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     @property
     def is_admin_user(self) -> bool:

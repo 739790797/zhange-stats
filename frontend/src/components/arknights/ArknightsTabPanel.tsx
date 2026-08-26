@@ -15,7 +15,7 @@ export function ArknightsTabPanel({ rogueEnabled = true }: Props) {
 
   const options = [
     { label: "活动日历", value: "calendar" as const },
-    { label: "善意对比", value: "compare" as const },
+    { label: "干员对比", value: "compare" as const },
     { label: "集成战略", value: "rogue" as const },
   ];
 

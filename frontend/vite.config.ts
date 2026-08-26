@@ -10,6 +10,20 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "leaflet",
+              test: /node_modules[\\/]leaflet/,
+            },
+          ],
+        },
+      },
+    },
+  },
   server: {
     host: "127.0.0.1",
     port: Number(process.env.VITE_DEV_PORT || 6131),

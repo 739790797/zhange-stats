@@ -16,7 +16,7 @@ const STATUS_QUERY_KEY: Record<CheckinPlatformKey, string[]> = {
 };
 
 /**
- * 绑定成功后弹出「选择加入本站角色」；也可供「我的日常」同步复用。
+ * 绑定成功后弹出「选择加入本站角色」。
  *
  * 注意：弹窗状态须挂在「绑定成功后仍会保持挂载」的父级（页面 / PlatformBindsSection），
  * 不要只放在会随 needsBind 卸载的 BindPanel 内，否则绑定成功瞬间弹窗会被一起卸掉。

@@ -1,14 +1,27 @@
 import { Alert, Button, Form, Input, message } from "antd";
-import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { fetchMe, login, exchangeQqTicket } from "@/api/client";
 import { apiError } from "@/lib/apiError";
 import { AuthGuestShell } from "@/components/AuthGuestShell";
 import { QqLoginButton } from "@/components/QqLoginButton";
+import {
+  consumePostLoginPath,
+  postLoginPath,
+  rememberPostLoginPath,
+  type LoginFromLocation,
+} from "@/lib/postLoginPath";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const token = useAuthStore((s) => s.token);
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -16,6 +29,20 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [qqCompleting, setQqCompleting] = useState(false);
   const qqHandled = useRef(false);
+  const from = (location.state as { from?: LoginFromLocation } | null)?.from;
+
+  useEffect(() => {
+    const path = postLoginPath(from);
+    if (path !== "/") rememberPostLoginPath(path);
+  }, [from]);
+
+  const goHome = useCallback(
+    (extraState?: { promptCompleteProfile?: boolean }) => {
+      const path = consumePostLoginPath() || postLoginPath(from);
+      navigate(path, { replace: true, state: extraState });
+    },
+    [from, navigate],
+  );
 
   useEffect(() => {
     if (qqHandled.current) return;
@@ -46,10 +73,7 @@ export default function LoginPage() {
           setAuth(access_token, user);
           message.success(name ? `欢迎，${name}` : "QQ 登录成功");
           const needComplete = needCompleteFlag || !user.email;
-          navigate("/", {
-            replace: true,
-            state: needComplete ? { promptCompleteProfile: true } : undefined,
-          });
+          goHome(needComplete ? { promptCompleteProfile: true } : undefined);
         } catch (e: unknown) {
           useAuthStore.getState().logout();
           setError(apiError(e, "QQ 登录失败，请重试"));
@@ -60,10 +84,14 @@ export default function LoginPage() {
     }
 
     setError(detail || "QQ 登录失败");
-  }, [navigate, searchParams, setAuth, setSearchParams]);
+  }, [goHome, navigate, searchParams, setAuth, setSearchParams]);
 
+  const loggedInDest = useRef<string | null>(null);
   if (token && !qqCompleting && !searchParams.get("qq_login")) {
-    return <Navigate to="/" replace />;
+    if (loggedInDest.current == null) {
+      loggedInDest.current = consumePostLoginPath() || postLoginPath(from);
+    }
+    return <Navigate to={loggedInDest.current} replace />;
   }
 
   const onFinish = async (values: { username: string; password: string }) => {
@@ -75,10 +103,7 @@ export default function LoginPage() {
       const user = await fetchMe();
       setAuth(access_token, user);
       message.success("登录成功");
-      navigate("/", {
-        replace: true,
-        state: !user.email ? { promptCompleteProfile: true } : undefined,
-      });
+      goHome(!user.email ? { promptCompleteProfile: true } : undefined);
     } catch (e: unknown) {
       setError(apiError(e, "账号或密码错误"));
     } finally {
@@ -87,7 +112,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthGuestShell brand subtitle="Zhange Stats">
+    <AuthGuestShell brand subtitle="圈子成员站">
         {error ? (
           <Alert
             type="error"

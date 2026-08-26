@@ -17,7 +17,7 @@ class PresenceSegment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
     )
     # offline | online | playing
     status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)

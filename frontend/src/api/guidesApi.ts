@@ -3,29 +3,14 @@ import type { components } from "./generated/schema";
 
 export type TarkovAmmoCatalog = components["schemas"]["TarkovAmmoCatalogOut"];
 export type TarkovAmmoItem = components["schemas"]["TarkovAmmoItemOut"];
-export type TarkovAmmoSyncResult = components["schemas"]["TarkovAmmoSyncOut"];
 export type TarkovGunCatalog = components["schemas"]["TarkovGunCatalogOut"];
 export type TarkovGunItem = components["schemas"]["TarkovGunItemOut"];
-export type TarkovGunSyncResult = components["schemas"]["TarkovGunSyncOut"];
-export type TarkovItemsSyncResult = components["schemas"]["TarkovItemsSyncOut"];
 export type TarkovCatalog = components["schemas"]["TarkovCatalogOut"];
 export type TarkovCatalogItem = components["schemas"]["TarkovCatalogItemOut"];
 export type TarkovItemDetail = components["schemas"]["TarkovItemDetailOut"];
 export type TarkovTaskCatalog = components["schemas"]["TarkovTaskCatalogOut"];
 export type TarkovTaskListItem = components["schemas"]["TarkovTaskListItemOut"];
 export type TarkovTaskDetail = components["schemas"]["TarkovTaskDetailOut"];
-export type TarkovTasksSyncResult = components["schemas"]["TarkovTasksSyncOut"];
-
-export async function syncTarkovItems() {
-  const { data } = await client.post<TarkovItemsSyncResult>(
-    "/guides/tarkov/items/sync",
-    {},
-    { timeout: 120_000 },
-  );
-  return data;
-}
-
-export type TarkovAmmoDetail = components["schemas"]["TarkovAmmoDetailOut"];
 
 export async function fetchTarkovAmmo() {
   const { data } = await client.get<TarkovAmmoCatalog>("/guides/tarkov/ammo", {
@@ -34,36 +19,10 @@ export async function fetchTarkovAmmo() {
   return data;
 }
 
-export async function fetchTarkovAmmoDetail(itemId: string) {
-  const { data } = await client.get<TarkovAmmoDetail>(
-    `/guides/tarkov/ammo/${encodeURIComponent(itemId)}`,
-    { timeout: 60_000 },
-  );
-  return data;
-}
-
-export async function syncTarkovAmmo() {
-  const { data } = await client.post<TarkovAmmoSyncResult>(
-    "/guides/tarkov/ammo/sync",
-    {},
-    { timeout: 120_000 },
-  );
-  return data;
-}
-
 export async function fetchTarkovGuns() {
   const { data } = await client.get<TarkovGunCatalog>("/guides/tarkov/guns", {
     timeout: 120_000,
   });
-  return data;
-}
-
-export async function syncTarkovGuns() {
-  const { data } = await client.post<TarkovGunSyncResult>(
-    "/guides/tarkov/guns/sync",
-    {},
-    { timeout: 120_000 },
-  );
   return data;
 }
 
@@ -162,20 +121,10 @@ export async function fetchTarkovTaskDetail(
   return data;
 }
 
-export async function syncTarkovTasks() {
-  const { data } = await client.post<TarkovTasksSyncResult>(
-    "/guides/tarkov/tasks/sync",
-    {},
-    { timeout: 180_000 },
-  );
-  return data;
-}
-
 export type TarkovTraderCatalog = components["schemas"]["TarkovTraderCatalogOut"];
 export type TarkovTraderListItem = components["schemas"]["TarkovTraderListItemOut"];
 export type TarkovTraderDetail = components["schemas"]["TarkovTraderDetailOut"];
 export type TarkovTraderOffer = components["schemas"]["TarkovTraderOfferOut"];
-export type TarkovTradersSyncResult = components["schemas"]["TarkovTradersSyncOut"];
 
 export async function fetchTarkovTraders() {
   const { data } = await client.get<TarkovTraderCatalog>("/guides/tarkov/traders", {
@@ -209,20 +158,10 @@ export async function fetchTarkovTraderDetail(
   return data;
 }
 
-export async function syncTarkovTraders() {
-  const { data } = await client.post<TarkovTradersSyncResult>(
-    "/guides/tarkov/traders/sync",
-    {},
-    { timeout: 180_000 },
-  );
-  return data;
-}
-
 export type TarkovBossCatalog = components["schemas"]["TarkovBossCatalogOut"];
 export type TarkovBossListItem = components["schemas"]["TarkovBossListItemOut"];
 export type TarkovBossDetail = components["schemas"]["TarkovBossDetailOut"];
 export type TarkovBossLoot = components["schemas"]["TarkovBossLootOut"];
-export type TarkovBossesSyncResult = components["schemas"]["TarkovBossesSyncOut"];
 
 export async function fetchTarkovBosses() {
   const { data } = await client.get<TarkovBossCatalog>("/guides/tarkov/bosses", {
@@ -234,15 +173,6 @@ export async function fetchTarkovBosses() {
 export async function fetchTarkovBossDetail(slug: string) {
   const { data } = await client.get<TarkovBossDetail>(
     `/guides/tarkov/bosses/${encodeURIComponent(slug)}`,
-    { timeout: 180_000 },
-  );
-  return data;
-}
-
-export async function syncTarkovBosses() {
-  const { data } = await client.post<TarkovBossesSyncResult>(
-    "/guides/tarkov/bosses/sync",
-    {},
     { timeout: 180_000 },
   );
   return data;
@@ -298,7 +228,6 @@ export type TarkovCraftCatalog = components["schemas"]["TarkovCraftCatalogOut"];
 export type TarkovCraft = components["schemas"]["TarkovCraftOut"];
 export type TarkovLootTierCatalog = components["schemas"]["TarkovLootTierCatalogOut"];
 export type TarkovLootTierItem = components["schemas"]["TarkovLootTierItemOut"];
-export type TarkovGuidesSyncResult = components["schemas"]["TarkovGuidesSyncOut"];
 
 export async function fetchTarkovMaps() {
   const { data } = await client.get<TarkovMapCatalog>("/guides/tarkov/maps", {
@@ -390,15 +319,6 @@ export async function fetchTarkovLootTiers(opts: {
       },
       timeout: 180_000,
     },
-  );
-  return data;
-}
-
-export async function syncTarkovGuides() {
-  const { data } = await client.post<TarkovGuidesSyncResult>(
-    "/guides/tarkov/guides/sync",
-    {},
-    { timeout: 180_000 },
   );
   return data;
 }

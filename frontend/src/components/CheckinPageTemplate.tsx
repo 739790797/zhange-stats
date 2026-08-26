@@ -26,19 +26,21 @@ import {
   isCheckinSuccess,
   type CheckinDialogKind,
 } from "@/lib/checkinStatus";
-import { CheckinAwardsLine } from "@/components/CheckinAwardsLine";
+import { CheckinAwardsLine, TodayCheckinAwards } from "@/components/CheckinAwardsLine";
 import { CheckinStatusTag } from "@/components/CheckinStatusTag";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { isBilibiliArknightsChannel } from "@/lib/arknightsChannel";
+import { awardsForDisplay } from "@/lib/checkinAwards";
 import {
   communityGameRank,
   displayCheckinChannelName,
 } from "@/lib/checkinDisplay";
+import { SKLAND_APP_LOGOUT_HINT } from "@/lib/sklandCredentialCopy";
 import {
   checkinGameIcon,
   type PlatformIconName,
 } from "@/lib/platformIcons";
+import { isInitialQueryPending } from "@/lib/queryCache";
 
 /** 四平台 RoleOut 字段一致，用森空岛 schema 代表 */
 export type CheckinPageRole = components["schemas"]["SklandRoleOut"];
@@ -83,6 +85,8 @@ export interface CheckinPageTemplateProps {
   platformIcon?: PlatformIconName;
   /** 今日签到每一行状态标签后的附加内容（如官服签到日历） */
   renderResultExtra?: (row: CheckinPageResultItem) => ReactNode;
+  /** 无角色时打开「选择加入本站角色」；缺省则链到个人中心 */
+  onSelectRoles?: () => void;
 }
 
 function toScheduleValue(hour: number, minute: number): Dayjs {
@@ -93,32 +97,17 @@ function snapMinute(minute: number): number {
   return Math.max(0, Math.min(55, minute - (minute % 5)));
 }
 
-/** 仅已签展示签到奖励；B 服优先展示签到 POST 落库的 awards，无则提示不可查询 */
+/** 仅已签展示签到奖励；未签给提示。B 服无奖提示不可查询 */
 function TodayAwardsBlock({ row }: { row: CheckinPageResultItem }) {
-  if (!isCheckinSuccess(row.status)) return null;
-  const hasAwards =
-    Boolean(row.awards?.length) || Boolean((row.awards_text || "").trim());
-  const biliAk =
-    row.game_code === "arknights" &&
-    isBilibiliArknightsChannel(row.channel_name);
-  if (biliAk && !hasAwards) {
-    return (
-      <>
-        <Typography.Text type="secondary">签到奖励：</Typography.Text>
-        <Typography.Text type="secondary">B服不支持查询</Typography.Text>
-      </>
-    );
-  }
-  if (!hasAwards) return null;
   return (
-    <>
-      <Typography.Text type="secondary">签到奖励：</Typography.Text>
-      <CheckinAwardsLine
-        awards={row.awards}
-        awardsText={row.awards_text}
-        fallback="-"
-      />
-    </>
+    <TodayCheckinAwards
+      status={row.status}
+      awards={row.awards}
+      awardsText={row.awards_text}
+      gameCode={row.game_code}
+      channelName={row.channel_name}
+      showLabel
+    />
   );
 }
 
@@ -233,7 +222,13 @@ function RoleAutoCheckinControls({
               checkin_minute: minute,
             });
           } else {
-            setEditing(true);
+            void onSave({
+              game_code: gameCode,
+              role_uid: roleUid,
+              enabled: true,
+              checkin_hour: hour,
+              checkin_minute: minute,
+            }).then(() => setEditing(false));
           }
         }}
       />
@@ -304,17 +299,19 @@ export function CheckinPageTemplate({
   fetchStatus,
   triggerCheckin,
   updateRolePref,
-  showPhoneMask: _showPhoneMask = false,
+  showPhoneMask = false,
   contentOnly = false,
   platformIcon,
   renderResultExtra,
+  onSelectRoles,
 }: CheckinPageTemplateProps) {
   const queryClient = useQueryClient();
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [checkingKey, setCheckingKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<CheckinDialogState | null>(null);
 
-  // 展示路径始终回源官方；staleTime 避免平台 Tabs 切换时反复 force 打上游
+  // 展示路径始终回源官方；staleTime 避免平台 Tabs 切换时反复 force 打上游。
+  // 有 persist / 内存缓存时不整卡 loading，用 extra 刷新钮的 isFetching。
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
     queryFn: () => fetchStatus(true, true),
@@ -415,16 +412,34 @@ export function CheckinPageTemplate({
   const tokenBroken = isBindTokenBroken(statusQuery.data);
   const credentialRowError = hasCredentialRowError(statusQuery.data);
   const needsBind =
-    (!bound || tokenBroken) && Boolean(bindPanel) && !statusQuery.isLoading;
+    (!bound || tokenBroken) &&
+    Boolean(bindPanel) &&
+    !isInitialQueryPending(statusQuery);
 
   const dismissDialog = () => setDialog(null);
 
   const statusCard = (
     <Card
       title="签到状态"
-      loading={statusQuery.isLoading}
+      extra={
+        bound ? (
+          <Button
+            size="small"
+            loading={statusQuery.isFetching}
+            onClick={() => void statusQuery.refetch()}
+          >
+            刷新
+          </Button>
+        ) : null
+      }
+      loading={isInitialQueryPending(statusQuery)}
       style={{ marginBottom: contentOnly ? 0 : 24 }}
     >
+      {showPhoneMask && statusQuery.data?.phone_mask ? (
+        <Typography.Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+          绑定手机 {statusQuery.data.phone_mask}
+        </Typography.Text>
+      ) : null}
       {statusQuery.isError ? (
         <Alert
           type={statusQuery.data ? "warning" : "error"}
@@ -432,7 +447,7 @@ export function CheckinPageTemplate({
           message={apiError(statusQuery.error, "加载签到状态失败")}
           description={
             statusQuery.data
-              ? "下方为最近一次成功结果；可稍后切换回本页重试刷新。"
+              ? "下方为最近一次成功结果。可点右上角刷新重试。"
               : undefined
           }
           style={{ marginBottom: 16 }}
@@ -444,7 +459,10 @@ export function CheckinPageTemplate({
           showIcon
           message={`${bindName}凭证可能已失效`}
           description={
-            bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。"
+            bindTokenErrorMessage(statusQuery.data) ||
+            (bindName === "森空岛"
+              ? `请重新绑定后再试。${SKLAND_APP_LOGOUT_HINT}`
+              : "请重新绑定后再试。")
           }
           style={{ marginBottom: 16 }}
         />
@@ -586,13 +604,23 @@ export function CheckinPageTemplate({
                   "无法查询今日状态"
                 ) : (
                   <span>
-                    暂无已加入本站的角色。请到{" "}
-                    <Link to="/daily">我的日常</Link>{" "}
-                    同步并勾选要加入的角色。
+                    暂无已加入本站的角色。请选择要加入签到的角色。
                   </span>
                 )
               }
-            />
+            >
+              {!tokenBroken ? (
+                onSelectRoles ? (
+                  <Button type="primary" onClick={onSelectRoles}>
+                    选择角色
+                  </Button>
+                ) : (
+                  <Link to="/profile">
+                    <Button type="primary">去个人中心选择角色</Button>
+                  </Link>
+                )
+              ) : null}
+            </Empty>
           )}
         </div>
       ) : (
@@ -617,7 +645,7 @@ export function CheckinPageTemplate({
             {dialog.message}
           </Typography.Paragraph>
           {dialog.kind === "success" || dialog.kind === "already" ? (
-            (dialog.awards?.length || (dialog.awardsText || "").trim()) ? (
+            awardsForDisplay(dialog.awards, dialog.awardsText).length ? (
               <CheckinAwardsLine
                 awards={dialog.awards}
                 awardsText={dialog.awardsText}
@@ -665,8 +693,13 @@ export function CheckinPageTemplate({
         }
         description={
           tokenBroken
-            ? bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。"
-            : undefined
+            ? bindTokenErrorMessage(statusQuery.data) ||
+              (bindName === "森空岛"
+                ? `请重新绑定后再试。${SKLAND_APP_LOGOUT_HINT}`
+                : "请重新绑定后再试。")
+            : bindName === "森空岛"
+              ? SKLAND_APP_LOGOUT_HINT
+              : undefined
         }
       />
       <Card>{bindPanel}</Card>

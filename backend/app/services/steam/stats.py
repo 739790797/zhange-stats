@@ -5,7 +5,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 
 from app.core.timeutil import day_bounds, ensure, now, to_naive, today
 from app.models.member import Member
@@ -84,7 +84,16 @@ def _sessions_in_window(
     we = _to_db_naive(window_end)
     q = (
         db.query(PlaySession)
-        .options(joinedload(PlaySession.member))
+        .options(
+            load_only(
+                PlaySession.id,
+                PlaySession.member_id,
+                PlaySession.started_at,
+                PlaySession.ended_at,
+                PlaySession.last_seen_at,
+                PlaySession.source,
+            )
+        )
         .filter(
             PlaySession.source == "steam",
             PlaySession.started_at < we,
@@ -117,6 +126,12 @@ def build_calendar(
     sessions = _sessions_in_window(
         db, window_start, window_end, member_ids=visible_ids
     )
+    member_map = {
+        m.id: m
+        for m in db.query(Member).filter(
+            Member.id.in_({s.member_id for s in sessions} or [-1])
+        ).all()
+    }
 
     # date -> totals; (member_id, date) -> seconds
     day_seconds: dict[str, int] = {}
@@ -132,11 +147,10 @@ def build_calendar(
         d += timedelta(days=1)
 
     for s in sessions:
-        member = s.member
         mid = s.member_id
         if mid not in member_meta:
             pres = member_steam_presentation(
-                member, fallback_id=mid
+                member_map.get(mid), fallback_id=mid
             )
             member_meta[mid] = {
                 "member_id": mid,
@@ -262,10 +276,6 @@ def _clip_to_window(
     if end_sec <= start_sec:
         return None
     return start_sec, end_sec
-
-
-def build_day_detail(db: Session, d: date, viewer: User) -> dict:
-    return build_range_detail(db, d, d, viewer)
 
 
 def build_range_detail(

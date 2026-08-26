@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models.system_config import SystemConfig
 
 PLATFORM_FEATURES_KEY = "platform_features"
-_CACHE_TTL_SEC = 2.0
+_CACHE_TTL_SEC = 30.0
 
 _flags_cache: dict[str, bool] | None = None
 _flags_cache_at = 0.0
@@ -344,14 +344,6 @@ _ALL_FEATURE_ID_SET: set[str] = set(_ALL_FEATURE_IDS)
 _RESERVED_FEATURE_IDS: set[str] = {
     str(n["id"]) for n, _ in _iter_nodes() if n.get("reserved")
 }
-
-
-def all_feature_ids() -> list[str]:
-    return list(_ALL_FEATURE_IDS)
-
-
-def reserved_feature_ids() -> set[str]:
-    return set(_RESERVED_FEATURE_IDS)
 
 
 def default_features() -> dict[str, bool]:

@@ -160,7 +160,10 @@ function HomeTile({
       >
         <path d={icon} fill="currentColor" />
       </svg>
-      <span className={styles.mapName}>{label}</span>
+      <span className={styles.mapName}>
+        {label}
+        {soon ? <span className={styles.mapSoonMark}>即将推出</span> : null}
+      </span>
     </>
   );
 

@@ -83,15 +83,6 @@ export async function unbindMihoyo() {
   return data;
 }
 
-export async function updateMihoyoBind(payload: {
-  auto_checkin?: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
-  const { data } = await client.patch<MihoyoStatus>("/mihoyo/bind", payload);
-  return data;
-}
-
 export async function updateMihoyoRolePref(
   payload: components["schemas"]["CheckinRolePrefUpdate"],
 ) {

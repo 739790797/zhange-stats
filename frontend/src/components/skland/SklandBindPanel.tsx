@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { message } from "antd";
+import { Alert, message } from "antd";
 import {
   bindSklandPassword,
   bindSklandSms,
@@ -13,6 +13,7 @@ import { PhoneAuthBindTemplate } from "@/components/PhoneAuthBindTemplate";
 import { preferredPhoneAuthMode, type PhoneAuthMode } from "@/lib/phoneAuth";
 import { useQrBindSession } from "@/hooks/useQrBindSession";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
+import { SKLAND_APP_LOGOUT_HINT } from "@/lib/sklandCredentialCopy";
 
 const SKLAND_MODES: PhoneAuthMode[] = ["qr", "sms", "password"];
 const STATUS_KEY = ["skland-status"] as const;
@@ -58,7 +59,7 @@ export function SklandBindPanel({
   };
 
   const { qrPanel, onModeChange } = useQrBindSession({
-    waitingHint: "请使用森空岛 App 扫码，并在手机上确认登录",
+    waitingHint: `请使用森空岛 App 扫码，并在手机上确认登录。${SKLAND_APP_LOGOUT_HINT}`,
     imageAlt: "森空岛登录二维码",
     initialMode: resolvedDefault,
     start: startSklandQrBind,
@@ -86,6 +87,12 @@ export function SklandBindPanel({
           await finishOk(status);
         }}
         qrPanel={qrPanel}
+      />
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginTop: 12 }}
+        message={SKLAND_APP_LOGOUT_HINT}
       />
       {modal}
     </>

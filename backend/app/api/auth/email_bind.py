@@ -193,7 +193,7 @@ def link_existing_account(
     db.refresh(target_member)
     target.member = target_member
 
-    token = create_access_token(target.username)
+    token = create_access_token(target.username, user_id=target.id)
     return LinkExistingAccountResponse(
         message="已合并到已有账号，可用 QQ 登录",
         access_token=token,

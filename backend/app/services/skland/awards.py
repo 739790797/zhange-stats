@@ -59,6 +59,17 @@ def arknights_item_icon_url(
     return f"{ARKNIGHTS_ITEM_ICON_BASE}/{key}.png"
 
 
+def _resource_icon_url(res: dict[str, Any] | None, extra: dict[str, Any] | None = None) -> str | None:
+    for src in (res, extra):
+        if not isinstance(src, dict):
+            continue
+        raw = src.get("icon") or src.get("iconUrl") or src.get("icon_url")
+        icon = str(raw).strip() if raw else ""
+        if icon:
+            return icon
+    return None
+
+
 def award_dict(
     *,
     name: str,
@@ -66,11 +77,12 @@ def award_dict(
     resource_id: Any = None,
     resource_type: Any = None,
     with_icon: bool = False,
+    icon_url: str | None = None,
 ) -> dict[str, Any]:
     from app.services.checkin.common import award_item
 
-    icon = None
-    if with_icon:
+    icon = str(icon_url).strip() if icon_url else None
+    if with_icon and not icon:
         icon = arknights_item_icon_url(
             str(resource_type).strip() if resource_type is not None else None,
             resource_id=resource_id,
@@ -159,6 +171,7 @@ def format_award_items(
             resource_id=resource_id,
             resource_type=resource_type,
             with_icon=with_icons,
+            icon_url=_resource_icon_url(res, a),
         )
         items.append(item)
         parts.append(f"{name}x{count}")
@@ -209,6 +222,7 @@ def endfield_awards_from_sign_resp(
                 resource_id=award_id,
                 resource_type=res.get("type"),
                 with_icon=False,
+                icon_url=_resource_icon_url(res),
             )
         )
         parts.append(f"{name}x{count}")
@@ -257,6 +271,7 @@ def award_from_resource(
         resource_id=resource_id,
         resource_type=res.get("type"),
         with_icon=with_icon,
+        icon_url=_resource_icon_url(res),
     )
 
 

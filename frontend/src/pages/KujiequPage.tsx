@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, type ReactNode } from "react";
+import { lazy, useMemo, type ReactNode } from "react";
 import {
   fetchKujiequStatus,
   fetchPlatformFeaturesEffective,
@@ -9,12 +9,23 @@ import {
 import { CheckinPageTemplate } from "@/components/CheckinPageTemplate";
 import { KujiequAttendanceCalendarButton } from "@/components/kujiequ/KujiequAttendanceCalendar";
 import { KujiequBindPanel } from "@/components/kujiequ/KujiequBindPanel";
-import { KujiequExchangePanel } from "@/components/kujiequ/KujiequExchangePanel";
 import { PlatformFeatureTabsPage } from "@/components/PlatformFeatureTabsPage";
-import { WwBoxPanel } from "@/components/kujiequ/WwBoxPanel";
 import { useRoleMembershipPicker } from "@/hooks/useRoleMembershipPicker";
 import { hasKujiequAttendanceCalendar } from "@/lib/kujiequAttendance";
 import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
+
+const KujiequExchangePanel = lazy(() =>
+  import("@/components/kujiequ/KujiequExchangePanel").then((m) => ({
+    default: m.KujiequExchangePanel,
+  })),
+);
+
+const WwBoxPanel = lazy(() =>
+  import("@/components/kujiequ/WwBoxPanel").then((m) => ({
+    default: m.WwBoxPanel,
+  })),
+);
 
 type TabKey = "checkin" | "exchange" | "ww";
 
@@ -25,7 +36,7 @@ export default function KujiequPage() {
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
   const statusQuery = useQuery({
@@ -60,6 +71,7 @@ export default function KujiequPage() {
             triggerCheckin={triggerKujiequCheckin}
             updateRolePref={updateKujiequRolePref}
             platformIcon="kujiequ"
+            onSelectRoles={() => rolePicker.openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               if (
@@ -103,7 +115,7 @@ export default function KujiequPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange, showWw, statusQuery.data]);
+  }, [showCheckin, showExchange, showWw, statusQuery.data, rolePicker.openPicker]);
 
   return (
     <PlatformFeatureTabsPage

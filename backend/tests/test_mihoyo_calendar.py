@@ -2,6 +2,7 @@
 
 from app.services.mihoyo.calendar import (
     parse_mihoyo_attendance_calendar,
+    parse_today_mihoyo_awards,
     select_today_awards,
 )
 
@@ -82,3 +83,27 @@ def test_missed_days_mark_unreliable() -> None:
     }
     out = parse_mihoyo_attendance_calendar(raw)
     assert out["progress_reliable"] is False
+
+
+def test_parse_today_awards_prefers_home_icons() -> None:
+    text, items = parse_today_mihoyo_awards(
+        {"is_sign": True, "total_sign_day": 2, "today": "2"},
+        {
+            "awards": [
+                {"name": "A", "cnt": 1, "icon": "https://example.com/a.png"},
+                {"name": "原石", "cnt": 20, "icon": "https://example.com/p.png"},
+                {"name": "C", "cnt": 3},
+            ]
+        },
+    )
+    assert text == "原石×20"
+    assert len(items) == 1
+    assert items[0]["icon_url"] == "https://example.com/p.png"
+
+
+def test_parse_today_awards_empty_without_home() -> None:
+    text, items = parse_today_mihoyo_awards(
+        {"is_sign": True, "total_sign_day": 5, "today": "5"}
+    )
+    assert text is None
+    assert items == []

@@ -232,7 +232,6 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
     github_token = cfg.get("github_token") or ""
     pelican_url = cfg.get("pelican_base_url") or ""
     pelican_token = cfg.get("pelican_client_token") or ""
-    pelican_app = cfg.get("pelican_application_token") or ""
     pelican_uuid = cfg.get("pelican_server_uuid") or ""
     rcon_host = cfg.get("minecraft_rcon_host") or ""
     rcon_port = _parse_rcon_port(cfg.get("minecraft_rcon_port"))
@@ -253,8 +252,6 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         "pelican_base_url": pelican_url,
         "pelican_client_token": pelican_token,
         "pelican_client_token_set": bool(pelican_token),
-        "pelican_application_token": pelican_app,
-        "pelican_application_token_set": bool(pelican_app),
         "pelican_server_uuid": pelican_uuid,
         "pelican_configured": bool(pelican_url and pelican_token and pelican_uuid),
         "minecraft_rcon_host": rcon_host,
@@ -316,16 +313,6 @@ def get_pelican_credentials(db: Session | None = None) -> tuple[str, str, str]:
     session = SessionLocal()
     try:
         return _read(session)
-    finally:
-        session.close()
-
-
-def get_pelican_application_token(db: Session | None = None) -> str:
-    if db is not None:
-        return load_integrations(db).get("pelican_application_token") or ""
-    session = SessionLocal()
-    try:
-        return load_integrations(session).get("pelican_application_token") or ""
     finally:
         session.close()
 

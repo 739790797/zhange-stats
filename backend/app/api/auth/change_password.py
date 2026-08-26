@@ -98,8 +98,7 @@ def change_username(
         raise HTTPException(status_code=400, detail="该用户名已被占用")
     current.username = new_username
     db.commit()
-    # JWT sub 是用户名，改后需换发 token
-    token = create_access_token(current.username)
+    token = create_access_token(current.username, user_id=current.id)
     return {
         "ok": True,
         "message": "用户名已更新",

@@ -6,11 +6,11 @@ import json
 import logging
 import secrets
 import uuid
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
+
+from app.core.http_client import HttpRequestError, http_request
 
 logger = logging.getLogger(__name__)
 
@@ -137,20 +137,20 @@ def _post_form(
     body = urllib.parse.urlencode(
         {k: "" if v is None else str(v) for k, v in form.items()}
     ).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=body,
-        headers=headers if headers is not None else _headers(token, creds=creds),
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="ignore")
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="ignore") if exc.fp else ""
-        raise KujiequApiError(f"HTTP {exc.code}: {raw[:200] or exc.reason}") from exc
-    except urllib.error.URLError as exc:
+        resp = http_request(
+            "POST",
+            url,
+            headers=headers if headers is not None else _headers(token, creds=creds),
+            content=body,
+            timeout=timeout,
+        )
+        raw = resp.content.decode("utf-8", errors="ignore")
+        status = resp.status_code
+    except HttpRequestError as exc:
         raise KujiequApiError(f"无法连接库街区: {exc}") from exc
+    if status >= 400:
+        raise KujiequApiError(f"HTTP {status}: {raw[:200]}")
 
     try:
         data = json.loads(raw) if raw else {}
@@ -530,16 +530,3 @@ def exchange_commodity(
     _assert_ok(data)
     payload = data.get("data")
     return payload if isinstance(payload, dict) else {}
-
-
-# 签到逻辑拆至 kujiequ_attendance，此处再导出保持原 import 路径兼容
-from app.services.kujiequ.attendance import (  # noqa: E402
-    do_community_sign_in,
-    do_game_sign_in,
-    friendly_error_message,
-    query_community_today,
-    query_game_today,
-    query_today_all,
-    run_all_checkins,
-    sort_kujiequ_results,
-)

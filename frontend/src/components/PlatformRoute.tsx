@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Spin } from "antd";
 import type { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
 import { fetchPlatformFeaturesEffective } from "@/api/client";
-import {
-  firstEnabledPlatformPath,
-  isFeatureOn,
-} from "@/lib/platformFeatures";
+import { FeatureUnavailablePage } from "@/components/FeatureUnavailablePage";
+import { isFeatureOn } from "@/lib/platformFeatures";
+import { LOCAL_QUERY_STALE_MS, isInitialQueryPending } from "@/lib/queryCache";
 
 export function PlatformRoute({
   featureId,
@@ -18,10 +16,10 @@ export function PlatformRoute({
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
-    staleTime: 30_000,
+    staleTime: LOCAL_QUERY_STALE_MS,
   });
 
-  if (featuresQuery.isLoading) {
+  if (isInitialQueryPending(featuresQuery)) {
     return (
       <div style={{ padding: 48, textAlign: "center" }}>
         <Spin />
@@ -31,11 +29,9 @@ export function PlatformRoute({
 
   if (featuresQuery.isError || !isFeatureOn(featuresQuery.data, featureId)) {
     return (
-      <Navigate
-        to={firstEnabledPlatformPath(
-          featuresQuery.isError ? null : featuresQuery.data,
-        )}
-        replace
+      <FeatureUnavailablePage
+        featureId={featureId}
+        loadError={featuresQuery.isError}
       />
     );
   }

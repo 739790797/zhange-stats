@@ -11,7 +11,7 @@ alwaysApply: false
 - `api/`：参数、依赖、HTTP 状态；**不**直接打第三方上游
 - `services/`：编排与业务，**按域分包**（`checkin/` · `skland/` · `mihoyo/` · `minecraft/` · `tarkov/` …）；横切可留根上。新平台进 `services/<platform>/`，勿在 `services/` 根新增 `*_client.py`
 - `models/`：表结构
-- 签到：`checkin.orchestrator` + 各平台 `CheckinPlatformAdapter`；状态/upsert/`apply_bind_last_checkin` 走 `checkin.common`（摘要字段**仅签到动作**后写）
+- 签到：`checkin.orchestrator` + 各平台 `CheckinPlatformAdapter`；状态/upsert 走 `checkin.common`（今日权威只写 `*_checkin_logs`）
 - 新平台签到 checklist：实现 `services/<platform>/client.py` / `attendance.py`（出口 `(session, list[CheckinResult])`）→ 实现 Adapter → 注册进 `checkin.registry.ADAPTERS` → prefs `PLATFORM_*` + Bind/Log/Alembic + API `build_checkin_status` + scheduler 挂 `checkin_job_wrapper`；**勿**再复制 `query_today_for_bind` / `run_checkin_for_bind` 骨架
 
 ### Adapter 可选钩子（按需实现，勿抬进 orchestrator）
@@ -37,12 +37,13 @@ alwaysApply: false
 - 时间：`app.core.timeutil`（北京墙钟）
 - 密钥：`crypto_secret` Fernet
 - 运行时：`DATA_DIR` / `UPLOAD_DIR` 相对路径相对**安装根**（默认 `var/data`、`var/uploads`），见 `app.core.paths`；勿按 cwd 写进 `backend/` / `frontend/`
-- 限流 + 短时 KV（扫码 / 森空岛 cred）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 README「部署形态」）
+- 限流 + 短时 KV（扫码 / 森空岛 cred）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 `docs/deploy.md`「部署形态」）
+- 出站 HTTP：`app.core.http_client.http_request`（进程级 httpx）；勿每次新建 `httpx.Client` / `urllib.urlopen`
 - QQ 登录：一次性 ticket，勿把 JWT 放回调 query
 
 ## 数据库
 
-改 `models/` → Alembic + README 表结构；勿扩 `schema_ensure`（见 `db-schema-readme.mdc`）。
+改 `models/` → Alembic + `docs/database.md`；勿扩 `schema_ensure`（见 `db-schema-readme.mdc`）。
 
 ## 测试
 

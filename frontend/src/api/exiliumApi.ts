@@ -49,15 +49,6 @@ export async function unbindExilium() {
   return data;
 }
 
-export async function updateExiliumBind(payload: {
-  auto_checkin?: boolean;
-  checkin_hour?: number;
-  checkin_minute?: number;
-}) {
-  const { data } = await client.patch<ExiliumStatus>("/exilium/bind", payload);
-  return data;
-}
-
 export async function updateExiliumRolePref(
   payload: components["schemas"]["CheckinRolePrefUpdate"],
 ) {

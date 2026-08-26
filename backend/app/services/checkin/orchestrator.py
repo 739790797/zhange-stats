@@ -18,7 +18,6 @@ from app.services.checkin.adapter import (
 from app.services.checkin.common import (
     LOG_SOURCE_ACTION,
     LOG_SOURCE_STATUS,
-    apply_bind_last_checkin,
     day_results_payload,
     load_day_checkin_results,
     results_to_api,
@@ -63,6 +62,8 @@ def query_today_for_bind(
 
     try:
         session = adapter.load_session(db, bind)
+        # 结束当前事务，把连接还给池，再打上游
+        db.commit()
         session, results = adapter.query_today_all(session)
     except adapter.api_error_cls as exc:
         adapter.reraise_api_error(exc)
@@ -144,6 +145,7 @@ def run_checkin_for_bind(
 
     try:
         session = adapter.load_session(db, bind)
+        db.commit()
         outcome = adapter.run_checkins(
             session, force=force, role_keys=role_keys
         )
@@ -167,9 +169,6 @@ def run_checkin_for_bind(
         bind, results, force=force, checkin_date=checkin_date
     )
     now = now_naive()
-    apply_bind_last_checkin(
-        bind, now=now, checkin_date=checkin_date, ok=ok, summary=summary
-    )
     merged = adapter.normalize_results(
         upsert_and_reload_day_results(
             db,
