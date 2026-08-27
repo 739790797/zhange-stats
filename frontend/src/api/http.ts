@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useAuthStore } from "@/stores/authStore";
 
 export const client = axios.create({
@@ -10,6 +11,10 @@ client.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const url = String(config.url || "");
+  if (url.includes("/guides/tarkov")) {
+    config.params = { game_mode: getTarkovGameMode(), ...config.params };
   }
   return config;
 });

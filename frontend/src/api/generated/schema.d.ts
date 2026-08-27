@@ -10229,6 +10229,11 @@ export interface components {
              * @default 8
              */
             max_members: number;
+            /**
+             * Is Member
+             * @default false
+             */
+            is_member: boolean;
             /** Created At */
             created_at?: string | null;
             /** Expire At */
@@ -10240,11 +10245,6 @@ export interface components {
              * @default false
              */
             is_host: boolean;
-            /**
-             * Is Member
-             * @default false
-             */
-            is_member: boolean;
             /**
              * Can Edit
              * @default false
@@ -10287,6 +10287,11 @@ export interface components {
              * @default 8
              */
             max_members: number;
+            /**
+             * Is Member
+             * @default false
+             */
+            is_member: boolean;
             /** Created At */
             created_at?: string | null;
             /** Expire At */
@@ -10314,6 +10319,8 @@ export interface components {
             x2?: number | null;
             /** Z2 */
             z2?: number | null;
+            /** Points */
+            points?: number[][] | null;
         };
         /** TarkovRaidRoomMarkOut */
         TarkovRaidRoomMarkOut: {
@@ -10334,6 +10341,8 @@ export interface components {
             x2?: number | null;
             /** Z2 */
             z2?: number | null;
+            /** Points */
+            points?: number[][] | null;
             /** Author User Id */
             author_user_id: number;
             /**
@@ -17068,7 +17077,10 @@ export interface operations {
     };
     guides_tarkov_items_sync_api_guides_tarkov_items_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17084,6 +17096,15 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovItemsSyncOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_item_catalog_api_guides_tarkov_items_get: {
@@ -17094,6 +17115,8 @@ export interface operations {
                 q?: string | null;
                 page?: number;
                 page_size?: number;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17125,6 +17148,8 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17154,7 +17179,10 @@ export interface operations {
     };
     guides_tarkov_item_detail_api_guides_tarkov_items__item_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 item_id: string;
@@ -17185,7 +17213,10 @@ export interface operations {
     };
     guides_tarkov_ammo_api_guides_tarkov_ammo_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17201,11 +17232,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovAmmoCatalogOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 item_id: string;
@@ -17236,7 +17279,10 @@ export interface operations {
     };
     guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17252,11 +17298,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovAmmoSyncOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_guns_api_guides_tarkov_guns_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17272,11 +17330,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovGunCatalogOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17292,11 +17362,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovGunSyncOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17310,6 +17392,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovTasksSyncOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -17326,6 +17417,8 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 layout?: string | null;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17363,6 +17456,8 @@ export interface operations {
                 types?: string | null;
                 progress?: boolean;
                 progress_status?: string | null;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17394,6 +17489,8 @@ export interface operations {
         parameters: {
             query?: {
                 progress?: boolean;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path: {
@@ -17425,7 +17522,10 @@ export interface operations {
     };
     guides_tarkov_traders_sync_api_guides_tarkov_traders_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17441,11 +17541,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovTradersSyncOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_trader_catalog_api_guides_tarkov_traders_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17461,6 +17573,15 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovTraderCatalogOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_trader_detail_api_guides_tarkov_traders__trader_slug__get: {
@@ -17470,6 +17591,8 @@ export interface operations {
                 q?: string | null;
                 page?: number;
                 page_size?: number;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path: {
@@ -17501,7 +17624,10 @@ export interface operations {
     };
     guides_tarkov_bosses_sync_api_guides_tarkov_bosses_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17517,11 +17643,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovBossesSyncOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_boss_catalog_api_guides_tarkov_bosses_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17537,11 +17675,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovBossCatalogOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_boss_detail_api_guides_tarkov_bosses__boss_slug__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 boss_slug: string;
@@ -17572,7 +17722,10 @@ export interface operations {
     };
     guides_tarkov_map_catalog_api_guides_tarkov_maps_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17588,11 +17741,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovMapCatalogOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 map_slug: string;
@@ -17623,7 +17788,10 @@ export interface operations {
     };
     guides_tarkov_guides_sync_api_guides_tarkov_guides_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17639,11 +17807,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovGuidesSyncOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_hideout_catalog_api_guides_tarkov_hideout_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17659,11 +17839,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovHideoutCatalogOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_hideout_detail_api_guides_tarkov_hideout__station_slug__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 station_slug: string;
@@ -17699,6 +17891,8 @@ export interface operations {
                 trader?: string | null;
                 page?: number;
                 page_size?: number;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17733,6 +17927,8 @@ export interface operations {
                 station?: string | null;
                 page?: number;
                 page_size?: number;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17767,6 +17963,8 @@ export interface operations {
                 tier?: string | null;
                 page?: number;
                 page_size?: number;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
             };
             header?: never;
             path?: never;
@@ -17796,7 +17994,10 @@ export interface operations {
     };
     guides_tarkov_progress_status_api_guides_tarkov_progress_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17812,11 +18013,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovTrackerStatusOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_progress_bind_api_guides_tarkov_progress_tracker_token_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17849,7 +18062,10 @@ export interface operations {
     };
     guides_tarkov_progress_unbind_api_guides_tarkov_progress_tracker_token_delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17865,11 +18081,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovTrackerStatusOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     guides_tarkov_progress_sync_api_guides_tarkov_progress_sync_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17883,6 +18111,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovTrackerStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

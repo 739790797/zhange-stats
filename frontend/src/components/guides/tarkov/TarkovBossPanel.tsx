@@ -13,6 +13,7 @@ import {
   type TarkovBossLoot,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { formatMoney } from "@/lib/tarkovItemFormat";
@@ -32,8 +33,9 @@ function formatChance(chance: number | undefined): string {
 }
 
 export function TarkovBossPanel({ slug }: Props) {
+  const gameMode = useTarkovGameMode();
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-boss", slug],
+    queryKey: ["guides-tarkov-boss", gameMode, slug],
     queryFn: () => fetchTarkovBossDetail(slug),
     staleTime: 60_000,
     retry: 1,

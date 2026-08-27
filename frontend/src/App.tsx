@@ -8,6 +8,7 @@ import { PlatformRoute } from "@/components/PlatformRoute";
 import { RouteFallback } from "@/components/RouteFallback";
 import { SetupGate } from "@/components/SetupGate";
 import { antdLocale } from "@/locales/zhCN";
+import { TarkovGameModeProvider } from "@/lib/tarkovGameMode";
 import { antdAppTheme } from "@/theme/antdApp";
 
 const AppLayout = lazy(() =>
@@ -129,9 +130,11 @@ export default function App() {
               <Route
                 element={
                   <PrivateRoute>
-                    <Suspense fallback={<RouteFallback />}>
-                      <AppLayout />
-                    </Suspense>
+                    <TarkovGameModeProvider>
+                      <Suspense fallback={<RouteFallback />}>
+                        <AppLayout />
+                      </Suspense>
+                    </TarkovGameModeProvider>
                   </PrivateRoute>
                 }
               >

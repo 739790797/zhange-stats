@@ -7,12 +7,14 @@ import {
   TARKOV_HIDEOUT_PATH,
   TARKOV_HOME_PATH,
 } from "@/lib/tarkovHomeNav";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
 
 export default function TarkovHideoutDetailPage() {
   const { stationSlug = "" } = useParams<{ stationSlug: string }>();
+  const gameMode = useTarkovGameMode();
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-hideout-station", stationSlug],
+    queryKey: ["guides-tarkov-hideout-station", gameMode, stationSlug],
     queryFn: () => fetchTarkovHideoutStation(stationSlug),
     staleTime: 5 * 60_000,
     retry: 1,

@@ -9,6 +9,7 @@ import {
   type TarkovHideoutStation,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_HIDEOUT_PATH,
   tarkovHideoutHref,
@@ -31,12 +32,13 @@ function levelCost(level: TarkovHideoutLevel): number | null {
 }
 
 export function TarkovHideoutPanel({ stationSlug }: Props) {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const selected =
     stationSlug || (searchParams.get("station") || "").trim() || "all";
 
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-hideout"],
+    queryKey: ["guides-tarkov-hideout", gameMode],
     queryFn: fetchTarkovHideout,
     staleTime: 5 * 60_000,
     retry: 1,

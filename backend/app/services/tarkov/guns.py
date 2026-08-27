@@ -22,6 +22,7 @@ from app.services.tarkov.ammo import (
     _http_request,
     normalize_caliber,
 )
+from app.services.tarkov.game_mode import graphql_game_mode
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,8 @@ _WEAPON_CLASS_IDS: dict[str, str] = {
 }
 
 _GUN_QUERY = """
-query GunSync($lang: LanguageCode) {
-  items(types: [gun], lang: $lang) {
+query GunSync($lang: LanguageCode, $gameMode: GameMode) {
+  items(types: [gun], lang: $lang, gameMode: $gameMode) {
     id
     name
     shortName
@@ -442,7 +443,11 @@ def parse_gun_raw(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def download_graphql_guns(*, lang: str = "zh") -> GunUpstreamBundle:
-    attempts: list[dict[str, Any] | None] = [{"lang": lang}, None]
+    attempts: list[dict[str, Any] | None] = [
+        {"lang": lang, "gameMode": graphql_game_mode()},
+        {"lang": lang},
+        None,
+    ]
     last_error: TarkovGunError | None = None
     for variables in attempts:
         body_obj: dict[str, Any] = {"query": _GUN_QUERY}
@@ -450,7 +455,8 @@ def download_graphql_guns(*, lang: str = "zh") -> GunUpstreamBundle:
             body_obj["variables"] = variables
         else:
             body_obj["query"] = _GUN_QUERY.replace(
-                "query GunSync($lang: LanguageCode) {\n  items(types: [gun], lang: $lang) {",
+                "query GunSync($lang: LanguageCode, $gameMode: GameMode) {\n"
+                "  items(types: [gun], lang: $lang, gameMode: $gameMode) {",
                 "query GunSync {\n  items(types: [gun]) {",
             )
         body = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")

@@ -8048,6 +8048,26 @@
         "summary": "Guides Tarkov Items Sync",
         "description": "管理员：回源同步物品（一次写入 ammo+guns 派生）。",
         "operationId": "guides_tarkov_items_sync_api_guides_tarkov_items_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8058,13 +8078,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/items": {
@@ -8152,6 +8177,19 @@
               "default": 50,
               "title": "Page Size"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8202,6 +8240,19 @@
               "default": "",
               "title": "Q"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8250,6 +8301,19 @@
               "type": "string",
               "title": "Item Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8284,6 +8348,26 @@
         "summary": "Guides Tarkov Ammo",
         "description": "弹药穿透/伤害表（派生读模型）。空库时走共享 items 同步。",
         "operationId": "guides_tarkov_ammo_api_guides_tarkov_ammo_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8294,13 +8378,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/ammo/{item_id}": {
@@ -8325,6 +8414,19 @@
               "type": "string",
               "title": "Item Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8359,6 +8461,26 @@
         "summary": "Guides Tarkov Ammo Sync",
         "description": "管理员：与 /items/sync 相同（兼容旧客户端）。",
         "operationId": "guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8369,13 +8491,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/guns": {
@@ -8386,6 +8513,26 @@
         "summary": "Guides Tarkov Guns",
         "description": "枪械总表（派生读模型）。空库时走共享 items 同步。",
         "operationId": "guides_tarkov_guns_api_guides_tarkov_guns_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8396,13 +8543,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/guns/sync": {
@@ -8413,6 +8565,26 @@
         "summary": "Guides Tarkov Guns Sync",
         "description": "管理员：与 /items/sync 相同（兼容旧客户端）。",
         "operationId": "guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8423,13 +8595,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/tasks/sync": {
@@ -8440,6 +8617,26 @@
         "summary": "Guides Tarkov Tasks Sync",
         "description": "管理员：回源同步任务（GraphQL 优先，失败回退 json.tarkov.dev）。",
         "operationId": "guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8450,13 +8647,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/tasks": {
@@ -8607,6 +8809,19 @@
               "default": "table",
               "title": "Layout"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8750,6 +8965,19 @@
               ],
               "title": "Progress Status"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8808,6 +9036,19 @@
               "default": false,
               "title": "Progress"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8842,6 +9083,26 @@
         "summary": "Guides Tarkov Traders Sync",
         "description": "管理员：回源同步商人元数据与现金报价（json.tarkov.dev + 物品 buyFromTrader）。",
         "operationId": "guides_tarkov_traders_sync_api_guides_tarkov_traders_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8852,13 +9113,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/traders": {
@@ -8869,6 +9135,26 @@
         "summary": "Guides Tarkov Trader Catalog",
         "description": "商人目录：头像 / 英文 / 中文简称 / 报价数量。",
         "operationId": "guides_tarkov_trader_catalog_api_guides_tarkov_traders_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8879,13 +9165,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/traders/{trader_slug}": {
@@ -8968,6 +9259,19 @@
               "default": 50,
               "title": "Page Size"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9002,6 +9306,26 @@
         "summary": "Guides Tarkov Bosses Sync",
         "description": "管理员：回源同步 BOSS 出生率 / 生命值 / 护卫（json.tarkov.dev maps）。",
         "operationId": "guides_tarkov_bosses_sync_api_guides_tarkov_bosses_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9012,13 +9336,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/bosses": {
@@ -9029,6 +9358,26 @@
         "summary": "Guides Tarkov Boss Catalog",
         "description": "BOSS 目录：头像 / 英文名 / 中文昵称 / 出生地图。",
         "operationId": "guides_tarkov_boss_catalog_api_guides_tarkov_bosses_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9039,13 +9388,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/bosses/{boss_slug}": {
@@ -9070,6 +9424,19 @@
               "type": "string",
               "title": "Boss Slug"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9104,6 +9471,26 @@
         "summary": "Guides Tarkov Map Catalog",
         "description": "地图目录：时长 / 人数 / 缩略图（读 bosses maps raw）。",
         "operationId": "guides_tarkov_map_catalog_api_guides_tarkov_maps_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9114,13 +9501,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/maps/{map_slug}": {
@@ -9145,6 +9537,19 @@
               "type": "string",
               "title": "Map Slug"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9179,6 +9584,26 @@
         "summary": "Guides Tarkov Guides Sync",
         "description": "管理员：回源同步藏身处 / 以物易物 / 制作。",
         "operationId": "guides_tarkov_guides_sync_api_guides_tarkov_guides_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9189,13 +9614,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/hideout": {
@@ -9206,6 +9636,26 @@
         "summary": "Guides Tarkov Hideout Catalog",
         "description": "藏身处模块与升级材料。",
         "operationId": "guides_tarkov_hideout_catalog_api_guides_tarkov_hideout_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9216,13 +9666,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/hideout/{station_slug}": {
@@ -9247,6 +9702,19 @@
               "type": "string",
               "title": "Station Slug"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9343,6 +9811,19 @@
               "default": 50,
               "title": "Page Size"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9439,6 +9920,19 @@
               "default": 50,
               "title": "Page Size"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9535,6 +10029,19 @@
               "default": 100,
               "title": "Page Size"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9569,6 +10076,26 @@
         "summary": "Guides Tarkov Progress Status",
         "description": "当前用户 Tarkov Tracker 绑定摘要（不回传明文 token）。",
         "operationId": "guides_tarkov_progress_status_api_guides_tarkov_progress_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9579,13 +10106,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/progress/tracker-token": {
@@ -9596,15 +10128,35 @@
         "summary": "Guides Tarkov Progress Bind",
         "description": "绑定 Tarkov Tracker token 并立刻拉取等级 / 进度摘要。",
         "operationId": "guides_tarkov_progress_bind_api_guides_tarkov_progress_tracker_token_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TarkovTrackerBindIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -9627,12 +10179,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "delete": {
         "tags": [
@@ -9641,6 +10188,26 @@
         "summary": "Guides Tarkov Progress Unbind",
         "description": "解绑 Tarkov Tracker token。",
         "operationId": "guides_tarkov_progress_unbind_api_guides_tarkov_progress_tracker_token_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9651,13 +10218,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/progress/sync": {
@@ -9668,6 +10240,26 @@
         "summary": "Guides Tarkov Progress Sync",
         "description": "已绑定：从 Tarkov Tracker 再拉一次进度摘要。",
         "operationId": "guides_tarkov_progress_sync_api_guides_tarkov_progress_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9678,13 +10270,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/minecraft/files": {
@@ -24686,6 +25283,11 @@
             "title": "Max Members",
             "default": 8
           },
+          "is_member": {
+            "type": "boolean",
+            "title": "Is Member",
+            "default": false
+          },
           "created_at": {
             "anyOf": [
               {
@@ -24722,11 +25324,6 @@
           "is_host": {
             "type": "boolean",
             "title": "Is Host",
-            "default": false
-          },
-          "is_member": {
-            "type": "boolean",
-            "title": "Is Member",
             "default": false
           },
           "can_edit": {
@@ -24802,6 +25399,11 @@
             "type": "integer",
             "title": "Max Members",
             "default": 8
+          },
+          "is_member": {
+            "type": "boolean",
+            "title": "Is Member",
+            "default": false
           },
           "created_at": {
             "anyOf": [
@@ -24890,6 +25492,23 @@
               }
             ],
             "title": "Z2"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
           }
         },
         "type": "object",
@@ -24944,6 +25563,23 @@
               }
             ],
             "title": "Z2"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
           },
           "author_user_id": {
             "type": "integer",

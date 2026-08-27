@@ -2,6 +2,20 @@
   padding: 24px 28px 32px;
 }
 
+.innerFill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 12px 12px;
+}
+
+.innerFill > * {
+  flex: 1;
+  min-height: 0;
+}
+
 .crumbs {
   display: flex;
   flex-wrap: wrap;

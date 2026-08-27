@@ -9,17 +9,19 @@ import {
   TARKOV_HOME_PATH,
   tarkovBossHref,
 } from "@/lib/tarkovHomeNav";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
 
 export default function TarkovBossPage() {
   const { bossSlug = "" } = useParams<{ bossSlug: string }>();
+  const gameMode = useTarkovGameMode();
   const known = TARKOV_BOSSES.find(
     (item) =>
       item.id === bossSlug ||
       tarkovBossHref(item.id).endsWith(`/${encodeURIComponent(bossSlug)}`),
   );
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-boss", bossSlug],
+    queryKey: ["guides-tarkov-boss", gameMode, bossSlug],
     queryFn: () => fetchTarkovBossDetail(bossSlug),
     staleTime: 60_000,
     retry: 1,

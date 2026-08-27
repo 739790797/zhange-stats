@@ -186,6 +186,16 @@
   color: var(--hb-orange, #c8932a);
 }
 
+.extractCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.extractCell img {
+  flex: none;
+}
+
 @media (max-width: 720px) {
   .nameTitle {
     font-size: 26px;

@@ -9,8 +9,10 @@ import {
   type TarkovMapExtract,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { tarkovBossHref, tarkovMapHref } from "@/lib/tarkovHomeNav";
+import { tarkovExtractStyle } from "@/lib/tarkovMapExtracts";
 import { PanelFallback } from "@/components/RouteFallback";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovMapsPanel.module.css";
@@ -26,8 +28,9 @@ type Props = {
 };
 
 export function TarkovMapDetailPanel({ slug }: Props) {
+  const gameMode = useTarkovGameMode();
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-map", slug],
+    queryKey: ["guides-tarkov-map", gameMode, slug],
     queryFn: () => fetchTarkovMapDetail(slug),
     staleTime: 5 * 60_000,
     retry: 1,
@@ -58,7 +61,19 @@ export function TarkovMapDetailPanel({ slug }: Props) {
   if (!detail) return null;
 
   const extractColumns: ColumnsType<TarkovMapExtract> = [
-    { title: "撤离点", dataIndex: "name", key: "name" },
+    {
+      title: "撤离点",
+      key: "name",
+      render: (_: unknown, row) => {
+        const marker = tarkovExtractStyle(row.faction);
+        return (
+          <span className={styles.extractCell}>
+            <img src={marker.iconUrl} alt="" width={18} height={18} />
+            <span style={{ color: marker.color }}>{row.name}</span>
+          </span>
+        );
+      },
+    },
     { title: "阵营", dataIndex: "faction", key: "faction", width: 100 },
   ];
   const bossColumns: ColumnsType<TarkovMapBoss> = [

@@ -8,6 +8,7 @@ import {
   type TarkovTraderOffer,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TARKOV_TASKS_PATH, tarkovTaskHref } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { formatMoney } from "@/lib/tarkovItemFormat";
@@ -44,6 +45,7 @@ function restockLabel(resetTime: string | undefined, nowMs: number): string {
 }
 
 export function TarkovTraderPanel({ slug }: Props) {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const levelRaw = Number(searchParams.get("level") || "");
   const level =
@@ -87,7 +89,7 @@ export function TarkovTraderPanel({ slug }: Props) {
   }, []);
 
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-trader", slug, level, q, pageNo, pageSize],
+    queryKey: ["guides-tarkov-trader", gameMode, slug, level, q, pageNo, pageSize],
     queryFn: () =>
       fetchTarkovTraderDetail(slug, {
         level,

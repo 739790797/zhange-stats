@@ -761,6 +761,7 @@ class TarkovRaidRoomMarkIn(BaseModel):
     z: float
     x2: float | None = None
     z2: float | None = None
+    points: list[list[float]] | None = None
 
 
 class TarkovRaidRoomMemberOut(BaseModel):
@@ -787,6 +788,7 @@ class TarkovRaidRoomMarkOut(BaseModel):
     z: float
     x2: float | None = None
     z2: float | None = None
+    points: list[list[float]] | None = None
     author_user_id: int
     author_display_name: str = ""
     created_at: str | None = None
@@ -801,6 +803,7 @@ class TarkovRaidRoomLobbyItemOut(BaseModel):
     host_display_name: str = ""
     member_count: int = 0
     max_members: int = 8
+    is_member: bool = False
     created_at: str | None = None
     expire_at: str | None = None
 

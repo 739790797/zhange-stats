@@ -8,6 +8,7 @@ import {
   type TarkovTaskListItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_TRADERS,
   tarkovTaskHref,
@@ -57,6 +58,7 @@ const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 export function TarkovTasksPanel() {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
   const pstatus = (searchParams.get("pstatus") || "").trim();
@@ -104,6 +106,7 @@ export function TarkovTasksPanel() {
   const catalogQuery = useQuery({
     queryKey: [
       "guides-tarkov-tasks",
+      gameMode,
       trader,
       q,
       pageNo,

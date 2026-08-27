@@ -18,6 +18,15 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTasksMeta, TarkovTasksRaw
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API, TARKOV_GRAPHQL_URL
+from app.services.tarkov.game_mode import (
+    cache_key,
+    graphql_game_mode,
+    json_api_prefix,
+    json_resource_url,
+    parse_game_mode,
+    raw_row_id,
+    run_for_modes,
+)
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
@@ -37,8 +46,8 @@ TARKOV_JSON_TASKS_URL = "https://json.tarkov.dev/regular/tasks"
 TARKOV_JSON_TASKS_LOCALE_URL = "https://json.tarkov.dev/regular/tasks_{lang}"
 
 _TASKS_QUERY = """
-query TasksSync($lang: LanguageCode) {
-  tasks(lang: $lang) {
+query TasksSync($lang: LanguageCode, $gameMode: GameMode) {
+  tasks(lang: $lang, gameMode: $gameMode) {
     id
     name
     normalizedName
@@ -347,7 +356,10 @@ def _is_placeholder_name(task_id: str, name: str) -> bool:
     n = (name or "").strip()
     if not n:
         return True
-    if task_id and task_id in n and n.lower().endswith(" name"):
+    ident = (task_id or "").strip()
+    if ident and n == ident:
+        return True
+    if ident and ident in n and n.lower().endswith(" name"):
         return True
     return False
 
@@ -502,7 +514,7 @@ def parse_graphql_tasks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def download_graphql_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
     body = json.dumps(
-        {"query": _TASKS_QUERY, "variables": {"lang": lang}},
+        {"query": _TASKS_QUERY, "variables": {"lang": lang, "gameMode": graphql_game_mode()}},
         ensure_ascii=False,
     ).encode("utf-8")
     raw = _http_request(
@@ -527,7 +539,7 @@ def download_graphql_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
 
 
 def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
-    raw = _http_request(TARKOV_JSON_TASKS_URL, timeout=90)
+    raw = _http_request(json_resource_url("tasks"), timeout=90)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -541,7 +553,7 @@ def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
     locale: dict[str, Any] = {}
     try:
         loc_raw = _http_request(
-            TARKOV_JSON_TASKS_LOCALE_URL.format(lang=lang),
+            json_resource_url("tasks", lang=lang),
             timeout=60,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
@@ -559,7 +571,7 @@ def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
     return TasksUpstreamBundle(
         source=SOURCE_JSON_API,
         payload={"tasks": tasks, "locale": locale, "questItems": quest_items},
-        note="json.tarkov.dev/regular/tasks",
+        note=f"json.tarkov.dev/{json_api_prefix()}/tasks",
     )
 
 
@@ -893,13 +905,30 @@ def apply_requirement_progress(
     return out
 
 
-def _named_ref(value: Any, locale: dict[str, Any], *, kind: str) -> dict[str, str]:
+def _named_ref(
+    value: Any,
+    locale: dict[str, Any],
+    *,
+    kind: str,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     ident = _id_of(value)
     name = ""
     slug = ""
+    icon = ""
+    types: list[str] = []
     if isinstance(value, dict):
         name = str(value.get("name") or "").strip()
         slug = str(value.get("normalizedName") or "").strip()
+        icon = str(
+            value.get("iconLink")
+            or value.get("icon_link")
+            or value.get("baseImageLink")
+            or ""
+        ).strip()
+        raw_types = value.get("types")
+        if isinstance(raw_types, list):
+            types = [str(t) for t in raw_types if t is not None and str(t).strip()]
     if kind == "map" and ident:
         slug2, name2 = map_info(ident, value if isinstance(value, dict) else None)
         slug = slug2 or slug
@@ -921,16 +950,25 @@ def _named_ref(value: Any, locale: dict[str, Any], *, kind: str) -> dict[str, st
         if loc:
             name = loc
         elif not name or _is_placeholder_name(ident, name):
-            name = ident
-    icon = ""
-    if isinstance(value, dict):
-        icon = str(
-            value.get("iconLink")
-            or value.get("icon_link")
-            or value.get("baseImageLink")
-            or ""
-        ).strip()
-    return {"id": ident, "slug": slug, "name": name or ident, "icon_link": icon, "types": []}
+            qi = (quest_items or {}).get(ident)
+            if isinstance(qi, dict):
+                qname = str(qi.get("name") or "").strip()
+                if qname and not _is_placeholder_name(ident, qname):
+                    name = qname
+                if not icon:
+                    icon = str(
+                        qi.get("iconLink")
+                        or qi.get("icon_link")
+                        or qi.get("baseImageLink")
+                        or ""
+                    ).strip()
+    return {
+        "id": ident,
+        "slug": slug,
+        "name": name or ident,
+        "icon_link": icon,
+        "types": types,
+    }
 
 
 def _objective_item_values(
@@ -971,7 +1009,7 @@ def _project_objective(
     for raw in item_refs:
         if not _id_of(raw):
             continue
-        ref = _named_ref(raw, locale, kind="item")
+        ref = _named_ref(raw, locale, kind="item", quest_items=quest_items)
         ident = ref["id"]
         if ident in seen:
             continue
@@ -988,7 +1026,9 @@ def _project_objective(
         "maps": maps,
         "items": items,
         "found_in_raid": _as_bool(obj.get("foundInRaid")) if "foundInRaid" in obj else None,
-        "required_keys": _project_required_key_groups(obj.get("requiredKeys"), locale),
+        "required_keys": _project_required_key_groups(
+            obj.get("requiredKeys"), locale, quest_items=quest_items
+        ),
         "exit_status": exit_status,
         "exit_name": exit_name,
         "zones": _project_zones(obj.get("zones"), locale),
@@ -1085,14 +1125,23 @@ def _project_zone_names(raw: Any) -> list[str]:
     return out
 
 
-def _project_required_key_groups(raw: Any, locale: dict[str, Any]) -> list[list[dict[str, str]]]:
+def _project_required_key_groups(
+    raw: Any,
+    locale: dict[str, Any],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> list[list[dict[str, str]]]:
     """目标 requiredKeys：外层多组（多扇门），内层为可替换钥匙（或）。"""
     if not isinstance(raw, list) or not raw:
         return []
     groups: list[list[dict[str, str]]] = []
     for group in raw:
         items = group if isinstance(group, list) else [group]
-        refs = [_named_ref(i, locale, kind="item") for i in items if _id_of(i)]
+        refs = [
+            _named_ref(i, locale, kind="item", quest_items=quest_items)
+            for i in items
+            if _id_of(i)
+        ]
         if refs:
             groups.append(refs)
     return groups
@@ -1121,14 +1170,21 @@ def _needed_keys_from_objectives(
     ]
 
 
-def _project_rewards(raw: Any, locale: dict[str, Any]) -> dict[str, Any]:
+def _project_rewards(
+    raw: Any,
+    locale: dict[str, Any],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {"items": [], "trader_standing": []}
     items_out: list[dict[str, Any]] = []
     for row in raw.get("items") or []:
         if not isinstance(row, dict):
             continue
-        item_ref = _named_ref(row.get("item"), locale, kind="item")
+        item_ref = _named_ref(
+            row.get("item"), locale, kind="item", quest_items=quest_items
+        )
         if not item_ref["id"]:
             continue
         items_out.append({**item_ref, "count": _as_int(row.get("count"), 1)})
@@ -1258,7 +1314,7 @@ def project_task_detail(
             continue
         map_ref = _named_ref(row.get("map"), locale, kind="map")
         keys = [
-            _named_ref(k, locale, kind="item")
+            _named_ref(k, locale, kind="item", quest_items=quest_items)
             for k in (row.get("keys") or [])
             if _id_of(k)
         ]
@@ -1279,7 +1335,9 @@ def project_task_detail(
                 raw.get("traderRequirements") or raw.get("traderLevelRequirements"),
                 locale,
             ),
-            "finish_rewards": _project_rewards(raw.get("finishRewards"), locale),
+            "finish_rewards": _project_rewards(
+                raw.get("finishRewards"), locale, quest_items=quest_items
+            ),
             "needed_keys": keys_out,
             "restartable": _as_bool(raw.get("restartable")),
         }
@@ -1427,7 +1485,7 @@ def unique_traders(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
 def get_tasks_raw(db: Session) -> TarkovTasksRaw | None:
     return (
         db.query(TarkovTasksRaw)
-        .filter(TarkovTasksRaw.id == RAW_ROW_ID)
+        .filter(TarkovTasksRaw.id == raw_row_id())
         .one_or_none()
     )
 
@@ -1435,7 +1493,7 @@ def get_tasks_raw(db: Session) -> TarkovTasksRaw | None:
 def get_tasks_meta(db: Session) -> TarkovTasksMeta | None:
     return (
         db.query(TarkovTasksMeta)
-        .filter(TarkovTasksMeta.id == META_ROW_ID)
+        .filter(TarkovTasksMeta.id == raw_row_id())
         .one_or_none()
     )
 
@@ -1453,7 +1511,7 @@ def _upsert_raw(
     if row is None:
         db.add(
             TarkovTasksRaw(
-                id=RAW_ROW_ID,
+                id=raw_row_id(),
                 source=source,
                 raw_json=raw_json,
                 synced_at=synced_at,
@@ -1477,7 +1535,7 @@ def _upsert_meta(
 ) -> None:
     meta = get_tasks_meta(db)
     if meta is None:
-        meta = TarkovTasksMeta(id=META_ROW_ID)
+        meta = TarkovTasksMeta(id=raw_row_id())
         db.add(meta)
     meta.source = source
     meta.task_count = task_count
@@ -1516,14 +1574,15 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
     }
 
 
-def sync_from_upstream(db: Session) -> dict[str, Any]:
-    logger.info("syncing tarkov tasks from upstream")
+def _sync_current_mode(db: Session) -> dict[str, Any]:
+    mode = parse_game_mode()
+    logger.info("syncing tarkov tasks from upstream (%s)", mode)
     errors: list[str] = []
     try:
         return persist_tasks_bundle(db, download_graphql_tasks(lang="zh"))
     except TarkovTasksError as exc:
         errors.append(f"graphql: {exc}")
-        logger.warning("tarkov.dev GraphQL tasks sync failed: %s", exc)
+        logger.warning("tarkov.dev GraphQL tasks sync failed (%s): %s", mode, exc)
     try:
         bundle = download_json_api_tasks(lang="zh")
         note = bundle.note
@@ -1536,6 +1595,15 @@ def sync_from_upstream(db: Session) -> dict[str, Any]:
     except TarkovTasksError as exc:
         detail = "；".join(errors) if errors else str(exc)
         raise TarkovTasksError(f"任务同步失败：{detail}；json 亦失败: {exc}") from None
+
+
+def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
+    return run_for_modes(
+        lambda: _sync_current_mode(db),
+        game_mode=game_mode,
+        error_cls=TarkovTasksError,
+        label="任务",
+    )
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
@@ -1557,7 +1625,7 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
 def ensure_tasks(db: Session) -> None:
     if get_tasks_raw(db) is not None:
         return
-    sync_from_upstream(db)
+    sync_from_upstream(db, game_mode=parse_game_mode())
 
 
 def load_parsed_tasks(
@@ -1567,7 +1635,7 @@ def load_parsed_tasks(
     ensure_tasks(db)
     meta = get_tasks_meta(db)
     synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    key = synced or ""
+    key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -1777,6 +1845,9 @@ def list_raid_prep(
         ]
     ordered = sort_task_rows(filtered, by_progress=progress is not None)
     ordered.sort(key=lambda r: not r.get("has_map_markers"))
+    _enrich_items_from_catalog(
+        db, ordered, quest_items=_quest_items_map(payload)
+    )
     return {
         "map_slug": map_slug,
         "map_name": map_name,
@@ -1816,7 +1887,9 @@ def get_task_detail(
     if detail is None:
         raise TarkovTasksError(f"未找到任务: {task_id}")
     detail["source"] = source
-    _enrich_items_from_catalog(db, detail)
+    _enrich_items_from_catalog(
+        db, detail, quest_items=_quest_items_map(payload)
+    )
     detail["progress_bound"] = bool(progress_bound)
     detail["progress_ready"] = progress is not None
     if progress is not None:
@@ -1835,42 +1908,107 @@ def get_task_detail(
     return detail
 
 
-def _iter_named_item_refs(detail: dict[str, Any]):
-    for obj in detail.get("objectives") or []:
-        for group in obj.get("required_keys") or []:
-            yield from group
-        yield from obj.get("items") or []
-    for row in detail.get("needed_keys") or []:
-        yield from row.get("keys") or []
-    for item in (detail.get("finish_rewards") or {}).get("items") or []:
-        yield item
+def _iter_named_item_refs(*details: dict[str, Any]):
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        for obj in detail.get("objectives") or []:
+            for group in obj.get("required_keys") or []:
+                yield from group
+            yield from obj.get("items") or []
+        for row in detail.get("needed_keys") or []:
+            yield from row.get("keys") or []
+        for item in (detail.get("finish_rewards") or {}).get("items") or []:
+            yield item
 
 
-def _enrich_items_from_catalog(db: Session, detail: dict[str, Any]) -> None:
-    """补物品中文名 / 图标 / types，供钥匙与奖励展示。"""
-    refs = [r for r in _iter_named_item_refs(detail) if isinstance(r, dict)]
-    wanted = {
-        str(r.get("id") or "").strip()
-        for r in refs
-        if str(r.get("id") or "").strip()
-    }
+def _quest_item_hits(
+    wanted: set[str],
+    quest_items: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for ident in wanted:
+        raw = quest_items.get(ident)
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if _is_placeholder_name(ident, name):
+            name = ""
+        icon = str(
+            raw.get("iconLink")
+            or raw.get("icon_link")
+            or raw.get("baseImageLink")
+            or ""
+        ).strip()
+        types = raw.get("types") if isinstance(raw.get("types"), list) else []
+        if not name and not icon:
+            continue
+        out[ident] = {
+            "name": name,
+            "icon_link": icon,
+            "types": [str(t) for t in types if t is not None and str(t).strip()],
+        }
+    return out
+
+
+def _apply_item_hits(
+    refs: list[dict[str, Any]],
+    found: dict[str, dict[str, Any]],
+    *,
+    prefer_hit_name: bool,
+) -> None:
+    for ref in refs:
+        ident = str(ref.get("id") or "").strip()
+        hit = found.get(ident)
+        if not hit:
+            continue
+        name = str(hit.get("name") or "").strip()
+        if name and not _is_placeholder_name(ident, name):
+            if prefer_hit_name or _is_placeholder_name(
+                ident, str(ref.get("name") or "")
+            ):
+                ref["name"] = name
+        icon = str(hit.get("icon_link") or "").strip()
+        if icon and (
+            prefer_hit_name or not str(ref.get("icon_link") or "").strip()
+        ):
+            ref["icon_link"] = icon
+        types = hit.get("types") if isinstance(hit.get("types"), list) else []
+        if types and (prefer_hit_name or not ref.get("types")):
+            ref["types"] = list(types)
+
+
+def apply_item_hits_to_details(
+    details: list[dict[str, Any]],
+    found: dict[str, dict[str, Any]],
+    *,
+    prefer_hit_name: bool = True,
+) -> None:
+    """用物品目录命中结果回填任务里的钥匙 / 目标物品名。"""
+    refs = [r for r in _iter_named_item_refs(*details) if isinstance(r, dict)]
+    _apply_item_hits(refs, found, prefer_hit_name=prefer_hit_name)
+
+
+def _lookup_item_hits_from_catalog(
+    db: Session, wanted: set[str]
+) -> dict[str, dict[str, Any]]:
     if not wanted:
-        return
+        return {}
     try:
         from app.services.tarkov.catalog import _row_from_raw, iter_raw_items
         from app.services.tarkov.items import get_items_raw
         from app.services.tarkov.items import _locale_map as items_locale
     except Exception:  # noqa: BLE001
-        return
+        return {}
     row = get_items_raw(db)
     if row is None:
-        return
+        return {}
     try:
         items_payload = json.loads(row.raw_json)
     except (TypeError, json.JSONDecodeError):
-        return
+        return {}
     if not isinstance(items_payload, dict):
-        return
+        return {}
     locale = items_locale(items_payload)
     found: dict[str, dict[str, Any]] = {}
     try:
@@ -1884,25 +2022,32 @@ def _enrich_items_from_catalog(db: Session, detail: dict[str, Any]) -> None:
                 break
     except Exception:  # noqa: BLE001
         logger.warning("task item enrich: catalog unavailable", exc_info=True)
+        return {}
+    return found
+
+
+def _enrich_items_from_catalog(
+    db: Session,
+    detail: dict[str, Any] | list[dict[str, Any]],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    """补物品中文名 / 图标 / types，供钥匙与奖励展示。"""
+    rows = detail if isinstance(detail, list) else [detail]
+    refs = [r for r in _iter_named_item_refs(*rows) if isinstance(r, dict)]
+    wanted = {
+        str(r.get("id") or "").strip()
+        for r in refs
+        if str(r.get("id") or "").strip()
+    }
+    if not wanted:
         return
-    if not found:
-        return
-    for ref in refs:
-        ident = str(ref.get("id") or "").strip()
-        hit = found.get(ident)
-        if not hit:
-            continue
-        name = str(hit.get("name") or "").strip()
-        if name and (
-            not str(ref.get("name") or "").strip()
-            or str(ref.get("name") or "").strip() == ident
-            or _is_placeholder_name(ident, str(ref.get("name") or ""))
-        ):
-            ref["name"] = name
-        if hit.get("icon_link"):
-            ref["icon_link"] = hit["icon_link"]
-        if hit.get("types"):
-            ref["types"] = list(hit["types"])
+    catalog_hits = _lookup_item_hits_from_catalog(db, wanted)
+    if catalog_hits:
+        _apply_item_hits(refs, catalog_hits, prefer_hit_name=True)
+    qi_hits = _quest_item_hits(wanted, quest_items or {})
+    if qi_hits:
+        _apply_item_hits(refs, qi_hits, prefer_hit_name=False)
 
 
 def tasks_sync_job_wrapper() -> None:

@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovTraders } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovTraderHref } from "@/lib/tarkovHomeNav";
 import styles from "./TarkovTraderPanel.module.css";
 
 export function TarkovTradersHubPanel() {
+  const gameMode = useTarkovGameMode();
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-traders"],
+    queryKey: ["guides-tarkov-traders", gameMode],
     queryFn: fetchTarkovTraders,
     staleTime: 5 * 60_000,
     retry: 1,

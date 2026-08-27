@@ -115,6 +115,22 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
             event = str(raw.get("event") or "").strip()
             if event == "ping":
                 await client.send_json({"event": "pong"})
+                continue
+            if event == "draw_draft":
+                if not snapshot.get("can_edit"):
+                    continue
+                draft = rooms_svc.parse_draw_draft(raw)
+                if draft is None:
+                    continue
+                hub.publish(
+                    public_id,
+                    {
+                        "event": "draw_draft",
+                        "user_id": user.id,
+                        "floor": draft["floor"],
+                        "points": draft["points"],
+                    },
+                )
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001

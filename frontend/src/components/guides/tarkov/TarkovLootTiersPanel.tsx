@@ -8,6 +8,7 @@ import {
   type TarkovLootTierItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import { TarkovGuideItemCell } from "@/components/guides/tarkov/TarkovGuideItemCell";
@@ -29,6 +30,7 @@ const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 export function TarkovLootTiersPanel() {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = (searchParams.get("q") || "").trim();
   const tier = (searchParams.get("tier") || "").trim().toUpperCase();
@@ -61,7 +63,7 @@ export function TarkovLootTiersPanel() {
   }, [keyword, searchParams, setSearchParams]);
 
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-loot-tiers", q, tier, pageNo, pageSize],
+    queryKey: ["guides-tarkov-loot-tiers", gameMode, q, tier, pageNo, pageSize],
     queryFn: () =>
       fetchTarkovLootTiers({
         q,

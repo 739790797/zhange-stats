@@ -13,6 +13,14 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovGuidesMeta, TarkovGuidesRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
+from app.services.tarkov.game_mode import (
+    cache_key,
+    json_api_prefix,
+    json_resource_url,
+    parse_game_mode,
+    raw_row_id,
+    run_for_modes,
+)
 from app.services.tarkov.http import download_bytes
 from app.services.tarkov.tasks import TRADER_BY_ID
 
@@ -111,26 +119,26 @@ def _download_json(url: str) -> dict[str, Any]:
 
 
 def download_json_guides(*, lang: str = "zh") -> GuidesUpstreamBundle:
-    hideout_payload = _download_json(TARKOV_JSON_HIDEOUT_URL)
+    hideout_payload = _download_json(json_resource_url("hideout"))
     hideout = hideout_payload.get("data")
     if not isinstance(hideout, dict) or not hideout:
         raise TarkovGuidesError("json.tarkov.dev hideout 为空")
 
     locale: dict[str, Any] = {}
     try:
-        loc_payload = _download_json(TARKOV_JSON_HIDEOUT_LOCALE_URL.format(lang=lang))
+        loc_payload = _download_json(json_resource_url("hideout", lang=lang))
         loc_data = loc_payload.get("data")
         if isinstance(loc_data, dict):
             locale = loc_data
     except TarkovGuidesError:
         logger.warning("json.tarkov.dev hideout_%s locale unavailable", lang)
 
-    barters_payload = _download_json(TARKOV_JSON_BARTERS_URL)
+    barters_payload = _download_json(json_resource_url("barters"))
     barters = barters_payload.get("data")
     if not isinstance(barters, list):
         raise TarkovGuidesError("json.tarkov.dev barters 格式无效")
 
-    crafts_payload = _download_json(TARKOV_JSON_CRAFTS_URL)
+    crafts_payload = _download_json(json_resource_url("crafts"))
     crafts = crafts_payload.get("data")
     if not isinstance(crafts, list):
         raise TarkovGuidesError("json.tarkov.dev crafts 格式无效")
@@ -143,7 +151,7 @@ def download_json_guides(*, lang: str = "zh") -> GuidesUpstreamBundle:
             "crafts": crafts,
             "locale": locale,
         },
-        note="json.tarkov.dev/regular/hideout+barters+crafts",
+        note=f"json.tarkov.dev/{json_api_prefix()}/hideout+barters+crafts",
     )
 
 
@@ -338,11 +346,11 @@ def parse_crafts(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def get_guides_raw(db: Session) -> TarkovGuidesRaw | None:
-    return db.get(TarkovGuidesRaw, RAW_ROW_ID)
+    return db.get(TarkovGuidesRaw, raw_row_id())
 
 
 def get_guides_meta(db: Session) -> TarkovGuidesMeta | None:
-    return db.get(TarkovGuidesMeta, META_ROW_ID)
+    return db.get(TarkovGuidesMeta, raw_row_id())
 
 
 def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str, Any]:
@@ -358,7 +366,7 @@ def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str
     if row is None:
         db.add(
             TarkovGuidesRaw(
-                id=RAW_ROW_ID,
+                id=raw_row_id(),
                 source=bundle.source,
                 raw_json=raw_json,
                 synced_at=now,
@@ -372,7 +380,7 @@ def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str
         row.note = bundle.note
     meta = get_guides_meta(db)
     if meta is None:
-        meta = TarkovGuidesMeta(id=META_ROW_ID)
+        meta = TarkovGuidesMeta(id=raw_row_id())
         db.add(meta)
     meta.source = bundle.source
     meta.station_count = len(stations)
@@ -393,9 +401,21 @@ def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str
     }
 
 
-def sync_from_upstream(db: Session) -> dict[str, Any]:
-    logger.info("syncing tarkov hideout/barters/crafts from upstream")
+def _sync_current_mode(db: Session) -> dict[str, Any]:
+    logger.info(
+        "syncing tarkov hideout/barters/crafts from upstream (%s)",
+        parse_game_mode(),
+    )
     return persist_guides_bundle(db, download_json_guides(lang="zh"))
+
+
+def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
+    return run_for_modes(
+        lambda: _sync_current_mode(db),
+        game_mode=game_mode,
+        error_cls=TarkovGuidesError,
+        label="藏身处",
+    )
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
@@ -418,7 +438,7 @@ def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, st
     global _parsed_cache
     meta = get_guides_meta(db)
     synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    key = synced or ""
+    key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -437,7 +457,7 @@ def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, st
 
 def ensure_guides(db: Session) -> None:
     if get_guides_raw(db) is None:
-        sync_from_upstream(db)
+        sync_from_upstream(db, game_mode=parse_game_mode())
 
 
 def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:

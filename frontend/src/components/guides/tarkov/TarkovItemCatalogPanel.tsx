@@ -8,6 +8,7 @@ import {
   type TarkovCatalogItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   CATALOG_COLUMN_LABELS,
   boolProp,
@@ -131,6 +132,7 @@ function cellFor(column: CatalogColumnId, row: CatalogRow): string {
 }
 
 export function TarkovItemCatalogPanel({ page }: Props) {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const childParam = (searchParams.get("child") || "").trim();
   const q = (searchParams.get("q") || "").trim();
@@ -172,6 +174,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
   const catalogQuery = useQuery({
     queryKey: [
       "guides-tarkov-catalog",
+      gameMode,
       page.slug,
       categoryIds,
       types,

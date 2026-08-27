@@ -1,5 +1,34 @@
 /** 地图「地名」层：tarkov.dev maps.json 的 label.text 是英文/俄文，站点 zh 文案也不覆盖这些点。 */
 
+/**
+ * 按地图覆盖：同一英文 label 在不同图上社区叫法不同（如 Power Station）。
+ * key = maps.json group.normalizedName。
+ */
+const TARKOV_MAP_LABEL_ZH_BY_MAP: Record<string, Record<string, string>> = {
+  shoreline: {
+    Resort: "疗养院",
+    "West Wing": "西楼",
+    "East Wing": "东楼",
+    Admin: "北楼",
+    "Power Station": "变电站",
+    Cottages: "豪宅",
+    "Scav Island": "灯塔",
+    Swamp: "沼泽",
+    Village: "村庄",
+    "Weather Station": "气象站",
+    "Radio Tower": "无线电塔",
+    "Gas Station": "加油站",
+    Pier: "码头",
+    "Tank Bridge": "坦克桥",
+    Cabins: "小屋",
+    "Bus Stop": "公交站",
+    Construction: "工地",
+    Bunker: "地堡",
+    Crane: "吊车",
+    "Scav Farm": "Scav 农场",
+  },
+};
+
 const TARKOV_MAP_LABEL_ZH: Record<string, string> = {
   "Primorsky Ave.": "滨海大道",
   "Kilmov St.": "克利莫夫大街",
@@ -265,21 +294,21 @@ const TARKOV_MAP_LABEL_ZH: Record<string, string> = {
   K6: "K6",
   Dome: "穹顶",
   Tarmac: "停机坪",
-  Resort: "度假村",
+  Resort: "疗养院",
   "Weather Station": "气象站",
   "Radio Tower": "无线电塔",
   Swamp: "沼泽",
   Village: "村庄",
   "Tank Bridge": "坦克桥",
   Pier: "码头",
-  "Scav Island": "Scav 岛",
+  "Scav Island": "灯塔",
   "Bus Stop": "公交站",
   Bunker: "地堡",
   Crane: "吊车",
   "Scav Farm": "Scav 农场",
-  "West Wing": "西翼",
-  "East Wing": "东翼",
-  Admin: "行政楼",
+  "West Wing": "西楼",
+  "East Wing": "东楼",
+  Admin: "北楼",
   Sawmill: "锯木厂",
   "Scav Town": "Scav 镇",
   "Old Sawmill": "旧锯木厂",
@@ -295,15 +324,31 @@ const TARKOV_MAP_LABEL_ZH: Record<string, string> = {
   Convoy: "车队",
 };
 
-export function tarkovMapLabel(text: string): string {
+export function tarkovMapLabel(text: string, mapKey?: string): string {
   const key = (text || "").trim();
   if (!key) return "";
+  const map = (mapKey || "").trim().toLowerCase();
+  if (map) {
+    const byMap = TARKOV_MAP_LABEL_ZH_BY_MAP[map]?.[key];
+    if (byMap) return byMap;
+  }
   return TARKOV_MAP_LABEL_ZH[key] || key;
 }
 
+/** Map overlay: "Glukhar - Storage Bunker" / "Glukhar · 储藏地堡" → "Glukhar". */
+export function tarkovBossMapLabel(text: string): string {
+  const key = (text || "").trim();
+  if (!key) return "";
+  return key.split(/\s[-–—·]\s/, 1)[0]?.trim() || key;
+}
+
 export function hasTarkovMapLabel(text: string): boolean {
-  return Object.prototype.hasOwnProperty.call(
-    TARKOV_MAP_LABEL_ZH,
-    (text || "").trim(),
+  const key = (text || "").trim();
+  if (!key) return false;
+  if (Object.prototype.hasOwnProperty.call(TARKOV_MAP_LABEL_ZH, key)) {
+    return true;
+  }
+  return Object.values(TARKOV_MAP_LABEL_ZH_BY_MAP).some((byMap) =>
+    Object.prototype.hasOwnProperty.call(byMap, key),
   );
 }

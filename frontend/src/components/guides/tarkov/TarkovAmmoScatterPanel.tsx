@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchTarkovAmmo, type TarkovAmmoItem } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   AMMO_TYPE_ORDER,
   formatAmmoTypeLabel,
@@ -30,9 +31,10 @@ function compareCaliberLabel(a: string, b: string): number {
 }
 
 export function TarkovAmmoScatterPanel() {
+  const gameMode = useTarkovGameMode();
   const navigate = useNavigate();
   const ammoQuery = useQuery({
-    queryKey: ["guides-tarkov-ammo"],
+    queryKey: ["guides-tarkov-ammo", gameMode],
     queryFn: fetchTarkovAmmo,
     staleTime: 5 * 60_000,
     retry: 1,

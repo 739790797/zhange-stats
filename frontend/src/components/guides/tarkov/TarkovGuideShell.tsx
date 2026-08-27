@@ -14,6 +14,11 @@ import {
 } from "@/lib/tarkovHomeNav";
 import { TarkovThemed } from "@/components/guides/tarkov/TarkovThemed";
 import { TarkovTrackerBindButton } from "@/components/guides/tarkov/TarkovTrackerBindButton";
+import {
+  TARKOV_GAME_MODES,
+  useTarkovGameMode,
+  useTarkovGameModeControls,
+} from "@/lib/tarkovGameMode";
 import styles from "./TarkovGuideShell.module.css";
 
 export function TarkovSoonMark({ status }: { status: TarkovNavStatus }) {
@@ -110,6 +115,26 @@ function NavCaret() {
   );
 }
 
+function TarkovGameModeSwitch() {
+  const { mode, setMode } = useTarkovGameModeControls();
+  return (
+    <div className={styles.modeSwitch} role="group" aria-label="游戏模式">
+      {TARKOV_GAME_MODES.map((item) => (
+        <button
+          key={item}
+          type="button"
+          className={`${styles.modeBtn} ${mode === item ? styles.modeBtnActive : ""}`}
+          aria-pressed={mode === item}
+          title={item === "pve" ? "合作模式（PVE）" : "在线对战（PVP）"}
+          onClick={() => setMode(item)}
+        >
+          {item.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 type Props = {
   children: ReactNode;
 };
@@ -127,6 +152,7 @@ export function TarkovGuideShell({ children }: Props) {
   );
   const [openNavId, setOpenNavId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const gameMode = useTarkovGameMode();
   useTarkovDocumentTitle(tarkovPageTitle(pathname));
   useEffect(() => {
     setOpenNavId(null);
@@ -157,7 +183,7 @@ export function TarkovGuideShell({ children }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const bossesQuery = useQuery({
-    queryKey: ["guides-tarkov-bosses"],
+    queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,
     staleTime: 5 * 60_000,
     retry: 1,
@@ -267,6 +293,7 @@ export function TarkovGuideShell({ children }: Props) {
             })}
           </nav>
           <div className={styles.topRight}>
+            <TarkovGameModeSwitch />
             <form
               className={styles.topSearch}
               onSubmit={(event) => {

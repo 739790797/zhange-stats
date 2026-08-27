@@ -28,6 +28,13 @@ def _payload() -> dict:
                     {"id": "e1", "name": "Gate 3", "faction": "pmc"},
                     {"id": "e2", "name": "Cellars", "faction": "scav"},
                 ],
+                "transits": [
+                    {
+                        "id": "15",
+                        "description": "WOO_TRANSIT_15_DESC",
+                        "position": {"x": 8, "y": 0, "z": 9},
+                    }
+                ],
                 "bosses": [{"mob": "bossTagilla", "spawnChance": 0.3}],
             },
             "night-factory": {
@@ -68,6 +75,7 @@ def _payload() -> dict:
         "locale": {
             "thelab Name": "实验室",
             "Gate 3": "3 号门",
+            "WOO_TRANSIT_15_DESC": "前往海关",
         },
     }
 
@@ -95,6 +103,11 @@ def test_parse_map_rows_variants_and_extracts() -> None:
     assert factory["interactive_url"].endswith("/map/factory")
     names = {row["name"] for row in factory["extracts"]}
     assert "3 号门" in names
+    transit = next(row for row in factory["extracts"] if row["id"] == "transit:15")
+    assert transit["name"] == "前往海关"
+    assert transit["faction"] == "转图"
+    assert transit["x"] == 8
+    assert transit["z"] == 9
     bosses = factory["bosses"]
     assert bosses and bosses[0]["slug"] == "tagilla"
     assert bosses[0]["spawn_chance"] == 30
@@ -134,30 +147,32 @@ def test_parse_map_rows_keeps_extract_and_boss_coords() -> None:
 
 def test_apply_graphql_markers_fills_missing_coords() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
-    _marker_cache["at"] = time.time()
-    _marker_cache["by_slug"] = {
-        "factory": {
-            "normalizedName": "factory",
-            "extracts": [
-                {
-                    "id": "e1",
-                    "name": "Gate 3",
-                    "position": {"x": 10, "y": 1, "z": 20},
-                }
-            ],
-            "bosses": [
-                {
-                    "normalizedName": "tagilla",
-                    "spawnLocations": [
-                        {
-                            "name": "Shop",
-                            "chance": 1,
-                            "positions": [{"x": 3, "y": 0, "z": 4}],
-                        }
-                    ],
-                }
-            ],
-        }
+    _marker_cache["pvp"] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "extracts": [
+                    {
+                        "id": "e1",
+                        "name": "Gate 3",
+                        "position": {"x": 10, "y": 1, "z": 20},
+                    }
+                ],
+                "bosses": [
+                    {
+                        "normalizedName": "tagilla",
+                        "spawnLocations": [
+                            {
+                                "name": "Shop",
+                                "chance": 1,
+                                "positions": [{"x": 3, "y": 0, "z": 4}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
     }
     _apply_graphql_markers(factory, {"Shop": "商店"})
     gate = next(row for row in factory["extracts"] if row["id"] == "e1")
@@ -166,3 +181,76 @@ def test_apply_graphql_markers_fills_missing_coords() -> None:
     locs = factory["bosses"][0]["locations"]
     assert locs and locs[0]["positions"][0]["z"] == 4
     assert locs[0]["name"] == "商店"
+
+
+def test_apply_graphql_markers_appends_transits_when_coords_exist() -> None:
+    factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
+    factory["extracts"] = [
+        row for row in factory["extracts"] if not str(row.get("id") or "").startswith("transit:")
+    ]
+    for row in factory["extracts"]:
+        row["x"] = 1
+        row["z"] = 2
+    _marker_cache["pvp"] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "extracts": [],
+                "transits": [
+                    {
+                        "id": "99",
+                        "description": "WOO_TRANSIT_15_DESC",
+                        "position": {"x": 4, "y": 0, "z": 5},
+                    }
+                ],
+            }
+        },
+    }
+    _apply_graphql_markers(factory, {"WOO_TRANSIT_15_DESC": "前往海关"})
+    transit = next(row for row in factory["extracts"] if row["id"] == "transit:99")
+    assert transit["name"] == "前往海关"
+    assert transit["faction"] == "转图"
+    assert transit["x"] == 4
+    assert transit["z"] == 5
+
+
+def test_apply_graphql_markers_fills_existing_transit_coords() -> None:
+    """撤离点已有坐标、转移点已在列表但缺坐标时，仍要从 GraphQL transits 补点。"""
+    factory = {
+        "id": "factory",
+        "slug": "factory",
+        "extracts": [
+            {"id": "e1", "name": "Gate 3", "faction": "PMC", "x": 1, "z": 2},
+            {"id": "transit:15", "name": "前往海关", "faction": "转图"},
+        ],
+        "bosses": [],
+    }
+    _marker_cache["pvp"] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "extracts": [
+                    {
+                        "id": "e1",
+                        "name": "Gate 3",
+                        "faction": "pmc",
+                        "position": {"x": 1, "y": 0, "z": 2},
+                    }
+                ],
+                "transits": [
+                    {
+                        "id": "15",
+                        "description": "WOO_TRANSIT_15_DESC",
+                        "position": {"x": 8, "y": 0, "z": 9},
+                    }
+                ],
+            }
+        },
+    }
+    _apply_graphql_markers(factory, {})
+    transit = next(row for row in factory["extracts"] if row["id"] == "transit:15")
+    assert transit["x"] == 8
+    assert transit["z"] == 9
+    assert transit["faction"] == "转图"

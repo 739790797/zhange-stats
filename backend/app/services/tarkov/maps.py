@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.services.tarkov.ammo import TARKOV_GRAPHQL_URL
+from app.services.tarkov.game_mode import graphql_game_mode, parse_game_mode
 from app.services.tarkov.bosses import (
     TarkovBossesError,
     _as_int,
@@ -49,13 +50,18 @@ VARIANT_PARENT: dict[str, str] = {
 HUB_SKIP = {"ground-zero-tutorial", "openworld", "transits"}
 
 _MARKERS_QUERY = """
-query MapMarkers($lang: LanguageCode) {
-  maps(lang: $lang) {
+query MapMarkers($lang: LanguageCode, $gameMode: GameMode) {
+  maps(lang: $lang, gameMode: $gameMode) {
     normalizedName
     extracts {
       id
       name
       faction
+      position { x y z }
+    }
+    transits {
+      id
+      description
       position { x y z }
     }
     bosses {
@@ -71,7 +77,7 @@ query MapMarkers($lang: LanguageCode) {
 """.strip()
 
 _MARKER_TTL_SEC = 3600
-_marker_cache: dict[str, Any] = {"at": 0.0, "by_slug": {}}
+_marker_cache: dict[str, dict[str, Any]] = {}
 
 # tarkov.dev /maps/{slug}_thumb.jpg 已被 SPA 路由吞成 HTML；改用 assets 上的 svg/瓦片。
 MAP_THUMB_ASSETS: dict[str, str] = {
@@ -104,7 +110,64 @@ def _faction_label(raw: str) -> str:
         "shared": "通用",
         "all": "通用",
         "any": "通用",
+        "transit": "转图",
     }.get(key, raw or "—")
+
+
+def _is_transit_extract(row: dict[str, Any]) -> bool:
+    ident = str(row.get("id") or "")
+    return ident.startswith("transit:") or str(row.get("faction") or "") == "转图"
+
+
+def _extract_point_item(
+    *,
+    ident: str,
+    name: str,
+    faction: str,
+    row: dict[str, Any],
+    locale: dict[str, Any],
+    seen: set[str],
+) -> dict[str, Any] | None:
+    loc = _locale_lookup(locale, name, ident) if name else ""
+    label = loc or name or ident
+    if not label or label in seen:
+        return None
+    seen.add(label)
+    item: dict[str, Any] = {
+        "id": ident,
+        "name": label,
+        "faction": _faction_label(faction),
+    }
+    point = map_xyz(row)
+    if point:
+        item["x"] = point["x"]
+        item["y"] = point["y"]
+        item["z"] = point["z"]
+    return item
+
+
+def _append_transits(
+    out: list[dict[str, Any]],
+    rows: list[Any],
+    locale: dict[str, Any],
+    seen: set[str],
+) -> None:
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw_id = str(row.get("id") or "").strip()
+        desc = str(row.get("description") or row.get("name") or "").strip()
+        ident = f"transit:{raw_id or desc}"
+        item = _extract_point_item(
+            ident=ident,
+            name=desc,
+            faction="transit",
+            row=row,
+            locale=locale,
+            seen=seen,
+        )
+        if item:
+            out.append(item)
 
 
 def _thumb_url(normalized: str) -> str:
@@ -135,22 +198,18 @@ def _extracts(raw: dict[str, Any], locale: dict[str, Any]) -> list[dict[str, Any
             continue
         ident = str(row.get("id") or "").strip()
         name = str(row.get("name") or "").strip()
-        loc = _locale_lookup(locale, name, ident) if name else ""
-        label = loc or name or ident
-        if not label or label in seen:
-            continue
-        seen.add(label)
-        item: dict[str, Any] = {
-            "id": ident,
-            "name": label,
-            "faction": _faction_label(str(row.get("faction") or "")),
-        }
-        point = map_xyz(row)
-        if point:
-            item["x"] = point["x"]
-            item["y"] = point["y"]
-            item["z"] = point["z"]
-        out.append(item)
+        item = _extract_point_item(
+            ident=ident,
+            name=name,
+            faction=str(row.get("faction") or ""),
+            row=row,
+            locale=locale,
+            seen=seen,
+        )
+        if item:
+            out.append(item)
+    transits = raw.get("transits") if isinstance(raw.get("transits"), list) else []
+    _append_transits(out, transits, locale, seen)
     out.sort(key=lambda r: (r.get("faction") or "", r.get("name") or ""))
     return out
 
@@ -208,16 +267,47 @@ def _boss_locations(spawn: dict[str, Any], locale: dict[str, Any]) -> list[dict[
 
 
 def _extracts_have_coords(extracts: list[dict[str, Any]]) -> bool:
-    return any(row.get("x") is not None and row.get("z") is not None for row in extracts)
+    return any(
+        row.get("x") is not None and row.get("z") is not None
+        for row in extracts
+        if isinstance(row, dict) and not _is_transit_extract(row)
+    )
+
+
+def _transit_raw_id(ident: str) -> str:
+    key = str(ident or "").strip()
+    if key.startswith("transit:"):
+        return key[len("transit:") :].strip()
+    return key
+
+
+def _transits_missing(extracts: list[dict[str, Any]]) -> bool:
+    return not any(
+        _is_transit_extract(row) for row in extracts if isinstance(row, dict)
+    )
+
+
+def _transit_coords_missing(extracts: list[dict[str, Any]]) -> bool:
+    return any(
+        _is_transit_extract(row)
+        and (row.get("x") is None or row.get("z") is None)
+        for row in extracts
+        if isinstance(row, dict)
+    )
 
 
 def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
     now = time.time()
-    cached = _marker_cache.get("by_slug")
-    if isinstance(cached, dict) and cached and now - float(_marker_cache.get("at") or 0) < _MARKER_TTL_SEC:
+    mode = parse_game_mode()
+    entry = _marker_cache.get(mode) or {"at": 0.0, "by_slug": {}}
+    cached = entry.get("by_slug")
+    if isinstance(cached, dict) and cached and now - float(entry.get("at") or 0) < _MARKER_TTL_SEC:
         return cached
     body = json.dumps(
-        {"query": _MARKERS_QUERY, "variables": {"lang": lang}},
+        {
+            "query": _MARKERS_QUERY,
+            "variables": {"lang": lang, "gameMode": graphql_game_mode()},
+        },
         ensure_ascii=False,
     ).encode("utf-8")
     raw = _http_request(
@@ -241,9 +331,20 @@ def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
         slug = str(row.get("normalizedName") or "").strip()
         if slug:
             by_slug[slug] = row
-    _marker_cache["at"] = now
-    _marker_cache["by_slug"] = by_slug
+    _marker_cache[mode] = {"at": now, "by_slug": by_slug}
     return by_slug
+
+
+def _fill_point_from_src(extract: dict[str, Any], src: dict[str, Any] | None) -> bool:
+    if not src:
+        return False
+    point = map_xyz(src)
+    if not point:
+        return False
+    extract["x"] = point["x"]
+    extract["y"] = point["y"]
+    extract["z"] = point["z"]
+    return True
 
 
 def _apply_graphql_markers(
@@ -251,7 +352,10 @@ def _apply_graphql_markers(
     locale: dict[str, Any] | None = None,
 ) -> None:
     extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
-    if _extracts_have_coords(extracts):
+    need_coords = not _extracts_have_coords(extracts)
+    need_transits = _transits_missing(extracts)
+    need_transit_coords = _transit_coords_missing(extracts)
+    if not need_coords and not need_transits and not need_transit_coords:
         return
     try:
         by_slug = _graphql_map_markers()
@@ -262,28 +366,51 @@ def _apply_graphql_markers(
     if not extra:
         return
     gql_extracts = extra.get("extracts") if isinstance(extra.get("extracts"), list) else []
-    by_id = {
+    gql_transits = extra.get("transits") if isinstance(extra.get("transits"), list) else []
+    extract_by_id = {
         str(item.get("id") or ""): item
         for item in gql_extracts
         if isinstance(item, dict) and item.get("id")
     }
-    by_name = {
+    extract_by_name = {
         str(item.get("name") or ""): item
         for item in gql_extracts
         if isinstance(item, dict) and item.get("name")
     }
+    transit_by_id = {
+        str(item.get("id") or ""): item
+        for item in gql_transits
+        if isinstance(item, dict) and item.get("id") is not None
+    }
+    transit_by_desc = {
+        str(item.get("description") or item.get("name") or ""): item
+        for item in gql_transits
+        if isinstance(item, dict)
+        and (item.get("description") or item.get("name"))
+    }
     for extract in extracts:
+        if not isinstance(extract, dict):
+            continue
         if extract.get("x") is not None and extract.get("z") is not None:
             continue
-        src = by_id.get(str(extract.get("id") or "")) or by_name.get(
+        if _is_transit_extract(extract):
+            raw_id = _transit_raw_id(str(extract.get("id") or ""))
+            src = transit_by_id.get(raw_id) or transit_by_desc.get(
+                str(extract.get("name") or "")
+            )
+            # 兼容 locale 前原始 description 仍写在 id 后缀里的情况
+            if not src and raw_id and raw_id not in transit_by_id:
+                src = transit_by_desc.get(raw_id)
+            _fill_point_from_src(extract, src if isinstance(src, dict) else None)
+            continue
+        src = extract_by_id.get(str(extract.get("id") or "")) or extract_by_name.get(
             str(extract.get("name") or "")
         )
-        point = map_xyz(src) if src else None
-        if not point:
-            continue
-        extract["x"] = point["x"]
-        extract["y"] = point["y"]
-        extract["z"] = point["z"]
+        _fill_point_from_src(extract, src if isinstance(src, dict) else None)
+    if need_transits:
+        seen = {str(item.get("name") or "") for item in extracts if isinstance(item, dict)}
+        _append_transits(extracts, gql_transits, locale or {}, seen)
+        extracts.sort(key=lambda r: (str(r.get("faction") or ""), str(r.get("name") or "")))
     gql_bosses = extra.get("bosses") if isinstance(extra.get("bosses"), list) else []
     gql_by_slug = {
         str(item.get("normalizedName") or ""): item

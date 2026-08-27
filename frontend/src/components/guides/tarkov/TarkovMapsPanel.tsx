@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovMaps } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_MAPS,
   tarkovMapHref,
@@ -48,8 +49,9 @@ function MapThumb({
 }
 
 export function TarkovMapsPanel() {
+  const gameMode = useTarkovGameMode();
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-maps"],
+    queryKey: ["guides-tarkov-maps", gameMode],
     queryFn: fetchTarkovMaps,
     staleTime: 5 * 60_000,
     retry: 1,

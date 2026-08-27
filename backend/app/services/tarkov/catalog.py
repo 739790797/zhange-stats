@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.services.tarkov import items as items_svc
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
+from app.services.tarkov.game_mode import cache_key
 from app.services.tarkov.items import GRAPHQL_SPLIT_FORMAT, TarkovItemsError
 
 logger = logging.getLogger(__name__)
@@ -615,7 +616,7 @@ def load_parsed_catalog(
     items_svc.ensure_items(db)
     meta = items_svc.get_items_meta(db)
     synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    key = synced or ""
+    key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -641,7 +642,7 @@ def peek_catalog_items(db: Session) -> list[dict[str, Any]]:
         return []
     meta = items_svc.get_items_meta(db)
     synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    key = synced or ""
+    key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:

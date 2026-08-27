@@ -8,6 +8,7 @@ import {
   type TarkovBarter,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TARKOV_TRADERS, tarkovTaskHref, traderIconUrl } from "@/lib/tarkovHomeNav";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
@@ -28,6 +29,7 @@ function profitClass(value: number | null): string {
 }
 
 export function TarkovBartersPanel() {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
   const q = (searchParams.get("q") || "").trim();
@@ -60,7 +62,7 @@ export function TarkovBartersPanel() {
   }, [keyword, searchParams, setSearchParams]);
 
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-barters", trader, q, pageNo, pageSize],
+    queryKey: ["guides-tarkov-barters", gameMode, trader, q, pageNo, pageSize],
     queryFn: () =>
       fetchTarkovBarters({
         q,

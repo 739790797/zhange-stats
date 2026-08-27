@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchTarkovCrafts, type TarkovCraft } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovHideoutHref } from "@/lib/tarkovHomeNav";
 import {
   formatDurationSeconds,
@@ -28,6 +29,7 @@ function profitClass(value: number | null): string {
 }
 
 export function TarkovCraftsPanel() {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const station = (searchParams.get("station") || "").trim();
   const q = (searchParams.get("q") || "").trim();
@@ -60,7 +62,7 @@ export function TarkovCraftsPanel() {
   }, [keyword, searchParams, setSearchParams]);
 
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-crafts", station, q, pageNo, pageSize],
+    queryKey: ["guides-tarkov-crafts", gameMode, station, q, pageNo, pageSize],
     queryFn: () =>
       fetchTarkovCrafts({
         q,

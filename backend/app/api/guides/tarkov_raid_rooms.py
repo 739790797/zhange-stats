@@ -42,9 +42,9 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
 def list_tarkov_raid_rooms(
     map_slug: str | None = Query(default=None, alias="map", max_length=64),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomLobbyOut:
-    data = rooms_svc.list_live_rooms(db, map_slug=map_slug)
+    data = rooms_svc.list_live_rooms(db, map_slug=map_slug, viewer=user)
     db.commit()
     return TarkovRaidRoomLobbyOut.model_validate(data)
 
@@ -243,6 +243,7 @@ def add_tarkov_raid_room_mark(
             z=body.z,
             x2=body.x2,
             z2=body.z2,
+            points=body.points,
         )
     except rooms_svc.RaidRoomError as extra_exc:
         db.rollback()

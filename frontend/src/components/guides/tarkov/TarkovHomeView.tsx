@@ -8,6 +8,7 @@ import {
   type TarkovBossListItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
   TARKOV_HOME_BOSSES,
@@ -237,19 +238,20 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
 }
 
 export function TarkovHomeView() {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const committed = (searchParams.get("q") || "").trim();
   const [draft, setDraft] = useState(committed);
   const index = useMemo(() => buildHomeSearchIndex(), []);
   const searching = committed.length > 0;
   const bossesQuery = useQuery({
-    queryKey: ["guides-tarkov-bosses"],
+    queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,
     staleTime: 5 * 60_000,
     retry: 1,
   });
   const searchQuery = useQuery({
-    queryKey: ["guides-tarkov-search", committed],
+    queryKey: ["guides-tarkov-search", gameMode, committed],
     queryFn: () => fetchTarkovSiteSearch(committed),
     enabled: searching,
     staleTime: 60_000,

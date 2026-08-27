@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta
+from app.services.tarkov.game_mode import json_api_prefix, json_resource_url
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
@@ -439,7 +440,7 @@ def download_graphql_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
 
 def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
     """json.tarkov.dev items + locale 信封（GraphQL 宕机回退）。"""
-    raw = _http_request(TARKOV_JSON_ITEMS_URL, timeout=180)
+    raw = _http_request(json_resource_url("items"), timeout=180)
     try:
         items_payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -450,7 +451,7 @@ def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
     locale: dict[str, Any] | None = None
     try:
         loc_raw = _http_request(
-            TARKOV_JSON_ITEMS_LOCALE_URL.format(lang=lang),
+            json_resource_url("items", lang=lang),
             timeout=60,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
@@ -468,7 +469,7 @@ def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
     return AmmoUpstreamBundle(
         source=SOURCE_JSON_API,
         payload=envelope,
-        note="json.tarkov.dev/regular/items",
+        note=f"json.tarkov.dev/{json_api_prefix()}/items",
     )
 
 

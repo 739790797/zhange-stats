@@ -1,4 +1,4 @@
-"""塔科夫战局准备房间：大厅、并集勾选、钉点/直线画板。"""
+"""塔科夫战局准备房间：大厅、并集勾选、自由涂鸦画板。"""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ STATUS_LIVE = "live"
 STATUS_ARCHIVED = "archived"
 MARK_PIN = "pin"
 MARK_LINE = "line"
+MARK_STROKE = "stroke"
 
 ROOM_TTL = timedelta(hours=24)
 MAX_MEMBERS = 8
@@ -32,6 +33,8 @@ MAX_LIVE_HOSTED = 1
 MAX_UNIQUE_TASKS = 40
 MAX_PINS = 80
 MAX_LINES = 80
+MAX_STROKES = 240
+MAX_STROKE_POINTS = 160
 PUBLIC_ID_LEN = 12
 TITLE_MAX = 40
 TASK_ID_MAX = 64
@@ -39,6 +42,7 @@ FLOOR_MAX = 64
 COORD_MIN = -20000.0
 COORD_MAX = 20000.0
 LINE_MIN_LEN = 0.5
+STROKE_ROUND = 2
 _MAP_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 
@@ -99,6 +103,38 @@ def _coord(value: Any, name: str) -> float:
     if not math.isfinite(number) or number < COORD_MIN or number > COORD_MAX:
         raise RaidRoomError(f"{name} 无效")
     return number
+
+
+def _round_coord(value: float) -> float:
+    return round(value, STROKE_ROUND)
+
+
+def normalize_stroke_points(raw: Any) -> list[list[float]]:
+    if not isinstance(raw, list) or not raw:
+        raise RaidRoomError("笔画无效")
+    if len(raw) > MAX_STROKE_POINTS:
+        raise RaidRoomError("笔画点过多", 409)
+    points: list[list[float]] = []
+    for item in raw:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            raise RaidRoomError("笔画无效")
+        points.append([_round_coord(_coord(item[0], "x")), _round_coord(_coord(item[1], "z"))])
+    return points
+
+
+def parse_draw_draft(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """校验实时涂鸦草稿；空 points 表示抬笔。无效输入返回 None。"""
+    try:
+        floor = _floor(str(payload.get("floor") or ""))
+    except RaidRoomError:
+        return None
+    raw_points = payload.get("points")
+    if raw_points is None or raw_points == []:
+        return {"floor": floor, "points": []}
+    try:
+        return {"floor": floor, "points": normalize_stroke_points(raw_points)}
+    except RaidRoomError:
+        return None
 
 
 def archive_expired_rooms(db: Session, *, now: datetime | None = None) -> int:
@@ -224,6 +260,10 @@ def serialize_mark(row: TarkovRaidRoomMark, author_name: str) -> dict[str, Any]:
     if row.kind == MARK_LINE:
         payload["x2"] = row.x2
         payload["z2"] = row.z2
+    if row.kind == MARK_STROKE:
+        payload["x2"] = row.x2
+        payload["z2"] = row.z2
+        payload["points"] = row.points_json or [[row.x, row.z]]
     return payload
 
 
@@ -310,7 +350,12 @@ def serialize_room(
     }
 
 
-def serialize_lobby_item(db: Session, room: TarkovRaidRoom) -> dict[str, Any]:
+def serialize_lobby_item(
+    db: Session,
+    room: TarkovRaidRoom,
+    *,
+    is_member: bool = False,
+) -> dict[str, Any]:
     return {
         "public_id": room.public_id,
         "title": (room.title or "").strip(),
@@ -320,9 +365,27 @@ def serialize_lobby_item(db: Session, room: TarkovRaidRoom) -> dict[str, Any]:
         "host_display_name": room.host_display_name,
         "member_count": _active_member_count(db, room.id),
         "max_members": MAX_MEMBERS,
+        "is_member": bool(is_member),
         "created_at": _iso(room.created_at),
         "expire_at": _iso(room.expire_at),
     }
+
+
+def _live_member_room_ids(db: Session, user_id: int) -> set[int]:
+    rows = (
+        db.query(TarkovRaidRoomMember.room_id)
+        .join(
+            TarkovRaidRoom,
+            TarkovRaidRoom.id == TarkovRaidRoomMember.room_id,
+        )
+        .filter(
+            TarkovRaidRoomMember.user_id == user_id,
+            TarkovRaidRoomMember.left_at.is_(None),
+            TarkovRaidRoom.status == STATUS_LIVE,
+        )
+        .all()
+    )
+    return {int(row[0]) for row in rows}
 
 
 def create_room(
@@ -372,6 +435,7 @@ def list_live_rooms(
     *,
     map_slug: str | None = None,
     now: datetime | None = None,
+    viewer: User | None = None,
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
     archive_expired_rooms(db, now=stamp)
@@ -380,7 +444,12 @@ def list_live_rooms(
     if slug:
         query = query.filter(TarkovRaidRoom.map_slug == slug)
     rows = query.order_by(TarkovRaidRoom.created_at.desc()).limit(80).all()
-    return {"items": [serialize_lobby_item(db, row) for row in rows]}
+    mine = _live_member_room_ids(db, viewer.id) if viewer is not None else set()
+    return {
+        "items": [
+            serialize_lobby_item(db, row, is_member=row.id in mine) for row in rows
+        ]
+    }
 
 
 def get_room(
@@ -564,6 +633,19 @@ def unclaim_task(
     return serialize_room(db, room, viewer=user), removed
 
 
+def _mark_count(db: Session, room_id: int, kind: str) -> int:
+    return int(
+        db.query(func.count())
+        .select_from(TarkovRaidRoomMark)
+        .filter(
+            TarkovRaidRoomMark.room_id == room_id,
+            TarkovRaidRoomMark.kind == kind,
+        )
+        .scalar()
+        or 0
+    )
+
+
 def add_mark(
     db: Session,
     public_id: str,
@@ -575,6 +657,7 @@ def add_mark(
     z: Any,
     x2: Any = None,
     z2: Any = None,
+    points: Any = None,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     stamp = to_naive(now or now_naive())
@@ -585,40 +668,29 @@ def add_mark(
     _require_live(room)
     _require_active_member(db, room, user)
     mark_kind = (kind or "").strip().lower()
-    if mark_kind not in {MARK_PIN, MARK_LINE}:
+    if mark_kind not in {MARK_PIN, MARK_LINE, MARK_STROKE}:
         raise RaidRoomError("记号类型无效")
-    pin_count = int(
-        db.query(func.count())
-        .select_from(TarkovRaidRoomMark)
-        .filter(
-            TarkovRaidRoomMark.room_id == room.id,
-            TarkovRaidRoomMark.kind == MARK_PIN,
-        )
-        .scalar()
-        or 0
-    )
-    line_count = int(
-        db.query(func.count())
-        .select_from(TarkovRaidRoomMark)
-        .filter(
-            TarkovRaidRoomMark.room_id == room.id,
-            TarkovRaidRoomMark.kind == MARK_LINE,
-        )
-        .scalar()
-        or 0
-    )
-    if mark_kind == MARK_PIN and pin_count >= MAX_PINS:
+    if mark_kind == MARK_PIN and _mark_count(db, room.id, MARK_PIN) >= MAX_PINS:
         raise RaidRoomError("钉点已满", 409)
-    if mark_kind == MARK_LINE and line_count >= MAX_LINES:
+    if mark_kind == MARK_LINE and _mark_count(db, room.id, MARK_LINE) >= MAX_LINES:
         raise RaidRoomError("直线已满", 409)
+    if mark_kind == MARK_STROKE and _mark_count(db, room.id, MARK_STROKE) >= MAX_STROKES:
+        raise RaidRoomError("笔画已满", 409)
     start_x = _coord(x, "x")
     start_z = _coord(z, "z")
     end_x = end_z = None
+    points_json: list[list[float]] | None = None
     if mark_kind == MARK_LINE:
         end_x = _coord(x2, "x2")
         end_z = _coord(z2, "z2")
         if math.hypot(end_x - start_x, end_z - start_z) < LINE_MIN_LEN:
             raise RaidRoomError("直线太短")
+    elif mark_kind == MARK_STROKE:
+        raw_points = points if isinstance(points, list) and points else [[start_x, start_z]]
+        points_json = normalize_stroke_points(raw_points)
+        start_x, start_z = points_json[0]
+        if len(points_json) > 1:
+            end_x, end_z = points_json[-1]
     row = TarkovRaidRoomMark(
         room_id=room.id,
         author_user_id=user.id,
@@ -628,6 +700,7 @@ def add_mark(
         z=start_z,
         x2=end_x,
         z2=end_z,
+        points_json=points_json,
         created_at=stamp,
     )
     db.add(row)

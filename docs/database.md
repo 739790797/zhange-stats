@@ -48,25 +48,25 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_items_raws` | 逃离塔科夫物品上游原始 JSON（全站最新一份；GraphQL split 或 json.tarkov.dev items；弹药/枪械共用；失败不覆盖） |
-| `tarkov_items_meta` | 物品同步元数据（单行，含 ammo/gun 计数与同步时间） |
+| `tarkov_items_raws` | 逃离塔科夫物品上游原始 JSON（id=1 PVP / id=2 PVE；GraphQL split 或 json.tarkov.dev items；弹药/枪械共用；失败不覆盖） |
+| `tarkov_items_meta` | 物品同步元数据（id 与 raw 对应，含 ammo/gun 计数与同步时间） |
 | `tarkov_ammo` | 弹药派生读模型（items raw parse；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正；供列表/散点） |
 | `tarkov_ammo_meta` | 弹药展示元数据（单行；与 items 同事务写入） |
 | `tarkov_guns` | 枪械派生读模型（口径/射速/人机/后坐/`allowed_ammo` 等） |
 | `tarkov_gun_meta` | 枪械展示元数据（单行） |
-| `tarkov_tasks_raws` | 逃离塔科夫任务上游原始 JSON（全站最新一份；GraphQL 或 json.tarkov.dev tasks + locale；失败不覆盖） |
-| `tarkov_tasks_meta` | 任务同步元数据（单行，含 task_count 与同步时间） |
-| `tarkov_traders_raws` | 逃离塔科夫商人上游原始 JSON（全站最新一份；json.tarkov.dev traders + locale + 物品 buyFromTrader 报价；失败不覆盖） |
-| `tarkov_traders_meta` | 商人同步元数据（单行，含 trader_count / offer_count 与同步时间） |
-| `tarkov_bosses_raws` | 逃离塔科夫 BOSS 上游原始 JSON（全站最新一份；json.tarkov.dev maps + mobs 精简包 + locale；失败不覆盖） |
-| `tarkov_bosses_meta` | BOSS 同步元数据（单行，含 boss_count 与同步时间） |
-| `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（全站最新一份；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
-| `tarkov_guides_meta` | 藏身处与交换同步元数据（单行，含 station_count / barter_count / craft_count 与同步时间） |
+| `tarkov_tasks_raws` | 逃离塔科夫任务上游原始 JSON（id=1 PVP / id=2 PVE；GraphQL 或 json.tarkov.dev tasks + locale；失败不覆盖） |
+| `tarkov_tasks_meta` | 任务同步元数据（id 与 raw 对应，含 task_count 与同步时间） |
+| `tarkov_traders_raws` | 逃离塔科夫商人上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev traders + locale + 物品 buyFromTrader 报价；失败不覆盖） |
+| `tarkov_traders_meta` | 商人同步元数据（id 与 raw 对应，含 trader_count / offer_count 与同步时间） |
+| `tarkov_bosses_raws` | 逃离塔科夫 BOSS 上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev maps + mobs 精简包 + locale；失败不覆盖） |
+| `tarkov_bosses_meta` | BOSS 同步元数据（id 与 raw 对应，含 boss_count 与同步时间） |
+| `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
+| `tarkov_guides_meta` | 藏身处与交换同步元数据（id 与 raw 对应，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
 | `tarkov_raid_rooms` | 战局准备协作房间（大厅公开可进）。`public_id` URL 用；`map_slug` 创建后锁定；`status`=`live`/`archived`；从 `created_at` 起 24 小时可编辑，到期或房主关闭后封存只读留档。`host_user_id` ON DELETE RESTRICT |
 | `tarkov_raid_room_members` | 进过房间的人（展示名快照）；复合主键 `(room_id, user_id)`；离开写 `left_at` 不删行。`room_id` / `user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。ON DELETE CASCADE |
-| `tarkov_raid_room_marks` | 房间画板钉点/直线（`kind`=`pin`/`line`，地图 `x/z` + `floor`）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
+| `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
 | `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组键值预设（按 tool_id 存用户选定的配置 `directories`，以及 `pins`：`file` 为服内绝对路径且须在这些目录内，加上 key/value；旧整文件草稿忽略）；`mod_inventory_json` 为当前服 jar 库存（打开页对账指纹，增量拆包认亲；与开服剧本 `mods_json` 不是同一份）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON 性能采样热数据（约 10 秒一条：TPS/MSPT，以及可选实体总数 / 已加载区块）。只保留约 48 小时，供 30 分钟 / 1 小时折线看尖峰 |
 | `minecraft_perf_rollups` | 性能留档：`grain`=`1m`/`1h`/`1d` + `bucket_at` 唯一。分钟桶约留 30 天（12h/24h 折线）；小时/日桶永久（30d / 全部）。每桶含 avg/min/max（实体与区块为 avg/max）。由采集任务刷新当前桶，`job_runs_prune` 回填并删过期原始点 |

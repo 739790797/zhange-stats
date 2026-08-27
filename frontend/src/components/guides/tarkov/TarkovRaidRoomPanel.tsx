@@ -12,47 +12,42 @@ import {
   fetchTarkovRaidRoom,
   joinTarkovRaidRoom,
   leaveTarkovRaidRoom,
+  removeTarkovRaidRoomMark,
   tarkovRaidRoomWsUrl,
   unclaimTarkovRaidRoomTask,
   undoTarkovRaidRoomMark,
-  type TarkovRaidPrepTask,
   type TarkovRaidRoomDetail,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { TARKOV_RAID_PREP_PATH, tarkovMapHref } from "@/lib/tarkovHomeNav";
 import {
-  TARKOV_RAID_PREP_PATH,
-  TARKOV_TRADERS,
-  tarkovMapHref,
-  tarkovTaskHref,
-} from "@/lib/tarkovHomeNav";
-import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
-import {
-  RAID_PREP_TYPE_FILTERS,
   buildRaidPrepOverlays,
-  colorForTaskId,
   colorForUserId,
-  neededKeyNamesForMap,
-  objectiveZoneNames,
+  partitionRaidPrepRows,
   raidPrepMapOptions,
+  selectedTasksFromCatalog,
 } from "@/lib/tarkovRaidPrep";
 import {
   applyRoomWsEvent,
-  claimedTaskIds,
   formatRoomRemain,
   groupClaimsByTask,
+  isTypingTarget,
+  mergeBoardMarks,
+  parseStrokePoints,
   remainMs,
   roomDisplayTitle,
+  type RaidRoomDraftStroke,
+  type RaidRoomMarkLike,
+  type StrokePoint,
+  type TarkovMapDrawMode,
 } from "@/lib/tarkovRaidRooms";
-import {
-  orderObjectiveTypes,
-  tarkovObjectiveTypeLabel,
-  tarkovObjectiveTypeTone,
-} from "@/lib/tarkovTaskObjective";
 import { PanelFallback } from "@/components/RouteFallback";
-import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
+import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
+import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
 import { useAuthStore } from "@/stores/authStore";
 import catalog from "./TarkovItemCatalogPanel.module.css";
-import taskStyles from "./TarkovTasksPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 const TarkovMapViewer = lazy(() =>
@@ -61,35 +56,21 @@ const TarkovMapViewer = lazy(() =>
   })),
 );
 
-function traderFilterLabel(slug: string, apiName: string): {
-  english: string;
-  chinese: string;
-} {
-  const known = TARKOV_TRADERS.find((item) => item.id === slug);
-  if (known) return { english: known.english, chinese: known.chinese };
-  const match = apiName.match(/^(.*?)\s*[（(](.+?)[）)]\s*$/);
-  if (match) {
-    return { english: match[1].trim(), chinese: match[2].trim() };
-  }
-  return { english: apiName, chinese: "" };
-}
-
 export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
+  const gameMode = useTarkovGameMode();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
   const me = useAuthStore((s) => s.user);
   const [room, setRoom] = useState<TarkovRaidRoomDetail | null>(null);
   const [keyword, setKeyword] = useState("");
+  const [query, setQuery] = useState("");
   const [trader, setTrader] = useState("");
-  const [kappa, setKappa] = useState(false);
-  const [pinsOnly, setPinsOnly] = useState(false);
-  const [types, setTypes] = useState<string[]>([]);
-  const [tool, setTool] = useState<"pan" | "pin" | "line">("pan");
-  const toolRef = useRef(tool);
-  toolRef.current = tool;
-  const [draft, setDraft] = useState<{ x: number; z: number; floor: string } | null>(
-    null,
-  );
+  const [tool, setTool] = useState<TarkovMapDrawMode>("pan");
+  const [listScope, setListScope] = useState<"all" | "picked">("all");
+  const meIdRef = useRef(me?.id);
+  meIdRef.current = me?.id;
+  const [pendingMarks, setPendingMarks] = useState<RaidRoomMarkLike[]>([]);
+  const [remoteDrafts, setRemoteDrafts] = useState<RaidRoomDraftStroke[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
@@ -107,7 +88,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   useEffect(() => {
-    if (roomQuery.data) setRoom(roomQuery.data);
+    if (roomQuery.data) {
+      setRoom((current) => {
+        if (!current) return roomQuery.data;
+        const currentMarks = current.marks?.length || 0;
+        const nextMarks = roomQuery.data.marks?.length || 0;
+        if (currentMarks > nextMarks) return current;
+        return roomQuery.data;
+      });
+    }
   }, [roomQuery.data]);
 
   const archived = room?.status === "archived";
@@ -129,11 +118,44 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         event?: string;
         snapshot?: TarkovRaidRoomDetail;
         online_user_ids?: number[];
+        user_id?: number;
+        floor?: string;
+        points?: unknown;
+        mark?: { author_user_id?: number };
       };
       try {
         payload = JSON.parse(String(event.data || ""));
       } catch {
         return;
+      }
+      if (payload.event === "draw_draft") {
+        const uid = Number(payload.user_id);
+        if (!uid || uid === meIdRef.current) return;
+        const points = parseStrokePoints(payload.points);
+        setRemoteDrafts((current) => {
+          const rest = current.filter((row) => row.userId !== uid);
+          if (!points.length) return rest;
+          return [
+            ...rest,
+            {
+              userId: uid,
+              floor: String(payload.floor || ""),
+              points,
+              color: colorForUserId(uid),
+            },
+          ];
+        });
+        return;
+      }
+      if (payload.event === "mark_add") {
+        const uid = Number(payload.mark?.author_user_id);
+        if (uid) {
+          setRemoteDrafts((current) => current.filter((row) => row.userId !== uid));
+        }
+      }
+      if (payload.event === "board_clear") {
+        setRemoteDrafts([]);
+        setPendingMarks([]);
       }
       setRoom((current) => applyRoomWsEvent(current, payload));
     };
@@ -150,27 +172,27 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       ws.close();
       if (!stopped) wsRef.current = null;
     };
-  }, [token, publicId, room?.status]); // status 变化才重连，避免每次快照拆掉 WS
+  }, [token, publicId, room?.status]);
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setTool("pan");
-      setDraft(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    const handle = window.setTimeout(() => {
+      setQuery(keyword.trim());
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [keyword]);
 
   const prepQuery = useQuery({
-    queryKey: ["guides-tarkov-raid-prep-room", mapId, trader, keyword, kappa, types.join(",")],
+    queryKey: [
+      "guides-tarkov-raid-prep-room",
+      mapId,
+      trader,
+      query,
+    ],
     queryFn: () =>
       fetchTarkovRaidPrep({
         map: mapId,
-        q: keyword,
+        q: query,
         trader: trader || undefined,
-        kappa: kappa || undefined,
-        types,
         progress: false,
       }),
     enabled: Boolean(mapId),
@@ -180,7 +202,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   const overlayPrepQuery = useQuery({
-    queryKey: ["guides-tarkov-raid-prep-room-overlay", mapId],
+    queryKey: ["guides-tarkov-raid-prep-room-overlay", gameMode, mapId],
     queryFn: () => fetchTarkovRaidPrep({ map: mapId, progress: false }),
     enabled: Boolean(mapId),
     staleTime: 5 * 60_000,
@@ -188,7 +210,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   const mapQuery = useQuery({
-    queryKey: ["guides-tarkov-map", mapId],
+    queryKey: ["guides-tarkov-map", gameMode, mapId],
     queryFn: () => fetchTarkovMapDetail(mapId),
     enabled: Boolean(mapId),
     staleTime: 5 * 60_000,
@@ -213,6 +235,22 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     [applyRoom],
   );
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+      if (event.key === "Escape") {
+        setTool("pan");
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (canEdit) void run(() => undoTarkovRaidRoomMark(publicId));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canEdit, publicId, run]);
+
   const closeMut = useMutation({
     mutationFn: () => closeTarkovRaidRoom(publicId),
     onSuccess: (next) => applyRoom(next),
@@ -225,42 +263,62 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   const claims = room?.claims;
-  const selectedIds = useMemo(() => claimedTaskIds(claims), [claims]);
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const myClaims = useMemo(
-    () => new Set((claims || []).filter((row) => row.user_id === me?.id).map((row) => row.task_id)),
+    () =>
+      new Set(
+        (claims || [])
+          .filter((row) => row.user_id === me?.id)
+          .map((row) => row.task_id),
+      ),
     [claims, me?.id],
   );
   const groups = useMemo(() => groupClaimsByTask(claims), [claims]);
-  const rows = useMemo(() => {
-    const items = prepQuery.data?.items ?? [];
-    if (!pinsOnly) return items;
-    return items.filter((row) => row.has_map_markers);
-  }, [prepQuery.data, pinsOnly]);
+  const namesByTask = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const group of groups) map.set(group.taskId, group.names);
+    return map;
+  }, [groups]);
+  const participantsByTask = useMemo(() => {
+    const map = new Map<string, Array<{ name: string; userId: number }>>();
+    for (const group of groups) {
+      map.set(
+        group.taskId,
+        group.userIds.map((userId, index) => ({
+          userId,
+          name: group.names[index],
+        })),
+      );
+    }
+    return map;
+  }, [groups]);
+  const rows = useMemo(
+    () => prepQuery.data?.items ?? [],
+    [prepQuery.data],
+  );
   const selectedTasks = useMemo(() => {
-    const items = overlayPrepQuery.data?.items ?? [];
-    return items.filter((row) => selectedSet.has(row.id));
-  }, [overlayPrepQuery.data, selectedSet]);
+    const catalog = overlayPrepQuery.isSuccess
+      ? overlayPrepQuery.data?.items ?? []
+      : rows;
+    return selectedTasksFromCatalog(
+      catalog,
+      groups.map((row) => row.taskId),
+    );
+  }, [overlayPrepQuery.data, overlayPrepQuery.isSuccess, rows, groups]);
+  const { picked, rest } = useMemo(
+    () => partitionRaidPrepRows(rows, selectedTasks),
+    [rows, selectedTasks],
+  );
   const overlays = useMemo(
     () => buildRaidPrepOverlays(selectedTasks, mapId),
     [selectedTasks, mapId],
   );
-  const typeOptions = useMemo(() => {
-    const seen = new Set<string>(RAID_PREP_TYPE_FILTERS);
-    for (const type of types) seen.add(type);
-    for (const row of prepQuery.data?.items || []) {
-      for (const type of row.objective_types || []) {
-        if (type) seen.add(type);
-      }
-    }
-    return orderObjectiveTypes([...seen]);
-  }, [prepQuery.data, types]);
   const mapOptions = useMemo(() => raidPrepMapOptions(), []);
   const currentMap = mapOptions.find((item) => item.id === mapId);
   const mapLabel = currentMap?.label || mapId;
   const title = room ? roomDisplayTitle(room, mapLabel) : "房间";
   const remain = formatRoomRemain(remainMs(room?.expire_at, now));
   const traders = prepQuery.data?.traders ?? [];
+  const members = (room?.members || []).filter((row) => row.in_room);
 
   const toggleClaim = (taskId: string) => {
     if (!canEdit) return;
@@ -268,39 +326,65 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     else void run(() => claimTarkovRaidRoomTask(publicId, taskId));
   };
 
-  const onMapPoint = (point: { x: number; z: number; floor: string }) => {
-    if (!canEdit) return;
-    const mode = toolRef.current;
-    if (mode === "pin") {
-      void run(() =>
-        addTarkovRaidRoomMark(publicId, {
-          kind: "pin",
-          floor: point.floor,
-          x: point.x,
-          z: point.z,
-        }),
-      );
-      return;
-    }
-    if (mode !== "line") return;
-    if (!draft || draft.floor !== point.floor) {
-      setDraft(point);
-      return;
-    }
+  const onStroke = (stroke: { floor: string; points: StrokePoint[] }) => {
+    if (!canEdit || !stroke.points.length) return;
+    const first = stroke.points[0];
+    const last = stroke.points[stroke.points.length - 1];
+    const tempId = -Date.now();
+    setPendingMarks((current) => [
+      ...current,
+      {
+        id: tempId,
+        kind: "stroke",
+        floor: stroke.floor,
+        x: first.x,
+        z: first.z,
+        x2: last.x,
+        z2: last.z,
+        points: stroke.points.map((point) => [point.x, point.z]),
+        author_user_id: me?.id || 0,
+        author_display_name: me?.display_name || "",
+      },
+    ]);
     void (async () => {
       const ok = await run(() =>
         addTarkovRaidRoomMark(publicId, {
-          kind: "line",
-          floor: point.floor,
-          x: draft.x,
-          z: draft.z,
-          x2: point.x,
-          z2: point.z,
+          kind: "stroke",
+          floor: stroke.floor,
+          x: first.x,
+          z: first.z,
+          x2: last.x,
+          z2: last.z,
+          points: stroke.points.map((point) => [point.x, point.z]),
         }),
       );
-      if (ok) setDraft(null);
+      if (ok) {
+        setPendingMarks((current) => current.filter((row) => row.id !== tempId));
+      }
     })();
   };
+
+  const onDraftStroke = (draft: { floor: string; points: StrokePoint[] } | null) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(
+      JSON.stringify({
+        event: "draw_draft",
+        floor: draft?.floor || "",
+        points: (draft?.points || []).map((point) => [point.x, point.z]),
+      }),
+    );
+  };
+
+  const onEraseMark = (markId: number) => {
+    if (!canEdit || markId <= 0) return;
+    void run(() => removeTarkovRaidRoomMark(publicId, markId));
+  };
+
+  const boardMarks = useMemo(
+    () => mergeBoardMarks(room?.marks || [], pendingMarks),
+    [room?.marks, pendingMarks],
+  );
 
   if (roomQuery.isLoading && !room) {
     return (
@@ -322,28 +406,34 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   if (!room) return null;
 
   return (
-    <div className={styles.stack}>
-      {archived ? (
-        <p className={styles.banner}>已留档，仅供查看</p>
-      ) : null}
-      <div className={styles.lobbyHead}>
-        <div>
-          <div className={styles.lobbyTitle}>{title}</div>
-          <div className={styles.lobbySub}>
-            {mapLabel} · {room.host_display_name} · {room.member_count}/
-            {room.max_members} · {archived ? "已封存" : remain}
-            {(room.members || [])
-              .filter((row) => row.in_room)
-              .map((row) => (
-                <span key={row.user_id}>
-                  {" "}
-                  · {row.display_name}
-                  {row.online ? "●" : ""}
-                </span>
-              ))}
+    <div className={styles.stage}>
+      {archived ? <p className={styles.banner}>已留档，仅供查看</p> : null}
+      <div className={styles.topBar}>
+        <div className={styles.roomId}>
+          <h1 className={styles.roomTitle}>{title}</h1>
+          <div className={styles.roomMeta}>
+            {mapLabel} · {archived ? "已封存" : remain} · {room.member_count}/
+            {room.max_members}
           </div>
         </div>
-        <div className={styles.actions}>
+        <div className={styles.members} aria-label="房间成员">
+          {members.map((row) => (
+            <span
+              key={row.user_id}
+              className={styles.memberChip}
+              data-online={row.online ? "true" : "false"}
+              title={row.online ? "在线" : "离线"}
+            >
+              <span
+                className={styles.memberDot}
+                style={{ background: colorForUserId(row.user_id) }}
+              />
+              {row.display_name}
+              {row.is_host ? " · 房主" : ""}
+            </span>
+          ))}
+        </div>
+        <div className={styles.topActions}>
           <Link className={styles.wiki} to={TARKOV_RAID_PREP_PATH}>
             大厅
           </Link>
@@ -353,7 +443,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           {room.is_host && !archived ? (
             <button
               type="button"
-              className={taskStyles.chip}
+              className={styles.dockChip}
               onClick={() => closeMut.mutate()}
             >
               关闭房间
@@ -362,7 +452,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           {!room.is_host && room.is_member && !archived ? (
             <button
               type="button"
-              className={taskStyles.chip}
+              className={styles.dockChip}
               onClick={() => leaveMut.mutate()}
             >
               离开
@@ -370,113 +460,32 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ) : null}
         </div>
       </div>
-      {error ? (
-        <Alert type="error" showIcon message={error} />
-      ) : null}
-
-      <div className={taskStyles.toolbar}>
-        <div className={taskStyles.queryRow}>
-          <input
-            className={taskStyles.search}
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="按任务名称筛选"
-            aria-label="搜索任务"
-          />
-          <button
-            type="button"
-            aria-pressed={kappa}
-            className={`${taskStyles.chip} ${kappa ? taskStyles.chipOn : ""}`}
-            onClick={() => setKappa((value) => !value)}
-          >
-            Kappa
-          </button>
-          <button
-            type="button"
-            aria-pressed={pinsOnly}
-            className={`${taskStyles.chip} ${pinsOnly ? taskStyles.chipOn : ""}`}
-            onClick={() => setPinsOnly((value) => !value)}
-          >
-            仅有点位
-          </button>
-        </div>
-        <div className={taskStyles.filterRow}>
-          <span className={taskStyles.filterLabel}>商人</span>
-          <div className={taskStyles.traderBar} role="radiogroup" aria-label="按商人筛选">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={!trader}
-              className={`${taskStyles.traderBtn} ${taskStyles.traderBtnAll} ${
-                !trader ? taskStyles.traderBtnOn : ""
-              }`}
-              onClick={() => setTrader("")}
-            >
-              全部
-            </button>
-            {traders.map((item) => {
-              const { english, chinese } = traderFilterLabel(item.slug, item.name);
-              const on = trader === item.slug;
-              return (
-                <button
-                  key={item.slug || item.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  title={chinese ? `${english}（${chinese}）` : english}
-                  className={`${taskStyles.traderBtn} ${on ? taskStyles.traderBtnOn : ""}`}
-                  onClick={() => setTrader(item.slug)}
-                >
-                  <TarkovTraderThumb slug={item.slug} size={40} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className={taskStyles.filterRow}>
-          <span className={taskStyles.filterLabel}>目标</span>
-          <div className={taskStyles.chipBar}>
-            {typeOptions.map((type) => (
-              <button
-                key={type}
-                type="button"
-                aria-pressed={types.includes(type)}
-                className={`${taskStyles.chip} ${types.includes(type) ? taskStyles.chipOn : ""}`}
-                onClick={() =>
-                  setTypes((current) =>
-                    current.includes(type)
-                      ? current.filter((item) => item !== type)
-                      : [...current, type],
-                  )
-                }
-              >
-                {tarkovObjectiveTypeLabel(type)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      {error ? <Alert type="error" showIcon message={error} /> : null}
 
       <div className={styles.workspace}>
         <div className={styles.mapPane}>
           {canEdit ? (
-            <div className={styles.drawBar}>
-              {(["pan", "pin", "line"] as const).map((mode) => (
+            <div className={styles.drawDock}>
+              {(
+                [
+                  ["pan", "拖拽", "拖拽移动地图"],
+                  ["pen", "画笔", "按住拖拽涂鸦，空格拖地图"],
+                  ["erase", "橡皮", "点一下擦掉笔画"],
+                ] as const
+              ).map(([mode, label, hint]) => (
                 <button
                   key={mode}
                   type="button"
-                  className={`${taskStyles.chip} ${tool === mode ? taskStyles.chipOn : ""}`}
-                  onClick={() => {
-                    setTool(mode);
-                    setDraft(null);
-                  }}
+                  title={hint}
+                  className={`${styles.dockChip} ${tool === mode ? styles.dockChipOn : ""}`}
+                  onClick={() => setTool(mode)}
                 >
-                  {mode === "pan" ? "浏览" : mode === "pin" ? "钉点" : "直线"}
+                  {label}
                 </button>
               ))}
               <button
                 type="button"
-                className={taskStyles.chip}
+                className={styles.dockChip}
                 onClick={() => void run(() => undoTarkovRaidRoomMark(publicId))}
               >
                 撤销
@@ -484,213 +493,186 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               {room.is_host ? (
                 <button
                   type="button"
-                  className={taskStyles.chip}
-                  onClick={() => void run(() => clearTarkovRaidRoomMarks(publicId))}
+                  className={styles.dockChip}
+                  onClick={() =>
+                    void (async () => {
+                      const ok = await run(() => clearTarkovRaidRoomMarks(publicId));
+                      if (ok) setPendingMarks([]);
+                    })()
+                  }
                 >
                   清板
                 </button>
               ) : null}
-              {tool === "line" ? (
-                <span className={styles.meta}>
-                  {draft ? "再点一下终点" : "先点起点"}
-                </span>
+              {tool === "pan" ? (
+                <span className={styles.drawHint}>拖拽移动地图</span>
+              ) : null}
+              {tool === "pen" ? (
+                <span className={styles.drawHint}>拖拽涂鸦，按住空格拖地图</span>
+              ) : null}
+              {tool === "erase" ? (
+                <span className={styles.drawHint}>点一下擦掉笔画</span>
               ) : null}
             </div>
           ) : null}
-          {mapQuery.isLoading ? (
-            <div className={catalog.status}>
-              <Spin tip="加载地图…" />
-            </div>
-          ) : mapQuery.isError ? (
-            <Alert
-              type="error"
-              showIcon
-              message="地图加载失败"
-              description={apiError(mapQuery.error, "地图加载失败")}
-            />
-          ) : (
-            <Suspense fallback={<PanelFallback tip="加载地图…" />}>
-              <TarkovMapViewer
-                slug={mapId}
-                parentSlug={mapQuery.data?.parent_slug || undefined}
-                extracts={mapQuery.data?.extracts}
-                bosses={mapQuery.data?.bosses}
-                questOverlays={overlays}
-                boardMarks={room.marks || []}
-                draftLine={
-                  draft
-                    ? {
-                        x: draft.x,
-                        z: draft.z,
-                        x2: draft.x,
-                        z2: draft.z,
-                        floor: draft.floor,
-                        color: colorForUserId(me?.id || 0),
-                      }
-                    : null
-                }
-                drawMode={canEdit ? tool : "pan"}
-                onMapPoint={onMapPoint}
-                fill
+          <div className={styles.mapFill}>
+            {mapQuery.isLoading ? (
+              <div className={catalog.status}>
+                <Spin tip="加载地图…" />
+              </div>
+            ) : mapQuery.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                message="地图加载失败"
+                description={apiError(mapQuery.error, "地图加载失败")}
               />
-            </Suspense>
-          )}
+            ) : (
+              <Suspense fallback={<PanelFallback tip="加载地图…" />}>
+                <TarkovMapViewer
+                  slug={mapId}
+                  parentSlug={mapQuery.data?.parent_slug || undefined}
+                  extracts={mapQuery.data?.extracts}
+                  bosses={mapQuery.data?.bosses}
+                  questOverlays={overlays}
+                  boardMarks={boardMarks}
+                  remoteDrafts={remoteDrafts}
+                  drawColor={colorForUserId(me?.id || 0)}
+                  authorUserId={me?.id || 0}
+                  drawMode={canEdit ? tool : "pan"}
+                  onStroke={onStroke}
+                  onDraftStroke={onDraftStroke}
+                  onEraseMark={onEraseMark}
+                  fill
+                  topRight={
+                    <TarkovRaidPrepSummary
+                      tasks={selectedTasks}
+                      mapId={mapId}
+                      participantsByTask={participantsByTask}
+                    />
+                  }
+                />
+              </Suspense>
+            )}
+          </div>
         </div>
-        <aside className={styles.side}>
+        <aside className={styles.dock} aria-label="任务列表">
+          <TarkovRaidPrepFilters
+            keyword={keyword}
+            onKeyword={setKeyword}
+            traders={traders}
+            trader={trader}
+            onTrader={setTrader}
+          />
           <div className={styles.sideHead}>
-            <span className={styles.count}>
-              {rows.length} / {prepQuery.data?.task_count ?? 0}
-            </span>
+            <div className={styles.scopeBar} role="tablist" aria-label="任务范围">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={listScope === "all"}
+                className={`${styles.scopeBtn} ${
+                  listScope === "all" ? styles.scopeBtnOn : ""
+                }`}
+                onClick={() => setListScope("all")}
+              >
+                全部 {picked.length + rest.length}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={listScope === "picked"}
+                className={`${styles.scopeBtn} ${
+                  listScope === "picked" ? styles.scopeBtnOn : ""
+                }`}
+                onClick={() => setListScope("picked")}
+              >
+                已选 {groups.length}
+              </button>
+            </div>
           </div>
           <div className={styles.taskList}>
-            {prepQuery.isLoading && !prepQuery.data ? (
+            {listScope === "picked" ? (
+              picked.length ? (
+                picked.map((row) => (
+                  <TarkovRaidPrepTaskCard
+                    key={row.id}
+                    row={row}
+                    mapId={mapId}
+                    checked={myClaims.has(row.id)}
+                    highlighted
+                    names={namesByTask.get(row.id) || []}
+                    disabled={!canEdit}
+                    onToggle={() => toggleClaim(row.id)}
+                  />
+                ))
+              ) : (
+                <div className={styles.empty}>还没勾选任务</div>
+              )
+            ) : prepQuery.isLoading && !prepQuery.data && !picked.length ? (
               <div className={styles.empty}>
                 <Spin />
               </div>
-            ) : rows.length ? (
-              rows.map((row) => (
-                <RoomTaskRow
-                  key={row.id}
-                  row={row}
-                  mapId={mapId}
-                  signed={myClaims.has(row.id)}
-                  claimed={selectedSet.has(row.id)}
-                  names={
-                    groups.find((item) => item.taskId === row.id)?.names || []
-                  }
-                  onToggle={() => toggleClaim(row.id)}
-                />
-              ))
             ) : (
-              <div className={styles.empty}>当前筛选下无任务</div>
+              <>
+                {groups.length > 0 &&
+                overlayPrepQuery.isLoading &&
+                !picked.length ? (
+                  <div className={styles.pickedBlock}>
+                    <p className={styles.pickedLabel}>已选 {groups.length}</p>
+                    <div className={styles.empty}>
+                      <Spin />
+                    </div>
+                  </div>
+                ) : picked.length ? (
+                  <div className={styles.pickedBlock}>
+                    <p className={styles.pickedLabel}>已选 {picked.length}</p>
+                    {picked.map((row) => (
+                      <TarkovRaidPrepTaskCard
+                        key={row.id}
+                        row={row}
+                        mapId={mapId}
+                        checked={myClaims.has(row.id)}
+                        highlighted
+                        names={namesByTask.get(row.id) || []}
+                        disabled={!canEdit}
+                        onToggle={() => toggleClaim(row.id)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {rest.length ? (
+                  <>
+                    {picked.length ? (
+                      <p className={styles.restLabel}>筛选结果</p>
+                    ) : null}
+                    {rest.map((row) => (
+                      <TarkovRaidPrepTaskCard
+                        key={row.id}
+                        row={row}
+                        mapId={mapId}
+                        checked={false}
+                        highlighted={false}
+                        names={namesByTask.get(row.id) || []}
+                        disabled={!canEdit}
+                        onToggle={() => toggleClaim(row.id)}
+                      />
+                    ))}
+                  </>
+                ) : prepQuery.isLoading && !prepQuery.data ? (
+                  <div className={styles.empty}>
+                    <Spin />
+                  </div>
+                ) : (
+                  <div className={styles.empty}>
+                    {picked.length || groups.length
+                      ? "当前筛选下无其他任务"
+                      : "当前筛选下无任务"}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </aside>
-      </div>
-
-      <div className={styles.bottomBar} aria-label="已选任务">
-        {groups.length ? (
-          groups.map((group) => {
-            const task = selectedTasks.find((row) => row.id === group.taskId);
-            return (
-              <span key={group.taskId} className={styles.bottomChip}>
-                <span
-                  className={styles.dot}
-                  style={{ background: colorForTaskId(group.taskId) }}
-                />
-                {task?.name || group.taskId}
-                <span className={styles.bottomNames}>
-                  {group.names.join("、")}
-                </span>
-              </span>
-            );
-          })
-        ) : (
-          <span className={styles.meta}>勾选任务后会出现在这里，并带上署名</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RoomTaskRow({
-  row,
-  mapId,
-  signed,
-  claimed,
-  names,
-  onToggle,
-}: {
-  row: TarkovRaidPrepTask;
-  mapId: string;
-  signed: boolean;
-  claimed: boolean;
-  names: string[];
-  onToggle: () => void;
-}) {
-  const types = orderObjectiveTypes(row.objective_types);
-  const zones = objectiveZoneNames(row);
-  const keys = neededKeyNamesForMap(row, mapId);
-  return (
-    <div
-      className={`${styles.taskRow} ${claimed ? styles.taskRowOn : ""}`}
-      role="button"
-      tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onToggle();
-        }
-      }}
-    >
-      <input
-        className={styles.check}
-        type="checkbox"
-        checked={signed}
-        readOnly
-        tabIndex={-1}
-        aria-label={row.name || row.id}
-      />
-      {claimed ? (
-        <span
-          className={styles.swatch}
-          style={{ background: colorForTaskId(row.id) }}
-        />
-      ) : null}
-      {row.trader_slug ? (
-        <TarkovTraderThumb
-          slug={row.trader_slug}
-          size={32}
-          title={row.trader_name || row.trader_slug}
-        />
-      ) : null}
-      <div className={styles.taskBody}>
-        <div className={styles.taskTitle}>
-          <Link
-            className={styles.taskName}
-            to={tarkovTaskHref(row.id)}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {row.name || row.normalized_name || row.id}
-          </Link>
-          {row.has_map_markers ? <span className={styles.mark}>有点位</span> : null}
-        </div>
-        {names.length ? (
-          <div className={styles.meta}>{names.join("、")}</div>
-        ) : null}
-        {types.length ? (
-          <span className={taskStyles.typeList}>
-            {types.map((type) => (
-              <span
-                key={type}
-                className={taskStyles.typeChip}
-                data-tone={tarkovObjectiveTypeTone(type)}
-                title={type}
-              >
-                {tarkovObjectiveTypeLabel(type)}
-              </span>
-            ))}
-          </span>
-        ) : null}
-        {zones.length ? (
-          <div className={styles.tags}>
-            {zones.map((name) => (
-              <span key={name} className={styles.zoneTag}>
-                {tarkovMapLabel(name)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {keys.length ? (
-          <div className={styles.tags}>
-            {keys.map((name) => (
-              <span key={name} className={styles.keyTag}>
-                {name}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </div>
     </div>
   );

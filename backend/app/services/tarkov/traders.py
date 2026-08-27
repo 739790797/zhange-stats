@@ -13,6 +13,14 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTradersMeta, TarkovTradersRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
+from app.services.tarkov.game_mode import (
+    cache_key,
+    json_api_prefix,
+    json_resource_url,
+    parse_game_mode,
+    raw_row_id,
+    run_for_modes,
+)
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
@@ -160,7 +168,7 @@ def trader_portrait_url(slug: str) -> str:
 
 
 def download_json_api_traders(*, lang: str = "zh") -> dict[str, Any]:
-    raw = _http_request(TARKOV_JSON_TRADERS_URL, timeout=60)
+    raw = _http_request(json_resource_url("traders"), timeout=60)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -173,7 +181,7 @@ def download_json_api_traders(*, lang: str = "zh") -> dict[str, Any]:
     locale: dict[str, Any] = {}
     try:
         loc_raw = _http_request(
-            TARKOV_JSON_TRADERS_LOCALE_URL.format(lang=lang),
+            json_resource_url("traders", lang=lang),
             timeout=30,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
@@ -375,7 +383,7 @@ def paginate_offers(
 def get_traders_raw(db: Session) -> TarkovTradersRaw | None:
     return (
         db.query(TarkovTradersRaw)
-        .filter(TarkovTradersRaw.id == RAW_ROW_ID)
+        .filter(TarkovTradersRaw.id == raw_row_id())
         .one_or_none()
     )
 
@@ -383,7 +391,7 @@ def get_traders_raw(db: Session) -> TarkovTradersRaw | None:
 def get_traders_meta(db: Session) -> TarkovTradersMeta | None:
     return (
         db.query(TarkovTradersMeta)
-        .filter(TarkovTradersMeta.id == META_ROW_ID)
+        .filter(TarkovTradersMeta.id == raw_row_id())
         .one_or_none()
     )
 
@@ -398,7 +406,7 @@ def persist_traders_bundle(db: Session, bundle: TradersUpstreamBundle) -> dict[s
     if row is None:
         db.add(
             TarkovTradersRaw(
-                id=RAW_ROW_ID,
+                id=raw_row_id(),
                 source=bundle.source,
                 raw_json=raw_json,
                 synced_at=now,
@@ -412,7 +420,7 @@ def persist_traders_bundle(db: Session, bundle: TradersUpstreamBundle) -> dict[s
         row.note = bundle.note
     meta = get_traders_meta(db)
     if meta is None:
-        meta = TarkovTradersMeta(id=META_ROW_ID)
+        meta = TarkovTradersMeta(id=raw_row_id())
         db.add(meta)
     meta.source = bundle.source
     meta.trader_count = len(rows)
@@ -432,11 +440,12 @@ def persist_traders_bundle(db: Session, bundle: TradersUpstreamBundle) -> dict[s
     }
 
 
-def sync_from_upstream(db: Session) -> dict[str, Any]:
+def _sync_current_mode(db: Session) -> dict[str, Any]:
     from app.services.tarkov import catalog as catalog_svc
     from app.services.tarkov import items as items_svc
 
-    logger.info("syncing tarkov traders from upstream")
+    mode = parse_game_mode()
+    logger.info("syncing tarkov traders from upstream (%s)", mode)
     catalog_svc.ensure_full_item_catalog(db)
     items_svc.ensure_items(db)
     source, items_payload, _synced, _note = catalog_svc._load_payload(db)
@@ -454,8 +463,17 @@ def sync_from_upstream(db: Session) -> dict[str, Any]:
         TradersUpstreamBundle(
             source=SOURCE_JSON_API,
             payload=envelope,
-            note="json.tarkov.dev traders + items.buyFromTrader",
+            note=f"json.tarkov.dev/{json_api_prefix()}/traders + items.buyFromTrader",
         ),
+    )
+
+
+def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
+    return run_for_modes(
+        lambda: _sync_current_mode(db),
+        game_mode=game_mode,
+        error_cls=TarkovTradersError,
+        label="商人",
     )
 
 
@@ -478,7 +496,7 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
 def ensure_traders(db: Session) -> None:
     if get_traders_raw(db) is not None:
         return
-    sync_from_upstream(db)
+    sync_from_upstream(db, game_mode=parse_game_mode())
 
 
 def load_parsed_traders(
@@ -488,7 +506,7 @@ def load_parsed_traders(
     ensure_traders(db)
     meta = get_traders_meta(db)
     synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    key = synced or ""
+    key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:

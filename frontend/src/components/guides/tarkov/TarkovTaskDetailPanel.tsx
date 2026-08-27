@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovTaskDetail } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_TRADERS,
   tarkovTraderHref,
@@ -51,9 +52,10 @@ function traderLevelLabel(
 }
 
 export function TarkovTaskDetailPanel({ taskId }: Props) {
+  const gameMode = useTarkovGameMode();
   const [mine, setMine] = useTarkovTaskMineMode();
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-task-detail", taskId, mine],
+    queryKey: ["guides-tarkov-task-detail", gameMode, taskId, mine],
     queryFn: () => fetchTarkovTaskDetail(taskId, { progress: mine }),
     staleTime: 5 * 60_000,
     retry: 1,

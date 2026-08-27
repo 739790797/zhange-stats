@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchTarkovAmmo, type TarkovAmmoItem } from "@/api/guidesApi";
 import { ammoDetailHref } from "@/lib/tarkovItemTypes";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TarkovAmmoScatterChart } from "@/components/guides/tarkov/TarkovAmmoScatterChart";
 import { TarkovAmmoWikiTable } from "@/components/guides/tarkov/TarkovAmmoWikiTable";
 import {
@@ -29,9 +30,10 @@ export function TarkovAllowedAmmoScatter({
   fallbackItems,
   note,
 }: Props) {
+  const gameMode = useTarkovGameMode();
   const navigate = useNavigate();
   const ammoQuery = useQuery({
-    queryKey: ["guides-tarkov-ammo"],
+    queryKey: ["guides-tarkov-ammo", gameMode],
     queryFn: fetchTarkovAmmo,
     staleTime: 5 * 60_000,
     retry: 1,

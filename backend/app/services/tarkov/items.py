@@ -19,6 +19,7 @@ from app.models.tarkov import TarkovAmmo, TarkovItemsMeta, TarkovItemsRaw
 from app.services.tarkov import ammo as ammo_svc
 from app.services.tarkov import guns as gun_svc
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
+from app.services.tarkov.game_mode import parse_game_mode, raw_row_id, run_for_modes
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class ItemsUpstreamBundle:
 def get_items_raw(db: Session) -> TarkovItemsRaw | None:
     return (
         db.query(TarkovItemsRaw)
-        .filter(TarkovItemsRaw.id == RAW_ROW_ID)
+        .filter(TarkovItemsRaw.id == raw_row_id())
         .one_or_none()
     )
 
@@ -54,7 +55,7 @@ def get_items_raw(db: Session) -> TarkovItemsRaw | None:
 def get_items_meta(db: Session) -> TarkovItemsMeta | None:
     return (
         db.query(TarkovItemsMeta)
-        .filter(TarkovItemsMeta.id == META_ROW_ID)
+        .filter(TarkovItemsMeta.id == raw_row_id())
         .one_or_none()
     )
 
@@ -144,7 +145,7 @@ def _upsert_items_raw(
     if row is None:
         db.add(
             TarkovItemsRaw(
-                id=RAW_ROW_ID,
+                id=raw_row_id(),
                 source=source,
                 raw_json=raw_json,
                 synced_at=synced_at,
@@ -169,7 +170,7 @@ def _upsert_items_meta(
 ) -> None:
     meta = get_items_meta(db)
     if meta is None:
-        meta = TarkovItemsMeta(id=META_ROW_ID)
+        meta = TarkovItemsMeta(id=raw_row_id())
         db.add(meta)
     meta.source = source
     meta.ammo_count = ammo_count
@@ -280,16 +281,17 @@ def rebuild_from_raw(db: Session) -> dict[str, Any]:
     }
 
 
-def sync_from_upstream(db: Session) -> dict[str, Any]:
-    """优先 GraphQL split；失败回退 json.tarkov.dev 整包 items（一次下载）。"""
-    logger.info("syncing tarkov items from upstream")
+def _sync_current_mode(db: Session) -> dict[str, Any]:
+    """当前模式下：优先 GraphQL split，失败回退 json.tarkov.dev 整包 items。"""
+    mode = parse_game_mode()
+    logger.info("syncing tarkov items from upstream (%s)", mode)
     errors: list[str] = []
 
     try:
         return persist_items_bundle(db, download_graphql_items(lang="zh"))
     except TarkovItemsError as exc:
         errors.append(f"graphql: {exc}")
-        logger.warning("tarkov.dev GraphQL items sync failed: %s", exc)
+        logger.warning("tarkov.dev GraphQL items sync failed (%s): %s", mode, exc)
 
     try:
         bundle = download_json_api_items(lang="zh")
@@ -305,11 +307,24 @@ def sync_from_upstream(db: Session) -> dict[str, Any]:
         raise TarkovItemsError(f"物品同步失败：{detail}；json 亦失败: {exc}") from None
 
 
+def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
+    """回源。未指定 game_mode 时同步 PVP 与 PVE。"""
+    return run_for_modes(
+        lambda: _sync_current_mode(db),
+        game_mode=game_mode,
+        error_cls=TarkovItemsError,
+        label="物品",
+    )
+
+
 def ensure_items(db: Session) -> None:
-    """弹药或枪械派生为空时：优先 raw 重算，否则回源一次。
+    """当前模式 raw 缺失则回源该模式；弹药或枪械派生为空时优先 raw 重算。
 
     弹药已有行但 icon 全空时（例如新加 icon_link 列），有 raw 则重算一次。
     """
+    if get_items_raw(db) is None:
+        sync_from_upstream(db, game_mode=parse_game_mode())
+
     need_ammo = ammo_svc.ammo_count(db) == 0
     need_guns = gun_svc.gun_count(db) == 0
     icons_missing = False

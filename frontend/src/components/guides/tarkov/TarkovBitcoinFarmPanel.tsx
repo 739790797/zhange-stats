@@ -8,6 +8,7 @@ import {
   type TarkovItemDetail,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovHideoutHref } from "@/lib/tarkovHomeNav";
 import {
   formatDurationSeconds,
@@ -40,22 +41,23 @@ function detailFlea(detail: TarkovItemDetail | undefined): {
 }
 
 export function TarkovBitcoinFarmPanel() {
+  const gameMode = useTarkovGameMode();
   const [gpus, setGpus] = useState(10);
   const craftsQuery = useQuery({
-    queryKey: ["guides-tarkov-crafts", "bitcoin-farm"],
+    queryKey: ["guides-tarkov-crafts", gameMode, "bitcoin-farm"],
     queryFn: () =>
       fetchTarkovCrafts({ station: "bitcoin-farm", page: 1, pageSize: 20 }),
     staleTime: 5 * 60_000,
     retry: 1,
   });
   const bitcoinQuery = useQuery({
-    queryKey: ["guides-tarkov-item", BITCOIN_ITEM_ID],
+    queryKey: ["guides-tarkov-item", gameMode, BITCOIN_ITEM_ID],
     queryFn: () => fetchTarkovItemDetail(BITCOIN_ITEM_ID),
     staleTime: 5 * 60_000,
     retry: 1,
   });
   const gpuQuery = useQuery({
-    queryKey: ["guides-tarkov-item", GRAPHIC_CARD_ITEM_ID],
+    queryKey: ["guides-tarkov-item", gameMode, GRAPHIC_CARD_ITEM_ID],
     queryFn: () => fetchTarkovItemDetail(GRAPHIC_CARD_ITEM_ID),
     staleTime: 5 * 60_000,
     retry: 1,

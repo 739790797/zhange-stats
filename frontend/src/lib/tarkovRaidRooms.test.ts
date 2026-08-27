@@ -6,8 +6,14 @@ import {
   formatRoomRemain,
   groupClaimsByTask,
   markMatchesFloor,
+  markStrokePoints,
+  isMapDrawTool,
+  mergeBoardMarks,
+  parseStrokePoints,
   remainMs,
   roomDisplayTitle,
+  simplifyStroke,
+  strokeFingerprint,
 } from "./tarkovRaidRooms";
 
 describe("raid room helpers", () => {
@@ -65,5 +71,115 @@ describe("raid room helpers", () => {
       snapshot: { ...room, status: "archived" },
     });
     expect(snap?.status).toBe("archived");
+  });
+
+  it("simplifies freehand strokes and reads mark points", () => {
+    expect(parseStrokePoints([[1, 2], { x: 3, z: 4 }, ["bad"]])).toEqual([
+      { x: 1, z: 2 },
+      { x: 3, z: 4 },
+    ]);
+    const long = Array.from({ length: 40 }, (_, i) => ({ x: i * 0.2, z: 0 }));
+    const simplified = simplifyStroke(long, 1.6, 160);
+    expect(simplified[0]).toEqual({ x: 0, z: 0 });
+    expect(simplified.at(-1)).toEqual({ x: 7.8, z: 0 });
+    expect(simplified.length).toBeLessThan(long.length);
+    const capped = simplifyStroke(
+      Array.from({ length: 400 }, (_, i) => ({ x: i * 2, z: i })),
+      1.6,
+      20,
+    );
+    expect(capped).toHaveLength(20);
+    expect(
+      markStrokePoints({
+        id: 1,
+        kind: "stroke",
+        x: 0,
+        z: 0,
+        points: [
+          [0, 0],
+          [5, 5],
+        ],
+        author_user_id: 1,
+      }),
+    ).toEqual([
+      { x: 0, z: 0 },
+      { x: 5, z: 5 },
+    ]);
+    expect(
+      markStrokePoints({
+        id: 2,
+        kind: "line",
+        x: 1,
+        z: 2,
+        x2: 3,
+        z2: 4,
+        author_user_id: 1,
+      }),
+    ).toEqual([
+      { x: 1, z: 2 },
+      { x: 3, z: 4 },
+    ]);
+  });
+
+  it("keeps optimistic strokes until the board snapshot contains them", () => {
+    const first: Parameters<typeof mergeBoardMarks>[1][number] = {
+      id: -1,
+      kind: "stroke",
+      floor: "",
+      x: 0,
+      z: 0,
+      x2: 4,
+      z2: 0,
+      points: [
+        [0, 0],
+        [4, 0],
+      ],
+      author_user_id: 1,
+    };
+    const second = { ...first, id: -2, x: 1, x2: 5, points: [[1, 0], [5, 0]] };
+    expect(mergeBoardMarks([], [first, second])).toEqual([first, second]);
+    expect(mergeBoardMarks([{ ...first, id: 9 }], [first, second])).toEqual([
+      { ...first, id: 9 },
+      second,
+    ]);
+  });
+
+  it("treats pan as a map tool, not a draw tool", () => {
+    expect(isMapDrawTool("pan")).toBe(false);
+    expect(isMapDrawTool("pen")).toBe(true);
+    expect(isMapDrawTool("erase")).toBe(true);
+  });
+
+  it("fingerprints two freehand strokes separately even with the same endpoints", () => {
+    const base = {
+      id: 1,
+      kind: "stroke" as const,
+      floor: "",
+      x: 0,
+      z: 0,
+      x2: 10,
+      z2: 0,
+      author_user_id: 1,
+    };
+    expect(
+      strokeFingerprint({
+        ...base,
+        points: [
+          [0, 0],
+          [5, 4],
+          [10, 0],
+        ],
+      }),
+    ).not.toBe(
+      strokeFingerprint({
+        ...base,
+        id: 2,
+        points: [
+          [0, 0],
+          [5, -4],
+          [10, 0],
+        ],
+      }),
+    );
   });
 });

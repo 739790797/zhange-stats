@@ -9,6 +9,7 @@ import {
   type TarkovGunItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { formatCaliberLabel } from "@/lib/tarkovGunCategories";
 import { TarkovGunsTable } from "@/components/guides/tarkov/TarkovGunsTable";
 import styles from "./TarkovGunsPanel.module.css";
@@ -46,20 +47,21 @@ function renderGunSource(source: string | null | undefined) {
 }
 
 export function TarkovGunsPanel() {
+  const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const ammoFilterId = (searchParams.get("ammo") || "").trim() || null;
   const caliberFilterParam =
     (searchParams.get("caliber") || "").trim() || null;
 
   const gunsQuery = useQuery({
-    queryKey: ["guides-tarkov-guns"],
+    queryKey: ["guides-tarkov-guns", gameMode],
     queryFn: fetchTarkovGuns,
     staleTime: 5 * 60_000,
     retry: 1,
   });
 
   const ammoQuery = useQuery({
-    queryKey: ["guides-tarkov-ammo"],
+    queryKey: ["guides-tarkov-ammo", gameMode],
     queryFn: fetchTarkovAmmo,
     enabled: Boolean(ammoFilterId),
     staleTime: 5 * 60_000,

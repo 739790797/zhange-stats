@@ -14,6 +14,14 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovBossesMeta, TarkovBossesRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
+from app.services.tarkov.game_mode import (
+    cache_key,
+    json_api_prefix,
+    json_resource_url,
+    parse_game_mode,
+    raw_row_id,
+    run_for_modes,
+)
 from app.services.tarkov.http import download_bytes
 from app.services.tarkov.tasks import TRADER_BY_ID
 
@@ -556,6 +564,19 @@ def slim_maps_payload(
             if point:
                 item["position"] = point
             extracts.append(item)
+        transits: list[dict[str, Any]] = []
+        for transit in raw.get("transits") or []:
+            if not isinstance(transit, dict):
+                continue
+            item = {
+                "id": str(transit.get("id") or ""),
+                "description": str(transit.get("description") or ""),
+                "name": str(transit.get("name") or transit.get("description") or ""),
+            }
+            point = map_xyz(transit)
+            if point:
+                item["position"] = point
+            transits.append(item)
         maps_out[str(key)] = {
             "id": str(raw.get("id") or key),
             "name": str(raw.get("name") or ""),
@@ -567,6 +588,7 @@ def slim_maps_payload(
             "minPlayerLevel": _as_int(raw.get("minPlayerLevel"), 0) or 0,
             "maxPlayerLevel": _as_int(raw.get("maxPlayerLevel"), 0) or 0,
             "extracts": extracts,
+            "transits": transits,
             "bosses": bosses,
         }
 
@@ -588,7 +610,7 @@ def slim_maps_payload(
 
 
 def download_json_api_maps(*, lang: str = "zh") -> BossesUpstreamBundle:
-    raw = _http_request(TARKOV_JSON_MAPS_URL, timeout=180)
+    raw = _http_request(json_resource_url("maps"), timeout=180)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -601,7 +623,7 @@ def download_json_api_maps(*, lang: str = "zh") -> BossesUpstreamBundle:
     locale: dict[str, Any] = {}
     try:
         loc_raw = _http_request(
-            TARKOV_JSON_MAPS_LOCALE_URL.format(lang=lang),
+            json_resource_url("maps", lang=lang),
             timeout=60,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
@@ -618,7 +640,7 @@ def download_json_api_maps(*, lang: str = "zh") -> BossesUpstreamBundle:
     return BossesUpstreamBundle(
         source=SOURCE_JSON_API,
         payload=slim,
-        note="json.tarkov.dev/regular/maps",
+        note=f"json.tarkov.dev/{json_api_prefix()}/maps",
     )
 
 
@@ -1072,11 +1094,11 @@ def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
 
 
 def get_bosses_raw(db: Session) -> TarkovBossesRaw | None:
-    return db.get(TarkovBossesRaw, RAW_ROW_ID)
+    return db.get(TarkovBossesRaw, raw_row_id())
 
 
 def get_bosses_meta(db: Session) -> TarkovBossesMeta | None:
-    return db.get(TarkovBossesMeta, META_ROW_ID)
+    return db.get(TarkovBossesMeta, raw_row_id())
 
 
 def persist_bosses_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str, Any]:
@@ -1090,7 +1112,7 @@ def persist_bosses_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str
     if row is None:
         db.add(
             TarkovBossesRaw(
-                id=RAW_ROW_ID,
+                id=raw_row_id(),
                 source=bundle.source,
                 raw_json=raw_json,
                 synced_at=now,
@@ -1104,7 +1126,7 @@ def persist_bosses_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str
         row.note = bundle.note
     meta = get_bosses_meta(db)
     if meta is None:
-        meta = TarkovBossesMeta(id=META_ROW_ID)
+        meta = TarkovBossesMeta(id=raw_row_id())
         db.add(meta)
     meta.source = bundle.source
     meta.boss_count = len(rows)
@@ -1121,9 +1143,18 @@ def persist_bosses_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str
     }
 
 
-def sync_from_upstream(db: Session) -> dict[str, Any]:
-    logger.info("syncing tarkov bosses from upstream")
+def _sync_current_mode(db: Session) -> dict[str, Any]:
+    logger.info("syncing tarkov bosses from upstream (%s)", parse_game_mode())
     return persist_bosses_bundle(db, download_json_api_maps(lang="zh"))
+
+
+def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
+    return run_for_modes(
+        lambda: _sync_current_mode(db),
+        game_mode=game_mode,
+        error_cls=TarkovBossesError,
+        label="BOSS",
+    )
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
@@ -1146,7 +1177,7 @@ def load_parsed_bosses(db: Session) -> tuple[str, list[dict[str, Any]], str | No
     global _parsed_cache
     meta = get_bosses_meta(db)
     synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    key = synced or ""
+    key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -1161,7 +1192,7 @@ def load_parsed_bosses(db: Session) -> tuple[str, list[dict[str, Any]], str | No
 
 def ensure_bosses(db: Session) -> None:
     if get_bosses_raw(db) is None:
-        sync_from_upstream(db)
+        sync_from_upstream(db, game_mode=parse_game_mode())
 
 
 def _public_summary(row: dict[str, Any]) -> dict[str, Any]:

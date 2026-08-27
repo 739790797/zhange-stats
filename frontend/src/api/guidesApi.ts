@@ -443,17 +443,26 @@ export async function unclaimTarkovRaidRoomTask(
 export async function addTarkovRaidRoomMark(
   publicId: string,
   body: {
-    kind: "pin" | "line";
+    kind: "pin" | "line" | "stroke";
     floor?: string;
     x: number;
     z: number;
     x2?: number;
     z2?: number;
+    points?: number[][];
   },
 ) {
   const { data } = await client.post<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/marks`,
     body,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function removeTarkovRaidRoomMark(publicId: string, markId: number) {
+  const { data } = await client.delete<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/marks/${markId}`,
     { timeout: 30_000 },
   );
   return data;

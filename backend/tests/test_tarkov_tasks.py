@@ -258,6 +258,78 @@ def test_required_keys_or_groups_and_fallback_needed_keys():
     assert needed_ids == ["keyA", "keyB", "keyC"]
 
 
+def test_needed_keys_resolve_name_from_quest_items():
+    detail = tasks.project_task_detail(
+        {
+            "id": "t-keys",
+            "name": "Keys",
+            "trader": PRAPOR,
+            "map": STREETS,
+            "neededKeys": [
+                {"map": STREETS, "keys": ["5a9f913a86f77472bf74a592"]},
+            ],
+            "objectives": [],
+        },
+        {},
+        quest_items={
+            "5a9f913a86f77472bf74a592": {
+                "id": "5a9f913a86f77472bf74a592",
+                "name": "宿舍 114 钥匙",
+                "iconLink": "https://example/k.webp",
+            }
+        },
+    )
+    assert detail is not None
+    key = detail["needed_keys"][0]["keys"][0]
+    assert key["name"] == "宿舍 114 钥匙"
+    assert key["icon_link"] == "https://example/k.webp"
+
+
+def test_apply_item_hits_fills_placeholder_key_names():
+    rows = [
+        {
+            "needed_keys": [
+                {
+                    "map": {"id": STREETS},
+                    "keys": [
+                        {
+                            "id": "5a9f913a86f77472bf74a592",
+                            "name": "5a9f913a86f77472bf74a592",
+                            "icon_link": "",
+                            "types": [],
+                        }
+                    ],
+                }
+            ],
+            "objectives": [
+                {
+                    "items": [
+                        {"id": "gold", "name": "gold", "icon_link": "", "types": []}
+                    ]
+                }
+            ],
+        }
+    ]
+    tasks.apply_item_hits_to_details(
+        rows,
+        {
+            "5a9f913a86f77472bf74a592": {
+                "name": "宿舍 114 钥匙",
+                "icon_link": "https://example/k.webp",
+                "types": ["keys"],
+            },
+            "gold": {"name": "金项链", "icon_link": "g.png", "types": ["barter"]},
+        },
+    )
+    key = rows[0]["needed_keys"][0]["keys"][0]
+    item = rows[0]["objectives"][0]["items"][0]
+    assert key["name"] == "宿舍 114 钥匙"
+    assert key["icon_link"] == "https://example/k.webp"
+    assert key["types"] == ["keys"]
+    assert item["name"] == "金项链"
+    assert item["types"] == ["barter"]
+
+
 def test_graphql_list_envelope():
     payload = {
         "format": "graphql",

@@ -4,6 +4,7 @@ import { fetchTarkovItemDetail } from "@/api/guidesApi";
 import { TarkovItemDetailPanel } from "@/components/guides/tarkov/TarkovItemDetailPanel";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   ITEMS_BASE_PATH,
   handbookHref,
@@ -14,13 +15,14 @@ import {
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
 
 export default function TarkovItemDetailPage() {
+  const gameMode = useTarkovGameMode();
   const { typeSegment = "", itemId = "" } = useParams<{
     typeSegment: string;
     itemId: string;
   }>();
   const page = itemPageBySlug(typeSegment);
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-item-detail", itemId],
+    queryKey: ["guides-tarkov-item-detail", gameMode, itemId],
     queryFn: () => fetchTarkovItemDetail(itemId),
     staleTime: 5 * 60_000,
     retry: 1,

@@ -1,13 +1,14 @@
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
 
 class TarkovItemsRaw(Base):
-    """逃离塔科夫物品上游原始响应（全站最新一份成功同步；弹药/枪械等共用）。"""
+    """逃离塔科夫物品上游原始响应（id=1 PVP，id=2 PVE）。"""
 
     __tablename__ = "tarkov_items_raws"
 
@@ -24,7 +25,7 @@ class TarkovItemsRaw(Base):
 
 
 class TarkovItemsMeta(Base):
-    """物品同步元数据（单行 id=1；与 raw 同事务写入）。"""
+    """物品同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
 
     __tablename__ = "tarkov_items_meta"
 
@@ -116,7 +117,7 @@ class TarkovGunMeta(Base):
 
 
 class TarkovTasksRaw(Base):
-    """逃离塔科夫任务上游原始响应（全站最新一份成功同步）。"""
+    """逃离塔科夫任务上游原始响应（id=1 PVP，id=2 PVE）。"""
 
     __tablename__ = "tarkov_tasks_raws"
 
@@ -132,7 +133,7 @@ class TarkovTasksRaw(Base):
 
 
 class TarkovTasksMeta(Base):
-    """任务同步元数据（单行 id=1；与 raw 同事务写入）。"""
+    """任务同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
 
     __tablename__ = "tarkov_tasks_meta"
 
@@ -144,7 +145,7 @@ class TarkovTasksMeta(Base):
 
 
 class TarkovTradersRaw(Base):
-    """逃离塔科夫商人上游原始响应（全站最新一份成功同步）。"""
+    """逃离塔科夫商人上游原始响应（id=1 PVP，id=2 PVE）。"""
 
     __tablename__ = "tarkov_traders_raws"
 
@@ -160,7 +161,7 @@ class TarkovTradersRaw(Base):
 
 
 class TarkovTradersMeta(Base):
-    """商人同步元数据（单行 id=1；与 raw 同事务写入）。"""
+    """商人同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
 
     __tablename__ = "tarkov_traders_meta"
 
@@ -173,7 +174,7 @@ class TarkovTradersMeta(Base):
 
 
 class TarkovBossesRaw(Base):
-    """逃离塔科夫 BOSS 上游原始响应（maps + mobs 精简包；全站最新一份）。"""
+    """逃离塔科夫 BOSS 上游原始响应（maps + mobs 精简包；id=1 PVP，id=2 PVE）。"""
 
     __tablename__ = "tarkov_bosses_raws"
 
@@ -189,7 +190,7 @@ class TarkovBossesRaw(Base):
 
 
 class TarkovBossesMeta(Base):
-    """BOSS 同步元数据（单行 id=1；与 raw 同事务写入）。"""
+    """BOSS 同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
 
     __tablename__ = "tarkov_bosses_meta"
 
@@ -241,7 +242,7 @@ class TarkovTrackerBind(Base):
 
 
 class TarkovGuidesRaw(Base):
-    """藏身处 / 以物易物 / 制作上游原始响应（全站最新一份）。"""
+    """藏身处 / 以物易物 / 制作上游原始响应（id=1 PVP，id=2 PVE）。"""
 
     __tablename__ = "tarkov_guides_raws"
 
@@ -257,7 +258,7 @@ class TarkovGuidesRaw(Base):
 
 
 class TarkovGuidesMeta(Base):
-    """藏身处 / 交换同步元数据（单行 id=1）。"""
+    """藏身处 / 交换同步元数据（id=1 PVP，id=2 PVE）。"""
 
     __tablename__ = "tarkov_guides_meta"
 
@@ -349,7 +350,7 @@ class TarkovRaidRoomTaskClaim(Base):
 
 
 class TarkovRaidRoomMark(Base):
-    """房间画板：钉点或直线，坐标为地图 x/z。"""
+    """房间画板：钉点 / 直线 / 自由笔画，坐标为地图 x/z。"""
 
     __tablename__ = "tarkov_raid_room_marks"
     __table_args__ = (Index("ix_tarkov_raid_room_marks_room", "room_id", "created_at"),)
@@ -371,6 +372,7 @@ class TarkovRaidRoomMark(Base):
     z: Mapped[float] = mapped_column(Float, nullable=False)
     x2: Mapped[float | None] = mapped_column(Float, nullable=True)
     z2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    points_json: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

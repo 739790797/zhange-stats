@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovBossHref } from "@/lib/tarkovHomeNav";
 import styles from "./TarkovBossPanel.module.css";
 
 export function TarkovBossesHubPanel() {
+  const gameMode = useTarkovGameMode();
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-bosses"],
+    queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,
     staleTime: 5 * 60_000,
     retry: 1,

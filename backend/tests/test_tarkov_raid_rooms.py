@@ -50,13 +50,19 @@ def test_create_join_lobby_and_capacity() -> None:
     assert created["member_count"] == 1
     public_id = created["public_id"]
 
-    lobby = rooms.list_live_rooms(db, map_slug="customs", now=now)
+    lobby = rooms.list_live_rooms(db, map_slug="customs", now=now, viewer=host)
     assert len(lobby["items"]) == 1
     assert lobby["items"][0]["public_id"] == public_id
+    assert lobby["items"][0]["is_member"] is True
 
     guests = [_user(db, f"u{i}", f"客{i}") for i in range(7)]
     for guest in guests:
         rooms.join_room(db, public_id, guest, now=now)
+    outsider = _user(db, "out", "路人")
+    lobby_out = rooms.list_live_rooms(db, map_slug="customs", now=now, viewer=outsider)
+    assert lobby_out["items"][0]["is_member"] is False
+    lobby_guest = rooms.list_live_rooms(db, map_slug="customs", now=now, viewer=guests[0])
+    assert lobby_guest["items"][0]["is_member"] is True
     extra = _user(db, "late", "迟到")
     try:
         rooms.join_room(db, public_id, extra, now=now)
@@ -132,12 +138,71 @@ def test_marks_undo_and_host_clear() -> None:
     try:
         rooms.clear_marks(db, public_id, guest, now=now)
         cleared = True
-    except rooms.RaidRoomError as exc:
+    except rooms.RaidRoomError as extra_exc:
         cleared = False
-        assert exc.status_code == 403
+        assert extra_exc.status_code == 403
     assert not cleared
     snap = rooms.clear_marks(db, public_id, host, now=now)
     assert snap["marks"] == []
+
+
+def test_stroke_marks_and_draft_parse() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    room = rooms.create_room(db, host, map_slug="factory", now=now)
+    public_id = room["public_id"]
+    _, stroke = rooms.add_mark(
+        db,
+        public_id,
+        host,
+        kind="stroke",
+        floor="",
+        x=0,
+        z=0,
+        points=[[0, 0], [4, 1], [8, 2], [12, 2]],
+        now=now,
+    )
+    assert stroke["kind"] == "stroke"
+    assert stroke["points"] == [[0.0, 0.0], [4.0, 1.0], [8.0, 2.0], [12.0, 2.0]]
+    assert stroke["x2"] == 12.0
+    assert stroke["z2"] == 2.0
+
+    try:
+        rooms.add_mark(
+            db,
+            public_id,
+            host,
+            kind="stroke",
+            floor="",
+            x=0,
+            z=0,
+            points=[[0, 0]] * (rooms.MAX_STROKE_POINTS + 1),
+            now=now,
+        )
+        oversized = True
+    except rooms.RaidRoomError as extra_exc:
+        oversized = False
+        assert extra_exc.status_code == 409
+    assert not oversized
+
+    try:
+        rooms.add_mark(
+            db, public_id, host, kind="arrow", floor="", x=1, z=1, now=now
+        )
+        bad_kind = True
+    except rooms.RaidRoomError:
+        bad_kind = False
+    assert not bad_kind
+
+    assert rooms.parse_draw_draft({"floor": "bunker", "points": []}) == {
+        "floor": "bunker",
+        "points": [],
+    }
+    parsed = rooms.parse_draw_draft({"floor": "", "points": [[1, 2], [3, 4]]})
+    assert parsed == {"floor": "", "points": [[1.0, 2.0], [3.0, 4.0]]}
+    assert rooms.parse_draw_draft({"floor": "", "points": "nope"}) is None
+    assert rooms.parse_draw_draft({"floor": "x" * 80, "points": []}) is None
 
 
 def test_expire_archives_and_rejects_writes() -> None:

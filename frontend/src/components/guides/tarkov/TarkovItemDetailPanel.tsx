@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovItemDetail } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovTraderHref, traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { inspectImageUrl } from "@/lib/tarkovItemImages";
@@ -205,8 +206,9 @@ export function TarkovItemDetailPanel({
   itemId,
   variant = "full",
 }: Props) {
+  const gameMode = useTarkovGameMode();
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-item-detail", itemId],
+    queryKey: ["guides-tarkov-item-detail", gameMode, itemId],
     queryFn: () => fetchTarkovItemDetail(itemId),
     staleTime: 5 * 60_000,
     retry: 1,

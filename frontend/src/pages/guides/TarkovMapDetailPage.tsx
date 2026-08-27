@@ -9,17 +9,19 @@ import {
   TARKOV_MAPS,
   tarkovMapHref,
 } from "@/lib/tarkovHomeNav";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
 
 export default function TarkovMapDetailPage() {
   const { mapSlug = "" } = useParams<{ mapSlug: string }>();
+  const gameMode = useTarkovGameMode();
   const known = TARKOV_MAPS.find(
     (item) =>
       item.id === mapSlug ||
       tarkovMapHref(item.id).endsWith(`/${encodeURIComponent(mapSlug)}`),
   );
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-map", mapSlug],
+    queryKey: ["guides-tarkov-map", gameMode, mapSlug],
     queryFn: () => fetchTarkovMapDetail(mapSlug),
     staleTime: 5 * 60_000,
     retry: 1,

@@ -22,6 +22,8 @@ type Props = {
   sectionHref?: string;
   /** 不渲染面包屑和大标题（任务列表等自带工具栏时用） */
   hideHead?: boolean;
+  /** 吃满攻略壳剩余高度，给地图工作区用 */
+  fill?: boolean;
 };
 
 export function TarkovItemsPageShell({
@@ -33,6 +35,7 @@ export function TarkovItemsPageShell({
   sectionLabel = "物品",
   sectionHref,
   hideHead = false,
+  fill = false,
 }: Props) {
   const breadcrumbItems: TarkovCrumb[] = [
     { label: "逃离塔科夫", to: "/guides/tarkov" },
@@ -41,7 +44,7 @@ export function TarkovItemsPageShell({
   ];
 
   return (
-    <div className={styles.inner}>
+    <div className={`${styles.inner}${fill ? ` ${styles.innerFill}` : ""}`}>
       {hideHead ? null : (
         <>
           <TarkovItemsBreadcrumb items={breadcrumbItems} />

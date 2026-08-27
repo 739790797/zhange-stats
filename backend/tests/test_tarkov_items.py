@@ -27,7 +27,7 @@ class _FakeQuery:
         self._rows = list(session.store.get(model, []))
 
     def filter(self, *args, **_k):  # noqa: ANN001
-        # Support TarkovAmmo.icon_link != ""
+        # Support TarkovAmmo.icon_link != "" and Model.id == N
         if args:
             expr = args[0]
             left = getattr(expr, "left", None)
@@ -35,6 +35,16 @@ class _FakeQuery:
             if key == "icon_link":
                 self._rows = [
                     r for r in self._rows if str(getattr(r, "icon_link", "") or "")
+                ]
+            elif key == "id":
+                right = getattr(expr, "right", None)
+                value = getattr(right, "value", right)
+                try:
+                    value = int(value)
+                except (TypeError, ValueError):
+                    pass
+                self._rows = [
+                    r for r in self._rows if getattr(r, "id", None) == value
                 ]
         return self
 
@@ -164,7 +174,7 @@ def test_sync_json_once_writes_both(monkeypatch: pytest.MonkeyPatch):
     assert result["ammo_count"] == 1
     assert result["gun_count"] == 1
     assert db.committed is True
-    assert len(db.store[TarkovItemsRaw]) == 1
+    assert {row.id for row in db.store[TarkovItemsRaw]} == {1, 2}
     assert len(db.store[TarkovAmmo]) == 1
     assert len(db.store[TarkovGun]) == 1
 
@@ -229,7 +239,7 @@ def test_ensure_items_rebuilds_once(monkeypatch: pytest.MonkeyPatch):
 
     calls = {"sync": 0}
 
-    def boom(_db=None):  # noqa: ANN001
+    def boom(_db=None, **_k):  # noqa: ANN001
         calls["sync"] += 1
         raise AssertionError("should not sync upstream")
 
@@ -246,9 +256,18 @@ def test_ensure_items_rebuilds_once(monkeypatch: pytest.MonkeyPatch):
 def test_ensure_ammo_and_guns_share_sync(monkeypatch: pytest.MonkeyPatch):
     calls = {"n": 0}
 
-    def fake_sync(db):  # noqa: ANN001
+    def fake_sync(db, **_k):  # noqa: ANN001
         calls["n"] += 1
         now = __import__("datetime").datetime.utcnow()
+        db.add(
+            TarkovItemsRaw(
+                id=svc.RAW_ROW_ID,
+                source=SOURCE_JSON_API,
+                raw_json="{}",
+                synced_at=now,
+                note="t",
+            )
+        )
         ammo_svc.replace_derived_ammo_rows(
             db,
             [
@@ -295,7 +314,6 @@ def test_ensure_ammo_and_guns_share_sync(monkeypatch: pytest.MonkeyPatch):
         return {"ammo_count": 1, "gun_count": 1, "source": SOURCE_JSON_API}
 
     monkeypatch.setattr(svc, "sync_from_upstream", fake_sync)
-    monkeypatch.setattr(svc, "get_items_raw", lambda _db: None)
 
     db = FakeSession()
     ammo_svc.ensure_ammo(db)

@@ -19,9 +19,27 @@ export type RaidRoomMarkLike = {
   z: number;
   x2?: number | null;
   z2?: number | null;
+  points?: number[][] | null;
   author_user_id: number;
   author_display_name?: string;
 };
+
+export type TarkovMapDrawMode = "pan" | "pen" | "erase";
+
+export type StrokePoint = {
+  x: number;
+  z: number;
+};
+
+export type RaidRoomDraftStroke = {
+  userId?: number;
+  floor: string;
+  points: StrokePoint[];
+  color: string;
+};
+
+export const STROKE_MAX_POINTS = 160;
+export const STROKE_MIN_DIST = 1.6;
 
 export type RaidRoomMemberLike = {
   user_id: number;
@@ -139,4 +157,102 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
   if (event.snapshot) return withPresence(event.snapshot);
   if (event.event === "presence" && current) return withPresence(current);
   return current;
+}
+
+export function roundStrokeCoord(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function parseStrokePoints(raw: unknown): StrokePoint[] {
+  if (!Array.isArray(raw)) return [];
+  const points: StrokePoint[] = [];
+  for (const item of raw) {
+    if (Array.isArray(item) && item.length >= 2) {
+      const x = Number(item[0]);
+      const z = Number(item[1]);
+      if (Number.isFinite(x) && Number.isFinite(z)) points.push({ x, z });
+      continue;
+    }
+    if (item && typeof item === "object") {
+      const rec = item as { x?: unknown; z?: unknown };
+      const x = Number(rec.x);
+      const z = Number(rec.z);
+      if (Number.isFinite(x) && Number.isFinite(z)) points.push({ x, z });
+    }
+  }
+  return points;
+}
+
+export function simplifyStroke(
+  points: StrokePoint[],
+  minDist = STROKE_MIN_DIST,
+  maxPoints = STROKE_MAX_POINTS,
+): StrokePoint[] {
+  if (!points.length) return [];
+  const sampled: StrokePoint[] = [
+    { x: roundStrokeCoord(points[0].x), z: roundStrokeCoord(points[0].z) },
+  ];
+  for (let i = 1; i < points.length; i += 1) {
+    const cur = points[i];
+    const isLast = i === points.length - 1;
+    const prev = sampled[sampled.length - 1];
+    if (!isLast && Math.hypot(cur.x - prev.x, cur.z - prev.z) < minDist) continue;
+    sampled.push({ x: roundStrokeCoord(cur.x), z: roundStrokeCoord(cur.z) });
+  }
+  if (sampled.length <= maxPoints) return sampled;
+  const out: StrokePoint[] = [];
+  const step = (sampled.length - 1) / (maxPoints - 1);
+  for (let i = 0; i < maxPoints; i += 1) {
+    const idx = i === maxPoints - 1 ? sampled.length - 1 : Math.round(i * step);
+    out.push(sampled[idx]);
+  }
+  return out;
+}
+
+export function markStrokePoints(mark: RaidRoomMarkLike): StrokePoint[] {
+  if (mark.kind === "stroke") {
+    const parsed = parseStrokePoints(mark.points);
+    if (parsed.length) return parsed;
+  }
+  if (
+    (mark.kind === "line" || mark.kind === "stroke") &&
+    mark.x2 != null &&
+    mark.z2 != null
+  ) {
+    return [
+      { x: mark.x, z: mark.z },
+      { x: mark.x2, z: mark.z2 },
+    ];
+  }
+  return [{ x: mark.x, z: mark.z }];
+}
+
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
+export function isMapDrawTool(mode: TarkovMapDrawMode): boolean {
+  return mode === "pen" || mode === "erase";
+}
+
+export function strokeFingerprint(mark: RaidRoomMarkLike): string {
+  const pts = markStrokePoints(mark);
+  if (!pts.length) return `${mark.kind}:${mark.floor || ""}:${mark.x}:${mark.z}`;
+  const body = pts
+    .map((point) => `${roundStrokeCoord(point.x)},${roundStrokeCoord(point.z)}`)
+    .join(";");
+  return `${mark.kind}:${mark.floor || ""}:${body}`;
+}
+
+export function mergeBoardMarks(
+  boardMarks: RaidRoomMarkLike[],
+  optimistic: RaidRoomMarkLike[],
+): RaidRoomMarkLike[] {
+  if (!optimistic.length) return boardMarks;
+  const keys = new Set(boardMarks.map(strokeFingerprint));
+  const extras = optimistic.filter((row) => !keys.has(strokeFingerprint(row)));
+  return extras.length ? [...boardMarks, ...extras] : boardMarks;
 }

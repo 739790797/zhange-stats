@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovHideout } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovHideoutHref } from "@/lib/tarkovHomeNav";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import tableStyles from "./TarkovDarkTable.module.css";
@@ -18,8 +19,9 @@ type CostRow = {
 };
 
 export function TarkovHideoutCostPanel() {
+  const gameMode = useTarkovGameMode();
   const catalogQuery = useQuery({
-    queryKey: ["guides-tarkov-hideout"],
+    queryKey: ["guides-tarkov-hideout", gameMode],
     queryFn: fetchTarkovHideout,
     staleTime: 5 * 60_000,
     retry: 1,

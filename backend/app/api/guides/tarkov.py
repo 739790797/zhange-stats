@@ -53,9 +53,33 @@ from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import search as search_svc
 from app.services.tarkov import tracker as tracker_svc
+from app.services.tarkov.game_mode import (
+    parse_game_mode,
+    reset_game_mode,
+    use_game_mode,
+)
 
 router = APIRouter(prefix="/tarkov")
 router.include_router(tarkov_raid_rooms.router)
+
+
+async def tarkov_game_mode(
+    game_mode: str = Query(
+        default="pvp",
+        max_length=16,
+        description="PVP（regular）或 PVE",
+    ),
+):
+    """请求级 PVP/PVE。必须 async，避免 sync yield 在线程池里 set/reset ContextVar 崩成 500。"""
+    parsed = parse_game_mode(game_mode)
+    token = use_game_mode(parsed)
+    try:
+        yield parsed
+    finally:
+        reset_game_mode(token)
+
+
+router.dependencies.append(Depends(tarkov_game_mode))
 
 
 def _parse_str_list(raw: str | None) -> list[str]:
