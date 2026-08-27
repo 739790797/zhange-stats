@@ -81,7 +81,7 @@ describe("raid room helpers", () => {
     const long = Array.from({ length: 40 }, (_, i) => ({ x: i * 0.2, z: 0 }));
     const simplified = simplifyStroke(long, 1.6, 160);
     expect(simplified[0]).toEqual({ x: 0, z: 0 });
-    expect(simplified.at(-1)).toEqual({ x: 7.8, z: 0 });
+    expect(simplified[simplified.length - 1]).toEqual({ x: 7.8, z: 0 });
     expect(simplified.length).toBeLessThan(long.length);
     const capped = simplifyStroke(
       Array.from({ length: 400 }, (_, i) => ({ x: i * 2, z: i })),

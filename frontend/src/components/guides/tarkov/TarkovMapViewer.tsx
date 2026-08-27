@@ -964,11 +964,12 @@ export function TarkovMapViewer({
     const runtime = runtimeRef.current;
     const map = runtime?.map;
     if (!runtime || !map || !interactive) return;
-    const wantSvg = style === "svg" && runtime.svgOverlay;
+    const svgOverlay = runtime.svgOverlay;
+    const wantSvg = style === "svg" && Boolean(svgOverlay);
     const floorLayer = floors.find((item) => item.name === floor);
     const keepBaseOpaque = floorLayer?.show === true;
-    if (wantSvg) {
-      runtime.svgOverlay.addTo(map);
+    if (wantSvg && svgOverlay) {
+      svgOverlay.addTo(map);
       runtime.tileLayer?.remove();
       for (const tile of runtime.floorTiles.values()) tile.remove();
       setSvgFloor(
