@@ -13,6 +13,7 @@ from app.core.timeutil import now_naive
 from app.models.job_run import JobRun
 from app.services.minecraft.perf_rollup import maintain_perf_archive
 from app.services.scheduler_config import load_scheduler_config
+from app.services.tarkov.raid_rooms import archive_expired_rooms
 
 logger = logging.getLogger("zhange.job_runs_prune")
 
@@ -74,12 +75,14 @@ def prune_job_runs(
     db.flush()
     checkin_deleted = prune_checkin_logs(db, retention_days=days)
     mc_perf = maintain_perf_archive(db, prune=True)
+    raid_archived = archive_expired_rooms(db)
     return {
         "deleted": int(job_deleted),
         "retention_days": days,
         "checkin_logs_deleted": checkin_deleted,
         "checkin_logs_total": sum(checkin_deleted.values()),
         "minecraft_perf": mc_perf,
+        "tarkov_raid_rooms_archived": raid_archived,
     }
 
 

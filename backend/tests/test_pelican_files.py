@@ -7,6 +7,7 @@ import pytest
 from app.services.minecraft.files import normalize_mode
 from app.services.minecraft.pelican import (
     PelicanError,
+    is_absent_file_error,
     join_remote_path,
     normalize_remote_directory,
     normalize_remote_file_path,
@@ -118,3 +119,10 @@ def test_get_file_contents_keeps_json_text(monkeypatch):
     monkeypatch.setattr("app.services.minecraft.pelican._request", fake_request)
     text = get_file_contents("https://p.example", "tok", "abcd", "server.properties")
     assert text == '{"motd":"hi"}'
+
+
+def test_wings_generic_500_counts_as_absent_file():
+    assert is_absent_file_error(PelicanError("Pelican HTTP 500", status_code=500))
+    assert is_absent_file_error(PelicanError("missing", status_code=404))
+    assert is_absent_file_error(PelicanError("bad path", status_code=400))
+    assert not is_absent_file_error(PelicanError("unauthorized", status_code=401))

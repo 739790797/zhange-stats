@@ -15,6 +15,8 @@ export type MinecraftFileDownload =
   components["schemas"]["MinecraftFileDownloadOut"];
 export type MinecraftModTools = components["schemas"]["MinecraftModToolsOut"];
 export type MinecraftModTool = components["schemas"]["MinecraftModToolOut"];
+export type MinecraftModInventoryJar =
+  components["schemas"]["MinecraftModInventoryJarOut"];
 export type MinecraftChunkyStatus =
   components["schemas"]["MinecraftChunkyStatusOut"];
 export type MinecraftModToolCommand =
@@ -28,6 +30,8 @@ export type MinecraftModCommandNode =
   components["schemas"]["MinecraftModCommandNodeOut"];
 export type MinecraftModCommandArg =
   components["schemas"]["MinecraftModCommandArgOut"];
+export type MinecraftModFeature =
+  components["schemas"]["MinecraftModFeatureOut"];
 export type MinecraftModToolInstall =
   components["schemas"]["MinecraftModToolInstallOut"];
 export type MinecraftModToolInstallIn =
@@ -36,10 +40,14 @@ export type MinecraftModToolVersions =
   components["schemas"]["MinecraftModToolVersionsOut"];
 export type MinecraftModToolPresetApply =
   components["schemas"]["MinecraftModToolPresetApplyOut"];
-export type MinecraftModToolPresetDraft =
-  components["schemas"]["MinecraftModToolPresetDraftOut"];
-export type MinecraftModToolPresetDraftIn =
-  components["schemas"]["MinecraftModToolPresetDraftIn"];
+export type MinecraftModToolPreset =
+  components["schemas"]["MinecraftModToolPresetOut"];
+export type MinecraftModToolPresetPin =
+  components["schemas"]["MinecraftModToolPresetPinOut"];
+export type MinecraftModToolPresetIn =
+  components["schemas"]["MinecraftModToolPresetIn"];
+export type MinecraftModToolPresetKeys =
+  components["schemas"]["MinecraftModToolPresetKeysOut"];
 export type MinecraftFileCompressIn =
   components["schemas"]["MinecraftFileCompressIn"];
 export type MinecraftPerf = components["schemas"]["MinecraftPerfOut"];
@@ -123,12 +131,24 @@ export async function fetchMinecraftFileDownload(path: string) {
   return data;
 }
 
-export async function uploadMinecraftFile(directory: string, file: File) {
+export async function uploadMinecraftFile(
+  directory: string,
+  file: File,
+  onProgress?: (percent: number | null) => void,
+) {
   const form = new FormData();
   form.append("directory", directory);
   form.append("file", file);
   const { data } = await client.post<MinecraftFileOk>(`${FILES}/upload`, form, {
     timeout: FILE_TIMEOUT,
+    onUploadProgress: (evt) => {
+      if (!onProgress) return;
+      if (!evt.total) {
+        onProgress(null);
+        return;
+      }
+      onProgress(Math.min(100, Math.round((evt.loaded / evt.total) * 100)));
+    },
   });
   return data;
 }
@@ -281,35 +301,39 @@ export async function installMinecraftModTool(
   return data;
 }
 
-export async function applyMinecraftModToolPreset(
-  toolId: string,
-  presetId = "",
-) {
+export async function applyMinecraftModToolPreset(toolId: string) {
   const { data } = await client.post<MinecraftModToolPresetApply>(
-    `/guides/minecraft/mod-tools/${toolId}/config`,
-    { preset_id: presetId },
+    `/guides/minecraft/mod-tools/${toolId}/preset/apply`,
+    undefined,
     { timeout: 60_000 },
   );
   return data;
 }
 
-export async function fetchMinecraftModToolPreset(
+export async function fetchMinecraftModToolPreset(toolId: string) {
+  const { data } = await client.get<MinecraftModToolPreset>(
+    `/guides/minecraft/mod-tools/${toolId}/preset`,
+  );
+  return data;
+}
+
+export async function fetchMinecraftModToolPresetKeys(
   toolId: string,
-  presetId: string,
+  path: string,
 ) {
-  const { data } = await client.get<MinecraftModToolPresetDraft>(
-    `/guides/minecraft/mod-tools/${toolId}/presets/${encodeURIComponent(presetId)}`,
+  const { data } = await client.get<MinecraftModToolPresetKeys>(
+    `/guides/minecraft/mod-tools/${toolId}/preset/keys`,
+    { params: { path } },
   );
   return data;
 }
 
 export async function saveMinecraftModToolPreset(
   toolId: string,
-  presetId: string,
-  payload: MinecraftModToolPresetDraftIn,
+  payload: MinecraftModToolPresetIn,
 ) {
-  const { data } = await client.put<MinecraftModToolPresetDraft>(
-    `/guides/minecraft/mod-tools/${toolId}/presets/${encodeURIComponent(presetId)}`,
+  const { data } = await client.put<MinecraftModToolPreset>(
+    `/guides/minecraft/mod-tools/${toolId}/preset`,
     payload,
   );
   return data;

@@ -223,12 +223,6 @@ class MinecraftModToolCatalogOut(BaseModel):
     message: str = ""
 
 
-class MinecraftModToolPresetOut(BaseModel):
-    id: str
-    title: str = ""
-    summary: str = ""
-
-
 class MinecraftModCommandOptionOut(BaseModel):
     value: str
     label: str = ""
@@ -252,6 +246,12 @@ class MinecraftModCommandNodeOut(BaseModel):
     args: list[MinecraftModCommandArgOut] = Field(default_factory=list)
 
 
+class MinecraftModFeatureOut(BaseModel):
+    id: str
+    title: str = ""
+    summary: str = ""
+
+
 class MinecraftModToolOut(BaseModel):
     id: str
     title: str = ""
@@ -266,9 +266,9 @@ class MinecraftModToolOut(BaseModel):
     icon_url: str = ""
     links: MinecraftModToolLinksOut = Field(default_factory=MinecraftModToolLinksOut)
     catalog: MinecraftModToolCatalogOut = Field(default_factory=MinecraftModToolCatalogOut)
-    presets: list[MinecraftModToolPresetOut] = Field(default_factory=list)
     config_directory: str = ""
     command_tree: list[MinecraftModCommandNodeOut] = Field(default_factory=list)
+    features: list[MinecraftModFeatureOut] = Field(default_factory=list)
 
 
 class MinecraftChunkyStatusOut(BaseModel):
@@ -290,6 +290,51 @@ class MinecraftChunkyStatusOut(BaseModel):
     raw: str = ""
 
 
+class MinecraftBluemapStatusOut(BaseModel):
+    state: str = "idle"
+    threads: int | None = None
+    percent: float | None = None
+    eta: str = ""
+    current_map: str = ""
+    current_task: str = ""
+    maps: list[str] = Field(default_factory=list)
+    frozen_maps: list[str] = Field(default_factory=list)
+    raw: str = ""
+
+
+class MinecraftModInventoryJarOut(BaseModel):
+    path: str = ""
+    directory: str = ""
+    filename: str = ""
+    kind: str = ""
+    size: int = 0
+    modified_at: str = ""
+    sha512: str = ""
+    mod_ids: list[str] = Field(default_factory=list)
+    mod_names: list[str] = Field(default_factory=list)
+    mod_version: str = ""
+    identified: bool = False
+    identify_error: str = ""
+    source: str = "scan"
+    project_id: str = ""
+    version_id: str = ""
+    icon_url: str = ""
+    tool_id: str = ""
+
+
+class MinecraftModInventoryOut(BaseModel):
+    jars: list[MinecraftModInventoryJarOut] = Field(default_factory=list)
+    scanned_at: str = ""
+
+
+class MinecraftModReconcileOut(BaseModel):
+    running: bool = False
+    pending: int = 0
+    total: int = 0
+    current: str = ""
+    message: str = ""
+
+
 class MinecraftModToolsOut(BaseModel):
     ok: bool = True
     pelican_configured: bool = False
@@ -301,6 +346,9 @@ class MinecraftModToolsOut(BaseModel):
     worlds: list[str] = Field(default_factory=list)
     tools: list[MinecraftModToolOut] = Field(default_factory=list)
     chunky: MinecraftChunkyStatusOut | None = None
+    bluemap: MinecraftBluemapStatusOut | None = None
+    inventory: MinecraftModInventoryOut = Field(default_factory=MinecraftModInventoryOut)
+    reconcile: MinecraftModReconcileOut = Field(default_factory=MinecraftModReconcileOut)
 
 
 class MinecraftModToolCommandIn(BaseModel):
@@ -336,16 +384,13 @@ class MinecraftModToolCommandOut(BaseModel):
     message: str = ""
     raw: str = ""
     status: MinecraftChunkyStatusOut = Field(default_factory=MinecraftChunkyStatusOut)
+    bluemap: MinecraftBluemapStatusOut | None = None
 
 
 class MinecraftModToolInstallIn(BaseModel):
     version_id: str = ""
     preset_id: str = ""
     restart: bool = False
-
-
-class MinecraftModToolPresetIn(BaseModel):
-    preset_id: str = ""
 
 
 class MinecraftModToolInstallOut(BaseModel):
@@ -370,31 +415,67 @@ class MinecraftModToolVersionsOut(BaseModel):
     versions: list[MinecraftModPinOut] = Field(default_factory=list)
 
 
+class MinecraftModToolPresetPinOut(BaseModel):
+    file: str = ""
+    key: str = ""
+    value: str = ""
+
+
+class MinecraftModToolPresetDiffOut(BaseModel):
+    file: str = ""
+    key: str = ""
+    expected: str = ""
+    actual: str = ""
+
+
+class MinecraftModToolPresetKeyOut(BaseModel):
+    key: str = ""
+    value: str = ""
+
+
+class MinecraftModToolPresetOut(BaseModel):
+    ok: bool = True
+    tool_id: str = ""
+    directory: str = ""
+    directories: list[str] = Field(default_factory=list)
+    config_found: bool = False
+    has_preset: bool = False
+    status: Literal["missing_files", "no_preset", "match", "mismatch"] = "no_preset"
+    missing_files: list[str] = Field(default_factory=list)
+    diffs: list[MinecraftModToolPresetDiffOut] = Field(default_factory=list)
+    pins: list[MinecraftModToolPresetPinOut] = Field(default_factory=list)
+    factory_pins: list[MinecraftModToolPresetPinOut] = Field(default_factory=list)
+
+
+class MinecraftModToolPresetIn(BaseModel):
+    pins: list[MinecraftModToolPresetPinOut] | None = None
+    directories: list[str] | None = None
+
+
+class MinecraftModToolPresetKeysOut(BaseModel):
+    ok: bool = True
+    tool_id: str = ""
+    path: str = ""
+    keys: list[MinecraftModToolPresetKeyOut] = Field(default_factory=list)
+
+
 class MinecraftModToolPresetApplyOut(BaseModel):
     ok: bool = True
     tool_id: str = ""
-    preset_id: str = ""
-    path: str = ""
-    source: Literal["factory", "draft"] = "factory"
+    directory: str = ""
+    directories: list[str] = Field(default_factory=list)
+    config_found: bool = False
+    has_preset: bool = False
+    status: Literal["missing_files", "no_preset", "match", "mismatch"] = "no_preset"
+    missing_files: list[str] = Field(default_factory=list)
+    diffs: list[MinecraftModToolPresetDiffOut] = Field(default_factory=list)
+    pins: list[MinecraftModToolPresetPinOut] = Field(default_factory=list)
+    factory_pins: list[MinecraftModToolPresetPinOut] = Field(default_factory=list)
+    applied_files: list[str] = Field(default_factory=list)
+    skipped_files: list[str] = Field(default_factory=list)
     reloaded: bool = False
     restart_required: bool = True
     message: str = ""
-
-
-class MinecraftModToolPresetDraftIn(BaseModel):
-    content: str | None = None
-    restore: bool = False
-
-
-class MinecraftModToolPresetDraftOut(BaseModel):
-    ok: bool = True
-    tool_id: str = ""
-    preset_id: str = ""
-    title: str = ""
-    summary: str = ""
-    source: Literal["factory", "draft"] = "factory"
-    filename: str = ""
-    content: str = ""
 
 
 @router.get("/status", response_model=MinecraftStatusOut, dependencies=[_FEATURE])
@@ -483,7 +564,7 @@ def _raise_mod_tools(exc: mod_tools_svc.MinecraftModToolsError) -> None:
 
 @router.get("/mod-tools", response_model=MinecraftModToolsOut, dependencies=[_FEATURE])
 def minecraft_mod_tools(
-    force: bool = Query(False, description="跳过短时文件扫描缓存"),
+    force: bool = Query(False, description="全量重认盘上 jar；日常打开保持 false"),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> MinecraftModToolsOut:
@@ -596,72 +677,90 @@ def minecraft_mod_tool_versions(
     return MinecraftModToolVersionsOut.model_validate(data)
 
 
-@router.post(
-    "/mod-tools/{tool_id}/config",
-    response_model=MinecraftModToolPresetApplyOut,
+@router.get(
+    "/mod-tools/{tool_id}/preset/keys",
+    response_model=MinecraftModToolPresetKeysOut,
     dependencies=[_FEATURE],
 )
-def minecraft_mod_tool_config(
+def minecraft_mod_tool_preset_keys(
     tool_id: str,
-    body: MinecraftModToolPresetIn | None = None,
+    path: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
-) -> MinecraftModToolPresetApplyOut:
-    payload = body or MinecraftModToolPresetIn()
+) -> MinecraftModToolPresetKeysOut:
     try:
-        data = mod_tools_svc.apply_tool_preset(db, tool_id, payload.preset_id)
+        data = mod_tools_svc.list_tool_preset_keys(db, tool_id, path)
     except mod_tools_svc.MinecraftModToolsError as exc:
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
-    return MinecraftModToolPresetApplyOut.model_validate(data)
+    return MinecraftModToolPresetKeysOut.model_validate(data)
 
 
 @router.get(
-    "/mod-tools/{tool_id}/presets/{preset_id}",
-    response_model=MinecraftModToolPresetDraftOut,
+    "/mod-tools/{tool_id}/preset",
+    response_model=MinecraftModToolPresetOut,
     dependencies=[_FEATURE],
 )
 def minecraft_mod_tool_preset_get(
     tool_id: str,
-    preset_id: str,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
-) -> MinecraftModToolPresetDraftOut:
+) -> MinecraftModToolPresetOut:
     try:
-        data = mod_tools_svc.get_tool_preset(db, tool_id, preset_id)
+        data = mod_tools_svc.get_tool_preset(db, tool_id)
     except mod_tools_svc.MinecraftModToolsError as exc:
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
-    return MinecraftModToolPresetDraftOut.model_validate(data)
+    return MinecraftModToolPresetOut.model_validate(data)
 
 
 @router.put(
-    "/mod-tools/{tool_id}/presets/{preset_id}",
-    response_model=MinecraftModToolPresetDraftOut,
+    "/mod-tools/{tool_id}/preset",
+    response_model=MinecraftModToolPresetOut,
     dependencies=[_FEATURE],
 )
 def minecraft_mod_tool_preset_put(
     tool_id: str,
-    preset_id: str,
-    body: MinecraftModToolPresetDraftIn,
+    body: MinecraftModToolPresetIn,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
-) -> MinecraftModToolPresetDraftOut:
+) -> MinecraftModToolPresetOut:
     try:
         data = mod_tools_svc.save_tool_preset(
             db,
             tool_id,
-            preset_id,
-            content=body.content,
-            restore=body.restore,
+            pins=[row.model_dump() for row in body.pins]
+            if body.pins is not None
+            else None,
+            directories=body.directories,
         )
     except mod_tools_svc.MinecraftModToolsError as exc:
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
         raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
-    return MinecraftModToolPresetDraftOut.model_validate(data)
+    return MinecraftModToolPresetOut.model_validate(data)
+
+
+@router.post(
+    "/mod-tools/{tool_id}/preset/apply",
+    response_model=MinecraftModToolPresetApplyOut,
+    dependencies=[_FEATURE],
+)
+def minecraft_mod_tool_preset_apply(
+    tool_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftModToolPresetApplyOut:
+    try:
+        data = mod_tools_svc.apply_tool_preset(db, tool_id)
+    except mod_tools_svc.MinecraftModToolsError as exc:
+        _raise_mod_tools(exc)
+        raise
+    except pelican.PelicanError as exc:
+        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+    return MinecraftModToolPresetApplyOut.model_validate(data)

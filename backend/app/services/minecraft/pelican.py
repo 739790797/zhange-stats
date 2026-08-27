@@ -159,6 +159,11 @@ def friendly_error(status_code: int, detail: str) -> str:
     return msg
 
 
+def is_absent_file_error(exc: PelicanError) -> bool:
+    """Wings/Panel 常把缺文件、读目录当成 400/404，或包成通用 500。"""
+    return exc.status_code in {400, 404, 500}
+
+
 def _request(
     method: str,
     url: str,
@@ -356,6 +361,43 @@ def get_download_url(
     if not signed:
         raise PelicanError("Pelican 未返回下载地址")
     return signed
+
+
+def download_file(
+    base_url: str,
+    token: str,
+    server_uuid: str,
+    path: str,
+    *,
+    max_bytes: int,
+    timeout: float = LONG_TIMEOUT,
+) -> bytes:
+    """经签名 URL 拉二进制（jar）；不要走 files/contents，那是给文本编辑用的。"""
+    if max_bytes <= 0:
+        raise PelicanError("下载大小限制不合法")
+    signed = get_download_url(base_url, token, server_uuid, path)
+    try:
+        resp = http_request(
+            "GET",
+            signed,
+            headers={"User-Agent": USER_AGENT, "Accept": "*/*"},
+            timeout=timeout,
+        )
+    except HttpRequestError as exc:
+        raise PelicanError(f"下载失败：{exc}") from exc
+    if resp.status_code >= 400:
+        detail = resp.content.decode("utf-8", errors="replace")[:300]
+        raise PelicanError(friendly_error(resp.status_code, detail), status_code=resp.status_code)
+    try:
+        content_length = int(resp.headers.get("content-length") or 0)
+    except (TypeError, ValueError):
+        content_length = 0
+    if content_length > max_bytes:
+        raise PelicanError("文件过大，无法读取模组信息")
+    data = resp.content
+    if len(data) > max_bytes:
+        raise PelicanError("文件过大，无法读取模组信息")
+    return data
 
 
 def rename_files(

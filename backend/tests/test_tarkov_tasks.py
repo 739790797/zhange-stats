@@ -98,12 +98,26 @@ def test_parse_locale_and_trader_map():
     assert by_id["t1"]["map_name"] == "塔科夫街区"
     assert by_id["t1"]["kappa_required"] is True
     assert by_id["t1"]["objective_count"] == 2
+    assert by_id["t1"]["objective_types"] == ["visit", "giveItem"]
+    assert by_id["t2"]["objective_types"] == []
     assert by_id["t2"]["name"] == "验收"
     assert by_id["t3"]["trader_slug"] == "therapist"
     assert by_id["t3"]["map_name"] == "海关"
     assert by_id["t1"]["task_requirements"][0]["id"] == "t2"
     assert by_id["t1"]["task_requirements"][0]["name"] == "验收"
     assert by_id["t2"]["task_requirements"] == []
+
+
+def test_unique_objective_types_skips_blank_and_dupes():
+    assert tasks.unique_objective_types(
+        [
+            {"type": "visit"},
+            {"type": "visit"},
+            {"type": ""},
+            {"type": "shoot"},
+            "nope",
+        ]
+    ) == ["visit", "shoot"]
 
 
 def test_filter_trader_kappa_search():
@@ -443,3 +457,168 @@ def test_project_extract_and_quest_item():
     assert find["items"][0]["icon_link"] == "https://example/qi1.webp"
     assert extract["exit_status"] == ["Survived", "Runner"]
     assert extract["exit_name"] == ""
+
+
+def test_map_match_keys_aliases():
+    keys, ids = tasks.map_match_keys("streets")
+    assert "streets" in keys
+    assert "streets-of-tarkov" in keys
+    assert STREETS in ids
+    lab_keys, _ids = tasks.map_match_keys("lab")
+    assert "the-lab" in lab_keys
+
+
+def test_project_zones_and_possible_locations():
+    detail = tasks.project_task_detail(
+        {
+            "id": "t-zone",
+            "name": "Visit",
+            "trader": PRAPOR,
+            "map": STREETS,
+            "objectives": [
+                {
+                    "id": "o-visit",
+                    "type": "visit",
+                    "description": "go",
+                    "maps": [STREETS],
+                    "zones": [
+                        {
+                            "id": "z1",
+                            "map": STREETS,
+                            "position": {"x": 1.0, "y": 2.0, "z": 3.0},
+                            "outline": [
+                                {"x": 0, "y": 2, "z": 0},
+                                {"x": 2, "y": 2, "z": 0},
+                                {"x": 2, "y": 2, "z": 2},
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "id": "o-find",
+                    "type": "findQuestItem",
+                    "description": "hdd",
+                    "possibleLocations": [
+                        {
+                            "map": STREETS,
+                            "positions": [{"x": 10, "z": 20}],
+                        }
+                    ],
+                },
+            ],
+        },
+        {},
+        include_successors=False,
+    )
+    assert detail is not None
+    zone = detail["objectives"][0]["zones"][0]
+    assert zone["map_slug"] == "streets"
+    assert zone["x"] == 1.0
+    assert len(zone["outline"]) == 3
+    loc = detail["objectives"][1]["possible_locations"][0]
+    assert loc["positions"][0]["z"] == 20
+    assert tasks.task_hits_map(detail, "streets-of-tarkov") is True
+    assert tasks.task_has_map_markers(detail, "streets") is True
+    assert tasks.task_hits_map(detail, "customs") is False
+
+
+def test_collect_raid_prep_rows_filters_map():
+    payload = {
+        "tasks": {
+            "on-map": {
+                "id": "on-map",
+                "name": "On streets",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [STREETS]}],
+            },
+            "other": {
+                "id": "other",
+                "name": "On customs",
+                "trader": PRAPOR,
+                "map": CUSTOMS,
+                "objectives": [{"id": "v2", "type": "visit", "maps": [CUSTOMS]}],
+            },
+        },
+        "locale": {},
+    }
+    name, rows = tasks.collect_raid_prep_rows(payload, "streets")
+    assert name == "塔科夫街区"
+    assert [r["id"] for r in rows] == ["on-map"]
+
+
+def test_project_zones_graphql_map_object():
+    detail = tasks.project_task_detail(
+        {
+            "id": "t-gql",
+            "name": "GQL",
+            "trader": PRAPOR,
+            "objectives": [
+                {
+                    "id": "o",
+                    "type": "shoot",
+                    "description": "kill",
+                    "zoneNames": ["Dorms"],
+                    "zones": [
+                        {
+                            "id": "zone-a",
+                            "map": {
+                                "id": STREETS,
+                                "name": "Streets of Tarkov",
+                                "normalizedName": "streets-of-tarkov",
+                            },
+                            "position": {"x": 5, "y": 0, "z": 9},
+                        }
+                    ],
+                }
+            ],
+        },
+        {},
+        include_successors=False,
+    )
+    assert detail is not None
+    assert detail["objectives"][0]["zone_names"] == ["Dorms"]
+    zone = detail["objectives"][0]["zones"][0]
+    assert zone["map_id"] == STREETS
+    assert zone["map_slug"] == "streets"
+    assert zone["x"] == 5
+    assert tasks.task_hits_map(detail, "streets-of-tarkov") is True
+    assert tasks.task_has_map_markers(detail, "streets") is True
+
+
+def test_collect_raid_prep_includes_zone_only_task():
+    payload = {
+        "tasks": {
+            "zonly": {
+                "id": "zonly",
+                "name": "Zone only",
+                "trader": PRAPOR,
+                "map": None,
+                "objectives": [
+                    {
+                        "id": "o",
+                        "type": "visit",
+                        "zones": [
+                            {
+                                "id": "z",
+                                "map": STREETS,
+                                "position": {"x": 1, "z": 2},
+                            }
+                        ],
+                    }
+                ],
+            },
+            "nomark": {
+                "id": "nomark",
+                "name": "Name only",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [STREETS]}],
+            },
+        },
+        "locale": {},
+    }
+    _name, rows = tasks.collect_raid_prep_rows(payload, "streets")
+    assert [r["id"] for r in rows] == ["zonly", "nomark"]
+    assert rows[0]["has_map_markers"] is True
+    assert rows[1]["has_map_markers"] is False

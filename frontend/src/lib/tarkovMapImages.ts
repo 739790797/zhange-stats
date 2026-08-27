@@ -54,6 +54,7 @@ const SLUG_ALIASES: Record<string, string> = {
   lab: "the-lab",
   streets: "streets-of-tarkov",
   labyrinth: "the-labyrinth",
+  "factory-night": "night-factory",
 };
 
 function resolveSlug(slug: string): string {
@@ -62,6 +63,7 @@ function resolveSlug(slug: string): string {
 }
 
 const FLOOR_ZH: Record<string, string> = {
+  "1st Floor": "1 层",
   "2nd Floor": "2 层",
   "3rd Floor": "3 层",
   "4th Floor": "4 层",
@@ -69,9 +71,26 @@ const FLOOR_ZH: Record<string, string> = {
   Underground: "地下",
   "Second Level": "2 层",
   "Technical Level": "技术层",
+  Technical: "技术层",
   Garage: "车库",
   Tunnels: "隧道",
   Bunkers: "地堡",
+  Infirmary: "医务室",
+  Helipad: "停机坪",
+  "Gym/Canteen": "健身房 / 食堂",
+  "Accommodation (lower)": "住宿（下层）",
+  "Accommodation (mid)": "住宿（中层）",
+  "Accommodation (upper)": "住宿（上层）",
+  "Officers' Deck": "军官甲板",
+  "Stairs (blocked)": "楼梯（封死）",
+  Bridge: "舰桥",
+  "Bridge Roof": "舰桥顶",
+  "Control Room": "控制室",
+  "Engine Room": "轮机舱",
+  "Engine Room (upper)": "轮机舱（上层）",
+  "Fuel Pumps (lower)": "燃油泵（下层）",
+  "Fuel Pumps": "燃油泵",
+  "Storage/Security": "仓储 / 安保",
 };
 
 export function floorLabel(name: string): string {

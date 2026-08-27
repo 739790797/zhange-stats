@@ -44,6 +44,10 @@ from app.models.tarkov import (
     TarkovTradersMeta,
     TarkovTradersRaw,
     TarkovTrackerBind,
+    TarkovRaidRoom,
+    TarkovRaidRoomMember,
+    TarkovRaidRoomTaskClaim,
+    TarkovRaidRoomMark,
 )
 from app.models.user import User
 
@@ -96,6 +100,10 @@ __all__ = [
     "TarkovGuidesRaw",
     "TarkovGuidesMeta",
     "TarkovTrackerBind",
+    "TarkovRaidRoom",
+    "TarkovRaidRoomMember",
+    "TarkovRaidRoomTaskClaim",
+    "TarkovRaidRoomMark",
     "MinecraftServerProfile",
     "MinecraftPerfSample",
     "MinecraftPerfRollup",

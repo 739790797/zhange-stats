@@ -1,8 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
   formatTaskExtractLines,
+  orderObjectiveTypes,
   tarkovExitStatusLabel,
+  tarkovObjectiveTypeLabel,
+  tarkovObjectiveTypeTone,
 } from "./tarkovTaskObjective";
+
+describe("objective type chips", () => {
+  it("translates known types and keeps unknown as-is", () => {
+    expect(tarkovObjectiveTypeLabel("shoot")).toBe("击杀");
+    expect(tarkovObjectiveTypeLabel("giveQuestItem")).toBe("上交任务物");
+    expect(tarkovObjectiveTypeLabel("mysteryType")).toBe("mysteryType");
+    expect(tarkovObjectiveTypeTone("visit")).toBe("visit");
+    expect(tarkovObjectiveTypeTone("mysteryType")).toBe("unknown");
+  });
+
+  it("dedupes and orders types for the table", () => {
+    expect(
+      orderObjectiveTypes(["visit", "shoot", "visit", "giveItem", ""]),
+    ).toEqual(["shoot", "giveItem", "visit"]);
+    expect(orderObjectiveTypes(["zzz", "shoot", "aaa"])).toEqual([
+      "shoot",
+      "aaa",
+      "zzz",
+    ]);
+  });
+});
+
 
 describe("formatTaskExtractLines", () => {
   it("matches tarkov.dev extract wording and ignores ExpBonus names", () => {

@@ -14,8 +14,11 @@ class MinecraftServerProfile(Base):
     """圈子 Minecraft 单行档案（永远一行 id=1）。
 
     `applied_json` 是上次成功应用时的快照，总览用它回填模组标题/版本。
-    `mod_presets_json` 是模组工具草稿预设（按 tool_id / preset_id 存正文），
-    出厂模板仍在代码里；写入服上走 Pelican。
+    `mod_presets_json` 是模组键值预设（按 tool_id 存 directories 为用户选定的配置目录，
+    以及 pins：file 为服内绝对路径、须落在这些目录内，加上 key/value）；
+    对账后写入服上走 Pelican。
+    `mod_inventory_json` 是当前服 /mods 与 /plugins 的 jar 库存（权威在战鸽；
+    Pelican 只当网盘。打开页对账指纹，增量拆包认亲）。
     """
 
     __tablename__ = "minecraft_server_profiles"
@@ -32,6 +35,9 @@ class MinecraftServerProfile(Base):
     )
     applied_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     mod_presets_json: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    mod_inventory_json: Mapped[dict[str, Any]] = mapped_column(
         JSON, nullable=False, default=dict
     )
     last_applied_at: Mapped[datetime | None] = mapped_column(

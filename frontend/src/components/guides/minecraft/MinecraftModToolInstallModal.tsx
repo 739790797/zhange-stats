@@ -65,7 +65,7 @@ export function MinecraftModToolInstallModal({
     mutationFn: () =>
       installMinecraftModTool(tool.id, {
         version_id: versionId,
-        preset_id: mode === "install" ? "zhange" : "",
+        preset_id: "",
         restart,
       }),
     onSuccess: (res) => {

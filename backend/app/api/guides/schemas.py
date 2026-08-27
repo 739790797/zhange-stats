@@ -193,6 +193,7 @@ class TarkovTaskListItemOut(BaseModel):
     task_image_link: str = ""
     wiki_link: str = ""
     objective_count: int = 0
+    objective_types: list[str] = Field(default_factory=list)
     progress_status: str | None = None
     task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)
 
@@ -222,6 +223,56 @@ class TarkovTaskObjectiveOut(BaseModel):
     required_keys: list[list[TarkovTaskNamedRefOut]] = Field(default_factory=list)
     exit_status: list[str] = Field(default_factory=list)
     exit_name: str = ""
+    zones: list["TarkovTaskZoneOut"] = Field(default_factory=list)
+    possible_locations: list["TarkovTaskPossibleLocationOut"] = Field(
+        default_factory=list
+    )
+    zone_names: list[str] = Field(default_factory=list)
+
+
+class TarkovTaskPointOut(BaseModel):
+    x: float
+    y: float = 0
+    z: float
+
+
+class TarkovTaskZoneOut(BaseModel):
+    id: str = ""
+    map_id: str = ""
+    map_slug: str = ""
+    map_name: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    outline: list[TarkovTaskPointOut] = Field(default_factory=list)
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovTaskPossibleLocationOut(BaseModel):
+    map_id: str = ""
+    map_slug: str = ""
+    map_name: str = ""
+    positions: list[TarkovTaskPointOut] = Field(default_factory=list)
+
+
+class TarkovRaidPrepTaskOut(TarkovTaskListItemOut):
+    objectives: list[TarkovTaskObjectiveOut] = Field(default_factory=list)
+    needed_keys: list["TarkovTaskNeededKeysOut"] = Field(default_factory=list)
+    has_map_markers: bool = False
+
+
+class TarkovRaidPrepOut(BaseModel):
+    map_slug: str
+    map_name: str = ""
+    items: list[TarkovRaidPrepTaskOut]
+    task_count: int
+    traders: list[TarkovTaskTraderChipOut] = Field(default_factory=list)
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+    progress_bound: bool = False
+    progress_ready: bool = False
 
 
 class TarkovTaskRewardItemOut(BaseModel):
@@ -248,6 +299,11 @@ class TarkovTaskFinishRewardsOut(BaseModel):
 class TarkovTaskNeededKeysOut(BaseModel):
     map: TarkovTaskNamedRefOut
     keys: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+
+
+TarkovTaskObjectiveOut.model_rebuild()
+TarkovRaidPrepTaskOut.model_rebuild()
+TarkovRaidPrepOut.model_rebuild()
 
 
 class TarkovTaskDetailOut(TarkovTaskListItemOut):
@@ -687,3 +743,77 @@ class TarkovLootTierCatalogOut(BaseModel):
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None
+
+
+class TarkovRaidRoomCreateIn(BaseModel):
+    map: str = Field(min_length=1, max_length=64)
+    title: str | None = Field(default=None, max_length=40)
+
+
+class TarkovRaidRoomClaimIn(BaseModel):
+    task_id: str = Field(min_length=1, max_length=64)
+
+
+class TarkovRaidRoomMarkIn(BaseModel):
+    kind: str = Field(min_length=1, max_length=8)
+    floor: str = ""
+    x: float
+    z: float
+    x2: float | None = None
+    z2: float | None = None
+
+
+class TarkovRaidRoomMemberOut(BaseModel):
+    user_id: int
+    display_name: str
+    is_host: bool = False
+    in_room: bool = True
+    online: bool = False
+    joined_at: str | None = None
+
+
+class TarkovRaidRoomClaimOut(BaseModel):
+    task_id: str
+    user_id: int
+    display_name: str
+    created_at: str | None = None
+
+
+class TarkovRaidRoomMarkOut(BaseModel):
+    id: int
+    kind: str
+    floor: str = ""
+    x: float
+    z: float
+    x2: float | None = None
+    z2: float | None = None
+    author_user_id: int
+    author_display_name: str = ""
+    created_at: str | None = None
+
+
+class TarkovRaidRoomLobbyItemOut(BaseModel):
+    public_id: str
+    title: str = ""
+    map_slug: str
+    status: str
+    host_user_id: int
+    host_display_name: str = ""
+    member_count: int = 0
+    max_members: int = 8
+    created_at: str | None = None
+    expire_at: str | None = None
+
+
+class TarkovRaidRoomLobbyOut(BaseModel):
+    items: list[TarkovRaidRoomLobbyItemOut] = Field(default_factory=list)
+
+
+class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
+    archived_at: str | None = None
+    is_host: bool = False
+    is_member: bool = False
+    can_edit: bool = False
+    members: list[TarkovRaidRoomMemberOut] = Field(default_factory=list)
+    claims: list[TarkovRaidRoomClaimOut] = Field(default_factory=list)
+    marks: list[TarkovRaidRoomMarkOut] = Field(default_factory=list)

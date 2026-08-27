@@ -8,6 +8,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from app.core.http_client import HttpRequestError, http_request
+
 USER_AGENT = "zhange-stats-minecraft/1.0 (github.com/739790797/zhange-stats)"
 MODRINTH_API = "https://api.modrinth.com/v2"
 
@@ -134,3 +136,65 @@ def latest_pin(
 ) -> dict[str, Any] | None:
     versions = list_versions(project_id, loader=loader, mc_version=mc_version)
     return versions[0] if versions else None
+
+
+def versions_from_hashes(hashes: list[str], *, algorithm: str = "sha512") -> dict[str, dict[str, Any]]:
+    """用文件哈希批量认 Modrinth 版本；对不上返回空。"""
+    wanted = [item.strip() for item in hashes if item and item.strip()]
+    if not wanted:
+        return {}
+    url = f"{MODRINTH_API}/version_files"
+    try:
+        resp = http_request(
+            "POST",
+            url,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            json={"hashes": wanted, "algorithm": algorithm},
+            timeout=20,
+        )
+    except HttpRequestError as exc:
+        raise ModrinthError(f"无法连接 Modrinth：{exc}") from exc
+    if resp.status_code == 404:
+        return {}
+    if resp.status_code >= 400:
+        raise ModrinthError(f"Modrinth HTTP {resp.status_code}")
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise ModrinthError("Modrinth 返回无法解析") from exc
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for key, value in data.items():
+        if isinstance(value, dict):
+            out[str(key)] = value
+    return out
+
+
+def project_icon_url(project_id: str) -> str:
+    pid = (project_id or "").strip()
+    if not pid:
+        return ""
+    url = f"{MODRINTH_API}/project/{urllib.parse.quote(pid)}"
+    try:
+        resp = http_request(
+            "GET",
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=20,
+        )
+    except HttpRequestError:
+        return ""
+    if resp.status_code >= 400:
+        return ""
+    try:
+        data = resp.json()
+    except ValueError:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    return str(data.get("icon_url") or "")

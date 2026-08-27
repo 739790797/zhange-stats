@@ -44,8 +44,13 @@ function longestCommonPrefix(items: string[]): string {
   return prefix;
 }
 
-function argChoices(arg: CommandArgSpec, worlds: string[]): string[] {
+function argChoices(
+  arg: CommandArgSpec,
+  worlds: string[],
+  maps: string[],
+): string[] {
   if (arg.kind === "world") return worlds.filter(Boolean);
+  if (arg.kind === "map") return (maps.length ? maps : worlds).filter(Boolean);
   if (arg.kind === "enum") {
     return (arg.options || []).map((row) => row.value).filter(Boolean);
   }
@@ -82,6 +87,7 @@ export function suggestionsForLine(
   text: string,
   tree: CommandNodeSpec[],
   worlds: string[],
+  maps: string[] = [],
 ): CommandSuggestion[] {
   const { tokens, trailingSpace } = tokenizeLine(text);
 
@@ -104,7 +110,7 @@ export function suggestionsForLine(
   const prefix = current.toLowerCase();
   const head = headForCurrentToken(tokens, trailingSpace);
 
-  return argChoices(args[argIndex], worlds)
+  return argChoices(args[argIndex], worlds, maps)
     .filter((choice) => choice.toLowerCase().startsWith(prefix))
     .map((choice) => ({
       token: choice,
@@ -116,6 +122,7 @@ function currentArgChoices(
   text: string,
   tree: CommandNodeSpec[],
   worlds: string[],
+  maps: string[],
 ): { choices: string[]; head: string } | null {
   const { tokens, trailingSpace } = tokenizeLine(text);
   if (tokens.length === 0 || (tokens.length === 1 && !trailingSpace)) {
@@ -127,7 +134,7 @@ function currentArgChoices(
   const filled = tokens.slice(1);
   const argIndex = trailingSpace ? filled.length : filled.length - 1;
   if (argIndex < 0 || argIndex >= args.length) return null;
-  const choices = argChoices(args[argIndex], worlds);
+  const choices = argChoices(args[argIndex], worlds, maps);
   if (choices.length < 2) return null;
   return { choices, head: headForCurrentToken(tokens, trailingSpace) };
 }
@@ -136,15 +143,16 @@ export function completeLine(
   text: string,
   tree: CommandNodeSpec[],
   worlds: string[],
+  maps: string[] = [],
 ): string {
-  const hits = suggestionsForLine(text, tree, worlds);
+  const hits = suggestionsForLine(text, tree, worlds, maps);
   if (!hits.length) return text;
 
   const { tokens, trailingSpace } = tokenizeLine(text);
   const current =
     !trailingSpace && tokens.length ? tokens[tokens.length - 1] : "";
 
-  const slot = currentArgChoices(text, tree, worlds);
+  const slot = currentArgChoices(text, tree, worlds, maps);
   if (slot && current) {
     const idx = slot.choices.findIndex(
       (choice) => choice.toLowerCase() === current.toLowerCase(),

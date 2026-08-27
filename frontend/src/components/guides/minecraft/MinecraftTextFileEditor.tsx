@@ -15,23 +15,28 @@ export function MinecraftTextFileFormModal({
   open,
   title,
   nameDisabled,
+  directory,
   confirmLoading,
   form,
   extra,
   okText = "保存",
+  onBrowse,
   onCancel,
   onOk,
 }: {
   open: boolean;
   title: string;
   nameDisabled?: boolean;
+  directory?: string;
   confirmLoading?: boolean;
   form: FormInstance<MinecraftTextFileEditorValues>;
   extra?: ReactNode;
   okText?: string;
+  onBrowse?: () => void;
   onCancel: () => void;
   onOk: () => void;
 }) {
+  const nameRules = [{ required: true, message: "请输入文件名" }];
   return (
     <Modal
       title={title}
@@ -58,12 +63,37 @@ export function MinecraftTextFileFormModal({
       }
     >
       <Form form={form} layout="vertical">
+        {directory ? (
+          <Form.Item label="目录">
+            <Input value={directory} disabled />
+          </Form.Item>
+        ) : null}
         <Form.Item
-          name="name"
-          label="文件名"
-          rules={[{ required: true, message: "请输入文件名" }]}
+          label={onBrowse ? "文件" : "文件名"}
+          required
+          extra={
+            onBrowse
+              ? "限在该模组配置目录内。可点浏览进入子目录并选择已有文件，也可直接输入相对路径。"
+              : undefined
+          }
         >
-          <Input disabled={nameDisabled} placeholder="config.yml" />
+          {onBrowse ? (
+            <Space.Compact style={{ width: "100%" }}>
+              <Form.Item name="name" noStyle rules={nameRules}>
+                <Input
+                  disabled={nameDisabled}
+                  placeholder="config.json"
+                />
+              </Form.Item>
+              <Button onClick={onBrowse} disabled={!directory}>
+                浏览
+              </Button>
+            </Space.Compact>
+          ) : (
+            <Form.Item name="name" noStyle rules={nameRules}>
+              <Input disabled={nameDisabled} placeholder="config.yml" />
+            </Form.Item>
+          )}
         </Form.Item>
         <Form.Item name="content" label="内容">
           <Input.TextArea

@@ -65,12 +65,31 @@ query TasksSync($lang: LanguageCode) {
       description
       optional
       maps { id name normalizedName }
-      ... on TaskObjectiveBasic { requiredKeys { id name iconLink } }
+      ... on TaskObjectiveBasic {
+        requiredKeys { id name iconLink }
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
+      }
       ... on TaskObjectiveExtract {
         requiredKeys { id name iconLink }
         exitStatus
         exitName
         count
+        zoneNames
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
       }
       ... on TaskObjectiveItem {
         requiredKeys { id name iconLink }
@@ -78,18 +97,69 @@ query TasksSync($lang: LanguageCode) {
         foundInRaid
         items { id name iconLink }
         item { id name iconLink }
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
       }
       ... on TaskObjectiveMark {
         requiredKeys { id name iconLink }
         markerItem { id name iconLink }
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
       }
       ... on TaskObjectiveQuestItem {
         requiredKeys { id name iconLink }
         count
         questItem { id name shortName iconLink baseImageLink }
+        possibleLocations {
+          map { id name normalizedName }
+          positions { x y z }
+        }
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
       }
-      ... on TaskObjectiveShoot { requiredKeys { id name iconLink } count }
-      ... on TaskObjectiveUseItem { requiredKeys { id name iconLink } }
+      ... on TaskObjectiveShoot {
+        requiredKeys { id name iconLink }
+        count
+        zoneNames
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
+      }
+      ... on TaskObjectiveUseItem {
+        requiredKeys { id name iconLink }
+        zoneNames
+        zones {
+          id
+          map { id name normalizedName }
+          position { x y z }
+          outline { x y z }
+          top
+          bottom
+        }
+      }
     }
     finishRewards {
       traderStanding { standing trader { id name normalizedName } }
@@ -135,6 +205,15 @@ MAP_BY_ID: dict[str, tuple[str, str]] = {
     "68236e8153654e8c1200798a": ("ground-zero", "中心区"),
 }
 
+# 首页短 id / json.tarkov.dev normalizedName / 任务 map_slug 互认
+MAP_SLUG_EQUIV_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("streets", "streets-of-tarkov"),
+    ("lab", "the-lab"),
+    ("labyrinth", "the-labyrinth"),
+    ("night-factory", "factory-night"),
+    ("ground-zero", "ground-zero-21", "ground-zero-tutorial"),
+)
+
 _parsed_lock = threading.Lock()
 _parsed_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
 
@@ -177,6 +256,65 @@ def _as_int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _as_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def map_match_keys(map_slug: str) -> tuple[set[str], set[str]]:
+    """选中地图 → 可匹配的 slug 集合 + 地图 id 集合。"""
+    key = (map_slug or "").strip().lower()
+    if not key:
+        return set(), set()
+    keys = {key}
+    for group in MAP_SLUG_EQUIV_GROUPS:
+        if key in group:
+            keys.update(group)
+            break
+    ids = {mid for mid, (slug, _name) in MAP_BY_ID.items() if slug in keys}
+    return keys, ids
+
+
+def _map_ref_hits(ref: dict[str, Any] | None, keys: set[str], ids: set[str]) -> bool:
+    if not isinstance(ref, dict):
+        return False
+    slug = str(ref.get("slug") or ref.get("map_slug") or "").strip().lower()
+    if slug and slug in keys:
+        return True
+    map_id = str(ref.get("map_id") or "").strip()
+    if map_id:
+        return map_id in ids
+    ident = str(ref.get("id") or "").strip()
+    return bool(ident and ident in ids)
+
+
+def task_hits_map(detail: dict[str, Any], map_slug: str) -> bool:
+    keys, ids = map_match_keys(map_slug)
+    if not keys and not ids:
+        return False
+    if str(detail.get("map_id") or "").strip() in ids:
+        return True
+    if str(detail.get("map_slug") or "").strip().lower() in keys:
+        return True
+    for obj in detail.get("objectives") or []:
+        if not isinstance(obj, dict):
+            continue
+        for row in obj.get("maps") or []:
+            if _map_ref_hits(row, keys, ids):
+                return True
+        for zone in obj.get("zones") or []:
+            if _map_ref_hits(zone, keys, ids):
+                return True
+        for loc in obj.get("possible_locations") or []:
+            if _map_ref_hits(loc, keys, ids):
+                return True
+    return False
 
 
 def _as_bool(value: Any) -> bool:
@@ -468,8 +606,24 @@ def project_task_summary(
         "task_image_link": str(raw.get("taskImageLink") or ""),
         "wiki_link": str(raw.get("wikiLink") or ""),
         "objective_count": len(objectives),
+        "objective_types": unique_objective_types(objectives),
         "task_requirements": _compact_task_requirements(raw),
     }
+
+
+def unique_objective_types(objectives: list[Any]) -> list[str]:
+    """目标 type 去重，保游戏内出现顺序。"""
+    out: list[str] = []
+    seen: set[str] = set()
+    for obj in objectives:
+        if not isinstance(obj, dict):
+            continue
+        typ = str(obj.get("type") or "").strip()
+        if not typ or typ in seen:
+            continue
+        seen.add(typ)
+        out.append(typ)
+    return out
 
 
 def _resolve_obj_description(
@@ -748,7 +902,7 @@ def _named_ref(value: Any, locale: dict[str, Any], *, kind: str) -> dict[str, st
         slug = str(value.get("normalizedName") or "").strip()
     if kind == "map" and ident:
         slug2, name2 = map_info(ident, value if isinstance(value, dict) else None)
-        slug = slug or slug2
+        slug = slug2 or slug
         if not name or _is_placeholder_name(ident, name):
             name = name2
     if kind == "trader" and ident:
@@ -837,7 +991,98 @@ def _project_objective(
         "required_keys": _project_required_key_groups(obj.get("requiredKeys"), locale),
         "exit_status": exit_status,
         "exit_name": exit_name,
+        "zones": _project_zones(obj.get("zones"), locale),
+        "possible_locations": _project_possible_locations(
+            obj.get("possibleLocations"), locale
+        ),
+        "zone_names": _project_zone_names(obj.get("zoneNames")),
     }
+
+
+def _project_point(value: Any) -> dict[str, float] | None:
+    if not isinstance(value, dict):
+        return None
+    x = _as_float(value.get("x"))
+    z = _as_float(value.get("z"))
+    if x is None or z is None:
+        return None
+    y = _as_float(value.get("y"))
+    return {"x": x, "y": 0.0 if y is None else y, "z": z}
+
+
+def _project_zones(raw: Any, locale: dict[str, Any]) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        map_ref = _named_ref(row.get("map"), locale, kind="map")
+        point = _project_point(row.get("position"))
+        outline = [
+            pt
+            for item in (row.get("outline") or [])
+            if (pt := _project_point(item)) is not None
+        ]
+        if not point and not outline:
+            continue
+        top = _as_float(row.get("top"))
+        bottom = _as_float(row.get("bottom"))
+        out.append(
+            {
+                "id": str(row.get("id") or ""),
+                "map_id": map_ref.get("id") or "",
+                "map_slug": map_ref.get("slug") or "",
+                "map_name": map_ref.get("name") or "",
+                "x": None if not point else point["x"],
+                "y": None if not point else point["y"],
+                "z": None if not point else point["z"],
+                "outline": outline,
+                "top": top,
+                "bottom": bottom,
+            }
+        )
+    return out
+
+
+def _project_possible_locations(raw: Any, locale: dict[str, Any]) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        map_ref = _named_ref(row.get("map"), locale, kind="map")
+        positions = [
+            pt
+            for item in (row.get("positions") or [])
+            if (pt := _project_point(item)) is not None
+        ]
+        if not positions:
+            continue
+        out.append(
+            {
+                "map_id": map_ref.get("id") or "",
+                "map_slug": map_ref.get("slug") or "",
+                "map_name": map_ref.get("name") or "",
+                "positions": positions,
+            }
+        )
+    return out
+
+
+def _project_zone_names(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
 
 
 def _project_required_key_groups(raw: Any, locale: dict[str, Any]) -> list[list[dict[str, str]]]:
@@ -971,6 +1216,7 @@ def project_task_detail(
     *,
     tasks_by_id: dict[str, dict[str, Any]] | None = None,
     quest_items: dict[str, dict[str, Any]] | None = None,
+    include_successors: bool = True,
 ) -> dict[str, Any] | None:
     summary = project_task_summary(raw, locale)
     if summary is None:
@@ -1024,8 +1270,10 @@ def project_task_detail(
         {
             "objectives": objectives,
             "task_requirements": reqs,
-            "successor_tasks": _successor_tasks(
-                summary["id"], tasks_by_id or {}, locale
+            "successor_tasks": (
+                _successor_tasks(summary["id"], tasks_by_id or {}, locale)
+                if include_successors
+                else []
             ),
             "trader_requirements": _project_trader_requirements(
                 raw.get("traderRequirements") or raw.get("traderLevelRequirements"),
@@ -1392,6 +1640,148 @@ def list_tasks(
         "task_count": paged["task_count"],
         "page": paged["page"],
         "page_size": paged["page_size"],
+        "traders": unique_traders(rows),
+        "source": source,
+        "synced_at": synced_at,
+        "note": note,
+        "progress_bound": bool(progress_bound),
+        "progress_ready": progress is not None,
+    }
+
+
+def task_has_map_markers(detail: dict[str, Any], map_slug: str) -> bool:
+    keys, ids = map_match_keys(map_slug)
+    if not keys and not ids:
+        return False
+    for obj in detail.get("objectives") or []:
+        if not isinstance(obj, dict):
+            continue
+        for zone in obj.get("zones") or []:
+            if not _map_ref_hits(zone, keys, ids):
+                continue
+            if zone.get("x") is not None and zone.get("z") is not None:
+                return True
+            if zone.get("outline"):
+                return True
+        for loc in obj.get("possible_locations") or []:
+            if _map_ref_hits(loc, keys, ids) and loc.get("positions"):
+                return True
+    return False
+
+
+def collect_raid_prep_rows(
+    payload: dict[str, Any],
+    map_slug: str,
+) -> tuple[str, list[dict[str, Any]]]:
+    """按地图收战局准备任务；纯投影，不读库。"""
+    keys, ids = map_match_keys(map_slug)
+    locale = _locale_map(payload)
+    quest_items = _quest_items_map(payload)
+    tasks = _tasks_map(payload)
+    map_name = ""
+    for mid, (slug, name) in MAP_BY_ID.items():
+        if slug in keys or mid in ids:
+            map_name = name
+            break
+    rows: list[dict[str, Any]] = []
+    for raw in tasks.values():
+        if not isinstance(raw, dict):
+            continue
+        detail = project_task_detail(
+            raw,
+            locale,
+            tasks_by_id=tasks,
+            quest_items=quest_items,
+            include_successors=False,
+        )
+        if detail is None or not task_hits_map(detail, map_slug):
+            continue
+        rows.append(
+            {
+                "id": detail["id"],
+                "name": detail["name"],
+                "normalized_name": detail.get("normalized_name") or "",
+                "trader_id": detail.get("trader_id") or "",
+                "trader_slug": detail.get("trader_slug") or "",
+                "trader_name": detail.get("trader_name") or "",
+                "map_id": detail.get("map_id") or "",
+                "map_slug": detail.get("map_slug") or "",
+                "map_name": detail.get("map_name") or "",
+                "min_player_level": detail.get("min_player_level") or 0,
+                "experience": detail.get("experience") or 0,
+                "kappa_required": bool(detail.get("kappa_required")),
+                "lightkeeper_required": bool(detail.get("lightkeeper_required")),
+                "faction_name": detail.get("faction_name") or "Any",
+                "task_image_link": detail.get("task_image_link") or "",
+                "wiki_link": detail.get("wiki_link") or "",
+                "objective_count": detail.get("objective_count") or 0,
+                "objective_types": list(detail.get("objective_types") or []),
+                "task_requirements": list(detail.get("task_requirements") or []),
+                "objectives": list(detail.get("objectives") or []),
+                "needed_keys": list(detail.get("needed_keys") or []),
+                "has_map_markers": task_has_map_markers(detail, map_slug),
+            }
+        )
+    rows.sort(
+        key=lambda r: (
+            not r.get("has_map_markers"),
+            str(r.get("trader_slug") or ""),
+            int(r.get("min_player_level") or 0),
+            str(r.get("name") or ""),
+        )
+    )
+    return map_name, rows
+
+
+def list_raid_prep(
+    db: Session,
+    map_slug: str,
+    *,
+    trader: str | None = None,
+    kappa: bool | None = None,
+    q: str | None = None,
+    types: list[str] | None = None,
+    progress: dict[str, Any] | None = None,
+    progress_status: str | None = None,
+    progress_bound: bool = False,
+) -> dict[str, Any]:
+    map_slug = (map_slug or "").strip()
+    if not map_slug:
+        raise TarkovTasksError("地图无效")
+    ensure_tasks(db)
+    source, payload, synced_at, note = _load_payload(db)
+    map_name, rows = collect_raid_prep_rows(payload, map_slug)
+    if progress is not None:
+        rows = annotate_task_progress(rows, progress)
+        rows = _apply_requirement_progress_rows(rows, progress)
+    status_filter = (progress_status or "").strip().lower() if progress is not None else ""
+    if status_filter and status_filter not in PROGRESS_STATUSES:
+        status_filter = ""
+    filtered = filter_task_rows(
+        rows,
+        trader=trader,
+        kappa=kappa,
+        q=q,
+        progress_status=status_filter or None,
+    )
+    wanted_types = {
+        str(t).strip()
+        for t in (types or [])
+        if str(t).strip()
+    }
+    if wanted_types:
+        filtered = [
+            row
+            for row in filtered
+            if wanted_types.intersection(row.get("objective_types") or [])
+        ]
+    ordered = sort_task_rows(filtered, by_progress=progress is not None)
+    ordered.sort(key=lambda r: not r.get("has_map_markers"))
+    return {
+        "map_slug": map_slug,
+        "map_name": map_name,
+        "items": ordered,
+        "task_count": len(ordered),
         "traders": unique_traders(rows),
         "source": source,
         "synced_at": synced_at,

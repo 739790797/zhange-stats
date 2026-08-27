@@ -55,6 +55,7 @@ a {
 
 /* 主栏页内滚动：贴合浅色内容区，避免浏览器窗口条 */
 .app-main-scroll {
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(26, 35, 50, 0.28) transparent;
 }

@@ -62,6 +62,19 @@ describe("suggestionsForLine", () => {
     ).toEqual(["world minecraft:overworld", "world minecraft:the_nether"]);
   });
 
+  it("suggests map ids for map arguments", () => {
+    const tree: CommandNodeSpec[] = [
+      { id: "freeze", args: [{ id: "map", kind: "map" }] },
+      { id: "force-update" },
+    ];
+    expect(
+      suggestionsForLine("freeze ", tree, WORLDS, ["world_nether"]).map(
+        (row) => row.token,
+      ),
+    ).toEqual(["world_nether"]);
+    expect(completeLine("for", tree, WORLDS)).toBe("force-update");
+  });
+
   it("suggests raw enum values, not translated labels", () => {
     expect(
       suggestionsForLine("shape c", TREE, WORLDS).map((row) => row.token),

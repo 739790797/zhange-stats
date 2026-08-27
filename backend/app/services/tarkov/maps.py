@@ -246,7 +246,10 @@ def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
     return by_slug
 
 
-def _apply_graphql_markers(row: dict[str, Any]) -> None:
+def _apply_graphql_markers(
+    row: dict[str, Any],
+    locale: dict[str, Any] | None = None,
+) -> None:
     extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
     if _extracts_have_coords(extracts):
         return
@@ -296,7 +299,7 @@ def _apply_graphql_markers(row: dict[str, Any]) -> None:
         src = gql_by_slug.get(str(boss.get("slug") or ""))
         if not src:
             continue
-        boss["locations"] = _boss_locations(src, {})
+        boss["locations"] = _boss_locations(src, locale or {})
 
 
 def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -411,7 +414,8 @@ def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
         for v in rows
         if v.get("parent_slug") == parent and v.get("slug") != row.get("slug")
     ]
-    _apply_graphql_markers(row)
+    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
+    _apply_graphql_markers(row, locale)
     return {
         **row,
         "variants": variants,

@@ -26,19 +26,18 @@ from app.services.minecraft.mod_registry import (
     ModCommandError,
     ModToolSpec,
     assemble_mod_command,
-    clear_draft_content,
     command_tree_out,
-    config_directory,
     config_directory_abs,
+    factory_pins_out,
+    features_out,
     install_directory,
     jar_matches_spec,
-    preset_by_id,
-    resolve_preset_body,
     spec_links_out,
     spec_project_id,
-    upsert_draft_content,
     version_from_jar,
 )
+from app.services.minecraft import mod_inventory as inventory
+from app.services.minecraft import config_pins as pins_svc
 from app.services.minecraft.rcon import MinecraftRconError, rcon_exec
 from app.services.minecraft.status import strip_section_codes
 
@@ -48,6 +47,7 @@ SCAN_TTL_SEC = 30
 PIN_TTL_SEC = 30 * 60
 RCON_TIMEOUT = 8.0
 SCAN_CACHE_KEY = "minecraft:modtools:scan:v1"
+WORLD_CACHE_KEY = "minecraft:modtools:worlds:v1"
 JAR_DIRS = ("/mods", "/plugins")
 WORLD_SKIP = {
     "mods",
@@ -136,6 +136,55 @@ _COUNT_RE = re.compile(
 _RATE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:cps|chunks?\s*per\s*second)\b", re.I)
 _ETA_RE = re.compile(r"(?:eta|estimated time(?: remaining)?)[:\s]+(\d+:\d{2}:\d{2}|\d+:\d{2})", re.I)
 _COORD_RE = re.compile(r"chunk[:\s]+(-?\d+)\s*[,\s]+(-?\d+)", re.I)
+_BLUEMAP_THREADS_RE = re.compile(r"(\d+)\s*render-threads?", re.I)
+_BLUEMAP_PROGRESS_RE = re.compile(r"progress:\s*(\d+(?:\.\d+)?)\s*%", re.I)
+_BLUEMAP_ETA_RE = re.compile(r"remaining time:\s*(.+)", re.I)
+_BLUEMAP_MAP_TASK_RE = re.compile(
+    r"\bmap\s+([A-Za-z0-9_.:\-]+)\s+is currently being\s+(updated|purged)\b",
+    re.I,
+)
+_BLUEMAP_MAP_LINE_RE = re.compile(r"^[^\w]*([A-Za-z0-9_.:\-]{1,64})[^\w]*$")
+_BLUEMAP_MAP_NOISE = frozenset(
+    {
+        "maps",
+        "status",
+        "frozen",
+        "updated",
+        "pending",
+        "running",
+        "idle",
+        "stopped",
+        "paused",
+        "progress",
+        "currently",
+        "being",
+        "render",
+        "threads",
+        "thread",
+        "task",
+        "tasks",
+        "purge",
+        "purged",
+        "rendering",
+        "update",
+        "updates",
+        "map",
+        "time",
+        "remaining",
+        "minutes",
+        "hours",
+        "seconds",
+        "ago",
+        "last",
+        "active",
+        "online",
+        "players",
+        "start",
+        "stop",
+        "use",
+        "bluemap",
+    }
+)
 
 
 class MinecraftModToolsError(Exception):
@@ -260,12 +309,93 @@ def parse_chunky_state(raw: str) -> dict[str, Any]:
     }
 
 
-def _list_jars(base: str, token: str, uuid: str, directory: str) -> list[dict[str, str]]:
+def parse_bluemap_maps(raw: str) -> dict[str, list[str]]:
+    maps: list[str] = []
+    frozen: list[str] = []
+    seen: set[str] = set()
+    lines = [line.strip() for line in strip_section_codes(raw or "").splitlines() if line.strip()]
+    pending: str | None = None
+    for line in lines:
+        lower = line.lower()
+        match = _BLUEMAP_MAP_LINE_RE.match(line)
+        token = match.group(1) if match else ""
+        if token and token.lower() not in _BLUEMAP_MAP_NOISE:
+            if token not in seen:
+                maps.append(token)
+                seen.add(token)
+            pending = token
+            if "frozen" in lower:
+                if token not in frozen:
+                    frozen.append(token)
+            continue
+        named = _BLUEMAP_MAP_TASK_RE.search(line)
+        if named:
+            map_id = named.group(1)
+            if map_id not in seen:
+                maps.append(map_id)
+                seen.add(map_id)
+            pending = map_id
+        if pending and "frozen" in lower and pending not in frozen:
+            frozen.append(pending)
+    return {"maps": maps, "frozen_maps": frozen}
+
+
+def parse_bluemap_state(raw: str) -> dict[str, Any]:
+    text = strip_section_codes(raw or "")
+    lower = text.lower()
+    state = "idle"
+    if "stopped" in lower:
+        state = "stopped"
+    elif "paused" in lower:
+        state = "paused"
+    elif "running" in lower or "currently being" in lower:
+        state = "running"
+    elif "idle" in lower:
+        state = "idle"
+    threads: int | None = None
+    threads_match = _BLUEMAP_THREADS_RE.search(text)
+    if threads_match:
+        try:
+            threads = int(threads_match.group(1))
+        except ValueError:
+            threads = None
+    percent: float | None = None
+    progress_match = _BLUEMAP_PROGRESS_RE.search(text) or _PERCENT_RE.search(text)
+    if progress_match:
+        try:
+            percent = float(progress_match.group(1))
+        except ValueError:
+            percent = None
+    eta = ""
+    eta_match = _BLUEMAP_ETA_RE.search(text)
+    if eta_match:
+        eta = eta_match.group(1).strip()
+    current_map = ""
+    current_task = ""
+    task_match = _BLUEMAP_MAP_TASK_RE.search(text)
+    if task_match:
+        current_map = task_match.group(1)
+        current_task = task_match.group(2).lower()
+    listed = parse_bluemap_maps(text)
+    return {
+        "state": state,
+        "threads": threads,
+        "percent": percent,
+        "eta": eta,
+        "current_map": current_map,
+        "current_task": current_task,
+        "maps": listed["maps"],
+        "frozen_maps": listed["frozen_maps"],
+        "raw": text.strip(),
+    }
+
+
+def _list_jars(base: str, token: str, uuid: str, directory: str) -> list[dict[str, Any]]:
     try:
         entries = pelican.list_files(base, token, uuid, directory)
     except pelican.PelicanError:
         return []
-    out: list[dict[str, str]] = []
+    out: list[dict[str, Any]] = []
     for entry in entries:
         if not entry.get("is_file") or entry.get("is_symlink"):
             continue
@@ -273,7 +403,19 @@ def _list_jars(base: str, token: str, uuid: str, directory: str) -> list[dict[st
         if not name.lower().endswith(".jar"):
             continue
         kind = "plugin" if directory.rstrip("/") == "/plugins" else "mod"
-        out.append({"filename": name, "directory": directory, "kind": kind})
+        try:
+            size = int(entry.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        out.append(
+            {
+                "filename": name,
+                "directory": directory,
+                "kind": kind,
+                "size": size,
+                "modified_at": str(entry.get("modified_at") or ""),
+            }
+        )
     return out
 
 
@@ -314,16 +456,7 @@ def _list_worlds(base: str, token: str, uuid: str) -> list[str]:
 
 
 def _scan_files(db: Session, *, force: bool = False) -> dict[str, Any]:
-    cache_key = SCAN_CACHE_KEY
-    if not force:
-        cached = ephemeral_get(cache_key)
-        if cached:
-            try:
-                parsed = json.loads(cached)
-                if isinstance(parsed, dict):
-                    return parsed
-            except json.JSONDecodeError:
-                pass
+    """列 /mods 与 /plugins 每次都打 Pelican（便宜）；世界列表缓存 30 秒。"""
     base, token, uuid = get_pelican_credentials(db)
     payload: dict[str, Any] = {
         "pelican_configured": pelican.pelican_configured(base, token, uuid),
@@ -334,22 +467,50 @@ def _scan_files(db: Session, *, force: bool = False) -> dict[str, Any]:
     if not payload["pelican_configured"]:
         payload["message"] = "未配置 Pelican"
         return payload
-    jars: list[dict[str, str]] = []
+    jars: list[dict[str, Any]] = []
     for directory in JAR_DIRS:
         jars.extend(_list_jars(base, token, uuid, directory))
     payload["jars"] = jars
+    if not force:
+        cached = ephemeral_get(WORLD_CACHE_KEY)
+        if cached:
+            try:
+                parsed = json.loads(cached)
+                if isinstance(parsed, list):
+                    payload["worlds"] = parsed
+                    return payload
+            except json.JSONDecodeError:
+                pass
     payload["worlds"] = _list_worlds(base, token, uuid)
-    ephemeral_set(cache_key, json.dumps(payload, ensure_ascii=False), ttl_sec=SCAN_TTL_SEC)
+    ephemeral_set(WORLD_CACHE_KEY, json.dumps(payload["worlds"], ensure_ascii=False), ttl_sec=SCAN_TTL_SEC)
     return payload
 
 
-def _match_hits(jars: list[dict[str, str]], spec: ModToolSpec) -> list[dict[str, str]]:
-    hits: list[dict[str, str]] = []
+def _match_hits(jars: list[dict[str, Any]], spec: ModToolSpec) -> list[dict[str, Any]]:
+    hits: list[dict[str, Any]] = []
     for row in jars:
         filename = str(row.get("filename") or "")
         if jar_matches_spec(filename, spec):
             hits.append(row)
     return hits
+
+
+def _replace_hits(db: Any, spec: ModToolSpec, disk_jars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """安装替换时：文件名命中 + 库存已认亲的路径都要删掉旧包。"""
+    by_path: dict[str, dict[str, Any]] = {}
+    for row in _match_hits(disk_jars, spec):
+        path = inventory.jar_path(str(row.get("directory") or ""), str(row.get("filename") or ""))
+        if path:
+            by_path[path] = row
+    stored, persist = inventory.load_store(db)
+    if persist:
+        for row in inventory.hits_for_spec(stored.get("jars") or [], spec):
+            path = str(row.get("path") or "") or inventory.jar_path(
+                str(row.get("directory") or ""), str(row.get("filename") or "")
+            )
+            if path and path not in by_path:
+                by_path[path] = row
+    return list(by_path.values())
 
 
 def _rcon_creds(db: Session) -> tuple[str, int, str]:
@@ -409,6 +570,55 @@ def _probe_chunky(db: Session) -> dict[str, Any]:
         "progress": progress,
         "selection": selection,
         "status": merged,
+    }
+
+
+def _probe_bluemap(db: Session) -> dict[str, Any]:
+    host, _port, password = _rcon_creds(db)
+    if not _rcon_configured(host, password):
+        return {
+            "loaded": False,
+            "rcon_connected": None,
+            "message": "未配置 RCON",
+            "status": None,
+        }
+    try:
+        status_raw = rcon_run(db, "bluemap")
+    except MinecraftModToolsError as exc:
+        return {
+            "loaded": False,
+            "rcon_connected": False,
+            "message": exc.message,
+            "status": None,
+        }
+    loaded = not is_unknown_command(status_raw)
+    parsed = parse_bluemap_state(status_raw)
+    if loaded:
+        try:
+            maps_raw = rcon_run(db, "bluemap maps")
+        except MinecraftModToolsError:
+            maps_raw = ""
+        if maps_raw and not is_unknown_command(maps_raw):
+            listed = parse_bluemap_maps(maps_raw)
+            if listed["maps"]:
+                parsed["maps"] = listed["maps"]
+            if listed["frozen_maps"]:
+                parsed["frozen_maps"] = listed["frozen_maps"]
+            extra = strip_section_codes(maps_raw).strip()
+            if extra and extra not in str(parsed.get("raw") or ""):
+                parsed["raw"] = f"{parsed.get('raw') or ''}\n{extra}".strip()
+    if not loaded:
+        return {
+            "loaded": False,
+            "rcon_connected": True,
+            "message": "RCON 已连通，但 BlueMap 命令不可用（文件在但未加载？）",
+            "status": parsed,
+        }
+    return {
+        "loaded": True,
+        "rcon_connected": True,
+        "message": "",
+        "status": parsed,
     }
 
 
@@ -551,17 +761,18 @@ def _catalog_out(
     mc_version: str,
     filename: str,
     directory: str,
+    installed_version: str = "",
 ) -> dict[str, Any]:
     target = install_directory(loader, spec, present_directory=directory)
-    installed_version = version_from_jar(filename)
+    resolved_version = (installed_version or "").strip() or version_from_jar(filename)
     pin = lookup_latest_pin(spec, loader=loader, mc_version=mc_version)
     latest_version = str((pin or {}).get("version_number") or "")
     latest_filename = str((pin or {}).get("filename") or "")
     compatible = bool(pin)
     update_available = False
     if pin and filename:
-        if latest_version and installed_version:
-            update_available = latest_version != installed_version
+        if latest_version and resolved_version:
+            update_available = latest_version != resolved_version
         elif latest_filename and latest_filename != filename:
             update_available = True
     if compatible:
@@ -576,7 +787,7 @@ def _catalog_out(
         "loader": loader,
         "mc_version": mc_version,
         "project_id": spec_project_id(spec),
-        "installed_version": installed_version,
+        "installed_version": resolved_version,
         "latest_version": latest_version,
         "latest_filename": latest_filename,
         "compatible": compatible,
@@ -589,16 +800,18 @@ def _catalog_out(
 def _tool_out(
     spec: ModToolSpec,
     *,
-    hits: list[dict[str, str]],
+    hits: list[dict[str, Any]],
     loaded: bool,
     loader: str,
     mc_version: str,
 ) -> dict[str, Any]:
     present = bool(hits) or loaded
-    filename = hits[0]["filename"] if hits else ""
-    directory = hits[0]["directory"] if hits else ""
-    kind = hits[0]["kind"] if hits else ""
+    filename = str(hits[0].get("filename") or "") if hits else ""
+    directory = str(hits[0].get("directory") or "") if hits else ""
+    kind = str(hits[0].get("kind") or "") if hits else ""
+    installed_version = str(hits[0].get("mod_version") or "") if hits else ""
     links = spec_links_out(spec, loader)
+    icon_url = str(hits[0].get("icon_url") or "") if hits else ""
     return {
         "id": spec.id,
         "title": spec.title,
@@ -608,9 +821,16 @@ def _tool_out(
         "filename": filename,
         "directory": directory,
         "kind": kind,
-        "files": hits,
+        "files": [
+            {
+                "filename": str(row.get("filename") or ""),
+                "directory": str(row.get("directory") or ""),
+                "kind": str(row.get("kind") or ""),
+            }
+            for row in hits
+        ],
         "capabilities": list(spec.capabilities),
-        "icon_url": links.get("icon_url") or "",
+        "icon_url": icon_url or links.get("icon_url") or "",
         "links": links,
         "catalog": _catalog_out(
             spec,
@@ -618,14 +838,13 @@ def _tool_out(
             mc_version=mc_version,
             filename=filename,
             directory=directory,
+            installed_version=installed_version,
         ),
-        "presets": [
-            {"id": row.id, "title": row.title, "summary": row.summary} for row in spec.presets
-        ],
         "config_directory": config_directory_abs(
             loader, spec, present_directory=directory
         ),
         "command_tree": command_tree_out(spec),
+        "features": features_out(spec),
     }
 
 
@@ -636,16 +855,32 @@ def collect_mod_tools(db: Session, *, force: bool = False) -> dict[str, Any]:
     ctx = _server_context(db)
     loader = ctx["loader"]
     mc_version = ctx["mc_version"]
+    disk_jars = [row for row in (scan.get("jars") or []) if isinstance(row, dict)]
+    stored, persist = inventory.load_store(db)
+    updated, pending = inventory.apply_fingerprint(stored, disk_jars, force=force)
+    updated = inventory.stamp_tool_ids(updated)
+    if persist and not inventory.identify_running():
+        inventory.save_store(db, updated)
+        inventory.maybe_kick_identify(pending)
+    jars = [row for row in (updated.get("jars") or []) if isinstance(row, dict)]
     tools: list[dict[str, Any]] = []
-    chunky_live: dict[str, Any] | None = None
-    jars = scan.get("jars") if isinstance(scan.get("jars"), list) else []
+    live_by_id: dict[str, dict[str, Any]] = {}
+    rcon_connected: bool | None = None
     for spec in SPECS:
-        hits = _match_hits([row for row in jars if isinstance(row, dict)], spec)
+        hits = inventory.hits_for_spec(jars, spec)
         loaded = False
-        if spec.id == "chunky" and (hits or rcon_ok):
-            live = _probe_chunky(db)
-            chunky_live = live
-            loaded = bool(live.get("loaded"))
+        if spec.probe_command and (hits or rcon_ok):
+            if spec.id == "chunky":
+                live = _probe_chunky(db)
+            elif spec.id == "bluemap":
+                live = _probe_bluemap(db)
+            else:
+                live = None
+            if live is not None:
+                live_by_id[spec.id] = live
+                loaded = bool(live.get("loaded"))
+                if live.get("rcon_connected") is not None:
+                    rcon_connected = bool(live.get("rcon_connected"))
         tools.append(
             _tool_out(
                 spec,
@@ -655,17 +890,22 @@ def collect_mod_tools(db: Session, *, force: bool = False) -> dict[str, Any]:
                 mc_version=mc_version,
             )
         )
+    chunky_live = live_by_id.get("chunky")
+    bluemap_live = live_by_id.get("bluemap")
     return {
         "ok": True,
         "pelican_configured": bool(scan.get("pelican_configured")),
         "rcon_configured": rcon_ok,
-        "rcon_connected": None if not chunky_live else chunky_live.get("rcon_connected"),
+        "rcon_connected": rcon_connected,
         "loader": loader,
         "mc_version": mc_version,
         "message": str(scan.get("message") or ""),
         "worlds": scan.get("worlds") or [],
         "tools": tools,
         "chunky": None if not chunky_live else chunky_live.get("status"),
+        "bluemap": None if not bluemap_live else bluemap_live.get("status"),
+        "inventory": inventory.public_inventory(updated),
+        "reconcile": inventory.read_reconcile(len(pending) if persist else 0),
     }
 
 
@@ -685,20 +925,13 @@ def _pelican(db: Session) -> tuple[str, str, str]:
 
 def _invalidate_scans() -> None:
     ephemeral_delete(SCAN_CACHE_KEY)
+    ephemeral_delete(WORLD_CACHE_KEY)
     try:
         from app.services.minecraft.profile import invalidate_live_public_facts
 
         invalidate_live_public_facts()
     except Exception:
         logger.exception("minecraft mod tools: invalidate live facts failed")
-
-
-def _ensure_config_dir(base: str, token: str, uuid: str, directory: str) -> None:
-    parts = [part for part in directory.replace("\\", "/").strip("/").split("/") if part]
-    root = "/"
-    for name in parts:
-        pelican.create_folder(base, token, uuid, root=root, name=name, ignore_exists=True)
-        root = f"{root.rstrip('/')}/{name}"
 
 
 def _present_directory(db: Session, spec: ModToolSpec, *, force: bool = False) -> str:
@@ -716,110 +949,187 @@ def _preset_blob(db: Session) -> dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
-def _require_preset(spec: ModToolSpec, preset_id: str):
+def _require_config(spec: ModToolSpec) -> None:
     if "config" not in spec.capabilities:
         raise MinecraftModToolsError("该模组没有配置预设")
-    preset = preset_by_id(spec, preset_id)
-    if preset is None:
-        raise MinecraftModToolsError("没有这个配置预设")
-    return preset
 
 
-def get_tool_preset(db: Session, tool_id: str, preset_id: str) -> dict[str, Any]:
+def _read_config_file(
+    base: str, token: str, uuid: str, path: str
+) -> str | None:
+    try:
+        return pelican.get_file_contents(base, token, uuid, path)
+    except pelican.PelicanError as exc:
+        if pelican.is_absent_file_error(exc):
+            return None
+        raise
+
+
+def _dir_has_pinnable(
+    base: str, token: str, uuid: str, directory: str
+) -> bool:
+    try:
+        entries = pelican.list_files(base, token, uuid, directory)
+    except pelican.PelicanError as exc:
+        if pelican.is_absent_file_error(exc):
+            return False
+        raise
+    for entry in entries:
+        if not entry.get("is_file") or entry.get("is_symlink"):
+            continue
+        name = str(entry.get("name") or "")
+        if pins_svc.is_pinnable_filename(name):
+            return True
+    return False
+
+
+def get_tool_preset(db: Session, tool_id: str) -> dict[str, Any]:
     spec = _require_spec(tool_id)
-    preset = _require_preset(spec, preset_id)
+    _require_config(spec)
     ctx = _server_context(db)
     present_dir = _present_directory(db, spec)
-    filename, content, source = resolve_preset_body(
-        preset,
-        ctx["loader"],
-        spec,
-        _preset_blob(db),
-        present_directory=present_dir,
+    blob = _preset_blob(db)
+    pins = pins_svc.read_saved_pins(blob, spec.id)
+    directories = pins_svc.read_saved_directories(blob, spec.id)
+    factory = factory_pins_out(spec, ctx["loader"], present_directory=present_dir)
+    base, token, uuid = _pelican(db)
+    files: dict[str, str | None] = {}
+    for pin in pins:
+        path = pin["file"]
+        if path in files:
+            continue
+        if directories and pins_svc.path_is_within_any(path, directories):
+            files[path] = _read_config_file(base, token, uuid, path)
+        else:
+            files[path] = None
+    report = pins_svc.reconcile_pins(pins=pins, files=files)
+    config_found = any(
+        _dir_has_pinnable(base, token, uuid, directory) for directory in directories
     )
-    if not filename:
-        raise MinecraftModToolsError("该预设没有对应加载器的出厂文件")
+    if not config_found:
+        config_found = any(body is not None for body in files.values())
     return {
         "ok": True,
         "tool_id": spec.id,
-        "preset_id": preset.id,
-        "title": preset.title,
-        "summary": preset.summary,
-        "source": source,
-        "filename": filename,
-        "content": content,
+        "directory": directories[0] if directories else "",
+        "directories": directories,
+        "config_found": config_found,
+        "has_preset": bool(pins),
+        "status": report["status"],
+        "missing_files": report["missing_files"],
+        "diffs": report["diffs"],
+        "pins": pins,
+        "factory_pins": factory,
+    }
+
+
+def list_tool_preset_keys(db: Session, tool_id: str, path: str) -> dict[str, Any]:
+    spec = _require_spec(tool_id)
+    _require_config(spec)
+    abs_path = pins_svc.safe_server_file_path(path)
+    if not abs_path or not pins_svc.is_pinnable_filename(abs_path):
+        raise MinecraftModToolsError("这种文件不能做预设")
+    directories = pins_svc.read_saved_directories(_preset_blob(db), spec.id)
+    if not directories:
+        raise MinecraftModToolsError("请先选择配置目录")
+    if not pins_svc.path_is_within_any(abs_path, directories):
+        raise MinecraftModToolsError("文件不在该模组的配置目录里")
+    base, token, uuid = _pelican(db)
+    body = _read_config_file(base, token, uuid, abs_path)
+    if body is None:
+        raise MinecraftModToolsError("未找到配置文件", status_code=404)
+    try:
+        keys = pins_svc.parse_scalar_keys(body, abs_path)
+    except ValueError as exc:
+        raise MinecraftModToolsError(str(exc) or "无法解析该配置文件") from exc
+    return {
+        "ok": True,
+        "tool_id": spec.id,
+        "path": abs_path,
+        "keys": [{"key": key, "value": value} for key, value in keys.items()],
     }
 
 
 def save_tool_preset(
     db: Session,
     tool_id: str,
-    preset_id: str,
-    *,
-    content: str | None = None,
-    restore: bool = False,
+    pins: list[dict[str, Any]] | None = None,
+    directories: list[str] | None = None,
 ) -> dict[str, Any]:
     spec = _require_spec(tool_id)
-    preset = _require_preset(spec, preset_id)
+    _require_config(spec)
+    if pins is None and directories is None:
+        raise MinecraftModToolsError("没有要保存的内容")
+    if pins is not None:
+        cleaned = pins_svc.normalize_pins(pins)
+        if pins and not cleaned:
+            raise MinecraftModToolsError("没有有效的预设键")
+    if directories is not None:
+        cleaned_dirs = pins_svc.normalize_directories(directories)
+        if directories and not cleaned_dirs:
+            raise MinecraftModToolsError("没有有效的配置目录")
     from app.services.minecraft.profile import get_or_create_profile
 
     row = get_or_create_profile(db)
-    blob = getattr(row, "mod_presets_json", None)
-    if restore:
-        row.mod_presets_json = clear_draft_content(blob, spec.id, preset.id)
-    else:
-        if content is None:
-            raise MinecraftModToolsError("请填写预设内容")
-        if len(content) > 256_000:
-            raise MinecraftModToolsError("预设内容过长")
-        row.mod_presets_json = upsert_draft_content(blob, spec.id, preset.id, content)
+    row.mod_presets_json = pins_svc.write_saved_entry(
+        getattr(row, "mod_presets_json", None),
+        spec.id,
+        pins=pins,
+        directories=directories,
+    )
     db.commit()
     db.refresh(row)
-    return get_tool_preset(db, spec.id, preset.id)
+    return get_tool_preset(db, spec.id)
 
 
-def apply_tool_preset(db: Session, tool_id: str, preset_id: str = "") -> dict[str, Any]:
+def apply_tool_preset(db: Session, tool_id: str) -> dict[str, Any]:
     spec = _require_spec(tool_id)
-    preset = _require_preset(spec, preset_id)
-    ctx = _server_context(db)
-    present_dir = _present_directory(db, spec, force=True)
-    filename, content, source = resolve_preset_body(
-        preset,
-        ctx["loader"],
-        spec,
-        _preset_blob(db),
-        present_directory=present_dir,
-    )
-    if not filename:
-        raise MinecraftModToolsError("该预设没有对应加载器的出厂文件")
-    rel_dir = config_directory(ctx["loader"], spec, present_directory=present_dir)
-    if not rel_dir:
-        raise MinecraftModToolsError("该模组未声明配置目录")
+    _require_config(spec)
+    pins = pins_svc.read_saved_pins(_preset_blob(db), spec.id)
+    if not pins:
+        raise MinecraftModToolsError("还没有保存预设")
     base, token, uuid = _pelican(db)
-    _ensure_config_dir(base, token, uuid, rel_dir)
-    path = f"/{rel_dir}/{filename}".replace("//", "/")
-    pelican.write_file(base, token, uuid, path, content)
+    by_file: dict[str, dict[str, str]] = {}
+    for pin in pins:
+        by_file.setdefault(pin["file"], {})[pin["key"]] = pin["value"]
+    applied: list[str] = []
+    skipped: list[str] = []
+    for abs_path, updates in by_file.items():
+        body = _read_config_file(base, token, uuid, abs_path)
+        if body is None:
+            skipped.append(abs_path)
+            continue
+        try:
+            patched = pins_svc.apply_scalar_pins(body, abs_path, updates)
+        except ValueError as exc:
+            raise MinecraftModToolsError(str(exc) or "无法写入该配置文件") from exc
+        pelican.write_file(base, token, uuid, abs_path, patched)
+        applied.append(abs_path)
     _invalidate_scans()
     reloaded = False
-    if spec.probe_command:
+    if spec.probe_command and applied:
         try:
             rcon_run(db, f"{spec.id} reload")
             reloaded = True
         except MinecraftModToolsError:
             reloaded = False
-    src_label = "草稿" if source == "draft" else "出厂"
+    report = get_tool_preset(db, spec.id)
+    if applied:
+        note = f"已写入 {len(applied)} 个文件"
+        if skipped:
+            note += f"，跳过缺失 {len(skipped)} 个"
+        note += "，并已 reload" if reloaded else "，重启后生效"
+    elif skipped:
+        note = "预设文件还不存在，未写入"
+    else:
+        note = "没有可写入的文件"
     return {
-        "ok": True,
-        "tool_id": spec.id,
-        "preset_id": preset.id,
-        "path": path,
-        "source": source,
+        **report,
+        "applied_files": applied,
+        "skipped_files": skipped,
         "reloaded": reloaded,
         "restart_required": not reloaded,
-        "message": (
-            f"已写入 {path}（{src_label}）"
-            + ("，并已 reload" if reloaded else "，重启后生效")
-        ),
+        "message": note,
     }
 
 
@@ -874,6 +1184,7 @@ def install_tool(
     restart: bool = False,
 ) -> dict[str, Any]:
     spec = _require_spec(tool_id)
+    del preset_id
     if "install" not in spec.capabilities:
         raise MinecraftModToolsError("该模组不支持快捷安装")
     ctx = _server_context(db)
@@ -895,7 +1206,7 @@ def install_tool(
         raise MinecraftModToolsError("Modrinth 返回的文件不完整")
     scan = _scan_files(db, force=True)
     jars = scan.get("jars") if isinstance(scan.get("jars"), list) else []
-    hits = _match_hits([row for row in jars if isinstance(row, dict)], spec)
+    hits = _replace_hits(db, spec, [row for row in jars if isinstance(row, dict)])
     present_dir = hits[0]["directory"] if hits else ""
     directory = install_directory(loader, spec, present_directory=present_dir)
     base, token, uuid = _pelican(db)
@@ -921,11 +1232,6 @@ def install_tool(
     notes = [f"已下载 {directory}/{filename}"]
     if removed:
         notes.append(f"已替换旧文件 {removed} 个")
-    config_path = ""
-    if (preset_id or "").strip():
-        applied = apply_tool_preset(db, spec.id, preset_id.strip())
-        config_path = str(applied.get("path") or "")
-        notes.append(str(applied.get("message") or ""))
     restarted = False
     if restart:
         try:
@@ -935,13 +1241,24 @@ def install_tool(
         except pelican.PelicanError as exc:
             notes.append(f"下载成功，但重启失败：{exc.message}")
     _invalidate_scans()
+    try:
+        inventory.record_install(
+            db,
+            spec=spec,
+            directory=directory,
+            filename=filename,
+            pin=pin,
+            removed_hits=[row for row in hits if isinstance(row, dict)],
+        )
+    except Exception:
+        logger.exception("minecraft mod tools: record install inventory failed")
     return {
         "ok": True,
         "tool_id": spec.id,
         "filename": filename,
         "directory": directory,
         "version_number": str(pin.get("version_number") or ""),
-        "config_path": config_path,
+        "config_path": "",
         "restarted": restarted,
         "restart_required": not restarted,
         "message": "；".join(part for part in notes if part),
@@ -1050,6 +1367,7 @@ def run_tool_command(
     if is_unknown_command(raw):
         raise MinecraftModToolsError("服务器未加载该模组（命令不可用）", status_code=400)
     status: dict[str, Any] = {}
+    bluemap: dict[str, Any] | None = None
     if spec.id == "chunky":
         parsed = parse_chunky_state(raw)
         try:
@@ -1063,6 +1381,19 @@ def run_tool_command(
         except MinecraftModToolsError:
             pass
         status = parsed
+    elif spec.id == "bluemap":
+        parsed = parse_bluemap_state(raw)
+        try:
+            live = _probe_bluemap(db)
+            if isinstance(live.get("status"), dict):
+                parsed = live["status"]
+                extra = str(live["status"].get("raw") or "")
+                if extra and extra not in raw:
+                    raw = f"{raw}\n{extra}".strip()
+                    parsed["raw"] = raw
+        except MinecraftModToolsError:
+            pass
+        bluemap = parsed
     return {
         "ok": True,
         "action": (command_id or "").strip(),
@@ -1070,6 +1401,7 @@ def run_tool_command(
         "message": "",
         "raw": raw,
         "status": status,
+        "bluemap": bluemap,
     }
 
 

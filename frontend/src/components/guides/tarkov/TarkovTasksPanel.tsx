@@ -12,7 +12,16 @@ import {
   TARKOV_TRADERS,
   tarkovTaskHref,
 } from "@/lib/tarkovHomeNav";
-import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
+import {
+  readAllowedInt,
+  readPositiveInt,
+  readTarkovTaskView,
+} from "@/lib/tarkovQueryState";
+import {
+  orderObjectiveTypes,
+  tarkovObjectiveTypeLabel,
+  tarkovObjectiveTypeTone,
+} from "@/lib/tarkovTaskObjective";
 import {
   TARKOV_TASK_PROGRESS_FILTERS,
   tarkovTaskProgressLabel,
@@ -53,7 +62,7 @@ export function TarkovTasksPanel() {
   const pstatus = (searchParams.get("pstatus") || "").trim();
   const q = (searchParams.get("q") || "").trim();
   const kappa = searchParams.get("kappa") === "1";
-  const view = searchParams.get("view") === "table" ? "table" : "chain";
+  const view = readTarkovTaskView(searchParams.get("view"));
   const pageNo = readPositiveInt(searchParams.get("page"), 1);
   const pageSize = readAllowedInt(
     searchParams.get("pageSize"),
@@ -151,7 +160,7 @@ export function TarkovTasksPanel() {
 
   const setView = (nextView: "chain" | "table") => {
     const next = new URLSearchParams(searchParams);
-    if (nextView === "table") next.set("view", "table");
+    if (nextView === "chain") next.set("view", "chain");
     else next.delete("view");
     next.delete("page");
     setSearchParams(next, { replace: true });
@@ -190,6 +199,29 @@ export function TarkovTasksPanel() {
               {label}
               {factionSuffix(row.faction_name)}
             </Link>
+          </span>
+        );
+      },
+    },
+    {
+      title: "目标",
+      key: "objective_types",
+      width: 248,
+      render: (_: unknown, row) => {
+        const types = orderObjectiveTypes(row.objective_types);
+        if (!types.length) return "";
+        return (
+          <span className={styles.typeList}>
+            {types.map((type) => (
+              <span
+                key={type}
+                className={styles.typeChip}
+                data-tone={tarkovObjectiveTypeTone(type)}
+                title={type}
+              >
+                {tarkovObjectiveTypeLabel(type)}
+              </span>
+            ))}
           </span>
         );
       },
@@ -292,49 +324,74 @@ export function TarkovTasksPanel() {
         />
       ) : null}
 
-      <div className={styles.headline}>
-        <div className={catalog.meta}>
-          {typeof meta?.task_count === "number" ? `共 ${meta.task_count} 条` : null}
-        </div>
-        <div className={styles.filters}>
-          <TarkovTaskProgressSwitch
-            enabled={mine}
-            onChange={(value) => {
-              setMine(value);
-              const next = new URLSearchParams(searchParams);
-              next.delete("page");
-              setSearchParams(next, { replace: true });
-            }}
-          />
+      <div className={styles.toolbar}>
+        <div className={styles.toolbarTop}>
           <div className={styles.viewBar} role="radiogroup" aria-label="任务展示">
             <button
               type="button"
               role="radio"
-              aria-checked={view === "chain"}
-              className={`${styles.viewBtn} ${view === "chain" ? styles.viewBtnOn : ""}`}
-              onClick={() => setView("chain")}
-            >
-              任务线
-            </button>
-            <button
-              type="button"
-              role="radio"
               aria-checked={view === "table"}
-              className={`${styles.viewBtn} ${view === "table" ? styles.viewBtnOn : ""}`}
+              className={`${styles.modeBtn} ${view === "table" ? styles.modeBtnOn : ""}`}
               onClick={() => setView("table")}
             >
               查找
             </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={view === "chain"}
+              className={`${styles.modeBtn} ${view === "chain" ? styles.modeBtnOn : ""}`}
+              onClick={() => setView("chain")}
+            >
+              任务线
+            </button>
           </div>
-          <label className={styles.toggle}>
-            <input
-              type="checkbox"
-              checked={kappa}
-              onChange={(e) => setKappaFilter(e.target.checked)}
+          <div className={styles.toolbarSide}>
+            {typeof meta?.task_count === "number" ? (
+              <span className={styles.count}>共 {meta.task_count} 条</span>
+            ) : null}
+            <TarkovTaskProgressSwitch
+              enabled={mine}
+              onChange={(value) => {
+                setMine(value);
+                const next = new URLSearchParams(searchParams);
+                next.delete("page");
+                setSearchParams(next, { replace: true });
+              }}
             />
+          </div>
+        </div>
+
+        <div className={styles.queryRow}>
+          <input
+            className={styles.search}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="按任务名称筛选"
+            aria-label="搜索任务"
+          />
+          <button
+            type="button"
+            aria-pressed={kappa}
+            className={`${styles.chip} ${kappa ? styles.chipOn : ""}`}
+            onClick={() => setKappaFilter(!kappa)}
+          >
             Kappa
-          </label>
+          </button>
+        </div>
+
+        <div className={styles.filterRow}>
+          <span className={styles.filterLabel}>商人</span>
           <div className={styles.traderBar} role="radiogroup" aria-label="按商人筛选">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={allOn}
+              className={`${styles.traderBtn} ${styles.traderBtnAll} ${allOn ? styles.traderBtnOn : ""}`}
+              onClick={() => setTraderFilter(null)}
+            >
+              全部
+            </button>
             {traders.map((item) => {
               const { english, chinese } = traderFilterLabel(item.slug, item.name);
               const selected = trader === item.slug;
@@ -350,34 +407,25 @@ export function TarkovTasksPanel() {
                   onClick={() => setTraderFilter(item.slug)}
                 >
                   <TarkovTraderThumb slug={item.slug} size={40} />
+                  <span className={styles.traderCaption}>
+                    {chinese || english}
+                  </span>
                 </button>
               );
             })}
-            <button
-              type="button"
-              role="radio"
-              aria-checked={allOn}
-              className={`${styles.traderBtn} ${styles.traderBtnAll} ${allOn ? styles.traderBtnOn : ""}`}
-              onClick={() => setTraderFilter(null)}
-            >
-              全部
-            </button>
           </div>
-          <input
-            className={catalog.search}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="按任务名称筛选"
-            aria-label="搜索任务"
-          />
-          {mine && view === "chain" ? (
-            <div className={styles.statusBar} role="radiogroup" aria-label="按进度筛选">
+        </div>
+
+        {mine ? (
+          <div className={styles.filterRow}>
+            <span className={styles.filterLabel}>进度</span>
+            <div className={styles.chipBar} role="radiogroup" aria-label="按进度筛选">
               <button
                 type="button"
                 role="radio"
                 aria-checked={!pstatus || pstatus === "all"}
-                className={`${styles.viewBtn} ${
-                  !pstatus || pstatus === "all" ? styles.viewBtnOn : ""
+                className={`${styles.chip} ${
+                  !pstatus || pstatus === "all" ? styles.chipOn : ""
                 }`}
                 onClick={() => setStatusFilter("all")}
               >
@@ -389,8 +437,8 @@ export function TarkovTasksPanel() {
                   type="button"
                   role="radio"
                   aria-checked={pstatus === item.id}
-                  className={`${styles.viewBtn} ${
-                    pstatus === item.id ? styles.viewBtnOn : ""
+                  className={`${styles.chip} ${
+                    pstatus === item.id ? styles.chipOn : ""
                   }`}
                   onClick={() => setStatusFilter(item.id)}
                 >
@@ -398,8 +446,8 @@ export function TarkovTasksPanel() {
                 </button>
               ))}
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       {mine && !meta?.progress_bound ? (
@@ -455,7 +503,7 @@ export function TarkovTasksPanel() {
                 setSearchParams(params, { replace: true });
               },
             }}
-            scroll={{ x: 720 }}
+            scroll={{ x: 920 }}
             locale={{
               emptyText: "当前筛选下无任务",
               filterReset: "全部",

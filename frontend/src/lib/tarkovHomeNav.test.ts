@@ -307,6 +307,10 @@ describe("TARKOV_TOP_NAV", () => {
       href: "/guides/tarkov/hideout",
       status: "ready",
     });
+    expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toMatchObject({
+      href: "/guides/tarkov/raid-prep",
+      status: "ready",
+    });
     expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toMatchObject({
       href: "/guides/tarkov/loot-tiers",
       status: "ready",
@@ -353,8 +357,14 @@ describe("TARKOV_HOME_TRADERS", () => {
 });
 
 describe("TARKOV_TOOLS", () => {
-  it("puts ammo chart filter first and ready", () => {
+  it("puts raid prep first and ready", () => {
     expect(TARKOV_TOOLS[0]).toMatchObject({
+      id: "raid-prep",
+      label: "战局准备",
+      href: "/guides/tarkov/raid-prep",
+      status: "ready",
+    });
+    expect(TARKOV_TOOLS[1]).toMatchObject({
       id: "ammo-chart",
       label: "弹药图表筛选器",
       href: `${ITEMS_BASE_PATH}/ammo`,
@@ -388,6 +398,10 @@ describe("TARKOV_TOOLS", () => {
       href: "/guides/tarkov/bitcoin-farm",
       status: "ready",
     });
+    expect(byId["raid-prep"]).toMatchObject({
+      href: "/guides/tarkov/raid-prep",
+      status: "ready",
+    });
   });
 });
 
@@ -397,6 +411,7 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/items")).toBe("物品");
     expect(tarkovPageTitle("/guides/tarkov/items/meds")).toBe("医疗物品");
     expect(tarkovPageTitle("/guides/tarkov/tasks/abc")).toBe("任务");
+    expect(tarkovPageTitle("/guides/tarkov/raid-prep")).toBe("战局准备");
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
     expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
     expect(tarkovPageTitle("/guides/tarkov/barters")).toBe("商人交易利润");

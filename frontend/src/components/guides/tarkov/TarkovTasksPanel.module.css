@@ -1,58 +1,159 @@
-.headline {
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+}
+
+.toolbarTop {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px 16px;
+  gap: 8px 16px;
 }
 
-.filters {
+.toolbarSide {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px 12px;
+  gap: 12px;
 }
 
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.count {
   color: var(--hb-muted, #b0ae9a);
   font-size: 13px;
+}
+
+.queryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.search {
+  flex: 1 1 240px;
+  max-width: 420px;
+  height: 36px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1b14;
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+}
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.filterLabel {
+  flex: none;
+  width: 2.5em;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.viewBar {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #2a2a2a;
+}
+
+.modeBtn {
+  margin: 0;
+  padding: 0 14px;
+  height: 36px;
+  border: 0;
+  border-right: 1px solid #2a2a2a;
+  background: #1a1b14;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  font-family: inherit;
   cursor: pointer;
+  appearance: none;
+}
+
+.modeBtn:last-child {
+  border-right: 0;
+}
+
+.modeBtn:hover,
+.modeBtnOn {
+  background: #101010;
+  color: var(--hb-orange, #c8932a);
+}
+
+.chipBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chip {
+  flex: none;
+  margin: 0;
+  padding: 0 12px;
+  height: 36px;
+  border: 1px solid #2a2a2a;
+  background: #1a1b14;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
   user-select: none;
 }
 
-.toggle input {
-  accent-color: var(--hb-orange, #c8932a);
+.chip:hover,
+.chipOn {
+  background: #101010;
+  color: var(--hb-orange, #c8932a);
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
 }
 
 .traderBar {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  border: 1px solid #2a2a2a;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
 }
 
 .traderBtn {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   margin: 0;
-  padding: 0;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-right: 1px solid #2a2a2a;
+  padding: 0 0 4px;
+  width: 52px;
+  min-height: 56px;
+  border: 1px solid #2a2a2a;
   background: #1a1b14;
   color: var(--hb-orange, #c8932a);
   cursor: pointer;
   appearance: none;
-}
-
-.traderBtn:last-child {
-  border-right: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .traderBtn img {
@@ -76,6 +177,7 @@
 .traderBtn:hover,
 .traderBtnOn {
   background: #101010;
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
 }
 
 .traderBtn:hover img,
@@ -85,42 +187,31 @@
 
 .traderBtnAll {
   width: auto;
-  padding: 0 10px;
+  min-width: 52px;
+  min-height: 56px;
+  padding: 0 12px;
+  justify-content: center;
   font-size: 13px;
   font-family: inherit;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
 
-.viewBar,
-.statusBar {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  border: 1px solid #2a2a2a;
-}
-
-.viewBtn {
-  margin: 0;
-  padding: 0 10px;
-  height: 36px;
-  border: 0;
-  border-right: 1px solid #2a2a2a;
-  background: #1a1b14;
+.traderCaption {
+  max-width: 100%;
+  padding: 0 2px;
   color: var(--hb-muted, #b0ae9a);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  appearance: none;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.viewBtn:last-child {
-  border-right: 0;
-}
-
-.viewBtn:hover,
-.viewBtnOn {
-  background: #101010;
+.traderBtnOn .traderCaption,
+.traderBtn:hover .traderCaption {
   color: var(--hb-orange, #c8932a);
 }
 
@@ -154,6 +245,165 @@
   white-space: nowrap;
 }
 
+.typeList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.typeChip {
+  display: inline-block;
+  padding: 0 7px;
+  border: 1px solid;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.typeChip[data-tone="shoot"] {
+  color: #e07070;
+  border-color: #8a3030;
+  background: rgba(224, 112, 112, 0.12);
+}
+
+.typeChip[data-tone="findItem"] {
+  color: #5dcec0;
+  border-color: #2a6e66;
+  background: rgba(93, 206, 192, 0.12);
+}
+
+.typeChip[data-tone="findQuestItem"] {
+  color: #4ec4d4;
+  border-color: #2a6a74;
+  background: rgba(78, 196, 212, 0.12);
+}
+
+.typeChip[data-tone="giveItem"] {
+  color: #d4b05a;
+  border-color: #7a6428;
+  background: rgba(212, 176, 90, 0.12);
+}
+
+.typeChip[data-tone="giveQuestItem"] {
+  color: #e08940;
+  border-color: #8a4e20;
+  background: rgba(224, 137, 64, 0.12);
+}
+
+.typeChip[data-tone="plantItem"] {
+  color: #b888e0;
+  border-color: #5c3a78;
+  background: rgba(184, 136, 224, 0.12);
+}
+
+.typeChip[data-tone="plantQuestItem"] {
+  color: #d070b8;
+  border-color: #6e3860;
+  background: rgba(208, 112, 184, 0.12);
+}
+
+.typeChip[data-tone="mark"] {
+  color: #e0d060;
+  border-color: #7a7228;
+  background: rgba(224, 208, 96, 0.12);
+}
+
+.typeChip[data-tone="visit"] {
+  color: #6a9ee0;
+  border-color: #2e4e7a;
+  background: rgba(106, 158, 224, 0.12);
+}
+
+.typeChip[data-tone="extract"] {
+  color: #7ec07a;
+  border-color: #3a6a38;
+  background: rgba(126, 192, 122, 0.12);
+}
+
+.typeChip[data-tone="useItem"] {
+  color: #88b4f0;
+  border-color: #3a5878;
+  background: rgba(136, 180, 240, 0.12);
+}
+
+.typeChip[data-tone="buildWeapon"] {
+  color: #8aa0b8;
+  border-color: #3e4c5c;
+  background: rgba(138, 160, 184, 0.12);
+}
+
+.typeChip[data-tone="sellItem"] {
+  color: #9ccc5c;
+  border-color: #4a6a28;
+  background: rgba(156, 204, 92, 0.12);
+}
+
+.typeChip[data-tone="haveItem"] {
+  color: #70c8a8;
+  border-color: #2e6a56;
+  background: rgba(112, 200, 168, 0.12);
+}
+
+.typeChip[data-tone="skill"] {
+  color: #8b8ee0;
+  border-color: #404278;
+  background: rgba(139, 142, 224, 0.12);
+}
+
+.typeChip[data-tone="traderLevel"] {
+  color: #c4a07a;
+  border-color: #6a5238;
+  background: rgba(196, 160, 122, 0.12);
+}
+
+.typeChip[data-tone="traderStanding"] {
+  color: #c88858;
+  border-color: #6e4828;
+  background: rgba(200, 136, 88, 0.12);
+}
+
+.typeChip[data-tone="playerLevel"] {
+  color: #c0c0c8;
+  border-color: #5a5a62;
+  background: rgba(192, 192, 200, 0.12);
+}
+
+.typeChip[data-tone="hideoutStation"] {
+  color: #a8b060;
+  border-color: #545c2c;
+  background: rgba(168, 176, 96, 0.12);
+}
+
+.typeChip[data-tone="taskStatus"] {
+  color: #9aa4b0;
+  border-color: #4a525a;
+  background: rgba(154, 164, 176, 0.12);
+}
+
+.typeChip[data-tone="experience"] {
+  color: #e090a8;
+  border-color: #6e3e50;
+  background: rgba(224, 144, 168, 0.12);
+}
+
+.typeChip[data-tone="dialogue"] {
+  color: #d8d0b0;
+  border-color: #6a644c;
+  background: rgba(216, 208, 176, 0.12);
+}
+
+.typeChip[data-tone="globalVariable"] {
+  color: #c06060;
+  border-color: #6a3030;
+  background: rgba(192, 96, 96, 0.12);
+}
+
+.typeChip[data-tone="unknown"] {
+  color: #8a8c78;
+  border-color: #4a4a40;
+  background: rgba(138, 140, 120, 0.1);
+}
+
 .statusChip {
   display: inline-block;
   padding: 1px 8px;
@@ -184,11 +434,8 @@
 }
 
 @media (max-width: 700px) {
-  .headline {
-    align-items: flex-start;
-  }
-
-  .filters {
-    justify-content: flex-start;
+  .search {
+    flex-basis: 100%;
+    max-width: none;
   }
 }

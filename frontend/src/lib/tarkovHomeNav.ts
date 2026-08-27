@@ -95,6 +95,7 @@ export const TARKOV_WIPE_LENGTH_PATH = "/guides/tarkov/wipe-length";
 export const TARKOV_BITCOIN_FARM_PATH = "/guides/tarkov/bitcoin-farm";
 const PROGRESSION_HREF = "/guides/tarkov/progression";
 export const TARKOV_TASKS_PATH = "/guides/tarkov/tasks";
+export const TARKOV_RAID_PREP_PATH = "/guides/tarkov/raid-prep";
 
 /** 首页短 id → json.tarkov.dev / 详情路径 slug。 */
 const MAP_SLUG_ALIASES: Record<string, string> = {
@@ -118,6 +119,15 @@ export function tarkovHideoutHref(slug: string): string {
 
 export function tarkovTaskHref(taskId: string): string {
   return `${TARKOV_TASKS_PATH}/${encodeURIComponent(taskId)}`;
+}
+
+export function tarkovRaidPrepHref(mapId?: string): string {
+  if (!mapId) return TARKOV_RAID_PREP_PATH;
+  return `${TARKOV_RAID_PREP_PATH}?map=${encodeURIComponent(mapId)}`;
+}
+
+export function tarkovRaidRoomHref(publicId: string): string {
+  return `${TARKOV_RAID_PREP_PATH}/rooms/${encodeURIComponent(publicId)}`;
 }
 
 export function tarkovTraderHref(slug: string): string {
@@ -475,6 +485,13 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
     keywords: ["tasks", "quests"],
   },
   {
+    id: "raid-prep",
+    label: "战局准备",
+    href: TARKOV_RAID_PREP_PATH,
+    status: "ready",
+    keywords: ["raid", "prep", "战局", "准备", "点位", "zones"],
+  },
+  {
     id: "hideout",
     label: "藏身处",
     href: TARKOV_HIDEOUT_PATH,
@@ -492,8 +509,16 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   },
 ];
 
-/** 首页右侧工具栏；仅弹药图表已接入。 */
+/** 首页右侧工具栏。 */
 export const TARKOV_TOOLS: TarkovHomeLink[] = [
+  {
+    id: "raid-prep",
+    label: "战局准备",
+    href: TARKOV_RAID_PREP_PATH,
+    status: "ready",
+    icon: "⌖",
+    keywords: ["raid", "prep", "战局", "准备", "任务点位"],
+  },
   {
     id: "ammo-chart",
     label: "弹药图表筛选器",
@@ -886,6 +911,7 @@ export function tarkovPageTitle(pathname: string): string {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === "/guides/tarkov") return "逃离塔科夫";
   if (path.startsWith("/guides/tarkov/tasks")) return "任务";
+  if (path.startsWith("/guides/tarkov/raid-prep")) return "战局准备";
   if (path.startsWith("/guides/tarkov/traders")) return "商人";
   if (path.startsWith("/guides/tarkov/bosses")) return "BOSS";
   if (path.startsWith("/guides/tarkov/maps")) return "地图";

@@ -601,7 +601,9 @@ export function AppLayout() {
                   minWidth: 0,
                   minHeight: 0,
                   margin: isMobile ? 12 : 24,
-                  overflow: "auto",
+                  overflowX: "hidden",
+                  overflowY: "scroll",
+                  scrollbarGutter: "stable",
                 }
           }
         >

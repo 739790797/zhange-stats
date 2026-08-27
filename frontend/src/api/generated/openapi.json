@@ -7436,6 +7436,610 @@
         }
       }
     },
+    "/api/guides/tarkov/raid-rooms": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "List Tarkov Raid Rooms",
+        "operationId": "list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Map"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomLobbyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Create Tarkov Raid Room",
+        "operationId": "create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Get Tarkov Raid Room",
+        "operationId": "get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/join": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Join Tarkov Raid Room",
+        "operationId": "join_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__join_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/leave": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Leave Tarkov Raid Room",
+        "operationId": "leave_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__leave_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/close": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Close Tarkov Raid Room",
+        "operationId": "close_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__close_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/claims/{task_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Claim Tarkov Raid Room Task",
+        "operationId": "claim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Unclaim Tarkov Raid Room Task",
+        "operationId": "unclaim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Add Tarkov Raid Room Mark",
+        "operationId": "add_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomMarkIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/undo": {
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Undo Tarkov Raid Room Mark",
+        "operationId": "undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/{mark_id}": {
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Remove Tarkov Raid Room Mark",
+        "operationId": "remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "mark_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Mark Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/clear": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Clear Tarkov Raid Room Marks",
+        "operationId": "clear_tarkov_raid_room_marks_api_guides_tarkov_raid_rooms__public_id__marks_clear_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/items/sync": {
       "post": {
         "tags": [
@@ -8012,6 +8616,149 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovTaskCatalogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-prep": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Raid Prep",
+        "description": "战局准备：按地图列出相关任务，含目标区域 / 刷新点。",
+        "operationId": "guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "title": "Map"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "trader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trader"
+            }
+          },
+          {
+            "name": "kappa",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kappa"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Types"
+            }
+          },
+          {
+            "name": "progress",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Progress"
+            }
+          },
+          {
+            "name": "progress_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Progress Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidPrepOut"
                 }
               }
             }
@@ -9835,11 +10582,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "跳过短时文件扫描缓存",
+              "description": "全量重认盘上 jar；日常打开保持 false",
               "default": false,
               "title": "Force"
             },
-            "description": "跳过短时文件扫描缓存"
+            "description": "全量重认盘上 jar；日常打开保持 false"
           }
         ],
         "responses": {
@@ -10084,14 +10831,14 @@
         }
       }
     },
-    "/api/guides/minecraft/mod-tools/{tool_id}/config": {
-      "post": {
+    "/api/guides/minecraft/mod-tools/{tool_id}/preset/keys": {
+      "get": {
         "tags": [
           "guides",
           "minecraft"
         ],
-        "summary": "Minecraft Mod Tool Config",
-        "operationId": "minecraft_mod_tool_config_api_guides_minecraft_mod_tools__tool_id__config_post",
+        "summary": "Minecraft Mod Tool Preset Keys",
+        "operationId": "minecraft_mod_tool_preset_keys_api_guides_minecraft_mod_tools__tool_id__preset_keys_get",
         "security": [
           {
             "HTTPBearer": []
@@ -10106,32 +10853,25 @@
               "type": "string",
               "title": "Tool Id"
             }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/MinecraftModToolPresetIn"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Path"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MinecraftModToolPresetApplyOut"
+                  "$ref": "#/components/schemas/MinecraftModToolPresetKeysOut"
                 }
               }
             }
@@ -10149,14 +10889,14 @@
         }
       }
     },
-    "/api/guides/minecraft/mod-tools/{tool_id}/presets/{preset_id}": {
+    "/api/guides/minecraft/mod-tools/{tool_id}/preset": {
       "get": {
         "tags": [
           "guides",
           "minecraft"
         ],
         "summary": "Minecraft Mod Tool Preset Get",
-        "operationId": "minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__get",
+        "operationId": "minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__preset_get",
         "security": [
           {
             "HTTPBearer": []
@@ -10171,15 +10911,6 @@
               "type": "string",
               "title": "Tool Id"
             }
-          },
-          {
-            "name": "preset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Preset Id"
-            }
           }
         ],
         "responses": {
@@ -10188,7 +10919,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MinecraftModToolPresetDraftOut"
+                  "$ref": "#/components/schemas/MinecraftModToolPresetOut"
                 }
               }
             }
@@ -10211,7 +10942,7 @@
           "minecraft"
         ],
         "summary": "Minecraft Mod Tool Preset Put",
-        "operationId": "minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__put",
+        "operationId": "minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__preset_put",
         "security": [
           {
             "HTTPBearer": []
@@ -10226,15 +10957,6 @@
               "type": "string",
               "title": "Tool Id"
             }
-          },
-          {
-            "name": "preset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Preset Id"
-            }
           }
         ],
         "requestBody": {
@@ -10242,7 +10964,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MinecraftModToolPresetDraftIn"
+                "$ref": "#/components/schemas/MinecraftModToolPresetIn"
               }
             }
           }
@@ -10253,7 +10975,55 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MinecraftModToolPresetDraftOut"
+                  "$ref": "#/components/schemas/MinecraftModToolPresetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/mod-tools/{tool_id}/preset/apply": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Mod Tool Preset Apply",
+        "operationId": "minecraft_mod_tool_preset_apply_api_guides_minecraft_mod_tools__tool_id__preset_apply_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftModToolPresetApplyOut"
                 }
               }
             }
@@ -16288,6 +17058,73 @@
         ],
         "title": "MinecraftAppliedOut"
       },
+      "MinecraftBluemapStatusOut": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "idle"
+          },
+          "threads": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threads"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "eta": {
+            "type": "string",
+            "title": "Eta",
+            "default": ""
+          },
+          "current_map": {
+            "type": "string",
+            "title": "Current Map",
+            "default": ""
+          },
+          "current_task": {
+            "type": "string",
+            "title": "Current Task",
+            "default": ""
+          },
+          "maps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Maps"
+          },
+          "frozen_maps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Frozen Maps"
+          },
+          "raw": {
+            "type": "string",
+            "title": "Raw",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftBluemapStatusOut"
+      },
       "MinecraftChunkyStatusOut": {
         "properties": {
           "state": {
@@ -17033,6 +17870,142 @@
         ],
         "title": "MinecraftModCommandOptionOut"
       },
+      "MinecraftModFeatureOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "MinecraftModFeatureOut"
+      },
+      "MinecraftModInventoryJarOut": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "default": ""
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "default": 0
+          },
+          "modified_at": {
+            "type": "string",
+            "title": "Modified At",
+            "default": ""
+          },
+          "sha512": {
+            "type": "string",
+            "title": "Sha512",
+            "default": ""
+          },
+          "mod_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mod Ids"
+          },
+          "mod_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mod Names"
+          },
+          "mod_version": {
+            "type": "string",
+            "title": "Mod Version",
+            "default": ""
+          },
+          "identified": {
+            "type": "boolean",
+            "title": "Identified",
+            "default": false
+          },
+          "identify_error": {
+            "type": "string",
+            "title": "Identify Error",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "scan"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": ""
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id",
+            "default": ""
+          },
+          "icon_url": {
+            "type": "string",
+            "title": "Icon Url",
+            "default": ""
+          },
+          "tool_id": {
+            "type": "string",
+            "title": "Tool Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModInventoryJarOut"
+      },
+      "MinecraftModInventoryOut": {
+        "properties": {
+          "jars": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModInventoryJarOut"
+            },
+            "type": "array",
+            "title": "Jars"
+          },
+          "scanned_at": {
+            "type": "string",
+            "title": "Scanned At",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModInventoryOut"
+      },
       "MinecraftModPinOut": {
         "properties": {
           "project_id": {
@@ -17095,6 +18068,37 @@
           "sha512"
         ],
         "title": "MinecraftModPinOut"
+      },
+      "MinecraftModReconcileOut": {
+        "properties": {
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "default": false
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "current": {
+            "type": "string",
+            "title": "Current",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModReconcileOut"
       },
       "MinecraftModToolCatalogOut": {
         "properties": {
@@ -17256,6 +18260,16 @@
           },
           "status": {
             "$ref": "#/components/schemas/MinecraftChunkyStatusOut"
+          },
+          "bluemap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinecraftBluemapStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -17491,13 +18505,6 @@
           "catalog": {
             "$ref": "#/components/schemas/MinecraftModToolCatalogOut"
           },
-          "presets": {
-            "items": {
-              "$ref": "#/components/schemas/MinecraftModToolPresetOut"
-            },
-            "type": "array",
-            "title": "Presets"
-          },
           "config_directory": {
             "type": "string",
             "title": "Config Directory",
@@ -17509,6 +18516,13 @@
             },
             "type": "array",
             "title": "Command Tree"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModFeatureOut"
+            },
+            "type": "array",
+            "title": "Features"
           }
         },
         "type": "object",
@@ -17529,24 +18543,80 @@
             "title": "Tool Id",
             "default": ""
           },
-          "preset_id": {
+          "directory": {
             "type": "string",
-            "title": "Preset Id",
+            "title": "Directory",
             "default": ""
           },
-          "path": {
-            "type": "string",
-            "title": "Path",
-            "default": ""
+          "directories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Directories"
           },
-          "source": {
+          "config_found": {
+            "type": "boolean",
+            "title": "Config Found",
+            "default": false
+          },
+          "has_preset": {
+            "type": "boolean",
+            "title": "Has Preset",
+            "default": false
+          },
+          "status": {
             "type": "string",
             "enum": [
-              "factory",
-              "draft"
+              "missing_files",
+              "no_preset",
+              "match",
+              "mismatch"
             ],
-            "title": "Source",
-            "default": "factory"
+            "title": "Status",
+            "default": "no_preset"
+          },
+          "missing_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Files"
+          },
+          "diffs": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetDiffOut"
+            },
+            "type": "array",
+            "title": "Diffs"
+          },
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetPinOut"
+            },
+            "type": "array",
+            "title": "Pins"
+          },
+          "factory_pins": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetPinOut"
+            },
+            "type": "array",
+            "title": "Factory Pins"
+          },
+          "applied_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Applied Files"
+          },
+          "skipped_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Files"
           },
           "reloaded": {
             "type": "boolean",
@@ -17567,29 +18637,83 @@
         "type": "object",
         "title": "MinecraftModToolPresetApplyOut"
       },
-      "MinecraftModToolPresetDraftIn": {
+      "MinecraftModToolPresetDiffOut": {
         "properties": {
-          "content": {
+          "file": {
+            "type": "string",
+            "title": "File",
+            "default": ""
+          },
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "default": ""
+          },
+          "expected": {
+            "type": "string",
+            "title": "Expected",
+            "default": ""
+          },
+          "actual": {
+            "type": "string",
+            "title": "Actual",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetDiffOut"
+      },
+      "MinecraftModToolPresetIn": {
+        "properties": {
+          "pins": {
             "anyOf": [
               {
-                "type": "string"
+                "items": {
+                  "$ref": "#/components/schemas/MinecraftModToolPresetPinOut"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Content"
+            "title": "Pins"
           },
-          "restore": {
-            "type": "boolean",
-            "title": "Restore",
-            "default": false
+          "directories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Directories"
           }
         },
         "type": "object",
-        "title": "MinecraftModToolPresetDraftIn"
+        "title": "MinecraftModToolPresetIn"
       },
-      "MinecraftModToolPresetDraftOut": {
+      "MinecraftModToolPresetKeyOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "default": ""
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetKeyOut"
+      },
+      "MinecraftModToolPresetKeysOut": {
         "properties": {
           "ok": {
             "type": "boolean",
@@ -17601,77 +18725,119 @@
             "title": "Tool Id",
             "default": ""
           },
-          "preset_id": {
+          "path": {
             "type": "string",
-            "title": "Preset Id",
+            "title": "Path",
             "default": ""
           },
-          "title": {
-            "type": "string",
-            "title": "Title",
-            "default": ""
-          },
-          "summary": {
-            "type": "string",
-            "title": "Summary",
-            "default": ""
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "factory",
-              "draft"
-            ],
-            "title": "Source",
-            "default": "factory"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename",
-            "default": ""
-          },
-          "content": {
-            "type": "string",
-            "title": "Content",
-            "default": ""
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetKeyOut"
+            },
+            "type": "array",
+            "title": "Keys"
           }
         },
         "type": "object",
-        "title": "MinecraftModToolPresetDraftOut"
-      },
-      "MinecraftModToolPresetIn": {
-        "properties": {
-          "preset_id": {
-            "type": "string",
-            "title": "Preset Id",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "title": "MinecraftModToolPresetIn"
+        "title": "MinecraftModToolPresetKeysOut"
       },
       "MinecraftModToolPresetOut": {
         "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
           },
-          "title": {
+          "tool_id": {
             "type": "string",
-            "title": "Title",
+            "title": "Tool Id",
             "default": ""
           },
-          "summary": {
+          "directory": {
             "type": "string",
-            "title": "Summary",
+            "title": "Directory",
+            "default": ""
+          },
+          "directories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Directories"
+          },
+          "config_found": {
+            "type": "boolean",
+            "title": "Config Found",
+            "default": false
+          },
+          "has_preset": {
+            "type": "boolean",
+            "title": "Has Preset",
+            "default": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "missing_files",
+              "no_preset",
+              "match",
+              "mismatch"
+            ],
+            "title": "Status",
+            "default": "no_preset"
+          },
+          "missing_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Files"
+          },
+          "diffs": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetDiffOut"
+            },
+            "type": "array",
+            "title": "Diffs"
+          },
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetPinOut"
+            },
+            "type": "array",
+            "title": "Pins"
+          },
+          "factory_pins": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftModToolPresetPinOut"
+            },
+            "type": "array",
+            "title": "Factory Pins"
+          }
+        },
+        "type": "object",
+        "title": "MinecraftModToolPresetOut"
+      },
+      "MinecraftModToolPresetPinOut": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File",
+            "default": ""
+          },
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "default": ""
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
             "default": ""
           }
         },
         "type": "object",
-        "required": [
-          "id"
-        ],
-        "title": "MinecraftModToolPresetOut"
+        "title": "MinecraftModToolPresetPinOut"
       },
       "MinecraftModToolVersionsOut": {
         "properties": {
@@ -17782,6 +18948,22 @@
                 "type": "null"
               }
             ]
+          },
+          "bluemap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinecraftBluemapStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inventory": {
+            "$ref": "#/components/schemas/MinecraftModInventoryOut"
+          },
+          "reconcile": {
+            "$ref": "#/components/schemas/MinecraftModReconcileOut"
           }
         },
         "type": "object",
@@ -23187,6 +24369,657 @@
         "type": "object",
         "title": "TarkovMapVariantOut"
       },
+      "TarkovRaidPrepOut": {
+        "properties": {
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug"
+          },
+          "map_name": {
+            "type": "string",
+            "title": "Map Name",
+            "default": ""
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidPrepTaskOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "task_count": {
+            "type": "integer",
+            "title": "Task Count"
+          },
+          "traders": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskTraderChipOut"
+            },
+            "type": "array",
+            "title": "Traders"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "progress_bound": {
+            "type": "boolean",
+            "title": "Progress Bound",
+            "default": false
+          },
+          "progress_ready": {
+            "type": "boolean",
+            "title": "Progress Ready",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "map_slug",
+          "items",
+          "task_count"
+        ],
+        "title": "TarkovRaidPrepOut"
+      },
+      "TarkovRaidPrepTaskOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "normalized_name": {
+            "type": "string",
+            "title": "Normalized Name",
+            "default": ""
+          },
+          "trader_id": {
+            "type": "string",
+            "title": "Trader Id",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          },
+          "map_id": {
+            "type": "string",
+            "title": "Map Id",
+            "default": ""
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
+          },
+          "map_name": {
+            "type": "string",
+            "title": "Map Name",
+            "default": ""
+          },
+          "min_player_level": {
+            "type": "integer",
+            "title": "Min Player Level",
+            "default": 0
+          },
+          "experience": {
+            "type": "integer",
+            "title": "Experience",
+            "default": 0
+          },
+          "kappa_required": {
+            "type": "boolean",
+            "title": "Kappa Required",
+            "default": false
+          },
+          "lightkeeper_required": {
+            "type": "boolean",
+            "title": "Lightkeeper Required",
+            "default": false
+          },
+          "faction_name": {
+            "type": "string",
+            "title": "Faction Name",
+            "default": "Any"
+          },
+          "task_image_link": {
+            "type": "string",
+            "title": "Task Image Link",
+            "default": ""
+          },
+          "wiki_link": {
+            "type": "string",
+            "title": "Wiki Link",
+            "default": ""
+          },
+          "objective_count": {
+            "type": "integer",
+            "title": "Objective Count",
+            "default": 0
+          },
+          "objective_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Objective Types"
+          },
+          "progress_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Status"
+          },
+          "task_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
+            },
+            "type": "array",
+            "title": "Task Requirements"
+          },
+          "objectives": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskObjectiveOut"
+            },
+            "type": "array",
+            "title": "Objectives"
+          },
+          "needed_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNeededKeysOut"
+            },
+            "type": "array",
+            "title": "Needed Keys"
+          },
+          "has_map_markers": {
+            "type": "boolean",
+            "title": "Has Map Markers",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TarkovRaidPrepTaskOut"
+      },
+      "TarkovRaidRoomClaimOut": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "user_id",
+          "display_name"
+        ],
+        "title": "TarkovRaidRoomClaimOut"
+      },
+      "TarkovRaidRoomCreateIn": {
+        "properties": {
+          "map": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Map"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "map"
+        ],
+        "title": "TarkovRaidRoomCreateIn"
+      },
+      "TarkovRaidRoomDetailOut": {
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "title": "Public Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "host_user_id": {
+            "type": "integer",
+            "title": "Host User Id"
+          },
+          "host_display_name": {
+            "type": "string",
+            "title": "Host Display Name",
+            "default": ""
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count",
+            "default": 0
+          },
+          "max_members": {
+            "type": "integer",
+            "title": "Max Members",
+            "default": 8
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "expire_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expire At"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "is_host": {
+            "type": "boolean",
+            "title": "Is Host",
+            "default": false
+          },
+          "is_member": {
+            "type": "boolean",
+            "title": "Is Member",
+            "default": false
+          },
+          "can_edit": {
+            "type": "boolean",
+            "title": "Can Edit",
+            "default": false
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomMemberOut"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomClaimOut"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomMarkOut"
+            },
+            "type": "array",
+            "title": "Marks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_id",
+          "map_slug",
+          "status",
+          "host_user_id"
+        ],
+        "title": "TarkovRaidRoomDetailOut"
+      },
+      "TarkovRaidRoomLobbyItemOut": {
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "title": "Public Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "host_user_id": {
+            "type": "integer",
+            "title": "Host User Id"
+          },
+          "host_display_name": {
+            "type": "string",
+            "title": "Host Display Name",
+            "default": ""
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count",
+            "default": 0
+          },
+          "max_members": {
+            "type": "integer",
+            "title": "Max Members",
+            "default": 8
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "expire_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expire At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_id",
+          "map_slug",
+          "status",
+          "host_user_id"
+        ],
+        "title": "TarkovRaidRoomLobbyItemOut"
+      },
+      "TarkovRaidRoomLobbyOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomLobbyItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomLobbyOut"
+      },
+      "TarkovRaidRoomMarkIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 1,
+            "title": "Kind"
+          },
+          "floor": {
+            "type": "string",
+            "title": "Floor",
+            "default": ""
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          },
+          "x2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X2"
+          },
+          "z2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z2"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "x",
+          "z"
+        ],
+        "title": "TarkovRaidRoomMarkIn"
+      },
+      "TarkovRaidRoomMarkOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "floor": {
+            "type": "string",
+            "title": "Floor",
+            "default": ""
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          },
+          "x2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X2"
+          },
+          "z2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z2"
+          },
+          "author_user_id": {
+            "type": "integer",
+            "title": "Author User Id"
+          },
+          "author_display_name": {
+            "type": "string",
+            "title": "Author Display Name",
+            "default": ""
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "x",
+          "z",
+          "author_user_id"
+        ],
+        "title": "TarkovRaidRoomMarkOut"
+      },
+      "TarkovRaidRoomMemberOut": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_host": {
+            "type": "boolean",
+            "title": "Is Host",
+            "default": false
+          },
+          "in_room": {
+            "type": "boolean",
+            "title": "In Room",
+            "default": true
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "default": false
+          },
+          "joined_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "display_name"
+        ],
+        "title": "TarkovRaidRoomMemberOut"
+      },
       "TarkovSearchHitOut": {
         "properties": {
           "id": {
@@ -23472,6 +25305,13 @@
             "title": "Objective Count",
             "default": 0
           },
+          "objective_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Objective Types"
+          },
           "progress_status": {
             "anyOf": [
               {
@@ -23662,6 +25502,13 @@
             "type": "integer",
             "title": "Objective Count",
             "default": 0
+          },
+          "objective_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Objective Types"
           },
           "progress_status": {
             "anyOf": [
@@ -23903,6 +25750,27 @@
             "type": "string",
             "title": "Exit Name",
             "default": ""
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskZoneOut"
+            },
+            "type": "array",
+            "title": "Zones"
+          },
+          "possible_locations": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskPossibleLocationOut"
+            },
+            "type": "array",
+            "title": "Possible Locations"
+          },
+          "zone_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Zone Names"
           }
         },
         "type": "object",
@@ -23910,6 +25778,57 @@
           "id"
         ],
         "title": "TarkovTaskObjectiveOut"
+      },
+      "TarkovTaskPointOut": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "default": 0
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "z"
+        ],
+        "title": "TarkovTaskPointOut"
+      },
+      "TarkovTaskPossibleLocationOut": {
+        "properties": {
+          "map_id": {
+            "type": "string",
+            "title": "Map Id",
+            "default": ""
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
+          },
+          "map_name": {
+            "type": "string",
+            "title": "Map Name",
+            "default": ""
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskPointOut"
+            },
+            "type": "array",
+            "title": "Positions"
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskPossibleLocationOut"
       },
       "TarkovTaskRequirementOut": {
         "properties": {
@@ -24073,6 +25992,94 @@
         },
         "type": "object",
         "title": "TarkovTaskTraderReqOut"
+      },
+      "TarkovTaskZoneOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "map_id": {
+            "type": "string",
+            "title": "Map Id",
+            "default": ""
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
+          },
+          "map_name": {
+            "type": "string",
+            "title": "Map Name",
+            "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "outline": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskPointOut"
+            },
+            "type": "array",
+            "title": "Outline"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskZoneOut"
       },
       "TarkovTasksSyncOut": {
         "properties": {

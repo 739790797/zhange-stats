@@ -16,6 +16,7 @@ import { apiError } from "@/lib/apiError";
 import { traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { formatMoney } from "@/lib/tarkovItemFormat";
+import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalogStyles from "./TarkovItemCatalogPanel.module.css";
@@ -117,7 +118,12 @@ export function TarkovBossPanel({ slug }: Props) {
 
   const spawnColumns = [
     { title: "地图", dataIndex: "map", key: "map" },
-    { title: "刷新点", dataIndex: "name", key: "name" },
+    {
+      title: "刷新点",
+      key: "name",
+      render: (_: unknown, row: { name?: string }) =>
+        tarkovMapLabel(row.name || "") || "—",
+    },
     {
       title: "概率",
       key: "chance",

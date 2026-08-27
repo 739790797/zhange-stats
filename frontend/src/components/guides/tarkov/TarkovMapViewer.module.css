@@ -7,6 +7,22 @@
   background: #101010;
 }
 
+.wrap.wrapFill {
+  height: 100%;
+  min-height: 520px;
+}
+
+.wrapDraw .map {
+  cursor: crosshair;
+}
+
+.wrapDraw .leaflet-marker-pane,
+.wrapDraw .leaflet-overlay-pane,
+.wrapDraw .leaflet-tooltip-pane,
+.wrapDraw .leaflet-popup-pane {
+  pointer-events: none;
+}
+
 .wrap:fullscreen,
 .wrap:-webkit-full-screen {
   width: 100%;
@@ -131,6 +147,10 @@
 }
 
 .wrap :global(.hidden-layer) {
+  display: none !important;
+}
+
+.wrap :global(svg[data-hide-baked-text="1"] text) {
   display: none !important;
 }
 

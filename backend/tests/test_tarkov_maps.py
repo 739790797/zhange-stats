@@ -159,9 +159,10 @@ def test_apply_graphql_markers_fills_missing_coords() -> None:
             ],
         }
     }
-    _apply_graphql_markers(factory)
+    _apply_graphql_markers(factory, {"Shop": "商店"})
     gate = next(row for row in factory["extracts"] if row["id"] == "e1")
     assert gate["x"] == 10
     assert gate["z"] == 20
     locs = factory["bosses"][0]["locations"]
     assert locs and locs[0]["positions"][0]["z"] == 4
+    assert locs[0]["name"] == "商店"

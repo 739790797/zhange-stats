@@ -165,6 +165,26 @@ export function formatUptime(ms: number) {
   return `${s}s`;
 }
 
+export type MinecraftUploadPhase = "uploading" | "writing" | "done" | "error";
+
+export function minecraftUploadJobLabel(
+  phase: MinecraftUploadPhase,
+  percent: number | null,
+) {
+  if (phase === "writing") return "正在写入服务器…";
+  if (phase === "done") return "已上传";
+  if (phase === "error") return "上传失败";
+  if (percent == null) return "上传中…";
+  return `上传中 ${percent}%`;
+}
+
+export function minecraftUploadProgressPercent(
+  phase: MinecraftUploadPhase,
+  percent: number | null,
+) {
+  return percent ?? (phase === "uploading" ? 0 : 100);
+}
+
 export function formatBytes(n: number) {
   if (!Number.isFinite(n) || n <= 0) return "0";
   const gb = n / 1024 ** 3;
@@ -250,6 +270,56 @@ export function parentMinecraftPath(directory: string) {
   const parts = directory.split("/").filter(Boolean);
   parts.pop();
   return parts.length ? `/${parts.join("/")}` : "/";
+}
+
+export function relativeMinecraftPathWithin(root: string, path: string) {
+  const base = normalizeMinecraftPath(root);
+  const target = normalizeMinecraftPath(path);
+  if (!isMinecraftPathWithin(base, target) || target === base) return "";
+  return target.slice(base.length).replace(/^\/+/, "");
+}
+
+export function isMinecraftPinnableFile(name: string) {
+  const lower = (name || "").toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  if (dot < 0) return false;
+  return PINNABLE_EXTS.has(lower.slice(dot + 1));
+}
+
+const PINNABLE_EXTS = new Set([
+  "properties",
+  "cfg",
+  "json",
+  "yml",
+  "yaml",
+  "conf",
+  "config",
+]);
+
+export function modPresetStatusMessage(opts: {
+  status?: string;
+  diffs?: { key?: string }[] | null;
+  directories?: string[] | null;
+}) {
+  if (!opts.directories?.length) {
+    return "还没有指定配置目录，请先在「编辑配置」里选择。";
+  }
+  if (opts.status === "missing_files") return "未找到配置文件";
+  if (opts.status === "match") return "配置与预设一致";
+  if (opts.status === "mismatch") {
+    const n = opts.diffs?.length || 0;
+    return n ? `${n} 项与预设不一致` : "配置与预设不一致";
+  }
+  return "";
+}
+
+export function configRelPath(root: string, name: string) {
+  const trimmed = (name || "").replace(/\\/g, "/").trim();
+  if (!trimmed) return "";
+  const abs = trimmed.startsWith("/")
+    ? normalizeMinecraftPath(trimmed)
+    : joinMinecraftPath(root, trimmed);
+  return relativeMinecraftPathWithin(root, abs);
 }
 
 export function isMinecraftPathWithin(root: string, path: string) {

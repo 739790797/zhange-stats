@@ -2501,6 +2501,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tarkov Raid Rooms */
+        get: operations["list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get"];
+        put?: never;
+        /** Create Tarkov Raid Room */
+        post: operations["create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tarkov Raid Room */
+        get: operations["get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join Tarkov Raid Room */
+        post: operations["join_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave Tarkov Raid Room */
+        post: operations["leave_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close Tarkov Raid Room */
+        post: operations["close_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/claims/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Claim Tarkov Raid Room Task */
+        put: operations["claim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__put"];
+        post?: never;
+        /** Unclaim Tarkov Raid Room Task */
+        delete: operations["unclaim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Tarkov Raid Room Mark */
+        post: operations["add_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Undo Tarkov Raid Room Mark */
+        delete: operations["undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/{mark_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Tarkov Raid Room Mark */
+        delete: operations["remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Tarkov Raid Room Marks */
+        post: operations["clear_tarkov_raid_room_marks_api_guides_tarkov_raid_rooms__public_id__marks_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/items/sync": {
         parameters: {
             query?: never;
@@ -2713,6 +2885,26 @@ export interface paths {
          * @description 任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。
          */
         get: operations["guides_tarkov_task_catalog_api_guides_tarkov_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-prep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Raid Prep
+         * @description 战局准备：按地图列出相关任务，含目标区域 / 刷新点。
+         */
+        get: operations["guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3460,7 +3652,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/minecraft/mod-tools/{tool_id}/config": {
+    "/api/guides/minecraft/mod-tools/{tool_id}/preset/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Tool Preset Keys */
+        get: operations["minecraft_mod_tool_preset_keys_api_guides_minecraft_mod_tools__tool_id__preset_keys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Mod Tool Preset Get */
+        get: operations["minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__preset_get"];
+        /** Minecraft Mod Tool Preset Put */
+        put: operations["minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__preset_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/mod-tools/{tool_id}/preset/apply": {
         parameters: {
             query?: never;
             header?: never;
@@ -3469,26 +3696,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Minecraft Mod Tool Config */
-        post: operations["minecraft_mod_tool_config_api_guides_minecraft_mod_tools__tool_id__config_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/guides/minecraft/mod-tools/{tool_id}/presets/{preset_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Minecraft Mod Tool Preset Get */
-        get: operations["minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__get"];
-        /** Minecraft Mod Tool Preset Put */
-        put: operations["minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__put"];
-        post?: never;
+        /** Minecraft Mod Tool Preset Apply */
+        post: operations["minecraft_mod_tool_preset_apply_api_guides_minecraft_mod_tools__tool_id__preset_apply_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6207,6 +6416,42 @@ export interface components {
             /** Last Applied At */
             last_applied_at?: string | null;
         };
+        /** MinecraftBluemapStatusOut */
+        MinecraftBluemapStatusOut: {
+            /**
+             * State
+             * @default idle
+             */
+            state: string;
+            /** Threads */
+            threads?: number | null;
+            /** Percent */
+            percent?: number | null;
+            /**
+             * Eta
+             * @default
+             */
+            eta: string;
+            /**
+             * Current Map
+             * @default
+             */
+            current_map: string;
+            /**
+             * Current Task
+             * @default
+             */
+            current_task: string;
+            /** Maps */
+            maps?: string[];
+            /** Frozen Maps */
+            frozen_maps?: string[];
+            /**
+             * Raw
+             * @default
+             */
+            raw: string;
+        };
         /** MinecraftChunkyStatusOut */
         MinecraftChunkyStatusOut: {
             /**
@@ -6592,6 +6837,113 @@ export interface components {
              */
             label: string;
         };
+        /** MinecraftModFeatureOut */
+        MinecraftModFeatureOut: {
+            /** Id */
+            id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+        };
+        /** MinecraftModInventoryJarOut */
+        MinecraftModInventoryJarOut: {
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /**
+             * Directory
+             * @default
+             */
+            directory: string;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /**
+             * Size
+             * @default 0
+             */
+            size: number;
+            /**
+             * Modified At
+             * @default
+             */
+            modified_at: string;
+            /**
+             * Sha512
+             * @default
+             */
+            sha512: string;
+            /** Mod Ids */
+            mod_ids?: string[];
+            /** Mod Names */
+            mod_names?: string[];
+            /**
+             * Mod Version
+             * @default
+             */
+            mod_version: string;
+            /**
+             * Identified
+             * @default false
+             */
+            identified: boolean;
+            /**
+             * Identify Error
+             * @default
+             */
+            identify_error: string;
+            /**
+             * Source
+             * @default scan
+             */
+            source: string;
+            /**
+             * Project Id
+             * @default
+             */
+            project_id: string;
+            /**
+             * Version Id
+             * @default
+             */
+            version_id: string;
+            /**
+             * Icon Url
+             * @default
+             */
+            icon_url: string;
+            /**
+             * Tool Id
+             * @default
+             */
+            tool_id: string;
+        };
+        /** MinecraftModInventoryOut */
+        MinecraftModInventoryOut: {
+            /** Jars */
+            jars?: components["schemas"]["MinecraftModInventoryJarOut"][];
+            /**
+             * Scanned At
+             * @default
+             */
+            scanned_at: string;
+        };
         /** MinecraftModPinOut */
         MinecraftModPinOut: {
             /** Project Id */
@@ -6634,6 +6986,34 @@ export interface components {
              * @default required
              */
             env_server: string;
+        };
+        /** MinecraftModReconcileOut */
+        MinecraftModReconcileOut: {
+            /**
+             * Running
+             * @default false
+             */
+            running: boolean;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Current
+             * @default
+             */
+            current: string;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
         };
         /** MinecraftModToolCatalogOut */
         MinecraftModToolCatalogOut: {
@@ -6742,6 +7122,7 @@ export interface components {
              */
             raw: string;
             status?: components["schemas"]["MinecraftChunkyStatusOut"];
+            bluemap?: components["schemas"]["MinecraftBluemapStatusOut"] | null;
         };
         /** MinecraftModToolExecIn */
         MinecraftModToolExecIn: {
@@ -6916,8 +7297,6 @@ export interface components {
             icon_url: string;
             links?: components["schemas"]["MinecraftModToolLinksOut"];
             catalog?: components["schemas"]["MinecraftModToolCatalogOut"];
-            /** Presets */
-            presets?: components["schemas"]["MinecraftModToolPresetOut"][];
             /**
              * Config Directory
              * @default
@@ -6925,6 +7304,8 @@ export interface components {
             config_directory: string;
             /** Command Tree */
             command_tree?: components["schemas"]["MinecraftModCommandNodeOut"][];
+            /** Features */
+            features?: components["schemas"]["MinecraftModFeatureOut"][];
         };
         /** MinecraftModToolPresetApplyOut */
         MinecraftModToolPresetApplyOut: {
@@ -6939,21 +7320,40 @@ export interface components {
              */
             tool_id: string;
             /**
-             * Preset Id
+             * Directory
              * @default
              */
-            preset_id: string;
+            directory: string;
+            /** Directories */
+            directories?: string[];
             /**
-             * Path
-             * @default
+             * Config Found
+             * @default false
              */
-            path: string;
+            config_found: boolean;
             /**
-             * Source
-             * @default factory
+             * Has Preset
+             * @default false
+             */
+            has_preset: boolean;
+            /**
+             * Status
+             * @default no_preset
              * @enum {string}
              */
-            source: "factory" | "draft";
+            status: "missing_files" | "no_preset" | "match" | "mismatch";
+            /** Missing Files */
+            missing_files?: string[];
+            /** Diffs */
+            diffs?: components["schemas"]["MinecraftModToolPresetDiffOut"][];
+            /** Pins */
+            pins?: components["schemas"]["MinecraftModToolPresetPinOut"][];
+            /** Factory Pins */
+            factory_pins?: components["schemas"]["MinecraftModToolPresetPinOut"][];
+            /** Applied Files */
+            applied_files?: string[];
+            /** Skipped Files */
+            skipped_files?: string[];
             /**
              * Reloaded
              * @default false
@@ -6970,18 +7370,51 @@ export interface components {
              */
             message: string;
         };
-        /** MinecraftModToolPresetDraftIn */
-        MinecraftModToolPresetDraftIn: {
-            /** Content */
-            content?: string | null;
+        /** MinecraftModToolPresetDiffOut */
+        MinecraftModToolPresetDiffOut: {
             /**
-             * Restore
-             * @default false
+             * File
+             * @default
              */
-            restore: boolean;
+            file: string;
+            /**
+             * Key
+             * @default
+             */
+            key: string;
+            /**
+             * Expected
+             * @default
+             */
+            expected: string;
+            /**
+             * Actual
+             * @default
+             */
+            actual: string;
         };
-        /** MinecraftModToolPresetDraftOut */
-        MinecraftModToolPresetDraftOut: {
+        /** MinecraftModToolPresetIn */
+        MinecraftModToolPresetIn: {
+            /** Pins */
+            pins?: components["schemas"]["MinecraftModToolPresetPinOut"][] | null;
+            /** Directories */
+            directories?: string[] | null;
+        };
+        /** MinecraftModToolPresetKeyOut */
+        MinecraftModToolPresetKeyOut: {
+            /**
+             * Key
+             * @default
+             */
+            key: string;
+            /**
+             * Value
+             * @default
+             */
+            value: string;
+        };
+        /** MinecraftModToolPresetKeysOut */
+        MinecraftModToolPresetKeysOut: {
             /**
              * Ok
              * @default true
@@ -6993,59 +7426,74 @@ export interface components {
              */
             tool_id: string;
             /**
-             * Preset Id
+             * Path
              * @default
              */
-            preset_id: string;
-            /**
-             * Title
-             * @default
-             */
-            title: string;
-            /**
-             * Summary
-             * @default
-             */
-            summary: string;
-            /**
-             * Source
-             * @default factory
-             * @enum {string}
-             */
-            source: "factory" | "draft";
-            /**
-             * Filename
-             * @default
-             */
-            filename: string;
-            /**
-             * Content
-             * @default
-             */
-            content: string;
-        };
-        /** MinecraftModToolPresetIn */
-        MinecraftModToolPresetIn: {
-            /**
-             * Preset Id
-             * @default
-             */
-            preset_id: string;
+            path: string;
+            /** Keys */
+            keys?: components["schemas"]["MinecraftModToolPresetKeyOut"][];
         };
         /** MinecraftModToolPresetOut */
         MinecraftModToolPresetOut: {
-            /** Id */
-            id: string;
             /**
-             * Title
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Tool Id
              * @default
              */
-            title: string;
+            tool_id: string;
             /**
-             * Summary
+             * Directory
              * @default
              */
-            summary: string;
+            directory: string;
+            /** Directories */
+            directories?: string[];
+            /**
+             * Config Found
+             * @default false
+             */
+            config_found: boolean;
+            /**
+             * Has Preset
+             * @default false
+             */
+            has_preset: boolean;
+            /**
+             * Status
+             * @default no_preset
+             * @enum {string}
+             */
+            status: "missing_files" | "no_preset" | "match" | "mismatch";
+            /** Missing Files */
+            missing_files?: string[];
+            /** Diffs */
+            diffs?: components["schemas"]["MinecraftModToolPresetDiffOut"][];
+            /** Pins */
+            pins?: components["schemas"]["MinecraftModToolPresetPinOut"][];
+            /** Factory Pins */
+            factory_pins?: components["schemas"]["MinecraftModToolPresetPinOut"][];
+        };
+        /** MinecraftModToolPresetPinOut */
+        MinecraftModToolPresetPinOut: {
+            /**
+             * File
+             * @default
+             */
+            file: string;
+            /**
+             * Key
+             * @default
+             */
+            key: string;
+            /**
+             * Value
+             * @default
+             */
+            value: string;
         };
         /** MinecraftModToolVersionsOut */
         MinecraftModToolVersionsOut: {
@@ -7121,6 +7569,9 @@ export interface components {
             /** Tools */
             tools?: components["schemas"]["MinecraftModToolOut"][];
             chunky?: components["schemas"]["MinecraftChunkyStatusOut"] | null;
+            bluemap?: components["schemas"]["MinecraftBluemapStatusOut"] | null;
+            inventory?: components["schemas"]["MinecraftModInventoryOut"];
+            reconcile?: components["schemas"]["MinecraftModReconcileOut"];
         };
         /** MinecraftOverviewModOut */
         MinecraftOverviewModOut: {
@@ -9601,6 +10052,322 @@ export interface components {
              */
             players: string;
         };
+        /** TarkovRaidPrepOut */
+        TarkovRaidPrepOut: {
+            /** Map Slug */
+            map_slug: string;
+            /**
+             * Map Name
+             * @default
+             */
+            map_name: string;
+            /** Items */
+            items: components["schemas"]["TarkovRaidPrepTaskOut"][];
+            /** Task Count */
+            task_count: number;
+            /** Traders */
+            traders?: components["schemas"]["TarkovTaskTraderChipOut"][];
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Progress Bound
+             * @default false
+             */
+            progress_bound: boolean;
+            /**
+             * Progress Ready
+             * @default false
+             */
+            progress_ready: boolean;
+        };
+        /** TarkovRaidPrepTaskOut */
+        TarkovRaidPrepTaskOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Normalized Name
+             * @default
+             */
+            normalized_name: string;
+            /**
+             * Trader Id
+             * @default
+             */
+            trader_id: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+            /**
+             * Map Id
+             * @default
+             */
+            map_id: string;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug: string;
+            /**
+             * Map Name
+             * @default
+             */
+            map_name: string;
+            /**
+             * Min Player Level
+             * @default 0
+             */
+            min_player_level: number;
+            /**
+             * Experience
+             * @default 0
+             */
+            experience: number;
+            /**
+             * Kappa Required
+             * @default false
+             */
+            kappa_required: boolean;
+            /**
+             * Lightkeeper Required
+             * @default false
+             */
+            lightkeeper_required: boolean;
+            /**
+             * Faction Name
+             * @default Any
+             */
+            faction_name: string;
+            /**
+             * Task Image Link
+             * @default
+             */
+            task_image_link: string;
+            /**
+             * Wiki Link
+             * @default
+             */
+            wiki_link: string;
+            /**
+             * Objective Count
+             * @default 0
+             */
+            objective_count: number;
+            /** Objective Types */
+            objective_types?: string[];
+            /** Progress Status */
+            progress_status?: string | null;
+            /** Task Requirements */
+            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
+            /** Objectives */
+            objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
+            /** Needed Keys */
+            needed_keys?: components["schemas"]["TarkovTaskNeededKeysOut"][];
+            /**
+             * Has Map Markers
+             * @default false
+             */
+            has_map_markers: boolean;
+        };
+        /** TarkovRaidRoomClaimOut */
+        TarkovRaidRoomClaimOut: {
+            /** Task Id */
+            task_id: string;
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** TarkovRaidRoomCreateIn */
+        TarkovRaidRoomCreateIn: {
+            /** Map */
+            map: string;
+            /** Title */
+            title?: string | null;
+        };
+        /** TarkovRaidRoomDetailOut */
+        TarkovRaidRoomDetailOut: {
+            /** Public Id */
+            public_id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Map Slug */
+            map_slug: string;
+            /** Status */
+            status: string;
+            /** Host User Id */
+            host_user_id: number;
+            /**
+             * Host Display Name
+             * @default
+             */
+            host_display_name: string;
+            /**
+             * Member Count
+             * @default 0
+             */
+            member_count: number;
+            /**
+             * Max Members
+             * @default 8
+             */
+            max_members: number;
+            /** Created At */
+            created_at?: string | null;
+            /** Expire At */
+            expire_at?: string | null;
+            /** Archived At */
+            archived_at?: string | null;
+            /**
+             * Is Host
+             * @default false
+             */
+            is_host: boolean;
+            /**
+             * Is Member
+             * @default false
+             */
+            is_member: boolean;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /** Members */
+            members?: components["schemas"]["TarkovRaidRoomMemberOut"][];
+            /** Claims */
+            claims?: components["schemas"]["TarkovRaidRoomClaimOut"][];
+            /** Marks */
+            marks?: components["schemas"]["TarkovRaidRoomMarkOut"][];
+        };
+        /** TarkovRaidRoomLobbyItemOut */
+        TarkovRaidRoomLobbyItemOut: {
+            /** Public Id */
+            public_id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Map Slug */
+            map_slug: string;
+            /** Status */
+            status: string;
+            /** Host User Id */
+            host_user_id: number;
+            /**
+             * Host Display Name
+             * @default
+             */
+            host_display_name: string;
+            /**
+             * Member Count
+             * @default 0
+             */
+            member_count: number;
+            /**
+             * Max Members
+             * @default 8
+             */
+            max_members: number;
+            /** Created At */
+            created_at?: string | null;
+            /** Expire At */
+            expire_at?: string | null;
+        };
+        /** TarkovRaidRoomLobbyOut */
+        TarkovRaidRoomLobbyOut: {
+            /** Items */
+            items?: components["schemas"]["TarkovRaidRoomLobbyItemOut"][];
+        };
+        /** TarkovRaidRoomMarkIn */
+        TarkovRaidRoomMarkIn: {
+            /** Kind */
+            kind: string;
+            /**
+             * Floor
+             * @default
+             */
+            floor: string;
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
+            /** X2 */
+            x2?: number | null;
+            /** Z2 */
+            z2?: number | null;
+        };
+        /** TarkovRaidRoomMarkOut */
+        TarkovRaidRoomMarkOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Floor
+             * @default
+             */
+            floor: string;
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
+            /** X2 */
+            x2?: number | null;
+            /** Z2 */
+            z2?: number | null;
+            /** Author User Id */
+            author_user_id: number;
+            /**
+             * Author Display Name
+             * @default
+             */
+            author_display_name: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** TarkovRaidRoomMemberOut */
+        TarkovRaidRoomMemberOut: {
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Is Host
+             * @default false
+             */
+            is_host: boolean;
+            /**
+             * In Room
+             * @default true
+             */
+            in_room: boolean;
+            /**
+             * Online
+             * @default false
+             */
+            online: boolean;
+            /** Joined At */
+            joined_at?: string | null;
+        };
         /** TarkovSearchHitOut */
         TarkovSearchHitOut: {
             /** Id */
@@ -9781,6 +10548,8 @@ export interface components {
              * @default 0
              */
             objective_count: number;
+            /** Objective Types */
+            objective_types?: string[];
             /** Progress Status */
             progress_status?: string | null;
             /** Task Requirements */
@@ -9901,6 +10670,8 @@ export interface components {
              * @default 0
              */
             objective_count: number;
+            /** Objective Types */
+            objective_types?: string[];
             /** Progress Status */
             progress_status?: string | null;
             /** Task Requirements */
@@ -10011,6 +10782,44 @@ export interface components {
              * @default
              */
             exit_name: string;
+            /** Zones */
+            zones?: components["schemas"]["TarkovTaskZoneOut"][];
+            /** Possible Locations */
+            possible_locations?: components["schemas"]["TarkovTaskPossibleLocationOut"][];
+            /** Zone Names */
+            zone_names?: string[];
+        };
+        /** TarkovTaskPointOut */
+        TarkovTaskPointOut: {
+            /** X */
+            x: number;
+            /**
+             * Y
+             * @default 0
+             */
+            y: number;
+            /** Z */
+            z: number;
+        };
+        /** TarkovTaskPossibleLocationOut */
+        TarkovTaskPossibleLocationOut: {
+            /**
+             * Map Id
+             * @default
+             */
+            map_id: string;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug: string;
+            /**
+             * Map Name
+             * @default
+             */
+            map_name: string;
+            /** Positions */
+            positions?: components["schemas"]["TarkovTaskPointOut"][];
         };
         /** TarkovTaskRequirementOut */
         TarkovTaskRequirementOut: {
@@ -10114,6 +10923,41 @@ export interface components {
              * @default
              */
             compare_method: string;
+        };
+        /** TarkovTaskZoneOut */
+        TarkovTaskZoneOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Map Id
+             * @default
+             */
+            map_id: string;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug: string;
+            /**
+             * Map Name
+             * @default
+             */
+            map_name: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Outline */
+            outline?: components["schemas"]["TarkovTaskPointOut"][];
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovTasksSyncOut */
         TarkovTasksSyncOut: {
@@ -15841,6 +16685,387 @@ export interface operations {
             };
         };
     };
+    list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get: {
+        parameters: {
+            query?: {
+                map?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomLobbyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__leave_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unclaim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomMarkIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                mark_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_tarkov_raid_room_marks_api_guides_tarkov_raid_rooms__public_id__marks_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     guides_tarkov_items_sync_api_guides_tarkov_items_sync_post: {
         parameters: {
             query?: never;
@@ -16115,6 +17340,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovTaskCatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get: {
+        parameters: {
+            query: {
+                map: string;
+                q?: string | null;
+                trader?: string | null;
+                kappa?: boolean | null;
+                types?: string | null;
+                progress?: boolean;
+                progress_status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidPrepOut"];
                 };
             };
             /** @description Validation Error */
@@ -17203,7 +18465,7 @@ export interface operations {
     minecraft_mod_tools_api_guides_minecraft_mod_tools_get: {
         parameters: {
             query?: {
-                /** @description 跳过短时文件扫描缓存 */
+                /** @description 全量重认盘上 jar；日常打开保持 false */
                 force?: boolean;
             };
             header?: never;
@@ -17366,48 +18628,14 @@ export interface operations {
             };
         };
     };
-    minecraft_mod_tool_config_api_guides_minecraft_mod_tools__tool_id__config_post: {
+    minecraft_mod_tool_preset_keys_api_guides_minecraft_mod_tools__tool_id__preset_keys_get: {
         parameters: {
-            query?: never;
+            query: {
+                path: string;
+            };
             header?: never;
             path: {
                 tool_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["MinecraftModToolPresetIn"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MinecraftModToolPresetApplyOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tool_id: string;
-                preset_id: string;
             };
             cookie?: never;
         };
@@ -17419,7 +18647,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MinecraftModToolPresetDraftOut"];
+                    "application/json": components["schemas"]["MinecraftModToolPresetKeysOut"];
                 };
             };
             /** @description Validation Error */
@@ -17433,19 +18661,49 @@ export interface operations {
             };
         };
     };
-    minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__presets__preset_id__put: {
+    minecraft_mod_tool_preset_get_api_guides_minecraft_mod_tools__tool_id__preset_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 tool_id: string;
-                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolPresetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_preset_put_api_guides_minecraft_mod_tools__tool_id__preset_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MinecraftModToolPresetDraftIn"];
+                "application/json": components["schemas"]["MinecraftModToolPresetIn"];
             };
         };
         responses: {
@@ -17455,7 +18713,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MinecraftModToolPresetDraftOut"];
+                    "application/json": components["schemas"]["MinecraftModToolPresetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_mod_tool_preset_apply_api_guides_minecraft_mod_tools__tool_id__preset_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftModToolPresetApplyOut"];
                 };
             };
             /** @description Validation Error */

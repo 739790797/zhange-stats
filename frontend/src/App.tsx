@@ -51,6 +51,12 @@ const TarkovItemDetailPage = lazy(
   () => import("@/pages/guides/TarkovItemDetailPage"),
 );
 const TarkovTasksPage = lazy(() => import("@/pages/guides/TarkovTasksPage"));
+const TarkovRaidPrepPage = lazy(
+  () => import("@/pages/guides/TarkovRaidPrepPage"),
+);
+const TarkovRaidRoomPage = lazy(
+  () => import("@/pages/guides/TarkovRaidRoomPage"),
+);
 const TarkovTaskDetailPage = lazy(
   () => import("@/pages/guides/TarkovTaskDetailPage"),
 );
@@ -204,6 +210,11 @@ export default function App() {
                   <Route
                     path="tasks/:taskId"
                     element={<TarkovTaskDetailPage />}
+                  />
+                  <Route path="raid-prep" element={<TarkovRaidPrepPage />} />
+                  <Route
+                    path="raid-prep/rooms/:publicId"
+                    element={<TarkovRaidRoomPage />}
                   />
                   <Route path="maps" element={<TarkovMapsPage />} />
                   <Route

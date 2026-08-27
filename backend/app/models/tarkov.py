@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -268,3 +268,111 @@ class TarkovGuidesMeta(Base):
     craft_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class TarkovRaidRoom(Base):
+    """战局准备房间：创建起 24 小时可编辑，到期封存后只读留档。"""
+
+    __tablename__ = "tarkov_raid_rooms"
+    __table_args__ = (
+        Index("ix_tarkov_raid_rooms_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    public_id: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    map_slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    host_user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    host_display_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="live", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    expire_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class TarkovRaidRoomMember(Base):
+    """进过房间的人；离开只写 left_at，留档仍能看见。"""
+
+    __tablename__ = "tarkov_raid_room_members"
+
+    room_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tarkov_raid_rooms.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    display_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TarkovRaidRoomTaskClaim(Base):
+    """房间任务勾选：同一任务多人署名（并集）。"""
+
+    __tablename__ = "tarkov_raid_room_task_claims"
+
+    room_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tarkov_raid_rooms.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovRaidRoomMark(Base):
+    """房间画板：钉点或直线，坐标为地图 x/z。"""
+
+    __tablename__ = "tarkov_raid_room_marks"
+    __table_args__ = (Index("ix_tarkov_raid_room_marks_room", "room_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    room_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tarkov_raid_rooms.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    author_user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    floor: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    x: Mapped[float] = mapped_column(Float, nullable=False)
+    z: Mapped[float] = mapped_column(Float, nullable=False)
+    x2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

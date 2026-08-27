@@ -7,14 +7,16 @@
 - catalog：用写死的 Modrinth project id 拉「当前服加载器 + MC 版本」的最新文件，对比已装版本
 - links：卡片上的 Modrinth / CurseForge / Wiki（CF 可按加载器换页）
 - install / update：Pelican pull 到 /mods 或 /plugins，替换旧 jar
-- config：把预设文件写到该模组的配置目录
+- config：键值预设（对账已有配置文件的顶层标量，一键只改钉住的键）
 - commands：RCON 白名单（`command_tree` 静态补全，通用发送器按 argv 校验）
+- features：模组功能栏（表单式操作，如 Chunky 生成范围、BlueMap 更新范围）
 
 后续可接、暂不实现
 - 依赖链（如 ChunkyBorder 依赖 Chunky）
 - 禁用 jar（改名 .disabled）
 - 配置 diff / 热重载失败回滚
 - 多预设并存、按世界覆盖
+- server.properties 服级钉（启动时自动打）
 """
 
 from __future__ import annotations
@@ -26,6 +28,21 @@ from typing import Any
 from app.services.minecraft.mod_catalog import query_from_jar
 
 PLUGIN_LOADERS = frozenset({"paper", "spigot", "bukkit", "purpur", "folia"})
+_LOADER_SUFFIXES = frozenset(
+    {
+        "fabric",
+        "forge",
+        "neoforge",
+        "quilt",
+        "bukkit",
+        "spigot",
+        "paper",
+        "purpur",
+        "folia",
+        "sponge",
+        "cli",
+    }
+)
 _VERSION = re.compile(r"v?\d+\.\d+(?:\.\d+)?(?:-[a-z]+\d*)?", re.I)
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
 
@@ -62,16 +79,10 @@ class ModToolLinks:
 
 
 @dataclass(frozen=True)
-class ModConfigPreset:
-    id: str
-    title: str
-    summary: str
-    filename: str = ""
-    content: str = ""
-    mod_filename: str = ""
-    plugin_filename: str = ""
-    mod_content: str = ""
-    plugin_content: str = ""
+class ModConfigPin:
+    file: str
+    key: str
+    value: str
 
 
 @dataclass(frozen=True)
@@ -92,23 +103,33 @@ class ModCommandNode:
     args: tuple[ModCommandArg, ...] = ()
     confirm: str = ""
     show_in_bar: bool = True
+    argv: tuple[str, ...] | None = None
+
+
+@dataclass(frozen=True)
+class ModFeatureSpec:
+    id: str
+    title: str
+    summary: str = ""
 
 
 @dataclass(frozen=True)
 class ModToolSpec:
     id: str
     title: str
-    summary: str
     match_names: tuple[str, ...]
     exclude_names: tuple[str, ...] = ()
     links: ModToolLinks = field(default_factory=ModToolLinks)
     plugin_loaders: frozenset[str] = PLUGIN_LOADERS
     config_mod_dir: str = ""
     config_plugin_dir: str = ""
-    presets: tuple[ModConfigPreset, ...] = ()
+    factory_mod_pins: tuple[ModConfigPin, ...] = ()
+    factory_plugin_pins: tuple[ModConfigPin, ...] = ()
+    summary: str = ""
     probe_command: str = ""
     command_prefix: str = ""
     command_tree: tuple[ModCommandNode, ...] = ()
+    features: tuple[ModFeatureSpec, ...] = ()
     capabilities: tuple[str, ...] = ("detect", "catalog", "links", "install", "config")
 
 
@@ -116,24 +137,46 @@ class ModCommandError(ValueError):
     pass
 
 
-CHUNKY_SERVER_YML = """# 战鸽预设：中文提示、重启后续跑、降低刷屏
-version: 2
-language: zh_CN
-continue-on-restart: true
-force-load-existing-chunks: false
-silent: false
-update-interval: 5
-"""
+BLUEMAP_CORE_PINS: tuple[ModConfigPin, ...] = (
+    ModConfigPin(file="core.conf", key="accept-download", value="true"),
+)
 
-CHUNKY_SERVER_JSON = """{
-  "version": 2,
-  "language": "zh_CN",
-  "continueOnRestart": true,
-  "forceLoadExistingChunks": false,
-  "silent": false,
-  "updateInterval": 5
-}
-"""
+CHUNKY_MOD_PINS: tuple[ModConfigPin, ...] = (
+    ModConfigPin(file="config.json", key="language", value="zh_CN"),
+    ModConfigPin(file="config.json", key="continueOnRestart", value="true"),
+    ModConfigPin(file="config.json", key="forceLoadExistingChunks", value="false"),
+    ModConfigPin(file="config.json", key="silent", value="false"),
+    ModConfigPin(file="config.json", key="updateInterval", value="5"),
+)
+
+CHUNKY_PLUGIN_PINS: tuple[ModConfigPin, ...] = (
+    ModConfigPin(file="config.yml", key="language", value="zh_CN"),
+    ModConfigPin(file="config.yml", key="continue-on-restart", value="true"),
+    ModConfigPin(file="config.yml", key="force-load-existing-chunks", value="false"),
+    ModConfigPin(file="config.yml", key="silent", value="false"),
+    ModConfigPin(file="config.yml", key="update-interval", value="5"),
+)
+
+BLUEMAP_LINKS = ModToolLinks(
+    modrinth_id="swbUV1cr",
+    modrinth_slug="bluemap",
+    curseforge_by_loader={
+        "fabric": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "quilt": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "forge": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "neoforge": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "paper": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "spigot": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "bukkit": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "purpur": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+        "folia": "https://www.curseforge.com/minecraft/mc-mods/bluemap",
+    },
+    curseforge_fallback="https://www.curseforge.com/minecraft/mc-mods/bluemap",
+    wiki_url="https://bluemap.bluecolored.de/wiki/",
+    github_url="https://github.com/BlueMap-Minecraft/BlueMap",
+    mcmod_url="https://www.mcmod.cn/class/3461.html",
+    icon_url="https://cdn.modrinth.com/data/swbUV1cr/icon.png",
+)
 
 CHUNKY_LINKS = ModToolLinks(
     modrinth_id="fALzjamp",
@@ -161,6 +204,38 @@ _OPTIONAL_WORLD_ARG = ModCommandArg(
     label="世界",
     kind="world",
     optional=True,
+)
+_MAP_ARG = ModCommandArg(id="map", label="地图", kind="map")
+_OPTIONAL_MAP_ARG = ModCommandArg(id="map", label="地图", kind="map", optional=True)
+_OPTIONAL_X_ARG = ModCommandArg(
+    id="x",
+    label="X",
+    kind="int",
+    min_value=-30_000_000,
+    max_value=30_000_000,
+    optional=True,
+)
+_OPTIONAL_Z_ARG = ModCommandArg(
+    id="z",
+    label="Z",
+    kind="int",
+    min_value=-30_000_000,
+    max_value=30_000_000,
+    optional=True,
+)
+_OPTIONAL_RADIUS_ARG = ModCommandArg(
+    id="radius",
+    label="半径",
+    kind="int",
+    min_value=1,
+    max_value=1_000_000,
+    optional=True,
+)
+_BLUEMAP_UPDATE_ARGS = (
+    _OPTIONAL_MAP_ARG,
+    _OPTIONAL_X_ARG,
+    _OPTIONAL_Z_ARG,
+    _OPTIONAL_RADIUS_ARG,
 )
 
 CHUNKY_COMMAND_TREE: tuple[ModCommandNode, ...] = (
@@ -231,30 +306,116 @@ CHUNKY_COMMAND_TREE: tuple[ModCommandNode, ...] = (
     ModCommandNode(id="confirm", label="确认"),
 )
 
+BLUEMAP_COMMAND_TREE: tuple[ModCommandNode, ...] = (
+    ModCommandNode(id="status", label="查看状态", argv=()),
+    ModCommandNode(id="version", label="版本信息"),
+    ModCommandNode(id="help", label="帮助"),
+    ModCommandNode(
+        id="reload",
+        label="重载配置",
+        args=(
+            ModCommandArg(
+                id="mode",
+                label="模式",
+                kind="enum",
+                options=(("light", "轻量"),),
+                optional=True,
+            ),
+        ),
+    ),
+    ModCommandNode(id="maps", label="列出地图"),
+    ModCommandNode(id="storages", label="列出存储"),
+    ModCommandNode(id="start", label="开始渲染"),
+    ModCommandNode(id="stop", label="停止渲染"),
+    ModCommandNode(id="freeze", label="冻结地图", args=(_MAP_ARG,)),
+    ModCommandNode(id="unfreeze", label="解冻地图", args=(_MAP_ARG,)),
+    ModCommandNode(
+        id="purge",
+        label="清空地图",
+        args=(_MAP_ARG,),
+        confirm="会删除该地图已渲数据并重新渲染，期间网页地图不可用。确定清空？",
+    ),
+    ModCommandNode(id="update", label="增量更新", args=_BLUEMAP_UPDATE_ARGS),
+    ModCommandNode(id="fix-edges", label="修边", args=_BLUEMAP_UPDATE_ARGS),
+    ModCommandNode(
+        id="force-update",
+        label="强制重渲",
+        args=_BLUEMAP_UPDATE_ARGS,
+        confirm="会无视改动检测、整图重渲，耗时长。确定强制更新？",
+    ),
+    ModCommandNode(id="tasks", label="任务队列"),
+    ModCommandNode(
+        id="tasks-cancel",
+        label="取消全部任务",
+        argv=("tasks", "cancel"),
+        args=(
+            ModCommandArg(
+                id="target",
+                label="目标",
+                kind="enum",
+                options=(("all", "全部"),),
+            ),
+        ),
+        confirm="会取消队列里所有渲染任务。确定？",
+    ),
+)
+
+CHUNKY_FEATURES: tuple[ModFeatureSpec, ...] = (
+    ModFeatureSpec(
+        id="chunky.pregenerate",
+        title="生成范围",
+        summary="半径按方块计。500 大约覆盖 1000×1000 区域，过程可随时暂停，进度会保留。",
+    ),
+)
+
+BLUEMAP_FEATURES: tuple[ModFeatureSpec, ...] = (
+    ModFeatureSpec(
+        id="bluemap.render",
+        title="更新范围",
+        summary="不填半径则更新整张图。BlueMap 平时会自动增量更新，改过配置或漏渲时才需要手动触发。",
+    ),
+)
+
 SPECS: tuple[ModToolSpec, ...] = (
     ModToolSpec(
         id="chunky",
         title="Chunky",
-        summary="预生成世界区块",
+        summary="预生成区块，减少第一次探索卡顿",
         match_names=("chunky",),
         exclude_names=("chunkyborder", "chunky-border"),
         links=CHUNKY_LINKS,
         config_mod_dir="config/chunky",
         config_plugin_dir="plugins/Chunky",
-        presets=(
-            ModConfigPreset(
-                id="zhange",
-                title="战鸽预设",
-                summary="中文、重启后续跑、控制台 5 秒一条进度",
-                mod_filename="config.json",
-                mod_content=CHUNKY_SERVER_JSON,
-                plugin_filename="config.yml",
-                plugin_content=CHUNKY_SERVER_YML,
-            ),
-        ),
+        factory_mod_pins=CHUNKY_MOD_PINS,
+        factory_plugin_pins=CHUNKY_PLUGIN_PINS,
         probe_command="chunky progress",
         command_prefix="chunky",
         command_tree=CHUNKY_COMMAND_TREE,
+        features=CHUNKY_FEATURES,
+        capabilities=(
+            "detect",
+            "catalog",
+            "links",
+            "install",
+            "update",
+            "config",
+            "commands",
+        ),
+    ),
+    ModToolSpec(
+        id="bluemap",
+        title="BlueMap",
+        summary="浏览器里看世界 3D 地图",
+        match_names=("bluemap",),
+        links=BLUEMAP_LINKS,
+        config_mod_dir="config/bluemap",
+        config_plugin_dir="plugins/BlueMap",
+        factory_mod_pins=BLUEMAP_CORE_PINS,
+        factory_plugin_pins=BLUEMAP_CORE_PINS,
+        probe_command="bluemap",
+        command_prefix="bluemap",
+        command_tree=BLUEMAP_COMMAND_TREE,
+        features=BLUEMAP_FEATURES,
         capabilities=(
             "detect",
             "catalog",
@@ -292,7 +453,12 @@ def version_from_jar(filename: str) -> str:
     matches = _VERSION.findall(filename or "")
     if not matches:
         return ""
-    return str(matches[-1]).lstrip("vV")
+    raw = str(matches[-1]).lstrip("vV")
+    if "-" in raw:
+        head, tail = raw.rsplit("-", 1)
+        if tail.lower() in _LOADER_SUFFIXES:
+            return head
+    return raw
 
 
 def is_plugin_loader(loader: str, spec: ModToolSpec | None = None) -> bool:
@@ -340,103 +506,64 @@ def spec_links_out(spec: ModToolSpec, loader: str = "") -> dict[str, str]:
     }
 
 
-def preset_by_id(spec: ModToolSpec, preset_id: str) -> ModConfigPreset | None:
-    wanted = (preset_id or "").strip()
-    for row in spec.presets:
-        if row.id == wanted:
-            return row
-    return spec.presets[0] if spec.presets and not wanted else None
-
-
 def uses_plugin_config(loader: str, spec: ModToolSpec, *, present_directory: str = "") -> bool:
     return present_directory == "/plugins" or is_plugin_loader(loader, spec)
 
 
-def preset_file_for_loader(
-    preset: ModConfigPreset,
-    loader: str,
+def factory_pins_out(
     spec: ModToolSpec,
+    loader: str = "",
     *,
     present_directory: str = "",
-) -> tuple[str, str]:
-    """按加载器选一份出厂文件：模组 config.json，插件 config.yml。"""
+) -> list[dict[str, str]]:
     plugin = uses_plugin_config(loader, spec, present_directory=present_directory)
-    if plugin:
-        name = (preset.plugin_filename or preset.filename or "").strip()
-        body = preset.plugin_content or preset.content
-    else:
-        name = (preset.mod_filename or preset.filename or "").strip()
-        body = preset.mod_content or preset.content
-    return name, body
+    rows = spec.factory_plugin_pins if plugin else spec.factory_mod_pins
+    return [{"file": row.file, "key": row.key, "value": row.value} for row in rows]
 
 
-def read_draft_content(blob: Any, tool_id: str, preset_id: str) -> str | None:
-    if not isinstance(blob, dict):
-        return None
-    tool = blob.get(tool_id)
-    if not isinstance(tool, dict):
-        return None
-    entry = tool.get(preset_id)
-    if isinstance(entry, str):
-        return entry
-    if isinstance(entry, dict):
-        text = entry.get("content")
-        if isinstance(text, str):
-            return text
-    return None
+def safe_config_relpath(raw: str, *, fallback: str = "") -> str:
+    """配置目录内的相对路径；拒绝 ..。"""
+    text = (raw or "").replace("\\", "/").strip().lstrip("/")
+    if not text:
+        return fallback
+    parts = [part for part in text.split("/") if part and part != "."]
+    if not parts or any(part == ".." for part in parts):
+        return fallback
+    return "/".join(parts)
 
 
-def upsert_draft_content(
-    blob: Any,
-    tool_id: str,
-    preset_id: str,
-    content: str,
-) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    if isinstance(blob, dict):
-        for key, value in blob.items():
-            out[str(key)] = dict(value) if isinstance(value, dict) else value
-    tool = out.get(tool_id)
-    tool_map: dict[str, Any] = dict(tool) if isinstance(tool, dict) else {}
-    prev = tool_map.get(preset_id)
-    entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
-    entry["content"] = content
-    tool_map[preset_id] = entry
-    out[tool_id] = tool_map
-    return out
+def spec_config_directories(spec: ModToolSpec) -> list[str]:
+    rows: list[str] = []
+    for rel in (spec.config_mod_dir, spec.config_plugin_dir):
+        text = (rel or "").replace("\\", "/").strip().strip("/")
+        if text:
+            rows.append(f"/{text}")
+    return rows
 
 
-def clear_draft_content(blob: Any, tool_id: str, preset_id: str) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    if isinstance(blob, dict):
-        for key, value in blob.items():
-            out[str(key)] = dict(value) if isinstance(value, dict) else value
-    tool = out.get(tool_id)
-    if not isinstance(tool, dict):
-        return out
-    tool.pop(preset_id, None)
-    if tool:
-        out[tool_id] = tool
-    else:
-        out.pop(tool_id, None)
-    return out
-
-
-def resolve_preset_body(
-    preset: ModConfigPreset,
-    loader: str,
-    spec: ModToolSpec,
-    blob: Any,
-    *,
-    present_directory: str = "",
-) -> tuple[str, str, str]:
-    filename, factory = preset_file_for_loader(
-        preset, loader, spec, present_directory=present_directory
-    )
-    draft = read_draft_content(blob, spec.id, preset.id)
-    if draft is not None:
-        return filename, draft, "draft"
-    return filename, factory, "factory"
+def relativize_config_path(raw: str, directory: str = "", *, fallback: str = "") -> str:
+    """把绝对路径或相对路径收成配置目录内的相对文件名。"""
+    text = (raw or "").replace("\\", "/").strip()
+    dir_norm = (directory or "").replace("\\", "/").strip().rstrip("/")
+    prefixes: list[str] = []
+    if dir_norm:
+        prefixes.append(dir_norm)
+        stripped = dir_norm.lstrip("/")
+        if stripped and stripped != dir_norm:
+            prefixes.append(stripped)
+        if not dir_norm.startswith("/"):
+            prefixes.append(f"/{dir_norm}")
+    matched = False
+    for prefix in prefixes:
+        if text == prefix:
+            return fallback
+        if text.startswith(f"{prefix}/"):
+            text = text[len(prefix) + 1 :]
+            matched = True
+            break
+    if text.startswith("/") and prefixes and not matched:
+        return fallback
+    return safe_config_relpath(text, fallback=fallback)
 
 
 def config_directory_abs(
@@ -449,6 +576,12 @@ def config_directory_abs(
     if not rel:
         return ""
     return f"/{rel}"
+
+
+def features_out(spec: ModToolSpec) -> list[dict[str, str]]:
+    return [
+        {"id": row.id, "title": row.title, "summary": row.summary} for row in spec.features
+    ]
 
 
 def command_tree_out(spec: ModToolSpec) -> list[dict[str, Any]]:
@@ -505,7 +638,7 @@ def _format_command_arg(arg: ModCommandArg, raw: Any) -> str:
         if not picked:
             raise ModCommandError(f"不支持的{arg.label}")
         return picked
-    if arg.kind in {"world", "token"}:
+    if arg.kind in {"world", "token", "map"}:
         if not _TOKEN_RE.match(text):
             raise ModCommandError(f"{arg.label}不合法")
         return text
@@ -523,15 +656,21 @@ def assemble_mod_command(
     if node is None:
         raise ModCommandError("不支持的指令")
     prefix = (spec.command_prefix or spec.id).strip()
-    if not _TOKEN_RE.match(prefix) or not _TOKEN_RE.match(node.id):
-        raise ModCommandError("指令不合法")
+    tokens = list(node.argv) if node.argv is not None else [node.id]
+    for token in [prefix, *tokens]:
+        if token and not _TOKEN_RE.match(token):
+            raise ModCommandError("指令不合法")
     payload = args or {}
-    parts = [prefix, node.id]
+    parts = [prefix, *tokens]
+    skipped_optional = False
     for arg in node.args:
         raw = payload.get(arg.id)
         if raw is None or raw == "":
             if arg.optional:
+                skipped_optional = True
                 continue
             raise ModCommandError(f"缺少「{arg.label}」")
+        if skipped_optional:
+            raise ModCommandError(f"填写「{arg.label}」前需补全前面的参数")
         parts.append(_format_command_arg(arg, raw))
-    return " ".join(parts)
+    return " ".join(part for part in parts if part)

@@ -1,4 +1,5 @@
 import {
+  CloseOutlined,
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -20,6 +21,7 @@ import {
   Form,
   Input,
   Modal,
+  Progress,
   Select,
   Space,
   Table,
@@ -28,7 +30,8 @@ import {
   message,
 } from "antd";
 import type { MenuProps } from "antd";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import styles from "./MinecraftFileManager.module.css";
 import { Link } from "react-router-dom";
 import {
   chmodMinecraftFiles,
@@ -55,7 +58,10 @@ import {
   isMinecraftArchive,
   isMinecraftTextFile,
   joinMinecraftPath,
+  minecraftUploadJobLabel,
+  minecraftUploadProgressPercent,
   parentMinecraftPath,
+  type MinecraftUploadPhase,
 } from "./minecraftUi";
 import {
   MinecraftTextFileFormModal,
@@ -67,6 +73,22 @@ type RenameForm = { dest: string };
 type ChmodForm = { mode: string };
 type PullForm = { url: string; filename: string };
 type CompressForm = { archive_name: string; extension: "zip" | "tar.gz" };
+
+type UploadJob = {
+  uid: string;
+  name: string;
+  size: number;
+  percent: number | null;
+  phase: MinecraftUploadPhase;
+};
+
+const UPLOAD_DISMISS_MS = 4000;
+
+function uploadJobStatus(phase: MinecraftUploadPhase) {
+  if (phase === "done") return "success" as const;
+  if (phase === "error") return "exception" as const;
+  return "active" as const;
+}
 
 function openDownload(url: string) {
   const a = document.createElement("a");
@@ -100,6 +122,37 @@ export function MinecraftFileManager() {
   const [chmodForm] = Form.useForm<ChmodForm>();
   const [pullForm] = Form.useForm<PullForm>();
   const [compressForm] = Form.useForm<CompressForm>();
+  const [uploads, setUploads] = useState<UploadJob[]>([]);
+  const dismissTimers = useRef<Record<string, number>>({});
+
+  useEffect(
+    () => () => {
+      Object.values(dismissTimers.current).forEach((id) =>
+        window.clearTimeout(id),
+      );
+    },
+    [],
+  );
+
+  const patchUpload = (uid: string, patch: Partial<UploadJob>) => {
+    setUploads((rows) =>
+      rows.map((row) => (row.uid === uid ? { ...row, ...patch } : row)),
+    );
+  };
+
+  const dismissUpload = (uid: string) => {
+    window.clearTimeout(dismissTimers.current[uid]);
+    delete dismissTimers.current[uid];
+    setUploads((rows) => rows.filter((row) => row.uid !== uid));
+  };
+
+  const scheduleDismiss = (uid: string) => {
+    window.clearTimeout(dismissTimers.current[uid]);
+    dismissTimers.current[uid] = window.setTimeout(
+      () => dismissUpload(uid),
+      UPLOAD_DISMISS_MS,
+    );
+  };
 
   const statusQuery = useQuery({
     queryKey: ["minecraft-status"],
@@ -382,13 +435,35 @@ export function MinecraftFileManager() {
             multiple
             showUploadList={false}
             customRequest={async (options) => {
-              const file = options.file as File;
+              const file = options.file as File & { uid?: string };
+              const uid = String(
+                file.uid || `${file.name}-${file.size}-${Date.now()}`,
+              );
+              setUploads((rows) => [
+                ...rows.filter((row) => row.uid !== uid),
+                {
+                  uid,
+                  name: file.name,
+                  size: file.size,
+                  percent: null,
+                  phase: "uploading",
+                },
+              ]);
               try {
-                await uploadMinecraftFile(directory, file);
+                await uploadMinecraftFile(directory, file, (percent) => {
+                  patchUpload(uid, {
+                    percent: percent ?? null,
+                    phase: percent === 100 ? "writing" : "uploading",
+                  });
+                  options.onProgress?.({ percent: percent ?? 0 });
+                });
+                patchUpload(uid, { percent: 100, phase: "done" });
                 options.onSuccess?.(null);
                 message.success(`已上传 ${file.name}`);
                 refreshList();
+                scheduleDismiss(uid);
               } catch (e: unknown) {
+                patchUpload(uid, { phase: "error" });
                 options.onError?.(e as Error);
                 message.error(apiError(e, `上传 ${file.name} 失败`));
               }
@@ -451,6 +526,49 @@ export function MinecraftFileManager() {
           </Button>
         </Space>
       </div>
+
+      {uploads.length > 0 ? (
+        <div className={styles.uploads}>
+          {uploads.map((job) => (
+            <div key={job.uid} className={styles.job}>
+              <div className={styles.jobHead}>
+                <span className={styles.jobName} title={job.name}>
+                  {job.name}
+                </span>
+                <span className={styles.jobMeta}>{formatBytes(job.size)}</span>
+                {job.phase === "done" || job.phase === "error" ? (
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CloseOutlined />}
+                    onClick={() => dismissUpload(job.uid)}
+                  />
+                ) : null}
+              </div>
+              <div className={styles.jobBar}>
+                <Progress
+                  percent={minecraftUploadProgressPercent(
+                    job.phase,
+                    job.percent,
+                  )}
+                  status={uploadJobStatus(job.phase)}
+                  showInfo={false}
+                  size="small"
+                />
+              </div>
+              <div
+                className={
+                  job.phase === "error"
+                    ? `${styles.jobStatus} ${styles.jobStatusError}`
+                    : styles.jobStatus
+                }
+              >
+                {minecraftUploadJobLabel(job.phase, job.percent)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <Space
         style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }}

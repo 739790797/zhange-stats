@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.guides import tarkov_raid_rooms
 from app.api.guides.schemas import (
     TarkovAmmoCatalogOut,
     TarkovAmmoDetailOut,
@@ -18,6 +19,7 @@ from app.api.guides.schemas import (
     TarkovTaskCatalogOut,
     TarkovTaskDetailOut,
     TarkovTasksSyncOut,
+    TarkovRaidPrepOut,
     TarkovBossCatalogOut,
     TarkovBossDetailOut,
     TarkovBossesSyncOut,
@@ -53,6 +55,7 @@ from app.services.tarkov import search as search_svc
 from app.services.tarkov import tracker as tracker_svc
 
 router = APIRouter(prefix="/tarkov")
+router.include_router(tarkov_raid_rooms.router)
 
 
 def _parse_str_list(raw: str | None) -> list[str]:
@@ -417,6 +420,47 @@ def guides_tarkov_task_catalog(
     except tasks_svc.TarkovTasksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return TarkovTaskCatalogOut.model_validate(result)
+
+
+@router.get(
+    "/raid-prep",
+    response_model=TarkovRaidPrepOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_raid_prep(
+    map_slug: str = Query(..., alias="map", max_length=64),
+    q: str | None = Query(default=None, max_length=80),
+    trader: str | None = Query(default=None, max_length=64),
+    kappa: bool | None = Query(default=None),
+    types: str | None = Query(default=None, max_length=200),
+    progress: bool = Query(default=False),
+    progress_status: str | None = Query(default=None, max_length=16),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """战局准备：按地图列出相关任务，含目标区域 / 刷新点。"""
+    bound, snap = False, None
+    if progress or (progress_status or "").strip():
+        bound, snap = tracker_svc.user_progress_snapshot(db, user)
+    type_list = _parse_csv_ids(types)
+    try:
+        result = tasks_svc.list_raid_prep(
+            db,
+            map_slug,
+            trader=trader,
+            kappa=kappa,
+            q=q,
+            types=type_list or None,
+            progress=snap if progress else None,
+            progress_status=progress_status if progress and snap else None,
+            progress_bound=bound if progress else False,
+        )
+    except tasks_svc.TarkovTasksError as exc:
+        msg = str(exc)
+        if msg.startswith("地图无效"):
+            raise HTTPException(status_code=400, detail=msg) from exc
+        raise HTTPException(status_code=502, detail=msg) from exc
+    return TarkovRaidPrepOut.model_validate(result)
 
 
 @router.get(

@@ -1,15 +1,11 @@
 import { DownOutlined } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Button,
   Card,
-  Form,
   Input,
   Modal,
-  Popconfirm,
-  Select,
-  Space,
   Tag,
   Typography,
   message,
@@ -17,11 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  applyMinecraftModToolPreset,
-  fetchMinecraftFiles,
-  fetchMinecraftModToolPreset,
   runMinecraftModToolCommand,
-  saveMinecraftModToolPreset,
   type MinecraftModTool,
   type MinecraftModTools,
 } from "@/api/minecraftApi";
@@ -32,68 +24,52 @@ import {
   parseCommandLine,
   suggestionsForLine,
 } from "./minecraftModCommandComplete";
-import { MinecraftConfigFilesModal } from "./MinecraftConfigFilesModal";
-import { MinecraftChunkyWorkspace } from "./MinecraftChunkyWorkspace";
+import { MinecraftModFeatures } from "./MinecraftModFeatures";
+import { MinecraftModPresetSection } from "./MinecraftModPresetEditor";
 import { MinecraftModToolInstallModal } from "./MinecraftModToolInstallModal";
-import {
-  MinecraftPathFileEditor,
-  MinecraftTextFileFormModal,
-  type MinecraftTextFileEditorValues,
-} from "./MinecraftTextFileEditor";
-import {
-  isMinecraftTextFile,
-  joinMinecraftPath,
-  loaderLabel,
-  normalizeMinecraftPath,
-} from "./minecraftUi";
+import { loaderLabel } from "./minecraftUi";
 import {
   readModToolExpanded,
   saveModToolExpanded,
 } from "./minecraftModToolCollapse";
 import styles from "./MinecraftModToolCard.module.css";
+import mcmodMark from "@/assets/mcmod-mark.png";
+import modrinthMark from "@/assets/modrinth-mark.svg";
 
 function hasCap(tool: MinecraftModTool, cap: string) {
   return (tool.capabilities || []).includes(cap);
 }
 
-async function openConfigFiles(
-  root: string,
-): Promise<{ kind: "edit"; path: string } | { kind: "browse" }> {
-  const lockedRoot = normalizeMinecraftPath(root);
-  if (!lockedRoot || lockedRoot === "/") return { kind: "browse" };
-  try {
-    const list = await fetchMinecraftFiles(lockedRoot);
-    const files = (list.entries || []).filter((row) => row.is_file);
-    const folders = (list.entries || []).filter((row) => !row.is_file);
-    if (
-      files.length === 1 &&
-      folders.length === 0 &&
-      isMinecraftTextFile(files[0])
-    ) {
-      return {
-        kind: "edit",
-        path: joinMinecraftPath(lockedRoot, files[0].name),
-      };
-    }
-  } catch {
-    return { kind: "browse" };
-  }
-  return { kind: "browse" };
-}
-
 function ToolLinks({ tool }: { tool: MinecraftModTool }) {
   const links = [
-    { href: tool.links?.modrinth_url, label: "Modrinth" },
-    { href: tool.links?.curseforge_url, label: "CurseForge" },
-    { href: tool.links?.mcmod_url, label: "MCMOD" },
-    { href: tool.links?.wiki_url, label: "Wiki" },
-    { href: tool.links?.github_url, label: "GitHub" },
+    {
+      href: tool.links?.modrinth_url,
+      label: "Modrinth",
+      logo: <ModrinthLogo />,
+    },
+    {
+      href: tool.links?.curseforge_url,
+      label: "CurseForge",
+      logo: <CurseForgeLogo />,
+    },
+    {
+      href: tool.links?.mcmod_url,
+      label: "MCMOD",
+      logo: <McmodLogo />,
+    },
   ].filter((row) => row.href);
   if (!links.length) return null;
   return (
     <div className={styles.links}>
       {links.map((row) => (
-        <Typography.Link key={row.label} href={row.href} target="_blank">
+        <Typography.Link
+          key={row.label}
+          className={styles.link}
+          href={row.href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {row.logo}
           {row.label}
         </Typography.Link>
       ))}
@@ -101,13 +77,35 @@ function ToolLinks({ tool }: { tool: MinecraftModTool }) {
   );
 }
 
+function ModrinthLogo() {
+  return <img className={styles.linkLogo} src={modrinthMark} alt="" />;
+}
+
+function CurseForgeLogo() {
+  return (
+    <svg className={styles.linkLogo} viewBox="0 0 40 40" aria-hidden>
+      <rect width="40" height="40" rx="8" fill="#F16436" />
+      <path
+        fill="#fff"
+        d="M29.489 15.285s7.35-1.169 8.511-4.579H26.74V8H2l3.048 3.567v3.655s7.69-.403 10.664 1.872c4.072 3.807-4.58 8.953-4.58 8.953L9.65 31c2.32-2.228 6.741-5.111 14.848-4.972-3.085.984-6.187 2.52-8.602 4.972h16.387l-1.543-4.952s-11.877-7.065-1.25-10.763z"
+      />
+    </svg>
+  );
+}
+
+function McmodLogo() {
+  return <img className={styles.linkLogo} src={mcmodMark} alt="" />;
+}
+
 function CommandBar({
   tool,
   worlds,
+  maps,
   disabled,
 }: {
   tool: MinecraftModTool;
   worlds: string[];
+  maps: string[];
   disabled: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -135,8 +133,8 @@ function CommandBar({
   });
 
   const hits = useMemo(
-    () => suggestionsForLine(line, tree, worlds),
-    [line, tree, worlds],
+    () => suggestionsForLine(line, tree, worlds, maps),
+    [line, tree, worlds, maps],
   );
   const options = hits.map((row) => ({
     value: row.line,
@@ -192,12 +190,12 @@ function CommandBar({
             onKeyDown={(event) => {
               if (event.key !== "Tab") return;
               event.preventDefault();
-              fillLine(completeLine(line, tree, worlds));
+              fillLine(completeLine(line, tree, worlds, maps));
             }}
           >
             <Input
               value={line}
-              placeholder="world"
+              placeholder={tree[0]?.id || "指令"}
               spellCheck={false}
               autoComplete="off"
               className={styles.commandInput}
@@ -255,99 +253,6 @@ function CommandBar({
   );
 }
 
-function PresetEditor({
-  toolId,
-  presetId,
-  title,
-  open,
-  onClose,
-}: {
-  toolId: string;
-  presetId: string;
-  title: string;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const [form] = Form.useForm<MinecraftTextFileEditorValues>();
-  const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: ["minecraft-mod-preset", toolId, presetId],
-    queryFn: () => fetchMinecraftModToolPreset(toolId, presetId),
-    enabled: open && Boolean(presetId),
-  });
-
-  useEffect(() => {
-    if (!open) {
-      form.resetFields();
-      return;
-    }
-    if (query.data) {
-      form.setFieldsValue({
-        name: query.data.filename,
-        content: query.data.content,
-      });
-    }
-  }, [open, query.data, form]);
-
-  useEffect(() => {
-    if (open && query.isError) {
-      message.error(apiError(query.error, "无法读取预设"));
-    }
-  }, [open, query.isError, query.error]);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const values = await form.validateFields();
-      return saveMinecraftModToolPreset(toolId, presetId, {
-        content: values.content,
-        restore: false,
-      });
-    },
-    onSuccess: (res) => {
-      form.setFieldsValue({ name: res.filename, content: res.content });
-      void queryClient.invalidateQueries({
-        queryKey: ["minecraft-mod-preset", toolId, presetId],
-      });
-      message.success("已保存草稿，尚未写入服务器");
-      onClose();
-    },
-    onError: (e: unknown) => message.error(apiError(e, "保存草稿失败")),
-  });
-  const restore = useMutation({
-    mutationFn: () =>
-      saveMinecraftModToolPreset(toolId, presetId, { restore: true }),
-    onSuccess: (res) => {
-      form.setFieldsValue({ name: res.filename, content: res.content });
-      void queryClient.invalidateQueries({
-        queryKey: ["minecraft-mod-preset", toolId, presetId],
-      });
-      message.success("已恢复出厂模板");
-    },
-    onError: (e: unknown) => message.error(apiError(e, "恢复出厂失败")),
-  });
-
-  const source = query.data?.source === "draft" ? "草稿" : "出厂";
-  return (
-    <MinecraftTextFileFormModal
-      open={open}
-      title={`编辑预设 · ${title}（${source}）`}
-      nameDisabled
-      confirmLoading={save.isPending || query.isFetching}
-      form={form}
-      extra={
-        <Button
-          onClick={() => restore.mutate()}
-          loading={restore.isPending}
-          disabled={save.isPending}
-        >
-          恢复出厂
-        </Button>
-      }
-      onCancel={onClose}
-      onOk={() => save.mutate()}
-    />
-  );
-}
 
 export function MinecraftModToolCard({
   tool,
@@ -358,31 +263,15 @@ export function MinecraftModToolCard({
 }) {
   const queryClient = useQueryClient();
   const catalog = tool.catalog;
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [editorPath, setEditorPath] = useState<string | null>(null);
-  const presets = tool.presets || [];
-  const [activePresetId, setActivePresetId] = useState(presets[0]?.id || "");
-  const [presetEditorOpen, setPresetEditorOpen] = useState(false);
   const [installMode, setInstallMode] = useState<"install" | "change" | null>(
     null,
   );
   const [expanded, setExpanded] = useState(() =>
     readModToolExpanded(tool.id, Boolean(tool.present)),
   );
-  const activePreset =
-    presets.find((row) => row.id === activePresetId) || presets[0] || null;
+  const [expandAnimating, setExpandAnimating] = useState(false);
+  const expandTimer = useRef<number>(0);
 
-  const preset = useMutation({
-    mutationFn: (presetId: string) =>
-      applyMinecraftModToolPreset(tool.id, presetId),
-    onSuccess: (res) => {
-      message.success(res.message);
-      queryClient.invalidateQueries({ queryKey: ["minecraft-mod-tools"] });
-    },
-    onError: (e: unknown) => message.error(apiError(e, "写入配置失败")),
-  });
-
-  const busy = preset.isPending;
   const present = Boolean(tool.present);
   const open = present && expanded;
 
@@ -390,11 +279,23 @@ export function MinecraftModToolCard({
     setExpanded(readModToolExpanded(tool.id, present));
   }, [tool.id, present]);
 
+  useEffect(
+    () => () => {
+      window.clearTimeout(expandTimer.current);
+    },
+    [],
+  );
+
   const toggleExpanded = () => {
     if (!present) return;
     const next = !expanded;
+    setExpandAnimating(true);
     setExpanded(next);
     saveModToolExpanded(tool.id, next);
+    window.clearTimeout(expandTimer.current);
+    expandTimer.current = window.setTimeout(() => {
+      setExpandAnimating(false);
+    }, 240);
   };
 
   const canCommand = Boolean(present && tool.loaded && data.rcon_configured);
@@ -415,17 +316,6 @@ export function MinecraftModToolCard({
     return [...new Set([...(data.worlds || []), ...extra].filter(Boolean))];
   }, [data.worlds]);
 
-  const openConfig = async () => {
-    const root = tool.config_directory || "";
-    if (!root) {
-      message.error("该模组未声明配置目录");
-      return;
-    }
-    const next = await openConfigFiles(root);
-    if (next.kind === "edit") setEditorPath(next.path);
-    else setBrowseOpen(true);
-  };
-
   return (
     <Card
       className={[
@@ -436,7 +326,11 @@ export function MinecraftModToolCard({
         .filter(Boolean)
         .join(" ")}
     >
-      <div className={styles.cardHead}>
+      <div
+        className={[styles.cardHead, open ? styles.cardHeadOpen : ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <div
           className={styles.toggle}
           role={present ? "button" : undefined}
@@ -473,146 +367,105 @@ export function MinecraftModToolCard({
               {loaderTag}
               {versionTag}
             </div>
-            <div className={styles.summary}>{tool.summary}</div>
+            {tool.summary ? (
+              <div className={styles.summary}>{tool.summary}</div>
+            ) : null}
           </div>
         </div>
-        <div className={styles.headActions}>
-          {!present && data.pelican_configured && hasCap(tool, "install") ? (
-            <Button
-              size="small"
-              type="primary"
-              onClick={() => setInstallMode("install")}
-            >
-              安装模组
-            </Button>
-          ) : null}
-          {present && data.pelican_configured && hasCap(tool, "install") ? (
-            <Button size="small" onClick={() => setInstallMode("change")}>
-              修改版本
-            </Button>
-          ) : null}
+        <div className={styles.headRight}>
+          {present && open ? <ToolLinks tool={tool} /> : null}
+          <div className={styles.headActions}>
+            {!present && data.pelican_configured && hasCap(tool, "install") ? (
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => setInstallMode("install")}
+              >
+                安装模组
+              </Button>
+            ) : null}
+            {present && data.pelican_configured && hasCap(tool, "install") ? (
+              <Button size="small" onClick={() => setInstallMode("change")}>
+                修改版本
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {open ? (
-        <>
-          <ToolLinks tool={tool} />
-          <div className={styles.alerts}>
-            {catalog?.message ? (
-              <Alert type="warning" showIcon message={catalog.message} />
-            ) : null}
-          </div>
+      {present ? (
+        <div
+          className={[
+            styles.expand,
+            open ? styles.expandOpen : "",
+            expandAnimating ? styles.expandAnimating : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <div
+            className={styles.expandInner}
+            aria-hidden={!open}
+            {...(!open ? ({ inert: "" } as object) : {})}
+          >
+            <div className={styles.alerts}>
+              {catalog?.message ? (
+                <Alert type="warning" showIcon message={catalog.message} />
+              ) : null}
+            </div>
 
-          {hasCap(tool, "config") && tool.config_directory ? (
-            <div className={styles.section}>
-              <div className={styles.sectionHead}>
-                <div className={styles.sectionTitle}>配置文件</div>
-                <Space wrap>
-                  <Button
-                    disabled={!data.pelican_configured}
-                    onClick={() => void openConfig()}
-                  >
-                    编辑配置
-                  </Button>
-                  {presets.length > 1 ? (
-                    <Select
-                      value={activePreset?.id}
-                      onChange={setActivePresetId}
-                      options={presets.map((row) => ({
-                        value: row.id,
-                        label: row.title,
-                      }))}
-                      style={{ minWidth: 140 }}
-                    />
-                  ) : null}
-                  {activePreset ? (
-                    <>
-                      <Button
-                        disabled={busy}
-                        onClick={() => setPresetEditorOpen(true)}
-                      >
-                        编辑预设
-                      </Button>
-                      <Popconfirm
-                        title={`写入「${activePreset.title}」会覆盖服上主配置文件`}
-                        description="不会改 tasks 等运行时目录。没有草稿时用出厂模板。"
-                        okText="写入"
-                        cancelText="返回"
-                        disabled={!data.pelican_configured || busy}
-                        onConfirm={() => preset.mutate(activePreset.id)}
-                      >
-                        <Button
-                          loading={preset.isPending}
-                          disabled={!data.pelican_configured || busy}
-                        >
-                          写入预设
-                        </Button>
-                      </Popconfirm>
-                    </>
-                  ) : null}
-                </Space>
+            {hasCap(tool, "config") ? (
+              <div className={styles.section}>
+                <MinecraftModPresetSection
+                  toolId={tool.id}
+                  toolTitle={tool.title}
+                  pelicanConfigured={Boolean(data.pelican_configured)}
+                  enabled={open}
+                />
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {hasCap(tool, "commands") ? (
-            <div className={styles.section}>
-              {!data.rcon_configured ? (
-                <Alert
-                  className={styles.commandAlert}
-                  type="warning"
-                  showIcon
-                  message={
-                    <span>
-                      尚未配置 RCON，无法发送指令。{" "}
-                      <Link to="/settings/integrations">去集成密钥</Link>
-                    </span>
-                  }
+            {hasCap(tool, "commands") ? (
+              <div className={styles.section}>
+                {!data.rcon_configured ? (
+                  <Alert
+                    className={styles.commandAlert}
+                    type="warning"
+                    showIcon
+                    message={
+                      <span>
+                        尚未配置 RCON，无法发送指令。{" "}
+                        <Link to="/settings/integrations">去集成密钥</Link>
+                      </span>
+                    }
+                  />
+                ) : null}
+                {data.rcon_configured && !tool.loaded ? (
+                  <Alert
+                    className={styles.commandAlert}
+                    type="info"
+                    showIcon
+                    message="找到了模组文件，但当前命令不可用。通常是服未开、模组还没进进程，或 RCON 没连上。"
+                  />
+                ) : null}
+                <CommandBar
+                  tool={tool}
+                  worlds={worlds}
+                  maps={data.bluemap?.maps || []}
+                  disabled={!canCommand}
                 />
-              ) : null}
-              {data.rcon_configured && !tool.loaded ? (
-                <Alert
-                  className={styles.commandAlert}
-                  type="info"
-                  showIcon
-                  message="找到了模组文件，但当前命令不可用。通常是服未开、模组还没进进程，或 RCON 没连上。"
-                />
-              ) : null}
-              <CommandBar
-                tool={tool}
-                worlds={worlds}
-                disabled={!canCommand}
-              />
-            </div>
-          ) : null}
+              </div>
+            ) : null}
 
-          {tool.id === "chunky" ? (
-            <div className={styles.section}>
-              <MinecraftChunkyWorkspace data={data} canCommand={canCommand} />
-            </div>
-          ) : null}
-        </>
+            <MinecraftModFeatures
+              tool={tool}
+              data={data}
+              canCommand={canCommand}
+            />
+          </div>
+        </div>
       ) : null}
 
-      <MinecraftConfigFilesModal
-        open={browseOpen}
-        root={tool.config_directory || "/"}
-        title={`${tool.title} 配置`}
-        onClose={() => setBrowseOpen(false)}
-      />
-      <MinecraftPathFileEditor
-        path={editorPath}
-        onClose={() => setEditorPath(null)}
-      />
-      {activePreset ? (
-        <PresetEditor
-          toolId={tool.id}
-          presetId={activePreset.id}
-          title={activePreset.title}
-          open={presetEditorOpen}
-          onClose={() => setPresetEditorOpen(false)}
-        />
-      ) : null}
       <MinecraftModToolInstallModal
         tool={tool}
         mode={installMode}

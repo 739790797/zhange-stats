@@ -22,7 +22,8 @@ import {
   type MinecraftModTools,
 } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
-import styles from "./MinecraftChunkyWorkspace.module.css";
+import type { MinecraftModFeature } from "@/api/minecraftApi";
+import styles from "./MinecraftModFeature.module.css";
 
 const SHAPE_OPTIONS = [
   { value: "square", label: "正方形" },
@@ -54,9 +55,11 @@ function formatCount(n?: number | null) {
 export function MinecraftChunkyWorkspace({
   data,
   canCommand,
+  feature,
 }: {
   data: MinecraftModTools;
   canCommand: boolean;
+  feature?: MinecraftModFeature;
 }) {
   const queryClient = useQueryClient();
   const status = data.chunky;
@@ -133,9 +136,12 @@ export function MinecraftChunkyWorkspace({
     <>
       <div className={styles.workspace}>
         <section>
-          <div className={styles.paneTitle}>生成范围</div>
+          <div className={styles.paneTitle}>
+            {feature?.title || "生成范围"}
+          </div>
           <p className={styles.hint}>
-            半径按方块计。500 大约覆盖 1000×1000 区域，过程可随时暂停，进度会保留。
+            {feature?.summary ||
+              "半径按方块计。500 大约覆盖 1000×1000 区域，过程可随时暂停，进度会保留。"}
           </p>
           <div className={styles.grid}>
             <div className={styles.field}>
