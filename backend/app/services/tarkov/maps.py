@@ -72,12 +72,26 @@ query MapMarkers($lang: LanguageCode, $gameMode: GameMode) {
         positions { x y z }
       }
     }
+    spawns {
+      zoneName
+      categories
+      sides
+      position { x y z }
+    }
   }
 }
 """.strip()
 
+# 对齐 tarkov.dev map/index.jsx Spawns：PMC / Scav（Boss 用 bosses.locations）。
+SPAWN_KINDS = ("pmc", "scav")
+
 _MARKER_TTL_SEC = 3600
+_MARKER_CACHE_VER = "spawns-v1"
 _marker_cache: dict[str, dict[str, Any]] = {}
+
+
+def _marker_cache_key(mode: str) -> str:
+    return f"{mode}:{_MARKER_CACHE_VER}"
 
 # tarkov.dev /maps/{slug}_thumb.jpg 已被 SPA 路由吞成 HTML；改用 assets 上的 svg/瓦片。
 MAP_THUMB_ASSETS: dict[str, str] = {
@@ -266,6 +280,53 @@ def _boss_locations(spawn: dict[str, Any], locale: dict[str, Any]) -> list[dict[
     return out
 
 
+def classify_map_spawn(spawn: dict[str, Any]) -> str | None:
+    """把 GraphQL MapSpawn 归到 pmc / scav；boss / sniper 等由其它图层处理。"""
+    categories = {
+        str(item).strip().lower()
+        for item in (spawn.get("categories") or [])
+        if item is not None and str(item).strip()
+    }
+    sides = {
+        str(item).strip().lower()
+        for item in (spawn.get("sides") or [])
+        if item is not None and str(item).strip()
+    }
+    if "boss" in categories:
+        return None
+    if "player" in categories and ("pmc" in sides or "all" in sides):
+        return "pmc"
+    if "sniper" in categories:
+        return None
+    if "scav" in sides and ("bot" in categories or "all" in categories):
+        return "scav"
+    return None
+
+
+def _parse_map_spawns(rows: list[Any] | None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for spawn in rows or []:
+        if not isinstance(spawn, dict):
+            continue
+        kind = classify_map_spawn(spawn)
+        if kind not in SPAWN_KINDS:
+            continue
+        point = map_xyz(spawn.get("position") if "position" in spawn else spawn)
+        if not point:
+            continue
+        out.append(
+            {
+                "kind": kind,
+                "zone_name": str(spawn.get("zoneName") or spawn.get("zone_name") or ""),
+                "x": point["x"],
+                "y": point["y"],
+                "z": point["z"],
+            }
+        )
+    out.sort(key=lambda r: (str(r.get("kind") or ""), float(r.get("z") or 0), float(r.get("x") or 0)))
+    return out
+
+
 def _extracts_have_coords(extracts: list[dict[str, Any]]) -> bool:
     return any(
         row.get("x") is not None and row.get("z") is not None
@@ -296,10 +357,27 @@ def _transit_coords_missing(extracts: list[dict[str, Any]]) -> bool:
     )
 
 
+def _bosses_need_coords(bosses: list[Any]) -> bool:
+    if not bosses:
+        return False
+    for boss in bosses:
+        if not isinstance(boss, dict):
+            continue
+        locs = boss.get("locations") if isinstance(boss.get("locations"), list) else []
+        if not locs:
+            return True
+        if not any(
+            isinstance(loc, dict) and loc.get("positions") for loc in locs
+        ):
+            return True
+    return False
+
+
 def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
     now = time.time()
     mode = parse_game_mode()
-    entry = _marker_cache.get(mode) or {"at": 0.0, "by_slug": {}}
+    key = _marker_cache_key(mode)
+    entry = _marker_cache.get(key) or {"at": 0.0, "by_slug": {}}
     cached = entry.get("by_slug")
     if isinstance(cached, dict) and cached and now - float(entry.get("at") or 0) < _MARKER_TTL_SEC:
         return cached
@@ -331,7 +409,7 @@ def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
         slug = str(row.get("normalizedName") or "").strip()
         if slug:
             by_slug[slug] = row
-    _marker_cache[mode] = {"at": now, "by_slug": by_slug}
+    _marker_cache[key] = {"at": now, "by_slug": by_slug}
     return by_slug
 
 
@@ -352,10 +430,21 @@ def _apply_graphql_markers(
     locale: dict[str, Any] | None = None,
 ) -> None:
     extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
+    bosses = row.get("bosses") if isinstance(row.get("bosses"), list) else []
     need_coords = not _extracts_have_coords(extracts)
     need_transits = _transits_missing(extracts)
     need_transit_coords = _transit_coords_missing(extracts)
-    if not need_coords and not need_transits and not need_transit_coords:
+    need_boss_coords = _bosses_need_coords(bosses)
+    need_spawns = not (
+        isinstance(row.get("spawns"), list) and len(row.get("spawns") or []) > 0
+    )
+    if (
+        not need_coords
+        and not need_transits
+        and not need_transit_coords
+        and not need_boss_coords
+        and not need_spawns
+    ):
         return
     try:
         by_slug = _graphql_map_markers()
@@ -411,22 +500,26 @@ def _apply_graphql_markers(
         seen = {str(item.get("name") or "") for item in extracts if isinstance(item, dict)}
         _append_transits(extracts, gql_transits, locale or {}, seen)
         extracts.sort(key=lambda r: (str(r.get("faction") or ""), str(r.get("name") or "")))
-    gql_bosses = extra.get("bosses") if isinstance(extra.get("bosses"), list) else []
-    gql_by_slug = {
-        str(item.get("normalizedName") or ""): item
-        for item in gql_bosses
-        if isinstance(item, dict) and item.get("normalizedName")
-    }
-    for boss in row.get("bosses") or []:
-        if not isinstance(boss, dict):
-            continue
-        locs = boss.get("locations") if isinstance(boss.get("locations"), list) else []
-        if any(loc.get("positions") for loc in locs if isinstance(loc, dict)):
-            continue
-        src = gql_by_slug.get(str(boss.get("slug") or ""))
-        if not src:
-            continue
-        boss["locations"] = _boss_locations(src, locale or {})
+    if need_boss_coords:
+        gql_bosses = extra.get("bosses") if isinstance(extra.get("bosses"), list) else []
+        gql_by_slug = {
+            str(item.get("normalizedName") or ""): item
+            for item in gql_bosses
+            if isinstance(item, dict) and item.get("normalizedName")
+        }
+        for boss in bosses:
+            if not isinstance(boss, dict):
+                continue
+            locs = boss.get("locations") if isinstance(boss.get("locations"), list) else []
+            if any(loc.get("positions") for loc in locs if isinstance(loc, dict)):
+                continue
+            src = gql_by_slug.get(str(boss.get("slug") or ""))
+            if not src:
+                continue
+            boss["locations"] = _boss_locations(src, locale or {})
+    if need_spawns:
+        gql_spawns = extra.get("spawns") if isinstance(extra.get("spawns"), list) else []
+        row["spawns"] = _parse_map_spawns(gql_spawns)
 
 
 def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -463,6 +556,7 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "parent_slug": VARIANT_PARENT.get(slug, ""),
                 "extracts": _extracts(raw, locale),
                 "bosses": _map_bosses(raw, mobs, locale),
+                "spawns": _parse_map_spawns(raw.get("spawns")),
             }
         )
     rows.sort(key=lambda r: (str(r.get("name") or ""), str(r.get("slug") or "")))

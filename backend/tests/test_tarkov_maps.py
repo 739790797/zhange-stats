@@ -9,6 +9,8 @@ from app.services.tarkov.maps import (
     HUB_SKIP,
     _apply_graphql_markers,
     _marker_cache,
+    _marker_cache_key,
+    classify_map_spawn,
     parse_map_rows,
     resolve_map_slug,
 )
@@ -147,7 +149,7 @@ def test_parse_map_rows_keeps_extract_and_boss_coords() -> None:
 
 def test_apply_graphql_markers_fills_missing_coords() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
-    _marker_cache["pvp"] = {
+    _marker_cache[_marker_cache_key("pvp")] = {
         "at": time.time(),
         "by_slug": {
             "factory": {
@@ -191,7 +193,7 @@ def test_apply_graphql_markers_appends_transits_when_coords_exist() -> None:
     for row in factory["extracts"]:
         row["x"] = 1
         row["z"] = 2
-    _marker_cache["pvp"] = {
+    _marker_cache[_marker_cache_key("pvp")] = {
         "at": time.time(),
         "by_slug": {
             "factory": {
@@ -226,7 +228,7 @@ def test_apply_graphql_markers_fills_existing_transit_coords() -> None:
         ],
         "bosses": [],
     }
-    _marker_cache["pvp"] = {
+    _marker_cache[_marker_cache_key("pvp")] = {
         "at": time.time(),
         "by_slug": {
             "factory": {
@@ -254,3 +256,92 @@ def test_apply_graphql_markers_fills_existing_transit_coords() -> None:
     assert transit["x"] == 8
     assert transit["z"] == 9
     assert transit["faction"] == "转图"
+
+
+def test_classify_map_spawn_pmc_scav_and_skip_boss() -> None:
+    assert (
+        classify_map_spawn(
+            {
+                "categories": ["player"],
+                "sides": ["pmc"],
+                "position": {"x": 1, "y": 0, "z": 2},
+            }
+        )
+        == "pmc"
+    )
+    assert (
+        classify_map_spawn(
+            {
+                "categories": ["bot"],
+                "sides": ["scav"],
+                "position": {"x": 1, "y": 0, "z": 2},
+            }
+        )
+        == "scav"
+    )
+    assert (
+        classify_map_spawn(
+            {
+                "categories": ["boss"],
+                "sides": ["scav"],
+                "position": {"x": 1, "y": 0, "z": 2},
+            }
+        )
+        is None
+    )
+    assert (
+        classify_map_spawn(
+            {
+                "categories": ["sniper"],
+                "sides": ["scav"],
+                "position": {"x": 1, "y": 0, "z": 2},
+            }
+        )
+        is None
+    )
+
+
+def test_apply_graphql_markers_fills_spawns_when_extracts_complete() -> None:
+    factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
+    for row in factory["extracts"]:
+        row["x"] = 1
+        row["z"] = 2
+    assert factory["spawns"] == []
+    _marker_cache[_marker_cache_key("pvp")] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "extracts": [],
+                "transits": [],
+                "bosses": [],
+                "spawns": [
+                    {
+                        "zoneName": "ZoneA",
+                        "categories": ["player"],
+                        "sides": ["pmc"],
+                        "position": {"x": 11, "y": 0, "z": 22},
+                    },
+                    {
+                        "zoneName": "ZoneB",
+                        "categories": ["bot"],
+                        "sides": ["scav"],
+                        "position": {"x": 33, "y": 0, "z": 44},
+                    },
+                    {
+                        "zoneName": "BossZone",
+                        "categories": ["boss"],
+                        "sides": ["scav"],
+                        "position": {"x": 55, "y": 0, "z": 66},
+                    },
+                ],
+            }
+        },
+    }
+    _apply_graphql_markers(factory, {})
+    kinds = {row["kind"] for row in factory["spawns"]}
+    assert kinds == {"pmc", "scav"}
+    pmc = next(row for row in factory["spawns"] if row["kind"] == "pmc")
+    assert pmc["x"] == 11
+    assert pmc["z"] == 22
+    assert pmc["zone_name"] == "ZoneA"

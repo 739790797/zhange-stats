@@ -459,14 +459,18 @@ def guides_tarkov_raid_prep(
     types: str | None = Query(default=None, max_length=200),
     progress: bool = Query(default=False),
     progress_status: str | None = Query(default=None, max_length=16),
+    geometry: bool = Query(default=False),
+    ids: str | None = Query(default=None, max_length=1200),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """战局准备：按地图列出相关任务，含目标区域 / 刷新点。"""
+    """战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。"""
+    want_progress = bool(progress) or bool((progress_status or "").strip())
     bound, snap = False, None
-    if progress or (progress_status or "").strip():
+    if want_progress:
         bound, snap = tracker_svc.user_progress_snapshot(db, user)
     type_list = _parse_csv_ids(types)
+    id_list = _parse_csv_ids(ids)[:40]
     try:
         result = tasks_svc.list_raid_prep(
             db,
@@ -475,9 +479,11 @@ def guides_tarkov_raid_prep(
             kappa=kappa,
             q=q,
             types=type_list or None,
-            progress=snap if progress else None,
-            progress_status=progress_status if progress and snap else None,
-            progress_bound=bound if progress else False,
+            progress=snap if want_progress else None,
+            progress_status=progress_status if want_progress and snap else None,
+            progress_bound=bound if want_progress else False,
+            geometry=bool(geometry),
+            task_ids=id_list or None,
         )
     except tasks_svc.TarkovTasksError as exc:
         msg = str(exc)

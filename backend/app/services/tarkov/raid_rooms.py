@@ -215,6 +215,21 @@ def _active_member_count(db: Session, room_id: int) -> int:
     )
 
 
+def _active_member_counts(db: Session, room_ids: list[int]) -> dict[int, int]:
+    if not room_ids:
+        return {}
+    rows = (
+        db.query(TarkovRaidRoomMember.room_id, func.count())
+        .filter(
+            TarkovRaidRoomMember.room_id.in_(room_ids),
+            TarkovRaidRoomMember.left_at.is_(None),
+        )
+        .group_by(TarkovRaidRoomMember.room_id)
+        .all()
+    )
+    return {int(rid): int(cnt) for rid, cnt in rows}
+
+
 def _host_live_count(db: Session, user_id: int) -> int:
     return int(
         db.query(func.count())
@@ -355,6 +370,7 @@ def serialize_lobby_item(
     room: TarkovRaidRoom,
     *,
     is_member: bool = False,
+    member_count: int | None = None,
 ) -> dict[str, Any]:
     return {
         "public_id": room.public_id,
@@ -363,7 +379,11 @@ def serialize_lobby_item(
         "status": room.status,
         "host_user_id": room.host_user_id,
         "host_display_name": room.host_display_name,
-        "member_count": _active_member_count(db, room.id),
+        "member_count": (
+            int(member_count)
+            if member_count is not None
+            else _active_member_count(db, room.id)
+        ),
         "max_members": MAX_MEMBERS,
         "is_member": bool(is_member),
         "created_at": _iso(room.created_at),
@@ -436,6 +456,7 @@ def list_live_rooms(
     map_slug: str | None = None,
     now: datetime | None = None,
     viewer: User | None = None,
+    mine_only: bool = True,
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
     archive_expired_rooms(db, now=stamp)
@@ -445,9 +466,18 @@ def list_live_rooms(
         query = query.filter(TarkovRaidRoom.map_slug == slug)
     rows = query.order_by(TarkovRaidRoom.created_at.desc()).limit(80).all()
     mine = _live_member_room_ids(db, viewer.id) if viewer is not None else set()
+    if mine_only:
+        rows = [row for row in rows if int(row.id) in mine]
+    counts = _active_member_counts(db, [int(row.id) for row in rows])
     return {
         "items": [
-            serialize_lobby_item(db, row, is_member=row.id in mine) for row in rows
+            serialize_lobby_item(
+                db,
+                row,
+                is_member=row.id in mine,
+                member_count=counts.get(int(row.id), 0),
+            )
+            for row in rows
         ]
     }
 
@@ -507,6 +537,28 @@ def join_room(
     return serialize_room(db, room, viewer=user), joined_now
 
 
+def can_user_edit_room(
+    db: Session,
+    public_id: str,
+    user: User,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """轻量：是否仍可编辑（live + 在房）。供 WS draft 等高频路径。"""
+    stamp = to_naive(now or now_naive())
+    try:
+        room = _get_room(db, public_id)
+    except RaidRoomError:
+        return False
+    if _ensure_current(room, stamp):
+        db.flush()
+        return False
+    if room.status != STATUS_LIVE:
+        return False
+    row = _member(db, room.id, user.id)
+    return row is not None and row.left_at is None
+
+
 def leave_room(
     db: Session,
     public_id: str,
@@ -560,6 +612,15 @@ def claim_task(
     _require_live(room)
     _require_active_member(db, room, user)
     tid = _task_id(task_id)
+    allowed = None
+    try:
+        from app.services.tarkov.tasks import raid_prep_task_ids_for_map
+
+        allowed = raid_prep_task_ids_for_map(db, room.map_slug)
+    except Exception:  # noqa: BLE001
+        allowed = None
+    if allowed is not None and tid not in allowed:
+        raise RaidRoomError("任务不属于本地图")
     existing = (
         db.query(TarkovRaidRoomTaskClaim)
         .filter(
@@ -597,6 +658,37 @@ def claim_task(
         )
         db.flush()
         added = True
+    return serialize_room(db, room, viewer=user), added
+
+
+def claim_tasks(
+    db: Session,
+    public_id: str,
+    user: User,
+    task_ids: list[str],
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], int]:
+    """批量认领；已在板上的任务可加入，新任务仍受 40 上限。"""
+    added = 0
+    seen: set[str] = set()
+    for raw in task_ids:
+        try:
+            tid = _task_id(raw)
+        except RaidRoomError:
+            continue
+        if tid in seen:
+            continue
+        seen.add(tid)
+        try:
+            _data, was = claim_task(db, public_id, user, tid, now=now)
+        except RaidRoomError as exc:
+            if exc.status_code == 409 and "已满" in exc.message:
+                continue
+            raise
+        if was:
+            added += 1
+    room = _get_room(db, public_id)
     return serialize_room(db, room, viewer=user), added
 
 

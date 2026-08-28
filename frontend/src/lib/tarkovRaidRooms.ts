@@ -3,6 +3,23 @@ import { colorForUserId } from "@/lib/tarkovRaidPrep";
 
 export { tarkovRaidRoomHref, colorForUserId };
 
+export function parseRaidRoomPublicId(raw: string): string {
+  const text = (raw || "").trim();
+  if (!text) return "";
+  const fromPath = text.match(/raid-prep\/rooms\/([a-zA-Z0-9]+)/i);
+  if (fromPath?.[1] && /^[a-f0-9]{12}$/i.test(fromPath[1])) {
+    return fromPath[1].toLowerCase();
+  }
+  if (/^[a-f0-9]{12}$/i.test(text)) return text.toLowerCase();
+  return "";
+}
+
+/** WS 断线后指数退避，上限 30 秒。 */
+export function raidRoomWsRetryDelayMs(attempt: number): number {
+  const n = Number.isFinite(attempt) ? Math.max(0, Math.trunc(attempt)) : 0;
+  return Math.min(30_000, 1000 * 2 ** n);
+}
+
 export const RAID_ROOM_OTHER_FLOOR_OPACITY = 0.28;
 
 export type RaidRoomClaimLike = {

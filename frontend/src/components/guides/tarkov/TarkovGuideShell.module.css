@@ -8,11 +8,12 @@
   --hb-green: #7ab648;
   --hb-text: #eee9d6;
   --hb-muted: #b0ae9a;
-  --hb-mono: "IBM Plex Mono", "Cascadia Mono", "Consolas", "Courier New",
-    monospace;
-  --hb-sans: "IBM Plex Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
-  --hb-display: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --hb-mono: "IBM Plex Mono", "Noto Sans SC", "Microsoft YaHei",
+    "PingFang SC", "Cascadia Mono", "Consolas", monospace;
+  --hb-sans: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", "PingFang SC",
+    "Segoe UI", sans-serif;
+  --hb-display: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei",
+    "PingFang SC", sans-serif;
 
   margin: 0;
   padding: 0;
@@ -21,6 +22,7 @@
   background: var(--hb-bg);
   color: var(--hb-text);
   font-family: var(--hb-sans);
+  font-synthesis: none;
   box-sizing: border-box;
   position: relative;
   z-index: 5;

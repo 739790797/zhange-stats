@@ -485,13 +485,6 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
     keywords: ["tasks", "quests"],
   },
   {
-    id: "raid-prep",
-    label: "战局准备",
-    href: TARKOV_RAID_PREP_PATH,
-    status: "ready",
-    keywords: ["raid", "prep", "战局", "准备", "点位", "zones"],
-  },
-  {
     id: "hideout",
     label: "藏身处",
     href: TARKOV_HIDEOUT_PATH,

@@ -2605,6 +2605,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms/{public_id}/claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Tarkov Raid Room Tasks */
+        post: operations["claim_tarkov_raid_room_tasks_api_guides_tarkov_raid_rooms__public_id__claims_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-rooms/{public_id}/marks": {
         parameters: {
             query?: never;
@@ -2902,7 +2919,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Prep
-         * @description 战局准备：按地图列出相关任务，含目标区域 / 刷新点。
+         * @description 战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。
          */
         get: operations["guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get"];
         put?: never;
@@ -9935,6 +9952,8 @@ export interface components {
             extracts?: components["schemas"]["TarkovMapExtractOut"][];
             /** Bosses */
             bosses?: components["schemas"]["TarkovMapBossOut"][];
+            /** Spawns */
+            spawns?: components["schemas"]["TarkovMapSpawnOut"][];
             /** Variants */
             variants?: components["schemas"]["TarkovMapVariantOut"][];
             /** Source */
@@ -10019,6 +10038,31 @@ export interface components {
         };
         /** TarkovMapPointOut */
         TarkovMapPointOut: {
+            /** X */
+            x: number;
+            /**
+             * Y
+             * @default 0
+             */
+            y: number;
+            /** Z */
+            z: number;
+        };
+        /**
+         * TarkovMapSpawnOut
+         * @description PMC / Scav 出生点；Boss 仍走 bosses.locations。
+         */
+        TarkovMapSpawnOut: {
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /**
+             * Zone Name
+             * @default
+             */
+            zone_name: string;
             /** X */
             x: number;
             /**
@@ -10191,6 +10235,11 @@ export interface components {
             display_name: string;
             /** Created At */
             created_at?: string | null;
+        };
+        /** TarkovRaidRoomClaimsIn */
+        TarkovRaidRoomClaimsIn: {
+            /** Task Ids */
+            task_ids?: string[];
         };
         /** TarkovRaidRoomCreateIn */
         TarkovRaidRoomCreateIn: {
@@ -16698,6 +16747,7 @@ export interface operations {
         parameters: {
             query?: {
                 map?: string | null;
+                mine?: boolean;
             };
             header?: never;
             path?: never;
@@ -16925,6 +16975,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_tarkov_raid_room_tasks_api_guides_tarkov_raid_rooms__public_id__claims_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomClaimsIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -17456,6 +17541,8 @@ export interface operations {
                 types?: string | null;
                 progress?: boolean;
                 progress_status?: string | null;
+                geometry?: boolean;
+                ids?: string | null;
                 /** @description PVP（regular）或 PVE */
                 game_mode?: string;
             };

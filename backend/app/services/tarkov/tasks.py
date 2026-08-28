@@ -225,6 +225,8 @@ MAP_SLUG_EQUIV_GROUPS: tuple[tuple[str, ...], ...] = (
 
 _parsed_lock = threading.Lock()
 _parsed_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
+# cache_key:canon_map → (map_name, rows)；与 _parsed_cache 同锁、同次 sync 清空
+_raid_prep_cache: dict[str, tuple[str, list[dict[str, Any]]]] = {}
 
 
 class TarkovTasksError(Exception):
@@ -342,19 +344,33 @@ def _id_of(value: Any) -> str:
     return str(value).strip()
 
 
+_GARBLED_NAME_RE = re.compile(r"^[?？�\s]+$")
+
+
+def _is_garbled_name(name: str) -> bool:
+    """BSG / tarkov.dev 中文 locale 缺译时常写成 ????，不能当名称。"""
+    n = (name or "").strip()
+    return bool(n) and _GARBLED_NAME_RE.fullmatch(n) is not None
+
+
 def _locale_lookup(locale: dict[str, Any], *keys: str) -> str:
     for key in keys:
         if not key:
             continue
         val = locale.get(key)
-        if val is not None and str(val).strip():
-            return str(val).strip()
+        if val is None:
+            continue
+        text = str(val).strip()
+        if text and not _is_garbled_name(text):
+            return text
     return ""
 
 
 def _is_placeholder_name(task_id: str, name: str) -> bool:
     n = (name or "").strip()
     if not n:
+        return True
+    if _is_garbled_name(n):
         return True
     ident = (task_id or "").strip()
     if ident and n == ident:
@@ -1566,6 +1582,7 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
     global _parsed_cache
     with _parsed_lock:
         _parsed_cache = None
+        _raid_prep_cache.clear()
     return {
         "task_count": len(rows),
         "source": bundle.source,
@@ -1737,11 +1754,93 @@ def task_has_map_markers(detail: dict[str, Any], map_slug: str) -> bool:
     return False
 
 
+def canonical_raid_map_slug(map_slug: str) -> str:
+    """把短 id / 等价 slug 归一到 MAP_BY_ID 主 slug；未知则返回小写原值。"""
+    keys, ids = map_match_keys(map_slug)
+    for mid, (slug, _name) in MAP_BY_ID.items():
+        if slug in keys or mid in ids:
+            return slug
+    return (map_slug or "").strip().lower()
+
+
+def crop_raid_prep_detail_for_map(
+    detail: dict[str, Any],
+    map_slug: str,
+) -> dict[str, Any]:
+    """按所选图裁剪 objectives / zones / needed_keys，缩小响应体。"""
+    keys, ids = map_match_keys(map_slug)
+    if not keys and not ids:
+        return detail
+    objectives_out: list[dict[str, Any]] = []
+    for obj in detail.get("objectives") or []:
+        if not isinstance(obj, dict):
+            continue
+        raw_maps = [m for m in (obj.get("maps") or []) if isinstance(m, dict)]
+        raw_zones = [z for z in (obj.get("zones") or []) if isinstance(z, dict)]
+        raw_locs = [
+            loc for loc in (obj.get("possible_locations") or []) if isinstance(loc, dict)
+        ]
+        maps = [m for m in raw_maps if _map_ref_hits(m, keys, ids)]
+        zones = [z for z in raw_zones if _map_ref_hits(z, keys, ids)]
+        locs = [loc for loc in raw_locs if _map_ref_hits(loc, keys, ids)]
+        has_any_map_ref = bool(raw_maps or raw_zones or raw_locs)
+        if has_any_map_ref and not (maps or zones or locs):
+            continue
+        objectives_out.append(
+            {
+                **obj,
+                "maps": maps if maps else ([] if has_any_map_ref else raw_maps),
+                "zones": zones,
+                "possible_locations": locs,
+            }
+        )
+    needed = _needed_keys_from_objectives(objectives_out)
+    needed = [
+        row
+        for row in needed
+        if isinstance(row, dict)
+        and (
+            _map_ref_hits(
+                row.get("map") if isinstance(row.get("map"), dict) else None,
+                keys,
+                ids,
+            )
+            or not str((row.get("map") or {}).get("id") or "").strip()
+        )
+    ]
+    type_list: list[str] = []
+    seen_types: set[str] = set()
+    for obj in objectives_out:
+        t = str(obj.get("type") or "").strip()
+        if t and t not in seen_types:
+            seen_types.add(t)
+            type_list.append(t)
+    return {
+        **detail,
+        "objectives": objectives_out,
+        "needed_keys": needed,
+        "objective_count": len(objectives_out),
+        "objective_types": type_list
+        if type_list
+        else list(detail.get("objective_types") or []),
+    }
+
+
+def strip_raid_prep_geometry(row: dict[str, Any]) -> dict[str, Any]:
+    """目录响应去掉 zone / 刷新点轮廓，保留物品与类型供总结。"""
+    objectives_out: list[dict[str, Any]] = []
+    for obj in row.get("objectives") or []:
+        if not isinstance(obj, dict):
+            continue
+        objectives_out.append({**obj, "zones": [], "possible_locations": []})
+    return {**row, "objectives": objectives_out}
+
+
 def collect_raid_prep_rows(
     payload: dict[str, Any],
     map_slug: str,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """按地图收战局准备任务；纯投影，不读库。"""
+    """按地图收战局准备任务；纯投影，不读库。目标已按图裁剪。"""
     keys, ids = map_match_keys(map_slug)
     locale = _locale_map(payload)
     quest_items = _quest_items_map(payload)
@@ -1764,6 +1863,7 @@ def collect_raid_prep_rows(
         )
         if detail is None or not task_hits_map(detail, map_slug):
             continue
+        detail = crop_raid_prep_detail_for_map(detail, map_slug)
         rows.append(
             {
                 "id": detail["id"],
@@ -1801,6 +1901,57 @@ def collect_raid_prep_rows(
     return map_name, rows
 
 
+def load_raid_prep_rows(
+    db: Session,
+    map_slug: str,
+    *,
+    ensure: bool = True,
+) -> tuple[str, str, list[dict[str, Any]], str | None, str | None, dict[str, Any]]:
+    """带按图缓存的战局准备投影；返回 source, map_name, rows, synced_at, note, payload。"""
+    if ensure:
+        ensure_tasks(db)
+    elif get_tasks_raw(db) is None:
+        raise TarkovTasksError("无任务 raw")
+    meta = get_tasks_meta(db)
+    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    key = cache_key(synced or "")
+    canon = canonical_raid_map_slug(map_slug)
+    keys, ids = map_match_keys(map_slug)
+    if not ids:
+        raise TarkovTasksError("地图无效")
+    entry_key = f"{key}:{canon}"
+    with _parsed_lock:
+        hit = _raid_prep_cache.get(entry_key)
+        if hit is not None:
+            source, payload, synced_at, note = _load_payload(db)
+            return source, hit[0], hit[1], synced_at, note, payload
+    source, payload, synced_at, note = _load_payload(db)
+    map_name, rows = collect_raid_prep_rows(payload, canon)
+    with _parsed_lock:
+        _raid_prep_cache[entry_key] = (map_name, rows)
+    return source, map_name, rows, synced_at, note, payload
+
+
+def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
+    """本地图战局准备任务 id 集合。
+
+    无本地任务 raw 时返回 None（调用方跳过校验，避免 claim 路径打上游）。
+    """
+    if get_tasks_raw(db) is None:
+        return None
+    try:
+        _source, _name, rows, _synced, _note, _payload = load_raid_prep_rows(
+            db, map_slug, ensure=False
+        )
+    except TarkovTasksError:
+        return None
+    return {
+        str(row.get("id") or "").strip()
+        for row in rows
+        if str(row.get("id") or "").strip()
+    }
+
+
 def list_raid_prep(
     db: Session,
     map_slug: str,
@@ -1812,13 +1963,32 @@ def list_raid_prep(
     progress: dict[str, Any] | None = None,
     progress_status: str | None = None,
     progress_bound: bool = False,
+    geometry: bool = False,
+    task_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     map_slug = (map_slug or "").strip()
     if not map_slug:
         raise TarkovTasksError("地图无效")
-    ensure_tasks(db)
-    source, payload, synced_at, note = _load_payload(db)
-    map_name, rows = collect_raid_prep_rows(payload, map_slug)
+    source, map_name, base_rows, synced_at, note, payload = load_raid_prep_rows(
+        db, map_slug
+    )
+    # 缓存行是共享的；注解进度前浅拷贝，避免污染缓存
+    wanted = {
+        str(item).strip()
+        for item in (task_ids or [])
+        if str(item).strip()
+    }
+    if geometry:
+        if not wanted:
+            rows = []
+        else:
+            rows = [
+                dict(row)
+                for row in base_rows
+                if str(row.get("id") or "").strip() in wanted
+            ]
+    else:
+        rows = [strip_raid_prep_geometry(dict(row)) for row in base_rows]
     if progress is not None:
         rows = annotate_task_progress(rows, progress)
         rows = _apply_requirement_progress_rows(rows, progress)
@@ -1853,7 +2023,7 @@ def list_raid_prep(
         "map_name": map_name,
         "items": ordered,
         "task_count": len(ordered),
-        "traders": unique_traders(rows),
+        "traders": unique_traders(base_rows),
         "source": source,
         "synced_at": synced_at,
         "note": note,

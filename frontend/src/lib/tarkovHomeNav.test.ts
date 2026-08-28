@@ -307,10 +307,7 @@ describe("TARKOV_TOP_NAV", () => {
       href: "/guides/tarkov/hideout",
       status: "ready",
     });
-    expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toMatchObject({
-      href: "/guides/tarkov/raid-prep",
-      status: "ready",
-    });
+    expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toBeUndefined();
     expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toMatchObject({
       href: "/guides/tarkov/loot-tiers",
       status: "ready",

@@ -36,6 +36,20 @@
   pointer-events: none;
 }
 
+/* 拖动/缩放时隐藏重文字 DivIcon，避免跟不上；点位在 overlay SVG 里仍可见 */
+.wrap.isPanning :global(.leaflet-marker-pane) .questIcon,
+.wrap.isPanning :global(.leaflet-marker-pane) .extractIcon,
+.wrap.isPanning :global(.leaflet-marker-pane) .labelIcon,
+.wrap.isPanning :global(.leaflet-marker-pane) .extractName,
+.wrap.isPanning :global(.leaflet-marker-pane) .bossName,
+.wrap.isPanning :global(.leaflet-marker-pane) .labelText {
+  visibility: hidden !important;
+}
+
+.wrap.isPanning :global(.leaflet-tooltip-pane) {
+  display: none;
+}
+
 .wrapDraw .leaflet-board-pane {
   z-index: 650;
 }
@@ -44,6 +58,18 @@
   width: 100%;
   height: 100%;
   background: #101010;
+  font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei",
+    "PingFang SC", sans-serif;
+}
+
+.wrap :global(.leaflet-container),
+.wrap :global(.leaflet-div-icon),
+.wrap :global(.leaflet-tooltip),
+.wrap :global(.leaflet-popup-content),
+.topRight,
+.filterPanel {
+  font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei",
+    "PingFang SC", sans-serif;
 }
 
 .filterPanel,
@@ -314,6 +340,7 @@
 }
 
 .extractIcon,
+.spawnIcon,
 .bossIcon,
 .labelIcon,
 .questIcon {
@@ -321,9 +348,38 @@
   border: 0;
 }
 
+.spawnIcon {
+  background: transparent !important;
+  border: 0 !important;
+}
+
 .questIcon {
-  pointer-events: none !important;
   overflow: visible !important;
+  cursor: pointer;
+}
+
+.questLabelStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  transform: translate(8px, -50%);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.questLabelRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.questLabelRow[data-on="true"] {
+  outline: 1px solid var(--hb-orange, #c8932a);
+  outline-offset: 2px;
+  background: rgba(200, 147, 42, 0.18);
 }
 
 .extractIcon {
@@ -381,6 +437,7 @@
 .bossName {
   font-size: 12px;
   font-weight: 700;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
   text-shadow:
     0 0 3px #000,
     0 1px 0 #000,
@@ -390,9 +447,6 @@
 .extractName {
   font-size: 16px;
   font-weight: 800;
-  font-family: Arial, Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif;
-  -webkit-text-stroke: 0.5px #000;
-  paint-order: stroke fill;
 }
 
 .wrap :global(.leaflet-popup-content) {
@@ -412,8 +466,35 @@
   white-space: normal;
 }
 
-.wrap :global(.leaflet-tooltip.leaflet-tooltip-top).questTooltip::before {
+.wrap :global(.leaflet-tooltip).spawnTooltip {
+  background: #1a1c16;
+  border: 1px solid #4a4d40;
+  border-radius: 6px;
+  color: #eee9d6;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.wrap :global(.leaflet-tooltip).spawnTooltip strong {
+  color: #f2eccf;
+  font-weight: 700;
+}
+
+.wrap :global(.leaflet-tooltip).spawnTooltip div {
+  color: #c8c4a8;
+  margin-top: 2px;
+}
+
+.wrap :global(.leaflet-tooltip.leaflet-tooltip-top).questTooltip::before,
+.wrap :global(.leaflet-tooltip.leaflet-tooltip-top).spawnTooltip::before {
   border-top-color: #22241a;
+}
+
+.wrap :global(.leaflet-tooltip.leaflet-tooltip-top).spawnTooltip::before {
+  border-top-color: #1a1c16;
 }
 
 .wrap :global(.leaflet-tooltip.leaflet-tooltip-bottom).questTooltip::before {
@@ -501,26 +582,11 @@
 .questName {
   font-size: 12px;
   font-weight: 700;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
   text-shadow:
     0 0 3px #000,
     0 1px 0 #000,
     0 0 8px #000;
-}
-
-.questLabelStack {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  transform: translate(8px, -50%);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.questLabelRow {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .labelText {
@@ -529,6 +595,7 @@
   color: #c8932a;
   font-size: 13px;
   font-weight: 800;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
   text-align: center;
   text-shadow:
     0 0 3px #000,

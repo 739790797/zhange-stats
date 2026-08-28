@@ -277,6 +277,8 @@ class TarkovRaidRoom(Base):
     __tablename__ = "tarkov_raid_rooms"
     __table_args__ = (
         Index("ix_tarkov_raid_rooms_status_created", "status", "created_at"),
+        Index("ix_tarkov_raid_rooms_status_expire", "status", "expire_at"),
+        Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

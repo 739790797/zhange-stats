@@ -65,6 +65,19 @@ def _snapshot(public_id: str, user: User) -> dict[str, Any]:
         db.close()
 
 
+def _can_edit(public_id: str, user: User) -> bool:
+    db: Session = SessionLocal()
+    try:
+        ok = rooms_svc.can_user_edit_room(db, public_id, user)
+        db.commit()
+        return ok
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+
 async def run_room_session(client: WebSocket, public_id: str) -> None:
     try:
         first = await asyncio.wait_for(client.receive_json(), timeout=10)
@@ -117,7 +130,8 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 await client.send_json({"event": "pong"})
                 continue
             if event == "draw_draft":
-                if not snapshot.get("can_edit"):
+                # 连接时 snapshot.can_edit 可能过期；离开后不再广播草稿
+                if not _can_edit(public_id, user):
                     continue
                 draft = rooms_svc.parse_draw_draft(raw)
                 if draft is None:

@@ -108,6 +108,36 @@ def test_parse_locale_and_trader_map():
     assert by_id["t2"]["task_requirements"] == []
 
 
+def test_garbled_zh_locale_falls_back_to_english_name():
+    payload = {
+        "tasks": {
+            "t1": {
+                "id": "t1",
+                "name": "Debut",
+                "normalizedName": "debut",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [],
+            }
+        },
+        "locale": {"t1 name": "????", "t1 Name": "？？？？"},
+    }
+    rows = tasks.parse_task_rows(payload)
+    assert rows[0]["name"] == "Debut"
+
+
+def test_garbled_graphql_name_uses_normalized():
+    raw = {
+        "id": "t1",
+        "name": "????",
+        "normalizedName": "checking",
+        "trader": PRAPOR,
+        "objectives": [],
+    }
+    row = tasks.project_task_summary(raw, {})
+    assert row is not None
+    assert row["name"] == "checking"
+
 def test_unique_objective_types_skips_blank_and_dupes():
     assert tasks.unique_objective_types(
         [
@@ -694,3 +724,77 @@ def test_collect_raid_prep_includes_zone_only_task():
     assert [r["id"] for r in rows] == ["zonly", "nomark"]
     assert rows[0]["has_map_markers"] is True
     assert rows[1]["has_map_markers"] is False
+
+
+def test_crop_raid_prep_detail_drops_other_map_zones():
+    detail = tasks.project_task_detail(
+        {
+            "id": "multi",
+            "name": "Multi",
+            "trader": PRAPOR,
+            "map": STREETS,
+            "objectives": [
+                {
+                    "id": "o1",
+                    "type": "visit",
+                    "maps": [STREETS, CUSTOMS],
+                    "zones": [
+                        {
+                            "id": "zs",
+                            "map": STREETS,
+                            "position": {"x": 1, "z": 2},
+                        },
+                        {
+                            "id": "zc",
+                            "map": CUSTOMS,
+                            "position": {"x": 9, "z": 9},
+                        },
+                    ],
+                },
+                {
+                    "id": "o2",
+                    "type": "visit",
+                    "maps": [CUSTOMS],
+                    "zones": [
+                        {
+                            "id": "only-c",
+                            "map": CUSTOMS,
+                            "position": {"x": 3, "z": 3},
+                        }
+                    ],
+                },
+            ],
+        },
+        {},
+        include_successors=False,
+    )
+    assert detail is not None
+    cropped = tasks.crop_raid_prep_detail_for_map(detail, "streets")
+    assert len(cropped["objectives"]) == 1
+    zones = cropped["objectives"][0]["zones"]
+    assert [z["id"] for z in zones] == ["zs"]
+
+
+def test_strip_raid_prep_geometry_keeps_items():
+    row = {
+        "id": "t1",
+        "objectives": [
+            {
+                "id": "o1",
+                "type": "findQuestItem",
+                "zones": [{"id": "z1"}],
+                "possible_locations": [{"map_slug": "customs"}],
+                "items": [{"name": "hdd", "count": 1}],
+            }
+        ],
+    }
+    out = tasks.strip_raid_prep_geometry(row)
+    assert out["objectives"][0]["zones"] == []
+    assert out["objectives"][0]["possible_locations"] == []
+    assert out["objectives"][0]["items"] == [{"name": "hdd", "count": 1}]
+    assert row["objectives"][0]["zones"] == [{"id": "z1"}]
+
+
+def test_canonical_raid_map_slug():
+    assert tasks.canonical_raid_map_slug("streets-of-tarkov") == "streets"
+    assert tasks.canonical_raid_map_slug("nope") == "nope"

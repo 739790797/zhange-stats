@@ -38,6 +38,7 @@ export function TarkovRaidPrepFilters({
     <>
       {leading}
       <input
+        id="raid-prep-search"
         className={styles.dockSearch}
         type="search"
         value={keyword}

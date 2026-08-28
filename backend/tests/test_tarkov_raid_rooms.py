@@ -60,7 +60,11 @@ def test_create_join_lobby_and_capacity() -> None:
         rooms.join_room(db, public_id, guest, now=now)
     outsider = _user(db, "out", "路人")
     lobby_out = rooms.list_live_rooms(db, map_slug="customs", now=now, viewer=outsider)
-    assert lobby_out["items"][0]["is_member"] is False
+    assert lobby_out["items"] == []
+    lobby_all = rooms.list_live_rooms(
+        db, map_slug="customs", now=now, viewer=outsider, mine_only=False
+    )
+    assert lobby_all["items"][0]["is_member"] is False
     lobby_guest = rooms.list_live_rooms(db, map_slug="customs", now=now, viewer=guests[0])
     assert lobby_guest["items"][0]["is_member"] is True
     extra = _user(db, "late", "迟到")
@@ -84,6 +88,51 @@ def test_create_join_lobby_and_capacity() -> None:
     rooms.create_room(db, second, map_slug="woods", now=now)
 
 
+def test_claim_rejects_task_not_on_map_when_catalog_present() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    room = rooms.create_room(db, host, map_slug="customs", now=now)
+    public_id = room["public_id"]
+
+    from app.models.tarkov import TarkovTasksRaw
+    from app.services.tarkov import tasks as tasks_svc
+
+    CUSTOMS = "56f40101d2720b2a4d8b45d6"
+    PRAPOR = "54cb50c76803fa8b248b4571"
+    payload = {
+        "tasks": {
+            "on-customs": {
+                "id": "on-customs",
+                "name": "On customs",
+                "trader": PRAPOR,
+                "map": CUSTOMS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [CUSTOMS]}],
+            }
+        },
+        "locale": {},
+    }
+    db.add(
+        TarkovTasksRaw(
+            id=1,
+            source="test",
+            raw_json=__import__("json").dumps(payload),
+            note="fixture",
+        )
+    )
+    db.flush()
+    tasks_svc._raid_prep_cache.clear()
+
+    rooms.claim_task(db, public_id, host, "on-customs", now=now)
+    try:
+        rooms.claim_task(db, public_id, host, "not-here", now=now)
+        raised = False
+    except rooms.RaidRoomError as exc:
+        raised = True
+        assert "本地图" in exc.message
+    assert raised
+
+
 def test_claim_union_and_unclaim() -> None:
     db = _session()
     host = _user(db, "host", "甲")
@@ -104,6 +153,18 @@ def test_claim_union_and_unclaim() -> None:
         ("t1", guest.id),
         ("t2", guest.id),
     }
+
+
+def test_claim_tasks_batch_dedupes() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    room = rooms.create_room(db, host, map_slug="customs", now=now)
+    public_id = room["public_id"]
+    snap, added = rooms.claim_tasks(db, public_id, host, ["t1", "t1", "t2"], now=now)
+    assert added == 2
+    ids = {row["task_id"] for row in snap["claims"]}
+    assert ids == {"t1", "t2"}
 
 
 def test_marks_undo_and_host_clear() -> None:

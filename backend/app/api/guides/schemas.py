@@ -552,6 +552,16 @@ class TarkovMapExtractOut(BaseModel):
     z: float | None = None
 
 
+class TarkovMapSpawnOut(BaseModel):
+    """PMC / Scav 出生点；Boss 仍走 bosses.locations。"""
+
+    kind: str = ""
+    zone_name: str = ""
+    x: float
+    y: float = 0
+    z: float
+
+
 class TarkovMapListItemOut(BaseModel):
     id: str
     slug: str
@@ -586,6 +596,7 @@ class TarkovMapDetailOut(TarkovMapListItemOut):
     wiki_link: str = ""
     extracts: list[TarkovMapExtractOut] = Field(default_factory=list)
     bosses: list[TarkovMapBossOut] = Field(default_factory=list)
+    spawns: list[TarkovMapSpawnOut] = Field(default_factory=list)
     variants: list[TarkovMapVariantOut] = Field(default_factory=list)
     source: str | None = None
     synced_at: str | None = None
@@ -752,6 +763,10 @@ class TarkovRaidRoomCreateIn(BaseModel):
 
 class TarkovRaidRoomClaimIn(BaseModel):
     task_id: str = Field(min_length=1, max_length=64)
+
+
+class TarkovRaidRoomClaimsIn(BaseModel):
+    task_ids: list[str] = Field(default_factory=list, max_length=40)
 
 
 class TarkovRaidRoomMarkIn(BaseModel):

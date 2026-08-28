@@ -1,28 +1,38 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRaidPrepOverlays,
+  resolveRaidPrepLocatePoint,
   buildRaidPrepSummary,
   clusterRaidPrepOverlayLabels,
-  colorForTaskId,
+  colorForTaskIndex,
   collectRaidPrepTaskItems,
   collectRaidPrepTaskKeys,
+  collectRaidPrepSummaryTypeColumns,
+  filterRaidPrepRows,
+  isGarbledTarkovName,
   isTarkovHexId,
+  mapLayerFloorBands,
   mapSlugKeys,
   neededKeyNamesForMap,
   normalizeRaidPrepMapId,
   objectiveAppliesToMap,
   objectiveZoneNames,
+  overlayFloorNames,
+  overlayVisibleOnFloor,
   parseCsvParam,
   partitionRaidPrepRows,
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
+  resolveRaidPrepLocatePoints,
   selectedTasksFromCatalog,
   serializeSelectedIds,
   sortRaidPrepSummaryByParticipants,
+  displayRaidPrepTaskName,
   tarkovReadableName,
   traderFilterLabel,
   type RaidPrepTaskLike,
   type TarkovRaidPrepOverlay,
+  RAID_PREP_TASK_COLORS,
 } from "./tarkovRaidPrep";
 
 describe("raid prep map keys", () => {
@@ -150,7 +160,7 @@ describe("buildRaidPrepOverlays", () => {
       optional: false,
       points: [{ x: 10, z: 20 }],
     });
-    expect(overlays[0].color).toBe(colorForTaskId("t1"));
+    expect(overlays[0].color).toBe(colorForTaskIndex(0));
     expect(objectiveZoneNames(task)).toEqual(["Dorms"]);
     expect(neededKeyNamesForMap(task, "customs")).toEqual(["Dorm 114"]);
     expect(neededKeyNamesForMap(task, "streets")).toEqual([]);
@@ -195,6 +205,89 @@ describe("buildRaidPrepOverlays", () => {
   });
 });
 
+describe("resolveRaidPrepLocatePoint", () => {
+  it("prefers the first non-optional marker on the current map", () => {
+    const task: RaidPrepTaskLike = {
+      id: "t-locate",
+      name: "Locate me",
+      objectives: [
+        {
+          id: "o-opt",
+          optional: true,
+          zones: [
+            {
+              id: "z-opt",
+              map_slug: "customs",
+              x: 1,
+              z: 1,
+            },
+          ],
+        },
+        {
+          id: "o-main",
+          optional: false,
+          possible_locations: [
+            {
+              map_slug: "customs",
+              positions: [{ x: 9, z: 8 }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(resolveRaidPrepLocatePoint(task, "customs")).toEqual({
+      x: 9,
+      z: 8,
+    });
+  });
+
+  it("falls back to optional markers when no required point exists", () => {
+    const task: RaidPrepTaskLike = {
+      id: "t-opt-only",
+      name: "Optional only",
+      objectives: [
+        {
+          id: "o-opt",
+          optional: true,
+          zones: [
+            {
+              id: "z-opt",
+              map_slug: "customs",
+              x: 3,
+              z: 4,
+            },
+          ],
+        },
+      ],
+    };
+    expect(resolveRaidPrepLocatePoint(task, "customs")).toEqual({
+      x: 3,
+      z: 4,
+    });
+  });
+
+  it("ignores markers on other maps", () => {
+    const task: RaidPrepTaskLike = {
+      id: "t-other",
+      name: "Other map",
+      objectives: [
+        {
+          id: "o-main",
+          zones: [
+            {
+              id: "z-other",
+              map_slug: "streets",
+              x: 5,
+              z: 5,
+            },
+          ],
+        },
+      ],
+    };
+    expect(resolveRaidPrepLocatePoint(task, "customs")).toBeNull();
+  });
+});
+
 describe("readable item names", () => {
   it("hides hex ids that leaked through as names", () => {
     expect(isTarkovHexId("5a9f913a86f77472bf74a592")).toBe(true);
@@ -205,6 +298,17 @@ describe("readable item names", () => {
     expect(tarkovReadableName("宿舍 114 钥匙", "5a9f913a86f77472bf74a592")).toBe(
       "宿舍 114 钥匙",
     );
+    expect(isGarbledTarkovName("????")).toBe(true);
+    expect(isGarbledTarkovName("？？？？")).toBe(true);
+    expect(tarkovReadableName("????", "abc")).toBe("");
+    expect(tarkovReadableName("首秀", "abc")).toBe("首秀");
+    expect(
+      displayRaidPrepTaskName({
+        id: "t1",
+        name: "????",
+        normalized_name: "debut",
+      }),
+    ).toBe("debut");
   });
 
   it("skips unresolved key ids on the task card", () => {
@@ -289,13 +393,24 @@ describe("raid prep needed items", () => {
     ).toBe(true);
   });
 
-  it("lists selected tasks with their items", () => {
+  it("lists selected tasks with items grouped by objective type", () => {
     const rows = buildRaidPrepSummary([task], "customs");
     expect(rows).toHaveLength(1);
     expect(rows[0].taskName).toBe("Debut");
-    expect(rows[0].items).toHaveLength(3);
+    expect(rows[0].itemsByType.findQuestItem?.map((item) => item.name)).toEqual([
+      "硬盘",
+    ]);
+    expect(
+      rows[0].itemsByType.giveItem?.map(
+        (item) => `${item.name}×${item.count}`,
+      ),
+    ).toEqual(["金项链×7", "金项链×2"]);
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
     expect(rows[0].types).toEqual(["findQuestItem", "giveItem"]);
+    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual([
+      "findQuestItem",
+      "giveItem",
+    ]);
   });
 
   it("sorts summary rows by participant count descending", () => {
@@ -324,8 +439,10 @@ describe("clusterRaidPrepOverlayLabels", () => {
     points: Array<{ x: number; z: number }>,
     extras: Partial<TarkovRaidPrepOverlay> = {},
   ): TarkovRaidPrepOverlay {
+    const { height, ...rest } = extras;
     return {
       key: title,
+      taskId: rest.taskId || rest.key || title,
       kind: "spawn",
       color: pink,
       title,
@@ -335,7 +452,8 @@ describe("clusterRaidPrepOverlayLabels", () => {
       optional: false,
       outline: [],
       points,
-      ...extras,
+      ...rest,
+      height: height ?? null,
     };
   }
 
@@ -353,7 +471,16 @@ describe("clusterRaidPrepOverlayLabels", () => {
     );
     expect(labels).toHaveLength(1);
     expect(labels[0].items).toEqual([
-      { title: "半路杀人", color: pink, traderSlug: "", count: 4, optional: false },
+      {
+        taskId: "半路杀人",
+        title: "半路杀人",
+        color: pink,
+        traderSlug: "",
+        subtitle: "",
+        keyNames: [],
+        count: 4,
+        optional: false,
+      },
     ]);
     expect(labels[0].x).toBe(100);
     expect(labels[0].z).toBe(200);
@@ -376,8 +503,12 @@ describe("clusterRaidPrepOverlayLabels", () => {
   it("stacks different task names that sit on the same cluster", () => {
     const labels = clusterRaidPrepOverlayLabels(
       [
-        overlay("半路杀人", [{ x: 10, z: 10 }]),
-        overlay(" Debut ", [{ x: 12, z: 11 }], { color: blue, key: "debut" }),
+        overlay("半路杀人", [{ x: 10, z: 10 }], { taskId: "t-ambush" }),
+        overlay(" Debut ", [{ x: 12, z: 11 }], {
+          color: blue,
+          key: "debut",
+          taskId: "t-debut",
+        }),
       ],
       36,
     );
@@ -393,6 +524,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
     const labels = clusterRaidPrepOverlayLabels([
       {
         key: "zone",
+        taskId: "t-debut",
         kind: "zone",
         color: blue,
         title: "Debut",
@@ -406,36 +538,69 @@ describe("clusterRaidPrepOverlayLabels", () => {
           { x: 40, z: 40 },
         ],
         points: [{ x: 12, z: 8 }],
+        height: null,
       },
     ]);
     expect(labels).toHaveLength(1);
     expect(labels[0]).toMatchObject({ x: 12, z: 8 });
     expect(labels[0].items).toEqual([
-      { title: "Debut", color: blue, traderSlug: "", count: 1, optional: false },
+      {
+        taskId: "t-debut",
+        title: "Debut",
+        color: blue,
+        traderSlug: "",
+        subtitle: "",
+        keyNames: [],
+        count: 1,
+        optional: false,
+      },
     ]);
   });
 
   it("keeps optional labels separate from required ones of the same task", () => {
     const labels = clusterRaidPrepOverlayLabels([
-      overlay("Shortage", [{ x: 1, z: 1 }]),
+      overlay("Shortage", [{ x: 1, z: 1 }], { taskId: "t-shortage" }),
       overlay("Shortage", [{ x: 2, z: 2 }], {
         key: "opt",
+        taskId: "t-shortage",
         optional: true,
       }),
     ]);
     expect(labels).toHaveLength(1);
     expect(labels[0].items).toEqual([
-      { title: "Shortage", color: pink, traderSlug: "", count: 1, optional: false },
-      { title: "Shortage", color: pink, traderSlug: "", count: 1, optional: true },
+      {
+        taskId: "t-shortage",
+        title: "Shortage",
+        color: pink,
+        traderSlug: "",
+        subtitle: "",
+        keyNames: [],
+        count: 1,
+        optional: false,
+      },
+      {
+        taskId: "t-shortage",
+        title: "Shortage",
+        color: pink,
+        traderSlug: "",
+        subtitle: "",
+        keyNames: [],
+        count: 1,
+        optional: true,
+      },
     ]);
   });
 
   it("keeps the trader slug on clustered labels", () => {
     const labels = clusterRaidPrepOverlayLabels([
-      overlay("半路杀人", [{ x: 1, z: 1 }], { traderSlug: "prapor" }),
+      overlay("半路杀人", [{ x: 1, z: 1 }], {
+        taskId: "t-ambush",
+        traderSlug: "prapor",
+      }),
       overlay("Debut", [{ x: 2, z: 2 }], {
         color: blue,
         key: "debut",
+        taskId: "t-debut",
         traderSlug: "therapist",
       }),
     ]);
@@ -499,5 +664,81 @@ describe("traderFilterLabel", () => {
       english: "Skier",
       chinese: "滑雪",
     });
+  });
+});
+
+describe("filterRaidPrepRows", () => {
+  it("filters by trader, query, and progress status", () => {
+    const rows = [
+      {
+        id: "a",
+        name: "Alpha",
+        trader_slug: "prapor",
+        trader_name: "Prapor",
+        progress_status: "active",
+      },
+      {
+        id: "b",
+        name: "Beta",
+        trader_slug: "therapist",
+        trader_name: "Therapist",
+        progress_status: "complete",
+      },
+    ];
+    expect(filterRaidPrepRows(rows, { trader: "prapor" }).map((r) => r.id)).toEqual([
+      "a",
+    ]);
+    expect(filterRaidPrepRows(rows, { q: "beta" }).map((r) => r.id)).toEqual(["b"]);
+    expect(
+      filterRaidPrepRows(rows, { progressStatus: "complete" }).map((r) => r.id),
+    ).toEqual(["b"]);
+    expect(filterRaidPrepRows(rows, { progressStatus: "all" })).toHaveLength(2);
+  });
+});
+
+describe("overlay floors", () => {
+  it("shows ground-only overlays on the unnamed band", () => {
+    const bands = mapLayerFloorBands({
+      heightRange: [-6, 10],
+      layers: [{ name: "2nd", extents: [{ height: [12, 20] }] }],
+    });
+    expect(overlayVisibleOnFloor(null, "", bands)).toBe(true);
+    expect(overlayVisibleOnFloor({ min: 14, max: 16 }, "", bands)).toBe(false);
+    expect(overlayVisibleOnFloor({ min: 14, max: 16 }, "2nd", bands)).toBe(true);
+    expect(overlayFloorNames({ min: 14, max: 16 }, bands)).toEqual(["2nd"]);
+  });
+});
+
+describe("colorForTaskIndex", () => {
+  it("cycles the palette by selection order", () => {
+    expect(colorForTaskIndex(0)).toBe(RAID_PREP_TASK_COLORS[0]);
+    expect(colorForTaskIndex(RAID_PREP_TASK_COLORS.length)).toBe(
+      RAID_PREP_TASK_COLORS[0],
+    );
+  });
+});
+
+describe("resolveRaidPrepLocatePoints", () => {
+  it("lists required points before optional ones", () => {
+    const task: RaidPrepTaskLike = {
+      id: "t-locate",
+      objectives: [
+        {
+          id: "o-opt",
+          optional: true,
+          zones: [{ id: "z-opt", map_slug: "customs", x: 1, z: 1 }],
+        },
+        {
+          id: "o-main",
+          possible_locations: [
+            { map_slug: "customs", positions: [{ x: 9, z: 8 }] },
+          ],
+        },
+      ],
+    };
+    expect(resolveRaidPrepLocatePoints(task, "customs")).toEqual([
+      { x: 9, z: 8 },
+      { x: 1, z: 1 },
+    ]);
   });
 });

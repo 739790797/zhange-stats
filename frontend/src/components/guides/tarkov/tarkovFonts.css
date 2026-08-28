@@ -1,0 +1,26 @@
+/* IBM Plex 的 Google Fonts 只有拉丁 unicode-range。
+   Windows 上 font-weight 600/700 仍会拿 Plex 去画汉字，缺字就变成 ???。
+   给同名族补一截 CJK，粗细都指向本机/Noto。 */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: local("Microsoft YaHei"), local("Microsoft YaHei UI"),
+    local("PingFang SC"), local("Noto Sans SC");
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+3040-30FF, U+31C0-31EF,
+    U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF, U+A960-A97F, U+AC00-D7AF,
+    U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: local("Microsoft YaHei"), local("Microsoft YaHei UI"),
+    local("PingFang SC"), local("Noto Sans SC");
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+3040-30FF, U+31C0-31EF,
+    U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF, U+A960-A97F, U+AC00-D7AF,
+    U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}

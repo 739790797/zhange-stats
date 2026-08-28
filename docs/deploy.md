@@ -38,6 +38,8 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 单 `app` 进程。APScheduler、签到/Steam 进程内锁、启动时 Alembic 迁移均非多实例安全。水平扩展前须另行解决调度选举、共享 `DATA_DIR`/`SECRET_KEY`、迁移单点，以及共享 `REDIS_URL`。**当前请保持单 `app` 副本**。
 
+战局准备房间 WebSocket（`raid_room_hub`）为**进程内广播**：多 `app` 副本时 REST 写与 WS 可能落在不同进程，房间事件会丢。扩容前须改为 Redis pub/sub（或同类跨进程总线）；在此之前勿水平扩展战局准备所在服务。
+
 发版：推送到 `main` 时 CI 按根目录 `VERSION` 创建/更新 GitHub Release（tag `v{VERSION}`），并上传 `zhange-stats-{VERSION}-static.tar.gz`。
 
 持久化目录：`var/data/`（含 `.secret_key` 与日志）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。

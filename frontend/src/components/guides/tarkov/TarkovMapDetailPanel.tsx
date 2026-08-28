@@ -11,7 +11,8 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
-import { tarkovBossHref, tarkovMapHref } from "@/lib/tarkovHomeNav";
+import { tarkovBossHref, tarkovMapHref, tarkovRaidPrepHref } from "@/lib/tarkovHomeNav";
+import { normalizeRaidPrepMapId } from "@/lib/tarkovRaidPrep";
 import { tarkovExtractStyle } from "@/lib/tarkovMapExtracts";
 import { PanelFallback } from "@/components/RouteFallback";
 import tableStyles from "./TarkovDarkTable.module.css";
@@ -102,6 +103,14 @@ export function TarkovMapDetailPanel({ slug }: Props) {
         <div>
           <div className={styles.headRow}>
             <h1 className={styles.nameTitle}>{detail.name}</h1>
+            <Link
+              className={styles.wiki}
+              to={tarkovRaidPrepHref(
+                normalizeRaidPrepMapId(detail.slug) || detail.slug,
+              )}
+            >
+              战局准备
+            </Link>
             {detail.wiki_link ? (
               <a
                 className={styles.wiki}
@@ -164,6 +173,7 @@ export function TarkovMapDetailPanel({ slug }: Props) {
           parentSlug={detail.parent_slug || undefined}
           extracts={detail.extracts}
           bosses={detail.bosses}
+          spawns={detail.spawns}
         />
       </Suspense>
 

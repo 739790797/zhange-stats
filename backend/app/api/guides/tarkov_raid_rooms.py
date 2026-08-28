@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.guides.schemas import (
     TarkovRaidRoomCreateIn,
+    TarkovRaidRoomClaimsIn,
     TarkovRaidRoomDetailOut,
     TarkovRaidRoomLobbyOut,
     TarkovRaidRoomMarkIn,
@@ -41,10 +42,13 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
 )
 def list_tarkov_raid_rooms(
     map_slug: str | None = Query(default=None, alias="map", max_length=64),
+    mine: bool = Query(default=True),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomLobbyOut:
-    data = rooms_svc.list_live_rooms(db, map_slug=map_slug, viewer=user)
+    data = rooms_svc.list_live_rooms(
+        db, map_slug=map_slug, viewer=user, mine_only=mine
+    )
     db.commit()
     return TarkovRaidRoomLobbyOut.model_validate(data)
 
@@ -190,6 +194,31 @@ def claim_tarkov_raid_room_task(
             data,
             extra={"task_id": task_id, "user_id": user.id},
         )
+    return TarkovRaidRoomDetailOut.model_validate(data)
+
+
+@router.post(
+    "/raid-rooms/{public_id}/claims",
+    response_model=TarkovRaidRoomDetailOut,
+    dependencies=[_FEATURE],
+)
+def claim_tarkov_raid_room_tasks(
+    public_id: str,
+    body: TarkovRaidRoomClaimsIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomDetailOut:
+    try:
+        data, added = rooms_svc.claim_tasks(
+            db, public_id, user, body.task_ids[:40]
+        )
+    except rooms_svc.RaidRoomError as extra_exc:
+        db.rollback()
+        _raise(extra_exc)
+        raise
+    db.commit()
+    if added:
+        _publish(public_id, "claim_add", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 

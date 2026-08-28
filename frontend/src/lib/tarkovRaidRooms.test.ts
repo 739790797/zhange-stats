@@ -9,7 +9,9 @@ import {
   markStrokePoints,
   isMapDrawTool,
   mergeBoardMarks,
+  parseRaidRoomPublicId,
   parseStrokePoints,
+  raidRoomWsRetryDelayMs,
   remainMs,
   roomDisplayTitle,
   simplifyStroke,
@@ -19,6 +21,13 @@ import {
 describe("raid room helpers", () => {
   it("builds room href and default title", () => {
     expect(tarkovRaidRoomHref("abc")).toBe("/guides/tarkov/raid-prep/rooms/abc");
+    expect(
+      parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/AbCdef123456"),
+    ).toBe("abcdef123456");
+    expect(parseRaidRoomPublicId("ABCDEF123456")).toBe("abcdef123456");
+    expect(parseRaidRoomPublicId("nope")).toBe("");
+    expect(raidRoomWsRetryDelayMs(0)).toBe(1000);
+    expect(raidRoomWsRetryDelayMs(5)).toBe(30_000);
     expect(
       roomDisplayTitle({ title: "", host_display_name: "甲" }, "海关"),
     ).toBe("甲 的 海关");

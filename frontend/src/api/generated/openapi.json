@@ -7465,6 +7465,16 @@
               ],
               "title": "Map"
             }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Mine"
+            }
           }
         ],
         "responses": {
@@ -7809,6 +7819,63 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/claims": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Claim Tarkov Raid Room Tasks",
+        "operationId": "claim_tarkov_raid_room_tasks_api_guides_tarkov_raid_rooms__public_id__claims_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomClaimsIn"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8854,7 +8921,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Prep",
-        "description": "战局准备：按地图列出相关任务，含目标区域 / 刷新点。",
+        "description": "战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。",
         "operationId": "guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get",
         "security": [
           {
@@ -8964,6 +9031,33 @@
                 }
               ],
               "title": "Progress Status"
+            }
+          },
+          {
+            "name": "geometry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Geometry"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ids"
             }
           },
           {
@@ -24751,6 +24845,13 @@
             "type": "array",
             "title": "Bosses"
           },
+          "spawns": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapSpawnOut"
+            },
+            "type": "array",
+            "title": "Spawns"
+          },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/TarkovMapVariantOut"
@@ -24939,6 +25040,40 @@
           "z"
         ],
         "title": "TarkovMapPointOut"
+      },
+      "TarkovMapSpawnOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "zone_name": {
+            "type": "string",
+            "title": "Zone Name",
+            "default": ""
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "default": 0
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "z"
+        ],
+        "title": "TarkovMapSpawnOut",
+        "description": "PMC / Scav 出生点；Boss 仍走 bosses.locations。"
       },
       "TarkovMapVariantOut": {
         "properties": {
@@ -25217,6 +25352,20 @@
           "display_name"
         ],
         "title": "TarkovRaidRoomClaimOut"
+      },
+      "TarkovRaidRoomClaimsIn": {
+        "properties": {
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Task Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomClaimsIn"
       },
       "TarkovRaidRoomCreateIn": {
         "properties": {

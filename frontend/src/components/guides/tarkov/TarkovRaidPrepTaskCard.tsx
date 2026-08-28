@@ -1,47 +1,57 @@
-import { Link } from "react-router-dom";
+import { EnvironmentOutlined } from "@ant-design/icons";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
-import { tarkovTaskHref } from "@/lib/tarkovHomeNav";
-import {
-  colorForTaskId,
-  neededKeyNamesForMap,
-} from "@/lib/tarkovRaidPrep";
+import { colorForTaskId, displayRaidPrepTaskName } from "@/lib/tarkovRaidPrep";
 import { tarkovTaskProgressLabel } from "@/lib/tarkovTaskProgress";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 type Props = {
   row: TarkovRaidPrepTask;
-  mapId: string;
   checked: boolean;
   highlighted: boolean;
+  active?: boolean;
+  color?: string;
+  floors?: string[];
   names?: string[];
   disabled?: boolean;
+  done?: boolean;
   onToggle: () => void;
+  onLocate?: () => void;
+  onTitle?: () => void;
 };
 
 export function TarkovRaidPrepTaskCard({
   row,
-  mapId,
   checked,
   highlighted,
+  active,
+  color,
+  floors,
   names,
   disabled,
+  done,
   onToggle,
+  onLocate,
+  onTitle,
 }: Props) {
-  const keys = neededKeyNamesForMap(row, mapId);
+  const isDone = done ?? row.progress_status === "complete";
   const progress = tarkovTaskProgressLabel(row.progress_status);
+  const title = displayRaidPrepTaskName(row);
   const meta = [
     names?.length ? names.join("、") : "",
+    floors?.length ? floors.join(" / ") : "",
     progress,
     row.min_player_level ? `Lv.${row.min_player_level}` : "",
     row.kappa_required ? "Kappa" : "",
   ].filter(Boolean);
+  const swatch = color || colorForTaskId(row.id);
 
   return (
     <div
       className={`${styles.taskRow} ${highlighted ? styles.taskRowOn : ""} ${
         disabled ? styles.taskRowDisabled : ""
-      }`}
+      } ${active ? styles.taskRowActive : ""} ${isDone ? styles.taskRowDone : ""}`}
+      data-raid-prep-task={row.id}
       role={disabled ? undefined : "button"}
       tabIndex={disabled ? undefined : 0}
       onClick={() => {
@@ -62,13 +72,10 @@ export function TarkovRaidPrepTaskCard({
         readOnly
         disabled={disabled}
         tabIndex={-1}
-        aria-label={row.name || row.id}
+        aria-label={title}
       />
       {highlighted ? (
-        <span
-          className={styles.swatch}
-          style={{ background: colorForTaskId(row.id) }}
-        />
+        <span className={styles.swatch} style={{ background: swatch }} />
       ) : null}
       {row.trader_slug ? (
         <TarkovTraderThumb
@@ -79,42 +86,40 @@ export function TarkovRaidPrepTaskCard({
       ) : null}
       <div className={styles.taskBody}>
         <div className={styles.taskTitle}>
-          <Link
-            className={styles.taskName}
-            to={tarkovTaskHref(row.id)}
-            title={row.name || row.normalized_name || row.id}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {row.name || row.normalized_name || row.id}
-          </Link>
-          {row.has_map_markers ? (
-            <span className={styles.mark} title="图上有点位">
-              点位
-            </span>
-          ) : null}
-          {row.wiki_link ? (
-            <a
-              className={styles.wiki}
-              href={row.wiki_link}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(event) => event.stopPropagation()}
+          {onTitle ? (
+            <button
+              type="button"
+              className={styles.taskName}
+              title={title}
+              onClick={(event) => {
+                event.stopPropagation();
+                onTitle();
+              }}
             >
-              Wiki
-            </a>
-          ) : null}
+              {title}
+            </button>
+          ) : (
+            <span className={styles.taskName} title={title}>
+              {title}
+            </span>
+          )}
         </div>
         {meta.length ? <div className={styles.meta}>{meta.join(" · ")}</div> : null}
-        {keys.length ? (
-          <div className={styles.tags}>
-            {keys.map((name) => (
-              <span key={name} className={styles.keyTag}>
-                {name}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </div>
+      {onLocate ? (
+        <button
+          type="button"
+          className={styles.locateBtn}
+          aria-label="定位到地图点位"
+          title="定位到地图点位"
+          onClick={(event) => {
+            event.stopPropagation();
+            onLocate();
+          }}
+        >
+          <EnvironmentOutlined />
+        </button>
+      ) : null}
     </div>
   );
 }

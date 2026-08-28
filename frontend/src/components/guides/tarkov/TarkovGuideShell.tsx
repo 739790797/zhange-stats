@@ -20,6 +20,7 @@ import {
   useTarkovGameModeControls,
 } from "@/lib/tarkovGameMode";
 import styles from "./TarkovGuideShell.module.css";
+import "./tarkovFonts.css";
 
 export function TarkovSoonMark({ status }: { status: TarkovNavStatus }) {
   if (status === "ready") return null;
@@ -177,11 +178,18 @@ export function TarkovGuideShell({ children }: Props) {
         return;
       }
       event.preventDefault();
+      if (pathname.includes("raid-prep")) {
+        const dock = document.getElementById("raid-prep-search");
+        if (dock) {
+          dock.focus();
+          return;
+        }
+      }
       searchRef.current?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [pathname]);
   const bossesQuery = useQuery({
     queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultExtractKindFlags } from "./tarkovMapExtracts";
+import { defaultSpawnKindFlags } from "./tarkovMapSpawns";
 import {
   DEFAULT_TARKOV_MAP_VIEWER_PREFS,
   parseTarkovMapViewerPrefs,
@@ -7,12 +8,14 @@ import {
   resolveMapStyle,
   withExtractKind,
   withMapFloor,
+  withSpawnKind,
 } from "./tarkovMapViewerPrefs";
 
 const emptyDefaults = {
   ...DEFAULT_TARKOV_MAP_VIEWER_PREFS,
   floorsByMap: {},
   extractKinds: defaultExtractKindFlags(true),
+  spawnKinds: defaultSpawnKindFlags(true),
 };
 
 describe("parseTarkovMapViewerPrefs", () => {
@@ -34,7 +37,7 @@ describe("parseTarkovMapViewerPrefs", () => {
             shared: true,
             transit: false,
           },
-          showBosses: true,
+          spawnKinds: { pmc: false, scav: true, boss: false },
           showLabels: false,
           showQuests: false,
           extra: 1,
@@ -49,7 +52,7 @@ describe("parseTarkovMapViewerPrefs", () => {
         shared: true,
         transit: false,
       },
-      showBosses: true,
+      spawnKinds: { pmc: false, scav: true, boss: false },
       showLabels: false,
       showQuests: false,
     });
@@ -72,6 +75,19 @@ describe("parseTarkovMapViewerPrefs", () => {
         JSON.stringify({ showExtracts: true }),
       ).extractKinds,
     ).toEqual(defaultExtractKindFlags(true));
+  });
+
+  it("migrates legacy showBosses into spawnKinds.boss", () => {
+    expect(
+      parseTarkovMapViewerPrefs(
+        JSON.stringify({ showBosses: false }),
+      ).spawnKinds,
+    ).toEqual({ pmc: true, scav: true, boss: false });
+    expect(
+      parseTarkovMapViewerPrefs(
+        JSON.stringify({ showBosses: true }),
+      ).spawnKinds,
+    ).toEqual(defaultSpawnKindFlags(true));
   });
 });
 
@@ -114,6 +130,16 @@ describe("withExtractKind", () => {
       scav: false,
       shared: true,
       transit: true,
+    });
+  });
+});
+
+describe("withSpawnKind", () => {
+  it("toggles one spawn kind without dropping others", () => {
+    expect(withSpawnKind(emptyDefaults, "boss", false).spawnKinds).toEqual({
+      pmc: true,
+      scav: true,
+      boss: false,
     });
   });
 });

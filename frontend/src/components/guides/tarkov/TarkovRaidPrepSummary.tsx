@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "antd";
 import { Link } from "react-router-dom";
-import { tarkovTaskHref } from "@/lib/tarkovHomeNav";
 import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
 import {
   buildRaidPrepSummary,
+  collectRaidPrepSummaryTypeColumns,
   colorForTaskId,
   colorForUserId,
   sortRaidPrepSummaryByParticipants,
@@ -48,7 +48,13 @@ function NeededItemThumb({
   );
 }
 
-function NeededItemChip({ item }: { item: RaidPrepNeededItem }) {
+function NeededItemChip({
+  item,
+  onPeek,
+}: {
+  item: RaidPrepNeededItem;
+  onPeek: (item: RaidPrepNeededItem) => void;
+}) {
   const thumb = inventoryThumbUrl(item.icon_link, item.id);
   const count = item.count > 1 ? `×${item.count}` : "";
   const label =
@@ -59,10 +65,11 @@ function NeededItemChip({ item }: { item: RaidPrepNeededItem }) {
     item.optional ? "可选" : "",
   ].filter(Boolean);
   return (
-    <Link
+    <button
+      type="button"
       className={styles.needChip}
-      to={neededItemHref(item)}
       title={label}
+      onClick={() => onPeek(item)}
     >
       {thumb ? (
         <NeededItemThumb src={item.icon_link} itemId={item.id} />
@@ -76,7 +83,7 @@ function NeededItemChip({ item }: { item: RaidPrepNeededItem }) {
           <span className={styles.needMeta}>{extra.join(" · ")}</span>
         ) : null}
       </span>
-    </Link>
+    </button>
   );
 }
 
@@ -117,92 +124,169 @@ function ParticipantChips({
   );
 }
 
+function NeededItemList({
+  items,
+  onPeek,
+}: {
+  items: RaidPrepNeededItem[];
+  onPeek: (item: RaidPrepNeededItem) => void;
+}) {
+  return (
+    <>
+      {items.map((item) => (
+        <NeededItemChip
+          key={`${item.kind}-${item.id}-${item.objectiveType}-${item.found_in_raid ? "fir" : "stash"}-${item.optional ? "opt" : "req"}`}
+          item={item}
+          onPeek={onPeek}
+        />
+      ))}
+    </>
+  );
+}
+
+function TypeColumnCell({
+  type,
+  items,
+  hasType,
+  onPeek,
+}: {
+  type: string;
+  items: RaidPrepNeededItem[];
+  hasType: boolean;
+  onPeek: (item: RaidPrepNeededItem) => void;
+}) {
+  if (items.length) {
+    return (
+      <div className={styles.needList} role="cell">
+        <NeededItemList items={items} onPeek={onPeek} />
+      </div>
+    );
+  }
+  if (hasType) {
+    return (
+      <div className={styles.summaryTypeCell} role="cell">
+        <span
+          className={taskStyles.typeChip}
+          data-tone={tarkovObjectiveTypeTone(type)}
+        >
+          {tarkovObjectiveTypeLabel(type)}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div role="cell">
+      <span className={styles.summaryNone}>—</span>
+    </div>
+  );
+}
+
+const SUMMARY_FIXED_COLS =
+  "minmax(108px, 160px) minmax(160px, 220px) minmax(140px, 200px)";
+
+function summaryGridColumns(typeCount: number): string {
+  if (typeCount <= 0) return SUMMARY_FIXED_COLS;
+  return `${SUMMARY_FIXED_COLS} repeat(${typeCount}, minmax(148px, 1fr))`;
+}
+
 function SummaryList({
   rows,
+  typeColumns,
   participantsByTask,
+  onPeek,
 }: {
   rows: RaidPrepTaskSummary[];
+  typeColumns: string[];
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
+  onPeek: (item: RaidPrepNeededItem) => void;
 }) {
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
   }
+  const gridTemplateColumns = summaryGridColumns(typeColumns.length);
+  const typeSetByTask = new Map(
+    rows.map((row) => [row.taskId, new Set(row.types)]),
+  );
   return (
-    <div className={styles.summaryTable} role="table">
-      <div className={`${styles.summaryRow} ${styles.summaryHead}`} role="row">
-        <div role="columnheader">参与人员</div>
-        <div className={styles.summaryTask} role="columnheader">
-          任务名称
-        </div>
-        <div role="columnheader">所需钥匙</div>
-        <div role="columnheader">所需物品</div>
-        <div role="columnheader">类型</div>
-      </div>
-      {rows.map((row) => (
-        <div key={row.taskId} className={styles.summaryRow} role="row">
-          <div role="cell">
-            <ParticipantChips
-              people={participantsByTask?.get(row.taskId) || []}
-            />
+    <div className={styles.summaryScroll}>
+      <div className={styles.summaryTable} role="table">
+        <div
+          className={`${styles.summaryRow} ${styles.summaryHead}`}
+          role="row"
+          style={{ gridTemplateColumns }}
+        >
+          <div role="columnheader">参与人员</div>
+          <div className={styles.summaryTask} role="columnheader">
+            任务名称
           </div>
-          <div className={styles.summaryTask} role="cell">
-            <span
-              className={styles.swatch}
-              style={{ background: colorForTaskId(row.taskId) }}
-            />
-            {row.traderSlug ? (
-              <TarkovTraderThumb
-                slug={row.traderSlug}
-                size={22}
-                title={row.traderName || row.traderSlug}
-              />
-            ) : null}
-            <Link
-              className={styles.summaryTaskName}
-              to={tarkovTaskHref(row.taskId)}
-              title={row.taskName}
+          <div role="columnheader">所需钥匙</div>
+          {typeColumns.map((type) => (
+            <div key={type} role="columnheader">
+              <span
+                className={taskStyles.typeChip}
+                data-tone={tarkovObjectiveTypeTone(type)}
+              >
+                {tarkovObjectiveTypeLabel(type)}
+              </span>
+            </div>
+          ))}
+        </div>
+        {rows.map((row) => {
+          const typeSet = typeSetByTask.get(row.taskId) || new Set<string>();
+          return (
+            <div
+              key={row.taskId}
+              className={styles.summaryRow}
+              role="row"
+              style={{ gridTemplateColumns }}
             >
-              {row.taskName}
-            </Link>
-          </div>
-          <div className={styles.needList} role="cell">
-            {row.keys.length ? (
-              row.keys.map((item) => (
-                <NeededItemChip key={`key-${item.id}`} item={item} />
-              ))
-            ) : (
-              <span className={styles.summaryNone}>无所需钥匙</span>
-            )}
-          </div>
-          <div className={styles.needList} role="cell">
-            {row.items.length ? (
-              row.items.map((item) => (
-                <NeededItemChip
-                  key={`${item.kind}-${item.id}-${item.role}-${item.found_in_raid ? "fir" : "stash"}-${item.optional ? "opt" : "req"}`}
-                  item={item}
+              <div role="cell">
+                <ParticipantChips
+                  people={participantsByTask?.get(row.taskId) || []}
                 />
-              ))
-            ) : (
-              <span className={styles.summaryNone}>无所需物品</span>
-            )}
-          </div>
-          <div className={styles.summaryTypes} role="cell">
-            {row.types.length ? (
-              row.types.map((type) => (
+              </div>
+              <div className={styles.summaryTask} role="cell">
                 <span
-                  key={type}
-                  className={taskStyles.typeChip}
-                  data-tone={tarkovObjectiveTypeTone(type)}
-                >
-                  {tarkovObjectiveTypeLabel(type)}
+                  className={styles.swatch}
+                  style={{ background: colorForTaskId(row.taskId) }}
+                />
+                {row.traderSlug ? (
+                  <TarkovTraderThumb
+                    slug={row.traderSlug}
+                    size={22}
+                    title={row.traderName || row.traderSlug}
+                  />
+                ) : null}
+                <span className={styles.summaryTaskName} title={row.taskName}>
+                  {row.taskName}
                 </span>
-              ))
-            ) : (
-              <span className={styles.summaryNone}>—</span>
-            )}
-          </div>
-        </div>
-      ))}
+              </div>
+              <div className={styles.needList} role="cell">
+                {row.keys.length ? (
+                  row.keys.map((item) => (
+                    <NeededItemChip
+                      key={`key-${item.id}`}
+                      item={item}
+                      onPeek={onPeek}
+                    />
+                  ))
+                ) : (
+                  <span className={styles.summaryNone}>无所需钥匙</span>
+                )}
+              </div>
+              {typeColumns.map((type) => (
+                <TypeColumnCell
+                  key={type}
+                  type={type}
+                  items={row.itemsByType[type] || []}
+                  hasType={typeSet.has(type)}
+                  onPeek={onPeek}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -217,11 +301,24 @@ export function TarkovRaidPrepSummary({
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
 }) {
   const [open, setOpen] = useState(false);
+  const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
   const rows = useMemo(() => {
     const built = buildRaidPrepSummary(tasks, mapId);
     return sortRaidPrepSummaryByParticipants(built, participantsByTask);
   }, [tasks, mapId, participantsByTask]);
-  const itemCount = rows.reduce((sum, row) => sum + row.items.length, 0);
+  const typeColumns = useMemo(
+    () => collectRaidPrepSummaryTypeColumns(rows),
+    [rows],
+  );
+  const itemCount = rows.reduce(
+    (sum, row) =>
+      sum +
+      Object.values(row.itemsByType).reduce(
+        (inner, items) => inner + items.length,
+        0,
+      ),
+    0,
+  );
   const keyCount = rows.reduce((sum, row) => sum + row.keys.length, 0);
   const meta = rows.length
     ? `已选 ${rows.length} · 物品 ${itemCount} · 钥匙 ${keyCount}`
@@ -245,11 +342,46 @@ export function TarkovRaidPrepSummary({
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
-        width={1320}
+        width="min(1760px, calc(100vw - 32px))"
         classNames={{ body: styles.summaryModalBody }}
       >
         <p className={styles.summaryModalLead}>{meta}</p>
-        <SummaryList rows={rows} participantsByTask={participantsByTask} />
+        <SummaryList
+          rows={rows}
+          typeColumns={typeColumns}
+          participantsByTask={participantsByTask}
+          onPeek={setPeek}
+        />
+      </Modal>
+      <Modal
+        title={
+          peek
+            ? tarkovReadableName(peek.name, peek.id) ||
+              (peek.kind === "key" ? "钥匙" : "物品")
+            : "物品"
+        }
+        open={Boolean(peek)}
+        onCancel={() => setPeek(null)}
+        footer={
+          peek ? (
+            <Link className={styles.needChip} to={neededItemHref(peek)}>
+              在图鉴打开
+            </Link>
+          ) : null
+        }
+        width={420}
+      >
+        {peek ? (
+          <p className={styles.summaryModalLead}>
+            {[
+              peek.count > 1 ? `数量 ${peek.count}` : "",
+              peek.found_in_raid ? "战局内找到" : "",
+              peek.optional ? "可选" : "",
+            ]
+              .filter(Boolean)
+              .join(" · ") || "点下方按钮打开图鉴详情。"}
+          </p>
+        ) : null}
       </Modal>
     </>
   );

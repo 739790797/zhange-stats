@@ -17,7 +17,7 @@ export const TARKOV_ANTD_DARK: ThemeConfig = {
     colorTextTertiary: "#8a8878",
     borderRadius: 2,
     fontFamily:
-      '"IBM Plex Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+      '"IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif',
   },
   components: {
     Table: {

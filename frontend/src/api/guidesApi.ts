@@ -118,11 +118,14 @@ export async function fetchTarkovRaidPrep(opts: {
   types?: string[];
   progress?: boolean;
   progressStatus?: string;
+  geometry?: boolean;
+  ids?: string[];
 }) {
   const q = (opts.q || "").trim();
   const trader = (opts.trader || "").trim();
   const types = (opts.types || []).filter(Boolean).join(",");
   const progressStatus = (opts.progressStatus || "").trim();
+  const ids = (opts.ids || []).map((id) => id.trim()).filter(Boolean).join(",");
   const { data } = await client.get<TarkovRaidPrep>("/guides/tarkov/raid-prep", {
     params: {
       map: opts.map,
@@ -134,6 +137,8 @@ export async function fetchTarkovRaidPrep(opts: {
       ...(opts.progress === true && progressStatus
         ? { progress_status: progressStatus }
         : {}),
+      ...(opts.geometry === true ? { geometry: true } : {}),
+      ...(ids ? { ids } : {}),
     },
     timeout: 120_000,
   });
@@ -251,6 +256,7 @@ export type TarkovMapListItem = components["schemas"]["TarkovMapListItemOut"];
 export type TarkovMapDetail = components["schemas"]["TarkovMapDetailOut"];
 export type TarkovMapExtract = components["schemas"]["TarkovMapExtractOut"];
 export type TarkovMapBoss = components["schemas"]["TarkovMapBossOut"];
+export type TarkovMapSpawn = components["schemas"]["TarkovMapSpawnOut"];
 export type TarkovHideoutCatalog = components["schemas"]["TarkovHideoutCatalogOut"];
 export type TarkovHideoutStation = components["schemas"]["TarkovHideoutStationOut"];
 export type TarkovHideoutLevel = components["schemas"]["TarkovHideoutLevelOut"];
@@ -366,10 +372,10 @@ export type TarkovRaidRoomClaim = components["schemas"]["TarkovRaidRoomClaimOut"
 
 const RAID_ROOMS = "/guides/tarkov/raid-rooms";
 
-export async function fetchTarkovRaidRooms(map?: string) {
+export async function fetchTarkovRaidRooms(map?: string, mine = true) {
   const slug = (map || "").trim();
   const { data } = await client.get<TarkovRaidRoomLobby>(RAID_ROOMS, {
-    params: slug ? { map: slug } : {},
+    params: { ...(slug ? { map: slug } : {}), mine },
     timeout: 30_000,
   });
   return data;
@@ -424,6 +430,18 @@ export async function claimTarkovRaidRoomTask(publicId: string, taskId: string) 
   const { data } = await client.put<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims/${encodeURIComponent(taskId)}`,
     {},
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function claimTarkovRaidRoomTasks(
+  publicId: string,
+  taskIds: string[],
+) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims`,
+    { task_ids: taskIds },
     { timeout: 30_000 },
   );
   return data;

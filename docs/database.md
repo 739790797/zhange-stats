@@ -63,7 +63,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
 | `tarkov_guides_meta` | 藏身处与交换同步元数据（id 与 raw 对应，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
-| `tarkov_raid_rooms` | 战局准备协作房间（大厅公开可进）。`public_id` URL 用；`map_slug` 创建后锁定；`status`=`live`/`archived`；从 `created_at` 起 24 小时可编辑，到期或房主关闭后封存只读留档。`host_user_id` ON DELETE RESTRICT |
+| `tarkov_raid_rooms` | 战局准备协作房间（大厅默认只列自己所在的 live 房，加入靠链接）。`public_id` URL 用；`map_slug` 创建后锁定；`status`=`live`/`archived`；从 `created_at` 起 24 小时可编辑，到期或房主关闭后封存只读留档。索引 `(status, created_at)` / `(status, expire_at)` / `map_slug`。`host_user_id` ON DELETE RESTRICT |
 | `tarkov_raid_room_members` | 进过房间的人（展示名快照）；复合主键 `(room_id, user_id)`；离开写 `left_at` 不删行。`room_id` / `user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。ON DELETE CASCADE |
 | `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
