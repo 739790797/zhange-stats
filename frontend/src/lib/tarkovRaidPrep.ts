@@ -16,6 +16,19 @@ export const MAP_SLUG_EQUIV_GROUPS: readonly (readonly string[])[] = [
 
 export const RAID_PREP_MAX_SELECTED = 40;
 
+/** 准备总结：物品 / 任务物成对合成一列。 */
+export const RAID_PREP_SUMMARY_TYPE_MERGE: Readonly<Record<string, string>> = {
+  findQuestItem: "findItem",
+  giveQuestItem: "giveItem",
+  plantQuestItem: "plantItem",
+};
+
+export function raidPrepSummaryColumnType(type: string): string {
+  const key = (type || "").trim();
+  if (!key) return "item";
+  return RAID_PREP_SUMMARY_TYPE_MERGE[key] || key;
+}
+
 export const RAID_PREP_TASK_COLORS = [
   "#e8c36a",
   "#6cb6ff",
@@ -176,6 +189,8 @@ export type RaidPrepTaskSummary = {
   keys: RaidPrepNeededItem[];
   /** 当前地图适用的全部目标类型（含无物品的 mark / visit 等）。 */
   types: string[];
+  /** 当前地图适用的目标文案（任务详情「目标」描述）。 */
+  objectiveLines: string[];
 };
 
 function isFiniteNumber(value: number | null | undefined): value is number {
@@ -230,6 +245,13 @@ export type RaidPrepMapParticipant = {
   userId?: number;
 };
 
+export function raidPrepPersonKey(person: {
+  name: string;
+  userId?: number;
+}): string {
+  return person.userId != null ? `id:${person.userId}` : `name:${person.name}`;
+}
+
 export function raidPrepParticipants(
   people:
     | readonly { name?: string | null; userId?: number | null }[]
@@ -245,12 +267,42 @@ export function raidPrepParticipants(
       typeof person.userId === "number" && Number.isFinite(person.userId)
         ? person.userId
         : undefined;
-    const key = userId != null ? `id:${userId}` : `name:${name}`;
+    const row = userId != null ? { name, userId } : { name };
+    const key = raidPrepPersonKey(row);
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(userId != null ? { name, userId } : { name });
+    out.push(row);
   }
   return out;
+}
+
+/** 任务点位筛选：按勾选并集收集房间内的人，顺序与首次出现一致。 */
+export function collectRaidPrepQuestFilterPeople(
+  byTask:
+    | ReadonlyMap<
+        string,
+        readonly { name?: string | null; userId?: number | null }[]
+      >
+    | null
+    | undefined,
+): RaidPrepMapParticipant[] {
+  if (!byTask) return [];
+  const flat: { name?: string | null; userId?: number | null }[] = [];
+  for (const people of byTask.values()) {
+    for (const person of people) flat.push(person);
+  }
+  return raidPrepParticipants(flat);
+}
+
+/** `selectedKeys` 为 null 表示不过滤；空集合表示全关。无参与者的点位在有人选中时仍显示。 */
+export function raidPrepQuestOverlayVisible(
+  people: readonly RaidPrepMapParticipant[],
+  selectedKeys: ReadonlySet<string> | null,
+): boolean {
+  if (selectedKeys == null) return true;
+  if (!selectedKeys.size) return false;
+  if (!people.length) return true;
+  return people.some((person) => selectedKeys.has(raidPrepPersonKey(person)));
 }
 
 /** 地图悬浮窗 / 文案用的参与者显示名。 */
@@ -773,13 +825,13 @@ export function collectRaidPrepTaskItems(
   return out;
 }
 
-/** 按 objective.type 分组；空 type 归入「物品」。 */
+/** 按准备总结列分组：找到/捡取、上交、藏匿各自合成一列。 */
 export function groupRaidPrepItemsByType(
   items: RaidPrepNeededItem[],
 ): Record<string, RaidPrepNeededItem[]> {
   const out: Record<string, RaidPrepNeededItem[]> = {};
   for (const item of items) {
-    const key = (item.objectiveType || "").trim() || "item";
+    const key = raidPrepSummaryColumnType(item.objectiveType);
     const bucket = out[key];
     if (bucket) bucket.push(item);
     else out[key] = [item];
@@ -787,12 +839,12 @@ export function groupRaidPrepItemsByType(
   return out;
 }
 
-/** 勾选任务里出现过的类型，按固定顺序排成表头列。 */
+/** 勾选任务里带了物品的目标类型，按固定顺序排成表头列。 */
 export function collectRaidPrepSummaryTypeColumns(
   rows: readonly RaidPrepTaskSummary[],
 ): string[] {
   const types: string[] = [];
-  for (const row of rows) types.push(...row.types);
+  for (const row of rows) types.push(...Object.keys(row.itemsByType));
   return orderObjectiveTypes(types);
 }
 
@@ -807,6 +859,27 @@ export function collectRaidPrepTaskTypes(
     if (type) types.push(type);
   }
   return orderObjectiveTypes(types);
+}
+
+/** 准备总结任务名悬停：当前图适用的目标描述（无描述则用类型名）。 */
+export function collectRaidPrepTaskObjectiveLines(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+): string[] {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  for (const obj of task.objectives || []) {
+    if (!objectiveAppliesToMap(obj, mapSlug)) continue;
+    const description = tarkovReadableName(obj.description, obj.id);
+    const typeLabel = tarkovObjectiveTypeLabel(obj.type || "");
+    const text = description || typeLabel;
+    if (!text) continue;
+    const line = obj.optional ? `${text}（可选）` : text;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
+  }
+  return lines;
 }
 
 export function buildRaidPrepSummary(
@@ -824,6 +897,7 @@ export function buildRaidPrepSummary(
       itemsByType: groupRaidPrepItemsByType(items),
       keys,
       types: collectRaidPrepTaskTypes(task, mapSlug),
+      objectiveLines: collectRaidPrepTaskObjectiveLines(task, mapSlug),
     };
   });
 }

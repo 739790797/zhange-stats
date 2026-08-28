@@ -149,19 +149,51 @@ export async function prepareRaidPrepOcrCanvas(
 
 let workerPromise: Promise<import("tesseract.js").Worker> | null = null;
 
-function raidPrepOcrLangPath(): string {
+const OCR_WORKER_TIMEOUT_MS = 60_000;
+
+function raidPrepOcrPublicUrl(rel: string): string {
   const base = (import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
-  return `${base}tesseract`;
+  return `${base}${rel.replace(/^\//, "")}`;
 }
 
-async function getOcrWorker(): Promise<import("tesseract.js").Worker> {
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+type OcrProgressFn = (status: string, progress: number) => void;
+
+async function getOcrWorker(
+  onProgress?: OcrProgressFn,
+): Promise<import("tesseract.js").Worker> {
   if (!workerPromise) {
     workerPromise = (async () => {
       const { createWorker, PSM } = await import("tesseract.js");
-      const worker = await createWorker("chi_sim", 1, {
-        langPath: raidPrepOcrLangPath(),
-        logger: () => undefined,
-      });
+      const worker = await withTimeout(
+        createWorker("chi_sim", 1, {
+          langPath: raidPrepOcrPublicUrl("tesseract"),
+          workerPath: raidPrepOcrPublicUrl("tesseract/worker.min.js"),
+          corePath: raidPrepOcrPublicUrl("tesseract/core"),
+          gzip: false,
+          workerBlobURL: false,
+          logger: (message) => {
+            onProgress?.(message.status || "", message.progress || 0);
+          },
+        }),
+        OCR_WORKER_TIMEOUT_MS,
+        "识别引擎加载超时，请刷新页面后重试",
+      );
       await worker.setParameters({
         tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
         preserve_interword_spaces: "1",
@@ -178,8 +210,10 @@ async function getOcrWorker(): Promise<import("tesseract.js").Worker> {
 
 export async function recognizeRaidPrepTaskScreenshot(
   source: Blob | ImageBitmap | HTMLImageElement | HTMLCanvasElement,
+  opts?: { onProgress?: (status: string, progress: number) => void },
 ): Promise<RaidPrepOcrRecognizeResult> {
-  const worker = await getOcrWorker();
+  const worker = await getOcrWorker(opts?.onProgress);
+  opts?.onProgress?.("recognizing text", 0);
   const inverted = await prepareRaidPrepOcrCanvas(source, { invert: true });
   const invertedResult = await worker.recognize(inverted.canvas);
   const text = invertedResult.data.text || "";
@@ -200,8 +234,13 @@ export async function terminateRaidPrepOcrWorker(): Promise<void> {
   const pending = workerPromise;
   workerPromise = null;
   try {
-    const worker = await pending;
-    await worker.terminate();
+    const worker = await Promise.race([
+      pending,
+      new Promise<null>((resolve) => {
+        window.setTimeout(() => resolve(null), 2000);
+      }),
+    ]);
+    if (worker) await worker.terminate();
   } catch {
     /* ignore */
   }

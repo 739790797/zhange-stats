@@ -2,6 +2,7 @@ import { Modal, Spin } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
 import {
+  formatRaidPrepOcrProgress,
   isPreferredRaidPrepOcrSize,
   matchRaidPrepTasksFromOcr,
   newRaidPrepOcrIds,
@@ -46,6 +47,7 @@ export function TarkovRaidPrepOcrModal({
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
+  const [progress, setProgress] = useState("识别中…");
   const [matches, setMatches] = useState<RaidPrepOcrMatch[]>([]);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -54,6 +56,7 @@ export function TarkovRaidPrepOcrModal({
     setPhase("idle");
     setError("");
     setHint("");
+    setProgress("识别中…");
     setMatches([]);
     setChecked({});
     setSubmitting(false);
@@ -72,10 +75,15 @@ export function TarkovRaidPrepOcrModal({
       setPhase("working");
       setError("");
       setHint("");
+      setProgress("正在加载识别引擎…");
       setMatches([]);
       setChecked({});
       try {
-        const result = await recognizeRaidPrepTaskScreenshot(file);
+        const result = await recognizeRaidPrepTaskScreenshot(file, {
+          onProgress: (status, pct) => {
+            setProgress(formatRaidPrepOcrProgress(status, pct));
+          },
+        });
         if (!result.widescreen) {
           setPhase("done");
           setMatches([]);
@@ -248,8 +256,9 @@ export function TarkovRaidPrepOcrModal({
 
       {phase === "working" ? (
         <div className={styles.ocrWorking}>
-          <Spin tip="识别中…" />
-          <p className={styles.ocrMeta}>首次使用需加载中文识别模型，可能稍慢</p>
+          <Spin />
+          <p className={styles.ocrMeta}>{progress}</p>
+          <p className={styles.ocrMeta}>模型从本站加载，无需访问外网</p>
         </div>
       ) : null}
 

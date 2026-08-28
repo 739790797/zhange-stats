@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN = 4403
 CLOSE_NOT_FOUND = 4404
-CLOSE_ARCHIVED = 4409
 
 
 def _load_user(token: str) -> User:
@@ -48,15 +47,13 @@ def _load_user(token: str) -> User:
 def _snapshot(public_id: str, user: User) -> dict[str, Any]:
     db: Session = SessionLocal()
     try:
-        data, archived_now = rooms_svc.get_room(
+        data = rooms_svc.get_room(
             db,
             public_id,
             user,
             online_user_ids=hub.online_user_ids(public_id),
         )
         db.commit()
-        if archived_now:
-            hub.publish(public_id, {"event": "archived", "snapshot": data})
         return data
     except rooms_svc.RaidRoomError:
         db.rollback()
@@ -105,11 +102,6 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
     except rooms_svc.RaidRoomError as exc:
         code = CLOSE_NOT_FOUND if exc.status_code == 404 else CLOSE_FORBIDDEN
         await client.close(code=code)
-        return
-
-    if snapshot.get("status") != rooms_svc.STATUS_LIVE:
-        await client.send_json({"event": "archived", "seq": 0, "snapshot": snapshot})
-        await client.close(code=CLOSE_ARCHIVED)
         return
 
     online = await hub.join(public_id, client, user.id)

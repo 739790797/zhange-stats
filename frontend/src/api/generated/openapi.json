@@ -7443,40 +7443,6 @@
         ],
         "summary": "List Tarkov Raid Rooms",
         "operationId": "list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "map",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 64
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Map"
-            }
-          },
-          {
-            "name": "mine",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": true,
-              "title": "Mine"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7487,28 +7453,36 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
-        }
-      },
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/map": {
       "post": {
         "tags": [
           "guides"
         ],
-        "summary": "Create Tarkov Raid Room",
-        "operationId": "create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post",
+        "summary": "Set Tarkov Raid Room Map",
+        "operationId": "set_tarkov_raid_room_map_api_guides_tarkov_raid_rooms__public_id__map_post",
         "security": [
           {
             "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
           }
         ],
         "requestBody": {
@@ -7516,7 +7490,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TarkovRaidRoomCreateIn"
+                "$ref": "#/components/schemas/TarkovRaidRoomMapIn"
               }
             }
           }
@@ -7686,13 +7660,13 @@
         }
       }
     },
-    "/api/guides/tarkov/raid-rooms/{public_id}/close": {
+    "/api/guides/tarkov/raid-rooms/{public_id}/reset": {
       "post": {
         "tags": [
           "guides"
         ],
-        "summary": "Close Tarkov Raid Room",
-        "operationId": "close_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__close_post",
+        "summary": "Reset Tarkov Raid Room",
+        "operationId": "reset_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__reset_post",
         "security": [
           {
             "HTTPBearer": []
@@ -7876,6 +7850,116 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/key-brings/{item_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Bring Tarkov Raid Room Key",
+        "operationId": "bring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Unbring Tarkov Raid Room Key",
+        "operationId": "unbring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -25367,33 +25451,6 @@
         "type": "object",
         "title": "TarkovRaidRoomClaimsIn"
       },
-      "TarkovRaidRoomCreateIn": {
-        "properties": {
-          "map": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Map"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 40
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          }
-        },
-        "type": "object",
-        "required": [
-          "map"
-        ],
-        "title": "TarkovRaidRoomCreateIn"
-      },
       "TarkovRaidRoomDetailOut": {
         "properties": {
           "public_id": {
@@ -25407,14 +25464,18 @@
           },
           "map_slug": {
             "type": "string",
-            "title": "Map Slug"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
+            "title": "Map Slug",
+            "default": ""
           },
           "host_user_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Host User Id"
           },
           "host_display_name": {
@@ -25430,7 +25491,7 @@
           "max_members": {
             "type": "integer",
             "title": "Max Members",
-            "default": 8
+            "default": 5
           },
           "is_member": {
             "type": "boolean",
@@ -25448,27 +25509,12 @@
             ],
             "title": "Created At"
           },
-          "expire_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expire At"
-          },
-          "archived_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Archived At"
+          "occupants": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomOccupantOut"
+            },
+            "type": "array",
+            "title": "Occupants"
           },
           "is_host": {
             "type": "boolean",
@@ -25494,6 +25540,13 @@
             "type": "array",
             "title": "Claims"
           },
+          "key_brings": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomKeyBringOut"
+            },
+            "type": "array",
+            "title": "Key Brings"
+          },
           "marks": {
             "items": {
               "$ref": "#/components/schemas/TarkovRaidRoomMarkOut"
@@ -25504,12 +25557,43 @@
         },
         "type": "object",
         "required": [
-          "public_id",
-          "map_slug",
-          "status",
-          "host_user_id"
+          "public_id"
         ],
         "title": "TarkovRaidRoomDetailOut"
+      },
+      "TarkovRaidRoomKeyBringOut": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "user_id",
+          "display_name"
+        ],
+        "title": "TarkovRaidRoomKeyBringOut"
       },
       "TarkovRaidRoomLobbyItemOut": {
         "properties": {
@@ -25524,14 +25608,18 @@
           },
           "map_slug": {
             "type": "string",
-            "title": "Map Slug"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
+            "title": "Map Slug",
+            "default": ""
           },
           "host_user_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Host User Id"
           },
           "host_display_name": {
@@ -25547,7 +25635,7 @@
           "max_members": {
             "type": "integer",
             "title": "Max Members",
-            "default": 8
+            "default": 5
           },
           "is_member": {
             "type": "boolean",
@@ -25565,24 +25653,17 @@
             ],
             "title": "Created At"
           },
-          "expire_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expire At"
+          "occupants": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomOccupantOut"
+            },
+            "type": "array",
+            "title": "Occupants"
           }
         },
         "type": "object",
         "required": [
-          "public_id",
-          "map_slug",
-          "status",
-          "host_user_id"
+          "public_id"
         ],
         "title": "TarkovRaidRoomLobbyItemOut"
       },
@@ -25598,6 +25679,21 @@
         },
         "type": "object",
         "title": "TarkovRaidRoomLobbyOut"
+      },
+      "TarkovRaidRoomMapIn": {
+        "properties": {
+          "map": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Map"
+          }
+        },
+        "type": "object",
+        "required": [
+          "map"
+        ],
+        "title": "TarkovRaidRoomMapIn"
       },
       "TarkovRaidRoomMarkIn": {
         "properties": {
@@ -25804,6 +25900,34 @@
           "display_name"
         ],
         "title": "TarkovRaidRoomMemberOut"
+      },
+      "TarkovRaidRoomOccupantOut": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_host": {
+            "type": "boolean",
+            "title": "Is Host",
+            "default": false
+          },
+          "online": {
+            "type": "boolean",
+            "title": "Online",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "display_name"
+        ],
+        "title": "TarkovRaidRoomOccupantOut"
       },
       "TarkovSearchHitOut": {
         "properties": {

@@ -369,25 +369,24 @@ export type TarkovRaidRoomDetail =
   components["schemas"]["TarkovRaidRoomDetailOut"];
 export type TarkovRaidRoomMark = components["schemas"]["TarkovRaidRoomMarkOut"];
 export type TarkovRaidRoomClaim = components["schemas"]["TarkovRaidRoomClaimOut"];
+export type TarkovRaidRoomKeyBring =
+  components["schemas"]["TarkovRaidRoomKeyBringOut"];
 
 const RAID_ROOMS = "/guides/tarkov/raid-rooms";
 
-export async function fetchTarkovRaidRooms(map?: string, mine = true) {
-  const slug = (map || "").trim();
+export async function fetchTarkovRaidRooms() {
   const { data } = await client.get<TarkovRaidRoomLobby>(RAID_ROOMS, {
-    params: { ...(slug ? { map: slug } : {}), mine },
     timeout: 30_000,
   });
   return data;
 }
 
-export async function createTarkovRaidRoom(body: {
-  map: string;
-  title?: string;
-}) {
-  const { data } = await client.post<TarkovRaidRoomDetail>(RAID_ROOMS, body, {
-    timeout: 30_000,
-  });
+export async function setTarkovRaidRoomMap(publicId: string, map: string) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/map`,
+    { map },
+    { timeout: 30_000 },
+  );
   return data;
 }
 
@@ -417,9 +416,9 @@ export async function leaveTarkovRaidRoom(publicId: string) {
   return data;
 }
 
-export async function closeTarkovRaidRoom(publicId: string) {
+export async function resetTarkovRaidRoom(publicId: string) {
   const { data } = await client.post<TarkovRaidRoomDetail>(
-    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/close`,
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/reset`,
     {},
     { timeout: 30_000 },
   );
@@ -453,6 +452,23 @@ export async function unclaimTarkovRaidRoomTask(
 ) {
   const { data } = await client.delete<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims/${encodeURIComponent(taskId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function bringTarkovRaidRoomKey(publicId: string, itemId: string) {
+  const { data } = await client.put<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/key-brings/${encodeURIComponent(itemId)}`,
+    {},
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function unbringTarkovRaidRoomKey(publicId: string, itemId: string) {
+  const { data } = await client.delete<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/key-brings/${encodeURIComponent(itemId)}`,
     { timeout: 30_000 },
   );
   return data;

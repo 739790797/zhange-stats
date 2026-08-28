@@ -1,27 +1,30 @@
-import { Alert, Spin } from "antd";
+import { Alert, Modal, Spin } from "antd";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import {
   addTarkovRaidRoomMark,
+  bringTarkovRaidRoomKey,
   claimTarkovRaidRoomTask,
   claimTarkovRaidRoomTasks,
   clearTarkovRaidRoomMarks,
-  closeTarkovRaidRoom,
   fetchTarkovMapDetail,
   fetchTarkovRaidPrep,
   fetchTarkovRaidRoom,
   joinTarkovRaidRoom,
   leaveTarkovRaidRoom,
   removeTarkovRaidRoomMark,
+  resetTarkovRaidRoom,
+  setTarkovRaidRoomMap,
   tarkovRaidRoomWsUrl,
+  unbringTarkovRaidRoomKey,
   unclaimTarkovRaidRoomTask,
   undoTarkovRaidRoomMark,
   type TarkovRaidRoomDetail,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { TARKOV_RAID_PREP_PATH, tarkovMapHref } from "@/lib/tarkovHomeNav";
+import { TARKOV_RAID_PREP_PATH, tarkovRaidRoomShareUrl } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
@@ -35,15 +38,14 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import {
   applyRoomWsEvent,
-  formatRoomRemain,
   groupClaimsByTask,
   claimTaskIdsForUser,
+  userBroughtKey,
   isTypingTarget,
   mergeBoardMarks,
   parseStrokePoints,
   raidRoomWsRetryDelayMs,
-  remainMs,
-  roomDisplayTitle,
+  withRaidRoomViewerFlags,
   type RaidRoomDraftStroke,
   type RaidRoomMarkLike,
   type StrokePoint,
@@ -58,6 +60,7 @@ import { TarkovRaidPrepOcrModal } from "@/components/guides/tarkov/TarkovRaidPre
 import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
+import { MapPickGrid } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { useAuthStore } from "@/stores/authStore";
 import catalogCss from "./TarkovItemCatalogPanel.module.css";
@@ -85,13 +88,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   meIdRef.current = me?.id;
   const [pendingMarks, setPendingMarks] = useState<RaidRoomMarkLike[]>([]);
   const [remoteDrafts, setRemoteDrafts] = useState<RaidRoomDraftStroke[]>([]);
-  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTaskId, setGuideTaskId] = useState("");
   const [ocrOpen, setOcrOpen] = useState(false);
   const [highlightTaskId, setHighlightTaskId] = useState("");
   const [dockOpen, setDockOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [mapPickOpen, setMapPickOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
@@ -109,18 +113,18 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   useEffect(() => {
     if (roomQuery.data) {
+      const next = withRaidRoomViewerFlags(roomQuery.data, meIdRef.current);
       setRoom((current) => {
-        if (!current) return roomQuery.data;
+        if (!current) return next;
         const currentMarks = current.marks?.length || 0;
-        const nextMarks = roomQuery.data.marks?.length || 0;
+        const nextMarks = next.marks?.length || 0;
         if (currentMarks > nextMarks) return current;
-        return roomQuery.data;
+        return next;
       });
     }
   }, [roomQuery.data]);
 
-  const archived = room?.status === "archived";
-  const canEdit = Boolean(room?.can_edit) && !archived;
+  const canEdit = Boolean(room?.can_edit);
   const mapId = room?.map_slug || "";
 
   /* 只跟 token / 房间身份重连，快照更新不要拆掉 WS */
@@ -130,7 +134,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       !token ||
       !publicId ||
       !room ||
-      room.status !== "live" ||
       !room.is_member
     ) {
       return undefined;
@@ -139,7 +142,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     let retry = 0;
     let ws: WebSocket | null = null;
     let ping = 0;
-    let tick = 0;
     let retryTimer = 0;
 
     const connect = () => {
@@ -196,7 +198,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           setRemoteDrafts([]);
           setPendingMarks([]);
         }
-        setRoom((current) => applyRoomWsEvent(current, payload));
+        if (payload.event === "reset") {
+          navigate(TARKOV_RAID_PREP_PATH);
+          return;
+        }
+        setRoom((current) =>
+          applyRoomWsEvent(current, payload, meIdRef.current),
+        );
       };
       ws.onclose = () => {
         if (stopped) return;
@@ -214,16 +222,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         wsRef.current.send(JSON.stringify({ event: "ping" }));
       }
     }, 25000);
-    tick = window.setInterval(() => setNow(Date.now()), 30000);
     return () => {
       stopped = true;
       window.clearInterval(ping);
-      window.clearInterval(tick);
       window.clearTimeout(retryTimer);
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [token, publicId, room?.status, room?.is_member]);
+  }, [token, publicId, room?.is_member]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -268,7 +274,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   const applyRoom = useCallback((next: TarkovRaidRoomDetail) => {
-    setRoom(next);
+    setRoom(withRaidRoomViewerFlags(next, meIdRef.current));
     setError("");
   }, []);
 
@@ -301,10 +307,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [canEdit, publicId, run]);
 
-  const closeMut = useMutation({
-    mutationFn: () => closeTarkovRaidRoom(publicId),
-    onSuccess: (next) => applyRoom(next),
-    onError: (exc) => setError(apiError(exc, "关闭失败")),
+  const resetMut = useMutation({
+    mutationFn: () => resetTarkovRaidRoom(publicId),
+    onSuccess: () => navigate(TARKOV_RAID_PREP_PATH),
+    onError: (exc) => setError(apiError(exc, "清桌失败")),
   });
   const leaveMut = useMutation({
     mutationFn: () => leaveTarkovRaidRoom(publicId),
@@ -384,10 +390,34 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const mapOptions = useMemo(() => raidPrepMapOptions(), []);
   const currentMap = mapOptions.find((item) => item.id === mapId);
   const mapLabel = currentMap?.label || mapId;
-  const title = room ? roomDisplayTitle(room, mapLabel) : "房间";
-  const remain = formatRoomRemain(remainMs(room?.expire_at, now));
+  const title = (room?.title || "").trim() || `${publicId}号房`;
   const traders = prepQuery.data?.traders ?? [];
-  const members = (room?.members || []).filter((row) => row.in_room);
+  const members =
+    room?.occupants?.length
+      ? room.occupants
+      : (room?.members || []).filter((row) => row.in_room !== false);
+
+  const pickMap = (nextMap: string) => {
+    if (!nextMap || nextMap === mapId) {
+      setMapPickOpen(false);
+      return;
+    }
+    const apply = () => {
+      setMapPickOpen(false);
+      void run(() => setTarkovRaidRoomMap(publicId, nextMap));
+    };
+    if (!mapId) {
+      apply();
+      return;
+    }
+    Modal.confirm({
+      title: "更换地图？",
+      content: "换图会清空点位、任务勾选和钥匙声明",
+      okText: "换图",
+      cancelText: "取消",
+      onOk: () => apply(),
+    });
+  };
 
   const toggleClaim = (taskId: string) => {
     if (!canEdit) return;
@@ -401,6 +431,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       return;
     }
     void run(() => claimTarkovRaidRoomTask(publicId, taskId));
+  };
+
+  const toggleKeyBring = (itemId: string) => {
+    if (!canEdit) return;
+    if (userBroughtKey(room?.key_brings, itemId, me?.id)) {
+      void run(() => unbringTarkovRaidRoomKey(publicId, itemId));
+      return;
+    }
+    void run(() => bringTarkovRaidRoomKey(publicId, itemId));
   };
 
   const locateTask = useCallback(
@@ -529,13 +568,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   return (
     <div className={styles.stage} data-dock={dockOpen ? "open" : "closed"}>
-      {archived ? <p className={styles.banner}>已留档，仅供查看</p> : null}
+      {room.is_host && !mapId ? (
+        <p className={styles.banner}>选好地图后才能勾任务、画点和声明钥匙</p>
+      ) : null}
+      {room.is_member && !room.is_host && !mapId ? (
+        <p className={styles.banner}>等待房主选择地图</p>
+      ) : null}
       <div className={styles.topBar}>
         <div className={styles.roomId}>
           <h1 className={styles.roomTitle}>{title}</h1>
           <div className={styles.roomMeta}>
-            {mapLabel} · {archived ? "已封存" : remain} · {room.member_count}/
-            {room.max_members}
+            {mapLabel || "未选地图"} · {room.member_count}/{room.max_members}
           </div>
         </div>
         <div className={styles.members} aria-label="房间成员">
@@ -556,7 +599,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ))}
         </div>
         <div className={styles.topActions}>
-          <TarkovTaskProgressSwitch enabled={mine} onChange={setMine} />
           <button
             type="button"
             className={styles.dockToggle}
@@ -564,22 +606,52 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           >
             {dockOpen ? "收起任务" : "任务列表"}
           </button>
-          <Link className={styles.wiki} to={TARKOV_RAID_PREP_PATH}>
-            大厅
-          </Link>
-          <Link className={styles.wiki} to={tarkovMapHref(mapId)}>
-            地图页
-          </Link>
-          {room.is_host && !archived ? (
+          <button
+            type="button"
+            className={styles.dockChip}
+            onClick={() => {
+              const url = tarkovRaidRoomShareUrl(
+                publicId,
+                window.location.origin,
+              );
+              void navigator.clipboard.writeText(url).then(
+                () => {
+                  setCopiedLink(true);
+                  window.setTimeout(() => setCopiedLink(false), 1600);
+                },
+                () => setCopiedLink(false),
+              );
+            }}
+          >
+            {copiedLink ? "已复制" : "复制链接"}
+          </button>
+          {room.is_host && mapId ? (
             <button
               type="button"
               className={styles.dockChip}
-              onClick={() => closeMut.mutate()}
+              onClick={() => setMapPickOpen(true)}
             >
-              关闭房间
+              更换地图
             </button>
           ) : null}
-          {!room.is_host && room.is_member && !archived ? (
+          {room.is_host ? (
+            <button
+              type="button"
+              className={styles.dockChip}
+              onClick={() => {
+                Modal.confirm({
+                  title: "清桌？",
+                  content: "会请出所有人，并清空地图、点位、任务勾选和钥匙声明。",
+                  okText: "清桌",
+                  cancelText: "取消",
+                  onOk: () => resetMut.mutateAsync(),
+                });
+              }}
+            >
+              清桌
+            </button>
+          ) : null}
+          {room.is_member ? (
             <button
               type="button"
               className={styles.dockChip}
@@ -590,7 +662,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ) : null}
         </div>
       </div>
-      {!room.is_member && !archived ? (
+      {!room.is_member ? (
         <Alert
           type="info"
           showIcon
@@ -676,7 +748,21 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             </div>
           ) : null}
           <div className={styles.mapFill}>
-            {mapQuery.isLoading ? (
+            {!mapId ? (
+              room.is_host ? (
+                <div className={styles.mapPickPane}>
+                  <p className={styles.mapPickHint}>选择这局地图。之后换图会清空点位、任务勾选和钥匙声明。</p>
+                  <MapPickGrid
+                    options={mapOptions}
+                    onPick={pickMap}
+                  />
+                </div>
+              ) : (
+                <div className={catalogCss.status}>
+                  {room.is_member ? "等待房主选择地图" : "加入后可一起准备"}
+                </div>
+              )
+            ) : mapQuery.isLoading ? (
               <div className={catalogCss.status}>
                 <Spin tip="加载地图…" />
               </div>
@@ -718,6 +804,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         tasks={selectedTasks}
                         mapId={mapId}
                         participantsByTask={participantsByTask}
+                        keyBrings={room?.key_brings}
+                        currentUserId={me?.id}
+                        canToggleKeyBring={canEdit}
+                        onToggleKeyBring={toggleKeyBring}
                       />
                       <TarkovRaidPrepGuideOverview
                         tasks={selectedTasks.map((row) => ({
@@ -748,15 +838,18 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             trader={trader}
             onTrader={setTrader}
             leading={
-              canEdit ? (
-                <button
-                  type="button"
-                  className={styles.changeMapBtn}
-                  onClick={() => setOcrOpen(true)}
-                >
-                  截图识别
-                </button>
-              ) : undefined
+              <div className={styles.dockLeadActions}>
+                <TarkovTaskProgressSwitch enabled={mine} onChange={setMine} />
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className={styles.changeMapBtn}
+                    onClick={() => setOcrOpen(true)}
+                  >
+                    截图识别
+                  </button>
+                ) : null}
+              </div>
             }
           />
           <div className={styles.sideHead}>
@@ -891,6 +984,24 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           await run(() => claimTarkovRaidRoomTasks(publicId, next));
         }}
       />
+      <Modal
+        title="更换地图"
+        open={mapPickOpen}
+        onCancel={() => setMapPickOpen(false)}
+        footer={null}
+        width={960}
+        destroyOnClose
+        classNames={{ body: styles.entryModalBody }}
+      >
+        <p className={styles.mapPickHint}>
+          换图会清空点位、任务勾选和钥匙声明
+        </p>
+        <MapPickGrid
+          options={mapOptions}
+          selectedId={mapId || undefined}
+          onPick={pickMap}
+        />
+      </Modal>
     </div>
   );
 }

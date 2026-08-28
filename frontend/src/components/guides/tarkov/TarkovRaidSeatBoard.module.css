@@ -1,0 +1,134 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--hb-border);
+  background: var(--hb-panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seat:hover {
+  background: var(--hb-panel-hover);
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+}
+
+.seat:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.seat:disabled:hover {
+  background: var(--hb-panel);
+  border-color: var(--hb-border);
+}
+
+.seatMine {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+}
+
+.thumb {
+  display: block;
+  flex: none;
+  width: 36px;
+  height: 24px;
+  object-fit: cover;
+  background: #14160f;
+  border: 1px solid var(--hb-border);
+  box-sizing: border-box;
+}
+
+.identity {
+  flex: none;
+  min-width: 7.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.name {
+  color: #eee9d6;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tags {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 8px 2px 6px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1c14;
+  color: #eee9d6;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag[data-host="true"] {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+}
+
+.tagDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.count {
+  flex: none;
+  min-width: 2.6em;
+  color: var(--hb-muted, #b0ae9a);
+  font-family: var(--hb-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.error {
+  margin: 0;
+  color: #d44a4a;
+  font-size: 12px;
+}

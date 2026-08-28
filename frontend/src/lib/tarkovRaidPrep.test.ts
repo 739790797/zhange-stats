@@ -8,6 +8,7 @@ import {
   collectRaidPrepTaskItems,
   collectRaidPrepTaskKeys,
   collectRaidPrepSummaryTypeColumns,
+  collectRaidPrepTaskObjectiveLines,
   filterRaidPrepRows,
   isGarbledTarkovName,
   isTarkovHexId,
@@ -24,7 +25,10 @@ import {
   partitionRaidPrepRows,
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
+  collectRaidPrepQuestFilterPeople,
   raidPrepParticipants,
+  raidPrepPersonKey,
+  raidPrepQuestOverlayVisible,
   resolveRaidPrepLocatePoints,
   selectedTasksFromCatalog,
   serializeSelectedIds,
@@ -97,6 +101,25 @@ describe("raid prep participant line", () => {
       { name: "Ra1nY", userId: 7 },
       { name: "乙", userId: 8 },
     ]);
+  });
+
+  it("filters quest overlays by selected people", () => {
+    const byTask = new Map([
+      ["t1", [{ name: "甲", userId: 1 }, { name: "乙", userId: 2 }]],
+      ["t2", [{ name: "乙", userId: 2 }]],
+    ]);
+    const people = collectRaidPrepQuestFilterPeople(byTask);
+    expect(people.map((row) => raidPrepPersonKey(row))).toEqual(["id:1", "id:2"]);
+    const onlyJia = new Set(["id:1"]);
+    expect(
+      raidPrepQuestOverlayVisible(raidPrepParticipants(byTask.get("t1")), onlyJia),
+    ).toBe(true);
+    expect(
+      raidPrepQuestOverlayVisible(raidPrepParticipants(byTask.get("t2")), onlyJia),
+    ).toBe(false);
+    expect(raidPrepQuestOverlayVisible([], onlyJia)).toBe(true);
+    expect(raidPrepQuestOverlayVisible(people, new Set())).toBe(false);
+    expect(raidPrepQuestOverlayVisible(people, null)).toBe(true);
   });
 });
 
@@ -446,7 +469,7 @@ describe("raid prep needed items", () => {
     const rows = buildRaidPrepSummary([task], "customs");
     expect(rows).toHaveLength(1);
     expect(rows[0].taskName).toBe("Debut");
-    expect(rows[0].itemsByType.findQuestItem?.map((item) => item.name)).toEqual([
+    expect(rows[0].itemsByType.findItem?.map((item) => item.name)).toEqual([
       "硬盘",
     ]);
     expect(
@@ -456,9 +479,110 @@ describe("raid prep needed items", () => {
     ).toEqual(["金项链×7", "金项链×2"]);
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
     expect(rows[0].types).toEqual(["findQuestItem", "giveItem"]);
+    expect(rows[0].objectiveLines).toEqual(["上交", "捡取"]);
     expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual([
-      "findQuestItem",
+      "findItem",
       "giveItem",
+    ]);
+  });
+
+  it("merges item and quest-item types into one summary column", () => {
+    const rows = buildRaidPrepSummary(
+      [
+        {
+          id: "t-merge",
+          name: "Merge",
+          objectives: [
+            {
+              type: "findItem",
+              items: [{ id: "bolts", name: "螺栓" }],
+            },
+            {
+              type: "findQuestItem",
+              items: [{ id: "hdd", name: "硬盘" }],
+            },
+            {
+              type: "giveQuestItem",
+              items: [{ id: "note", name: "纸条" }],
+            },
+            {
+              type: "plantItem",
+              items: [{ id: "ms2000", name: "MS2000" }],
+            },
+            {
+              type: "plantQuestItem",
+              items: [{ id: "blood", name: "血样" }],
+            },
+          ],
+        },
+      ],
+      "customs",
+    );
+    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual([
+      "findItem",
+      "giveItem",
+      "plantItem",
+    ]);
+    expect(rows[0].itemsByType.findItem?.map((item) => item.name)).toEqual([
+      "螺栓",
+      "硬盘",
+    ]);
+    expect(rows[0].itemsByType.giveItem?.map((item) => item.name)).toEqual([
+      "纸条",
+    ]);
+    expect(rows[0].itemsByType.plantItem?.map((item) => item.name)).toEqual([
+      "MS2000",
+      "血样",
+    ]);
+  });
+
+  it("only opens summary columns for types that carry items", () => {
+    const rows = buildRaidPrepSummary(
+      [
+        {
+          id: "t-mix",
+          name: "Mix",
+          objectives: [
+            { type: "shoot", description: "杀十人" },
+            {
+              type: "giveItem",
+              items: [{ id: "gold", name: "金项链" }],
+            },
+            { type: "visit", maps: [{ slug: "customs" }] },
+          ],
+        },
+      ],
+      "customs",
+    );
+    expect(rows[0].types).toEqual(["shoot", "giveItem", "visit"]);
+    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual(["giveItem"]);
+  });
+
+  it("uses objective descriptions for the summary hover", () => {
+    const lines = collectRaidPrepTaskObjectiveLines(
+      {
+        id: "kollontay",
+        name: "人之路·庇护者",
+        objectives: [
+          { type: "shoot", description: "找到并消灭Kollontay" },
+          {
+            type: "giveQuestItem",
+            description: "上交在战局中找到的Kollontay的警棍",
+          },
+          {
+            type: "plantItem",
+            maps: [{ slug: "woods" }],
+            description: "别的图不要出现",
+          },
+          { type: "visit", description: "可选探路", optional: true },
+        ],
+      },
+      "streets",
+    );
+    expect(lines).toEqual([
+      "找到并消灭Kollontay",
+      "上交在战局中找到的Kollontay的警棍",
+      "可选探路（可选）",
     ]);
   });
 

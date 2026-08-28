@@ -14,6 +14,26 @@ export const RAID_PREP_OCR_SCALE = 2;
 /** Tesseract `user_defined_dpi`；未设时易按低分辨率误估导致漏行。 */
 export const RAID_PREP_OCR_DPI = 200;
 
+export function formatRaidPrepOcrProgress(
+  status: string,
+  progress?: number,
+): string {
+  const key = (status || "").toLowerCase();
+  if (key.includes("core")) return "正在加载识别引擎…";
+  if (key.includes("language") || key.includes("traineddata")) {
+    return "正在加载中文模型…";
+  }
+  if (key.includes("initializ")) return "正在初始化识别器…";
+  if (key.includes("recogniz")) {
+    const pct =
+      typeof progress === "number" && progress > 0
+        ? ` ${Math.round(progress * 100)}%`
+        : "";
+    return `正在识别文字…${pct}`;
+  }
+  return "识别中…";
+}
+
 /** 优先支持的分辨率（同 16:9，裁切比例可复用）。 */
 export const RAID_PREP_OCR_PREFERRED_SIZES = [
   { width: 1920, height: 1080 },

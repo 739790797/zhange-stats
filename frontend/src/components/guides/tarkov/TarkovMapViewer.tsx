@@ -13,12 +13,15 @@ import { getBounds, getCRS, getScaledBounds, pos } from "@/lib/tarkovMapCrs";
 import { tarkovBossMapLabel, tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import {
   clusterRaidPrepOverlayLabels,
+  collectRaidPrepQuestFilterPeople,
   colorForTaskId,
   colorForUserId,
   mapLayerFloorBands,
   overlayVisibleOnFloor,
   RAID_PREP_LABEL_CLUSTER_PX,
   raidPrepParticipants,
+  raidPrepPersonKey,
+  raidPrepQuestOverlayVisible,
   type RaidPrepMapParticipant,
   type RaidPrepOverlayLabelItem,
   type RaidPrepPoint,
@@ -838,6 +841,10 @@ export function TarkovMapViewer({
   const drawColorRef = useRef(drawColor);
   const authorUserIdRef = useRef(authorUserId);
   const overlaySigRef = useRef("");
+  const questsParentRef = useRef<HTMLInputElement>(null);
+  const [questPersonOff, setQuestPersonOff] = useState<Set<string>>(
+    () => new Set(),
+  );
   const commitStrokeRef = useRef<
     (stroke: { floor: string; points: StrokePoint[] }) => void
   >(() => {});
@@ -882,10 +889,48 @@ export function TarkovMapViewer({
       ),
     [questOverlays, floor, floorBands],
   );
-  const overlaySig = visibleQuestOverlays
+  const questPeople = useMemo(
+    () => collectRaidPrepQuestFilterPeople(questParticipantsByTask),
+    [questParticipantsByTask],
+  );
+  const questTree = questOverlays.length > 0 && questPeople.length >= 2;
+  const selectedQuestKeys = useMemo(() => {
+    if (!questTree) return null;
+    return new Set(
+      questPeople
+        .map((person) => raidPrepPersonKey(person))
+        .filter((key) => !questPersonOff.has(key)),
+    );
+  }, [questTree, questPeople, questPersonOff]);
+  const displayedQuestOverlays = useMemo(
+    () =>
+      visibleQuestOverlays.filter((row) =>
+        raidPrepQuestOverlayVisible(
+          raidPrepParticipants(questParticipantsByTask?.get(row.taskId)),
+          selectedQuestKeys,
+        ),
+      ),
+    [visibleQuestOverlays, questParticipantsByTask, selectedQuestKeys],
+  );
+  const displayedParticipantsByTask = useMemo(() => {
+    if (!questParticipantsByTask || !selectedQuestKeys) {
+      return questParticipantsByTask;
+    }
+    const next = new Map<string, RaidPrepMapParticipant[]>();
+    for (const [taskId, people] of questParticipantsByTask) {
+      next.set(
+        taskId,
+        raidPrepParticipants(people).filter((person) =>
+          selectedQuestKeys.has(raidPrepPersonKey(person)),
+        ),
+      );
+    }
+    return next;
+  }, [questParticipantsByTask, selectedQuestKeys]);
+  const overlaySig = displayedQuestOverlays
     .map((row) => {
       const people = raidPrepParticipants(
-        questParticipantsByTask?.get(row.taskId),
+        displayedParticipantsByTask?.get(row.taskId),
       );
       const sig = people
         .map((person) => `${person.userId ?? ""}:${person.name}`)
@@ -911,6 +956,15 @@ export function TarkovMapViewer({
   const spawnsParentPartial =
     !spawnsParentOn && anyPresentSpawnKindOn(spawnKinds, spawnKindOptions);
   const spawnsParentRef = useRef<HTMLInputElement>(null);
+  const questPeopleOnCount = questTree
+    ? questPeople.filter(
+        (person) => !questPersonOff.has(raidPrepPersonKey(person)),
+      ).length
+    : 0;
+  const questsParentOn =
+    showQuests && (!questTree || questPeopleOnCount === questPeople.length);
+  const questsParentPartial =
+    Boolean(showQuests && questTree && questPeopleOnCount > 0 && questPeopleOnCount < questPeople.length);
   drawModeRef.current = drawMode;
   onStrokeRef.current = onStroke;
   onDraftStrokeRef.current = onDraftStroke;
@@ -956,6 +1010,11 @@ export function TarkovMapViewer({
     const el = spawnsParentRef.current;
     if (el) el.indeterminate = spawnsParentPartial;
   }, [spawnsParentPartial]);
+
+  useEffect(() => {
+    const el = questsParentRef.current;
+    if (el) el.indeterminate = questsParentPartial;
+  }, [questsParentPartial]);
 
   useEffect(() => {
     onFloorChange?.(floor);
@@ -1300,18 +1359,18 @@ export function TarkovMapViewer({
         overlaySigRef.current = overlaySig;
         addQuestOverlays(
           runtime.quests,
-          visibleQuestOverlays,
-          questParticipantsByTask,
+          displayedQuestOverlays,
+          displayedParticipantsByTask,
           onQuestClick,
         );
       }
       addQuestLabels(
         runtime.questLabels,
-        visibleQuestOverlays,
+        displayedQuestOverlays,
         runtime.map,
         onQuestClick,
         highlightTaskId,
-        questParticipantsByTask,
+        displayedParticipantsByTask,
       );
     } else {
       overlaySigRef.current = "";
@@ -1322,7 +1381,7 @@ export function TarkovMapViewer({
       if (!showQuests) return;
       addQuestLabels(
         runtime.questLabels,
-        visibleQuestOverlays,
+        displayedQuestOverlays,
         runtime.map,
         (taskId) => {
           if (isMapDrawTool(drawModeRef.current)) return false;
@@ -1330,7 +1389,7 @@ export function TarkovMapViewer({
           return true;
         },
         highlightTaskId,
-        questParticipantsByTask,
+        displayedParticipantsByTask,
       );
     };
     runtime.map.on("zoomend", refreshQuestLabels);
@@ -1350,8 +1409,8 @@ export function TarkovMapViewer({
     spawns,
     questOverlays,
     overlaySig,
-    visibleQuestOverlays,
-    questParticipantsByTask,
+    displayedQuestOverlays,
+    displayedParticipantsByTask,
     highlightTaskId,
     visibleMarks,
     floor,
@@ -1691,17 +1750,76 @@ export function TarkovMapViewer({
                   </label>
                 ) : null}
                 {questOverlays.length ? (
-                  <label className={styles.filterRow}>
-                    <input
-                      className={styles.filterCheck}
-                      type="checkbox"
-                      checked={showQuests}
-                      onChange={() =>
-                        updatePrefs({ showQuests: !showQuests })
-                      }
-                    />
-                    <span>任务</span>
-                  </label>
+                  questTree ? (
+                    <div className={styles.filterSubgroup}>
+                      <label className={styles.filterRow}>
+                        <input
+                          ref={questsParentRef}
+                          className={styles.filterCheck}
+                          type="checkbox"
+                          checked={questsParentOn}
+                          onChange={() => {
+                            if (questsParentOn) {
+                              updatePrefs({ showQuests: false });
+                              return;
+                            }
+                            updatePrefs({ showQuests: true });
+                            setQuestPersonOff(new Set());
+                          }}
+                        />
+                        <span>任务</span>
+                      </label>
+                      {questPeople.map((person) => {
+                        const key = raidPrepPersonKey(person);
+                        const on = showQuests && !questPersonOff.has(key);
+                        return (
+                          <label
+                            key={key}
+                            className={`${styles.filterRow} ${styles.filterRowChild}`}
+                          >
+                            <input
+                              className={styles.filterCheck}
+                              type="checkbox"
+                              checked={on}
+                              onChange={() => {
+                                setQuestPersonOff((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(key)) next.delete(key);
+                                  else next.add(key);
+                                  return next;
+                                });
+                                if (!showQuests) {
+                                  updatePrefs({ showQuests: true });
+                                }
+                              }}
+                            />
+                            <span
+                              className={styles.filterDot}
+                              style={{
+                                background:
+                                  person.userId != null
+                                    ? colorForUserId(person.userId)
+                                    : colorForTaskId(person.name),
+                              }}
+                            />
+                            <span>{person.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <label className={styles.filterRow}>
+                      <input
+                        className={styles.filterCheck}
+                        type="checkbox"
+                        checked={showQuests}
+                        onChange={() =>
+                          updatePrefs({ showQuests: !showQuests })
+                        }
+                      />
+                      <span>任务</span>
+                    </label>
+                  )
                 ) : null}
               </div>
             </>

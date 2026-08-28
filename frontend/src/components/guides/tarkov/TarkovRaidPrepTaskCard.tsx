@@ -46,7 +46,6 @@ export function TarkovRaidPrepTaskCard({
         names?.length ? names.join("、") : "",
         floors?.length ? floors.join(" / ") : "",
         progress,
-        row.min_player_level ? `Lv.${row.min_player_level}` : "",
         row.kappa_required ? "Kappa" : "",
       ].filter(Boolean);
   const swatch = color || colorForTaskId(row.id);

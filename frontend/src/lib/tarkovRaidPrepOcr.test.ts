@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compactOcrText,
   extractTaskNameFromOcrLine,
+  formatRaidPrepOcrProgress,
   isLikelyLocationOrStatusLine,
   isNearWidescreen,
   isPreferredRaidPrepOcrSize,
@@ -36,6 +37,20 @@ describe("compactOcrText", () => {
         catalog: [{ id: "4", name: "塔科夫神射手 - Part 3" }],
       }),
     ).toHaveLength(1);
+  });
+});
+
+describe("formatRaidPrepOcrProgress", () => {
+  it("maps tesseract status to Chinese", () => {
+    expect(formatRaidPrepOcrProgress("loading tesseract core")).toBe(
+      "正在加载识别引擎…",
+    );
+    expect(formatRaidPrepOcrProgress("loading language traineddata")).toBe(
+      "正在加载中文模型…",
+    );
+    expect(formatRaidPrepOcrProgress("recognizing text", 0.4)).toBe(
+      "正在识别文字… 40%",
+    );
   });
 });
 

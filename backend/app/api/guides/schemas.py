@@ -756,9 +756,8 @@ class TarkovLootTierCatalogOut(BaseModel):
     note: str | None = None
 
 
-class TarkovRaidRoomCreateIn(BaseModel):
+class TarkovRaidRoomMapIn(BaseModel):
     map: str = Field(min_length=1, max_length=64)
-    title: str | None = Field(default=None, max_length=40)
 
 
 class TarkovRaidRoomClaimIn(BaseModel):
@@ -795,6 +794,13 @@ class TarkovRaidRoomClaimOut(BaseModel):
     created_at: str | None = None
 
 
+class TarkovRaidRoomKeyBringOut(BaseModel):
+    item_id: str
+    user_id: int
+    display_name: str
+    created_at: str | None = None
+
+
 class TarkovRaidRoomMarkOut(BaseModel):
     id: int
     kind: str
@@ -809,18 +815,24 @@ class TarkovRaidRoomMarkOut(BaseModel):
     created_at: str | None = None
 
 
+class TarkovRaidRoomOccupantOut(BaseModel):
+    user_id: int
+    display_name: str
+    is_host: bool = False
+    online: bool = False
+
+
 class TarkovRaidRoomLobbyItemOut(BaseModel):
     public_id: str
     title: str = ""
-    map_slug: str
-    status: str
-    host_user_id: int
+    map_slug: str = ""
+    host_user_id: int | None = None
     host_display_name: str = ""
     member_count: int = 0
-    max_members: int = 8
+    max_members: int = 5
     is_member: bool = False
     created_at: str | None = None
-    expire_at: str | None = None
+    occupants: list[TarkovRaidRoomOccupantOut] = Field(default_factory=list)
 
 
 class TarkovRaidRoomLobbyOut(BaseModel):
@@ -828,10 +840,10 @@ class TarkovRaidRoomLobbyOut(BaseModel):
 
 
 class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
-    archived_at: str | None = None
     is_host: bool = False
     is_member: bool = False
     can_edit: bool = False
     members: list[TarkovRaidRoomMemberOut] = Field(default_factory=list)
     claims: list[TarkovRaidRoomClaimOut] = Field(default_factory=list)
+    key_brings: list[TarkovRaidRoomKeyBringOut] = Field(default_factory=list)
     marks: list[TarkovRaidRoomMarkOut] = Field(default_factory=list)

@@ -3,14 +3,14 @@ import { colorForUserId } from "@/lib/tarkovRaidPrep";
 
 export { tarkovRaidRoomHref, colorForUserId };
 
+export const RAID_ROOM_SLOT_IDS = ["1", "2", "3", "4", "5"] as const;
+
 export function parseRaidRoomPublicId(raw: string): string {
   const text = (raw || "").trim();
   if (!text) return "";
   const fromPath = text.match(/raid-prep\/rooms\/([a-zA-Z0-9]+)/i);
-  if (fromPath?.[1] && /^[a-f0-9]{12}$/i.test(fromPath[1])) {
-    return fromPath[1].toLowerCase();
-  }
-  if (/^[a-f0-9]{12}$/i.test(text)) return text.toLowerCase();
+  const candidate = (fromPath?.[1] || text).trim();
+  if (/^[1-5]$/.test(candidate)) return candidate;
   return "";
 }
 
@@ -24,6 +24,12 @@ export const RAID_ROOM_OTHER_FLOOR_OPACITY = 0.28;
 
 export type RaidRoomClaimLike = {
   task_id: string;
+  user_id: number;
+  display_name: string;
+};
+
+export type RaidRoomKeyBringLike = {
+  item_id: string;
   user_id: number;
   display_name: string;
 };
@@ -66,22 +72,54 @@ export type RaidRoomMemberLike = {
   online?: boolean;
 };
 
+export type RaidRoomOccupantLike = {
+  user_id: number;
+  display_name: string;
+  is_host?: boolean;
+  online?: boolean;
+};
+
 export type RaidRoomSnapshotLike = {
   public_id: string;
   title?: string;
   map_slug: string;
-  status: string;
-  host_user_id: number;
+  host_user_id?: number | null;
   host_display_name: string;
-  expire_at?: string | null;
   can_edit?: boolean;
+  is_host?: boolean;
+  is_member?: boolean;
+  occupants?: RaidRoomOccupantLike[];
   members?: RaidRoomMemberLike[];
   claims?: RaidRoomClaimLike[];
+  key_brings?: RaidRoomKeyBringLike[];
   marks?: RaidRoomMarkLike[];
 };
 
+export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
+  room: T,
+  userId: number | null | undefined,
+): T & { is_host: boolean; is_member: boolean; can_edit: boolean } {
+  const seated = (room.occupants || []).some((row) => row.user_id === userId)
+    || (room.members || []).some(
+      (row) => row.user_id === userId && row.in_room !== false,
+    );
+  const is_host = userId != null && room.host_user_id === userId;
+  return {
+    ...room,
+    is_host,
+    is_member: seated,
+    can_edit: seated && Boolean((room.map_slug || "").trim()),
+  };
+}
+
 export type RaidRoomClaimGroup = {
   taskId: string;
+  userIds: number[];
+  names: string[];
+};
+
+export type RaidRoomKeyBringGroup = {
+  itemId: string;
   userIds: number[];
   names: string[];
 };
@@ -94,6 +132,35 @@ export function roomDisplayTitle(
   if (title) return title;
   const host = (room.host_display_name || "").trim() || "房间";
   return `${host} 的 ${mapLabel}`;
+}
+
+export type RaidLobbyRoomLike = {
+  is_member?: boolean;
+  host_user_id?: number | null;
+  member_count?: number | null;
+  max_members?: number | null;
+};
+
+/** 大厅条目：自己所在 / 自己主持 / 尚未加入（含已满，供列表灰显）。 */
+export function partitionRaidLobbyRooms<T extends RaidLobbyRoomLike>(
+  items: T[],
+  userId?: number | null,
+): { mine: T[]; hosted: T[]; joinable: T[] } {
+  const mine: T[] = [];
+  const hosted: T[] = [];
+  const joinable: T[] = [];
+  for (const room of items) {
+    if (room.is_member) mine.push(room);
+    else joinable.push(room);
+    if (userId != null && room.host_user_id === userId) hosted.push(room);
+  }
+  return { mine, hosted, joinable };
+}
+
+export function raidRoomIsFull(room: RaidLobbyRoomLike): boolean {
+  const max = Number(room.max_members) || 0;
+  const count = Number(room.member_count) || 0;
+  return max > 0 && count >= max;
 }
 
 export function remainMs(
@@ -138,6 +205,56 @@ export function groupClaimsByTask(
   return order.map((id) => groups.get(id)!);
 }
 
+export function groupKeyBringsByItem(
+  brings: readonly RaidRoomKeyBringLike[] | null | undefined,
+): RaidRoomKeyBringGroup[] {
+  const order: string[] = [];
+  const groups = new Map<string, RaidRoomKeyBringGroup>();
+  for (const row of brings || []) {
+    const itemId = String(row.item_id || "").trim();
+    if (!itemId) continue;
+    let group = groups.get(itemId);
+    if (!group) {
+      group = { itemId, userIds: [], names: [] };
+      groups.set(itemId, group);
+      order.push(itemId);
+    }
+    if (!group.userIds.includes(row.user_id)) {
+      group.userIds.push(row.user_id);
+      group.names.push((row.display_name || "").trim() || `用户${row.user_id}`);
+    }
+  }
+  return order.map((id) => groups.get(id)!);
+}
+
+export function userBroughtKey(
+  brings: readonly RaidRoomKeyBringLike[] | null | undefined,
+  itemId: string,
+  userId: number | null | undefined,
+): boolean {
+  if (userId == null) return false;
+  const id = String(itemId || "").trim();
+  if (!id) return false;
+  return (brings || []).some(
+    (row) => row.user_id === userId && String(row.item_id || "").trim() === id,
+  );
+}
+
+export function formatKeyBringHint(
+  names: readonly string[],
+  options?: { canToggle?: boolean },
+): string {
+  const canToggle = options?.canToggle !== false;
+  if (!names.length) {
+    return canToggle ? "点击声明我带了这把钥匙" : "还没人声明带这把钥匙";
+  }
+  const who =
+    names.length === 1
+      ? `${names[0]}带了这把钥匙`
+      : `${names.join("、")}带了这把钥匙`;
+  return `${who}。`;
+}
+
 export function claimedTaskIds(
   claims: RaidRoomClaimLike[] | null | undefined,
 ): string[] {
@@ -176,22 +293,30 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
     snapshot?: T;
     online_user_ids?: number[];
   },
-): T | null {
+  userId?: number | null,
+): (T & { is_host: boolean; is_member: boolean; can_edit: boolean }) | null {
   const online = event.online_user_ids;
-  const withPresence = (room: T): T => {
-    if (!online) return room;
+  const withPresence = (room: T) => {
+    if (!online) return withRaidRoomViewerFlags(room, userId);
     const ids = new Set(online);
-    return {
-      ...room,
-      members: (room.members || []).map((row) => ({
-        ...row,
-        online: ids.has(row.user_id),
-      })),
-    };
+    return withRaidRoomViewerFlags(
+      {
+        ...room,
+        occupants: (room.occupants || []).map((row) => ({
+          ...row,
+          online: ids.has(row.user_id),
+        })),
+        members: (room.members || []).map((row) => ({
+          ...row,
+          online: ids.has(row.user_id),
+        })),
+      },
+      userId,
+    );
   };
   if (event.snapshot) return withPresence(event.snapshot);
   if (event.event === "presence" && current) return withPresence(current);
-  return current;
+  return current ? withRaidRoomViewerFlags(current, userId) : null;
 }
 
 export function roundStrokeCoord(value: number): number {

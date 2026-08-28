@@ -2511,8 +2511,24 @@ export interface paths {
         /** List Tarkov Raid Rooms */
         get: operations["list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get"];
         put?: never;
-        /** Create Tarkov Raid Room */
-        post: operations["create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Tarkov Raid Room Map */
+        post: operations["set_tarkov_raid_room_map_api_guides_tarkov_raid_rooms__public_id__map_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2570,7 +2586,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/raid-rooms/{public_id}/close": {
+    "/api/guides/tarkov/raid-rooms/{public_id}/reset": {
         parameters: {
             query?: never;
             header?: never;
@@ -2579,8 +2595,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close Tarkov Raid Room */
-        post: operations["close_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__close_post"];
+        /** Reset Tarkov Raid Room */
+        post: operations["reset_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2617,6 +2633,24 @@ export interface paths {
         /** Claim Tarkov Raid Room Tasks */
         post: operations["claim_tarkov_raid_room_tasks_api_guides_tarkov_raid_rooms__public_id__claims_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/key-brings/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Bring Tarkov Raid Room Key */
+        put: operations["bring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__put"];
+        post?: never;
+        /** Unbring Tarkov Raid Room Key */
+        delete: operations["unbring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -10241,13 +10275,6 @@ export interface components {
             /** Task Ids */
             task_ids?: string[];
         };
-        /** TarkovRaidRoomCreateIn */
-        TarkovRaidRoomCreateIn: {
-            /** Map */
-            map: string;
-            /** Title */
-            title?: string | null;
-        };
         /** TarkovRaidRoomDetailOut */
         TarkovRaidRoomDetailOut: {
             /** Public Id */
@@ -10257,12 +10284,13 @@ export interface components {
              * @default
              */
             title: string;
-            /** Map Slug */
+            /**
+             * Map Slug
+             * @default
+             */
             map_slug: string;
-            /** Status */
-            status: string;
             /** Host User Id */
-            host_user_id: number;
+            host_user_id?: number | null;
             /**
              * Host Display Name
              * @default
@@ -10275,7 +10303,7 @@ export interface components {
             member_count: number;
             /**
              * Max Members
-             * @default 8
+             * @default 5
              */
             max_members: number;
             /**
@@ -10285,10 +10313,8 @@ export interface components {
             is_member: boolean;
             /** Created At */
             created_at?: string | null;
-            /** Expire At */
-            expire_at?: string | null;
-            /** Archived At */
-            archived_at?: string | null;
+            /** Occupants */
+            occupants?: components["schemas"]["TarkovRaidRoomOccupantOut"][];
             /**
              * Is Host
              * @default false
@@ -10303,8 +10329,21 @@ export interface components {
             members?: components["schemas"]["TarkovRaidRoomMemberOut"][];
             /** Claims */
             claims?: components["schemas"]["TarkovRaidRoomClaimOut"][];
+            /** Key Brings */
+            key_brings?: components["schemas"]["TarkovRaidRoomKeyBringOut"][];
             /** Marks */
             marks?: components["schemas"]["TarkovRaidRoomMarkOut"][];
+        };
+        /** TarkovRaidRoomKeyBringOut */
+        TarkovRaidRoomKeyBringOut: {
+            /** Item Id */
+            item_id: string;
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Created At */
+            created_at?: string | null;
         };
         /** TarkovRaidRoomLobbyItemOut */
         TarkovRaidRoomLobbyItemOut: {
@@ -10315,12 +10354,13 @@ export interface components {
              * @default
              */
             title: string;
-            /** Map Slug */
+            /**
+             * Map Slug
+             * @default
+             */
             map_slug: string;
-            /** Status */
-            status: string;
             /** Host User Id */
-            host_user_id: number;
+            host_user_id?: number | null;
             /**
              * Host Display Name
              * @default
@@ -10333,7 +10373,7 @@ export interface components {
             member_count: number;
             /**
              * Max Members
-             * @default 8
+             * @default 5
              */
             max_members: number;
             /**
@@ -10343,13 +10383,18 @@ export interface components {
             is_member: boolean;
             /** Created At */
             created_at?: string | null;
-            /** Expire At */
-            expire_at?: string | null;
+            /** Occupants */
+            occupants?: components["schemas"]["TarkovRaidRoomOccupantOut"][];
         };
         /** TarkovRaidRoomLobbyOut */
         TarkovRaidRoomLobbyOut: {
             /** Items */
             items?: components["schemas"]["TarkovRaidRoomLobbyItemOut"][];
+        };
+        /** TarkovRaidRoomMapIn */
+        TarkovRaidRoomMapIn: {
+            /** Map */
+            map: string;
         };
         /** TarkovRaidRoomMarkIn */
         TarkovRaidRoomMarkIn: {
@@ -10425,6 +10470,23 @@ export interface components {
             online: boolean;
             /** Joined At */
             joined_at?: string | null;
+        };
+        /** TarkovRaidRoomOccupantOut */
+        TarkovRaidRoomOccupantOut: {
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Is Host
+             * @default false
+             */
+            is_host: boolean;
+            /**
+             * Online
+             * @default false
+             */
+            online: boolean;
         };
         /** TarkovSearchHitOut */
         TarkovSearchHitOut: {
@@ -16745,10 +16807,7 @@ export interface operations {
     };
     list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get: {
         parameters: {
-            query?: {
-                map?: string | null;
-                mine?: boolean;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -16764,27 +16823,20 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovRaidRoomLobbyOut"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post: {
+    set_tarkov_raid_room_map_api_guides_tarkov_raid_rooms__public_id__map_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                public_id: string;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TarkovRaidRoomCreateIn"];
+                "application/json": components["schemas"]["TarkovRaidRoomMapIn"];
             };
         };
         responses: {
@@ -16901,7 +16953,7 @@ export interface operations {
             };
         };
     };
-    close_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__close_post: {
+    reset_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__reset_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -17010,6 +17062,70 @@ export interface operations {
                 "application/json": components["schemas"]["TarkovRaidRoomClaimsIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unbring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

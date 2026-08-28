@@ -1,11 +1,10 @@
-"""塔科夫战局准备房间：大厅、并集勾选、自由涂鸦画板。"""
+"""塔科夫战局准备房间：固定席位、并集勾选、自由涂鸦画板。"""
 
 from __future__ import annotations
 
 import math
 import re
-import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func
@@ -14,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive, to_naive
 from app.models.tarkov import (
     TarkovRaidRoom,
+    TarkovRaidRoomKeyBring,
     TarkovRaidRoomMark,
     TarkovRaidRoomMember,
     TarkovRaidRoomTaskClaim,
@@ -21,22 +21,19 @@ from app.models.tarkov import (
 from app.models.user import User
 from app.services.tarkov.tasks import MAP_SLUG_EQUIV_GROUPS
 
-STATUS_LIVE = "live"
-STATUS_ARCHIVED = "archived"
 MARK_PIN = "pin"
 MARK_LINE = "line"
 MARK_STROKE = "stroke"
 
-ROOM_TTL = timedelta(hours=24)
-MAX_MEMBERS = 8
-MAX_LIVE_HOSTED = 1
+SLOT_COUNT = 5
+SLOT_PUBLIC_IDS = tuple(str(slot) for slot in range(1, SLOT_COUNT + 1))
+MAX_MEMBERS = 5
 MAX_UNIQUE_TASKS = 40
+MAX_UNIQUE_KEYS = 80
 MAX_PINS = 80
 MAX_LINES = 80
 MAX_STROKES = 240
 MAX_STROKE_POINTS = 160
-PUBLIC_ID_LEN = 12
-TITLE_MAX = 40
 TASK_ID_MAX = 64
 FLOOR_MAX = 64
 COORD_MIN = -20000.0
@@ -66,8 +63,13 @@ def normalize_room_map_slug(raw: str) -> str:
     return ""
 
 
-def new_public_id() -> str:
-    return secrets.token_hex(PUBLIC_ID_LEN // 2)
+def normalize_slot_id(raw: str) -> str:
+    key = (raw or "").strip()
+    return key if key in SLOT_PUBLIC_IDS else ""
+
+
+def slot_title(slot: int) -> str:
+    return f"{slot}号房"
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -85,6 +87,13 @@ def _task_id(raw: str) -> str:
     text = (raw or "").strip()
     if not text or len(text) > TASK_ID_MAX:
         raise RaidRoomError("任务无效")
+    return text
+
+
+def _item_id(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text or len(text) > TASK_ID_MAX:
+        raise RaidRoomError("钥匙无效")
     return text
 
 
@@ -137,47 +146,34 @@ def parse_draw_draft(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
-def archive_expired_rooms(db: Session, *, now: datetime | None = None) -> int:
+def ensure_slot_rooms(db: Session, *, now: datetime | None = None) -> None:
     stamp = to_naive(now or now_naive())
-    count = (
-        db.query(TarkovRaidRoom)
-        .filter(
-            TarkovRaidRoom.status == STATUS_LIVE,
-            TarkovRaidRoom.expire_at <= stamp,
+    existing = {
+        str(row[0])
+        for row in db.query(TarkovRaidRoom.public_id).all()
+    }
+    for slot in range(1, SLOT_COUNT + 1):
+        pid = str(slot)
+        if pid in existing:
+            continue
+        db.add(
+            TarkovRaidRoom(
+                public_id=pid,
+                title=slot_title(slot),
+                map_slug="",
+                host_user_id=None,
+                host_display_name="",
+                created_at=stamp,
+            )
         )
-        .update(
-            {
-                TarkovRaidRoom.status: STATUS_ARCHIVED,
-                TarkovRaidRoom.archived_at: stamp,
-            },
-            synchronize_session=False,
-        )
-    )
     db.flush()
-    return int(count or 0)
-
-
-def _archive_room(room: TarkovRaidRoom, now: datetime) -> bool:
-    if room.status != STATUS_LIVE:
-        return False
-    room.status = STATUS_ARCHIVED
-    room.archived_at = now
-    return True
-
-
-def _ensure_current(room: TarkovRaidRoom, now: datetime) -> bool:
-    """若已到期则封存。返回是否刚封存。"""
-    if room.status != STATUS_LIVE:
-        return False
-    if to_naive(room.expire_at) > now:
-        return False
-    return _archive_room(room, now)
 
 
 def _get_room(db: Session, public_id: str) -> TarkovRaidRoom:
-    key = (public_id or "").strip()
+    key = normalize_slot_id(public_id)
     if not key:
         raise RaidRoomError("房间不存在", 404)
+    ensure_slot_rooms(db)
     room = (
         db.query(TarkovRaidRoom).filter(TarkovRaidRoom.public_id == key).first()
     )
@@ -186,9 +182,66 @@ def _get_room(db: Session, public_id: str) -> TarkovRaidRoom:
     return room
 
 
-def _require_live(room: TarkovRaidRoom) -> None:
-    if room.status != STATUS_LIVE:
-        raise RaidRoomError("房间已留档，仅供查看", 409)
+def _require_map(room: TarkovRaidRoom) -> None:
+    if not (room.map_slug or "").strip():
+        raise RaidRoomError("请先选择地图", 409)
+
+
+def _wipe_board(db: Session, room_id: int) -> None:
+    (
+        db.query(TarkovRaidRoomMark)
+        .filter(TarkovRaidRoomMark.room_id == room_id)
+        .delete(synchronize_session=False)
+    )
+    (
+        db.query(TarkovRaidRoomKeyBring)
+        .filter(TarkovRaidRoomKeyBring.room_id == room_id)
+        .delete(synchronize_session=False)
+    )
+    (
+        db.query(TarkovRaidRoomTaskClaim)
+        .filter(TarkovRaidRoomTaskClaim.room_id == room_id)
+        .delete(synchronize_session=False)
+    )
+
+
+def _clear_slot(db: Session, room: TarkovRaidRoom) -> None:
+    _wipe_board(db, room.id)
+    (
+        db.query(TarkovRaidRoomMember)
+        .filter(TarkovRaidRoomMember.room_id == room.id)
+        .delete(synchronize_session=False)
+    )
+    room.host_user_id = None
+    room.host_display_name = ""
+    room.map_slug = ""
+    db.flush()
+
+
+def _assign_host(room: TarkovRaidRoom, user: User) -> None:
+    room.host_user_id = user.id
+    room.host_display_name = _display_name(user)
+
+
+def _transfer_or_clear(db: Session, room: TarkovRaidRoom) -> None:
+    nxt = (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.room_id == room.id,
+            TarkovRaidRoomMember.left_at.is_(None),
+        )
+        .order_by(
+            TarkovRaidRoomMember.joined_at.asc(),
+            TarkovRaidRoomMember.user_id.asc(),
+        )
+        .first()
+    )
+    if nxt is None:
+        _clear_slot(db, room)
+        return
+    room.host_user_id = nxt.user_id
+    room.host_display_name = nxt.display_name
+    db.flush()
 
 
 def _member(db: Session, room_id: int, user_id: int) -> TarkovRaidRoomMember | None:
@@ -228,19 +281,6 @@ def _active_member_counts(db: Session, room_ids: list[int]) -> dict[int, int]:
         .all()
     )
     return {int(rid): int(cnt) for rid, cnt in rows}
-
-
-def _host_live_count(db: Session, user_id: int) -> int:
-    return int(
-        db.query(func.count())
-        .select_from(TarkovRaidRoom)
-        .filter(
-            TarkovRaidRoom.host_user_id == user_id,
-            TarkovRaidRoom.status == STATUS_LIVE,
-        )
-        .scalar()
-        or 0
-    )
 
 
 def _require_active_member(db: Session, room: TarkovRaidRoom, user: User) -> TarkovRaidRoomMember:
@@ -301,18 +341,29 @@ def serialize_room(
         .order_by(TarkovRaidRoomTaskClaim.created_at.asc())
         .all()
     )
+    key_brings = (
+        db.query(TarkovRaidRoomKeyBring)
+        .filter(TarkovRaidRoomKeyBring.room_id == room.id)
+        .order_by(TarkovRaidRoomKeyBring.created_at.asc())
+        .all()
+    )
     marks = (
         db.query(TarkovRaidRoomMark)
         .filter(TarkovRaidRoomMark.room_id == room.id)
         .order_by(TarkovRaidRoomMark.created_at.asc(), TarkovRaidRoomMark.id.asc())
         .all()
     )
-    ids = {room.host_user_id}
-    fallback: dict[int, str] = {room.host_user_id: room.host_display_name}
+    ids: set[int] = set()
+    fallback: dict[int, str] = {}
+    if room.host_user_id is not None:
+        ids.add(room.host_user_id)
+        fallback[room.host_user_id] = room.host_display_name
     for row in members:
         ids.add(row.user_id)
         fallback[row.user_id] = row.display_name
     for row in claims:
+        ids.add(row.user_id)
+    for row in key_brings:
         ids.add(row.user_id)
     for row in marks:
         ids.add(row.author_user_id)
@@ -321,23 +372,34 @@ def serialize_room(
     viewer_id = viewer.id if viewer is not None else None
     viewer_member = next((row for row in members if viewer_id == row.user_id), None)
     is_member = bool(viewer_member and viewer_member.left_at is None)
-    is_host = viewer_id == room.host_user_id
-    can_edit = room.status == STATUS_LIVE and (is_member or is_host)
+    is_host = viewer_id is not None and viewer_id == room.host_user_id
+    can_edit = is_member and bool((room.map_slug or "").strip())
+    occupants = [row for row in members if row.left_at is None]
     return {
         "public_id": room.public_id,
-        "title": (room.title or "").strip(),
-        "map_slug": room.map_slug,
-        "status": room.status,
+        "title": (room.title or "").strip() or slot_title(int(room.public_id)),
+        "map_slug": room.map_slug or "",
         "host_user_id": room.host_user_id,
-        "host_display_name": names.get(room.host_user_id) or room.host_display_name,
+        "host_display_name": (
+            names.get(room.host_user_id) or room.host_display_name
+            if room.host_user_id is not None
+            else ""
+        ),
         "created_at": _iso(room.created_at),
-        "expire_at": _iso(room.expire_at),
-        "archived_at": _iso(room.archived_at),
-        "member_count": sum(1 for row in members if row.left_at is None),
+        "member_count": len(occupants),
         "max_members": MAX_MEMBERS,
         "is_host": is_host,
-        "is_member": is_member or is_host,
+        "is_member": is_member,
         "can_edit": can_edit,
+        "occupants": [
+            {
+                "user_id": row.user_id,
+                "display_name": names.get(row.user_id) or row.display_name,
+                "is_host": row.user_id == room.host_user_id,
+                "online": row.user_id in online,
+            }
+            for row in occupants
+        ],
         "members": [
             {
                 "user_id": row.user_id,
@@ -358,6 +420,15 @@ def serialize_room(
             }
             for row in claims
         ],
+        "key_brings": [
+            {
+                "item_id": row.item_id,
+                "user_id": row.user_id,
+                "display_name": names.get(row.user_id) or f"用户{row.user_id}",
+                "created_at": _iso(row.created_at),
+            }
+            for row in key_brings
+        ],
         "marks": [
             serialize_mark(row, names.get(row.author_user_id) or f"用户{row.author_user_id}")
             for row in marks
@@ -371,104 +442,107 @@ def serialize_lobby_item(
     *,
     is_member: bool = False,
     member_count: int | None = None,
+    online_user_ids: set[int] | None = None,
 ) -> dict[str, Any]:
+    occupants = (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.room_id == room.id,
+            TarkovRaidRoomMember.left_at.is_(None),
+        )
+        .order_by(
+            TarkovRaidRoomMember.joined_at.asc(),
+            TarkovRaidRoomMember.user_id.asc(),
+        )
+        .all()
+    )
+    online = online_user_ids or set()
+    count = int(member_count) if member_count is not None else len(occupants)
+    title = (room.title or "").strip() or slot_title(int(room.public_id or "1"))
     return {
         "public_id": room.public_id,
-        "title": (room.title or "").strip(),
-        "map_slug": room.map_slug,
-        "status": room.status,
+        "title": title,
+        "map_slug": room.map_slug or "",
         "host_user_id": room.host_user_id,
-        "host_display_name": room.host_display_name,
-        "member_count": (
-            int(member_count)
-            if member_count is not None
-            else _active_member_count(db, room.id)
-        ),
+        "host_display_name": room.host_display_name if room.host_user_id else "",
+        "member_count": count,
         "max_members": MAX_MEMBERS,
         "is_member": bool(is_member),
         "created_at": _iso(room.created_at),
-        "expire_at": _iso(room.expire_at),
+        "occupants": [
+            {
+                "user_id": row.user_id,
+                "display_name": row.display_name,
+                "is_host": row.user_id == room.host_user_id,
+                "online": row.user_id in online,
+            }
+            for row in occupants
+        ],
     }
 
 
 def _live_member_room_ids(db: Session, user_id: int) -> set[int]:
     rows = (
         db.query(TarkovRaidRoomMember.room_id)
-        .join(
-            TarkovRaidRoom,
-            TarkovRaidRoom.id == TarkovRaidRoomMember.room_id,
-        )
         .filter(
             TarkovRaidRoomMember.user_id == user_id,
             TarkovRaidRoomMember.left_at.is_(None),
-            TarkovRaidRoom.status == STATUS_LIVE,
         )
         .all()
     )
     return {int(row[0]) for row in rows}
 
 
-def create_room(
+def _vacate_other_slots(
     db: Session,
     user: User,
+    keep_room_id: int,
     *,
-    map_slug: str,
-    title: str | None = None,
-    now: datetime | None = None,
-) -> dict[str, Any]:
-    stamp = to_naive(now or now_naive())
-    archive_expired_rooms(db, now=stamp)
-    slug = normalize_room_map_slug(map_slug)
-    if not slug:
-        raise RaidRoomError("地图无效")
-    if _host_live_count(db, user.id) >= MAX_LIVE_HOSTED:
-        raise RaidRoomError("同时只能主持一个进行中的房间", 409)
-    text = (title or "").strip()
-    if len(text) > TITLE_MAX:
-        raise RaidRoomError(f"标题最多 {TITLE_MAX} 字")
-    room = TarkovRaidRoom(
-        public_id=new_public_id(),
-        title=text,
-        map_slug=slug,
-        host_user_id=user.id,
-        host_display_name=_display_name(user),
-        status=STATUS_LIVE,
-        created_at=stamp,
-        expire_at=stamp + ROOM_TTL,
-    )
-    db.add(room)
-    db.flush()
-    db.add(
-        TarkovRaidRoomMember(
-            room_id=room.id,
-            user_id=user.id,
-            display_name=_display_name(user),
-            joined_at=stamp,
+    now: datetime,
+) -> list[TarkovRaidRoom]:
+    del now
+    rows = (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.user_id == user.id,
+            TarkovRaidRoomMember.left_at.is_(None),
+            TarkovRaidRoomMember.room_id != keep_room_id,
         )
+        .all()
     )
-    db.flush()
-    return serialize_room(db, room, viewer=user)
+    vacated: list[TarkovRaidRoom] = []
+    for row in rows:
+        room = db.query(TarkovRaidRoom).filter(TarkovRaidRoom.id == row.room_id).first()
+        db.delete(row)
+        db.flush()
+        if room is None:
+            continue
+        if room.host_user_id == user.id:
+            _transfer_or_clear(db, room)
+        elif _active_member_count(db, room.id) <= 0:
+            _clear_slot(db, room)
+        vacated.append(room)
+    return vacated
 
 
 def list_live_rooms(
     db: Session,
     *,
-    map_slug: str | None = None,
-    now: datetime | None = None,
     viewer: User | None = None,
-    mine_only: bool = True,
+    now: datetime | None = None,
+    online_by_public_id: dict[str, set[int]] | None = None,
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
-    archive_expired_rooms(db, now=stamp)
-    query = db.query(TarkovRaidRoom).filter(TarkovRaidRoom.status == STATUS_LIVE)
-    slug = normalize_room_map_slug(map_slug or "")
-    if slug:
-        query = query.filter(TarkovRaidRoom.map_slug == slug)
-    rows = query.order_by(TarkovRaidRoom.created_at.desc()).limit(80).all()
+    ensure_slot_rooms(db, now=stamp)
+    rows = (
+        db.query(TarkovRaidRoom)
+        .filter(TarkovRaidRoom.public_id.in_(SLOT_PUBLIC_IDS))
+        .all()
+    )
+    rows.sort(key=lambda row: int(row.public_id))
     mine = _live_member_room_ids(db, viewer.id) if viewer is not None else set()
-    if mine_only:
-        rows = [row for row in rows if int(row.id) in mine]
     counts = _active_member_counts(db, [int(row.id) for row in rows])
+    online_map = online_by_public_id or {}
     return {
         "items": [
             serialize_lobby_item(
@@ -476,6 +550,7 @@ def list_live_rooms(
                 row,
                 is_member=row.id in mine,
                 member_count=counts.get(int(row.id), 0),
+                online_user_ids=online_map.get(row.public_id),
             )
             for row in rows
         ]
@@ -489,12 +564,10 @@ def get_room(
     *,
     now: datetime | None = None,
     online_user_ids: set[int] | None = None,
-) -> tuple[dict[str, Any], bool]:
-    stamp = to_naive(now or now_naive())
+) -> dict[str, Any]:
+    del now
     room = _get_room(db, public_id)
-    archived_now = _ensure_current(room, stamp)
-    db.flush()
-    return serialize_room(db, room, viewer=user, online_user_ids=online_user_ids), archived_now
+    return serialize_room(db, room, viewer=user, online_user_ids=online_user_ids)
 
 
 def join_room(
@@ -503,13 +576,10 @@ def join_room(
     user: User,
     *,
     now: datetime | None = None,
-) -> tuple[dict[str, Any], bool]:
+) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
+    vacated_rooms = _vacate_other_slots(db, user, room.id, now=stamp)
     row = _member(db, room.id, user.id)
     joined_now = False
     if row is None:
@@ -533,8 +603,11 @@ def join_room(
         joined_now = True
     else:
         row.display_name = _display_name(user)
+    if room.host_user_id is None:
+        _assign_host(room, user)
     db.flush()
-    return serialize_room(db, room, viewer=user), joined_now
+    vacated = [serialize_room(db, vacated_room) for vacated_room in vacated_rooms]
+    return serialize_room(db, room, viewer=user), joined_now, vacated
 
 
 def can_user_edit_room(
@@ -544,16 +617,12 @@ def can_user_edit_room(
     *,
     now: datetime | None = None,
 ) -> bool:
-    """轻量：是否仍可编辑（live + 在房）。供 WS draft 等高频路径。"""
-    stamp = to_naive(now or now_naive())
+    del now
     try:
         room = _get_room(db, public_id)
     except RaidRoomError:
         return False
-    if _ensure_current(room, stamp):
-        db.flush()
-        return False
-    if room.status != STATUS_LIVE:
+    if not (room.map_slug or "").strip():
         return False
     row = _member(db, room.id, user.id)
     return row is not None and row.left_at is None
@@ -566,15 +635,55 @@ def leave_room(
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    stamp = to_naive(now or now_naive())
+    del now
     room = _get_room(db, public_id)
-    _ensure_current(room, stamp)
-    if room.host_user_id == user.id:
-        raise RaidRoomError("房主请关闭房间")
     row = _member(db, room.id, user.id)
     if row is not None and row.left_at is None:
-        row.left_at = stamp
+        db.delete(row)
         db.flush()
+    if room.host_user_id == user.id:
+        _transfer_or_clear(db, room)
+    elif _active_member_count(db, room.id) <= 0:
+        _clear_slot(db, room)
+    return serialize_room(db, room, viewer=user)
+
+
+def reset_room(
+    db: Session,
+    public_id: str,
+    user: User,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    del now
+    room = _get_room(db, public_id)
+    if room.host_user_id != user.id:
+        raise RaidRoomError("只有房主可以清桌", 403)
+    _clear_slot(db, room)
+    return serialize_room(db, room, viewer=user)
+
+
+def set_room_map(
+    db: Session,
+    public_id: str,
+    user: User,
+    map_slug: str,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    del now
+    room = _get_room(db, public_id)
+    _require_active_member(db, room, user)
+    if room.host_user_id != user.id:
+        raise RaidRoomError("只有房主可以换图", 403)
+    slug = normalize_room_map_slug(map_slug)
+    if not slug:
+        raise RaidRoomError("地图无效")
+    if slug == (room.map_slug or ""):
+        return serialize_room(db, room, viewer=user)
+    _wipe_board(db, room.id)
+    room.map_slug = slug
+    db.flush()
     return serialize_room(db, room, viewer=user)
 
 
@@ -585,15 +694,8 @@ def close_room(
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    stamp = to_naive(now or now_naive())
-    room = _get_room(db, public_id)
-    _ensure_current(room, stamp)
-    if room.host_user_id != user.id:
-        raise RaidRoomError("只有房主可以关闭房间", 403)
-    if room.status == STATUS_LIVE:
-        _archive_room(room, stamp)
-        db.flush()
-    return serialize_room(db, room, viewer=user)
+    """兼容旧名：清桌。"""
+    return reset_room(db, public_id, user, now=now)
 
 
 def claim_task(
@@ -606,11 +708,8 @@ def claim_task(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
     _require_active_member(db, room, user)
+    _require_map(room)
     tid = _task_id(task_id)
     belongs = None
     try:
@@ -702,11 +801,8 @@ def unclaim_task(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
     _require_active_member(db, room, user)
+    _require_map(room)
     tid = _task_id(task_id)
     row = (
         db.query(TarkovRaidRoomTaskClaim)
@@ -714,6 +810,89 @@ def unclaim_task(
             TarkovRaidRoomTaskClaim.room_id == room.id,
             TarkovRaidRoomTaskClaim.task_id == tid,
             TarkovRaidRoomTaskClaim.user_id == user.id,
+        )
+        .first()
+    )
+    removed = False
+    if row is not None:
+        db.delete(row)
+        db.flush()
+        removed = True
+    return serialize_room(db, room, viewer=user), removed
+
+
+def bring_key(
+    db: Session,
+    public_id: str,
+    user: User,
+    item_id: str,
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], bool]:
+    stamp = to_naive(now or now_naive())
+    room = _get_room(db, public_id)
+    _require_active_member(db, room, user)
+    _require_map(room)
+    iid = _item_id(item_id)
+    existing = (
+        db.query(TarkovRaidRoomKeyBring)
+        .filter(
+            TarkovRaidRoomKeyBring.room_id == room.id,
+            TarkovRaidRoomKeyBring.item_id == iid,
+            TarkovRaidRoomKeyBring.user_id == user.id,
+        )
+        .first()
+    )
+    added = False
+    if existing is None:
+        unique = int(
+            db.query(func.count(func.distinct(TarkovRaidRoomKeyBring.item_id)))
+            .filter(TarkovRaidRoomKeyBring.room_id == room.id)
+            .scalar()
+            or 0
+        )
+        key_taken = (
+            db.query(TarkovRaidRoomKeyBring)
+            .filter(
+                TarkovRaidRoomKeyBring.room_id == room.id,
+                TarkovRaidRoomKeyBring.item_id == iid,
+            )
+            .first()
+        )
+        if key_taken is None and unique >= MAX_UNIQUE_KEYS:
+            raise RaidRoomError("本房钥匙声明已满", 409)
+        db.add(
+            TarkovRaidRoomKeyBring(
+                room_id=room.id,
+                item_id=iid,
+                user_id=user.id,
+                created_at=stamp,
+            )
+        )
+        db.flush()
+        added = True
+    return serialize_room(db, room, viewer=user), added
+
+
+def unbring_key(
+    db: Session,
+    public_id: str,
+    user: User,
+    item_id: str,
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], bool]:
+    stamp = to_naive(now or now_naive())
+    room = _get_room(db, public_id)
+    _require_active_member(db, room, user)
+    _require_map(room)
+    iid = _item_id(item_id)
+    row = (
+        db.query(TarkovRaidRoomKeyBring)
+        .filter(
+            TarkovRaidRoomKeyBring.room_id == room.id,
+            TarkovRaidRoomKeyBring.item_id == iid,
+            TarkovRaidRoomKeyBring.user_id == user.id,
         )
         .first()
     )
@@ -754,11 +933,8 @@ def add_mark(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
     _require_active_member(db, room, user)
+    _require_map(room)
     mark_kind = (kind or "").strip().lower()
     if mark_kind not in {MARK_PIN, MARK_LINE, MARK_STROKE}:
         raise RaidRoomError("记号类型无效")
@@ -814,11 +990,8 @@ def remove_mark(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
     _require_active_member(db, room, user)
+    _require_map(room)
     row = (
         db.query(TarkovRaidRoomMark)
         .filter(TarkovRaidRoomMark.id == mark_id, TarkovRaidRoomMark.room_id == room.id)
@@ -842,11 +1015,8 @@ def undo_own_mark(
 ) -> tuple[dict[str, Any], int | None]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
     _require_active_member(db, room, user)
+    _require_map(room)
     row = (
         db.query(TarkovRaidRoomMark)
         .filter(
@@ -873,10 +1043,7 @@ def clear_marks(
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    if _ensure_current(room, stamp):
-        db.flush()
-        raise RaidRoomError("房间已留档，仅供查看", 409)
-    _require_live(room)
+    _require_map(room)
     if room.host_user_id != user.id:
         raise RaidRoomError("只有房主可以清板", 403)
     (

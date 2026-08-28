@@ -230,6 +230,18 @@
   min-height: 0;
 }
 
+.mapPickPane {
+  padding: 16px 18px 24px;
+  overflow: auto;
+}
+
+.mapPickHint {
+  margin: 0 0 12px;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .drawDock {
   position: absolute;
   z-index: 510;
@@ -705,6 +717,15 @@
   border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
 }
 
+.lobbyRow:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lobbyRow:disabled:hover {
+  border-color: #2a2a2a;
+}
+
 .lobbyMeta {
   min-width: 0;
   flex: 1;
@@ -729,6 +750,17 @@
 .lobbySub {
   color: var(--hb-muted, #b0ae9a);
   font-size: 12px;
+}
+
+.lobbyOccupants {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.lobbyRowMine {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
 }
 
 .lobbyCreate {
@@ -1228,21 +1260,41 @@
   box-shadow: inset 0 0 0 1px var(--hb-orange-dim, rgba(200, 147, 42, 0.35));
 }
 
+.summaryModal {
+  max-width: none;
+  top: 0;
+  padding-bottom: 0;
+}
+
+.summaryModalWrap {
+  overflow: hidden;
+}
+
+.summaryModalContent {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 24px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.summaryModalContent :global(.ant-modal-header) {
+  flex: none;
+}
+
 .summaryModalLead {
+  flex: none;
   margin: 0 0 10px;
   color: var(--hb-muted, #b0ae9a);
   font-size: 13px;
 }
 
 .summaryModalBody {
-  max-height: calc(100vh - 120px);
-  overflow: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.summaryModalBody::-webkit-scrollbar {
-  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .summaryList {
@@ -1253,11 +1305,43 @@
 }
 
 .summaryScroll {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   min-width: 0;
   border: 1px solid #2a2a2a;
   background: #14160f;
   scrollbar-width: thin;
+  scrollbar-color: #5a5e4c #1a1b14;
+}
+
+.summaryScroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.summaryScroll::-webkit-scrollbar-track {
+  background: #1a1b14;
+}
+
+.summaryScroll::-webkit-scrollbar-thumb {
+  background: #4a4e40;
+  border-radius: 4px;
+  border: 2px solid #1a1b14;
+}
+
+.summaryScroll::-webkit-scrollbar-thumb:hover {
+  background: #6a6e58;
+}
+
+.summaryScroll::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.summaryScroll::-webkit-scrollbar-corner {
+  background: #1a1b14;
 }
 
 .summaryTable {
@@ -1275,6 +1359,9 @@
 }
 
 .summaryHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   padding: 8px 14px;
   background: #1c1e16;
   color: var(--hb-muted, #b0ae9a);
@@ -1309,8 +1396,39 @@
   white-space: nowrap;
 }
 
-.summaryTaskName:hover {
+.summaryTaskNameText {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  cursor: default;
+}
+
+.summaryTaskName:hover,
+.summaryTaskName:hover .summaryTaskNameText {
   color: var(--hb-orange, #c8932a);
+}
+
+.summaryObjHint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: none;
+}
+
+.summaryObjLine {
+  color: #eee9d6;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.summaryObjTooltip :global(.ant-tooltip-inner) {
+  width: max-content;
+  max-width: none;
 }
 
 .needList {
@@ -1391,6 +1509,40 @@
   border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
 }
 
+.needChipWrap {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 280px;
+  vertical-align: top;
+}
+
+.needCollapsed .needChipWrap {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.needChipBrought {
+  border-color: rgba(122, 168, 90, 0.72);
+  background: #161c12;
+}
+
+.needChipBrought:hover {
+  border-color: rgba(154, 196, 112, 0.85);
+}
+
+.needChipMine {
+  box-shadow: inset 0 0 0 1px rgba(200, 147, 42, 0.42);
+}
+
+.needBringBy {
+  overflow: hidden;
+  color: #9cba7a;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .needIcon {
   display: flex;
   flex: none;
@@ -1440,15 +1592,17 @@
 
 .summaryPeople {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 4px;
-  align-items: flex-start;
   min-width: 0;
 }
 
 .summaryPerson {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
   align-items: center;
   gap: 5px;
   padding: 2px 7px 2px 5px;
@@ -1460,6 +1614,8 @@
 }
 
 .summaryPersonName {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

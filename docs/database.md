@@ -29,7 +29,7 @@ tarkov_traders_raws · tarkov_traders_meta
 tarkov_bosses_raws · tarkov_bosses_meta
 tarkov_guides_raws · tarkov_guides_meta
 tarkov_tracker_binds
-tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_marks
+tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_marks
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
 ```
 
@@ -63,9 +63,10 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
 | `tarkov_guides_meta` | 藏身处与交换同步元数据（id 与 raw 对应，含 station_count / barter_count / craft_count 与同步时间） |
 | `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
-| `tarkov_raid_rooms` | 战局准备协作房间（大厅默认只列自己所在的 live 房，加入靠链接）。`public_id` URL 用；`map_slug` 创建后锁定；`status`=`live`/`archived`；从 `created_at` 起 24 小时可编辑，到期或房主关闭后封存只读留档。索引 `(status, created_at)` / `(status, expire_at)` / `map_slug`。`host_user_id` ON DELETE RESTRICT |
-| `tarkov_raid_room_members` | 进过房间的人（展示名快照）；复合主键 `(room_id, user_id)`；离开写 `left_at` 不删行。`room_id` / `user_id` ON DELETE CASCADE |
+| `tarkov_raid_rooms` | 战局准备席位房：全站固定 5 张桌（`public_id`=`1`…`5`，标题 `1号房`…`5号房`）。大厅始终列出全部席位及在座人员。空桌无房主、`map_slug` 为空；第一位加入者成为房主；房主离开则转给最早在座者；最后一人离开或房主清桌则清空成员/画板/勾选/钥匙并取消地图。换图同样清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
+| `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开删行。`left_at` 列为旧兼容，新写入不再使用。`room_id` / `user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。ON DELETE CASCADE |
+| `tarkov_raid_room_key_brings` | 房间钥匙「我带了」声明；复合主键 `(room_id, item_id, user_id)`。同一把钥匙可多人署名（备份），准备总结里展示谁带了。ON DELETE CASCADE |
 | `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
 | `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组键值预设（按 tool_id 存用户选定的配置 `directories`，以及 `pins`：`file` 为服内绝对路径且须在这些目录内，加上 key/value；旧整文件草稿忽略）；`mod_inventory_json` 为当前服 jar 库存（打开页对账指纹，增量拆包认亲；与开服剧本 `mods_json` 不是同一份）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON 性能采样热数据（约 10 秒一条：TPS/MSPT，以及可选实体总数 / 已加载区块）。只保留约 48 小时，供 30 分钟 / 1 小时折线看尖峰 |

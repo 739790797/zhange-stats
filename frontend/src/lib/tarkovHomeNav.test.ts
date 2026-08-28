@@ -9,6 +9,7 @@ import {
   TARKOV_ITEM_MENU_GROUPS,
   TARKOV_MAPS,
   TARKOV_PROGRESSION,
+  TARKOV_RAID_PREP_NAV,
   TARKOV_TOOLS,
   TARKOV_TOP_NAV,
   TARKOV_TRADERS,
@@ -76,6 +77,12 @@ describe("filterHomeSearch", () => {
     expect(
       filterHomeSearch("groundzero", index).some((h) => h.id === "ground-zero"),
     ).toBe(true);
+  });
+
+  it("finds raid prep from the home search index", () => {
+    expect(filterHomeSearch("战局", index).some((h) => h.id === "raid-prep")).toBe(
+      true,
+    );
   });
 });
 
@@ -354,14 +361,15 @@ describe("TARKOV_HOME_TRADERS", () => {
 });
 
 describe("TARKOV_TOOLS", () => {
-  it("puts raid prep first and ready", () => {
-    expect(TARKOV_TOOLS[0]).toMatchObject({
+  it("keeps ammo chart first after raid prep moved to the home column", () => {
+    expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("raid-prep");
+    expect(TARKOV_RAID_PREP_NAV).toMatchObject({
       id: "raid-prep",
       label: "战局准备",
       href: "/guides/tarkov/raid-prep",
       status: "ready",
     });
-    expect(TARKOV_TOOLS[1]).toMatchObject({
+    expect(TARKOV_TOOLS[0]).toMatchObject({
       id: "ammo-chart",
       label: "弹药图表筛选器",
       href: `${ITEMS_BASE_PATH}/ammo`,
@@ -393,10 +401,6 @@ describe("TARKOV_TOOLS", () => {
     });
     expect(byId["btc-farm"]).toMatchObject({
       href: "/guides/tarkov/bitcoin-farm",
-      status: "ready",
-    });
-    expect(byId["raid-prep"]).toMatchObject({
-      href: "/guides/tarkov/raid-prep",
       status: "ready",
     });
   });

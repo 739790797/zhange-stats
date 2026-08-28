@@ -1,32 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { tarkovRaidRoomHref } from "./tarkovHomeNav";
+import { tarkovRaidRoomHref, tarkovRaidRoomShareUrl } from "./tarkovHomeNav";
 import {
   applyRoomWsEvent,
   claimedTaskIds,
   claimTaskIdsForUser,
+  formatKeyBringHint,
   formatRoomRemain,
   groupClaimsByTask,
+  groupKeyBringsByItem,
   markMatchesFloor,
   markStrokePoints,
   isMapDrawTool,
   mergeBoardMarks,
   parseRaidRoomPublicId,
+  RAID_ROOM_SLOT_IDS,
   parseStrokePoints,
+  partitionRaidLobbyRooms,
+  raidRoomIsFull,
   raidRoomWsRetryDelayMs,
   remainMs,
   roomDisplayTitle,
   simplifyStroke,
   strokeFingerprint,
+  userBroughtKey,
+  withRaidRoomViewerFlags,
 } from "./tarkovRaidRooms";
 
 describe("raid room helpers", () => {
   it("builds room href and default title", () => {
-    expect(tarkovRaidRoomHref("abc")).toBe("/guides/tarkov/raid-prep/rooms/abc");
+    expect(tarkovRaidRoomHref("3")).toBe("/guides/tarkov/raid-prep/rooms/3");
+    expect(tarkovRaidRoomShareUrl("3", "https://stats.example/")).toBe(
+      "https://stats.example/guides/tarkov/raid-prep/rooms/3",
+    );
     expect(
-      parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/AbCdef123456"),
-    ).toBe("abcdef123456");
-    expect(parseRaidRoomPublicId("ABCDEF123456")).toBe("abcdef123456");
+      parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3"),
+    ).toBe("3");
+    expect(parseRaidRoomPublicId("1")).toBe("1");
+    expect(parseRaidRoomPublicId("5")).toBe("5");
+    expect(parseRaidRoomPublicId("6")).toBe("");
+    expect(parseRaidRoomPublicId("ABCDEF123456")).toBe("");
     expect(parseRaidRoomPublicId("nope")).toBe("");
+    expect(RAID_ROOM_SLOT_IDS).toEqual(["1", "2", "3", "4", "5"]);
     expect(raidRoomWsRetryDelayMs(0)).toBe(1000);
     expect(raidRoomWsRetryDelayMs(5)).toBe(30_000);
     expect(
@@ -35,6 +49,39 @@ describe("raid room helpers", () => {
     expect(
       roomDisplayTitle({ title: "夜厂局", host_display_name: "甲" }, "海关"),
     ).toBe("夜厂局");
+  });
+
+  it("partitions lobby rooms into mine, hosted, and joinable", () => {
+    const items = [
+      {
+        public_id: "a",
+        is_member: true,
+        host_user_id: 1,
+        member_count: 2,
+        max_members: 8,
+      },
+      {
+        public_id: "b",
+        is_member: false,
+        host_user_id: 2,
+        member_count: 8,
+        max_members: 8,
+      },
+      {
+        public_id: "c",
+        is_member: false,
+        host_user_id: 3,
+        member_count: 1,
+        max_members: 8,
+      },
+    ];
+    const parts = partitionRaidLobbyRooms(items, 1);
+    expect(parts.mine.map((row) => row.public_id)).toEqual(["a"]);
+    expect(parts.hosted.map((row) => row.public_id)).toEqual(["a"]);
+    expect(parts.joinable.map((row) => row.public_id)).toEqual(["b", "c"]);
+    expect(raidRoomIsFull(items[1])).toBe(true);
+    expect(raidRoomIsFull(items[2])).toBe(false);
+    expect(raidRoomIsFull({ member_count: 0, max_members: 0 })).toBe(false);
   });
 
   it("formats remaining time", () => {
@@ -64,13 +111,36 @@ describe("raid room helpers", () => {
     expect(claimTaskIdsForUser(claims, null)).toEqual([]);
   });
 
+  it("groups key brings and formats who-brought hints", () => {
+    const brings = [
+      { item_id: "k1", user_id: 1, display_name: "甲" },
+      { item_id: "k1", user_id: 2, display_name: "乙" },
+      { item_id: "k2", user_id: 2, display_name: "乙" },
+    ];
+    expect(groupKeyBringsByItem(brings)).toEqual([
+      { itemId: "k1", userIds: [1, 2], names: ["甲", "乙"] },
+      { itemId: "k2", userIds: [2], names: ["乙"] },
+    ]);
+    expect(userBroughtKey(brings, "k1", 1)).toBe(true);
+    expect(userBroughtKey(brings, "k2", 1)).toBe(false);
+    expect(userBroughtKey(brings, "k1", null)).toBe(false);
+    expect(formatKeyBringHint([])).toBe("点击声明我带了这把钥匙");
+    expect(formatKeyBringHint([], { canToggle: false })).toBe(
+      "还没人声明带这把钥匙",
+    );
+    expect(formatKeyBringHint(["甲"])).toBe("甲带了这把钥匙。");
+    expect(formatKeyBringHint(["甲", "乙"])).toBe("甲、乙带了这把钥匙。");
+    expect(formatKeyBringHint(["甲"], { canToggle: true })).toBe(
+      "甲带了这把钥匙。",
+    );
+  });
+
   it("matches floors and applies snapshot / presence", () => {
     expect(markMatchesFloor({ floor: "" }, "")).toBe(true);
     expect(markMatchesFloor({ floor: "bunker" }, "")).toBe(false);
     const room = {
-      public_id: "r1",
+      public_id: "1",
       map_slug: "customs",
-      status: "live",
       host_user_id: 1,
       host_display_name: "甲",
       members: [
@@ -78,13 +148,23 @@ describe("raid room helpers", () => {
         { user_id: 2, display_name: "乙", online: false },
       ],
     };
-    const next = applyRoomWsEvent(room, { event: "presence", online_user_ids: [2] });
+    const next = applyRoomWsEvent(room, { event: "presence", online_user_ids: [2] }, 2);
     expect(next?.members?.map((row) => row.online)).toEqual([false, true]);
-    const snap = applyRoomWsEvent(room, {
-      event: "snapshot",
-      snapshot: { ...room, status: "archived" },
-    });
-    expect(snap?.status).toBe("archived");
+    expect(next?.is_member).toBe(true);
+    expect(next?.is_host).toBe(false);
+    expect(next?.can_edit).toBe(true);
+    const snap = applyRoomWsEvent(
+      room,
+      {
+        event: "snapshot",
+        snapshot: { ...room, host_user_id: 2, map_slug: "" },
+      },
+      2,
+    );
+    expect(snap?.is_host).toBe(true);
+    expect(snap?.can_edit).toBe(false);
+    expect(withRaidRoomViewerFlags(room, 9).is_member).toBe(false);
+    expect(withRaidRoomViewerFlags(room, 1).is_host).toBe(true);
   });
 
   it("simplifies freehand strokes and reads mark points", () => {

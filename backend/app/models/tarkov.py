@@ -272,40 +272,31 @@ class TarkovGuidesMeta(Base):
 
 
 class TarkovRaidRoom(Base):
-    """战局准备房间：创建起 24 小时可编辑，到期封存后只读留档。"""
+    """战局准备席位房：全站固定 1～5 号，空桌无房主；换图或清桌不留档。"""
 
     __tablename__ = "tarkov_raid_rooms"
-    __table_args__ = (
-        Index("ix_tarkov_raid_rooms_status_created", "status", "created_at"),
-        Index("ix_tarkov_raid_rooms_status_expire", "status", "expire_at"),
-        Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),
-    )
+    __table_args__ = (Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     public_id: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String(40), nullable=False, default="")
-    map_slug: Mapped[str] = mapped_column(String(64), nullable=False)
-    host_user_id: Mapped[int] = mapped_column(
+    map_slug: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    host_user_id: Mapped[int | None] = mapped_column(
         Integer,
-        ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     host_display_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="live", index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )
-    expire_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    archived_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
 
 
 class TarkovRaidRoomMember(Base):
-    """进过房间的人；离开只写 left_at，留档仍能看见。"""
+    """进过房间的人；离开删行。空桌无成员。"""
 
     __tablename__ = "tarkov_raid_room_members"
 
@@ -339,6 +330,29 @@ class TarkovRaidRoomTaskClaim(Base):
         primary_key=True,
     )
     task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovRaidRoomKeyBring(Base):
+    """房间钥匙声明：同一把钥匙可多人署名（备份），展示「谁带了」。"""
+
+    __tablename__ = "tarkov_raid_room_key_brings"
+
+    room_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tarkov_raid_rooms.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),

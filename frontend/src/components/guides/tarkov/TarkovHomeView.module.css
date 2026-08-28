@@ -137,6 +137,22 @@
   font-size: 12px;
 }
 
+.raidSolo {
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--hb-border);
+  background: var(--hb-panel);
+  color: var(--hb-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.raidSolo:hover {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  color: var(--hb-orange);
+}
+
 .mapGrid,
 .traderGrid {
   display: grid;

@@ -24,6 +24,8 @@ import {
   type TarkovSiteSearchRow,
 } from "@/lib/tarkovHomeNav";
 import { TarkovHomeToolRail } from "@/components/guides/tarkov/TarkovHomeToolRail";
+import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
+import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
 import styles from "./TarkovHomeView.module.css";
 
 function SearchIcon() {
@@ -240,6 +242,7 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
 export function TarkovHomeView() {
   const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [soloOpen, setSoloOpen] = useState(false);
   const committed = (searchParams.get("q") || "").trim();
   const [draft, setDraft] = useState(committed);
   const index = useMemo(() => buildHomeSearchIndex(), []);
@@ -339,6 +342,23 @@ export function TarkovHomeView() {
           ) : (
             <>
               <section>
+                <SectionHead
+                  title="战局准备"
+                  en="Raid Prep"
+                  extra={
+                    <button
+                      type="button"
+                      className={styles.raidSolo}
+                      onClick={() => setSoloOpen(true)}
+                    >
+                      单人准备
+                    </button>
+                  }
+                />
+                <TarkovRaidSeatBoard />
+              </section>
+
+              <section>
                 <SectionHead title="地图" en="Maps" />
                 <div className={styles.mapGrid}>
                   {TARKOV_MAPS.map((item) => (
@@ -435,6 +455,12 @@ export function TarkovHomeView() {
         </div>
         <TarkovHomeToolRail />
       </div>
+
+      <TarkovRaidPrepEntryModal
+        open={soloOpen}
+        step="solo"
+        onClose={() => setSoloOpen(false)}
+      />
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>

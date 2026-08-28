@@ -130,6 +130,10 @@ export function tarkovRaidRoomHref(publicId: string): string {
   return `${TARKOV_RAID_PREP_PATH}/rooms/${encodeURIComponent(publicId)}`;
 }
 
+export function tarkovRaidRoomShareUrl(publicId: string, origin: string): string {
+  return `${String(origin || "").replace(/\/$/, "")}${tarkovRaidRoomHref(publicId)}`;
+}
+
 export function tarkovTraderHref(slug: string): string {
   return `${TARKOV_TRADERS_PATH}/${encodeURIComponent(slug)}`;
 }
@@ -502,16 +506,18 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   },
 ];
 
+/** 首页战局准备入口（搜索仍收录；工具栏不再重复）。 */
+export const TARKOV_RAID_PREP_NAV: TarkovHomeLink = {
+  id: "raid-prep",
+  label: "战局准备",
+  href: TARKOV_RAID_PREP_PATH,
+  status: "ready",
+  icon: "⌖",
+  keywords: ["raid", "prep", "战局", "准备", "任务点位", "房间"],
+};
+
 /** 首页右侧工具栏。 */
 export const TARKOV_TOOLS: TarkovHomeLink[] = [
-  {
-    id: "raid-prep",
-    label: "战局准备",
-    href: TARKOV_RAID_PREP_PATH,
-    status: "ready",
-    icon: "⌖",
-    keywords: ["raid", "prep", "战局", "准备", "任务点位"],
-  },
   {
     id: "ammo-chart",
     label: "弹药图表筛选器",
@@ -728,7 +734,7 @@ export function buildHomeSearchIndex(): TarkovSearchHit[] {
       hits.push({ ...item, group });
     }
   };
-  push("工具", TARKOV_TOOLS);
+  push("工具", [TARKOV_RAID_PREP_NAV, ...TARKOV_TOOLS]);
   push("地图", TARKOV_MAPS);
   push("商人", TARKOV_TRADERS);
   push("BOSS", TARKOV_BOSSES);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Popover } from "antd";
+import { Modal, Popover, Tooltip } from "antd";
 import { Link } from "react-router-dom";
 import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
@@ -8,12 +8,18 @@ import {
   collectRaidPrepSummaryTypeColumns,
   colorForTaskId,
   colorForUserId,
+  raidPrepSummaryColumnType,
   sortRaidPrepSummaryByParticipants,
   tarkovReadableName,
   type RaidPrepNeededItem,
   type RaidPrepTaskLike,
   type RaidPrepTaskSummary,
 } from "@/lib/tarkovRaidPrep";
+import {
+  formatKeyBringHint,
+  groupKeyBringsByItem,
+  type RaidRoomKeyBringLike,
+} from "@/lib/tarkovRaidRooms";
 import {
   tarkovObjectiveTypeLabel,
   tarkovObjectiveTypeTone,
@@ -52,14 +58,23 @@ function neededItemKey(item: RaidPrepNeededItem): string {
   return `${item.kind}-${item.id}-${item.objectiveType}-${item.found_in_raid ? "fir" : "stash"}-${item.optional ? "opt" : "req"}`;
 }
 
+type KeyBringControls = {
+  byItem: ReadonlyMap<string, { userIds: number[]; names: string[] }>;
+  currentUserId?: number | null;
+  canToggle: boolean;
+  onToggle: (itemId: string) => void;
+};
+
 function NeededItemChip({
   item,
   onPeek,
   nativeTitle = true,
+  keyBring,
 }: {
   item: RaidPrepNeededItem;
   onPeek: (item: RaidPrepNeededItem) => void;
   nativeTitle?: boolean;
+  keyBring?: KeyBringControls;
 }) {
   const thumb = inventoryThumbUrl(item.icon_link, item.id);
   const count = item.count > 1 ? `×${item.count}` : "";
@@ -70,13 +85,39 @@ function NeededItemChip({
     item.found_in_raid ? "战局内" : "",
     item.optional ? "可选" : "",
   ].filter(Boolean);
-  return (
+  const bringEnabled = Boolean(keyBring) && item.kind === "key";
+  const group = bringEnabled ? keyBring?.byItem.get(item.id) : undefined;
+  const names = group?.names || [];
+  const mine = Boolean(
+    bringEnabled &&
+      keyBring?.currentUserId != null &&
+      group?.userIds.includes(keyBring.currentUserId),
+  );
+  const canToggle = Boolean(bringEnabled && keyBring?.canToggle);
+  const hint = bringEnabled
+    ? formatKeyBringHint(names, { canToggle })
+    : nativeTitle
+      ? label
+      : undefined;
+  const chip = (
     <button
       type="button"
-      className={styles.needChip}
-      title={nativeTitle ? label : undefined}
+      className={[
+        styles.needChip,
+        names.length ? styles.needChipBrought : "",
+        mine ? styles.needChipMine : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      title={bringEnabled ? undefined : nativeTitle ? label : undefined}
+      aria-pressed={bringEnabled ? mine : undefined}
+      aria-label={bringEnabled ? `${label}。${hint}` : undefined}
       onClick={(event) => {
         event.stopPropagation();
+        if (bringEnabled && canToggle && keyBring && !event.shiftKey) {
+          keyBring.onToggle(item.id);
+          return;
+        }
         onPeek(item);
       }}
     >
@@ -91,8 +132,25 @@ function NeededItemChip({
         {extra.length ? (
           <span className={styles.needMeta}>{extra.join(" · ")}</span>
         ) : null}
+        {names.length ? (
+          <span className={styles.needBringBy}>{names.join("、")}带了</span>
+        ) : null}
       </span>
     </button>
+  );
+  if (!bringEnabled) return chip;
+  return (
+    <span className={styles.needChipWrap}>
+      <Tooltip
+        title={hint}
+        mouseEnterDelay={0.12}
+        mouseLeaveDelay={0.08}
+        placement="topLeft"
+        zIndex={1200}
+      >
+        {chip}
+      </Tooltip>
+    </span>
   );
 }
 
@@ -136,13 +194,20 @@ function ParticipantChips({
 function NeededItemList({
   items,
   onPeek,
+  keyBring,
 }: {
   items: RaidPrepNeededItem[];
   onPeek: (item: RaidPrepNeededItem) => void;
+  keyBring?: KeyBringControls;
 }) {
   if (!items.length) return null;
   const chips = items.map((item) => (
-    <NeededItemChip key={neededItemKey(item)} item={item} onPeek={onPeek} />
+    <NeededItemChip
+      key={neededItemKey(item)}
+      item={item}
+      onPeek={onPeek}
+      keyBring={keyBring}
+    />
   ));
   if (items.length === 1) return chips;
   const rest = items.length - 1;
@@ -157,7 +222,12 @@ function NeededItemList({
       content={<div className={styles.needMoreList}>{chips}</div>}
     >
       <div className={styles.needCollapsed}>
-        <NeededItemChip item={items[0]} onPeek={onPeek} nativeTitle={false} />
+        <NeededItemChip
+          item={items[0]}
+          onPeek={onPeek}
+          nativeTitle={false}
+          keyBring={keyBring}
+        />
         <button
           type="button"
           className={styles.needMore}
@@ -220,11 +290,13 @@ function SummaryList({
   typeColumns,
   participantsByTask,
   onPeek,
+  keyBring,
 }: {
   rows: RaidPrepTaskSummary[];
   typeColumns: string[];
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   onPeek: (item: RaidPrepNeededItem) => void;
+  keyBring?: KeyBringControls;
 }) {
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
@@ -245,7 +317,16 @@ function SummaryList({
           <div className={styles.summaryTask} role="columnheader">
             任务名称
           </div>
-          <div role="columnheader">所需钥匙</div>
+          <div
+            role="columnheader"
+            title={
+              keyBring
+                ? "点击钥匙声明我带了，悬停查看谁带了"
+                : undefined
+            }
+          >
+            所需钥匙
+          </div>
           {typeColumns.map((type) => (
             <div key={type} role="columnheader">
               <span
@@ -283,13 +364,41 @@ function SummaryList({
                     title={row.traderName || row.traderSlug}
                   />
                 ) : null}
-                <span className={styles.summaryTaskName} title={row.taskName}>
-                  {row.taskName}
+                <span className={styles.summaryTaskName}>
+                  <Tooltip
+                    title={
+                      <div className={styles.summaryObjHint}>
+                        {row.objectiveLines.length ? (
+                          row.objectiveLines.map((line) => (
+                            <div key={line} className={styles.summaryObjLine}>
+                              {line}
+                            </div>
+                          ))
+                        ) : (
+                          <div className={styles.summaryObjLine}>无目标数据</div>
+                        )}
+                      </div>
+                    }
+                    mouseEnterDelay={0.12}
+                    mouseLeaveDelay={0.08}
+                    placement="topLeft"
+                    zIndex={1200}
+                    rootClassName={styles.summaryObjTooltip}
+                    overlayInnerStyle={{ maxWidth: "none" }}
+                  >
+                    <span className={styles.summaryTaskNameText}>
+                      {row.taskName}
+                    </span>
+                  </Tooltip>
                 </span>
               </div>
               <div className={styles.needList} role="cell">
                 {row.keys.length ? (
-                  <NeededItemList items={row.keys} onPeek={onPeek} />
+                  <NeededItemList
+                    items={row.keys}
+                    onPeek={onPeek}
+                    keyBring={keyBring}
+                  />
                 ) : (
                   <span className={styles.summaryNone}>无所需钥匙</span>
                 )}
@@ -299,7 +408,9 @@ function SummaryList({
                   key={type}
                   type={type}
                   items={row.itemsByType[type] || []}
-                  hasType={typeSet.has(type)}
+                  hasType={[...typeSet].some(
+                    (itemType) => raidPrepSummaryColumnType(itemType) === type,
+                  )}
                   onPeek={onPeek}
                 />
               ))}
@@ -315,10 +426,18 @@ export function TarkovRaidPrepSummary({
   tasks,
   mapId,
   participantsByTask,
+  keyBrings,
+  currentUserId,
+  canToggleKeyBring = false,
+  onToggleKeyBring,
 }: {
   tasks: RaidPrepTaskLike[];
   mapId: string;
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
+  keyBrings?: readonly RaidRoomKeyBringLike[] | null;
+  currentUserId?: number | null;
+  canToggleKeyBring?: boolean;
+  onToggleKeyBring?: (itemId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
@@ -330,6 +449,22 @@ export function TarkovRaidPrepSummary({
     () => collectRaidPrepSummaryTypeColumns(rows),
     [rows],
   );
+  const keyBring = useMemo<KeyBringControls | undefined>(() => {
+    if (!onToggleKeyBring && !keyBrings?.length) return undefined;
+    const byItem = new Map<string, { userIds: number[]; names: string[] }>();
+    for (const group of groupKeyBringsByItem(keyBrings)) {
+      byItem.set(group.itemId, {
+        userIds: group.userIds,
+        names: group.names,
+      });
+    }
+    return {
+      byItem,
+      currentUserId,
+      canToggle: Boolean(canToggleKeyBring && onToggleKeyBring),
+      onToggle: onToggleKeyBring || (() => undefined),
+    };
+  }, [keyBrings, currentUserId, canToggleKeyBring, onToggleKeyBring]);
   const itemCount = rows.reduce(
     (sum, row) =>
       sum +
@@ -363,14 +498,24 @@ export function TarkovRaidPrepSummary({
         onCancel={() => setOpen(false)}
         footer={null}
         width="min(1760px, calc(100vw - 32px))"
-        classNames={{ body: styles.summaryModalBody }}
+        centered
+        className={styles.summaryModal}
+        classNames={{
+          body: styles.summaryModalBody,
+          content: styles.summaryModalContent,
+          wrapper: styles.summaryModalWrap,
+        }}
+        styles={{
+          wrapper: { overflow: "hidden" },
+          body: { maxHeight: "none", paddingTop: 0 },
+        }}
       >
-        <p className={styles.summaryModalLead}>{meta}</p>
         <SummaryList
           rows={rows}
           typeColumns={typeColumns}
           participantsByTask={participantsByTask}
           onPeek={setPeek}
+          keyBring={keyBring}
         />
       </Modal>
       <Modal
