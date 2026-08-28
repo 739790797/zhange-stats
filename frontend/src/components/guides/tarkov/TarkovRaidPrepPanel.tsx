@@ -9,15 +9,12 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovMapHref } from "@/lib/tarkovHomeNav";
-import { findInteractiveMap, floorLabel } from "@/lib/tarkovMapImages";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
   colorForTaskIndex,
   filterRaidPrepRows,
-  mapLayerFloorBands,
   normalizeRaidPrepMapId,
-  overlayFloorNames,
   parseCsvParam,
   partitionRaidPrepRows,
   raidPrepMapOptions,
@@ -226,25 +223,6 @@ export function TarkovRaidPrepPanel() {
     () => buildRaidPrepOverlays(overlayTasks, mapId),
     [overlayTasks, mapId],
   );
-  const floorBands = useMemo(
-    () => mapLayerFloorBands(findInteractiveMap(mapId)),
-    [mapId],
-  );
-  const floorsByTask = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const overlay of overlays) {
-      const names = overlayFloorNames(overlay.height, floorBands).map(
-        (name) => floorLabel(name),
-      );
-      if (!names.length) continue;
-      const current = map.get(overlay.taskId) || [];
-      for (const name of names) {
-        if (!current.includes(name)) current.push(name);
-      }
-      map.set(overlay.taskId, current);
-    }
-    return map;
-  }, [overlays, floorBands]);
   const colorByTask = useMemo(() => {
     const map = new Map<string, string>();
     selected.forEach((id, index) => {
@@ -409,10 +387,10 @@ export function TarkovRaidPrepPanel() {
                   highlightTaskId={highlightTaskId}
                   fill
                   onQuestLabelClick={(taskId) => {
-                    const row = catalog.find((item) => item.id === taskId);
-                    if (row) locateTask(row);
-                    else setHighlightTaskId(taskId);
+                    setHighlightTaskId(taskId);
+                    openGuide(taskId);
                   }}
+                  questParticipantsByTask={participantsByTask}
                   topRight={
                     <div className={styles.summaryStack}>
                       <TarkovRaidPrepSummary
@@ -477,7 +455,10 @@ export function TarkovRaidPrepPanel() {
               </div>
             }
           />
-          <div className={styles.taskList}>
+          <div
+            className={styles.taskList}
+            onClick={() => setHighlightTaskId("")}
+          >
             {prepQuery.isLoading && !prepQuery.data && !picked.length ? (
               <div className={styles.empty}>
                 <Spin />
@@ -488,30 +469,26 @@ export function TarkovRaidPrepPanel() {
                 prepQuery.isLoading &&
                 !picked.length ? (
                   <div className={styles.pickedBlock}>
-                    <p className={styles.pickedLabel}>已选 {selected.length}</p>
+                    <p className={styles.pickedLabel}>我的已选 {selected.length}</p>
                     <div className={styles.empty}>
                       <Spin />
                     </div>
                   </div>
                 ) : picked.length ? (
                   <div className={styles.pickedBlock}>
-                    <p className={styles.pickedLabel}>已选 {picked.length}</p>
+                    <p className={styles.pickedLabel}>我的已选 {picked.length}</p>
                     {picked.map((row, index) => (
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
+                        compact
                         checked
                         highlighted
                         active={highlightTaskId === row.id}
                         color={colorByTask.get(row.id) || colorForTaskIndex(index)}
-                        floors={floorsByTask.get(row.id)}
                         onToggle={() => toggleSelected(row.id)}
                         onLocate={taskLocateHandler(row)}
-                        onTitle={
-                          row.has_map_markers
-                            ? () => locateTask(row)
-                            : () => openGuide(row.id)
-                        }
+                        onTitle={() => openGuide(row.id)}
                       />
                     ))}
                   </div>
@@ -530,11 +507,7 @@ export function TarkovRaidPrepPanel() {
                         active={highlightTaskId === row.id}
                         onToggle={() => toggleSelected(row.id)}
                         onLocate={taskLocateHandler(row)}
-                        onTitle={
-                          row.has_map_markers
-                            ? () => locateTask(row)
-                            : () => openGuide(row.id)
-                        }
+                        onTitle={() => openGuide(row.id)}
                       />
                     ))}
                   </>

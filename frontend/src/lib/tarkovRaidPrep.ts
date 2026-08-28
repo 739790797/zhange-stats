@@ -11,6 +11,7 @@ export const MAP_SLUG_EQUIV_GROUPS: readonly (readonly string[])[] = [
   ["labyrinth", "the-labyrinth"],
   ["night-factory", "factory-night"],
   ["ground-zero", "ground-zero-21", "ground-zero-tutorial"],
+  ["customs", "bigmap"],
 ];
 
 export const RAID_PREP_MAX_SELECTED = 40;
@@ -98,6 +99,7 @@ export type RaidPrepLabelClusterOpts = {
 type LocationRef = {
   map_slug?: string | null;
   map_id?: string | null;
+  map_name?: string | null;
 };
 
 type ZoneLike = LocationRef & {
@@ -222,6 +224,54 @@ export function displayRaidPrepTaskName(task: {
   );
 }
 
+/** 地图悬浮窗 / 标签用的参与者，去空白与重复（有 userId 时按人去重）。 */
+export type RaidPrepMapParticipant = {
+  name: string;
+  userId?: number;
+};
+
+export function raidPrepParticipants(
+  people:
+    | readonly { name?: string | null; userId?: number | null }[]
+    | null
+    | undefined,
+): RaidPrepMapParticipant[] {
+  const seen = new Set<string>();
+  const out: RaidPrepMapParticipant[] = [];
+  for (const person of people || []) {
+    const name = (person.name || "").trim();
+    if (!name) continue;
+    const userId =
+      typeof person.userId === "number" && Number.isFinite(person.userId)
+        ? person.userId
+        : undefined;
+    const key = userId != null ? `id:${userId}` : `name:${name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(userId != null ? { name, userId } : { name });
+  }
+  return out;
+}
+
+/** 地图悬浮窗 / 文案用的参与者显示名。 */
+export function raidPrepParticipantNames(
+  people:
+    | readonly { name?: string | null; userId?: number | null }[]
+    | null
+    | undefined,
+): string[] {
+  return raidPrepParticipants(people).map((person) => person.name);
+}
+
+/** 地图任务点悬浮纯文本（标签 UI 用 raidPrepParticipants）。 */
+export function formatRaidPrepParticipantLine(
+  names: readonly string[],
+): string {
+  const list = names.map((name) => name.trim()).filter(Boolean);
+  if (!list.length) return "有哪些用户参与该任务：暂无";
+  return `有哪些用户参与该任务：${list.join("、")}`;
+}
+
 export function mapSlugKeys(mapSlug: string): Set<string> {
   const key = (mapSlug || "").trim().toLowerCase();
   if (!key) return new Set();
@@ -241,7 +291,16 @@ export function locationHitsMap(
 ): boolean {
   const keys = mapSlug instanceof Set ? mapSlug : mapSlugKeys(mapSlug);
   const slug = (loc.map_slug || "").trim().toLowerCase();
-  return Boolean(slug && keys.has(slug));
+  if (slug && keys.has(slug)) return true;
+  const name = (loc.map_name || "").trim().toLowerCase();
+  if (!name) return false;
+  if (keys.has(name.replace(/[\s_]+/g, "-"))) return true;
+  for (const option of raidPrepMapOptions()) {
+    if (!keys.has(option.id)) continue;
+    if (option.label.toLowerCase() === name) return true;
+    if (option.english.toLowerCase() === name) return true;
+  }
+  return false;
 }
 
 export function colorForTaskId(id: string): string {

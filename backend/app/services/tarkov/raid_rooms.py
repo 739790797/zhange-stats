@@ -612,14 +612,14 @@ def claim_task(
     _require_live(room)
     _require_active_member(db, room, user)
     tid = _task_id(task_id)
-    allowed = None
+    belongs = None
     try:
-        from app.services.tarkov.tasks import raid_prep_task_ids_for_map
+        from app.services.tarkov.tasks import raid_prep_task_belongs_to_map
 
-        allowed = raid_prep_task_ids_for_map(db, room.map_slug)
+        belongs = raid_prep_task_belongs_to_map(db, room.map_slug, tid)
     except Exception:  # noqa: BLE001
-        allowed = None
-    if allowed is not None and tid not in allowed:
+        belongs = None
+    if belongs is False:
         raise RaidRoomError("任务不属于本地图")
     existing = (
         db.query(TarkovRaidRoomTaskClaim)

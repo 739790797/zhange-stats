@@ -36,6 +36,7 @@ def test_normalize_room_map_slug() -> None:
     assert rooms.normalize_room_map_slug("the-lab") == "lab"
     assert rooms.normalize_room_map_slug("factory-night") == "night-factory"
     assert rooms.normalize_room_map_slug("customs") == "customs"
+    assert rooms.normalize_room_map_slug("bigmap") == "customs"
     assert rooms.normalize_room_map_slug("Nope!") == ""
 
 
@@ -126,6 +127,75 @@ def test_claim_rejects_task_not_on_map_when_catalog_present() -> None:
     rooms.claim_task(db, public_id, host, "on-customs", now=now)
     try:
         rooms.claim_task(db, public_id, host, "not-here", now=now)
+        raised = False
+    except rooms.RaidRoomError as exc:
+        raised = True
+        assert "本地图" in exc.message
+    assert raised
+
+
+def test_claim_allows_task_present_on_other_game_mode() -> None:
+    """列表可能走 PVE raw，认领 ContextVar 默认 PVP，海关任务仍应可勾。"""
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    room = rooms.create_room(db, host, map_slug="customs", now=now)
+    public_id = room["public_id"]
+
+    import json
+
+    from app.models.tarkov import TarkovTasksRaw
+    from app.services.tarkov import tasks as tasks_svc
+
+    CUSTOMS = "56f40101d2720b2a4d8b45d6"
+    WOODS = "5704e3c2d2720bac5b8b4567"
+    PRAPOR = "54cb50c76803fa8b248b4571"
+    pvp_payload = {
+        "tasks": {
+            "woods-only": {
+                "id": "woods-only",
+                "name": "On woods",
+                "trader": PRAPOR,
+                "map": WOODS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [WOODS]}],
+            }
+        },
+        "locale": {},
+    }
+    pve_payload = {
+        "tasks": {
+            "pve-customs": {
+                "id": "pve-customs",
+                "name": "On customs",
+                "trader": PRAPOR,
+                "map": CUSTOMS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [CUSTOMS]}],
+            }
+        },
+        "locale": {},
+    }
+    db.add(
+        TarkovTasksRaw(
+            id=1,
+            source="test",
+            raw_json=json.dumps(pvp_payload),
+            note="pvp",
+        )
+    )
+    db.add(
+        TarkovTasksRaw(
+            id=2,
+            source="test",
+            raw_json=json.dumps(pve_payload),
+            note="pve",
+        )
+    )
+    db.flush()
+    tasks_svc._raid_prep_cache.clear()
+
+    rooms.claim_task(db, public_id, host, "pve-customs", now=now)
+    try:
+        rooms.claim_task(db, public_id, host, "woods-only", now=now)
         raised = False
     except rooms.RaidRoomError as exc:
         raised = True

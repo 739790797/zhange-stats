@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal } from "antd";
+import { Modal, Popover } from "antd";
 import { Link } from "react-router-dom";
 import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
@@ -48,12 +48,18 @@ function NeededItemThumb({
   );
 }
 
+function neededItemKey(item: RaidPrepNeededItem): string {
+  return `${item.kind}-${item.id}-${item.objectiveType}-${item.found_in_raid ? "fir" : "stash"}-${item.optional ? "opt" : "req"}`;
+}
+
 function NeededItemChip({
   item,
   onPeek,
+  nativeTitle = true,
 }: {
   item: RaidPrepNeededItem;
   onPeek: (item: RaidPrepNeededItem) => void;
+  nativeTitle?: boolean;
 }) {
   const thumb = inventoryThumbUrl(item.icon_link, item.id);
   const count = item.count > 1 ? `×${item.count}` : "";
@@ -68,8 +74,11 @@ function NeededItemChip({
     <button
       type="button"
       className={styles.needChip}
-      title={label}
-      onClick={() => onPeek(item)}
+      title={nativeTitle ? label : undefined}
+      onClick={(event) => {
+        event.stopPropagation();
+        onPeek(item);
+      }}
     >
       {thumb ? (
         <NeededItemThumb src={item.icon_link} itemId={item.id} />
@@ -131,16 +140,33 @@ function NeededItemList({
   items: RaidPrepNeededItem[];
   onPeek: (item: RaidPrepNeededItem) => void;
 }) {
+  if (!items.length) return null;
+  const chips = items.map((item) => (
+    <NeededItemChip key={neededItemKey(item)} item={item} onPeek={onPeek} />
+  ));
+  if (items.length === 1) return chips;
+  const rest = items.length - 1;
   return (
-    <>
-      {items.map((item) => (
-        <NeededItemChip
-          key={`${item.kind}-${item.id}-${item.objectiveType}-${item.found_in_raid ? "fir" : "stash"}-${item.optional ? "opt" : "req"}`}
-          item={item}
-          onPeek={onPeek}
-        />
-      ))}
-    </>
+    <Popover
+      trigger={["hover", "click"]}
+      mouseEnterDelay={0.12}
+      mouseLeaveDelay={0.18}
+      placement="bottomLeft"
+      zIndex={1100}
+      rootClassName={styles.needMorePopover}
+      content={<div className={styles.needMoreList}>{chips}</div>}
+    >
+      <div className={styles.needCollapsed}>
+        <NeededItemChip item={items[0]} onPeek={onPeek} nativeTitle={false} />
+        <button
+          type="button"
+          className={styles.needMore}
+          aria-label={`其余 ${rest} 项，悬停查看全部`}
+        >
+          …
+        </button>
+      </div>
+    </Popover>
   );
 }
 
@@ -263,13 +289,7 @@ function SummaryList({
               </div>
               <div className={styles.needList} role="cell">
                 {row.keys.length ? (
-                  row.keys.map((item) => (
-                    <NeededItemChip
-                      key={`key-${item.id}`}
-                      item={item}
-                      onPeek={onPeek}
-                    />
-                  ))
+                  <NeededItemList items={row.keys} onPeek={onPeek} />
                 ) : (
                   <span className={styles.summaryNone}>无所需钥匙</span>
                 )}

@@ -13,6 +13,7 @@ import {
   isTarkovHexId,
   mapLayerFloorBands,
   mapSlugKeys,
+  locationHitsMap,
   neededKeyNamesForMap,
   normalizeRaidPrepMapId,
   objectiveAppliesToMap,
@@ -23,11 +24,14 @@ import {
   partitionRaidPrepRows,
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
+  raidPrepParticipants,
   resolveRaidPrepLocatePoints,
   selectedTasksFromCatalog,
   serializeSelectedIds,
   sortRaidPrepSummaryByParticipants,
   displayRaidPrepTaskName,
+  formatRaidPrepParticipantLine,
+  raidPrepParticipantNames,
   tarkovReadableName,
   traderFilterLabel,
   type RaidPrepTaskLike,
@@ -44,6 +48,8 @@ describe("raid prep map keys", () => {
     expect(normalizeRaidPrepMapId("lab")).toBe("lab");
     expect(normalizeRaidPrepMapId("the-lab")).toBe("lab");
     expect(normalizeRaidPrepMapId("factory-night")).toBe("night-factory");
+    expect(normalizeRaidPrepMapId("bigmap")).toBe("customs");
+    expect([...mapSlugKeys("customs")].sort()).toEqual(["bigmap", "customs"]);
     expect(normalizeRaidPrepMapId("nope")).toBe("");
   });
 
@@ -51,6 +57,46 @@ describe("raid prep map keys", () => {
     const ids = raidPrepMapOptions().map((item) => item.id);
     expect(ids).toContain("customs");
     expect(ids.indexOf("night-factory")).toBe(ids.indexOf("factory") + 1);
+  });
+
+  it("treats customs aliases and 海关 names as the same map", () => {
+    expect(locationHitsMap({ map_slug: "bigmap" }, "customs")).toBe(true);
+    expect(locationHitsMap({ map_name: "海关" }, "customs")).toBe(true);
+    expect(locationHitsMap({ map_slug: "woods" }, "customs")).toBe(false);
+  });
+});
+
+describe("raid prep participant line", () => {
+  it("joins unique names with 顿号", () => {
+    expect(
+      formatRaidPrepParticipantLine(raidPrepParticipantNames([
+        { name: "甲" },
+        { name: " 乙 " },
+        { name: "甲" },
+        { name: "" },
+      ])),
+    ).toBe("有哪些用户参与该任务：甲、乙");
+  });
+
+  it("shows 暂无 when nobody claimed the task", () => {
+    expect(formatRaidPrepParticipantLine([])).toBe(
+      "有哪些用户参与该任务：暂无",
+    );
+    expect(raidPrepParticipantNames(undefined)).toEqual([]);
+  });
+
+  it("keeps userId for map chips and dedupes by person", () => {
+    expect(
+      raidPrepParticipants([
+        { name: "Ra1nY", userId: 7 },
+        { name: "Ra1nY", userId: 7 },
+        { name: "乙", userId: 8 },
+        { name: "" },
+      ]),
+    ).toEqual([
+      { name: "Ra1nY", userId: 7 },
+      { name: "乙", userId: 8 },
+    ]);
   });
 });
 
@@ -390,6 +436,9 @@ describe("raid prep needed items", () => {
     ).toBe(false);
     expect(
       objectiveAppliesToMap({ type: "plantItem", maps: [{ slug: "customs" }] }, "customs"),
+    ).toBe(true);
+    expect(
+      objectiveAppliesToMap({ type: "plantItem", maps: [{ slug: "bigmap" }] }, "customs"),
     ).toBe(true);
   });
 

@@ -19,7 +19,10 @@ from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTasksMeta, TarkovTasksRaw
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API, TARKOV_GRAPHQL_URL
 from app.services.tarkov.game_mode import (
+    GAME_MODES,
     cache_key,
+    current_game_mode,
+    game_mode_scope,
     graphql_game_mode,
     json_api_prefix,
     json_resource_url,
@@ -194,7 +197,8 @@ TRADER_BY_ID: dict[str, tuple[str, str]] = {
     "656f0f98d80a697f855d34b1": ("btr-driver", "BTR Driver（BTR）"),
 }
 
-# 突袭图 id → slug / 中文名（与首页地图格对齐）
+# 突袭图 id → slug / 中文名（与首页地图格对齐）。
+# BSG location MongoID：Streets=TarkovStreets，Ground Zero=Sandbox / Sandbox 21+。
 MAP_BY_ID: dict[str, tuple[str, str]] = {
     "55f2d3fd4bdc2d5f408b4567": ("factory", "工厂"),
     "59fc81d786f774390775787e": ("factory-night", "夜间工厂"),
@@ -205,9 +209,9 @@ MAP_BY_ID: dict[str, tuple[str, str]] = {
     "5704e5fad2720bc05b8b4567": ("reserve", "储备站"),
     "5704e4dad2720bb55b8b4567": ("lighthouse", "灯塔"),
     "5b0fc42d86f7744a585f9105": ("the-lab", "实验室"),
-    "653e6760052c01c1c805532f": ("streets", "塔科夫街区"),
+    "5714dc692459777137212e12": ("streets", "塔科夫街区"),
+    "653e6760052c01c1c805532f": ("ground-zero", "中心区"),
     "65b8d6f5cdde2479cb2a3125": ("ground-zero", "中心区"),
-    "5714dc692459777137212e12": ("ground-zero", "中心区"),
     "6733700029c367a3d40b02af": ("labyrinth", "迷宫"),
     "69af492a4819ea4ba10a69c5": ("icebreaker", "破冰船"),
     "65cc8f81a9aac3e77d0cfd3e": ("terminal", "码头"),
@@ -221,6 +225,7 @@ MAP_SLUG_EQUIV_GROUPS: tuple[tuple[str, ...], ...] = (
     ("labyrinth", "the-labyrinth"),
     ("night-factory", "factory-night"),
     ("ground-zero", "ground-zero-21", "ground-zero-tutorial"),
+    ("customs", "bigmap"),
 )
 
 _parsed_lock = threading.Lock()
@@ -292,17 +297,45 @@ def map_match_keys(map_slug: str) -> tuple[set[str], set[str]]:
     return keys, ids
 
 
-def _map_ref_hits(ref: dict[str, Any] | None, keys: set[str], ids: set[str]) -> bool:
+def _norm_map_label(text: str) -> str:
+    return re.sub(r"[\s_]+", "-", (text or "").strip().lower())
+
+
+def _map_labels(keys: set[str], ids: set[str]) -> set[str]:
+    labels: set[str] = set()
+    for mid, (slug, name) in MAP_BY_ID.items():
+        if slug not in keys and mid not in ids:
+            continue
+        text = _norm_map_label(name)
+        if text:
+            labels.add(text)
+    return labels
+
+
+def _map_ref_hits(
+    ref: dict[str, Any] | None,
+    keys: set[str],
+    ids: set[str],
+    labels: set[str] | None = None,
+) -> bool:
     if not isinstance(ref, dict):
         return False
-    slug = str(ref.get("slug") or ref.get("map_slug") or "").strip().lower()
+    slug = _norm_map_label(str(ref.get("slug") or ref.get("map_slug") or ""))
     if slug and slug in keys:
         return True
     map_id = str(ref.get("map_id") or "").strip()
     if map_id:
         return map_id in ids
     ident = str(ref.get("id") or "").strip()
-    return bool(ident and ident in ids)
+    if ident and ident in ids:
+        return True
+    name = _norm_map_label(str(ref.get("name") or ref.get("map_name") or ""))
+    if not name:
+        return False
+    if name in keys:
+        return True
+    hit_labels = labels if labels is not None else _map_labels(keys, ids)
+    return name in hit_labels
 
 
 def task_hits_map(detail: dict[str, Any], map_slug: str) -> bool:
@@ -311,19 +344,23 @@ def task_hits_map(detail: dict[str, Any], map_slug: str) -> bool:
         return False
     if str(detail.get("map_id") or "").strip() in ids:
         return True
-    if str(detail.get("map_slug") or "").strip().lower() in keys:
+    if _norm_map_label(str(detail.get("map_slug") or "")) in keys:
+        return True
+    labels = _map_labels(keys, ids)
+    name = _norm_map_label(str(detail.get("map_name") or ""))
+    if name and (name in keys or name in labels):
         return True
     for obj in detail.get("objectives") or []:
         if not isinstance(obj, dict):
             continue
         for row in obj.get("maps") or []:
-            if _map_ref_hits(row, keys, ids):
+            if _map_ref_hits(row, keys, ids, labels):
                 return True
         for zone in obj.get("zones") or []:
-            if _map_ref_hits(zone, keys, ids):
+            if _map_ref_hits(zone, keys, ids, labels):
                 return True
         for loc in obj.get("possible_locations") or []:
-            if _map_ref_hits(loc, keys, ids):
+            if _map_ref_hits(loc, keys, ids, labels):
                 return True
     return False
 
@@ -1950,6 +1987,34 @@ def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
         for row in rows
         if str(row.get("id") or "").strip()
     }
+
+
+def raid_prep_task_belongs_to_map(
+    db: Session, map_slug: str, task_id: str
+) -> bool | None:
+    """任务是否出现在本地图战局准备目录。
+
+    房间没有 game_mode，认领时 ContextVar 也可能和列表请求不一致，
+    因此 PVP / PVE 两份 raw 都认。两边都没有可用目录时返回 None，
+    调用方跳过校验，避免 claim 路径打上游。
+    """
+    tid = (task_id or "").strip()
+    if not tid:
+        return False
+    saw_catalog = False
+    current = current_game_mode()
+    modes = (current, *(mode for mode in GAME_MODES if mode != current))
+    for mode in modes:
+        with game_mode_scope(mode):
+            ids = raid_prep_task_ids_for_map(db, map_slug)
+            if ids is None:
+                continue
+            saw_catalog = True
+            if tid in ids:
+                return True
+    if not saw_catalog:
+        return None
+    return False
 
 
 def list_raid_prep(

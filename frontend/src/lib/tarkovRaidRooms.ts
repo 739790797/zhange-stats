@@ -144,6 +144,24 @@ export function claimedTaskIds(
   return groupClaimsByTask(claims).map((row) => row.taskId);
 }
 
+/** 当前用户自己勾选的任务，不含队友勾选。 */
+export function claimTaskIdsForUser(
+  claims: RaidRoomClaimLike[] | null | undefined,
+  userId: number | null | undefined,
+): string[] {
+  if (userId == null) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const claim of claims || []) {
+    if (claim.user_id !== userId) continue;
+    const taskId = String(claim.task_id || "").trim();
+    if (!taskId || seen.has(taskId)) continue;
+    seen.add(taskId);
+    out.push(taskId);
+  }
+  return out;
+}
+
 export function markMatchesFloor(
   mark: { floor?: string | null },
   floor: string,

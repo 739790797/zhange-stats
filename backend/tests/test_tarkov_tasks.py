@@ -6,7 +6,8 @@ from app.services.tarkov import tasks as tasks
 
 PRAPOR = "54cb50c76803fa8b248b4571"
 THERAPIST = "54cb57776803fa99248b456e"
-STREETS = "653e6760052c01c1c805532f"
+STREETS = "5714dc692459777137212e12"
+GROUND_ZERO = "653e6760052c01c1c805532f"
 CUSTOMS = "56f40101d2720b2a4d8b45d6"
 
 
@@ -568,6 +569,46 @@ def test_map_match_keys_aliases():
     assert STREETS in ids
     lab_keys, _ids = tasks.map_match_keys("lab")
     assert "the-lab" in lab_keys
+    customs_keys, customs_ids = tasks.map_match_keys("customs")
+    assert "bigmap" in customs_keys
+    assert CUSTOMS in customs_ids
+    bigmap_keys, bigmap_ids = tasks.map_match_keys("bigmap")
+    assert "customs" in bigmap_keys
+    assert CUSTOMS in bigmap_ids
+
+
+def test_map_ids_do_not_swap_streets_and_ground_zero():
+    assert tasks.map_info(STREETS) == ("streets", "塔科夫街区")
+    assert tasks.map_info(GROUND_ZERO) == ("ground-zero", "中心区")
+    _keys, street_ids = tasks.map_match_keys("streets")
+    _keys, gz_ids = tasks.map_match_keys("ground-zero")
+    assert STREETS in street_ids
+    assert GROUND_ZERO not in street_ids
+    assert GROUND_ZERO in gz_ids
+    assert STREETS not in gz_ids
+    payload = {
+        "tasks": {
+            "gz": {
+                "id": "gz",
+                "name": "First in Line",
+                "trader": PRAPOR,
+                "map": GROUND_ZERO,
+                "objectives": [{"id": "v", "type": "visit", "maps": [GROUND_ZERO]}],
+            },
+            "st": {
+                "id": "st",
+                "name": "Revision Streets",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [{"id": "v2", "type": "visit", "maps": [STREETS]}],
+            },
+        },
+        "locale": {},
+    }
+    _name, streets_rows = tasks.collect_raid_prep_rows(payload, "streets")
+    _name, gz_rows = tasks.collect_raid_prep_rows(payload, "ground-zero")
+    assert [r["id"] for r in streets_rows] == ["st"]
+    assert [r["id"] for r in gz_rows] == ["gz"]
 
 
 def test_project_zones_and_possible_locations():
@@ -797,4 +838,67 @@ def test_strip_raid_prep_geometry_keeps_items():
 
 def test_canonical_raid_map_slug():
     assert tasks.canonical_raid_map_slug("streets-of-tarkov") == "streets"
+    assert tasks.canonical_raid_map_slug("bigmap") == "customs"
     assert tasks.canonical_raid_map_slug("nope") == "nope"
+
+
+def test_task_hits_map_customs_name_and_bigmap():
+    assert (
+        tasks.task_hits_map(
+            {
+                "id": "t-bigmap",
+                "map_id": "",
+                "map_slug": "bigmap",
+                "map_name": "",
+                "objectives": [],
+            },
+            "customs",
+        )
+        is True
+    )
+    assert (
+        tasks.task_hits_map(
+            {
+                "id": "t-name",
+                "map_id": "",
+                "map_slug": "",
+                "map_name": "海关",
+                "objectives": [],
+            },
+            "customs",
+        )
+        is True
+    )
+    named_obj = {
+        "id": "t-obj",
+        "map_id": "",
+        "map_slug": "",
+        "map_name": "",
+        "objectives": [
+            {
+                "maps": [{"name": "海关"}],
+                "zones": [],
+                "possible_locations": [],
+            }
+        ],
+    }
+    assert tasks.task_hits_map(named_obj, "customs") is True
+    assert tasks.task_hits_map(named_obj, "woods") is False
+
+
+def test_collect_raid_prep_rows_bigmap_alias():
+    payload = {
+        "tasks": {
+            "on-customs": {
+                "id": "on-customs",
+                "name": "On customs",
+                "trader": PRAPOR,
+                "map": CUSTOMS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [CUSTOMS]}],
+            }
+        },
+        "locale": {},
+    }
+    name, rows = tasks.collect_raid_prep_rows(payload, "bigmap")
+    assert name == "海关"
+    assert [r["id"] for r in rows] == ["on-customs"]

@@ -13,10 +13,13 @@ import { getBounds, getCRS, getScaledBounds, pos } from "@/lib/tarkovMapCrs";
 import { tarkovBossMapLabel, tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import {
   clusterRaidPrepOverlayLabels,
+  colorForTaskId,
   colorForUserId,
   mapLayerFloorBands,
   overlayVisibleOnFloor,
   RAID_PREP_LABEL_CLUSTER_PX,
+  raidPrepParticipants,
+  type RaidPrepMapParticipant,
   type RaidPrepOverlayLabelItem,
   type RaidPrepPoint,
   type TarkovRaidPrepOverlay,
@@ -102,8 +105,10 @@ type Props = {
   onDraftStroke?: (draft: { floor: string; points: StrokePoint[] } | null) => void;
   onEraseMark?: (markId: number) => void;
   onFloorChange?: (floor: string) => void;
-  /** 点击任务名称标签：定位并高亮列表，不离开地图 */
+  /** 点击任务点位或名称：打开该任务攻略 */
   onQuestLabelClick?: (taskId: string) => void;
+  /** 任务 id → 参与者，供地图悬浮窗展示 */
+  questParticipantsByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>;
   highlightTaskId?: string;
   /** 外部请求将地图平移到指定游戏坐标（seq 递增可重复定位同一点） */
   focusRequest?: TarkovMapFocusRequest | null;
@@ -337,7 +342,8 @@ function addLabelMarkers(group: L.LayerGroup, layer: TarkovDevMapLayer) {
   }
 }
 
-function overlayBubbleHtml(row: {
+type QuestBubbleRow = {
+  taskId?: string;
   title: string;
   subtitle: string;
   color: string;
@@ -345,7 +351,27 @@ function overlayBubbleHtml(row: {
   keyNames?: string[];
   optional?: boolean;
   kind?: "zone" | "spawn";
-}): string {
+  participants?: readonly RaidPrepMapParticipant[];
+};
+
+function questParticipantChipsHtml(
+  people: readonly RaidPrepMapParticipant[] | undefined,
+): string {
+  const list = raidPrepParticipants(people);
+  if (!list.length) return "";
+  const chips = list
+    .map((person) => {
+      const color =
+        person.userId != null
+          ? colorForUserId(person.userId)
+          : colorForTaskId(person.name);
+      return `<span class="${styles.questTipChip}"><span class="${styles.questTipDot}" style="background:${escapeHtml(color)}"></span>${escapeHtml(person.name)}</span>`;
+    })
+    .join("");
+  return `<span class="${styles.questTipPeople}">${chips}</span>`;
+}
+
+function overlayBubbleHtml(row: QuestBubbleRow): string {
   const kind =
     row.kind === "spawn"
       ? "可能刷新点"
@@ -366,7 +392,7 @@ function overlayBubbleHtml(row: {
   const keyRow = keys
     ? `<span class="${styles.questTipKeys}"><span class="${styles.questTipKeyLabel}">所需钥匙</span>${keys}</span>`
     : "";
-  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span><span class="${styles.questTipMeta}">${optionalTag}${escapeHtml(meta)}</span>${keyRow}</span>`;
+  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span><span class="${styles.questTipMeta}">${optionalTag}${escapeHtml(meta)}</span>${keyRow}${questParticipantChipsHtml(row.participants)}</span>`;
 }
 
 function traderSlugForIcon(slug: string): string {
@@ -392,15 +418,8 @@ function questLabelLineHtml(
 
 function bindQuestBubble(
   layer: L.Layer,
-  row: {
-    title: string;
-    subtitle: string;
-    color: string;
-    traderSlug: string;
-    keyNames?: string[];
-    optional?: boolean;
-    kind?: "zone" | "spawn";
-  },
+  row: QuestBubbleRow,
+  onClick?: (taskId: string) => boolean | void,
 ) {
   const html = overlayBubbleHtml(row);
   layer.bindTooltip(html, {
@@ -409,15 +428,41 @@ function bindQuestBubble(
     sticky: true,
     className: styles.questTooltip,
   });
-  layer.bindPopup(html);
+  const taskId = (row.taskId || "").trim();
+  if (!onClick || !taskId) return;
+  layer.on("click", (event) => {
+    const handled = onClick(taskId);
+    if (handled === false) return;
+    L.DomEvent.stopPropagation(event);
+  });
+}
+
+function questBubbleFromOverlay(
+  row: TarkovRaidPrepOverlay,
+  namesByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>,
+): QuestBubbleRow {
+  return {
+    taskId: row.taskId,
+    title: row.title,
+    subtitle: row.subtitle,
+    color: row.color,
+    traderSlug: row.traderSlug,
+    keyNames: row.keyNames,
+    optional: row.optional,
+    kind: row.kind,
+    participants: raidPrepParticipants(namesByTask?.get(row.taskId)),
+  };
 }
 
 function addQuestOverlays(
   group: L.LayerGroup,
   overlays: TarkovRaidPrepOverlay[],
+  namesByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>,
+  onClick?: (taskId: string) => boolean | void,
 ) {
   group.clearLayers();
   for (const row of overlays) {
+    const bubble = questBubbleFromOverlay(row, namesByTask);
     if (row.outline.length >= 3) {
       const polygon = L.polygon(
         row.outline.map((point) => pos({ x: point.x, z: point.z })),
@@ -427,9 +472,10 @@ function addQuestOverlays(
           dashArray: row.optional ? "5 4" : undefined,
           fillColor: row.color,
           fillOpacity: row.optional ? 0.1 : 0.18,
+          className: styles.questHit,
         },
       );
-      bindQuestBubble(polygon, row);
+      bindQuestBubble(polygon, bubble, onClick);
       polygon.addTo(group);
     }
     for (const point of row.points) {
@@ -440,8 +486,9 @@ function addQuestOverlays(
         dashArray: row.optional ? "3 2" : undefined,
         fillColor: row.color,
         fillOpacity: row.optional ? 0.55 : 0.92,
+        className: styles.questHit,
       });
-      bindQuestBubble(marker, row);
+      bindQuestBubble(marker, bubble, onClick);
       marker.addTo(group);
     }
   }
@@ -463,8 +510,9 @@ function addQuestLabels(
   group: L.LayerGroup,
   overlays: TarkovRaidPrepOverlay[],
   map: L.Map,
-  onLabelClick?: (taskId: string) => void,
+  onLabelClick?: (taskId: string) => boolean | void,
   highlightTaskId?: string,
+  namesByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>,
 ) {
   group.clearLayers();
   /* 抽象图 SVG 异步加载期间 map 已创建但尚未 fitBounds，此时投影会白屏 */
@@ -487,18 +535,20 @@ function addQuestLabels(
         keyboard: false,
         bubblingMouseEvents: false,
       });
-      bindQuestBubble(marker, {
-        title: item.title,
-        subtitle: item.subtitle,
-        color: item.color,
-        traderSlug: item.traderSlug,
-        keyNames: item.keyNames,
-        optional: item.optional,
-      });
-      marker.on("click", (event) => {
-        L.DomEvent.stopPropagation(event);
-        if (item.taskId) onLabelClick?.(item.taskId);
-      });
+      bindQuestBubble(
+        marker,
+        {
+          taskId: item.taskId,
+          title: item.title,
+          subtitle: item.subtitle,
+          color: item.color,
+          traderSlug: item.traderSlug,
+          keyNames: item.keyNames,
+          optional: item.optional,
+          participants: raidPrepParticipants(namesByTask?.get(item.taskId)),
+        },
+        onLabelClick,
+      );
       marker.addTo(group);
     });
   }
@@ -765,6 +815,7 @@ export function TarkovMapViewer({
   onEraseMark,
   onFloorChange,
   onQuestLabelClick,
+  questParticipantsByTask,
   highlightTaskId = "",
   focusRequest,
   topRight,
@@ -831,7 +882,17 @@ export function TarkovMapViewer({
       ),
     [questOverlays, floor, floorBands],
   );
-  const overlaySig = visibleQuestOverlays.map((row) => row.key).join("\0");
+  const overlaySig = visibleQuestOverlays
+    .map((row) => {
+      const people = raidPrepParticipants(
+        questParticipantsByTask?.get(row.taskId),
+      );
+      const sig = people
+        .map((person) => `${person.userId ?? ""}:${person.name}`)
+        .join(",");
+      return `${row.key}:${sig}`;
+    })
+    .join("\0");
   const { extractKinds, spawnKinds, showLabels, showQuests } = prefs;
   const extractKindOptions = TARKOV_EXTRACT_KINDS;
   const extractsParentOn = allPresentExtractKindsOn(
@@ -1230,16 +1291,27 @@ export function TarkovMapViewer({
       showLabels && Boolean(interactive.labels?.length),
     );
     if (showQuests) {
+      const onQuestClick = (taskId: string) => {
+        if (isMapDrawTool(drawModeRef.current)) return false;
+        onQuestLabelClickRef.current?.(taskId);
+        return true;
+      };
       if (overlaySigRef.current !== overlaySig) {
         overlaySigRef.current = overlaySig;
-        addQuestOverlays(runtime.quests, visibleQuestOverlays);
+        addQuestOverlays(
+          runtime.quests,
+          visibleQuestOverlays,
+          questParticipantsByTask,
+          onQuestClick,
+        );
       }
       addQuestLabels(
         runtime.questLabels,
         visibleQuestOverlays,
         runtime.map,
-        (taskId) => onQuestLabelClickRef.current?.(taskId),
+        onQuestClick,
         highlightTaskId,
+        questParticipantsByTask,
       );
     } else {
       overlaySigRef.current = "";
@@ -1252,8 +1324,13 @@ export function TarkovMapViewer({
         runtime.questLabels,
         visibleQuestOverlays,
         runtime.map,
-        (taskId) => onQuestLabelClickRef.current?.(taskId),
+        (taskId) => {
+          if (isMapDrawTool(drawModeRef.current)) return false;
+          onQuestLabelClickRef.current?.(taskId);
+          return true;
+        },
         highlightTaskId,
+        questParticipantsByTask,
       );
     };
     runtime.map.on("zoomend", refreshQuestLabels);
@@ -1274,6 +1351,7 @@ export function TarkovMapViewer({
     questOverlays,
     overlaySig,
     visibleQuestOverlays,
+    questParticipantsByTask,
     highlightTaskId,
     visibleMarks,
     floor,

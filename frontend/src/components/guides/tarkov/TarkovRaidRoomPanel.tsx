@@ -22,15 +22,12 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TARKOV_RAID_PREP_PATH, tarkovMapHref } from "@/lib/tarkovHomeNav";
-import { findInteractiveMap, floorLabel } from "@/lib/tarkovMapImages";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
   colorForTaskIndex,
   colorForUserId,
   filterRaidPrepRows,
-  mapLayerFloorBands,
-  overlayFloorNames,
   partitionRaidPrepRows,
   raidPrepMapOptions,
   resolveRaidPrepLocatePoints,
@@ -40,6 +37,7 @@ import {
   applyRoomWsEvent,
   formatRoomRemain,
   groupClaimsByTask,
+  claimTaskIdsForUser,
   isTypingTarget,
   mergeBoardMarks,
   parseStrokePoints,
@@ -320,21 +318,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   const claims = room?.claims;
-  const myClaims = useMemo(
-    () =>
-      new Set(
-        (claims || [])
-          .filter((row) => row.user_id === me?.id)
-          .map((row) => row.task_id),
-      ),
+  const myClaimIds = useMemo(
+    () => claimTaskIdsForUser(claims, me?.id),
     [claims, me?.id],
   );
+  const myClaims = useMemo(() => new Set(myClaimIds), [myClaimIds]);
   const groups = useMemo(() => groupClaimsByTask(claims), [claims]);
-  const namesByTask = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const group of groups) map.set(group.taskId, group.names);
-    return map;
-  }, [groups]);
   const participantsByTask = useMemo(() => {
     const map = new Map<string, Array<{ name: string; userId: number }>>();
     for (const group of groups) {
@@ -361,6 +350,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       ),
     [catalog, groups],
   );
+  const mySelectedTasks = useMemo(
+    () => selectedTasksFromCatalog(catalog, myClaimIds),
+    [catalog, myClaimIds],
+  );
   const overlayTasks = useMemo(
     () =>
       selectedTasksFromCatalog(
@@ -374,32 +367,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     [catalog, trader, query],
   );
   const { picked, rest } = useMemo(
-    () => partitionRaidPrepRows(rows, selectedTasks),
-    [rows, selectedTasks],
+    () => partitionRaidPrepRows(rows, mySelectedTasks),
+    [rows, mySelectedTasks],
   );
   const overlays = useMemo(
     () => buildRaidPrepOverlays(overlayTasks, mapId),
     [overlayTasks, mapId],
   );
-  const floorBands = useMemo(
-    () => mapLayerFloorBands(findInteractiveMap(mapId)),
-    [mapId],
-  );
-  const floorsByTask = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const overlay of overlays) {
-      const names = overlayFloorNames(overlay.height, floorBands).map((name) =>
-        floorLabel(name),
-      );
-      if (!names.length) continue;
-      const current = map.get(overlay.taskId) || [];
-      for (const name of names) {
-        if (!current.includes(name)) current.push(name);
-      }
-      map.set(overlay.taskId, current);
-    }
-    return map;
-  }, [overlays, floorBands]);
   const colorByTask = useMemo(() => {
     const map = new Map<string, string>();
     groups.forEach((group, index) => {
@@ -734,10 +708,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   onEraseMark={onEraseMark}
                   fill
                   onQuestLabelClick={(taskId) => {
-                    const row = catalog.find((item) => item.id === taskId);
-                    if (row) void locateTask(row);
-                    else setHighlightTaskId(taskId);
+                    setHighlightTaskId(taskId);
+                    openGuide(taskId);
                   }}
+                  questParticipantsByTask={participantsByTask}
                   topRight={
                     <div className={styles.summaryStack}>
                       <TarkovRaidPrepSummary
@@ -807,31 +781,29 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                 }`}
                 onClick={() => setListScope("picked")}
               >
-                已选 {groups.length}
+                我的已选 {myClaims.size}
               </button>
             </div>
           </div>
-          <div className={styles.taskList}>
+          <div
+            className={styles.taskList}
+            onClick={() => setHighlightTaskId("")}
+          >
             {listScope === "picked" ? (
               picked.length ? (
                 picked.map((row, index) => (
                   <TarkovRaidPrepTaskCard
                     key={row.id}
                     row={row}
+                    compact
                     checked={myClaims.has(row.id)}
                     highlighted
                     active={highlightTaskId === row.id}
                     color={colorByTask.get(row.id) || colorForTaskIndex(index)}
-                    floors={floorsByTask.get(row.id)}
-                    names={namesByTask.get(row.id) || []}
                     disabled={!canEdit}
                     onToggle={() => toggleClaim(row.id)}
                     onLocate={taskLocateHandler(row)}
-                    onTitle={
-                      row.has_map_markers
-                        ? () => void locateTask(row)
-                        : () => openGuide(row.id)
-                    }
+                    onTitle={() => openGuide(row.id)}
                   />
                 ))
               ) : (
@@ -843,36 +815,31 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               </div>
             ) : (
               <>
-                {groups.length > 0 &&
+                {myClaims.size > 0 &&
                 prepQuery.isLoading &&
                 !picked.length ? (
                   <div className={styles.pickedBlock}>
-                    <p className={styles.pickedLabel}>已选 {groups.length}</p>
+                    <p className={styles.pickedLabel}>我的已选 {myClaims.size}</p>
                     <div className={styles.empty}>
                       <Spin />
                     </div>
                   </div>
                 ) : picked.length ? (
                   <div className={styles.pickedBlock}>
-                    <p className={styles.pickedLabel}>已选 {picked.length}</p>
+                    <p className={styles.pickedLabel}>我的已选 {picked.length}</p>
                     {picked.map((row, index) => (
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
+                        compact
                         checked={myClaims.has(row.id)}
                         highlighted
                         active={highlightTaskId === row.id}
                         color={colorByTask.get(row.id) || colorForTaskIndex(index)}
-                        floors={floorsByTask.get(row.id)}
-                        names={namesByTask.get(row.id) || []}
                         disabled={!canEdit}
                         onToggle={() => toggleClaim(row.id)}
                         onLocate={taskLocateHandler(row)}
-                        onTitle={
-                          row.has_map_markers
-                            ? () => void locateTask(row)
-                            : () => openGuide(row.id)
-                        }
+                        onTitle={() => openGuide(row.id)}
                       />
                     ))}
                   </div>
@@ -889,15 +856,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         checked={false}
                         highlighted={false}
                         active={highlightTaskId === row.id}
-                        names={namesByTask.get(row.id) || []}
                         disabled={!canEdit}
                         onToggle={() => toggleClaim(row.id)}
                         onLocate={taskLocateHandler(row)}
-                        onTitle={
-                          row.has_map_markers
-                            ? () => void locateTask(row)
-                            : () => openGuide(row.id)
-                        }
+                        onTitle={() => openGuide(row.id)}
                       />
                     ))}
                   </>
@@ -907,7 +869,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   </div>
                 ) : (
                   <div className={styles.empty}>
-                    {picked.length || groups.length
+                    {picked.length || myClaims.size
                       ? "当前筛选下无其他任务"
                       : "当前筛选下无任务"}
                   </div>

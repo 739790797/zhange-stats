@@ -15,6 +15,8 @@ type Props = {
   names?: string[];
   disabled?: boolean;
   done?: boolean;
+  /** 只显示任务名，不渲染楼层 / 进度 / 参与人等次行。 */
+  compact?: boolean;
   onToggle: () => void;
   onLocate?: () => void;
   onTitle?: () => void;
@@ -30,6 +32,7 @@ export function TarkovRaidPrepTaskCard({
   names,
   disabled,
   done,
+  compact,
   onToggle,
   onLocate,
   onTitle,
@@ -37,43 +40,41 @@ export function TarkovRaidPrepTaskCard({
   const isDone = done ?? row.progress_status === "complete";
   const progress = tarkovTaskProgressLabel(row.progress_status);
   const title = displayRaidPrepTaskName(row);
-  const meta = [
-    names?.length ? names.join("、") : "",
-    floors?.length ? floors.join(" / ") : "",
-    progress,
-    row.min_player_level ? `Lv.${row.min_player_level}` : "",
-    row.kappa_required ? "Kappa" : "",
-  ].filter(Boolean);
+  const meta = compact
+    ? []
+    : [
+        names?.length ? names.join("、") : "",
+        floors?.length ? floors.join(" / ") : "",
+        progress,
+        row.min_player_level ? `Lv.${row.min_player_level}` : "",
+        row.kappa_required ? "Kappa" : "",
+      ].filter(Boolean);
   const swatch = color || colorForTaskId(row.id);
 
   return (
     <div
       className={`${styles.taskRow} ${highlighted ? styles.taskRowOn : ""} ${
         disabled ? styles.taskRowDisabled : ""
-      } ${active ? styles.taskRowActive : ""} ${isDone ? styles.taskRowDone : ""}`}
+      } ${active ? styles.taskRowActive : ""} ${isDone ? styles.taskRowDone : ""} ${
+        compact ? styles.taskRowCompact : ""
+      }`}
       data-raid-prep-task={row.id}
-      role={disabled ? undefined : "button"}
-      tabIndex={disabled ? undefined : 0}
-      onClick={() => {
-        if (!disabled) onToggle();
-      }}
-      onKeyDown={(event) => {
-        if (disabled) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onToggle();
-        }
-      }}
     >
-      <input
-        className={styles.check}
-        type="checkbox"
-        checked={checked}
-        readOnly
-        disabled={disabled}
-        tabIndex={-1}
-        aria-label={title}
-      />
+      <label
+        className={styles.checkWrap}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <input
+          className={styles.check}
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          aria-label={`选择 ${title}`}
+          onChange={() => {
+            if (!disabled) onToggle();
+          }}
+        />
+      </label>
       {highlighted ? (
         <span className={styles.swatch} style={{ background: swatch }} />
       ) : null}
@@ -104,7 +105,21 @@ export function TarkovRaidPrepTaskCard({
             </span>
           )}
         </div>
-        {meta.length ? <div className={styles.meta}>{meta.join(" · ")}</div> : null}
+        {meta.length ? (
+          <div
+            className={styles.meta}
+            onClick={
+              onTitle
+                ? (event) => {
+                    event.stopPropagation();
+                    onTitle();
+                  }
+                : undefined
+            }
+          >
+            {meta.join(" · ")}
+          </div>
+        ) : null}
       </div>
       {onLocate ? (
         <button

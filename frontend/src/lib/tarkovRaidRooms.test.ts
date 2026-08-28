@@ -3,6 +3,7 @@ import { tarkovRaidRoomHref } from "./tarkovHomeNav";
 import {
   applyRoomWsEvent,
   claimedTaskIds,
+  claimTaskIdsForUser,
   formatRoomRemain,
   groupClaimsByTask,
   markMatchesFloor,
@@ -57,6 +58,10 @@ describe("raid room helpers", () => {
       { taskId: "t2", userIds: [2], names: ["乙"] },
     ]);
     expect(claimedTaskIds(claims)).toEqual(["t1", "t2"]);
+    expect(claimTaskIdsForUser(claims, 1)).toEqual(["t1"]);
+    expect(claimTaskIdsForUser(claims, 2)).toEqual(["t1", "t2"]);
+    expect(claimTaskIdsForUser(claims, 9)).toEqual([]);
+    expect(claimTaskIdsForUser(claims, null)).toEqual([]);
   });
 
   it("matches floors and applies snapshot / presence", () => {
