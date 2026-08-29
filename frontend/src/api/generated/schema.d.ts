@@ -2603,6 +2603,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms/{public_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Tarkov Raid Room Member */
+        delete: operations["remove_tarkov_raid_room_member_api_guides_tarkov_raid_rooms__public_id__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-rooms/{public_id}/claims/{task_id}": {
         parameters: {
             query?: never;
@@ -16959,6 +16976,38 @@ export interface operations {
             header?: never;
             path: {
                 public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_tarkov_raid_room_member_api_guides_tarkov_raid_rooms__public_id__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                user_id: number;
             };
             cookie?: never;
         };

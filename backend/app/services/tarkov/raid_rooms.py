@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func
@@ -28,10 +28,6 @@ MARK_STROKE = "stroke"
 SLOT_COUNT = 5
 SLOT_PUBLIC_IDS = tuple(str(slot) for slot in range(1, SLOT_COUNT + 1))
 MAX_MEMBERS = 5
-# 关页未点离开：心跳停了这么久就回收座位。大厅 15s 轮询、房间 25s ping 都能续期。
-MEMBER_IDLE_SECONDS = 180
-# WS 断开后再等这么久；last_seen 仍新（人在大厅）则不踢。
-DISCONNECT_GRACE_SECONDS = 45
 MAX_UNIQUE_TASKS = 40
 MAX_UNIQUE_KEYS = 80
 MAX_PINS = 80
@@ -297,7 +293,7 @@ def _require_active_member(
     row = _member(db, room.id, user.id)
     if row is None or row.left_at is not None:
         raise RaidRoomError("尚未加入该房间", 403)
-    row.last_seen_at = to_naive(now or now_naive())
+    del now
     return row
 
 
@@ -492,114 +488,23 @@ def serialize_lobby_item(
     }
 
 
-def _member_last_seen(row: TarkovRaidRoomMember) -> datetime:
-    return to_naive(row.last_seen_at or row.joined_at)
-
-
-def touch_viewer_presence(
-    db: Session,
-    user: User | None,
-    *,
-    now: datetime | None = None,
-) -> None:
-    if user is None:
-        return
-    stamp = to_naive(now or now_naive())
+def _drop_member_contrib(db: Session, room_id: int, user_id: int) -> None:
     (
-        db.query(TarkovRaidRoomMember)
+        db.query(TarkovRaidRoomTaskClaim)
         .filter(
-            TarkovRaidRoomMember.user_id == user.id,
-            TarkovRaidRoomMember.left_at.is_(None),
+            TarkovRaidRoomTaskClaim.room_id == room_id,
+            TarkovRaidRoomTaskClaim.user_id == user_id,
         )
-        .update({TarkovRaidRoomMember.last_seen_at: stamp}, synchronize_session=False)
+        .delete(synchronize_session=False)
     )
-
-
-def touch_presence(
-    db: Session,
-    public_id: str,
-    user: User,
-    *,
-    now: datetime | None = None,
-) -> bool:
-    stamp = to_naive(now or now_naive())
-    try:
-        room = _get_room(db, public_id)
-    except RaidRoomError:
-        return False
-    row = _member(db, room.id, user.id)
-    if row is None or row.left_at is not None:
-        return False
-    last = _member_last_seen(row)
-    if (stamp - last).total_seconds() < 10:
-        return True
-    row.last_seen_at = stamp
-    return True
-
-
-def reap_idle_members(
-    db: Session,
-    *,
-    now: datetime | None = None,
-) -> list[tuple[str, list[int], dict[str, Any]]]:
-    """清掉心跳过期的在座人员。返回 (public_id, user_ids, snapshot) 供广播。"""
-    stamp = to_naive(now or now_naive())
-    cutoff = stamp - timedelta(seconds=MEMBER_IDLE_SECONDS)
-    stale = (
-        db.query(TarkovRaidRoomMember)
+    (
+        db.query(TarkovRaidRoomKeyBring)
         .filter(
-            TarkovRaidRoomMember.left_at.is_(None),
-            TarkovRaidRoomMember.last_seen_at < cutoff,
+            TarkovRaidRoomKeyBring.room_id == room_id,
+            TarkovRaidRoomKeyBring.user_id == user_id,
         )
-        .all()
+        .delete(synchronize_session=False)
     )
-    if not stale:
-        return []
-    by_room: dict[int, list[TarkovRaidRoomMember]] = {}
-    for row in stale:
-        by_room.setdefault(int(row.room_id), []).append(row)
-    out: list[tuple[str, list[int], dict[str, Any]]] = []
-    for room_id, members in by_room.items():
-        room = db.query(TarkovRaidRoom).filter(TarkovRaidRoom.id == room_id).first()
-        if room is None:
-            continue
-        user_ids = [int(row.user_id) for row in members]
-        dropped = set(user_ids)
-        for row in members:
-            db.delete(row)
-        db.flush()
-        if room.host_user_id is None or room.host_user_id in dropped:
-            _transfer_or_clear(db, room)
-        elif _active_member_count(db, room.id) <= 0:
-            _clear_slot(db, room)
-        out.append((str(room.public_id), user_ids, serialize_room(db, room)))
-    return out
-
-
-def leave_if_idle(
-    db: Session,
-    public_id: str,
-    user_id: int,
-    *,
-    now: datetime | None = None,
-    idle_seconds: int = DISCONNECT_GRACE_SECONDS,
-) -> dict[str, Any] | None:
-    """WS 断开宽限后：last_seen 仍新（例如人在大厅）则留下，否则离座。"""
-    stamp = to_naive(now or now_naive())
-    try:
-        room = _get_room(db, public_id)
-    except RaidRoomError:
-        return None
-    row = _member(db, room.id, user_id)
-    if row is None or row.left_at is not None:
-        return None
-    last = _member_last_seen(row)
-    if (stamp - last).total_seconds() < idle_seconds:
-        return None
-    user = db.get(User, user_id)
-    if user is None:
-        return None
-    return leave_room(db, public_id, user, now=stamp)
 
 
 def _live_member_room_ids(db: Session, user_id: int) -> set[int]:
@@ -655,8 +560,6 @@ def list_live_rooms(
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
     ensure_slot_rooms(db, now=stamp)
-    reap_idle_members(db, now=stamp)
-    touch_viewer_presence(db, viewer, now=stamp)
     rows = (
         db.query(TarkovRaidRoom)
         .filter(TarkovRaidRoom.public_id.in_(SLOT_PUBLIC_IDS))
@@ -688,10 +591,8 @@ def get_room(
     now: datetime | None = None,
     online_user_ids: set[int] | None = None,
 ) -> dict[str, Any]:
-    stamp = to_naive(now or now_naive())
-    reap_idle_members(db, now=stamp)
+    del now
     room = _get_room(db, public_id)
-    touch_viewer_presence(db, user, now=stamp)
     return serialize_room(db, room, viewer=user, online_user_ids=online_user_ids)
 
 
@@ -703,7 +604,6 @@ def join_room(
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
     stamp = to_naive(now or now_naive())
-    reap_idle_members(db, now=stamp)
     room = _get_room(db, public_id)
     vacated_rooms = _vacate_other_slots(db, user, room.id, now=stamp)
     row = _member(db, room.id, user.id)
@@ -787,9 +687,33 @@ def reset_room(
     del now
     room = _get_room(db, public_id)
     if room.host_user_id != user.id:
-        raise RaidRoomError("只有房主可以清桌", 403)
+        raise RaidRoomError("只有房主可以清空房间", 403)
     _clear_slot(db, room)
     return serialize_room(db, room, viewer=user)
+
+
+def remove_member(
+    db: Session,
+    public_id: str,
+    host: User,
+    target_user_id: int,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    del now
+    room = _get_room(db, public_id)
+    if room.host_user_id != host.id:
+        raise RaidRoomError("只有房主可以移除成员", 403)
+    uid = int(target_user_id)
+    if uid == host.id:
+        raise RaidRoomError("不能移除自己", 400)
+    row = _member(db, room.id, uid)
+    if row is None or row.left_at is not None:
+        raise RaidRoomError("该成员不在房间内", 404)
+    db.delete(row)
+    _drop_member_contrib(db, room.id, uid)
+    db.flush()
+    return serialize_room(db, room, viewer=host)
 
 
 def set_room_map(
@@ -822,7 +746,7 @@ def close_room(
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """兼容旧名：清桌。"""
+    """兼容旧名：清空房间。"""
     return reset_room(db, public_id, user, now=now)
 
 

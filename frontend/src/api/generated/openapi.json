@@ -7707,6 +7707,62 @@
         }
       }
     },
+    "/api/guides/tarkov/raid-rooms/{public_id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Remove Tarkov Raid Room Member",
+        "operationId": "remove_tarkov_raid_room_member_api_guides_tarkov_raid_rooms__public_id__members__user_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/raid-rooms/{public_id}/claims/{task_id}": {
       "put": {
         "tags": [

@@ -109,6 +109,45 @@
   opacity: 0.55;
 }
 
+.manageList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manageRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.manageRow:last-child {
+  border-bottom: 0;
+}
+
+.manageName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #eee9d6;
+  font-size: 13px;
+}
+
+.manageHostMark {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.manageFooter {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a2a;
+}
+
 .topActions {
   display: flex;
   flex-wrap: wrap;

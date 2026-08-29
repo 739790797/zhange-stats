@@ -425,6 +425,17 @@ export async function resetTarkovRaidRoom(publicId: string) {
   return data;
 }
 
+export async function removeTarkovRaidRoomMember(
+  publicId: string,
+  userId: number,
+) {
+  const { data } = await client.delete<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/members/${userId}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
 export async function claimTarkovRaidRoomTask(publicId: string, taskId: string) {
   const { data } = await client.put<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims/${encodeURIComponent(taskId)}`,

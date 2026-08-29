@@ -22,8 +22,6 @@ CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN = 4403
 CLOSE_NOT_FOUND = 4404
 
-_pending_idle_leave: dict[tuple[str, int], asyncio.Task] = {}
-
 
 def _load_user(token: str) -> User:
     principal = decode_access_token(token)
@@ -46,19 +44,9 @@ def _load_user(token: str) -> User:
         db.close()
 
 
-def _publish_reaped(reaped: list[tuple[str, list[int], dict[str, Any]]]) -> None:
-    for pid, user_ids, snap in reaped:
-        for uid in user_ids:
-            hub.publish(
-                pid,
-                {"event": "member_leave", "snapshot": snap, "user_id": uid},
-            )
-
-
 def _snapshot(public_id: str, user: User) -> dict[str, Any]:
     db: Session = SessionLocal()
     try:
-        reaped = rooms_svc.reap_idle_members(db)
         data = rooms_svc.get_room(
             db,
             public_id,
@@ -66,68 +54,12 @@ def _snapshot(public_id: str, user: User) -> dict[str, Any]:
             online_user_ids=hub.online_user_ids(public_id),
         )
         db.commit()
-        _publish_reaped(reaped)
         return data
     except rooms_svc.RaidRoomError:
         db.rollback()
         raise
     finally:
         db.close()
-
-
-def _touch_presence(public_id: str, user: User) -> None:
-    db: Session = SessionLocal()
-    try:
-        rooms_svc.touch_presence(db, public_id, user)
-        db.commit()
-    except Exception:  # noqa: BLE001
-        db.rollback()
-    finally:
-        db.close()
-
-
-def _cancel_idle_leave(public_id: str, user_id: int) -> None:
-    task = _pending_idle_leave.pop((public_id, user_id), None)
-    if task is not None:
-        task.cancel()
-
-
-def _db_leave_if_idle(public_id: str, user_id: int) -> None:
-    db: Session = SessionLocal()
-    try:
-        snap = rooms_svc.leave_if_idle(db, public_id, user_id)
-        if snap is None:
-            db.rollback()
-            return
-        db.commit()
-        hub.publish(
-            public_id,
-            {"event": "member_leave", "snapshot": snap, "user_id": user_id},
-        )
-    except Exception:  # noqa: BLE001
-        db.rollback()
-        logger.debug("raid room idle leave failed", exc_info=True)
-    finally:
-        db.close()
-
-
-async def _run_idle_leave(public_id: str, user_id: int) -> None:
-    try:
-        await asyncio.sleep(rooms_svc.DISCONNECT_GRACE_SECONDS)
-    except asyncio.CancelledError:
-        return
-    finally:
-        _pending_idle_leave.pop((public_id, user_id), None)
-    if user_id in hub.online_user_ids(public_id):
-        return
-    _db_leave_if_idle(public_id, user_id)
-
-
-def _schedule_idle_leave(public_id: str, user_id: int) -> None:
-    _cancel_idle_leave(public_id, user_id)
-    _pending_idle_leave[(public_id, user_id)] = asyncio.create_task(
-        _run_idle_leave(public_id, user_id)
-    )
 
 
 def _can_edit(public_id: str, user: User) -> bool:
@@ -173,7 +105,6 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         return
 
     online = await hub.join(public_id, client, user.id)
-    _cancel_idle_leave(public_id, user.id)
     await client.send_json(
         {"event": "snapshot", "seq": 0, "snapshot": snapshot, "online_user_ids": list(online)}
     )
@@ -188,7 +119,6 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 continue
             event = str(raw.get("event") or "").strip()
             if event == "ping":
-                _touch_presence(public_id, user)
                 await client.send_json({"event": "pong"})
                 continue
             if event == "draw_draft":
@@ -217,5 +147,3 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
             public_id,
             {"event": "presence", "online_user_ids": list(online)},
         )
-        if user.id not in online:
-            _schedule_idle_leave(public_id, user.id)

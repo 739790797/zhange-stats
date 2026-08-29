@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovRaidRoomMember
 from app.models.user import User, UserRole
 from app.services.tarkov import raid_rooms as rooms
 
@@ -494,96 +491,45 @@ def test_bring_key_shared_and_toggle() -> None:
     assert not ok
 
 
-def _stale_last_seen(db: Session, user: User, now, *, seconds: int | None = None) -> None:
-    age = seconds if seconds is not None else rooms.MEMBER_IDLE_SECONDS + 1
-    row = (
-        db.query(TarkovRaidRoomMember)
-        .filter(TarkovRaidRoomMember.user_id == user.id)
-        .one()
-    )
-    row.last_seen_at = now - timedelta(seconds=age)
-    db.flush()
-
-
-def test_idle_member_reaped_clears_empty_table() -> None:
-    db = _session()
-    host = _user(db, "host", "甲")
-    now = now_naive()
-    _seat(db, host, now=now)
-    _stale_last_seen(db, host, now)
-    lobby = rooms.list_live_rooms(db, viewer=host, now=now)
-    seat = next(row for row in lobby["items"] if row["public_id"] == "1")
-    assert seat["member_count"] == 0
-    assert seat["occupants"] == []
-    assert seat["host_user_id"] is None
-    assert seat["map_slug"] == ""
-
-
-def test_recent_heartbeat_keeps_seat() -> None:
-    db = _session()
-    host = _user(db, "host", "甲")
-    now = now_naive()
-    _seat(db, host, now=now)
-    _stale_last_seen(db, host, now, seconds=30)
-    lobby = rooms.list_live_rooms(db, viewer=host, now=now)
-    seat = next(row for row in lobby["items"] if row["public_id"] == "1")
-    assert seat["member_count"] == 1
-    assert seat["host_user_id"] == host.id
-
-
-def test_idle_host_transfers_to_active_guest() -> None:
+def test_host_can_remove_member_and_their_claims() -> None:
     db = _session()
     host = _user(db, "host", "甲")
     guest = _user(db, "guest", "乙")
     now = now_naive()
     _seat(db, host, now=now)
     rooms.join_room(db, "1", guest, now=now)
-    _stale_last_seen(db, host, now)
-    after = rooms.get_room(db, "1", guest, now=now)
-    assert after["is_member"] is True
-    assert after["is_host"] is True
-    assert after["host_user_id"] == guest.id
-    assert after["member_count"] == 1
-    assert after["map_slug"] == "customs"
-
-
-def test_idle_reap_frees_full_table() -> None:
-    db = _session()
-    now = now_naive()
-    occupants = [_user(db, f"u{i}", f"客{i}") for i in range(5)]
-    rooms.join_room(db, "1", occupants[0], now=now)
-    rooms.set_room_map(db, "1", occupants[0], "customs", now=now)
-    for user in occupants[1:]:
-        rooms.join_room(db, "1", user, now=now)
-    for user in occupants:
-        _stale_last_seen(db, user, now)
-    late = _user(db, "late", "迟到")
-    snap, joined, vacated = rooms.join_room(db, "1", late, now=now)
-    assert joined is True
+    rooms.claim_task(db, "1", guest, "t-guest", now=now)
+    rooms.bring_key(db, "1", guest, "key-b", now=now)
+    snap = rooms.remove_member(db, "1", host, guest.id, now=now)
     assert snap["member_count"] == 1
-    assert snap["is_host"] is True
-    assert vacated == []
+    assert snap["host_user_id"] == host.id
+    assert [row["user_id"] for row in snap["members"]] == [host.id]
+    assert snap["claims"] == []
+    assert snap["key_brings"] == []
+    guest_view = rooms.get_room(db, "1", guest, now=now)
+    assert guest_view["is_member"] is False
 
 
-def test_leave_if_idle_skips_fresh_presence() -> None:
+def test_remove_member_host_only() -> None:
     db = _session()
     host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
     now = now_naive()
     _seat(db, host, now=now)
-    later = now + timedelta(seconds=20)
-    assert rooms.leave_if_idle(db, "1", host.id, now=later) is None
-    still = rooms.get_room(db, "1", host, now=later)
-    assert still["is_member"] is True
-    assert still["member_count"] == 1
-
-
-def test_leave_if_idle_drops_stale_after_disconnect_grace() -> None:
-    db = _session()
-    host = _user(db, "host", "甲")
-    now = now_naive()
-    _seat(db, host, now=now)
-    later = now + timedelta(seconds=rooms.DISCONNECT_GRACE_SECONDS + 1)
-    snap = rooms.leave_if_idle(db, "1", host.id, now=later)
-    assert snap is not None
-    assert snap["member_count"] == 0
-    assert snap["host_user_id"] is None
+    rooms.join_room(db, "1", guest, now=now)
+    try:
+        rooms.remove_member(db, "1", guest, host.id, now=now)
+        ok = True
+    except rooms.RaidRoomError as exc:
+        ok = False
+        assert exc.status_code == 403
+    assert not ok
+    try:
+        rooms.remove_member(db, "1", host, host.id, now=now)
+        self_ok = True
+    except rooms.RaidRoomError as exc:
+        self_ok = False
+        assert exc.status_code == 400
+    assert not self_ok
+    still = rooms.get_room(db, "1", guest, now=now)
+    assert still["member_count"] == 2

@@ -14,6 +14,7 @@ import {
   joinTarkovRaidRoom,
   leaveTarkovRaidRoom,
   removeTarkovRaidRoomMark,
+  removeTarkovRaidRoomMember,
   resetTarkovRaidRoom,
   setTarkovRaidRoomMap,
   tarkovRaidRoomWsUrl,
@@ -99,6 +100,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [dockOpen, setDockOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [mapPickOpen, setMapPickOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
@@ -210,6 +212,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           navigate(TARKOV_RAID_PREP_PATH);
           return;
         }
+        if (payload.event === "member_leave") {
+          const uid = Number(payload.user_id);
+          if (uid && uid === meIdRef.current) {
+            navigate(TARKOV_RAID_PREP_PATH);
+            return;
+          }
+        }
         setRoom((current) =>
           applyRoomWsEvent(current, payload, meIdRef.current),
         );
@@ -318,7 +327,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const resetMut = useMutation({
     mutationFn: () => resetTarkovRaidRoom(publicId),
     onSuccess: () => navigate(TARKOV_RAID_PREP_PATH),
-    onError: (exc) => setError(apiError(exc, "清桌失败")),
+    onError: (exc) => setError(apiError(exc, "清空房间失败")),
+  });
+  const kickMut = useMutation({
+    mutationFn: (userId: number) =>
+      removeTarkovRaidRoomMember(publicId, userId),
+    onSuccess: (next) => applyRoom(next),
+    onError: (exc) => setError(apiError(exc, "移除失败")),
   });
   const leaveMut = useMutation({
     mutationFn: () => leaveTarkovRaidRoom(publicId),
@@ -653,17 +668,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             <button
               type="button"
               className={styles.dockChip}
-              onClick={() => {
-                Modal.confirm({
-                  title: "清桌？",
-                  content: "会请出所有人，并清空地图、点位、任务勾选和钥匙声明。",
-                  okText: "清桌",
-                  cancelText: "取消",
-                  onOk: () => resetMut.mutateAsync(),
-                });
-              }}
+              onClick={() => setManageOpen(true)}
             >
-              清桌
+              房间管理
             </button>
           ) : null}
           {room.is_member ? (
@@ -1033,6 +1040,67 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           selectedId={mapId || undefined}
           onPick={pickMap}
         />
+      </Modal>
+      <Modal
+        title="房间管理"
+        open={manageOpen}
+        onCancel={() => setManageOpen(false)}
+        footer={null}
+        width={420}
+        destroyOnClose
+      >
+        <div className={styles.manageList}>
+          {members.map((row) => (
+            <div key={row.user_id} className={styles.manageRow}>
+              <span className={styles.manageName}>
+                <span
+                  className={styles.memberDot}
+                  style={{ background: colorForUserId(row.user_id) }}
+                />
+                {row.display_name}
+                {row.is_host ? " · 房主" : ""}
+              </span>
+              {!row.is_host ? (
+                <button
+                  type="button"
+                  className={styles.dockChip}
+                  disabled={kickMut.isPending}
+                  onClick={() => {
+                    Modal.confirm({
+                      title: `移除 ${row.display_name}？`,
+                      content: "会请出房间，并去掉此人的任务勾选和钥匙声明。",
+                      okText: "移除",
+                      cancelText: "取消",
+                      onOk: () => kickMut.mutateAsync(row.user_id),
+                    });
+                  }}
+                >
+                  移除
+                </button>
+              ) : (
+                <span className={styles.manageHostMark}>自己</span>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className={styles.manageFooter}>
+          <button
+            type="button"
+            className={styles.dockChip}
+            disabled={resetMut.isPending}
+            onClick={() => {
+              Modal.confirm({
+                title: "清空房间？",
+                content: "会请出所有人，并清空地图、点位、任务勾选和钥匙声明。",
+                okText: "清空房间",
+                cancelText: "取消",
+                onOk: () => resetMut.mutateAsync(),
+              });
+            }}
+          >
+            清空房间
+          </button>
+        </div>
       </Modal>
     </div>
   );

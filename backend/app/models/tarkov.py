@@ -272,7 +272,7 @@ class TarkovGuidesMeta(Base):
 
 
 class TarkovRaidRoom(Base):
-    """战局准备席位房：全站固定 1～5 号，空桌无房主；换图或清桌不留档。"""
+    """战局准备席位房：全站固定 1～5 号，空桌无房主；换图或清空房间不留档。"""
 
     __tablename__ = "tarkov_raid_rooms"
     __table_args__ = (Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),)
