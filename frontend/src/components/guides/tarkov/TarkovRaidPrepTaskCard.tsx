@@ -1,8 +1,14 @@
 import { EnvironmentOutlined } from "@ant-design/icons";
+import { useMemo } from "react";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
-import { colorForTaskId, displayRaidPrepTaskName } from "@/lib/tarkovRaidPrep";
+import {
+  collectRaidPrepTaskObjectives,
+  colorForTaskId,
+  displayRaidPrepTaskName,
+} from "@/lib/tarkovRaidPrep";
 import { tarkovTaskProgressLabel } from "@/lib/tarkovTaskProgress";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 type Props = {
@@ -15,6 +21,9 @@ type Props = {
   names?: string[];
   disabled?: boolean;
   done?: boolean;
+  mapSlug?: string;
+  skipped?: ReadonlySet<string>;
+  onToggleObjective?: (objectiveId: string) => void;
   /** 只显示任务名，不渲染楼层 / 进度 / 参与人等次行。 */
   compact?: boolean;
   onToggle: () => void;
@@ -32,6 +41,9 @@ export function TarkovRaidPrepTaskCard({
   names,
   disabled,
   done,
+  mapSlug = "",
+  skipped,
+  onToggleObjective,
   compact,
   onToggle,
   onLocate,
@@ -40,6 +52,10 @@ export function TarkovRaidPrepTaskCard({
   const isDone = done ?? row.progress_status === "complete";
   const progress = tarkovTaskProgressLabel(row.progress_status);
   const title = displayRaidPrepTaskName(row);
+  const objectives = useMemo(
+    () => collectRaidPrepTaskObjectives(row, mapSlug),
+    [row, mapSlug],
+  );
   const meta = compact
     ? []
     : [
@@ -49,6 +65,20 @@ export function TarkovRaidPrepTaskCard({
         row.kappa_required ? "Kappa" : "",
       ].filter(Boolean);
   const swatch = color || colorForTaskId(row.id);
+  const nameEl = onTitle ? (
+    <button
+      type="button"
+      className={styles.taskName}
+      onClick={(event) => {
+        event.stopPropagation();
+        onTitle();
+      }}
+    >
+      {title}
+    </button>
+  ) : (
+    <span className={styles.taskName}>{title}</span>
+  );
 
   return (
     <div
@@ -86,23 +116,14 @@ export function TarkovRaidPrepTaskCard({
       ) : null}
       <div className={styles.taskBody}>
         <div className={styles.taskTitle}>
-          {onTitle ? (
-            <button
-              type="button"
-              className={styles.taskName}
-              title={title}
-              onClick={(event) => {
-                event.stopPropagation();
-                onTitle();
-              }}
-            >
-              {title}
-            </button>
-          ) : (
-            <span className={styles.taskName} title={title}>
-              {title}
-            </span>
-          )}
+          <TarkovRaidPrepObjectiveHint
+            objectives={objectives}
+            skipped={skipped}
+            onToggle={onToggleObjective}
+            trigger={["hover"]}
+          >
+            {nameEl}
+          </TarkovRaidPrepObjectiveHint>
         </div>
         {meta.length ? (
           <div

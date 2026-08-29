@@ -4,6 +4,8 @@ import {
   handbookHrefFromCategoryId,
   itemHrefFromTypes,
   itemPageBySlug,
+  itemTypeHrefFromTypes,
+  itemTypeLabelFromTypes,
   TARKOV_ITEM_LEAVES,
 } from "./tarkovItemTypes";
 
@@ -41,6 +43,13 @@ describe("itemHrefFromTypes", () => {
     );
     expect(itemHrefFromTypes("h1", ["headphones"])).toBe(
       "/guides/tarkov/items/headsets/h1",
+    );
+  });
+
+  it("reads a category label and listing href from item types", () => {
+    expect(itemTypeLabelFromTypes(["suppressor"])).toBe("消音器");
+    expect(itemTypeHrefFromTypes(["suppressor"])).toBe(
+      "/guides/tarkov/items/suppressors",
     );
   });
 });

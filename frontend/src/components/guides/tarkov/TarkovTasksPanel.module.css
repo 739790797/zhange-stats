@@ -260,6 +260,12 @@
   white-space: nowrap;
 }
 
+.typeChip[data-tone="key"] {
+  color: #e0b45a;
+  border-color: #6a5238;
+  background: rgba(224, 180, 90, 0.14);
+}
+
 .typeChip[data-tone="shoot"] {
   color: #e07070;
   border-color: #8a3030;

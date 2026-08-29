@@ -35,6 +35,14 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
     hub.publish(public_id, payload)
 
 
+def _publish_reaped(
+    reaped: list[tuple[str, list[int], dict]],
+) -> None:
+    for public_id, user_ids, snap in reaped:
+        for uid in user_ids:
+            _publish(public_id, "member_leave", snap, extra={"user_id": uid})
+
+
 @router.get(
     "/raid-rooms",
     response_model=TarkovRaidRoomLobbyOut,
@@ -47,10 +55,12 @@ def list_tarkov_raid_rooms(
     online_by_public_id = {
         pid: hub.online_user_ids(pid) for pid in rooms_svc.SLOT_PUBLIC_IDS
     }
+    reaped = rooms_svc.reap_idle_members(db)
     data = rooms_svc.list_live_rooms(
         db, viewer=user, online_by_public_id=online_by_public_id
     )
     db.commit()
+    _publish_reaped(reaped)
     return TarkovRaidRoomLobbyOut.model_validate(data)
 
 
@@ -87,6 +97,7 @@ def get_tarkov_raid_room(
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
     try:
+        reaped = rooms_svc.reap_idle_members(db)
         data = rooms_svc.get_room(
             db,
             public_id,
@@ -98,6 +109,7 @@ def get_tarkov_raid_room(
         _raise(exc)
         raise
     db.commit()
+    _publish_reaped(reaped)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -112,12 +124,14 @@ def join_tarkov_raid_room(
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
     try:
+        reaped = rooms_svc.reap_idle_members(db)
         data, joined_now, vacated = rooms_svc.join_room(db, public_id, user)
     except rooms_svc.RaidRoomError as exc:
         db.rollback()
         _raise(exc)
         raise
     db.commit()
+    _publish_reaped(reaped)
     for snap in vacated:
         vacated_id = str(snap.get("public_id") or "").strip()
         if vacated_id:

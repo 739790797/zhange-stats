@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func
@@ -28,6 +28,10 @@ MARK_STROKE = "stroke"
 SLOT_COUNT = 5
 SLOT_PUBLIC_IDS = tuple(str(slot) for slot in range(1, SLOT_COUNT + 1))
 MAX_MEMBERS = 5
+# 关页未点离开：心跳停了这么久就回收座位。大厅 15s 轮询、房间 25s ping 都能续期。
+MEMBER_IDLE_SECONDS = 180
+# WS 断开后再等这么久；last_seen 仍新（人在大厅）则不踢。
+DISCONNECT_GRACE_SECONDS = 45
 MAX_UNIQUE_TASKS = 40
 MAX_UNIQUE_KEYS = 80
 MAX_PINS = 80
@@ -283,10 +287,17 @@ def _active_member_counts(db: Session, room_ids: list[int]) -> dict[int, int]:
     return {int(rid): int(cnt) for rid, cnt in rows}
 
 
-def _require_active_member(db: Session, room: TarkovRaidRoom, user: User) -> TarkovRaidRoomMember:
+def _require_active_member(
+    db: Session,
+    room: TarkovRaidRoom,
+    user: User,
+    *,
+    now: datetime | None = None,
+) -> TarkovRaidRoomMember:
     row = _member(db, room.id, user.id)
     if row is None or row.left_at is not None:
         raise RaidRoomError("尚未加入该房间", 403)
+    row.last_seen_at = to_naive(now or now_naive())
     return row
 
 
@@ -481,6 +492,116 @@ def serialize_lobby_item(
     }
 
 
+def _member_last_seen(row: TarkovRaidRoomMember) -> datetime:
+    return to_naive(row.last_seen_at or row.joined_at)
+
+
+def touch_viewer_presence(
+    db: Session,
+    user: User | None,
+    *,
+    now: datetime | None = None,
+) -> None:
+    if user is None:
+        return
+    stamp = to_naive(now or now_naive())
+    (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.user_id == user.id,
+            TarkovRaidRoomMember.left_at.is_(None),
+        )
+        .update({TarkovRaidRoomMember.last_seen_at: stamp}, synchronize_session=False)
+    )
+
+
+def touch_presence(
+    db: Session,
+    public_id: str,
+    user: User,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    stamp = to_naive(now or now_naive())
+    try:
+        room = _get_room(db, public_id)
+    except RaidRoomError:
+        return False
+    row = _member(db, room.id, user.id)
+    if row is None or row.left_at is not None:
+        return False
+    last = _member_last_seen(row)
+    if (stamp - last).total_seconds() < 10:
+        return True
+    row.last_seen_at = stamp
+    return True
+
+
+def reap_idle_members(
+    db: Session,
+    *,
+    now: datetime | None = None,
+) -> list[tuple[str, list[int], dict[str, Any]]]:
+    """清掉心跳过期的在座人员。返回 (public_id, user_ids, snapshot) 供广播。"""
+    stamp = to_naive(now or now_naive())
+    cutoff = stamp - timedelta(seconds=MEMBER_IDLE_SECONDS)
+    stale = (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.left_at.is_(None),
+            TarkovRaidRoomMember.last_seen_at < cutoff,
+        )
+        .all()
+    )
+    if not stale:
+        return []
+    by_room: dict[int, list[TarkovRaidRoomMember]] = {}
+    for row in stale:
+        by_room.setdefault(int(row.room_id), []).append(row)
+    out: list[tuple[str, list[int], dict[str, Any]]] = []
+    for room_id, members in by_room.items():
+        room = db.query(TarkovRaidRoom).filter(TarkovRaidRoom.id == room_id).first()
+        if room is None:
+            continue
+        user_ids = [int(row.user_id) for row in members]
+        dropped = set(user_ids)
+        for row in members:
+            db.delete(row)
+        db.flush()
+        if room.host_user_id is None or room.host_user_id in dropped:
+            _transfer_or_clear(db, room)
+        elif _active_member_count(db, room.id) <= 0:
+            _clear_slot(db, room)
+        out.append((str(room.public_id), user_ids, serialize_room(db, room)))
+    return out
+
+
+def leave_if_idle(
+    db: Session,
+    public_id: str,
+    user_id: int,
+    *,
+    now: datetime | None = None,
+    idle_seconds: int = DISCONNECT_GRACE_SECONDS,
+) -> dict[str, Any] | None:
+    """WS 断开宽限后：last_seen 仍新（例如人在大厅）则留下，否则离座。"""
+    stamp = to_naive(now or now_naive())
+    try:
+        room = _get_room(db, public_id)
+    except RaidRoomError:
+        return None
+    row = _member(db, room.id, user_id)
+    if row is None or row.left_at is not None:
+        return None
+    last = _member_last_seen(row)
+    if (stamp - last).total_seconds() < idle_seconds:
+        return None
+    user = db.get(User, user_id)
+    if user is None:
+        return None
+    return leave_room(db, public_id, user, now=stamp)
+
+
 def _live_member_room_ids(db: Session, user_id: int) -> set[int]:
     rows = (
         db.query(TarkovRaidRoomMember.room_id)
@@ -534,6 +655,8 @@ def list_live_rooms(
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
     ensure_slot_rooms(db, now=stamp)
+    reap_idle_members(db, now=stamp)
+    touch_viewer_presence(db, viewer, now=stamp)
     rows = (
         db.query(TarkovRaidRoom)
         .filter(TarkovRaidRoom.public_id.in_(SLOT_PUBLIC_IDS))
@@ -565,8 +688,10 @@ def get_room(
     now: datetime | None = None,
     online_user_ids: set[int] | None = None,
 ) -> dict[str, Any]:
-    del now
+    stamp = to_naive(now or now_naive())
+    reap_idle_members(db, now=stamp)
     room = _get_room(db, public_id)
+    touch_viewer_presence(db, user, now=stamp)
     return serialize_room(db, room, viewer=user, online_user_ids=online_user_ids)
 
 
@@ -578,6 +703,7 @@ def join_room(
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
     stamp = to_naive(now or now_naive())
+    reap_idle_members(db, now=stamp)
     room = _get_room(db, public_id)
     vacated_rooms = _vacate_other_slots(db, user, room.id, now=stamp)
     row = _member(db, room.id, user.id)
@@ -591,6 +717,7 @@ def join_room(
                 user_id=user.id,
                 display_name=_display_name(user),
                 joined_at=stamp,
+                last_seen_at=stamp,
             )
         )
         joined_now = True
@@ -600,9 +727,11 @@ def join_room(
         row.left_at = None
         row.display_name = _display_name(user)
         row.joined_at = stamp
+        row.last_seen_at = stamp
         joined_now = True
     else:
         row.display_name = _display_name(user)
+        row.last_seen_at = stamp
     if room.host_user_id is None:
         _assign_host(room, user)
     db.flush()
@@ -671,9 +800,8 @@ def set_room_map(
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    del now
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     if room.host_user_id != user.id:
         raise RaidRoomError("只有房主可以换图", 403)
     slug = normalize_room_map_slug(map_slug)
@@ -708,7 +836,7 @@ def claim_task(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     tid = _task_id(task_id)
     belongs = None
@@ -801,7 +929,7 @@ def unclaim_task(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     tid = _task_id(task_id)
     row = (
@@ -831,7 +959,7 @@ def bring_key(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     iid = _item_id(item_id)
     existing = (
@@ -884,7 +1012,7 @@ def unbring_key(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     iid = _item_id(item_id)
     row = (
@@ -933,7 +1061,7 @@ def add_mark(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     mark_kind = (kind or "").strip().lower()
     if mark_kind not in {MARK_PIN, MARK_LINE, MARK_STROKE}:
@@ -990,7 +1118,7 @@ def remove_mark(
 ) -> tuple[dict[str, Any], bool]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     row = (
         db.query(TarkovRaidRoomMark)
@@ -1015,7 +1143,7 @@ def undo_own_mark(
 ) -> tuple[dict[str, Any], int | None]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_active_member(db, room, user)
+    _require_active_member(db, room, user, now=now)
     _require_map(room)
     row = (
         db.query(TarkovRaidRoomMark)

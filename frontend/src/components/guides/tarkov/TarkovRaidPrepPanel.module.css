@@ -157,7 +157,6 @@
   min-width: 0;
   flex: 1;
   overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .mapChip {
@@ -618,6 +617,65 @@
   color: var(--hb-orange, #c8932a);
 }
 
+.taskObjHint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.taskObjHintLead {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.taskObjCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.taskObjCheck input {
+  flex: none;
+  margin-top: 3px;
+}
+
+.taskObjLine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: #eee9d6;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.taskObjLineDone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: #9a9788;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.taskObjLineDone > span {
+  text-decoration: line-through;
+}
+
+.taskObjKeys {
+  color: #e8c36a;
+}
+
+.taskObjTooltip :global(.ant-popover-inner) {
+  max-width: min(420px, calc(100vw - 32px));
+}
+
 .meta {
   color: var(--hb-muted, #b0ae9a);
   font-size: 11px;
@@ -906,7 +964,6 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  scrollbar-width: thin;
 }
 
 .guideSideRow {
@@ -1007,7 +1064,7 @@
   min-height: 0;
   height: 100%;
   border: 1px solid #2a2a2a;
-  background: #fff;
+  background: #14160f;
 }
 
 @media (max-width: 900px) {
@@ -1110,8 +1167,6 @@
   gap: 4px;
   max-height: min(48vh, 360px);
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #5a5e4c #1a1b14;
 }
 
 .ocrItem {
@@ -1160,37 +1215,6 @@
 .entryModalBody {
   max-height: min(72vh, 720px);
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #5a5e4c #1a1b14;
-}
-
-.entryModalBody::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.entryModalBody::-webkit-scrollbar-track {
-  background: #1a1b14;
-}
-
-.entryModalBody::-webkit-scrollbar-thumb {
-  background: #4a4e40;
-  border-radius: 4px;
-  border: 2px solid #1a1b14;
-}
-
-.entryModalBody::-webkit-scrollbar-thumb:hover {
-  background: #6a6e58;
-}
-
-.entryModalBody::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.entryModalBody::-webkit-scrollbar-corner {
-  background: #1a1b14;
 }
 
 .entryModeList {
@@ -1311,58 +1335,79 @@
   min-width: 0;
   border: 1px solid #2a2a2a;
   background: #14160f;
-  scrollbar-width: thin;
-  scrollbar-color: #5a5e4c #1a1b14;
-}
-
-.summaryScroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.summaryScroll::-webkit-scrollbar-track {
-  background: #1a1b14;
-}
-
-.summaryScroll::-webkit-scrollbar-thumb {
-  background: #4a4e40;
-  border-radius: 4px;
-  border: 2px solid #1a1b14;
-}
-
-.summaryScroll::-webkit-scrollbar-thumb:hover {
-  background: #6a6e58;
-}
-
-.summaryScroll::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.summaryScroll::-webkit-scrollbar-corner {
-  background: #1a1b14;
 }
 
 .summaryTable {
-  overflow: visible;
-  min-width: max(100%, 960px);
+  width: max-content;
+  max-width: none;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
   background: #14160f;
 }
 
-.summaryRow {
-  display: grid;
-  gap: 8px 14px;
-  align-items: start;
-  padding: 10px 14px;
-  border-bottom: 1px solid #2a2a2a;
+.summaryTable thead {
+  z-index: 2;
 }
 
-.summaryHead {
+.summaryTable thead th {
   position: sticky;
   top: 0;
-  z-index: 1;
-  padding: 8px 14px;
+  z-index: 3;
+}
+
+.summaryTable thead tr:nth-child(2) th {
+  top: 34px;
+}
+
+/* 总结弹窗格子一律左对齐、垂直居中；新列不要改成 top / center。 */
+.summaryTable th,
+.summaryTable td {
+  padding: 8px 12px;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid #2a2a2a;
+  background: #14160f;
+}
+
+.summaryTable tbody td {
+  height: 62px;
+}
+
+.summaryTable td.summaryShootCol {
+  white-space: normal;
+  max-width: 320px;
+}
+
+.summaryShootSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 320px;
+}
+
+.summaryShootItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.summaryShootText {
+  color: #eee9d6;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.summaryShootCount {
+  color: var(--hb-orange, #c8932a);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.summaryTable th {
   background: #1c1e16;
   color: var(--hb-muted, #b0ae9a);
   font-size: 12px;
@@ -1370,40 +1415,124 @@
   letter-spacing: 0.06em;
 }
 
-.summaryRow:last-child {
+.summaryTable tbody tr:last-child td,
+.summaryTable tbody tr.summaryTaskCont td {
   border-bottom: 0;
+}
+
+.summaryTable th.summaryBringGroup {
+  text-align: left;
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid rgba(200, 147, 42, 0.45);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #342e19;
+  color: var(--hb-orange, #c8932a);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.summaryTable th.summaryBringHead {
+  text-align: left;
+  border-top: 0;
+}
+
+.summaryBringTypeHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.summaryBringTypeHeadItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.summaryBringSlash {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bringKindList {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.bringItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bringTypeMark {
+  flex: none;
+  width: 8px;
+  min-width: 8px;
+  height: 22px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  color: transparent !important;
+}
+
+.summaryTable .summaryBringCol {
+  background: rgba(200, 147, 42, 0.06);
+}
+
+.summaryTable th.summaryBringCol {
+  background: #2d2a17;
+}
+
+.summaryTable .summaryBringColFirst {
+  border-left: 1px solid rgba(200, 147, 42, 0.45);
+}
+
+.summaryTable .summaryBringColLast {
+  border-right: 1px solid rgba(200, 147, 42, 0.45);
+}
+
+.summaryTable tbody tr:last-child td.summaryBringCol {
+  border-bottom: 1px solid rgba(200, 147, 42, 0.45);
+}
+
+.summaryTable tbody tr:last-child td.summaryBringColFirst {
+  border-bottom-left-radius: 4px;
+}
+
+.summaryTable tbody tr:last-child td.summaryBringColLast {
+  border-bottom-right-radius: 4px;
 }
 
 .summaryTask {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
 }
 
 .summaryTask .swatch {
   margin-top: 0;
+  flex: none;
 }
 
 .summaryTaskName {
-  min-width: 0;
-  overflow: hidden;
   color: #eee9d6;
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .summaryTaskNameText {
   display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: bottom;
-  cursor: default;
+  vertical-align: middle;
+  cursor: pointer;
 }
 
 .summaryTaskName:hover,
@@ -1433,9 +1562,9 @@
 
 .needList {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
-  min-width: 0;
 }
 
 .needCollapsed {
@@ -1476,6 +1605,23 @@
   color: var(--hb-orange, #c8932a);
 }
 
+.needAnyOf {
+  max-width: none;
+}
+
+.needAnyOfIcons {
+  display: flex;
+  flex: none;
+  padding-left: 8px;
+}
+
+.needAnyOfIcons .needIcon {
+  width: 28px;
+  height: 28px;
+  margin-left: -8px;
+  box-shadow: 0 0 0 1px #14160f;
+}
+
 .needMorePopover :global(.ant-popover-inner) {
   padding: 8px;
 }
@@ -1493,7 +1639,6 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 280px;
   margin: 0;
   padding: 3px 8px 3px 3px;
   border: 1px solid #2a2a2a;
@@ -1511,9 +1656,7 @@
 
 .needChipWrap {
   display: inline-flex;
-  min-width: 0;
-  max-width: 280px;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .needCollapsed .needChipWrap {
@@ -1535,11 +1678,9 @@
 }
 
 .needBringBy {
-  overflow: hidden;
   color: #9cba7a;
   font-size: 11px;
   line-height: 1.2;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1565,18 +1706,15 @@
 }
 
 .needBody {
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
 .needName {
-  overflow: hidden;
   color: #eee9d6;
   font-size: 12px;
   line-height: 1.3;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1588,20 +1726,18 @@
   color: var(--hb-muted, #b0ae9a);
   font-size: 11px;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .summaryPeople {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 4px;
-  min-width: 0;
 }
 
 .summaryPerson {
   display: flex;
-  width: 100%;
-  max-width: 100%;
   box-sizing: border-box;
   align-items: center;
   gap: 5px;
@@ -1614,19 +1750,14 @@
 }
 
 .summaryPersonName {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .summaryTypeCell {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
-  align-items: flex-start;
-  min-width: 0;
+  align-items: center;
 }
 
 .summaryNone,
@@ -1638,6 +1769,146 @@
 .summaryEmpty {
   padding: 16px 12px;
   text-align: center;
+}
+
+.stagePick,
+.mapBar,
+.mapPickPane,
+.taskList,
+.flyout,
+.guideSideList,
+.ocrList,
+.entryModalBody,
+.summaryScroll,
+.needMoreList,
+.needMorePopover :global(.ant-popover-inner),
+.taskObjTooltip :global(.ant-popover-inner) {
+  scrollbar-width: unset;
+}
+
+:is(
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner)
+)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:is(
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner)
+)::-webkit-scrollbar-track {
+  background: #1a1b14;
+}
+
+:is(
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner)
+)::-webkit-scrollbar-thumb {
+  background: #4a4e40;
+  border-radius: 4px;
+  border: 2px solid #1a1b14;
+}
+
+:is(
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner)
+)::-webkit-scrollbar-thumb:hover {
+  background: #6a6e58;
+}
+
+:is(
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner)
+)::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+:is(
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner)
+)::-webkit-scrollbar-corner {
+  background: #1a1b14;
+}
+
+@supports (-moz-appearance: none) {
+  .stagePick,
+  .mapBar,
+  .mapPickPane,
+  .taskList,
+  .flyout,
+  .guideSideList,
+  .ocrList,
+  .entryModalBody,
+  .summaryScroll,
+  .needMoreList,
+  .needMorePopover :global(.ant-popover-inner),
+  .taskObjTooltip :global(.ant-popover-inner) {
+    scrollbar-width: thin;
+    scrollbar-color: #5a5e4c #1a1b14;
+  }
 }
 
 @media (max-width: 980px) {

@@ -33,8 +33,11 @@ import {
   filterRaidPrepRows,
   partitionRaidPrepRows,
   raidPrepMapOptions,
+  raidPrepObjectiveDoneScope,
+  raidPrepSkippedIds,
   resolveRaidPrepLocatePoints,
   selectedTasksFromCatalog,
+  useRaidPrepObjectiveDone,
 } from "@/lib/tarkovRaidPrep";
 import {
   applyRoomWsEvent,
@@ -99,6 +102,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
+  const [objDone, toggleObjDone] = useRaidPrepObjectiveDone(
+    raidPrepObjectiveDoneScope("room", publicId),
+  );
   const focusSeqRef = useRef(0);
   const locateIndexRef = useRef<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
@@ -107,6 +113,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     queryKey: ["guides-tarkov-raid-room", publicId],
     queryFn: () => fetchTarkovRaidRoom(publicId),
     retry: 1,
+    refetchInterval: (query) =>
+      query.state.data?.is_member ? 30_000 : false,
   });
   const refetchRoomRef = useRef(roomQuery.refetch);
   refetchRoomRef.current = roomQuery.refetch;
@@ -377,8 +385,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     [rows, mySelectedTasks],
   );
   const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId),
-    [overlayTasks, mapId],
+    () => buildRaidPrepOverlays(overlayTasks, mapId, objDone),
+    [overlayTasks, mapId, objDone],
   );
   const colorByTask = useMemo(() => {
     const map = new Map<string, string>();
@@ -447,6 +455,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       let points = resolveRaidPrepLocatePoints(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
+        raidPrepSkippedIds(objDone, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
@@ -456,7 +465,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             ids: [row.id],
           });
           const rich = extra.items.find((item) => item.id === row.id);
-          points = rich ? resolveRaidPrepLocatePoints(rich, mapId) : [];
+          points = rich
+            ? resolveRaidPrepLocatePoints(
+                rich,
+                mapId,
+                raidPrepSkippedIds(objDone, row.id),
+              )
+            : [];
         } catch {
           return;
         }
@@ -474,7 +489,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [mapId, overlayTasks],
+    [mapId, overlayTasks, objDone],
   );
 
   const taskLocateHandler = useCallback(
@@ -808,6 +823,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         currentUserId={me?.id}
                         canToggleKeyBring={canEdit}
                         onToggleKeyBring={toggleKeyBring}
+                        skippedByTask={objDone}
+                        onToggleObjective={toggleObjDone}
                       />
                       <TarkovRaidPrepGuideOverview
                         tasks={selectedTasks.map((row) => ({
@@ -888,12 +905,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   <TarkovRaidPrepTaskCard
                     key={row.id}
                     row={row}
+                    mapSlug={mapId}
                     compact
                     checked={myClaims.has(row.id)}
                     highlighted
                     active={highlightTaskId === row.id}
                     color={colorByTask.get(row.id) || colorForTaskIndex(index)}
                     disabled={!canEdit}
+                    skipped={raidPrepSkippedIds(objDone, row.id)}
+                    onToggleObjective={(objectiveId) =>
+                      toggleObjDone(row.id, objectiveId)
+                    }
                     onToggle={() => toggleClaim(row.id)}
                     onLocate={taskLocateHandler(row)}
                     onTitle={() => openGuide(row.id)}
@@ -924,12 +946,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
+                        mapSlug={mapId}
                         compact
                         checked={myClaims.has(row.id)}
                         highlighted
                         active={highlightTaskId === row.id}
                         color={colorByTask.get(row.id) || colorForTaskIndex(index)}
                         disabled={!canEdit}
+                        skipped={raidPrepSkippedIds(objDone, row.id)}
+                        onToggleObjective={(objectiveId) =>
+                          toggleObjDone(row.id, objectiveId)
+                        }
                         onToggle={() => toggleClaim(row.id)}
                         onLocate={taskLocateHandler(row)}
                         onTitle={() => openGuide(row.id)}
@@ -946,10 +973,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
+                        mapSlug={mapId}
                         checked={false}
                         highlighted={false}
                         active={highlightTaskId === row.id}
                         disabled={!canEdit}
+                        skipped={raidPrepSkippedIds(objDone, row.id)}
+                        onToggleObjective={(objectiveId) =>
+                          toggleObjDone(row.id, objectiveId)
+                        }
                         onToggle={() => toggleClaim(row.id)}
                         onLocate={taskLocateHandler(row)}
                         onTitle={() => openGuide(row.id)}

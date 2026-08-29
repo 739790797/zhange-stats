@@ -1,17 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
 import { Modal, Popover, Tooltip } from "antd";
 import { Link } from "react-router-dom";
-import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
+import {
+  itemDetailHref,
+  itemHrefFromTypes,
+  itemTypeHrefFromTypes,
+} from "@/lib/tarkovItemTypes";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
 import {
   buildRaidPrepSummary,
   collectRaidPrepSummaryTypeColumns,
   colorForTaskId,
   colorForUserId,
-  raidPrepSummaryColumnType,
+  expandRaidPrepSummaryItemLines,
+  isRaidPrepSummaryBringType,
+  isRaidPrepSummaryShootType,
+  RAID_PREP_SUMMARY_BRING_GROUP_LABEL,
+  RAID_PREP_SUMMARY_BRING_TYPES,
+  RAID_PREP_SUMMARY_SHOOT_TYPE,
+  raidPrepSkippedIds,
+  raidPrepSummaryHasBringTypes,
+  raidPrepSummaryHasShootTypes,
   sortRaidPrepSummaryByParticipants,
   tarkovReadableName,
   type RaidPrepNeededItem,
+  type RaidPrepSkipMap,
+  type RaidPrepSummaryShootSlot,
   type RaidPrepTaskLike,
   type RaidPrepTaskSummary,
 } from "@/lib/tarkovRaidPrep";
@@ -25,10 +39,43 @@ import {
   tarkovObjectiveTypeTone,
 } from "@/lib/tarkovTaskObjective";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import taskStyles from "./TarkovTasksPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
+class SummaryRenderError extends Component<
+  { children: ReactNode },
+  { message: string }
+> {
+  state = { message: "" };
+
+  static getDerivedStateFromError(error: Error) {
+    return { message: error.message || "总结表渲染失败" };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("raid prep summary", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.message) {
+      return (
+        <div className={styles.summaryEmpty}>
+          总结表打不开：{this.state.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function neededItemHref(item: RaidPrepNeededItem): string {
+  if (item.anyOf?.length) {
+    const typeHref = itemTypeHrefFromTypes(item.types);
+    if (typeHref) return typeHref;
+    const first = item.anyOf[0];
+    if (first) return itemHrefFromTypes(first.id, first.types);
+  }
   if (item.kind === "key") return itemDetailHref("keys", item.id);
   if (item.types.length) return itemHrefFromTypes(item.id, item.types);
   return itemDetailHref("quest-items", item.id);
@@ -76,8 +123,11 @@ function NeededItemChip({
   nativeTitle?: boolean;
   keyBring?: KeyBringControls;
 }) {
+  if (item.anyOf?.length) {
+    return <AnyOfChip item={item} onPeek={onPeek} />;
+  }
   const thumb = inventoryThumbUrl(item.icon_link, item.id);
-  const count = item.count > 1 ? `×${item.count}` : "";
+  const count = item.kind === "key" ? "" : item.count > 1 ? `×${item.count}` : "";
   const label =
     tarkovReadableName(item.name, item.id) ||
     (item.kind === "key" ? "未知钥匙" : "未知物品");
@@ -154,6 +204,72 @@ function NeededItemChip({
   );
 }
 
+function AnyOfChip({
+  item,
+  onPeek,
+}: {
+  item: RaidPrepNeededItem;
+  onPeek: (item: RaidPrepNeededItem) => void;
+}) {
+  const options = item.anyOf || [];
+  const qty = item.count > 1 ? ` ×${item.count}` : "";
+  const extra = [
+    item.found_in_raid ? "战局内" : "",
+    item.optional ? "可选" : "",
+  ].filter(Boolean);
+  const label = tarkovReadableName(item.name, item.id) || "物品";
+  const chip = (
+    <button
+      type="button"
+      className={`${styles.needChip} ${styles.needAnyOf}`}
+      aria-label={`${label}${qty}，共 ${options.length} 种`}
+    >
+      <span className={styles.needAnyOfIcons}>
+        {options.slice(0, 3).map((opt) => (
+          <NeededItemThumb
+            key={opt.id}
+            src={opt.icon_link}
+            itemId={opt.id}
+          />
+        ))}
+      </span>
+      <span className={styles.needBody}>
+        <span className={styles.needName}>
+          {label}
+          {qty}
+        </span>
+        <span className={styles.needMeta}>
+          {options.length} 种
+          {extra.length ? ` · ${extra.join(" · ")}` : ""}
+        </span>
+      </span>
+    </button>
+  );
+  return (
+    <Popover
+      trigger={["hover", "click"]}
+      mouseEnterDelay={0.12}
+      mouseLeaveDelay={0.18}
+      placement="bottomLeft"
+      zIndex={1100}
+      rootClassName={styles.needMorePopover}
+      content={
+        <div className={styles.needMoreList}>
+          {options.map((opt) => (
+            <NeededItemChip
+              key={neededItemKey(opt)}
+              item={opt}
+              onPeek={onPeek}
+            />
+          ))}
+        </div>
+      }
+    >
+      {chip}
+    </Popover>
+  );
+}
+
 export type RaidPrepParticipant = {
   name: string;
   userId?: number;
@@ -191,98 +307,146 @@ function ParticipantChips({
   );
 }
 
-function NeededItemList({
-  items,
-  onPeek,
-  keyBring,
-}: {
-  items: RaidPrepNeededItem[];
-  onPeek: (item: RaidPrepNeededItem) => void;
-  keyBring?: KeyBringControls;
-}) {
-  if (!items.length) return null;
-  const chips = items.map((item) => (
-    <NeededItemChip
-      key={neededItemKey(item)}
-      item={item}
-      onPeek={onPeek}
-      keyBring={keyBring}
-    />
-  ));
-  if (items.length === 1) return chips;
-  const rest = items.length - 1;
+function TypeChip({ type }: { type: string }) {
   return (
-    <Popover
-      trigger={["hover", "click"]}
-      mouseEnterDelay={0.12}
-      mouseLeaveDelay={0.18}
-      placement="bottomLeft"
-      zIndex={1100}
-      rootClassName={styles.needMorePopover}
-      content={<div className={styles.needMoreList}>{chips}</div>}
+    <span
+      className={taskStyles.typeChip}
+      data-tone={tarkovObjectiveTypeTone(type)}
     >
-      <div className={styles.needCollapsed}>
-        <NeededItemChip
-          item={items[0]}
-          onPeek={onPeek}
-          nativeTitle={false}
-          keyBring={keyBring}
-        />
-        <button
-          type="button"
-          className={styles.needMore}
-          aria-label={`其余 ${rest} 项，悬停查看全部`}
-        >
-          …
-        </button>
-      </div>
-    </Popover>
+      {tarkovObjectiveTypeLabel(type)}
+    </span>
   );
 }
 
-function TypeColumnCell({
-  type,
-  items,
-  hasType,
+function typeHead(type: string) {
+  return <TypeChip type={type} />;
+}
+
+function BringTypesHead() {
+  return (
+    <span className={styles.summaryBringTypeHead}>
+      {RAID_PREP_SUMMARY_BRING_TYPES.map((type, index) => (
+        <span key={type} className={styles.summaryBringTypeHeadItem}>
+          {index > 0 ? (
+            <span className={styles.summaryBringSlash} aria-hidden="true">
+              /
+            </span>
+          ) : null}
+          {typeHead(type)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function BringSlotCell({
+  slot,
   onPeek,
+  className,
 }: {
-  type: string;
-  items: RaidPrepNeededItem[];
-  hasType: boolean;
+  slot: { type: string; item?: RaidPrepNeededItem } | null;
   onPeek: (item: RaidPrepNeededItem) => void;
+  className?: string;
 }) {
-  if (items.length) {
+  if (slot?.item) {
     return (
-      <div className={styles.needList} role="cell">
-        <NeededItemList items={items} onPeek={onPeek} />
-      </div>
+      <td className={className}>
+        <span className={styles.bringItem}>
+          {typeHead(slot.type)}
+          <NeededItemChip item={slot.item} onPeek={onPeek} />
+        </span>
+      </td>
     );
   }
-  if (hasType) {
+  if (slot) {
     return (
-      <div className={styles.summaryTypeCell} role="cell">
-        <span
-          className={taskStyles.typeChip}
-          data-tone={tarkovObjectiveTypeTone(type)}
-        >
-          {tarkovObjectiveTypeLabel(type)}
+      <td className={className}>
+        <div className={styles.summaryTypeCell}>{typeHead(slot.type)}</div>
+      </td>
+    );
+  }
+  return (
+    <td className={className}>
+      <span className={styles.summaryNone}>—</span>
+    </td>
+  );
+}
+
+function ShootSlotCell({
+  slot,
+  onPeek,
+}: {
+  slot: RaidPrepSummaryShootSlot | null;
+  onPeek: (item: RaidPrepNeededItem) => void;
+}) {
+  if (!slot) {
+    return (
+      <td className={styles.summaryShootCol}>
+        <span className={styles.summaryNone}>—</span>
+      </td>
+    );
+  }
+  const chips = slot.items.filter((item) => !item.anyOf);
+  return (
+    <td className={styles.summaryShootCol}>
+      <div className={styles.summaryShootSlot}>
+        {chips.length ? (
+          <div className={styles.summaryShootItems}>
+            {chips.map((item) => (
+              <NeededItemChip
+                key={neededItemKey(item)}
+                item={item}
+                onPeek={onPeek}
+              />
+            ))}
+          </div>
+        ) : null}
+        <span className={styles.summaryShootText}>
+          {slot.text}
+          {slot.count > 1 ? (
+            <span className={styles.summaryShootCount}> ×{slot.count}</span>
+          ) : null}
         </span>
       </div>
-    );
-  }
-  return (
-    <div role="cell">
-      <span className={styles.summaryNone}>—</span>
-    </div>
+    </td>
   );
 }
 
-const SUMMARY_FIXED_COLS =
-  "minmax(108px, 160px) minmax(160px, 220px) minmax(140px, 200px)";
+function ItemOrEmptyCell({
+  item,
+  onPeek,
+  className,
+  empty,
+  keyBring,
+}: {
+  item: RaidPrepNeededItem | null;
+  onPeek: (item: RaidPrepNeededItem) => void;
+  className?: string;
+  empty?: string;
+  keyBring?: KeyBringControls;
+}) {
+  if (item) {
+    return (
+      <td className={className}>
+        <NeededItemChip item={item} onPeek={onPeek} keyBring={keyBring} />
+      </td>
+    );
+  }
+  return (
+    <td className={className}>
+      <span className={styles.summaryNone}>{empty || "—"}</span>
+    </td>
+  );
+}
 
-function summaryGridColumns(typeCount: number): string {
-  if (typeCount <= 0) return SUMMARY_FIXED_COLS;
-  return `${SUMMARY_FIXED_COLS} repeat(${typeCount}, minmax(148px, 1fr))`;
+function bringColClass(index: number, count: number): string {
+  return [
+    styles.summaryBringCol,
+    index === 0 ? styles.summaryBringColFirst : "",
+    index === count - 1 ? styles.summaryBringColLast : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function SummaryList({
@@ -291,133 +455,164 @@ function SummaryList({
   participantsByTask,
   onPeek,
   keyBring,
+  skippedByTask,
+  onToggleObjective,
 }: {
   rows: RaidPrepTaskSummary[];
   typeColumns: string[];
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   onPeek: (item: RaidPrepNeededItem) => void;
   keyBring?: KeyBringControls;
+  skippedByTask?: RaidPrepSkipMap;
+  onToggleObjective?: (taskId: string, objectiveId: string) => void;
 }) {
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
   }
-  const gridTemplateColumns = summaryGridColumns(typeColumns.length);
-  const typeSetByTask = new Map(
-    rows.map((row) => [row.taskId, new Set(row.types)]),
+  const restTypeColumns = typeColumns.filter(
+    (type) =>
+      !isRaidPrepSummaryBringType(type) && !isRaidPrepSummaryShootType(type),
   );
+  const showBringTypes = raidPrepSummaryHasBringTypes(rows, typeColumns);
+  const showShootTypes = raidPrepSummaryHasShootTypes(rows);
+  const bringSpan = 1 + (showBringTypes ? 1 : 0);
   return (
     <div className={styles.summaryScroll}>
-      <div className={styles.summaryTable} role="table">
-        <div
-          className={`${styles.summaryRow} ${styles.summaryHead}`}
-          role="row"
-          style={{ gridTemplateColumns }}
-        >
-          <div role="columnheader">参与人员</div>
-          <div className={styles.summaryTask} role="columnheader">
-            任务名称
-          </div>
-          <div
-            role="columnheader"
-            title={
-              keyBring
-                ? "点击钥匙声明我带了，悬停查看谁带了"
-                : undefined
-            }
-          >
-            所需钥匙
-          </div>
-          {typeColumns.map((type) => (
-            <div key={type} role="columnheader">
-              <span
-                className={taskStyles.typeChip}
-                data-tone={tarkovObjectiveTypeTone(type)}
-              >
-                {tarkovObjectiveTypeLabel(type)}
-              </span>
-            </div>
-          ))}
-        </div>
-        {rows.map((row) => {
-          const typeSet = typeSetByTask.get(row.taskId) || new Set<string>();
-          return (
-            <div
-              key={row.taskId}
-              className={styles.summaryRow}
-              role="row"
-              style={{ gridTemplateColumns }}
+      <table className={styles.summaryTable}>
+        <thead>
+          <tr>
+            <th rowSpan={2}>参与人员</th>
+            <th rowSpan={2}>任务名称</th>
+            <th
+              className={styles.summaryBringGroup}
+              colSpan={bringSpan}
+              title="钥匙、藏匿物、标记物、使用物：从保险箱带进战局"
             >
-              <div role="cell">
-                <ParticipantChips
-                  people={participantsByTask?.get(row.taskId) || []}
+              {RAID_PREP_SUMMARY_BRING_GROUP_LABEL}
+            </th>
+            {restTypeColumns.map((type) => (
+              <th key={type} rowSpan={2}>
+                {typeHead(type)}
+              </th>
+            ))}
+            {showShootTypes ? (
+              <th rowSpan={2}>{typeHead(RAID_PREP_SUMMARY_SHOOT_TYPE)}</th>
+            ) : null}
+          </tr>
+          <tr>
+            <th
+              className={`${styles.summaryBringHead} ${bringColClass(0, bringSpan)}`}
+              title={
+                keyBring
+                  ? "点击钥匙声明我带了，悬停查看谁带了"
+                  : undefined
+              }
+            >
+              <span className={taskStyles.typeChip} data-tone="key">
+                钥匙
+              </span>
+            </th>
+            {showBringTypes ? (
+              <th
+                className={`${styles.summaryBringHead} ${bringColClass(1, bringSpan)}`}
+              >
+                <BringTypesHead />
+              </th>
+            ) : null}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.flatMap((row) => {
+            const grid = expandRaidPrepSummaryItemLines(
+              row,
+              restTypeColumns,
+              showBringTypes,
+              showShootTypes,
+            );
+            const noKeys = !(row.keys || []).length;
+            return grid.lines.map((line, index) => (
+              <tr
+                key={`${row.taskId}-${index}`}
+                className={
+                  index < grid.lines.length - 1
+                    ? styles.summaryTaskCont
+                    : undefined
+                }
+              >
+                <td>
+                  {index === 0 ? (
+                    <ParticipantChips
+                      people={participantsByTask?.get(row.taskId) || []}
+                    />
+                  ) : (
+                    <span className={styles.summaryNone}> </span>
+                  )}
+                </td>
+                <td>
+                  {index === 0 ? (
+                    <div className={styles.summaryTask}>
+                      <span
+                        className={styles.swatch}
+                        style={{ background: colorForTaskId(row.taskId) }}
+                      />
+                      {row.traderSlug ? (
+                        <TarkovTraderThumb
+                          slug={row.traderSlug}
+                          size={22}
+                          title={row.traderName || row.traderSlug}
+                        />
+                      ) : null}
+                      <span className={styles.summaryTaskName}>
+                        <TarkovRaidPrepObjectiveHint
+                          objectives={row.objectives || []}
+                          skipped={raidPrepSkippedIds(skippedByTask, row.taskId)}
+                          onToggle={
+                            onToggleObjective
+                              ? (objectiveId) =>
+                                  onToggleObjective(row.taskId, objectiveId)
+                              : undefined
+                          }
+                          placement="topLeft"
+                        >
+                          <span className={styles.summaryTaskNameText}>
+                            {row.taskName}
+                          </span>
+                        </TarkovRaidPrepObjectiveHint>
+                      </span>
+                    </div>
+                  ) : (
+                    <span className={styles.summaryNone}> </span>
+                  )}
+                </td>
+                <ItemOrEmptyCell
+                  item={line.key}
+                  onPeek={onPeek}
+                  keyBring={keyBring}
+                  empty={index === 0 && noKeys ? "无所需钥匙" : "—"}
+                  className={bringColClass(0, bringSpan)}
                 />
-              </div>
-              <div className={styles.summaryTask} role="cell">
-                <span
-                  className={styles.swatch}
-                  style={{ background: colorForTaskId(row.taskId) }}
-                />
-                {row.traderSlug ? (
-                  <TarkovTraderThumb
-                    slug={row.traderSlug}
-                    size={22}
-                    title={row.traderName || row.traderSlug}
+                {showBringTypes ? (
+                  <BringSlotCell
+                    slot={line.bring}
+                    onPeek={onPeek}
+                    className={bringColClass(1, bringSpan)}
                   />
                 ) : null}
-                <span className={styles.summaryTaskName}>
-                  <Tooltip
-                    title={
-                      <div className={styles.summaryObjHint}>
-                        {row.objectiveLines.length ? (
-                          row.objectiveLines.map((line) => (
-                            <div key={line} className={styles.summaryObjLine}>
-                              {line}
-                            </div>
-                          ))
-                        ) : (
-                          <div className={styles.summaryObjLine}>无目标数据</div>
-                        )}
-                      </div>
-                    }
-                    mouseEnterDelay={0.12}
-                    mouseLeaveDelay={0.08}
-                    placement="topLeft"
-                    zIndex={1200}
-                    rootClassName={styles.summaryObjTooltip}
-                    overlayInnerStyle={{ maxWidth: "none" }}
-                  >
-                    <span className={styles.summaryTaskNameText}>
-                      {row.taskName}
-                    </span>
-                  </Tooltip>
-                </span>
-              </div>
-              <div className={styles.needList} role="cell">
-                {row.keys.length ? (
-                  <NeededItemList
-                    items={row.keys}
+                {restTypeColumns.map((type) => (
+                  <ItemOrEmptyCell
+                    key={type}
+                    item={line.rest[type] ?? null}
                     onPeek={onPeek}
-                    keyBring={keyBring}
                   />
-                ) : (
-                  <span className={styles.summaryNone}>无所需钥匙</span>
-                )}
-              </div>
-              {typeColumns.map((type) => (
-                <TypeColumnCell
-                  key={type}
-                  type={type}
-                  items={row.itemsByType[type] || []}
-                  hasType={[...typeSet].some(
-                    (itemType) => raidPrepSummaryColumnType(itemType) === type,
-                  )}
-                  onPeek={onPeek}
-                />
-              ))}
-            </div>
-          );
-        })}
-      </div>
+                ))}
+                {showShootTypes ? (
+                  <ShootSlotCell slot={line.shoot} onPeek={onPeek} />
+                ) : null}
+              </tr>
+            ));
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -430,6 +625,8 @@ export function TarkovRaidPrepSummary({
   currentUserId,
   canToggleKeyBring = false,
   onToggleKeyBring,
+  skippedByTask,
+  onToggleObjective,
 }: {
   tasks: RaidPrepTaskLike[];
   mapId: string;
@@ -438,13 +635,15 @@ export function TarkovRaidPrepSummary({
   currentUserId?: number | null;
   canToggleKeyBring?: boolean;
   onToggleKeyBring?: (itemId: string) => void;
+  skippedByTask?: RaidPrepSkipMap;
+  onToggleObjective?: (taskId: string, objectiveId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
   const rows = useMemo(() => {
-    const built = buildRaidPrepSummary(tasks, mapId);
+    const built = buildRaidPrepSummary(tasks, mapId, skippedByTask);
     return sortRaidPrepSummaryByParticipants(built, participantsByTask);
-  }, [tasks, mapId, participantsByTask]);
+  }, [tasks, mapId, skippedByTask, participantsByTask]);
   const typeColumns = useMemo(
     () => collectRaidPrepSummaryTypeColumns(rows),
     [rows],
@@ -468,13 +667,13 @@ export function TarkovRaidPrepSummary({
   const itemCount = rows.reduce(
     (sum, row) =>
       sum +
-      Object.values(row.itemsByType).reduce(
+      Object.values(row.itemsByType || {}).reduce(
         (inner, items) => inner + items.length,
         0,
       ),
     0,
   );
-  const keyCount = rows.reduce((sum, row) => sum + row.keys.length, 0);
+  const keyCount = rows.reduce((sum, row) => sum + (row.keys || []).length, 0);
   const meta = rows.length
     ? `已选 ${rows.length} · 物品 ${itemCount} · 钥匙 ${keyCount}`
     : "勾选任务后查看所需物品";
@@ -510,13 +709,17 @@ export function TarkovRaidPrepSummary({
           body: { maxHeight: "none", paddingTop: 0 },
         }}
       >
-        <SummaryList
-          rows={rows}
-          typeColumns={typeColumns}
-          participantsByTask={participantsByTask}
-          onPeek={setPeek}
-          keyBring={keyBring}
-        />
+        <SummaryRenderError>
+          <SummaryList
+            rows={rows}
+            typeColumns={typeColumns}
+            participantsByTask={participantsByTask}
+            onPeek={setPeek}
+            keyBring={keyBring}
+            skippedByTask={skippedByTask}
+            onToggleObjective={onToggleObjective}
+          />
+        </SummaryRenderError>
       </Modal>
       <Modal
         title={

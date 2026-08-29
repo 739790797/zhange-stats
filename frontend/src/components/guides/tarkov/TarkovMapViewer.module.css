@@ -384,6 +384,10 @@
   cursor: pointer;
 }
 
+.questLabelOff {
+  opacity: 0.28;
+}
+
 .questLabelRow[data-on="true"] {
   outline: 1px solid var(--hb-orange, #c8932a);
   outline-offset: 2px;
@@ -574,6 +578,28 @@
   color: #e0b45a;
   font-size: 11px;
   line-height: 1.6;
+}
+
+.questTipNoKey {
+  color: #8a8470;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.questLabelKey,
+.questLabelNoKey {
+  flex: none;
+  padding: 0 4px;
+  color: #e0b45a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-shadow: none;
+}
+
+.questLabelNoKey {
+  border: 1px solid #4a4d40;
+  color: #9a9580;
 }
 
 .questTipPeople {

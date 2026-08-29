@@ -18,9 +18,12 @@ import {
   parseCsvParam,
   partitionRaidPrepRows,
   raidPrepMapOptions,
+  raidPrepObjectiveDoneScope,
+  raidPrepSkippedIds,
   resolveRaidPrepLocatePoints,
   selectedTasksFromCatalog,
   serializeSelectedIds,
+  useRaidPrepObjectiveDone,
 } from "@/lib/tarkovRaidPrep";
 import { mergeRaidPrepOcrSelection } from "@/lib/tarkovRaidPrepOcr";
 import { useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
@@ -70,6 +73,9 @@ export function TarkovRaidPrepPanel() {
   const [dockOpen, setDockOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
+  );
+  const [objDone, toggleObjDone] = useRaidPrepObjectiveDone(
+    raidPrepObjectiveDoneScope("solo", mapId),
   );
   const focusSeqRef = useRef(0);
   const locateIndexRef = useRef<Record<string, number>>({});
@@ -220,8 +226,8 @@ export function TarkovRaidPrepPanel() {
     return map;
   }, [selectedTasks, me?.id, me?.display_name, me?.username]);
   const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId),
-    [overlayTasks, mapId],
+    () => buildRaidPrepOverlays(overlayTasks, mapId, objDone),
+    [overlayTasks, mapId, objDone],
   );
   const colorByTask = useMemo(() => {
     const map = new Map<string, string>();
@@ -250,6 +256,7 @@ export function TarkovRaidPrepPanel() {
       let points = resolveRaidPrepLocatePoints(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
+        raidPrepSkippedIds(objDone, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
@@ -259,7 +266,13 @@ export function TarkovRaidPrepPanel() {
             ids: [row.id],
           });
           const rich = extra.items.find((item) => item.id === row.id);
-          points = rich ? resolveRaidPrepLocatePoints(rich, mapId) : [];
+          points = rich
+            ? resolveRaidPrepLocatePoints(
+                rich,
+                mapId,
+                raidPrepSkippedIds(objDone, row.id),
+              )
+            : [];
         } catch {
           return;
         }
@@ -277,7 +290,7 @@ export function TarkovRaidPrepPanel() {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [mapId, overlayTasks],
+    [mapId, overlayTasks, objDone],
   );
 
   const taskLocateHandler = useCallback(
@@ -397,6 +410,8 @@ export function TarkovRaidPrepPanel() {
                         tasks={selectedTasks}
                         mapId={mapId}
                         participantsByTask={participantsByTask}
+                        skippedByTask={objDone}
+                        onToggleObjective={toggleObjDone}
                       />
                       <TarkovRaidPrepGuideOverview
                         open={guideOpen}
@@ -481,11 +496,16 @@ export function TarkovRaidPrepPanel() {
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
+                        mapSlug={mapId}
                         compact
                         checked
                         highlighted
                         active={highlightTaskId === row.id}
                         color={colorByTask.get(row.id) || colorForTaskIndex(index)}
+                        skipped={raidPrepSkippedIds(objDone, row.id)}
+                        onToggleObjective={(objectiveId) =>
+                          toggleObjDone(row.id, objectiveId)
+                        }
                         onToggle={() => toggleSelected(row.id)}
                         onLocate={taskLocateHandler(row)}
                         onTitle={() => openGuide(row.id)}
@@ -502,9 +522,14 @@ export function TarkovRaidPrepPanel() {
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
+                        mapSlug={mapId}
                         checked={false}
                         highlighted={false}
                         active={highlightTaskId === row.id}
+                        skipped={raidPrepSkippedIds(objDone, row.id)}
+                        onToggleObjective={(objectiveId) =>
+                          toggleObjDone(row.id, objectiveId)
+                        }
                         onToggle={() => toggleSelected(row.id)}
                         onLocate={taskLocateHandler(row)}
                         onTitle={() => openGuide(row.id)}

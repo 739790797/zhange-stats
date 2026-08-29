@@ -421,6 +421,28 @@ export function itemHrefFromTypes(
   return itemDetailHref("barter", itemId);
 }
 
+export function itemTypeLabelFromTypes(
+  types: string[] | undefined,
+): string {
+  const set = new Set((types || []).map((t) => String(t).trim()));
+  for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
+    if (!set.has(type)) continue;
+    const label = itemPageBySlug(slug)?.label || "";
+    if (label) return label;
+  }
+  return "";
+}
+
+export function itemTypeHrefFromTypes(
+  types: string[] | undefined,
+): string | null {
+  const set = new Set((types || []).map((t) => String(t).trim()));
+  for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
+    if (set.has(type)) return itemTypeHref(slug);
+  }
+  return null;
+}
+
 const IGNORE_CATEGORY_IDS = new Set([
   "54009119af1c881c07000029",
   "566162e44bdc2d3f298b4573",

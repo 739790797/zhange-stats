@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import { TARKOV_MAPS, TARKOV_TRADERS } from "@/lib/tarkovHomeNav";
 import {
   orderObjectiveTypes,
@@ -16,6 +17,9 @@ export const MAP_SLUG_EQUIV_GROUPS: readonly (readonly string[])[] = [
 
 export const RAID_PREP_MAX_SELECTED = 40;
 
+/** 原文写明「任意」且候选不少于这么多种时，收成一条，文案用目标描述。 */
+export const RAID_PREP_ANY_OF_MIN = 4;
+
 /** 准备总结：物品 / 任务物成对合成一列。 */
 export const RAID_PREP_SUMMARY_TYPE_MERGE: Readonly<Record<string, string>> = {
   findQuestItem: "findItem",
@@ -23,10 +27,184 @@ export const RAID_PREP_SUMMARY_TYPE_MERGE: Readonly<Record<string, string>> = {
   plantQuestItem: "plantItem",
 };
 
+/** 要带进战局的目标列（跟「所需钥匙」一组，排在找到/上交前面）。 */
+export const RAID_PREP_SUMMARY_BRING_TYPES = [
+  "plantItem",
+  "mark",
+  "useItem",
+] as const;
+
+export const RAID_PREP_SUMMARY_BRING_GROUP_LABEL = "进局携带";
+
+/** 总结表单独一列：展示击杀目标原文，不跟找到/上交混在一起。 */
+export const RAID_PREP_SUMMARY_SHOOT_TYPE = "shoot";
+
 export function raidPrepSummaryColumnType(type: string): string {
   const key = (type || "").trim();
   if (!key) return "item";
   return RAID_PREP_SUMMARY_TYPE_MERGE[key] || key;
+}
+
+export function isRaidPrepSummaryBringType(type: string): boolean {
+  return (RAID_PREP_SUMMARY_BRING_TYPES as readonly string[]).includes(
+    raidPrepSummaryColumnType(type),
+  );
+}
+
+export function isRaidPrepSummaryShootType(type: string): boolean {
+  return raidPrepSummaryColumnType(type) === RAID_PREP_SUMMARY_SHOOT_TYPE;
+}
+
+/** 钥匙旁：藏匿 / 标记 / 使用在前，找到、上交、击杀等在后。 */
+export function orderRaidPrepSummaryTypeColumns(
+  types: string[] | null | undefined,
+): string[] {
+  const ordered = orderObjectiveTypes(types);
+  const bring = RAID_PREP_SUMMARY_BRING_TYPES.filter((type) =>
+    ordered.includes(type),
+  );
+  const rest = ordered.filter(
+    (type) =>
+      !isRaidPrepSummaryBringType(type) && !isRaidPrepSummaryShootType(type),
+  );
+  return [...bring, ...rest];
+}
+
+/** 勾选任务里有藏匿、标记或使用时，总结表合成一列。 */
+export function raidPrepSummaryHasBringTypes(
+  rows: readonly RaidPrepTaskSummary[],
+  typeColumns?: readonly string[],
+): boolean {
+  if (typeColumns?.some(isRaidPrepSummaryBringType)) return true;
+  return rows.some((row) =>
+    (row.types || []).some((type) => isRaidPrepSummaryBringType(type)),
+  );
+}
+
+/** 勾选任务里有击杀目标时，总结表单独出列。 */
+export function raidPrepSummaryHasShootTypes(
+  rows: readonly RaidPrepTaskSummary[],
+): boolean {
+  return rows.some(
+    (row) =>
+      (row.shootSlots || []).length > 0 ||
+      (row.types || []).some((type) => isRaidPrepSummaryShootType(type)),
+  );
+}
+
+export type RaidPrepSummaryBringSlot = {
+  type: string;
+  item?: RaidPrepNeededItem;
+};
+
+export type RaidPrepSummaryShootSlot = {
+  id: string;
+  text: string;
+  optional: boolean;
+  /** 击杀次数；武器芯片不带这个数，避免被当成要带几把枪。 */
+  count: number;
+  items: RaidPrepNeededItem[];
+};
+
+export function raidPrepObjectiveCount(obj: {
+  count?: number | null;
+}): number {
+  const count = obj.count;
+  if (typeof count === "number" && Number.isFinite(count) && count > 0) {
+    return Math.trunc(count);
+  }
+  return 1;
+}
+
+export type RaidPrepSummaryItemLine = {
+  key: RaidPrepNeededItem | null;
+  bring: RaidPrepSummaryBringSlot | null;
+  shoot: RaidPrepSummaryShootSlot | null;
+  rest: Record<string, RaidPrepNeededItem | null>;
+};
+
+export type RaidPrepSummaryItemGrid = {
+  lines: RaidPrepSummaryItemLine[];
+  spanKey: boolean;
+  spanBring: boolean;
+  spanShoot: boolean;
+  spanRest: Record<string, boolean>;
+};
+
+function taskHasSummaryType(
+  row: RaidPrepTaskSummary,
+  columnType: string,
+): boolean {
+  return (row.types || []).some(
+    (type) => raidPrepSummaryColumnType(type) === columnType,
+  );
+}
+
+function summaryBringSlots(
+  row: RaidPrepTaskSummary,
+  showBringTypes: boolean,
+): RaidPrepSummaryBringSlot[] {
+  if (!showBringTypes) return [];
+  const out: RaidPrepSummaryBringSlot[] = [];
+  const byType = row.itemsByType || {};
+  for (const type of RAID_PREP_SUMMARY_BRING_TYPES) {
+    const items = byType[type] || [];
+    if (items.length) {
+      for (const item of items) out.push({ type, item });
+      continue;
+    }
+    if (taskHasSummaryType(row, type)) out.push({ type });
+  }
+  return out;
+}
+
+/** 总结表一行一件：钥匙、藏匿/标记/使用、击杀、其它类型各自拆开，按列对齐。 */
+export function expandRaidPrepSummaryItemLines(
+  row: RaidPrepTaskSummary,
+  restTypes: readonly string[],
+  showBringTypes: boolean,
+  showShootTypes = false,
+): RaidPrepSummaryItemGrid {
+  const keys = row.keys || [];
+  const bring = summaryBringSlots(row, showBringTypes);
+  const shoots = showShootTypes ? row.shootSlots || [] : [];
+  const byType = row.itemsByType || {};
+  const restLists = new Map<string, RaidPrepNeededItem[]>();
+  const spanRest: Record<string, boolean> = {};
+  let restMax = 0;
+  for (const type of restTypes) {
+    if (isRaidPrepSummaryShootType(type) || isRaidPrepSummaryBringType(type)) {
+      continue;
+    }
+    const items = byType[type] || [];
+    restLists.set(type, items);
+    spanRest[type] = items.length <= 1;
+    if (items.length > restMax) restMax = items.length;
+  }
+  const count = Math.max(keys.length, bring.length, shoots.length, restMax, 1);
+  const lines: RaidPrepSummaryItemLine[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const rest: Record<string, RaidPrepNeededItem | null> = {};
+    for (const type of restTypes) {
+      if (isRaidPrepSummaryShootType(type) || isRaidPrepSummaryBringType(type)) {
+        continue;
+      }
+      rest[type] = restLists.get(type)?.[i] ?? null;
+    }
+    lines.push({
+      key: keys[i] ?? null,
+      bring: bring[i] ?? null,
+      shoot: shoots[i] ?? null,
+      rest,
+    });
+  }
+  return {
+    lines,
+    spanKey: keys.length <= 1,
+    spanBring: bring.length <= 1,
+    spanShoot: shoots.length <= 1,
+    spanRest,
+  };
 }
 
 export const RAID_PREP_TASK_COLORS = [
@@ -73,6 +251,8 @@ export type TarkovRaidPrepOverlay = {
   subtitle: string;
   traderSlug: string;
   keyNames: string[];
+  /** 同任务其它点要钥匙时，本点明确标「不需要钥匙」。 */
+  showNoKey: boolean;
   /** 来自目标 optional；可选目标在地图上单独标出。 */
   optional: boolean;
   outline: RaidPrepPoint[];
@@ -87,8 +267,10 @@ export type RaidPrepOverlayLabelItem = {
   traderSlug: string;
   subtitle: string;
   keyNames: string[];
+  showNoKey: boolean;
   count: number;
   optional: boolean;
+  height: RaidPrepHeightSpan | null;
 };
 
 /** 地图上一条任务名：可能叠了多个邻近任务。 */
@@ -177,6 +359,15 @@ export type RaidPrepNeededItem = {
   role: string;
   /** 上游 objective.type，用于按类型分列。 */
   objectiveType: string;
+  /** 原文「任意某一类」的候选。有值时本条是汇总，name 用目标描述。 */
+  anyOf?: RaidPrepNeededItem[];
+};
+
+export type RaidPrepObjectiveHint = {
+  id: string;
+  text: string;
+  optional: boolean;
+  keyNames: string[];
 };
 
 export type RaidPrepTaskSummary = {
@@ -187,11 +378,21 @@ export type RaidPrepTaskSummary = {
   /** 按 objective.type 分组的物品（仅带 items 的目标）。 */
   itemsByType: Record<string, RaidPrepNeededItem[]>;
   keys: RaidPrepNeededItem[];
+  /** 当前地图未勾掉的击杀目标（总结表单独一列）。 */
+  shootSlots: RaidPrepSummaryShootSlot[];
   /** 当前地图适用的全部目标类型（含无物品的 mark / visit 等）。 */
   types: string[];
   /** 当前地图适用的目标文案（任务详情「目标」描述）。 */
   objectiveLines: string[];
+  /** 当前地图全部目标（含已勾掉），供勾选进度。 */
+  objectives: RaidPrepObjectiveHint[];
 };
+
+/** 任务 id → 已勾掉（本局不用再做）的目标 id。 */
+export type RaidPrepSkipMap = ReadonlyMap<string, ReadonlySet<string>>;
+
+const EMPTY_SKIP: ReadonlySet<string> = new Set();
+const RAID_PREP_OBJ_DONE_STORAGE = "zhange.tarkov.raidPrep.objDone.v1";
 
 function isFiniteNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -515,6 +716,39 @@ export function overlayFloorNames(
   return names;
 }
 
+/** 点位应对齐的楼层名；空字符串是地面。 */
+export function overlayFloorForSpan(
+  span: RaidPrepHeightSpan | null | undefined,
+  bands: readonly RaidPrepFloorBand[],
+): string {
+  if (!bands.length) return "";
+  if (!span) return "";
+  const named = overlayFloorNames(span, bands);
+  if (named.length) return named[0]!;
+  const ground = bands.find((band) => !band.name);
+  if (ground && spansOverlap(span, ground)) return "";
+  const mid = (span.min + span.max) / 2;
+  let best = "";
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const band of bands) {
+    const clamped = Math.min(band.max, Math.max(band.min, mid));
+    const dist = Math.abs(mid - clamped);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = band.name;
+    }
+  }
+  return best;
+}
+
+export function overlayFloorForPoint(
+  y: number | null | undefined,
+  bands: readonly RaidPrepFloorBand[],
+): string {
+  if (!isFiniteNumber(y)) return "";
+  return overlayFloorForSpan({ min: y, max: y }, bands);
+}
+
 export function mapLayerFloorBands(
   layer:
     | {
@@ -684,7 +918,7 @@ export function neededKeyNamesForMap(
   return out;
 }
 
-/** 单目标 required_keys；有则优先于任务级 needed_keys，避免把别的目标钥匙挂到本点。 */
+/** 只读该目标 required_keys，不回退任务级 needed_keys，避免把别的点的钥匙挂过来。 */
 export function objectiveKeyNames(obj: RaidPrepObjectiveLike): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -697,6 +931,18 @@ export function objectiveKeyNames(obj: RaidPrepObjectiveLike): string[] {
     }
   }
   return out;
+}
+
+/** 目标气泡：需要宿舍 114 钥匙 / 需要 TerraGroup 会议室钥匙。 */
+export function formatRaidPrepKeyNeedLine(
+  keyNames: string[] | null | undefined,
+): string {
+  const names = (keyNames || [])
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => (name.includes("钥匙") ? name : `${name}钥匙`));
+  if (!names.length) return "";
+  return `需要${names.join("、")}`;
 }
 
 /** 无地图限制的目标（如上交）算本局需要；标了别的图则排除。 */
@@ -721,6 +967,128 @@ export function objectiveAppliesToMap(
   if (zones.some((zone) => locationHitsMap(zone, keys))) return true;
   if (locs.some((loc) => locationHitsMap(loc, keys))) return true;
   return false;
+}
+
+export function raidPrepObjectiveKey(
+  obj: RaidPrepObjectiveLike,
+  index: number,
+): string {
+  const id = (obj.id || "").trim();
+  return id || `i:${index}`;
+}
+
+export function raidPrepSkippedIds(
+  skippedByTask: RaidPrepSkipMap | undefined,
+  taskId: string,
+): ReadonlySet<string> {
+  return skippedByTask?.get(taskId) || EMPTY_SKIP;
+}
+
+export function toggleRaidPrepObjectiveDone(
+  current: RaidPrepSkipMap,
+  taskId: string,
+  objectiveId: string,
+): Map<string, Set<string>> {
+  const next = new Map<string, Set<string>>();
+  for (const [id, ids] of current) next.set(id, new Set(ids));
+  const bucket = new Set(next.get(taskId) || []);
+  if (bucket.has(objectiveId)) bucket.delete(objectiveId);
+  else bucket.add(objectiveId);
+  if (bucket.size) next.set(taskId, bucket);
+  else next.delete(taskId);
+  return next;
+}
+
+type StoredObjectiveDone = Record<string, Record<string, string[]>>;
+
+function readObjectiveDoneStore(): StoredObjectiveDone {
+  try {
+    const raw = localStorage.getItem(RAID_PREP_OBJ_DONE_STORAGE);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as StoredObjectiveDone;
+  } catch {
+    return {};
+  }
+}
+
+function writeObjectiveDoneStore(data: StoredObjectiveDone) {
+  try {
+    localStorage.setItem(RAID_PREP_OBJ_DONE_STORAGE, JSON.stringify(data));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+export function parseRaidPrepObjectiveDone(
+  raw: Record<string, string[]> | null | undefined,
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [taskId, ids] of Object.entries(raw || {})) {
+    if (!taskId || !Array.isArray(ids)) continue;
+    const bucket = new Set<string>();
+    for (const id of ids) {
+      const key = String(id || "").trim();
+      if (key) bucket.add(key);
+    }
+    if (bucket.size) out.set(taskId, bucket);
+  }
+  return out;
+}
+
+export function serializeRaidPrepObjectiveDone(
+  skipped: RaidPrepSkipMap,
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [taskId, ids] of skipped) {
+    if (!ids.size) continue;
+    out[taskId] = [...ids];
+  }
+  return out;
+}
+
+export function readRaidPrepObjectiveDone(scope: string): Map<string, Set<string>> {
+  const key = (scope || "").trim();
+  if (!key) return new Map();
+  return parseRaidPrepObjectiveDone(readObjectiveDoneStore()[key]);
+}
+
+export function writeRaidPrepObjectiveDone(
+  scope: string,
+  skipped: RaidPrepSkipMap,
+) {
+  const key = (scope || "").trim();
+  if (!key) return;
+  const all = readObjectiveDoneStore();
+  const serialized = serializeRaidPrepObjectiveDone(skipped);
+  if (Object.keys(serialized).length) all[key] = serialized;
+  else delete all[key];
+  writeObjectiveDoneStore(all);
+}
+
+export function raidPrepObjectiveDoneScope(
+  kind: "solo" | "room",
+  id: string,
+): string {
+  const key = (id || "").trim();
+  if (!key) return "";
+  return kind === "room" ? `room:${key}` : `solo:${key}`;
+}
+
+export function useRaidPrepObjectiveDone(scope: string) {
+  const [done, setDone] = useState(() => readRaidPrepObjectiveDone(scope));
+  useEffect(() => {
+    setDone(readRaidPrepObjectiveDone(scope));
+  }, [scope]);
+  const toggle = useCallback((taskId: string, objectiveId: string) => {
+    setDone((current) => {
+      const next = toggleRaidPrepObjectiveDone(current, taskId, objectiveId);
+      writeRaidPrepObjectiveDone(scope, next);
+      return next;
+    });
+  }, [scope]);
+  return [done, toggle] as const;
 }
 
 function namedRefItem(
@@ -753,7 +1121,7 @@ function mergeNeededItem(
   ].join("|");
   const existing = index.get(key);
   if (existing) {
-    existing.count += item.count;
+    if (item.kind !== "key") existing.count += item.count;
     return;
   }
   index.set(key, item);
@@ -769,8 +1137,44 @@ function objectiveItemCount(
   return 1;
 }
 
-/** 当前地图任务详情 needed_keys，与任务页「所需钥匙」同源。 */
-export function collectRaidPrepTaskKeys(
+/** 目标原文写明「任意」某一类，且候选够多：收成一条展示。 */
+export function isRaidPrepAnyOfCategoryObjective(
+  obj: RaidPrepObjectiveLike,
+  itemCount: number,
+): boolean {
+  if (itemCount < RAID_PREP_ANY_OF_MIN) return false;
+  return (obj.description || "").includes("任意");
+}
+
+function objectiveHasRequiredKeys(obj: RaidPrepObjectiveLike): boolean {
+  return (obj.required_keys || []).some((group) =>
+    (group || []).some((key) =>
+      Boolean((key.id || "").trim() || tarkovReadableName(key.name, key.id)),
+    ),
+  );
+}
+
+function mergeObjectiveRequiredKeys(
+  obj: RaidPrepObjectiveLike,
+  index: Map<string, RaidPrepNeededItem>,
+  out: RaidPrepNeededItem[],
+) {
+  for (const group of obj.required_keys || []) {
+    for (const key of group || []) {
+      const item = namedRefItem(key, {
+        count: 1,
+        found_in_raid: false,
+        optional: Boolean(obj.optional),
+        kind: "key",
+        role: "钥匙",
+        objectiveType: "key",
+      });
+      if (item) mergeNeededItem(index, out, item);
+    }
+  }
+}
+
+function collectNeededKeysForMap(
   task: RaidPrepTaskLike,
   mapSlug: string,
 ): RaidPrepNeededItem[] {
@@ -795,33 +1199,143 @@ export function collectRaidPrepTaskKeys(
   return out;
 }
 
+function mapObjectives(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+): Array<{ obj: RaidPrepObjectiveLike; index: number }> {
+  const out: Array<{ obj: RaidPrepObjectiveLike; index: number }> = [];
+  (task.objectives || []).forEach((obj, index) => {
+    if (!objectiveAppliesToMap(obj, mapSlug)) return;
+    out.push({ obj, index });
+  });
+  return out;
+}
+
+/** 当前地图任务详情钥匙：有分目标钥匙时只算未勾掉的点；否则回退 needed_keys。 */
+export function collectRaidPrepTaskKeys(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+  skipped?: ReadonlySet<string>,
+): RaidPrepNeededItem[] {
+  const done = skipped || EMPTY_SKIP;
+  const applicable = mapObjectives(task, mapSlug);
+  const remaining = applicable.filter(
+    ({ obj, index }) => !done.has(raidPrepObjectiveKey(obj, index)),
+  );
+  if (done.size && applicable.length && remaining.length === 0) return [];
+
+  const fromRemaining: RaidPrepNeededItem[] = [];
+  const remainingIndex = new Map<string, RaidPrepNeededItem>();
+  for (const { obj } of remaining) {
+    mergeObjectiveRequiredKeys(obj, remainingIndex, fromRemaining);
+  }
+  const mapHasObjKeys = applicable.some(({ obj }) => objectiveHasRequiredKeys(obj));
+  if (mapHasObjKeys) {
+    if (fromRemaining.length) return fromRemaining;
+    const skippedObjs = applicable.filter(({ obj, index }) =>
+      done.has(raidPrepObjectiveKey(obj, index)),
+    );
+    if (skippedObjs.some(({ obj }) => objectiveHasRequiredKeys(obj))) {
+      const skipNames = new Set(
+        skippedObjs.flatMap(({ obj }) => objectiveKeyNames(obj)),
+      );
+      return collectNeededKeysForMap(task, mapSlug).filter(
+        (item) => !skipNames.has(item.name),
+      );
+    }
+    return collectNeededKeysForMap(task, mapSlug);
+  }
+  return collectNeededKeysForMap(task, mapSlug);
+}
+
+function collectObjectiveNeededItems(
+  obj: RaidPrepObjectiveLike,
+  objIndex: number,
+): RaidPrepNeededItem[] {
+  const refs = obj.items || [];
+  if (!refs.length) return [];
+  const objectiveType = (obj.type || "").trim();
+  const role = tarkovObjectiveTypeLabel(objectiveType) || "物品";
+  const extras = {
+    found_in_raid: Boolean(obj.found_in_raid),
+    optional: Boolean(obj.optional),
+    kind: "item" as const,
+    role,
+    objectiveType,
+  };
+  const members: RaidPrepNeededItem[] = [];
+  for (const ref of refs) {
+    const item = namedRefItem(ref, { count: 1, ...extras });
+    if (item) members.push(item);
+  }
+  if (!members.length) return [];
+  if (isRaidPrepAnyOfCategoryObjective(obj, members.length)) {
+    const lead = members[0]!;
+    const qty =
+      typeof obj.count === "number" && obj.count > 0 ? obj.count : 1;
+    return [
+      {
+        ...lead,
+        id: `any:${raidPrepObjectiveKey(obj, objIndex)}`,
+        name: (obj.description || "").trim() || "物品",
+        count: qty,
+        anyOf: members,
+      },
+    ];
+  }
+  const count = objectiveItemCount(obj, members.length);
+  return members.map((item) => ({ ...item, count }));
+}
+
 /** 勾选任务在当前地图上要上交 / 要捡的物品（不含钥匙）。 */
 export function collectRaidPrepTaskItems(
   task: RaidPrepTaskLike,
   mapSlug: string,
+  skipped?: ReadonlySet<string>,
 ): RaidPrepNeededItem[] {
   const out: RaidPrepNeededItem[] = [];
   const index = new Map<string, RaidPrepNeededItem>();
+  const done = skipped || EMPTY_SKIP;
 
-  for (const obj of task.objectives || []) {
-    if (!objectiveAppliesToMap(obj, mapSlug)) continue;
-    const refs = obj.items || [];
-    if (!refs.length) continue;
-    const objectiveType = (obj.type || "").trim();
-    const role = tarkovObjectiveTypeLabel(objectiveType) || "物品";
-    const count = objectiveItemCount(obj, refs.length);
-    for (const ref of refs) {
-      const item = namedRefItem(ref, {
-        count,
-        found_in_raid: Boolean(obj.found_in_raid),
-        optional: Boolean(obj.optional),
-        kind: "item",
-        role,
-        objectiveType,
-      });
-      if (item) mergeNeededItem(index, out, item);
+  (task.objectives || []).forEach((obj, objIndex) => {
+    if (!objectiveAppliesToMap(obj, mapSlug)) return;
+    if (done.has(raidPrepObjectiveKey(obj, objIndex))) return;
+    for (const item of collectObjectiveNeededItems(obj, objIndex)) {
+      mergeNeededItem(index, out, item);
     }
-  }
+  });
+  return out;
+}
+
+function shootObjectiveText(obj: RaidPrepObjectiveLike): string {
+  const description = tarkovReadableName(obj.description, obj.id);
+  const typeLabel = tarkovObjectiveTypeLabel(obj.type || "") || "击杀";
+  const text = description || typeLabel;
+  return obj.optional ? `${text}（可选）` : text;
+}
+
+/** 当前地图未勾掉的击杀目标：总结表一列一条描述。 */
+export function collectRaidPrepTaskShootSlots(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+  skipped?: ReadonlySet<string>,
+): RaidPrepSummaryShootSlot[] {
+  const out: RaidPrepSummaryShootSlot[] = [];
+  const done = skipped || EMPTY_SKIP;
+  (task.objectives || []).forEach((obj, index) => {
+    if (!objectiveAppliesToMap(obj, mapSlug)) return;
+    if (done.has(raidPrepObjectiveKey(obj, index))) return;
+    if (!isRaidPrepSummaryShootType(obj.type || "")) return;
+    out.push({
+      id: raidPrepObjectiveKey(obj, index),
+      text: shootObjectiveText(obj),
+      optional: Boolean(obj.optional),
+      count: raidPrepObjectiveCount(obj),
+      items: collectObjectiveNeededItems(obj, index).map((item) =>
+        item.anyOf ? item : { ...item, count: 1 },
+      ),
+    });
+  });
   return out;
 }
 
@@ -839,26 +1353,52 @@ export function groupRaidPrepItemsByType(
   return out;
 }
 
-/** 勾选任务里带了物品的目标类型，按固定顺序排成表头列。 */
+/** 勾选任务里带了物品的目标类型；进局携带列排在找到/上交前面。 */
 export function collectRaidPrepSummaryTypeColumns(
   rows: readonly RaidPrepTaskSummary[],
 ): string[] {
   const types: string[] = [];
-  for (const row of rows) types.push(...Object.keys(row.itemsByType));
-  return orderObjectiveTypes(types);
+  for (const row of rows) types.push(...Object.keys(row.itemsByType || {}));
+  return orderRaidPrepSummaryTypeColumns(types);
 }
 
 export function collectRaidPrepTaskTypes(
   task: RaidPrepTaskLike,
   mapSlug: string,
+  skipped?: ReadonlySet<string>,
 ): string[] {
   const types: string[] = [];
-  for (const obj of task.objectives || []) {
-    if (!objectiveAppliesToMap(obj, mapSlug)) continue;
+  const done = skipped || EMPTY_SKIP;
+  (task.objectives || []).forEach((obj, index) => {
+    if (!objectiveAppliesToMap(obj, mapSlug)) return;
+    if (done.has(raidPrepObjectiveKey(obj, index))) return;
     const type = (obj.type || "").trim();
     if (type) types.push(type);
-  }
+  });
   return orderObjectiveTypes(types);
+}
+
+/** 准备总结任务名悬停：当前图适用的目标（含已勾掉，才能取消）。 */
+export function collectRaidPrepTaskObjectives(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+): RaidPrepObjectiveHint[] {
+  const out: RaidPrepObjectiveHint[] = [];
+  (task.objectives || []).forEach((obj, index) => {
+    if (!objectiveAppliesToMap(obj, mapSlug)) return;
+    const description = tarkovReadableName(obj.description, obj.id);
+    const typeLabel = tarkovObjectiveTypeLabel(obj.type || "");
+    const text = description || typeLabel;
+    if (!text) return;
+    const line = obj.optional ? `${text}（可选）` : text;
+    out.push({
+      id: raidPrepObjectiveKey(obj, index),
+      text: line,
+      optional: Boolean(obj.optional),
+      keyNames: objectiveKeyNames(obj),
+    });
+  });
+  return out;
 }
 
 /** 准备总结任务名悬停：当前图适用的目标描述（无描述则用类型名）。 */
@@ -868,16 +1408,10 @@ export function collectRaidPrepTaskObjectiveLines(
 ): string[] {
   const lines: string[] = [];
   const seen = new Set<string>();
-  for (const obj of task.objectives || []) {
-    if (!objectiveAppliesToMap(obj, mapSlug)) continue;
-    const description = tarkovReadableName(obj.description, obj.id);
-    const typeLabel = tarkovObjectiveTypeLabel(obj.type || "");
-    const text = description || typeLabel;
-    if (!text) continue;
-    const line = obj.optional ? `${text}（可选）` : text;
-    if (seen.has(line)) continue;
-    seen.add(line);
-    lines.push(line);
+  for (const obj of collectRaidPrepTaskObjectives(task, mapSlug)) {
+    if (seen.has(obj.text)) continue;
+    seen.add(obj.text);
+    lines.push(obj.text);
   }
   return lines;
 }
@@ -885,10 +1419,13 @@ export function collectRaidPrepTaskObjectiveLines(
 export function buildRaidPrepSummary(
   tasks: RaidPrepTaskLike[],
   mapSlug: string,
+  skippedByTask?: RaidPrepSkipMap,
 ): RaidPrepTaskSummary[] {
   return tasks.map((task) => {
-    const items = collectRaidPrepTaskItems(task, mapSlug);
-    const keys = collectRaidPrepTaskKeys(task, mapSlug);
+    const skipped = raidPrepSkippedIds(skippedByTask, task.id);
+    const items = collectRaidPrepTaskItems(task, mapSlug, skipped);
+    const keys = collectRaidPrepTaskKeys(task, mapSlug, skipped);
+    const objectives = collectRaidPrepTaskObjectives(task, mapSlug);
     return {
       taskId: task.id,
       taskName: displayRaidPrepTaskName(task),
@@ -896,8 +1433,10 @@ export function buildRaidPrepSummary(
       traderName: (task.trader_name || "").trim(),
       itemsByType: groupRaidPrepItemsByType(items),
       keys,
-      types: collectRaidPrepTaskTypes(task, mapSlug),
+      shootSlots: collectRaidPrepTaskShootSlots(task, mapSlug, skipped),
+      types: collectRaidPrepTaskTypes(task, mapSlug, skipped),
       objectiveLines: collectRaidPrepTaskObjectiveLines(task, mapSlug),
+      objectives,
     };
   });
 }
@@ -919,9 +1458,30 @@ export function sortRaidPrepSummaryByParticipants<
   });
 }
 
+function distinguishTaskOverlays(
+  overlays: TarkovRaidPrepOverlay[],
+): TarkovRaidPrepOverlay[] {
+  const groups = new Map<string, TarkovRaidPrepOverlay[]>();
+  for (const row of overlays) {
+    const list = groups.get(row.taskId);
+    if (list) list.push(row);
+    else groups.set(row.taskId, [row]);
+  }
+  for (const list of groups.values()) {
+    const anyKey = list.some((row) => row.keyNames.length > 0);
+    const numbered = list.length > 1;
+    list.forEach((row, index) => {
+      if (numbered) row.title = `${row.title} ${index + 1}`;
+      row.showNoKey = anyKey && row.keyNames.length === 0;
+    });
+  }
+  return overlays;
+}
+
 export function buildRaidPrepOverlays(
   tasks: RaidPrepTaskLike[],
   mapSlug: string,
+  skippedByTask?: RaidPrepSkipMap,
 ): TarkovRaidPrepOverlay[] {
   const keys = mapSlugKeys(mapSlug);
   const overlays: TarkovRaidPrepOverlay[] = [];
@@ -929,14 +1489,14 @@ export function buildRaidPrepOverlays(
     const color = colorForTaskIndex(taskIndex);
     const taskName = displayRaidPrepTaskName(task);
     const traderSlug = (task.trader_slug || "").trim();
-    const taskKeyNames = neededKeyNamesForMap(task, mapSlug);
-    for (const obj of task.objectives || []) {
+    const skipped = raidPrepSkippedIds(skippedByTask, task.id);
+    (task.objectives || []).forEach((obj, objIndex) => {
+      if (skipped.has(raidPrepObjectiveKey(obj, objIndex))) return;
       const typeLabel = tarkovObjectiveTypeLabel(obj.type || "");
       const description = tarkovReadableName(obj.description, obj.id);
       const subtitle = [typeLabel, description].filter(Boolean).join(" · ");
       const optional = Boolean(obj.optional);
-      const fromObj = objectiveKeyNames(obj);
-      const keyNames = fromObj.length ? fromObj : taskKeyNames;
+      const keyNames = objectiveKeyNames(obj);
       let zoneIdx = 0;
       for (const zone of obj.zones || []) {
         if (!locationHitsMap(zone, keys)) continue;
@@ -963,6 +1523,7 @@ export function buildRaidPrepOverlays(
           subtitle,
           traderSlug,
           keyNames,
+          showNoKey: false,
           optional,
           outline: polygon,
           points,
@@ -984,6 +1545,7 @@ export function buildRaidPrepOverlays(
           subtitle: subtitle || "可能刷新点",
           traderSlug,
           keyNames,
+          showNoKey: false,
           optional,
           outline: [],
           points: positions,
@@ -991,9 +1553,9 @@ export function buildRaidPrepOverlays(
         });
         locIdx += 1;
       }
-    }
+    });
   });
-  return overlays;
+  return distinguishTaskOverlays(overlays);
 }
 
 function centroidOf(points: RaidPrepPoint[]): RaidPrepPoint {
@@ -1014,24 +1576,33 @@ function zoneAnchorPoint(zone: ZoneLike): RaidPrepPoint | null {
       ? { x: zone.x, z: zone.z }
       : null;
   const polygon = outline.length >= 3 ? outline : [];
+  let point: RaidPrepPoint | null = null;
   if (polygon.length) {
-    return center ?? centroidOf(outline);
+    point = center ?? centroidOf(outline);
+  } else if (center) {
+    point = center;
+  } else if (outline.length) {
+    point = outline[0]!;
   }
-  if (center) return center;
-  if (outline.length) return outline[0]!;
-  return null;
+  if (!point) return null;
+  const span = zoneHeightSpan(zone);
+  if (span) point = { ...point, y: (span.min + span.max) / 2 };
+  return point;
 }
 
 /** 任务在当前地图的定位点：非 optional 在前，可选在后。 */
 export function resolveRaidPrepLocatePoints(
   task: RaidPrepTaskLike,
   mapSlug: string,
+  skipped?: ReadonlySet<string>,
 ): RaidPrepPoint[] {
   const keys = mapSlugKeys(mapSlug);
   const required: RaidPrepPoint[] = [];
   const optional: RaidPrepPoint[] = [];
-  for (const obj of task.objectives || []) {
-    const bucket = Boolean(obj.optional) ? optional : required;
+  const done = skipped || EMPTY_SKIP;
+  (task.objectives || []).forEach((obj, index) => {
+    if (done.has(raidPrepObjectiveKey(obj, index))) return;
+    const bucket = obj.optional ? optional : required;
     for (const zone of obj.zones || []) {
       if (!locationHitsMap(zone, keys)) continue;
       const point = zoneAnchorPoint(zone);
@@ -1041,7 +1612,7 @@ export function resolveRaidPrepLocatePoints(
       if (!locationHitsMap(loc, keys)) continue;
       bucket.push(...validPoints(loc.positions));
     }
-  }
+  });
   return [...required, ...optional];
 }
 
@@ -1069,7 +1640,9 @@ type OverlayLabelSeed = RaidPrepPoint & {
   traderSlug: string;
   subtitle: string;
   keyNames: string[];
+  showNoKey: boolean;
   optional: boolean;
+  height: RaidPrepHeightSpan | null;
 };
 
 function collectOverlayLabelSeeds(
@@ -1089,7 +1662,9 @@ function collectOverlayLabelSeeds(
         traderSlug: (row.traderSlug || "").trim(),
         subtitle: row.subtitle || "",
         keyNames: row.keyNames || [],
+        showNoKey: Boolean(row.showNoKey),
         optional: row.optional,
+        height: row.height,
       });
     }
   }
@@ -1198,7 +1773,7 @@ export function clusterRaidPrepOverlayLabels(
     const anchor = nearestSeed(group, project);
     const byTask = new Map<string, RaidPrepOverlayLabelItem>();
     for (const seed of group) {
-      const bucket = `${seed.taskId}\0${seed.optional ? "1" : "0"}`;
+      const bucket = `${seed.taskId}\0${seed.optional ? "1" : "0"}\0${seed.title}`;
       const item = byTask.get(bucket);
       if (item) {
         item.count += 1;
@@ -1211,8 +1786,10 @@ export function clusterRaidPrepOverlayLabels(
         traderSlug: seed.traderSlug,
         subtitle: seed.subtitle,
         keyNames: seed.keyNames,
+        showNoKey: seed.showNoKey,
         count: 1,
         optional: seed.optional,
+        height: seed.height,
       });
     }
     const items = [...byTask.values()].sort((a, b) => b.count - a.count);
