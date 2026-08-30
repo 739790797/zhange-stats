@@ -49,6 +49,16 @@
   min-height: 52px;
 }
 
+.topLeft {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  min-width: 0;
+}
+
 .brand {
   position: relative;
   z-index: 2;
@@ -167,6 +177,32 @@
   color: #7a7868;
   font-family: var(--hb-mono);
   font-size: 11px;
+}
+
+.pollClock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  color: var(--hb-muted);
+  font-family: var(--hb-mono);
+  font-size: 11px;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.pollClockBtn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pollClockBtn:hover {
+  color: var(--hb-text);
 }
 
 .tracker {
@@ -364,6 +400,10 @@
 
   .topRight {
     margin-left: auto;
+  }
+
+  .pollClock {
+    font-size: 10px;
   }
 
   .modeBtn {

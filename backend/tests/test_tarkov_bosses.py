@@ -153,6 +153,21 @@ def _envelope() -> dict:
     }
 
 
+def test_parse_boss_rows_from_json_dump():
+    env = _envelope()
+    dump = {
+        "data": {"maps": env["maps"], "mobs": env["mobs"]},
+        "locale": env.get("locale") or {},
+    }
+    dump_rows = bosses.parse_boss_rows(dump)
+    env_rows = bosses.parse_boss_rows(env)
+    assert dump_rows
+    assert [r["slug"] for r in dump_rows] == [r["slug"] for r in env_rows]
+    killa = next(r for r in dump_rows if r["slug"] == "killa")
+    assert killa["health_total"] == 890
+    assert "立交桥" in killa["maps_label"]
+
+
 def test_parse_killa_maps_health_and_behavior():
     rows = bosses.parse_boss_rows(_envelope())
     by_slug = {r["slug"]: r for r in rows}
@@ -187,6 +202,26 @@ def test_aliases():
     assert bosses.resolve_boss_slug("Killa") == "killa"
     assert bosses.resolve_boss_slug("bear") == "vs-rf"
     assert bosses.resolve_boss_slug("usec") == "vs-rf-sniper"
+
+
+def test_copy_missing_map_locks_keeps_old_doors():
+    new_maps = {
+        "customs": {"normalizedName": "customs", "bosses": []},
+        "lab": {"normalizedName": "the-lab", "accessKeys": ["lab-card"]},
+    }
+    old_maps = {
+        "customs": {
+            "normalizedName": "customs",
+            "locks": [{"key": "dorm-114"}],
+        },
+        "other": {
+            "normalizedName": "the-lab",
+            "accessKeys": ["old-card"],
+        },
+    }
+    assert bosses.copy_missing_map_locks(new_maps, old_maps) == 1
+    assert new_maps["customs"]["locks"] == [{"key": "dorm-114"}]
+    assert new_maps["lab"]["accessKeys"] == ["lab-card"]
 
 
 def test_parse_keeps_duplicate_normalized_names():

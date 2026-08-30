@@ -1,6 +1,5 @@
-"""逃离塔科夫任务：回源 raw → 列表/详情投影。
+"""逃离塔科夫任务：json.tarkov.dev tasks dump → 列表/详情投影。
 
-优先 api.tarkov.dev GraphQL；失败回退 json.tarkov.dev/regular/tasks + tasks_zh。
 失败不覆盖已有成功 raw。
 """
 
@@ -16,171 +15,32 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovTasksMeta, TarkovTasksRaw
-from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API, TARKOV_GRAPHQL_URL
+from app.models.tarkov import TarkovTasksRaw
+from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     GAME_MODES,
     cache_key,
     current_game_mode,
     game_mode_scope,
-    graphql_game_mode,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
-    raw_row_id,
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
 
-META_ROW_ID = 1
-RAW_ROW_ID = 1
 TASKS_JOB_KEY = "tarkov_tasks_sync"
 TASKS_PAGE_SIZE_DEFAULT = 50
 TASKS_PAGE_SIZE_MAX = 100
 TASKS_LAYOUT_TABLE = "table"
-TASKS_LAYOUT_CHAIN = "chain"
-NEIGHBORHOOD_HOPS = 2
-NEIGHBORHOOD_NODE_MAX = 36
+TASKS_LAYOUT_ALL = "all"
 DOWNLOAD_TIMEOUT = 180
 
 TARKOV_JSON_TASKS_URL = "https://json.tarkov.dev/regular/tasks"
 TARKOV_JSON_TASKS_LOCALE_URL = "https://json.tarkov.dev/regular/tasks_{lang}"
 
-_TASKS_QUERY = """
-query TasksSync($lang: LanguageCode, $gameMode: GameMode) {
-  tasks(lang: $lang, gameMode: $gameMode) {
-    id
-    name
-    normalizedName
-    wikiLink
-    taskImageLink
-    experience
-    minPlayerLevel
-    kappaRequired
-    lightkeeperRequired
-    factionName
-    restartable
-    trader { id name normalizedName imageLink }
-    map { id name normalizedName }
-    taskRequirements { status task { id name } }
-    traderRequirements {
-      requirementType
-      compareMethod
-      value
-      trader { id name normalizedName }
-    }
-    objectives {
-      id
-      type
-      description
-      optional
-      maps { id name normalizedName }
-      ... on TaskObjectiveBasic {
-        requiredKeys { id name iconLink }
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-      ... on TaskObjectiveExtract {
-        requiredKeys { id name iconLink }
-        exitStatus
-        exitName
-        count
-        zoneNames
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-      ... on TaskObjectiveItem {
-        requiredKeys { id name iconLink }
-        count
-        foundInRaid
-        items { id name iconLink }
-        item { id name iconLink }
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-      ... on TaskObjectiveMark {
-        requiredKeys { id name iconLink }
-        markerItem { id name iconLink }
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-      ... on TaskObjectiveQuestItem {
-        requiredKeys { id name iconLink }
-        count
-        questItem { id name shortName iconLink baseImageLink }
-        possibleLocations {
-          map { id name normalizedName }
-          positions { x y z }
-        }
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-      ... on TaskObjectiveShoot {
-        requiredKeys { id name iconLink }
-        count
-        zoneNames
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-      ... on TaskObjectiveUseItem {
-        requiredKeys { id name iconLink }
-        zoneNames
-        zones {
-          id
-          map { id name normalizedName }
-          position { x y z }
-          outline { x y z }
-          top
-          bottom
-        }
-      }
-    }
-    finishRewards {
-      traderStanding { standing trader { id name normalizedName } }
-      items { count item { id name iconLink } }
-    }
-    neededKeys { map { id name } keys { id name } }
-  }
-}
-"""
 
 # BSG 商人 id → slug / 英文名（社区简称）
 TRADER_BY_ID: dict[str, tuple[str, str]] = {
@@ -476,6 +336,9 @@ def _locale_map(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _quest_items_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     raw = payload.get("questItems")
+    if not isinstance(raw, (dict, list)):
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        raw = data.get("questItems") if isinstance(data, dict) else None
     if isinstance(raw, dict):
         return {str(k): v for k, v in raw.items() if isinstance(v, dict)}
     if isinstance(raw, list):
@@ -548,7 +411,7 @@ def normalize_objective_exit(obj: dict[str, Any]) -> tuple[list[str], str]:
 
 def parse_graphql_tasks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     if payload.get("errors"):
-        raise TarkovTasksError(f"tarkov.dev GraphQL 错误: {payload.get('errors')}")
+        raise TarkovTasksError(f"api.tarkov.dev 错误: {payload.get('errors')}")
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     rows = data.get("tasks") if isinstance(data, dict) else None
     if not isinstance(rows, list):
@@ -565,65 +428,33 @@ def parse_graphql_tasks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
-def download_graphql_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
-    body = json.dumps(
-        {"query": _TASKS_QUERY, "variables": {"lang": lang, "gameMode": graphql_game_mode()}},
-        ensure_ascii=False,
-    ).encode("utf-8")
-    raw = _http_request(
-        TARKOV_GRAPHQL_URL,
-        method="POST",
-        body=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        timeout=45,
-    )
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovTasksError("tarkov.dev 任务响应解析失败") from exc
-    if not isinstance(payload, dict):
-        raise TarkovTasksError("tarkov.dev 任务响应格式无效")
-    tasks = parse_graphql_tasks(payload)
-    return TasksUpstreamBundle(
-        source=SOURCE_GRAPHQL,
-        payload={"format": "graphql", "data": {"tasks": list(tasks.values())}, "locale": {}},
-        note="api.tarkov.dev GraphQL tasks",
-    )
-
-
 def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
     raw = _http_request(json_resource_url("tasks"), timeout=90)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise TarkovTasksError("json.tarkov.dev tasks 解析失败") from exc
-    if not isinstance(payload, dict):
-        raise TarkovTasksError("json.tarkov.dev tasks 格式无效")
-    tasks = _tasks_map(payload)
-    if not tasks:
+    if not isinstance(payload, dict) or not _tasks_map(payload):
         raise TarkovTasksError("json.tarkov.dev 未解析到任务")
 
-    locale: dict[str, Any] = {}
     try:
         loc_raw = _http_request(
             json_resource_url("tasks", lang=lang),
             timeout=60,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
-        if isinstance(loc_payload, dict) and isinstance(loc_payload.get("data"), dict):
-            locale = loc_payload["data"]
+        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
+        if isinstance(loc_data, dict) and loc_data:
+            payload = dict(payload)
+            payload["locale"] = loc_data
     except TarkovTasksError:
         logger.warning("json.tarkov.dev tasks_%s locale unavailable", lang)
     except (UnicodeDecodeError, json.JSONDecodeError):
         logger.warning("json.tarkov.dev tasks_%s locale parse failed", lang)
 
-    quest_items = payload.get("questItems")
-    if not isinstance(quest_items, (dict, list)):
-        quest_items = {}
-
     return TasksUpstreamBundle(
         source=SOURCE_JSON_API,
-        payload={"tasks": tasks, "locale": locale, "questItems": quest_items},
+        payload=payload,
         note=f"json.tarkov.dev/{json_api_prefix()}/tasks",
     )
 
@@ -664,15 +495,14 @@ def project_task_summary(
         "map_slug": map_slug,
         "map_name": map_name,
         "min_player_level": _as_int(raw.get("minPlayerLevel")),
+        "min_trader_level": task_min_trader_level(raw, trader_id),
         "experience": _as_int(raw.get("experience")),
-        "kappa_required": _as_bool(raw.get("kappaRequired")),
         "lightkeeper_required": _as_bool(raw.get("lightkeeperRequired")),
         "faction_name": str(raw.get("factionName") or "Any"),
         "task_image_link": str(raw.get("taskImageLink") or ""),
         "wiki_link": str(raw.get("wikiLink") or ""),
         "objective_count": len(objectives),
         "objective_types": unique_objective_types(objectives),
-        "task_requirements": _compact_task_requirements(raw),
     }
 
 
@@ -703,259 +533,6 @@ def _resolve_obj_description(
     if oid and desc == oid:
         return desc
     return desc or oid
-
-
-def _compact_task_requirements(raw: dict[str, Any]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for row in raw.get("taskRequirements") or []:
-        if not isinstance(row, dict):
-            continue
-        ident = _id_of(row.get("task"))
-        if not ident:
-            continue
-        statuses = row.get("status") if isinstance(row.get("status"), list) else []
-        out.append(
-            {
-                "id": ident,
-                "name": "",
-                "status": [str(s).lower() for s in statuses if s is not None and str(s).strip()],
-            }
-        )
-    return out
-
-
-def _fill_requirement_names(
-    rows: list[dict[str, Any]],
-    locale: dict[str, Any],
-) -> None:
-    by_id = {str(row.get("id") or ""): row for row in rows if row.get("id")}
-    for row in rows:
-        filled: list[dict[str, Any]] = []
-        for req in row.get("task_requirements") or []:
-            if not isinstance(req, dict):
-                continue
-            ident = str(req.get("id") or "").strip()
-            if not ident:
-                continue
-            name = str(req.get("name") or "").strip()
-            other = by_id.get(ident)
-            if other and other.get("name"):
-                name = str(other["name"])
-            if not name or _is_placeholder_name(ident, name):
-                name = _locale_lookup(locale, f"{ident} name", f"{ident} Name") or ident
-            filled.append({**req, "id": ident, "name": name})
-        row["task_requirements"] = filled
-
-
-def _requirement_parent_ids(
-    raw: dict[str, Any],
-    known: set[str],
-) -> list[str]:
-    out: list[str] = []
-    seen: set[str] = set()
-    for row in raw.get("taskRequirements") or []:
-        if not isinstance(row, dict):
-            continue
-        ident = _id_of(row.get("task"))
-        if not ident or ident not in known or ident in seen:
-            continue
-        seen.add(ident)
-        out.append(ident)
-    return out
-
-
-def _unlock_maps(
-    tasks_by_id: dict[str, dict[str, Any]],
-) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    known = {str(tid) for tid in tasks_by_id}
-    parents: dict[str, list[str]] = {}
-    children: dict[str, list[str]] = {tid: [] for tid in known}
-    for tid, raw in tasks_by_id.items():
-        ident = str(tid)
-        if not isinstance(raw, dict):
-            parents[ident] = []
-            continue
-        prefs = _requirement_parent_ids(raw, known)
-        parents[ident] = prefs
-        for pid in prefs:
-            children.setdefault(pid, []).append(ident)
-    return parents, children
-
-
-def build_task_neighborhood(
-    task_id: str,
-    tasks_by_id: dict[str, dict[str, Any]],
-    locale: dict[str, Any],
-    *,
-    hops: int = NEIGHBORHOOD_HOPS,
-    progress: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """当前任务前后各 hops 跳的解锁邻域（前置 ← 当前 → 后续）。"""
-    empty = {"current_id": task_id, "nodes": [], "edges": []}
-    if not task_id or task_id not in tasks_by_id:
-        return empty
-    hops = max(1, int(hops))
-    parents, children = _unlock_maps(tasks_by_id)
-    hop_of: dict[str, int] = {task_id: 0}
-
-    frontier = [task_id]
-    for dist in range(1, hops + 1):
-        nxt: list[str] = []
-        for tid in frontier:
-            for pid in parents.get(tid) or []:
-                if pid in hop_of:
-                    continue
-                hop_of[pid] = -dist
-                nxt.append(pid)
-        frontier = nxt
-
-    frontier = [task_id]
-    for dist in range(1, hops + 1):
-        nxt = []
-        for tid in frontier:
-            for cid in children.get(tid) or []:
-                if cid in hop_of:
-                    continue
-                hop_of[cid] = dist
-                nxt.append(cid)
-        frontier = nxt
-
-    if len(hop_of) > NEIGHBORHOOD_NODE_MAX and hops > 1:
-        return build_task_neighborhood(
-            task_id,
-            tasks_by_id,
-            locale,
-            hops=1,
-            progress=progress,
-        )
-
-    included = set(hop_of)
-    nodes: list[dict[str, Any]] = []
-    for tid, hop in sorted(hop_of.items(), key=lambda item: (item[1], item[0])):
-        raw = tasks_by_id.get(tid)
-        if not isinstance(raw, dict):
-            continue
-        summary = project_task_summary(raw, locale)
-        if not summary:
-            continue
-        node: dict[str, Any] = {
-            "id": tid,
-            "name": summary["name"],
-            "trader_slug": str(summary.get("trader_slug") or ""),
-            "hop": hop,
-        }
-        if progress is not None:
-            node["progress_status"] = classify_task_progress(summary, progress)
-        nodes.append(node)
-
-    edges: list[dict[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    for tid in included:
-        for pid in parents.get(tid) or []:
-            if pid not in included:
-                continue
-            key = (pid, tid)
-            if key in seen:
-                continue
-            seen.add(key)
-            edges.append({"source_id": pid, "target_id": tid})
-    return {"current_id": task_id, "nodes": nodes, "edges": edges}
-
-
-def tracker_task_flag(task_id: str, tasks: dict[str, Any]) -> str:
-    """Tracker 条目 → complete / failed / invalid / active / uncompleted。"""
-    tid = (task_id or "").strip()
-    row = tasks.get(tid) if isinstance(tasks, dict) else None
-    if not isinstance(row, dict):
-        return "uncompleted"
-    if row.get("complete"):
-        return "complete"
-    if row.get("failed"):
-        return "failed"
-    if row.get("invalid"):
-        return "invalid"
-    return "active"
-
-
-def requirement_met(req: dict[str, Any], tasks: dict[str, Any]) -> bool:
-    needed = [str(s).lower() for s in (req.get("status") or []) if str(s).strip()]
-    if not needed:
-        needed = ["complete"]
-    return tracker_task_flag(str(req.get("id") or ""), tasks) in needed
-
-
-PROGRESS_COMPLETE = "complete"
-PROGRESS_AVAILABLE = "available"
-PROGRESS_LOCKED = "locked"
-PROGRESS_FAILED = "failed"
-PROGRESS_STATUSES = {
-    PROGRESS_COMPLETE,
-    PROGRESS_AVAILABLE,
-    PROGRESS_LOCKED,
-    PROGRESS_FAILED,
-}
-
-# 进度开时默认顺序：进行中 → 缺少前置 → 已完成 → 已失败
-PROGRESS_SORT_RANK = {
-    PROGRESS_AVAILABLE: 0,
-    PROGRESS_LOCKED: 1,
-    PROGRESS_COMPLETE: 2,
-    PROGRESS_FAILED: 3,
-}
-
-
-def classify_task_progress(row: dict[str, Any], progress: dict[str, Any]) -> str:
-    """用 Tracker 进度 + 目录前置，标成已完成 / 进行中(可接取) / 缺少前置 / 已失败。
-
-    商人 LL Tracker 不提供，不参与锁定。
-    """
-    tasks = progress.get("tasks") if isinstance(progress.get("tasks"), dict) else {}
-    tid = str(row.get("id") or "")
-    flag = tracker_task_flag(tid, tasks)
-    if flag == "complete":
-        return PROGRESS_COMPLETE
-    if flag == "failed":
-        return PROGRESS_FAILED
-    faction = str(row.get("faction_name") or "Any").strip()
-    pmc = str(progress.get("pmc_faction") or "").strip().upper()
-    if faction and faction.lower() not in {"any", ""} and pmc and faction.upper() != pmc:
-        return PROGRESS_LOCKED
-    try:
-        need_level = int(row.get("min_player_level") or 0)
-    except (TypeError, ValueError):
-        need_level = 0
-    try:
-        have_level = int(progress.get("player_level") or 1)
-    except (TypeError, ValueError):
-        have_level = 1
-    if need_level and have_level < need_level:
-        return PROGRESS_LOCKED
-    for req in row.get("task_requirements") or []:
-        if isinstance(req, dict) and not requirement_met(req, tasks):
-            return PROGRESS_LOCKED
-    if flag == "invalid":
-        return PROGRESS_LOCKED
-    return PROGRESS_AVAILABLE
-
-
-def annotate_task_progress(
-    rows: list[dict[str, Any]],
-    progress: dict[str, Any],
-) -> list[dict[str, Any]]:
-    return [{**row, "progress_status": classify_task_progress(row, progress)} for row in rows]
-
-
-def apply_requirement_progress(
-    reqs: list[dict[str, Any]],
-    progress: dict[str, Any],
-) -> list[dict[str, Any]]:
-    tasks = progress.get("tasks") if isinstance(progress.get("tasks"), dict) else {}
-    out: list[dict[str, Any]] = []
-    for req in reqs:
-        if not isinstance(req, dict):
-            continue
-        out.append({**req, "met": requirement_met(req, tasks)})
-    return out
 
 
 def _named_ref(
@@ -1103,10 +680,26 @@ def _project_point(value: Any) -> dict[str, float] | None:
     return {"x": x, "y": 0.0 if y is None else y, "z": z}
 
 
+def _zone_dedupe_key(
+    zone_id: str,
+    point: dict[str, float] | None,
+    outline: list[dict[str, float]],
+) -> str:
+    """json.tarkov.dev 常把同一触发区原样写两遍；同 id 但坐标不同的要保留。"""
+    if point is not None:
+        return f"{round(point['x'])}:{round(point['z'])}:{round(point['y'])}"
+    if outline:
+        cx = sum(item["x"] for item in outline) / len(outline)
+        cz = sum(item["z"] for item in outline) / len(outline)
+        return f"{round(cx)}:{round(cz)}"
+    return f"id:{zone_id}" if zone_id else ""
+
+
 def _project_zones(raw: Any, locale: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
     out: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for row in raw:
         if not isinstance(row, dict):
             continue
@@ -1119,11 +712,17 @@ def _project_zones(raw: Any, locale: dict[str, Any]) -> list[dict[str, Any]]:
         ]
         if not point and not outline:
             continue
+        zone_id = str(row.get("id") or "")
+        dedupe = _zone_dedupe_key(zone_id, point, outline)
+        if dedupe:
+            if dedupe in seen:
+                continue
+            seen.add(dedupe)
         top = _as_float(row.get("top"))
         bottom = _as_float(row.get("bottom"))
         out.append(
             {
-                "id": str(row.get("id") or ""),
+                "id": zone_id,
                 "map_id": map_ref.get("id") or "",
                 "map_slug": map_ref.get("slug") or "",
                 "map_name": map_ref.get("name") or "",
@@ -1250,6 +849,36 @@ def _project_rewards(
     return {"items": items_out, "trader_standing": standing}
 
 
+_LOYALTY_REQ_TYPES = frozenset({"", "level", "loyaltyLevel", "loyalty"})
+
+
+def task_min_trader_level(raw: dict[str, Any], trader_id: str = "") -> int:
+    """任务所属商人的信任度等级。没有本商人要求时按游戏默认归到 1。"""
+    blob = raw.get("traderRequirements")
+    if not isinstance(blob, list):
+        blob = raw.get("traderLevelRequirements")
+    if not isinstance(blob, list):
+        return 1
+    own = (trader_id or "").strip()
+    best = 0
+    for row in blob:
+        if not isinstance(row, dict):
+            continue
+        req_trader = _id_of(row.get("trader"))
+        if own and req_trader and req_trader != own:
+            continue
+        req_type = str(row.get("requirementType") or row.get("type") or "").strip()
+        if req_type not in _LOYALTY_REQ_TYPES:
+            continue
+        value = row.get("value")
+        if value is None:
+            value = row.get("level")
+        level = _as_int(value)
+        if level > best:
+            best = level
+    return best if best > 0 else 1
+
+
 def _project_trader_requirements(
     raw: Any,
     locale: dict[str, Any],
@@ -1278,54 +907,11 @@ def _project_trader_requirements(
     return out
 
 
-def _is_successor_status(statuses: list[str]) -> bool:
-    """对齐 tarkov.dev：含 active 时仅 complete+active 算后续。"""
-    if "active" in statuses:
-        return len(statuses) == 2 and "complete" in statuses
-    return True
-
-
-def _successor_tasks(
-    task_id: str,
-    tasks_by_id: dict[str, dict[str, Any]],
-    locale: dict[str, Any],
-) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for raw in tasks_by_id.values():
-        if not isinstance(raw, dict):
-            continue
-        other_id = str(raw.get("id") or "").strip()
-        if not other_id or other_id == task_id or other_id in seen:
-            continue
-        for row in raw.get("taskRequirements") or []:
-            if not isinstance(row, dict):
-                continue
-            if _id_of(row.get("task")) != task_id:
-                continue
-            statuses = [
-                str(s)
-                for s in (row.get("status") or [])
-                if s is not None and str(s).strip()
-            ]
-            if not _is_successor_status(statuses):
-                continue
-            other = project_task_summary(raw, locale)
-            name = (other or {}).get("name") or other_id
-            seen.add(other_id)
-            out.append({"id": other_id, "name": name, "status": statuses})
-            break
-    out.sort(key=lambda r: str(r.get("name") or ""))
-    return out
-
-
 def project_task_detail(
     raw: dict[str, Any],
     locale: dict[str, Any],
     *,
-    tasks_by_id: dict[str, dict[str, Any]] | None = None,
     quest_items: dict[str, dict[str, Any]] | None = None,
-    include_successors: bool = True,
 ) -> dict[str, Any] | None:
     summary = project_task_summary(raw, locale)
     if summary is None:
@@ -1336,31 +922,6 @@ def project_task_detail(
         for obj in (raw.get("objectives") or [])
         if isinstance(obj, dict)
     ]
-    reqs: list[dict[str, Any]] = []
-    for row in raw.get("taskRequirements") or []:
-        if not isinstance(row, dict):
-            continue
-        task_ref = row.get("task")
-        ident = _id_of(task_ref)
-        if not ident:
-            continue
-        name = ""
-        if isinstance(task_ref, dict):
-            name = str(task_ref.get("name") or "")
-        if tasks_by_id and ident in tasks_by_id:
-            other = project_task_summary(tasks_by_id[ident], locale)
-            if other:
-                name = other["name"]
-        if not name or _is_placeholder_name(ident, name):
-            name = _locale_lookup(locale, f"{ident} name", f"{ident} Name") or ident
-        statuses = row.get("status") if isinstance(row.get("status"), list) else []
-        reqs.append(
-            {
-                "id": ident,
-                "name": name,
-                "status": [str(s) for s in statuses if s is not None],
-            }
-        )
     keys_out: list[dict[str, Any]] = []
     for row in raw.get("neededKeys") or []:
         if not isinstance(row, dict):
@@ -1378,12 +939,6 @@ def project_task_detail(
     summary.update(
         {
             "objectives": objectives,
-            "task_requirements": reqs,
-            "successor_tasks": (
-                _successor_tasks(summary["id"], tasks_by_id or {}, locale)
-                if include_successors
-                else []
-            ),
             "trader_requirements": _project_trader_requirements(
                 raw.get("traderRequirements") or raw.get("traderLevelRequirements"),
                 locale,
@@ -1408,11 +963,11 @@ def parse_task_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     rows.sort(
         key=lambda r: (
             r.get("trader_slug") or "",
+            int(r.get("min_trader_level") or 1),
             int(r.get("min_player_level") or 0),
             str(r.get("name") or ""),
         )
     )
-    _fill_requirement_names(rows, locale)
     return rows
 
 
@@ -1421,14 +976,11 @@ def filter_task_rows(
     *,
     trader: str | None = None,
     map_slug: str | None = None,
-    kappa: bool | None = None,
     q: str | None = None,
-    progress_status: str | None = None,
 ) -> list[dict[str, Any]]:
     trader_key = (trader or "").strip().lower()
     map_key = (map_slug or "").strip().lower()
     needle = (q or "").strip().lower()
-    status_key = (progress_status or "").strip().lower()
     out: list[dict[str, Any]] = []
     for row in rows:
         if trader_key:
@@ -1443,12 +995,6 @@ def filter_task_rows(
             mname = str(row.get("map_name") or "").lower()
             if map_key not in {slug, mid} and map_key not in mname:
                 continue
-        if kappa is True and not row.get("kappa_required"):
-            continue
-        if kappa is False and row.get("kappa_required"):
-            continue
-        if status_key and str(row.get("progress_status") or "") != status_key:
-            continue
         if needle:
             blob = " ".join(
                 [
@@ -1465,24 +1011,19 @@ def filter_task_rows(
     return out
 
 
-def sort_task_rows(
-    rows: list[dict[str, Any]],
-    *,
-    by_progress: bool = False,
-) -> list[dict[str, Any]]:
+def sort_task_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     def key(row: dict[str, Any]) -> tuple:
+        try:
+            loyalty = int(row.get("min_trader_level") or 1)
+        except (TypeError, ValueError):
+            loyalty = 1
         try:
             level = int(row.get("min_player_level") or 0)
         except (TypeError, ValueError):
             level = 0
-        rank = (
-            PROGRESS_SORT_RANK.get(str(row.get("progress_status") or ""), 9)
-            if by_progress
-            else 0
-        )
         return (
-            rank,
             str(row.get("trader_slug") or ""),
+            loyalty,
             level,
             str(row.get("name") or ""),
         )
@@ -1536,84 +1077,46 @@ def unique_traders(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
 
 
 def get_tasks_raw(db: Session) -> TarkovTasksRaw | None:
-    return (
-        db.query(TarkovTasksRaw)
-        .filter(TarkovTasksRaw.id == raw_row_id())
-        .one_or_none()
-    )
+    from app.services.tarkov import upstream as upstream_svc
+
+    return upstream_svc.load_raw_row(db, "tasks")
 
 
-def get_tasks_meta(db: Session) -> TarkovTasksMeta | None:
-    return (
-        db.query(TarkovTasksMeta)
-        .filter(TarkovTasksMeta.id == raw_row_id())
-        .one_or_none()
-    )
-
-
-def _upsert_raw(
-    db: Session,
-    *,
-    source: str,
-    payload: dict[str, Any],
-    note: str,
-    synced_at,
-) -> None:
-    raw_json = json.dumps(payload, ensure_ascii=False)
-    row = get_tasks_raw(db)
-    if row is None:
-        db.add(
-            TarkovTasksRaw(
-                id=raw_row_id(),
-                source=source,
-                raw_json=raw_json,
-                synced_at=synced_at,
-                note=note,
-            )
-        )
-    else:
-        row.source = source
-        row.raw_json = raw_json
-        row.synced_at = synced_at
-        row.note = note
-
-
-def _upsert_meta(
-    db: Session,
-    *,
-    source: str,
-    task_count: int,
-    note: str,
-    synced_at,
-) -> None:
-    meta = get_tasks_meta(db)
-    if meta is None:
-        meta = TarkovTasksMeta(id=raw_row_id())
-        db.add(meta)
-    meta.source = source
-    meta.task_count = task_count
-    meta.synced_at = synced_at
-    meta.note = note
+def _store_tasks_raw_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    store = {k: v for k, v in payload.items() if k != "locale"}
+    if isinstance(store.get("data"), dict):
+        return store
+    tasks = store.get("tasks")
+    if isinstance(tasks, (dict, list)):
+        data: dict[str, Any] = {"tasks": tasks}
+        quest_items = store.get("questItems")
+        if quest_items is not None:
+            data["questItems"] = quest_items
+        return {"data": data}
+    return store
 
 
 def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, Any]:
+    from app.services.tarkov import upstream as upstream_svc
+
     rows = parse_task_rows(bundle.payload)
     if not rows:
         raise TarkovTasksError("未解析到任务数据")
     now = now_naive()
-    _upsert_raw(
+    upstream_svc.persist_raw(
         db,
+        "tasks",
+        _store_tasks_raw_payload(bundle.payload),
         source=bundle.source,
-        payload=bundle.payload,
         note=bundle.note,
-        synced_at=now,
+        commit=False,
     )
-    _upsert_meta(
+    upstream_svc.persist_locale_if_present(
         db,
+        "tasks",
+        bundle.payload,
         source=bundle.source,
-        task_count=len(rows),
         note=bundle.note,
-        synced_at=now,
     )
     db.commit()
     global _parsed_cache
@@ -1629,26 +1132,8 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
 
 
 def _sync_current_mode(db: Session) -> dict[str, Any]:
-    mode = parse_game_mode()
-    logger.info("syncing tarkov tasks from upstream (%s)", mode)
-    errors: list[str] = []
-    try:
-        return persist_tasks_bundle(db, download_graphql_tasks(lang="zh"))
-    except TarkovTasksError as exc:
-        errors.append(f"graphql: {exc}")
-        logger.warning("tarkov.dev GraphQL tasks sync failed (%s): %s", mode, exc)
-    try:
-        bundle = download_json_api_tasks(lang="zh")
-        note = bundle.note
-        if errors:
-            note = f"{note} (fallback; {errors[0][:160]})"
-        return persist_tasks_bundle(
-            db,
-            TasksUpstreamBundle(source=bundle.source, payload=bundle.payload, note=note),
-        )
-    except TarkovTasksError as exc:
-        detail = "；".join(errors) if errors else str(exc)
-        raise TarkovTasksError(f"任务同步失败：{detail}；json 亦失败: {exc}") from None
+    logger.info("syncing tarkov tasks from upstream (%s)", parse_game_mode())
+    return persist_tasks_bundle(db, download_json_api_tasks(lang="zh"))
 
 
 def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
@@ -1661,19 +1146,15 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
-    row = get_tasks_raw(db)
-    if row is None:
-        raise TarkovTasksError("无任务 raw")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovTasksError("任务 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovTasksError("任务 raw_json 格式无效")
-    meta = get_tasks_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    note = (meta.note if meta else None) or row.note
-    return row.source, payload, synced, note
+    from app.services.tarkov import upstream as upstream_svc
+
+    return upstream_svc.load_main_payload(
+        db,
+        "tasks",
+        error_cls=TarkovTasksError,
+        missing="无任务 raw",
+        invalid="任务 raw_json 无效",
+    )
 
 
 def ensure_tasks(db: Session) -> None:
@@ -1687,8 +1168,8 @@ def load_parsed_tasks(
 ) -> tuple[str, list[dict[str, Any]], dict[str, Any], str | None, str | None]:
     global _parsed_cache
     ensure_tasks(db)
-    meta = get_tasks_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    row = get_tasks_raw(db)
+    synced = row.synced_at.isoformat() if row and row.synced_at else None
     key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
@@ -1703,52 +1184,26 @@ def load_parsed_tasks(
     return source, rows, locale, synced_at, note
 
 
-def _apply_requirement_progress_rows(
-    rows: list[dict[str, Any]],
-    progress: dict[str, Any],
-) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for row in rows:
-        reqs = apply_requirement_progress(
-            list(row.get("task_requirements") or []),
-            progress,
-        )
-        out.append({**row, "task_requirements": reqs})
-    return out
-
-
 def list_tasks(
     db: Session,
     *,
     trader: str | None = None,
     map_slug: str | None = None,
-    kappa: bool | None = None,
     q: str | None = None,
     page: int = 1,
     page_size: int = TASKS_PAGE_SIZE_DEFAULT,
     layout: str | None = None,
-    progress: dict[str, Any] | None = None,
-    progress_status: str | None = None,
-    progress_bound: bool = False,
 ) -> dict[str, Any]:
     source, rows, _locale, synced_at, note = load_parsed_tasks(db)
-    annotated = annotate_task_progress(rows, progress) if progress is not None else rows
-    if progress is not None:
-        annotated = _apply_requirement_progress_rows(annotated, progress)
-    status_filter = (progress_status or "").strip().lower() if progress is not None else ""
-    if status_filter and status_filter not in PROGRESS_STATUSES:
-        status_filter = ""
     filtered = filter_task_rows(
-        annotated,
+        rows,
         trader=trader,
         map_slug=map_slug,
-        kappa=kappa,
         q=q,
-        progress_status=status_filter or None,
     )
-    ordered = sort_task_rows(filtered, by_progress=progress is not None)
+    ordered = sort_task_rows(filtered)
     layout_key = (layout or TASKS_LAYOUT_TABLE).strip().lower()
-    if layout_key == TASKS_LAYOUT_CHAIN:
+    if layout_key == TASKS_LAYOUT_ALL:
         paged = {
             "items": ordered,
             "task_count": len(ordered),
@@ -1766,8 +1221,6 @@ def list_tasks(
         "source": source,
         "synced_at": synced_at,
         "note": note,
-        "progress_bound": bool(progress_bound),
-        "progress_ready": progress is not None,
     }
 
 
@@ -1894,9 +1347,7 @@ def collect_raid_prep_rows(
         detail = project_task_detail(
             raw,
             locale,
-            tasks_by_id=tasks,
             quest_items=quest_items,
-            include_successors=False,
         )
         if detail is None or not task_hits_map(detail, map_slug):
             continue
@@ -1913,15 +1364,14 @@ def collect_raid_prep_rows(
                 "map_slug": detail.get("map_slug") or "",
                 "map_name": detail.get("map_name") or "",
                 "min_player_level": detail.get("min_player_level") or 0,
+                "min_trader_level": detail.get("min_trader_level") or 1,
                 "experience": detail.get("experience") or 0,
-                "kappa_required": bool(detail.get("kappa_required")),
                 "lightkeeper_required": bool(detail.get("lightkeeper_required")),
                 "faction_name": detail.get("faction_name") or "Any",
                 "task_image_link": detail.get("task_image_link") or "",
                 "wiki_link": detail.get("wiki_link") or "",
                 "objective_count": detail.get("objective_count") or 0,
                 "objective_types": list(detail.get("objective_types") or []),
-                "task_requirements": list(detail.get("task_requirements") or []),
                 "objectives": list(detail.get("objectives") or []),
                 "needed_keys": list(detail.get("needed_keys") or []),
                 "has_map_markers": task_has_map_markers(detail, map_slug),
@@ -1949,8 +1399,8 @@ def load_raid_prep_rows(
         ensure_tasks(db)
     elif get_tasks_raw(db) is None:
         raise TarkovTasksError("无任务 raw")
-    meta = get_tasks_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    row = get_tasks_raw(db)
+    synced = row.synced_at.isoformat() if row and row.synced_at else None
     key = cache_key(synced or "")
     canon = canonical_raid_map_slug(map_slug)
     keys, ids = map_match_keys(map_slug)
@@ -2022,12 +1472,8 @@ def list_raid_prep(
     map_slug: str,
     *,
     trader: str | None = None,
-    kappa: bool | None = None,
     q: str | None = None,
     types: list[str] | None = None,
-    progress: dict[str, Any] | None = None,
-    progress_status: str | None = None,
-    progress_bound: bool = False,
     geometry: bool = False,
     task_ids: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -2054,18 +1500,10 @@ def list_raid_prep(
             ]
     else:
         rows = [strip_raid_prep_geometry(dict(row)) for row in base_rows]
-    if progress is not None:
-        rows = annotate_task_progress(rows, progress)
-        rows = _apply_requirement_progress_rows(rows, progress)
-    status_filter = (progress_status or "").strip().lower() if progress is not None else ""
-    if status_filter and status_filter not in PROGRESS_STATUSES:
-        status_filter = ""
     filtered = filter_task_rows(
         rows,
         trader=trader,
-        kappa=kappa,
         q=q,
-        progress_status=status_filter or None,
     )
     wanted_types = {
         str(t).strip()
@@ -2078,7 +1516,7 @@ def list_raid_prep(
             for row in filtered
             if wanted_types.intersection(row.get("objective_types") or [])
         ]
-    ordered = sort_task_rows(filtered, by_progress=progress is not None)
+    ordered = sort_task_rows(filtered)
     ordered.sort(key=lambda r: not r.get("has_map_markers"))
     _enrich_items_from_catalog(
         db, ordered, quest_items=_quest_items_map(payload)
@@ -2092,17 +1530,12 @@ def list_raid_prep(
         "source": source,
         "synced_at": synced_at,
         "note": note,
-        "progress_bound": bool(progress_bound),
-        "progress_ready": progress is not None,
     }
 
 
 def get_task_detail(
     db: Session,
     task_id: str,
-    *,
-    progress: dict[str, Any] | None = None,
-    progress_bound: bool = False,
 ) -> dict[str, Any]:
     task_id = (task_id or "").strip()
     if not task_id:
@@ -2116,7 +1549,6 @@ def get_task_detail(
     detail = project_task_detail(
         raw,
         _locale_map(payload),
-        tasks_by_id=tasks,
         quest_items=_quest_items_map(payload),
     )
     if detail is None:
@@ -2124,21 +1556,6 @@ def get_task_detail(
     detail["source"] = source
     _enrich_items_from_catalog(
         db, detail, quest_items=_quest_items_map(payload)
-    )
-    detail["progress_bound"] = bool(progress_bound)
-    detail["progress_ready"] = progress is not None
-    if progress is not None:
-        detail["progress_status"] = classify_task_progress(detail, progress)
-        detail["task_requirements"] = apply_requirement_progress(
-            list(detail.get("task_requirements") or []),
-            progress,
-        )
-    detail["neighborhood"] = build_task_neighborhood(
-        task_id,
-        tasks,
-        _locale_map(payload),
-        hops=NEIGHBORHOOD_HOPS,
-        progress=progress,
     )
     return detail
 
@@ -2230,24 +1647,19 @@ def _lookup_item_hits_from_catalog(
     if not wanted:
         return {}
     try:
+        from app.services.tarkov import upstream as upstream_svc
         from app.services.tarkov.catalog import _row_from_raw, iter_raw_items
-        from app.services.tarkov.items import get_items_raw
         from app.services.tarkov.items import _locale_map as items_locale
     except Exception:  # noqa: BLE001
         return {}
-    row = get_items_raw(db)
-    if row is None:
-        return {}
     try:
-        items_payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError):
-        return {}
-    if not isinstance(items_payload, dict):
+        source, items_payload, _synced, _note = upstream_svc.load_main_payload(db, "items")
+    except Exception:  # noqa: BLE001
         return {}
     locale = items_locale(items_payload)
     found: dict[str, dict[str, Any]] = {}
     try:
-        for ident, raw in iter_raw_items(row.source, items_payload):
+        for ident, raw in iter_raw_items(source, items_payload):
             if ident not in wanted or ident in found:
                 continue
             hit = _row_from_raw(ident, raw, locale)

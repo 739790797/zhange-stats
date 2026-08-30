@@ -168,6 +168,7 @@ def test_set_map_wipes_board_keeps_members() -> None:
     rooms.join_room(db, "1", guest, now=now)
     rooms.claim_task(db, "1", host, "t1", now=now)
     rooms.bring_key(db, "1", host, "key-a", now=now)
+    rooms.mark_objective_done(db, "1", host, "t1", "o1", now=now)
     rooms.add_mark(db, "1", host, kind="pin", floor="", x=1, z=2, now=now)
     try:
         rooms.set_room_map(db, "1", guest, "woods", now=now)
@@ -180,6 +181,7 @@ def test_set_map_wipes_board_keeps_members() -> None:
     assert snap["map_slug"] == "woods"
     assert snap["claims"] == []
     assert snap["key_brings"] == []
+    assert snap["objective_dones"] == []
     assert snap["marks"] == []
     assert snap["member_count"] == 2
     same = rooms.set_room_map(db, "1", host, "woods", now=now)
@@ -206,6 +208,13 @@ def test_writes_require_map() -> None:
         keyed = False
         assert extra_exc.status_code == 409
     assert not keyed
+    try:
+        rooms.mark_objective_done(db, "1", host, "t1", "o1", now=now)
+        marked = True
+    except rooms.RaidRoomError as extra_exc:
+        marked = False
+        assert extra_exc.status_code == 409
+    assert not marked
 
 
 def test_claim_rejects_task_not_on_map_when_catalog_present() -> None:
@@ -233,7 +242,8 @@ def test_claim_rejects_task_not_on_map_when_catalog_present() -> None:
     }
     db.add(
         TarkovTasksRaw(
-            id=1,
+            mode_id=1,
+            lang="",
             source="test",
             raw_json=__import__("json").dumps(payload),
             note="fixture",
@@ -293,7 +303,8 @@ def test_claim_allows_task_present_on_other_game_mode() -> None:
     }
     db.add(
         TarkovTasksRaw(
-            id=1,
+            mode_id=1,
+            lang="",
             source="test",
             raw_json=json.dumps(pvp_payload),
             note="pvp",
@@ -301,7 +312,8 @@ def test_claim_allows_task_present_on_other_game_mode() -> None:
     )
     db.add(
         TarkovTasksRaw(
-            id=2,
+            mode_id=2,
+            lang="",
             source="test",
             raw_json=json.dumps(pve_payload),
             note="pve",
@@ -448,6 +460,34 @@ def test_stroke_marks_and_draft_parse() -> None:
     assert rooms.parse_draw_draft({"floor": "", "points": "nope"}) is None
     assert rooms.parse_draw_draft({"floor": "x" * 80, "points": []}) is None
 
+    assert rooms.parse_player_fix(
+        {
+            "x": 175.301,
+            "y": 1.37,
+            "z": 150.68,
+            "yaw": -12.449,
+            "map_id": "streets-of-tarkov",
+            "file_name": "2025-03-30[21-04]_175.30.png",
+        }
+    ) == {
+        "x": 175.3,
+        "y": 1.37,
+        "z": 150.68,
+        "yaw": -12.45,
+        "map_id": "streets",
+        "file_name": "2025-03-30[21-04]_175.30.png",
+    }
+    assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3}) == {
+        "x": 1.0,
+        "y": 2.0,
+        "z": 3.0,
+        "yaw": None,
+        "map_id": "",
+        "file_name": "",
+    }
+    assert rooms.parse_player_fix({"x": 1, "y": 2, "z": "nope"}) is None
+    assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3, "yaw": "bad"}) is None
+
 
 def test_bring_key_shared_and_toggle() -> None:
     db = _session()
@@ -491,6 +531,61 @@ def test_bring_key_shared_and_toggle() -> None:
     assert not ok
 
 
+def test_mark_objective_done_shared_and_toggle() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    room = _seat(db, host, now=now)
+    public_id = room["public_id"]
+    assert room["objective_dones"] == []
+    rooms.join_room(db, public_id, guest, now=now)
+
+    snap, added = rooms.mark_objective_done(
+        db, public_id, host, "wet-2", "o-1", now=now
+    )
+    assert added is True
+    assert snap["objective_dones"] == [
+        {
+            "task_id": "wet-2",
+            "objective_id": "o-1",
+            "user_id": host.id,
+            "display_name": "甲",
+            "created_at": snap["objective_dones"][0]["created_at"],
+        }
+    ]
+    again, added_again = rooms.mark_objective_done(
+        db, public_id, host, "wet-2", "o-1", now=now
+    )
+    assert added_again is False
+    assert len(again["objective_dones"]) == 1
+
+    both, guest_added = rooms.mark_objective_done(
+        db, public_id, guest, "wet-2", "o-1", now=now
+    )
+    assert guest_added is True
+    names = [
+        row["display_name"]
+        for row in both["objective_dones"]
+        if row["task_id"] == "wet-2" and row["objective_id"] == "o-1"
+    ]
+    assert names == ["甲", "乙"]
+
+    after, removed = rooms.unmark_objective_done(
+        db, public_id, host, "wet-2", "o-1", now=now
+    )
+    assert removed is True
+    assert [row["display_name"] for row in after["objective_dones"]] == ["乙"]
+
+    try:
+        rooms.mark_objective_done(db, public_id, host, "wet-2", "", now=now)
+        ok = True
+    except rooms.RaidRoomError as exc:
+        ok = False
+        assert "目标" in exc.message
+    assert not ok
+
+
 def test_host_can_remove_member_and_their_claims() -> None:
     db = _session()
     host = _user(db, "host", "甲")
@@ -500,12 +595,14 @@ def test_host_can_remove_member_and_their_claims() -> None:
     rooms.join_room(db, "1", guest, now=now)
     rooms.claim_task(db, "1", guest, "t-guest", now=now)
     rooms.bring_key(db, "1", guest, "key-b", now=now)
+    rooms.mark_objective_done(db, "1", guest, "t-guest", "o-1", now=now)
     snap = rooms.remove_member(db, "1", host, guest.id, now=now)
     assert snap["member_count"] == 1
     assert snap["host_user_id"] == host.id
     assert [row["user_id"] for row in snap["members"]] == [host.id]
     assert snap["claims"] == []
     assert snap["key_brings"] == []
+    assert snap["objective_dones"] == []
     guest_view = rooms.get_room(db, "1", guest, now=now)
     assert guest_view["is_member"] is False
 

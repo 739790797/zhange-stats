@@ -42,6 +42,7 @@ const FEATURE_ICON_BY_ID: Record<string, PlatformIconName> = {
   "taygedo.tower": "tower",
   "kujiequ.ww": "ww",
   "kujiequ.pgr": "pgr",
+  "guides.tarkov": "tarkov",
   "guides.minecraft": "minecraft",
 };
 

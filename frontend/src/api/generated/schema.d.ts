@@ -2673,6 +2673,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms/{public_id}/objective-dones/{task_id}/{objective_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark Tarkov Raid Room Objective Done */
+        put: operations["mark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__put"];
+        post?: never;
+        /** Unmark Tarkov Raid Room Objective Done */
+        delete: operations["unmark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-rooms/{public_id}/marks": {
         parameters: {
             query?: never;
@@ -2735,6 +2753,26 @@ export interface paths {
         put?: never;
         /** Clear Tarkov Raid Room Marks */
         post: operations["clear_tarkov_raid_room_marks_api_guides_tarkov_raid_rooms__public_id__marks_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Full Sync
+         * @description 管理员：回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，落本地后再投影现有栏目。
+         */
+        post: operations["guides_tarkov_full_sync_api_guides_tarkov_sync_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2932,7 +2970,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Tasks Sync
-         * @description 管理员：回源同步任务（GraphQL 优先，失败回退 json.tarkov.dev）。
+         * @description 管理员：回源同步任务（api.tarkov.dev 优先，失败回退 json.tarkov.dev）。
          */
         post: operations["guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post"];
         delete?: never;
@@ -2950,7 +2988,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Task Catalog
-         * @description 任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。
+         * @description 任务目录：商人 / 地图 / 关键词过滤。layout=all 时不分页，返回筛选后的全量。
          */
         get: operations["guides_tarkov_task_catalog_api_guides_tarkov_tasks_get"];
         put?: never;
@@ -2990,7 +3028,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Task Detail
-         * @description 任务详情：目标、前置、奖励（投影，不含多边形）。
+         * @description 任务详情：目标、奖励（投影，不含多边形）。
          */
         get: operations["guides_tarkov_task_detail_api_guides_tarkov_tasks__task_id__get"];
         put?: never;
@@ -3281,7 +3319,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/progress": {
+    "/api/guides/tarkov/key-packs": {
         parameters: {
             query?: never;
             header?: never;
@@ -3289,10 +3327,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Guides Tarkov Progress Status
-         * @description 当前用户 Tarkov Tracker 绑定摘要（不回传明文 token）。
+         * Guides Tarkov Key Packs
+         * @description 钥匙分类速查：门锁 / 入场钥按地图分包。
          */
-        get: operations["guides_tarkov_progress_status_api_guides_tarkov_progress_get"];
+        get: operations["guides_tarkov_key_packs_api_guides_tarkov_key_packs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3301,7 +3339,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/progress/tracker-token": {
+    "/api/guides/tarkov/key-owns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Key Owns List
+         * @description 当前用户仓库里勾选的钥匙。
+         */
+        get: operations["guides_tarkov_key_owns_list_api_guides_tarkov_key_owns_get"];
+        /**
+         * Guides Tarkov Key Owns Merge
+         * @description 合并写入一批「我有」（本机勾选迁到账号）。
+         */
+        put: operations["guides_tarkov_key_owns_merge_api_guides_tarkov_key_owns_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/key-owns/{item_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3309,23 +3371,59 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /**
-         * Guides Tarkov Progress Bind
-         * @description 绑定 Tarkov Tracker token 并立刻拉取等级 / 进度摘要。
-         */
-        put: operations["guides_tarkov_progress_bind_api_guides_tarkov_progress_tracker_token_put"];
+        /** Guides Tarkov Key Owns Add */
+        put: operations["guides_tarkov_key_owns_add_api_guides_tarkov_key_owns__item_id__put"];
         post?: never;
-        /**
-         * Guides Tarkov Progress Unbind
-         * @description 解绑 Tarkov Tracker token。
-         */
-        delete: operations["guides_tarkov_progress_unbind_api_guides_tarkov_progress_tracker_token_delete"];
+        /** Guides Tarkov Key Owns Remove */
+        delete: operations["guides_tarkov_key_owns_remove_api_guides_tarkov_key_owns__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/progress/sync": {
+    "/api/guides/tarkov/task-dones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Task Dones List
+         * @description 当前模式已勾选完成的任务。
+         */
+        get: operations["guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get"];
+        /**
+         * Guides Tarkov Task Dones Write
+         * @description 合并或整表替换当前模式的已完成集合。
+         */
+        put: operations["guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/task-dones/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Guides Tarkov Task Dones Add */
+        put: operations["guides_tarkov_task_dones_add_api_guides_tarkov_task_dones__task_id__put"];
+        post?: never;
+        /** Guides Tarkov Task Dones Remove */
+        delete: operations["guides_tarkov_task_dones_remove_api_guides_tarkov_task_dones__task_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-logs": {
         parameters: {
             query?: never;
             header?: never;
@@ -3335,10 +3433,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Guides Tarkov Progress Sync
-         * @description 已绑定：从 Tarkov Tracker 再拉一次进度摘要。
+         * Guides Tarkov Raid Logs Import
+         * @description 本机解析后的战局摘要落库；不接收日志原文。
          */
-        post: operations["guides_tarkov_progress_sync_api_guides_tarkov_progress_sync_post"];
+        post: operations["guides_tarkov_raid_logs_import_api_guides_tarkov_raid_logs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8933,6 +9031,16 @@ export interface components {
              * @default
              */
             icon_link: string;
+            /**
+             * Pack Icon Link
+             * @default
+             */
+            pack_icon_link: string;
+            /**
+             * Pack Item Id
+             * @default
+             */
+            pack_item_id: string;
         };
         /** TarkovAmmoSyncOut */
         TarkovAmmoSyncOut: {
@@ -9459,6 +9567,33 @@ export interface components {
             required_items?: components["schemas"]["TarkovGuideItemRefOut"][];
             product_item: components["schemas"]["TarkovGuideItemRefOut"];
         };
+        /** TarkovFullSyncDomainOut */
+        TarkovFullSyncDomainOut: {
+            /** Id */
+            id: string;
+            /** Ok */
+            ok: boolean;
+            /** Error */
+            error?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+        };
+        /** TarkovFullSyncOut */
+        TarkovFullSyncOut: {
+            /** Ok Count */
+            ok_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Domains */
+            domains?: components["schemas"]["TarkovFullSyncDomainOut"][];
+            /**
+             * Message
+             * @default ok
+             */
+            message: string;
+        };
         /** TarkovGuideItemRefOut */
         TarkovGuideItemRefOut: {
             /** Id */
@@ -9810,6 +9945,152 @@ export interface components {
              */
             message: string;
         };
+        /** TarkovKeyOwnOut */
+        TarkovKeyOwnOut: {
+            /** Item Id */
+            item_id: string;
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** TarkovKeyOwnsIn */
+        TarkovKeyOwnsIn: {
+            /** Item Ids */
+            item_ids?: string[];
+        };
+        /** TarkovKeyOwnsOut */
+        TarkovKeyOwnsOut: {
+            /** Item Ids */
+            item_ids?: string[];
+        };
+        /** TarkovKeyPackBarterOut */
+        TarkovKeyPackBarterOut: {
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+            /**
+             * Min Trader Level
+             * @default 0
+             */
+            min_trader_level: number;
+        };
+        /** TarkovKeyPackCraftOut */
+        TarkovKeyPackCraftOut: {
+            /**
+             * Station Slug
+             * @default
+             */
+            station_slug: string;
+            /**
+             * Station Name
+             * @default
+             */
+            station_name: string;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+        };
+        /** TarkovKeyPackFleaOut */
+        TarkovKeyPackFleaOut: {
+            /** Price */
+            price?: number | null;
+        };
+        /** TarkovKeyPackKeyOut */
+        TarkovKeyPackKeyOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /** Types */
+            types?: string[];
+            /**
+             * Lock Count
+             * @default 0
+             */
+            lock_count: number;
+            /**
+             * Access
+             * @default false
+             */
+            access: boolean;
+            /**
+             * Community
+             * @default false
+             */
+            community: boolean;
+            /** Uses */
+            uses?: number | null;
+            sources?: components["schemas"]["TarkovKeyPackSourcesOut"];
+        };
+        /** TarkovKeyPackMapOut */
+        TarkovKeyPackMapOut: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /**
+             * English
+             * @default
+             */
+            english: string;
+            /** Keys */
+            keys?: components["schemas"]["TarkovKeyPackKeyOut"][];
+        };
+        /** TarkovKeyPackSourcesOut */
+        TarkovKeyPackSourcesOut: {
+            /** Barters */
+            barters?: components["schemas"]["TarkovKeyPackBarterOut"][];
+            /** Crafts */
+            crafts?: components["schemas"]["TarkovKeyPackCraftOut"][];
+            /** Tasks */
+            tasks?: components["schemas"]["TarkovKeyPackTaskOut"][];
+            flea?: components["schemas"]["TarkovKeyPackFleaOut"] | null;
+        };
+        /** TarkovKeyPackTaskOut */
+        TarkovKeyPackTaskOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** TarkovKeyPacksOut */
+        TarkovKeyPacksOut: {
+            /** Maps */
+            maps?: components["schemas"]["TarkovKeyPackMapOut"][];
+            /** Unbound */
+            unbound?: components["schemas"]["TarkovKeyPackKeyOut"][];
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /** TarkovLootTierCatalogOut */
         TarkovLootTierCatalogOut: {
             /** Items */
@@ -10147,6 +10428,92 @@ export interface components {
              */
             players: string;
         };
+        /** TarkovRaidLogIn */
+        TarkovRaidLogIn: {
+            /**
+             * Folder
+             * @default
+             */
+            folder: string;
+            /**
+             * Raid Id
+             * @default
+             */
+            raid_id: string;
+            /**
+             * Location
+             * @default
+             */
+            location: string;
+            /**
+             * Map Id
+             * @default
+             */
+            map_id: string;
+            /**
+             * Map Label
+             * @default
+             */
+            map_label: string;
+            /**
+             * Raid Mode
+             * @default
+             */
+            raid_mode: string;
+            /**
+             * Session Mode
+             * @default
+             */
+            session_mode: string;
+            /**
+             * Started At
+             * @default
+             */
+            started_at: string;
+            /**
+             * Ended At
+             * @default
+             */
+            ended_at: string;
+            /**
+             * Reconnected
+             * @default false
+             */
+            reconnected: boolean;
+            /**
+             * Aborted
+             * @default false
+             */
+            aborted: boolean;
+        };
+        /** TarkovRaidLogsImportOut */
+        TarkovRaidLogsImportOut: {
+            /**
+             * Inserted
+             * @default 0
+             */
+            inserted: number;
+            /**
+             * Updated
+             * @default 0
+             */
+            updated: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /** TarkovRaidLogsIn */
+        TarkovRaidLogsIn: {
+            /** Raids */
+            raids?: components["schemas"]["TarkovRaidLogIn"][];
+        };
         /** TarkovRaidPrepOut */
         TarkovRaidPrepOut: {
             /** Map Slug */
@@ -10168,16 +10535,6 @@ export interface components {
             synced_at?: string | null;
             /** Note */
             note?: string | null;
-            /**
-             * Progress Bound
-             * @default false
-             */
-            progress_bound: boolean;
-            /**
-             * Progress Ready
-             * @default false
-             */
-            progress_ready: boolean;
         };
         /** TarkovRaidPrepTaskOut */
         TarkovRaidPrepTaskOut: {
@@ -10226,15 +10583,15 @@ export interface components {
              */
             min_player_level: number;
             /**
+             * Min Trader Level
+             * @default 1
+             */
+            min_trader_level: number;
+            /**
              * Experience
              * @default 0
              */
             experience: number;
-            /**
-             * Kappa Required
-             * @default false
-             */
-            kappa_required: boolean;
             /**
              * Lightkeeper Required
              * @default false
@@ -10262,10 +10619,6 @@ export interface components {
             objective_count: number;
             /** Objective Types */
             objective_types?: string[];
-            /** Progress Status */
-            progress_status?: string | null;
-            /** Task Requirements */
-            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
             /** Objectives */
             objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
             /** Needed Keys */
@@ -10348,6 +10701,10 @@ export interface components {
             claims?: components["schemas"]["TarkovRaidRoomClaimOut"][];
             /** Key Brings */
             key_brings?: components["schemas"]["TarkovRaidRoomKeyBringOut"][];
+            /** Key Owns */
+            key_owns?: components["schemas"]["TarkovKeyOwnOut"][];
+            /** Objective Dones */
+            objective_dones?: components["schemas"]["TarkovRaidRoomObjectiveDoneOut"][];
             /** Marks */
             marks?: components["schemas"]["TarkovRaidRoomMarkOut"][];
         };
@@ -10488,6 +10845,19 @@ export interface components {
             /** Joined At */
             joined_at?: string | null;
         };
+        /** TarkovRaidRoomObjectiveDoneOut */
+        TarkovRaidRoomObjectiveDoneOut: {
+            /** Task Id */
+            task_id: string;
+            /** Objective Id */
+            objective_id: string;
+            /** User Id */
+            user_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Created At */
+            created_at?: string | null;
+        };
         /** TarkovRaidRoomOccupantOut */
         TarkovRaidRoomOccupantOut: {
             /** User Id */
@@ -10593,16 +10963,6 @@ export interface components {
             synced_at?: string | null;
             /** Note */
             note?: string | null;
-            /**
-             * Progress Bound
-             * @default false
-             */
-            progress_bound: boolean;
-            /**
-             * Progress Ready
-             * @default false
-             */
-            progress_ready: boolean;
         };
         /** TarkovTaskDetailOut */
         TarkovTaskDetailOut: {
@@ -10651,15 +11011,15 @@ export interface components {
              */
             min_player_level: number;
             /**
+             * Min Trader Level
+             * @default 1
+             */
+            min_trader_level: number;
+            /**
              * Experience
              * @default 0
              */
             experience: number;
-            /**
-             * Kappa Required
-             * @default false
-             */
-            kappa_required: boolean;
             /**
              * Lightkeeper Required
              * @default false
@@ -10687,37 +11047,35 @@ export interface components {
             objective_count: number;
             /** Objective Types */
             objective_types?: string[];
-            /** Progress Status */
-            progress_status?: string | null;
-            /** Task Requirements */
-            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
             /** Source */
             source?: string | null;
             /** Objectives */
             objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
-            /** Successor Tasks */
-            successor_tasks?: components["schemas"]["TarkovTaskRequirementOut"][];
             /** Trader Requirements */
             trader_requirements?: components["schemas"]["TarkovTaskTraderReqOut"][];
             finish_rewards?: components["schemas"]["TarkovTaskFinishRewardsOut"];
             /** Needed Keys */
             needed_keys?: components["schemas"]["TarkovTaskNeededKeysOut"][];
-            neighborhood?: components["schemas"]["TarkovTaskNeighborhoodOut"];
             /**
              * Restartable
              * @default false
              */
             restartable: boolean;
+        };
+        /** TarkovTaskDonesIn */
+        TarkovTaskDonesIn: {
+            /** Task Ids */
+            task_ids?: string[];
             /**
-             * Progress Bound
+             * Replace
              * @default false
              */
-            progress_bound: boolean;
-            /**
-             * Progress Ready
-             * @default false
-             */
-            progress_ready: boolean;
+            replace: boolean;
+        };
+        /** TarkovTaskDonesOut */
+        TarkovTaskDonesOut: {
+            /** Task Ids */
+            task_ids?: string[];
         };
         /** TarkovTaskFinishRewardsOut */
         TarkovTaskFinishRewardsOut: {
@@ -10773,15 +11131,15 @@ export interface components {
              */
             min_player_level: number;
             /**
+             * Min Trader Level
+             * @default 1
+             */
+            min_trader_level: number;
+            /**
              * Experience
              * @default 0
              */
             experience: number;
-            /**
-             * Kappa Required
-             * @default false
-             */
-            kappa_required: boolean;
             /**
              * Lightkeeper Required
              * @default false
@@ -10809,10 +11167,6 @@ export interface components {
             objective_count: number;
             /** Objective Types */
             objective_types?: string[];
-            /** Progress Status */
-            progress_status?: string | null;
-            /** Task Requirements */
-            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
         };
         /** TarkovTaskNamedRefOut */
         TarkovTaskNamedRefOut: {
@@ -10841,47 +11195,6 @@ export interface components {
             map: components["schemas"]["TarkovTaskNamedRefOut"];
             /** Keys */
             keys?: components["schemas"]["TarkovTaskNamedRefOut"][];
-        };
-        /** TarkovTaskNeighborhoodEdgeOut */
-        TarkovTaskNeighborhoodEdgeOut: {
-            /** Source Id */
-            source_id: string;
-            /** Target Id */
-            target_id: string;
-        };
-        /** TarkovTaskNeighborhoodNodeOut */
-        TarkovTaskNeighborhoodNodeOut: {
-            /** Id */
-            id: string;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
-            /**
-             * Trader Slug
-             * @default
-             */
-            trader_slug: string;
-            /**
-             * Hop
-             * @default 0
-             */
-            hop: number;
-            /** Progress Status */
-            progress_status?: string | null;
-        };
-        /** TarkovTaskNeighborhoodOut */
-        TarkovTaskNeighborhoodOut: {
-            /**
-             * Current Id
-             * @default
-             */
-            current_id: string;
-            /** Nodes */
-            nodes?: components["schemas"]["TarkovTaskNeighborhoodNodeOut"][];
-            /** Edges */
-            edges?: components["schemas"]["TarkovTaskNeighborhoodEdgeOut"][];
         };
         /** TarkovTaskObjectiveOut */
         TarkovTaskObjectiveOut: {
@@ -10957,20 +11270,6 @@ export interface components {
             map_name: string;
             /** Positions */
             positions?: components["schemas"]["TarkovTaskPointOut"][];
-        };
-        /** TarkovTaskRequirementOut */
-        TarkovTaskRequirementOut: {
-            /** Id */
-            id: string;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
-            /** Status */
-            status?: string[];
-            /** Met */
-            met?: boolean | null;
         };
         /** TarkovTaskRewardItemOut */
         TarkovTaskRewardItemOut: {
@@ -11109,60 +11408,6 @@ export interface components {
              * @default ok
              */
             message: string;
-        };
-        /** TarkovTrackerBindIn */
-        TarkovTrackerBindIn: {
-            /** Token */
-            token: string;
-        };
-        /** TarkovTrackerStatusOut */
-        TarkovTrackerStatusOut: {
-            /** Bound */
-            bound: boolean;
-            /**
-             * Game Mode
-             * @default
-             */
-            game_mode: string;
-            /**
-             * Game Mode Label
-             * @default
-             */
-            game_mode_label: string;
-            /**
-             * Display Name
-             * @default
-             */
-            display_name: string;
-            /**
-             * Player Level
-             * @default 0
-             */
-            player_level: number;
-            /**
-             * Pmc Faction
-             * @default
-             */
-            pmc_faction: string;
-            /**
-             * Tasks Complete
-             * @default 0
-             */
-            tasks_complete: number;
-            /**
-             * Tasks Failed
-             * @default 0
-             */
-            tasks_failed: number;
-            /**
-             * Token Suffix
-             * @default
-             */
-            token_suffix: string;
-            /** Last Synced At */
-            last_synced_at?: string | null;
-            /** Last Error */
-            last_error?: string | null;
         };
         /** TarkovTraderCatalogOut */
         TarkovTraderCatalogOut: {
@@ -17196,6 +17441,72 @@ export interface operations {
             };
         };
     };
+    mark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                task_id: string;
+                objective_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unmark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+                task_id: string;
+                objective_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_post: {
         parameters: {
             query?: never;
@@ -17312,6 +17623,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_full_sync_api_guides_tarkov_sync_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovFullSyncOut"];
                 };
             };
             /** @description Validation Error */
@@ -17661,9 +18004,6 @@ export interface operations {
                 q?: string | null;
                 trader?: string | null;
                 map?: string | null;
-                kappa?: boolean | null;
-                progress?: boolean;
-                progress_status?: string | null;
                 page?: number;
                 page_size?: number;
                 layout?: string | null;
@@ -17702,10 +18042,7 @@ export interface operations {
                 map: string;
                 q?: string | null;
                 trader?: string | null;
-                kappa?: boolean | null;
                 types?: string | null;
-                progress?: boolean;
-                progress_status?: string | null;
                 geometry?: boolean;
                 ids?: string | null;
                 /** @description PVP（regular）或 PVE */
@@ -17740,7 +18077,6 @@ export interface operations {
     guides_tarkov_task_detail_api_guides_tarkov_tasks__task_id__get: {
         parameters: {
             query?: {
-                progress?: boolean;
                 /** @description PVP（regular）或 PVE */
                 game_mode?: string;
             };
@@ -18244,7 +18580,7 @@ export interface operations {
             };
         };
     };
-    guides_tarkov_progress_status_api_guides_tarkov_progress_get: {
+    guides_tarkov_key_packs_api_guides_tarkov_key_packs_get: {
         parameters: {
             query?: {
                 /** @description PVP（regular）或 PVE */
@@ -18262,7 +18598,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TarkovTrackerStatusOut"];
+                    "application/json": components["schemas"]["TarkovKeyPacksOut"];
                 };
             };
             /** @description Validation Error */
@@ -18276,7 +18612,39 @@ export interface operations {
             };
         };
     };
-    guides_tarkov_progress_bind_api_guides_tarkov_progress_tracker_token_put: {
+    guides_tarkov_key_owns_list_api_guides_tarkov_key_owns_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovKeyOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_key_owns_merge_api_guides_tarkov_key_owns_put: {
         parameters: {
             query?: {
                 /** @description PVP（regular）或 PVE */
@@ -18288,7 +18656,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TarkovTrackerBindIn"];
+                "application/json": components["schemas"]["TarkovKeyOwnsIn"];
             };
         };
         responses: {
@@ -18298,7 +18666,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TarkovTrackerStatusOut"];
+                    "application/json": components["schemas"]["TarkovKeyOwnsOut"];
                 };
             };
             /** @description Validation Error */
@@ -18312,7 +18680,75 @@ export interface operations {
             };
         };
     };
-    guides_tarkov_progress_unbind_api_guides_tarkov_progress_tracker_token_delete: {
+    guides_tarkov_key_owns_add_api_guides_tarkov_key_owns__item_id__put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovKeyOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_key_owns_remove_api_guides_tarkov_key_owns__item_id__delete: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovKeyOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get: {
         parameters: {
             query?: {
                 /** @description PVP（regular）或 PVE */
@@ -18330,7 +18766,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TarkovTrackerStatusOut"];
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
                 };
             };
             /** @description Validation Error */
@@ -18344,7 +18780,7 @@ export interface operations {
             };
         };
     };
-    guides_tarkov_progress_sync_api_guides_tarkov_progress_sync_post: {
+    guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put: {
         parameters: {
             query?: {
                 /** @description PVP（regular）或 PVE */
@@ -18352,6 +18788,44 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovTaskDonesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_task_dones_add_api_guides_tarkov_task_dones__task_id__put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                task_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -18362,7 +18836,77 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TarkovTrackerStatusOut"];
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_task_dones_remove_api_guides_tarkov_task_dones__task_id__delete: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_raid_logs_import_api_guides_tarkov_raid_logs_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidLogsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidLogsImportOut"];
                 };
             };
             /** @description Validation Error */

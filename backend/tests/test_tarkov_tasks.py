@@ -97,16 +97,15 @@ def test_parse_locale_and_trader_map():
     assert by_id["t1"]["trader_slug"] == "prapor"
     assert by_id["t1"]["trader_name"] == "Prapor（俄商）"
     assert by_id["t1"]["map_name"] == "塔科夫街区"
-    assert by_id["t1"]["kappa_required"] is True
     assert by_id["t1"]["objective_count"] == 2
     assert by_id["t1"]["objective_types"] == ["visit", "giveItem"]
+    assert by_id["t1"]["min_trader_level"] == 1
     assert by_id["t2"]["objective_types"] == []
     assert by_id["t2"]["name"] == "验收"
+    assert by_id["t2"]["min_trader_level"] == 1
     assert by_id["t3"]["trader_slug"] == "therapist"
     assert by_id["t3"]["map_name"] == "海关"
-    assert by_id["t1"]["task_requirements"][0]["id"] == "t2"
-    assert by_id["t1"]["task_requirements"][0]["name"] == "验收"
-    assert by_id["t2"]["task_requirements"] == []
+    assert by_id["t3"]["min_trader_level"] == 1
 
 
 def test_garbled_zh_locale_falls_back_to_english_name():
@@ -139,6 +138,79 @@ def test_garbled_graphql_name_uses_normalized():
     assert row is not None
     assert row["name"] == "checking"
 
+def test_task_min_trader_level_uses_own_trader():
+    assert (
+        tasks.task_min_trader_level(
+            {
+                "traderRequirements": [
+                    {
+                        "trader": THERAPIST,
+                        "requirementType": "level",
+                        "value": 2,
+                    },
+                    {
+                        "trader": PRAPOR,
+                        "requirementType": "loyaltyLevel",
+                        "value": 3,
+                    },
+                ]
+            },
+            PRAPOR,
+        )
+        == 3
+    )
+
+
+def test_task_min_trader_level_defaults_when_only_other_trader():
+    assert (
+        tasks.task_min_trader_level(
+            {
+                "traderRequirements": [
+                    {
+                        "trader": THERAPIST,
+                        "requirementType": "level",
+                        "value": 2,
+                    }
+                ]
+            },
+            PRAPOR,
+        )
+        == 1
+    )
+
+
+def test_task_min_trader_level_reads_legacy_level_field():
+    assert (
+        tasks.task_min_trader_level(
+            {
+                "traderLevelRequirements": [
+                    {"trader": PRAPOR, "level": 4},
+                ]
+            },
+            PRAPOR,
+        )
+        == 4
+    )
+
+
+def test_task_min_trader_level_ignores_reputation():
+    assert (
+        tasks.task_min_trader_level(
+            {
+                "traderRequirements": [
+                    {
+                        "trader": PRAPOR,
+                        "requirementType": "reputation",
+                        "value": 2,
+                    }
+                ]
+            },
+            PRAPOR,
+        )
+        == 1
+    )
+
+
 def test_unique_objective_types_skips_blank_and_dupes():
     assert tasks.unique_objective_types(
         [
@@ -151,12 +223,10 @@ def test_unique_objective_types_skips_blank_and_dupes():
     ) == ["visit", "shoot"]
 
 
-def test_filter_trader_kappa_search():
+def test_filter_trader_search():
     rows = tasks.parse_task_rows(_envelope())
     prapor = tasks.filter_task_rows(rows, trader="prapor")
     assert {r["id"] for r in prapor} == {"t1", "t2"}
-    kappa = tasks.filter_task_rows(rows, kappa=True)
-    assert [r["id"] for r in kappa] == ["t1"]
     hit = tasks.filter_task_rows(rows, q="首秀")
     assert [r["id"] for r in hit] == ["t1"]
     streets = tasks.filter_task_rows(rows, map_slug="streets")
@@ -180,13 +250,12 @@ def test_paginate_clamps_page():
     assert capped["page_size"] == tasks.TASKS_PAGE_SIZE_MAX
 
 
-def test_project_detail_resolves_locale_and_prereq():
+def test_project_detail_resolves_locale():
     payload = _envelope()
     raw = payload["tasks"]["t1"]
     detail = tasks.project_task_detail(
         raw,
         payload["locale"],
-        tasks_by_id=payload["tasks"],
     )
     assert detail is not None
     assert detail["name"] == "首秀"
@@ -194,71 +263,13 @@ def test_project_detail_resolves_locale_and_prereq():
     assert detail["objectives"][1]["optional"] is True
     assert detail["objectives"][1]["count"] == 3
     assert detail["objectives"][1]["items"][0]["id"] == "item1"
-    assert detail["task_requirements"][0]["id"] == "t2"
-    assert detail["task_requirements"][0]["name"] == "验收"
     assert detail["trader_requirements"][0]["slug"] == "therapist"
     assert detail["trader_requirements"][0]["requirement_type"] == "level"
     assert detail["trader_requirements"][0]["value"] == 2
-    t2 = tasks.project_task_detail(
-        payload["tasks"]["t2"],
-        payload["locale"],
-        tasks_by_id=payload["tasks"],
-    )
-    assert t2 is not None
-    assert [r["id"] for r in t2["successor_tasks"]] == ["t1"]
-    assert t2["successor_tasks"][0]["name"] == "首秀"
     assert detail["finish_rewards"]["items"][0]["count"] == 2
     assert detail["finish_rewards"]["trader_standing"][0]["slug"] == "prapor"
     assert detail["needed_keys"][0]["map"]["name"] == "塔科夫街区"
     assert detail["objectives"][0]["required_keys"][0][0]["id"] == "key1"
-
-
-def test_neighborhood_two_hops_and_fork():
-    payload = {
-        "tasks": {
-            "a": {
-                "id": "a",
-                "name": "A",
-                "trader": PRAPOR,
-                "taskRequirements": [],
-            },
-            "b": {
-                "id": "b",
-                "name": "B",
-                "trader": PRAPOR,
-                "taskRequirements": [{"task": "a", "status": ["complete"]}],
-            },
-            "c": {
-                "id": "c",
-                "name": "C",
-                "trader": PRAPOR,
-                "taskRequirements": [{"task": "b", "status": ["complete"]}],
-            },
-            "d": {
-                "id": "d",
-                "name": "D",
-                "trader": PRAPOR,
-                "taskRequirements": [{"task": "c", "status": ["complete"]}],
-            },
-            "fork": {
-                "id": "fork",
-                "name": "Fork",
-                "trader": PRAPOR,
-                "taskRequirements": [{"task": "c", "status": ["complete"]}],
-            },
-        },
-        "locale": {"b name": "中段"},
-    }
-    nb = tasks.build_task_neighborhood("b", payload["tasks"], payload["locale"], hops=2)
-    hops = {node["id"]: node["hop"] for node in nb["nodes"]}
-    assert hops == {"a": -1, "b": 0, "c": 1, "d": 2, "fork": 2}
-    names = {node["id"]: node["name"] for node in nb["nodes"]}
-    assert names["b"] == "中段"
-    edges = {(row["source_id"], row["target_id"]) for row in nb["edges"]}
-    assert edges == {("a", "b"), ("b", "c"), ("c", "d"), ("c", "fork")}
-
-    near = tasks.build_task_neighborhood("b", payload["tasks"], payload["locale"], hops=1)
-    assert {node["id"] for node in near["nodes"]} == {"a", "b", "c"}
 
 
 def test_required_keys_or_groups_and_fallback_needed_keys():
@@ -401,114 +412,14 @@ def test_unique_traders_keeps_home_order():
     assert [t["slug"] for t in traders] == ["prapor", "therapist"]
 
 
-def test_classify_complete_available_locked_failed():
-    rows = tasks.parse_task_rows(_envelope())
-    by_id = {r["id"]: r for r in rows}
-    progress = {
-        "player_level": 40,
-        "pmc_faction": "BEAR",
-        "tasks": {
-            "t2": {"complete": True, "failed": False, "invalid": False},
-        },
-    }
-    assert tasks.classify_task_progress(by_id["t3"], progress) == "available"
-    assert tasks.classify_task_progress(by_id["t1"], progress) == "available"
-    assert tasks.classify_task_progress(by_id["t2"], progress) == "complete"
-    locked = tasks.classify_task_progress(
-        by_id["t1"],
-        {"player_level": 40, "pmc_faction": "BEAR", "tasks": {}},
-    )
-    assert locked == "locked"
-    assert (
-        tasks.classify_task_progress(
-            by_id["t2"],
-            {"player_level": 3, "pmc_faction": "BEAR", "tasks": {}},
-        )
-        == "locked"
-    )
-    assert (
-        tasks.classify_task_progress(
-            by_id["t1"],
-            {
-                "player_level": 40,
-                "pmc_faction": "BEAR",
-                "tasks": {"t1": {"complete": True, "failed": False, "invalid": False}},
-            },
-        )
-        == "complete"
-    )
-    assert (
-        tasks.classify_task_progress(
-            by_id["t1"],
-            {
-                "player_level": 40,
-                "pmc_faction": "BEAR",
-                "tasks": {"t1": {"complete": False, "failed": True, "invalid": False}},
-            },
-        )
-        == "failed"
-    )
-
-
-def test_filter_progress_status():
-    rows = tasks.parse_task_rows(_envelope())
-    annotated = tasks.annotate_task_progress(
-        rows,
-        {
-            "player_level": 40,
-            "pmc_faction": "BEAR",
-            "tasks": {"t2": {"complete": True, "failed": False, "invalid": False}},
-        },
-    )
-    available = tasks.filter_task_rows(annotated, progress_status="available")
-    assert {r["id"] for r in available} == {"t1", "t3"}
-    locked = tasks.filter_task_rows(
-        tasks.annotate_task_progress(
-            rows, {"player_level": 40, "pmc_faction": "BEAR", "tasks": {}}
-        ),
-        progress_status="locked",
-    )
-    assert {r["id"] for r in locked} == {"t1"}
-
-
-def test_sort_task_rows_progress_order():
+def test_sort_task_rows_trader_then_level():
     rows = [
-        {
-            "id": "failed",
-            "progress_status": "failed",
-            "trader_slug": "a",
-            "min_player_level": 1,
-            "name": "z",
-        },
-        {
-            "id": "complete",
-            "progress_status": "complete",
-            "trader_slug": "a",
-            "min_player_level": 1,
-            "name": "y",
-        },
-        {
-            "id": "locked",
-            "progress_status": "locked",
-            "trader_slug": "a",
-            "min_player_level": 1,
-            "name": "x",
-        },
-        {
-            "id": "available",
-            "progress_status": "available",
-            "trader_slug": "a",
-            "min_player_level": 1,
-            "name": "w",
-        },
+        {"id": "b", "trader_slug": "b", "min_player_level": 1, "name": "z"},
+        {"id": "a2", "trader_slug": "a", "min_player_level": 10, "name": "y"},
+        {"id": "a1", "trader_slug": "a", "min_player_level": 1, "name": "x"},
     ]
-    ordered = tasks.sort_task_rows(rows, by_progress=True)
-    assert [r["id"] for r in ordered] == [
-        "available",
-        "locked",
-        "complete",
-        "failed",
-    ]
+    ordered = tasks.sort_task_rows(rows)
+    assert [r["id"] for r in ordered] == ["a1", "a2", "b"]
 
 
 def test_normalize_objective_exit_exp_bonus_is_status_not_extract():
@@ -651,7 +562,6 @@ def test_project_zones_and_possible_locations():
             ],
         },
         {},
-        include_successors=False,
     )
     assert detail is not None
     zone = detail["objectives"][0]["zones"][0]
@@ -717,7 +627,6 @@ def test_project_zones_graphql_map_object():
             ],
         },
         {},
-        include_successors=False,
     )
     assert detail is not None
     assert detail["objectives"][0]["zone_names"] == ["Dorms"]
@@ -727,6 +636,54 @@ def test_project_zones_graphql_map_object():
     assert zone["x"] == 5
     assert tasks.task_hits_map(detail, "streets-of-tarkov") is True
     assert tasks.task_has_map_markers(detail, "streets") is True
+
+
+def test_project_zones_drops_duplicate_copies():
+    shoreline = "5704e554d2720bac5b8b456e"
+    truck = {
+        "id": "place_peacemaker_005_N1",
+        "map": shoreline,
+        "position": {"x": -234.48999, "y": -3.47, "z": -164.42},
+        "outline": [
+            {"x": -236.8, "y": -3.47, "z": -169.5},
+            {"x": -229.3, "y": -3.47, "z": -166.7},
+            {"x": -232.1, "y": -3.47, "z": -159.2},
+        ],
+    }
+    flyer_a = {
+        "id": "place_flyers1",
+        "map": CUSTOMS,
+        "position": {"x": 10.1, "z": 20.2},
+    }
+    flyer_b = {
+        "id": "place_flyers1",
+        "map": CUSTOMS,
+        "position": {"x": 80.0, "z": 90.0},
+    }
+    detail = tasks.project_task_detail(
+        {
+            "id": "t-dup",
+            "name": "Dup",
+            "trader": PRAPOR,
+            "objectives": [
+                {
+                    "id": "o-mark",
+                    "type": "mark",
+                    "zones": [truck, dict(truck)],
+                },
+                {
+                    "id": "o-fly",
+                    "type": "plantItem",
+                    "zones": [flyer_a, flyer_b],
+                },
+            ],
+        },
+        {},
+    )
+    assert detail is not None
+    assert len(detail["objectives"][0]["zones"]) == 1
+    assert detail["objectives"][0]["zones"][0]["id"] == "place_peacemaker_005_N1"
+    assert [z["x"] for z in detail["objectives"][1]["zones"]] == [10.1, 80.0]
 
 
 def test_collect_raid_prep_includes_zone_only_task():
@@ -807,7 +764,6 @@ def test_crop_raid_prep_detail_drops_other_map_zones():
             ],
         },
         {},
-        include_successors=False,
     )
     assert detail is not None
     cropped = tasks.crop_raid_prep_detail_for_map(detail, "streets")

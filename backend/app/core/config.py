@@ -87,24 +87,24 @@ class Settings(BaseSettings):
     GAME_SCHEDULE_SYNC_ENABLED: bool = True
     GAME_SCHEDULE_SYNC_HOUR: int = 5
     GAME_SCHEDULE_SYNC_MINUTE: int = 0
-    # 逃离塔科夫物品（弹药+枪械，默认 04:30）
-    TARKOV_ITEMS_SYNC_ENABLED: bool = True
+    # 逃离塔科夫全量（物品+任务+商人+BOSS+藏身处+门锁缓存，默认 04:25）
+    TARKOV_FULL_SYNC_ENABLED: bool = True
+    TARKOV_FULL_SYNC_HOUR: int = 4
+    TARKOV_FULL_SYNC_MINUTE: int = 25
+    # 分项定时默认关，避免与全量重复拉上游；接口仍可单独回源
+    TARKOV_ITEMS_SYNC_ENABLED: bool = False
     TARKOV_ITEMS_SYNC_HOUR: int = 4
     TARKOV_ITEMS_SYNC_MINUTE: int = 30
-    # 逃离塔科夫任务（默认 04:35，错开物品同步）
-    TARKOV_TASKS_SYNC_ENABLED: bool = True
+    TARKOV_TASKS_SYNC_ENABLED: bool = False
     TARKOV_TASKS_SYNC_HOUR: int = 4
     TARKOV_TASKS_SYNC_MINUTE: int = 35
-    # 逃离塔科夫商人（默认 04:40，错开任务同步）
-    TARKOV_TRADERS_SYNC_ENABLED: bool = True
+    TARKOV_TRADERS_SYNC_ENABLED: bool = False
     TARKOV_TRADERS_SYNC_HOUR: int = 4
     TARKOV_TRADERS_SYNC_MINUTE: int = 40
-    # 逃离塔科夫 BOSS（默认 04:45，错开商人同步）
-    TARKOV_BOSSES_SYNC_ENABLED: bool = True
+    TARKOV_BOSSES_SYNC_ENABLED: bool = False
     TARKOV_BOSSES_SYNC_HOUR: int = 4
     TARKOV_BOSSES_SYNC_MINUTE: int = 45
-    # 逃离塔科夫藏身处 / 以物易物 / 制作（默认 04:50）
-    TARKOV_GUIDES_SYNC_ENABLED: bool = True
+    TARKOV_GUIDES_SYNC_ENABLED: bool = False
     TARKOV_GUIDES_SYNC_HOUR: int = 4
     TARKOV_GUIDES_SYNC_MINUTE: int = 50
     # 兼容旧 .env；调度已合并为 TARKOV_ITEMS_*

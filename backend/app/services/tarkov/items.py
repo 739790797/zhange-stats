@@ -15,16 +15,15 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovAmmo, TarkovItemsMeta, TarkovItemsRaw
+from app.models.tarkov import TarkovAmmo
 from app.services.tarkov import ammo as ammo_svc
 from app.services.tarkov import guns as gun_svc
+from app.services.tarkov import upstream as upstream_svc
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
 from app.services.tarkov.game_mode import parse_game_mode, raw_row_id, run_for_modes
 
 logger = logging.getLogger(__name__)
 
-META_ROW_ID = 1
-RAW_ROW_ID = 1
 ITEMS_JOB_KEY = "tarkov_items_sync"
 
 # GraphQL split 信封标记（ammo/guns 各自一份 GraphQL 响应）
@@ -44,26 +43,42 @@ class ItemsUpstreamBundle:
     note: str
 
 
-def get_items_raw(db: Session) -> TarkovItemsRaw | None:
-    return (
-        db.query(TarkovItemsRaw)
-        .filter(TarkovItemsRaw.id == raw_row_id())
-        .one_or_none()
-    )
+def get_items_raw(db: Session):
+    return upstream_svc.load_raw_row(db, "items")
 
 
-def get_items_meta(db: Session) -> TarkovItemsMeta | None:
-    return (
-        db.query(TarkovItemsMeta)
-        .filter(TarkovItemsMeta.id == raw_row_id())
-        .one_or_none()
-    )
+def items_raw_header(db: Session) -> tuple[str | None, str | None, str | None]:
+    return upstream_svc.raw_row_header(get_items_raw(db))
+
+
+def _items_parse_payload(source: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """dump 文件或域信封 → parse 用的 {items, locale} / GraphQL split。"""
+    if payload.get("format") == GRAPHQL_SPLIT_FORMAT:
+        return payload
+    if isinstance(payload.get("items"), dict):
+        return payload
+    src = (source or "").strip()
+    if src == SOURCE_JSON_API or isinstance(payload.get("data"), dict):
+        locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
+        return {"items": payload, "locale": locale}
+    return payload
+
+
+def _items_store_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """主文件只落 dump / GraphQL split，locale 另写 lang=zh。"""
+    if payload.get("format") == GRAPHQL_SPLIT_FORMAT:
+        return payload
+    nested = payload.get("items")
+    if isinstance(nested, dict):
+        return nested
+    return {k: v for k, v in payload.items() if k != "locale"}
 
 
 def parse_items_payload(
     source: str, payload: dict[str, Any]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """从共享 raw 解析弹药行与枪械行。"""
+    payload = _items_parse_payload(source, payload)
     src = (source or "").strip()
     if src == SOURCE_GRAPHQL and payload.get("format") == GRAPHQL_SPLIT_FORMAT:
         ammo_payload = payload.get("ammo")
@@ -97,86 +112,19 @@ def parse_items_payload(
     raise TarkovItemsError(f"未知物品 raw 来源: {src or '—'}")
 
 
-def download_graphql_items(*, lang: str = "zh") -> ItemsUpstreamBundle:
-    """分别拉 GraphQL ammo + guns，合成一份 split 信封（仍算一次同步任务）。"""
-    try:
-        ammo_bundle = ammo_svc.download_graphql_ammo(lang=lang)
-        guns_bundle = gun_svc.download_graphql_guns(lang=lang)
-    except ammo_svc.TarkovAmmoError as exc:
-        raise TarkovItemsError(f"graphql ammo: {exc}") from exc
-    except gun_svc.TarkovGunError as exc:
-        raise TarkovItemsError(f"graphql guns: {exc}") from exc
-
-    return ItemsUpstreamBundle(
-        source=SOURCE_GRAPHQL,
-        payload={
-            "format": GRAPHQL_SPLIT_FORMAT,
-            "ammo": ammo_bundle.payload,
-            "guns": guns_bundle.payload,
-        },
-        note="api.tarkov.dev GraphQL ammo + items(type:gun)",
-    )
-
-
 def download_json_api_items(*, lang: str = "zh") -> ItemsUpstreamBundle:
-    """json.tarkov.dev/regular/items 一次下载，弹药与枪械共用。"""
+    """json.tarkov.dev items dump + locale，弹药与枪械共用。"""
+    from app.services.tarkov.game_mode import json_api_prefix
+
     try:
-        # 复用弹药下载（信封与枪械侧一致）
         bundle = ammo_svc.download_json_api_ammo(lang=lang)
     except ammo_svc.TarkovAmmoError as exc:
         raise TarkovItemsError(str(exc)) from exc
     return ItemsUpstreamBundle(
         source=SOURCE_JSON_API,
         payload=bundle.payload,
-        note="json.tarkov.dev/regular/items",
+        note=f"json.tarkov.dev/{json_api_prefix()}/items",
     )
-
-
-def _upsert_items_raw(
-    db: Session,
-    *,
-    source: str,
-    payload: dict[str, Any],
-    note: str,
-    synced_at,
-) -> None:
-    raw_json = json.dumps(payload, ensure_ascii=False)
-    row = get_items_raw(db)
-    if row is None:
-        db.add(
-            TarkovItemsRaw(
-                id=raw_row_id(),
-                source=source,
-                raw_json=raw_json,
-                synced_at=synced_at,
-                note=note,
-            )
-        )
-    else:
-        row.source = source
-        row.raw_json = raw_json
-        row.synced_at = synced_at
-        row.note = note
-
-
-def _upsert_items_meta(
-    db: Session,
-    *,
-    source: str,
-    ammo_count: int,
-    gun_count: int,
-    note: str,
-    synced_at,
-) -> None:
-    meta = get_items_meta(db)
-    if meta is None:
-        meta = TarkovItemsMeta(id=raw_row_id())
-        db.add(meta)
-    meta.source = source
-    meta.ammo_count = ammo_count
-    meta.gun_count = gun_count
-    meta.synced_at = synced_at
-    meta.note = note
 
 
 def persist_items_bundle(db: Session, bundle: ItemsUpstreamBundle) -> dict[str, Any]:
@@ -187,12 +135,21 @@ def persist_items_bundle(db: Session, bundle: ItemsUpstreamBundle) -> dict[str, 
         raise TarkovItemsError("未解析到枪械数据")
 
     now = now_naive()
-    _upsert_items_raw(
+    parse_payload = _items_parse_payload(bundle.source, bundle.payload)
+    upstream_svc.persist_raw(
         db,
+        "items",
+        _items_store_payload(bundle.payload),
         source=bundle.source,
-        payload=bundle.payload,
         note=bundle.note,
-        synced_at=now,
+        commit=False,
+    )
+    upstream_svc.persist_locale_if_present(
+        db,
+        "items",
+        parse_payload,
+        source=bundle.source,
+        note=bundle.note,
     )
     ammo_svc.replace_derived_ammo_rows(
         db,
@@ -205,14 +162,6 @@ def persist_items_bundle(db: Session, bundle: ItemsUpstreamBundle) -> dict[str, 
         db,
         gun_rows,
         source=bundle.source,
-        note=bundle.note,
-        synced_at=now,
-    )
-    _upsert_items_meta(
-        db,
-        source=bundle.source,
-        ammo_count=len(ammo_rows),
-        gun_count=len(gun_rows),
         note=bundle.note,
         synced_at=now,
     )
@@ -232,43 +181,32 @@ def persist_items_bundle(db: Session, bundle: ItemsUpstreamBundle) -> dict[str, 
 
 
 def rebuild_from_raw(db: Session) -> dict[str, Any]:
-    row = get_items_raw(db)
-    if row is None:
-        raise TarkovItemsError("无物品 raw，无法重算")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovItemsError("物品 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovItemsError("物品 raw_json 格式无效")
-
-    ammo_rows, gun_rows = parse_items_payload(row.source, payload)
+    source, payload, _synced, note = upstream_svc.load_main_payload(
+        db,
+        "items",
+        error_cls=TarkovItemsError,
+        missing="无物品 raw，无法重算",
+        invalid="物品 raw_json 无效",
+    )
+    ammo_rows, gun_rows = parse_items_payload(source, payload)
     if not ammo_rows:
         raise TarkovItemsError("未解析到弹药数据")
     if not gun_rows:
         raise TarkovItemsError("未解析到枪械数据")
 
     now = now_naive()
-    note = row.note or f"rebuild from raw ({row.source})"
+    note = note or f"rebuild from raw ({source})"
     ammo_svc.replace_derived_ammo_rows(
         db,
         ammo_rows,
-        source=row.source,
+        source=source,
         note=note,
         synced_at=now,
     )
     gun_svc.replace_derived_gun_rows(
         db,
         gun_rows,
-        source=row.source,
-        note=note,
-        synced_at=now,
-    )
-    _upsert_items_meta(
-        db,
-        source=row.source,
-        ammo_count=len(ammo_rows),
-        gun_count=len(gun_rows),
+        source=source,
         note=note,
         synced_at=now,
     )
@@ -276,35 +214,14 @@ def rebuild_from_raw(db: Session) -> dict[str, Any]:
     return {
         "ammo_count": len(ammo_rows),
         "gun_count": len(gun_rows),
-        "source": row.source,
+        "source": source,
         "synced_at": now.isoformat() if now else None,
     }
 
 
 def _sync_current_mode(db: Session) -> dict[str, Any]:
-    """当前模式下：优先 GraphQL split，失败回退 json.tarkov.dev 整包 items。"""
-    mode = parse_game_mode()
-    logger.info("syncing tarkov items from upstream (%s)", mode)
-    errors: list[str] = []
-
-    try:
-        return persist_items_bundle(db, download_graphql_items(lang="zh"))
-    except TarkovItemsError as exc:
-        errors.append(f"graphql: {exc}")
-        logger.warning("tarkov.dev GraphQL items sync failed (%s): %s", mode, exc)
-
-    try:
-        bundle = download_json_api_items(lang="zh")
-        note = bundle.note
-        if errors:
-            note = f"{note} (fallback; {errors[0][:160]})"
-        return persist_items_bundle(
-            db,
-            ItemsUpstreamBundle(source=bundle.source, payload=bundle.payload, note=note),
-        )
-    except TarkovItemsError as exc:
-        detail = "；".join(errors) if errors else str(exc)
-        raise TarkovItemsError(f"物品同步失败：{detail}；json 亦失败: {exc}") from None
+    logger.info("syncing tarkov items from upstream (%s)", parse_game_mode())
+    return persist_items_bundle(db, download_json_api_items(lang="zh"))
 
 
 def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
@@ -331,7 +248,10 @@ def ensure_items(db: Session) -> None:
     if not need_ammo:
         with_icon = (
             db.query(TarkovAmmo)
-            .filter(TarkovAmmo.icon_link != "")
+            .filter(
+                TarkovAmmo.mode_id == raw_row_id(),
+                TarkovAmmo.icon_link != "",
+            )
             .count()
         )
         icons_missing = with_icon == 0
@@ -357,26 +277,26 @@ def get_ammo_item_detail(db: Session, item_id: str) -> dict[str, Any]:
     ensure_items(db)
     if (
         db.query(TarkovAmmo.item_id)
-        .filter(TarkovAmmo.item_id == item_id)
+        .filter(
+            TarkovAmmo.mode_id == raw_row_id(),
+            TarkovAmmo.item_id == item_id,
+        )
         .one_or_none()
         is None
     ):
         raise TarkovItemsError(f"未找到弹药: {item_id}")
 
-    row = get_items_raw(db)
-    if row is None:
-        raise TarkovItemsError("无物品 raw")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovItemsError("物品 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovItemsError("物品 raw_json 格式无效")
-
-    detail = _extract_ammo_item_detail(row.source, payload, item_id)
+    source, payload, _synced, _note = upstream_svc.load_main_payload(
+        db,
+        "items",
+        error_cls=TarkovItemsError,
+        missing="无物品 raw",
+        invalid="物品 raw_json 无效",
+    )
+    detail = _extract_ammo_item_detail(source, payload, item_id)
     if detail is None:
         raise TarkovItemsError(f"未找到弹药: {item_id}")
-    detail["source"] = row.source
+    detail["source"] = source
     return detail
 
 
@@ -393,7 +313,11 @@ def _locale_map(payload: dict[str, Any]) -> dict[str, Any]:
 def _json_items_map(payload: dict[str, Any]) -> dict[str, Any]:
     items_blob = payload.get("items")
     if not isinstance(items_blob, dict):
-        return {}
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else None
+        if not isinstance(data, dict):
+            return {}
+        items = data.get("items") if isinstance(data.get("items"), dict) else data
+        return items if isinstance(items, dict) else {}
     data = items_blob.get("data") if isinstance(items_blob.get("data"), dict) else items_blob
     if not isinstance(data, dict):
         return {}

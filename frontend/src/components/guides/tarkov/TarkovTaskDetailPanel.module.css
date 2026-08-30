@@ -62,6 +62,15 @@
   color: var(--hb-orange, #c8932a);
 }
 
+.hintLink {
+  color: var(--hb-orange, #c8932a);
+  text-decoration: none;
+}
+
+.hintLink:hover {
+  text-decoration: underline;
+}
+
 .toolbar {
   display: flex;
   justify-content: flex-end;

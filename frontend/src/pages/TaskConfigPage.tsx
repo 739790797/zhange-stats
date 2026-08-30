@@ -14,14 +14,17 @@ import {
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import {
+  fetchJobRuns,
   fetchPlatformFeaturesAdmin,
   triggerScheduledJob,
   updatePlatformFeatures,
   type PlatformFeatureNode,
 } from "@/api/client";
+import { JobRunResultModal } from "@/components/JobRunResultModal";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { featureIconName } from "@/lib/platformIcons";
+import type { JobRunWatch } from "@/lib/jobRunResult";
 
 type DraftFlags = Record<string, boolean>;
 type DraftJobs = Record<
@@ -81,7 +84,7 @@ function FeatureRow({
   triggeringJobId: string | null;
   onToggle: (id: string, enabled: boolean) => void;
   onJobPatch: (jobId: string, patch: DraftJobs[string]) => void;
-  onManualRun: (jobId: string) => void;
+  onManualRun: (jobId: string, jobName: string) => void;
 }) {
   const enabled = flags[node.id] === true;
   const parentOk = node.parent_effective;
@@ -208,7 +211,7 @@ function FeatureRow({
               size="small"
               icon={<PlayCircleOutlined />}
               loading={triggeringJobId === node.job_id}
-              onClick={() => onManualRun(node.job_id!)}
+              onClick={() => onManualRun(node.job_id!, node.name)}
             >
               手动同步
             </Button>
@@ -247,6 +250,7 @@ export default function TaskConfigPage() {
     jobs: DraftJobs;
   } | null>(null);
   const [triggeringJobId, setTriggeringJobId] = useState<string | null>(null);
+  const [runWatch, setRunWatch] = useState<JobRunWatch | null>(null);
 
   const query = useQuery({
     queryKey: ["platform-features-admin"],
@@ -285,12 +289,34 @@ export default function TaskConfigPage() {
   });
 
   const manualRun = useMutation({
-    mutationFn: (jobId: string) => triggerScheduledJob(jobId, {}),
-    onMutate: (jobId) => {
+    mutationFn: async ({
+      jobId,
+      jobName,
+    }: {
+      jobId: string;
+      jobName: string;
+    }) => {
+      let sinceRunId = 0;
+      try {
+        const page = await fetchJobRuns(jobId, { page: 1, page_size: 1 });
+        sinceRunId = page.items?.[0]?.id ?? 0;
+      } catch {
+        sinceRunId = 0;
+      }
+      const data = await triggerScheduledJob(jobId, {});
+      return { data, jobId, jobName, sinceRunId };
+    },
+    onMutate: ({ jobId }) => {
       setTriggeringJobId(jobId);
     },
-    onSuccess: (data) => {
-      message.success(data.message || "已提交同步");
+    onSuccess: ({ data, jobId, jobName, sinceRunId }) => {
+      setRunWatch({
+        jobId,
+        jobName,
+        sinceRunId,
+        acceptedAt: Date.now(),
+        acceptedMessage: data.message || "已提交执行",
+      });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-ammo"] });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-guns"] });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-bosses"] });
@@ -379,11 +405,15 @@ export default function TaskConfigPage() {
                   },
                 })
               }
-              onManualRun={(jobId) => manualRun.mutate(jobId)}
+              onManualRun={(jobId, jobName) =>
+                manualRun.mutate({ jobId, jobName })
+              }
             />
           ))}
         </div>
       )}
+
+      <JobRunResultModal watch={runWatch} onClose={() => setRunWatch(null)} />
     </div>
   );
 }

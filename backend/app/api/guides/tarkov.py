@@ -16,6 +16,7 @@ from app.api.guides.schemas import (
     TarkovGunSyncOut,
     TarkovItemDetailOut,
     TarkovItemsSyncOut,
+    TarkovFullSyncOut,
     TarkovTaskCatalogOut,
     TarkovTaskDetailOut,
     TarkovTasksSyncOut,
@@ -27,8 +28,6 @@ from app.api.guides.schemas import (
     TarkovTraderDetailOut,
     TarkovTradersSyncOut,
     TarkovSiteSearchOut,
-    TarkovTrackerBindIn,
-    TarkovTrackerStatusOut,
     TarkovMapCatalogOut,
     TarkovMapDetailOut,
     TarkovHideoutCatalogOut,
@@ -37,6 +36,13 @@ from app.api.guides.schemas import (
     TarkovCraftCatalogOut,
     TarkovGuidesSyncOut,
     TarkovLootTierCatalogOut,
+    TarkovKeyPacksOut,
+    TarkovKeyOwnsIn,
+    TarkovKeyOwnsOut,
+    TarkovTaskDonesIn,
+    TarkovTaskDonesOut,
+    TarkovRaidLogsIn,
+    TarkovRaidLogsImportOut,
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
@@ -48,11 +54,15 @@ from app.services.tarkov import catalog as catalog_svc
 from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import guns as gun_svc
 from app.services.tarkov import items as items_svc
+from app.services.tarkov import key_owns as key_owns_svc
+from app.services.tarkov import key_packs as key_packs_svc
+from app.services.tarkov import task_dones as task_dones_svc
+from app.services.tarkov import raid_logs as raid_logs_svc
 from app.services.tarkov import maps as maps_svc
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import search as search_svc
-from app.services.tarkov import tracker as tracker_svc
+from app.services.tarkov import sync as full_sync_svc
 from app.services.tarkov.game_mode import (
     parse_game_mode,
     reset_game_mode,
@@ -105,6 +115,23 @@ def _sync_items(db: Session) -> dict:
         return items_svc.sync_from_upstream(db)
     except items_svc.TarkovItemsError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post(
+    "/sync",
+    response_model=TarkovFullSyncOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_full_sync(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，落本地后再投影现有栏目。"""
+    try:
+        result = full_sync_svc.sync_all_from_upstream(db)
+    except full_sync_svc.TarkovFullSyncError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovFullSyncOut.model_validate(result)
 
 
 @router.post(
@@ -232,6 +259,7 @@ def guides_tarkov_ammo(
         ammo_svc.ensure_ammo(db)
     except ammo_svc.TarkovAmmoError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    packs = catalog_svc.list_ammo_pack_index(db)
     items = [
         TarkovAmmoItemOut(
             id=row.item_id,
@@ -248,16 +276,18 @@ def guides_tarkov_ammo(
             light_bleed_modifier=row.light_bleed_modifier,
             heavy_bleed_modifier=row.heavy_bleed_modifier,
             icon_link=row.icon_link,
+            pack_icon_link=str((packs.get(row.item_id) or {}).get("pack_icon_link") or ""),
+            pack_item_id=str((packs.get(row.item_id) or {}).get("pack_item_id") or ""),
         )
         for row in ammo_svc.list_ammo(db)
     ]
-    meta = ammo_svc.get_ammo_meta(db)
+    source, synced_at, note = items_svc.items_raw_header(db)
     return TarkovAmmoCatalogOut(
         items=items,
         ammo_count=len(items),
-        source=meta.source if meta else None,
-        synced_at=meta.synced_at.isoformat() if meta and meta.synced_at else None,
-        note=meta.note if meta else None,
+        source=source,
+        synced_at=synced_at,
+        note=note,
     )
 
 
@@ -349,13 +379,13 @@ def guides_tarkov_guns(
         )
         for row in gun_svc.list_guns(db)
     ]
-    meta = gun_svc.get_gun_meta(db)
+    source, synced_at, note = items_svc.items_raw_header(db)
     return TarkovGunCatalogOut(
         items=items,
         gun_count=len(items),
-        source=meta.source if meta else None,
-        synced_at=meta.synced_at.isoformat() if meta and meta.synced_at else None,
-        note=meta.note if meta else None,
+        source=source,
+        synced_at=synced_at,
+        note=note,
     )
 
 
@@ -395,7 +425,7 @@ def guides_tarkov_tasks_sync(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """管理员：回源同步任务（GraphQL 优先，失败回退 json.tarkov.dev）。"""
+    """管理员：回源同步任务（api.tarkov.dev 优先，失败回退 json.tarkov.dev）。"""
     result = _sync_tasks(db)
     return TarkovTasksSyncOut(
         task_count=int(result.get("task_count") or 0),
@@ -414,32 +444,22 @@ def guides_tarkov_task_catalog(
     q: str | None = Query(default=None, max_length=80),
     trader: str | None = Query(default=None, max_length=64),
     map_slug: str | None = Query(default=None, max_length=64, alias="map"),
-    kappa: bool | None = Query(default=None),
-    progress: bool = Query(default=False),
-    progress_status: str | None = Query(default=None, max_length=16),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     layout: str | None = Query(default="table", max_length=16),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。"""
-    bound, snap = False, None
-    if progress or (progress_status or "").strip():
-        bound, snap = tracker_svc.user_progress_snapshot(db, user)
+    """任务目录：商人 / 地图 / 关键词过滤。layout=all 时不分页，返回筛选后的全量。"""
     try:
         result = tasks_svc.list_tasks(
             db,
             trader=trader,
             map_slug=map_slug,
-            kappa=kappa,
             q=q,
             page=page,
             page_size=page_size,
             layout=layout,
-            progress=snap if progress else None,
-            progress_status=progress_status if progress and snap else None,
-            progress_bound=bound if progress else False,
         )
     except tasks_svc.TarkovTasksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -455,20 +475,13 @@ def guides_tarkov_raid_prep(
     map_slug: str = Query(..., alias="map", max_length=64),
     q: str | None = Query(default=None, max_length=80),
     trader: str | None = Query(default=None, max_length=64),
-    kappa: bool | None = Query(default=None),
     types: str | None = Query(default=None, max_length=200),
-    progress: bool = Query(default=False),
-    progress_status: str | None = Query(default=None, max_length=16),
     geometry: bool = Query(default=False),
     ids: str | None = Query(default=None, max_length=1200),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。"""
-    want_progress = bool(progress) or bool((progress_status or "").strip())
-    bound, snap = False, None
-    if want_progress:
-        bound, snap = tracker_svc.user_progress_snapshot(db, user)
     type_list = _parse_csv_ids(types)
     id_list = _parse_csv_ids(ids)[:40]
     try:
@@ -476,12 +489,8 @@ def guides_tarkov_raid_prep(
             db,
             map_slug,
             trader=trader,
-            kappa=kappa,
             q=q,
             types=type_list or None,
-            progress=snap if want_progress else None,
-            progress_status=progress_status if want_progress and snap else None,
-            progress_bound=bound if want_progress else False,
             geometry=bool(geometry),
             task_ids=id_list or None,
         )
@@ -500,21 +509,12 @@ def guides_tarkov_raid_prep(
 )
 def guides_tarkov_task_detail(
     task_id: str,
-    progress: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """任务详情：目标、前置、奖励（投影，不含多边形）。"""
-    bound, snap = False, None
-    if progress:
-        bound, snap = tracker_svc.user_progress_snapshot(db, user)
+    """任务详情：目标、奖励（投影，不含多边形）。"""
     try:
-        detail = tasks_svc.get_task_detail(
-            db,
-            task_id,
-            progress=snap if progress else None,
-            progress_bound=bound if progress else False,
-        )
+        detail = tasks_svc.get_task_detail(db, task_id)
     except tasks_svc.TarkovTasksError as exc:
         msg = str(exc)
         if msg.startswith("未找到任务") or msg.startswith("任务 id"):
@@ -840,66 +840,180 @@ def guides_tarkov_loot_tiers(
     return TarkovLootTierCatalogOut.model_validate(result)
 
 
-def _tracker_http_error(exc: tracker_svc.TarkovTrackerError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail=exc.message)
+@router.get(
+    "/key-packs",
+    response_model=TarkovKeyPacksOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_key_packs(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """钥匙分类速查：门锁 / 入场钥按地图分包。"""
+    _ = user
+    try:
+        result = key_packs_svc.list_key_packs(db)
+    except key_packs_svc.TarkovKeyPacksError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TarkovKeyPacksOut.model_validate(result)
+
+
+def _key_owns_error(exc: key_owns_svc.TarkovKeyOwnsError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
 @router.get(
-    "/progress",
-    response_model=TarkovTrackerStatusOut,
+    "/key-owns",
+    response_model=TarkovKeyOwnsOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-def guides_tarkov_progress_status(
+def guides_tarkov_key_owns_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """当前用户 Tarkov Tracker 绑定摘要（不回传明文 token）。"""
-    return TarkovTrackerStatusOut.model_validate(tracker_svc.get_status(db, user))
+    """当前用户仓库里勾选的钥匙。"""
+    return TarkovKeyOwnsOut(item_ids=key_owns_svc.list_item_ids(db, user.id))
 
 
 @router.put(
-    "/progress/tracker-token",
-    response_model=TarkovTrackerStatusOut,
+    "/key-owns",
+    response_model=TarkovKeyOwnsOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-def guides_tarkov_progress_bind(
-    payload: TarkovTrackerBindIn,
+def guides_tarkov_key_owns_merge(
+    body: TarkovKeyOwnsIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """绑定 Tarkov Tracker token 并立刻拉取等级 / 进度摘要。"""
+    """合并写入一批「我有」（本机勾选迁到账号）。"""
+    ids = key_owns_svc.merge_owns(db, user, body.item_ids)
+    db.commit()
+    return TarkovKeyOwnsOut(item_ids=ids)
+
+
+@router.put(
+    "/key-owns/{item_id}",
+    response_model=TarkovKeyOwnsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_key_owns_add(
+    item_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     try:
-        result = tracker_svc.bind_token(db, user, payload.token)
-    except tracker_svc.TarkovTrackerError as exc:
-        raise _tracker_http_error(exc) from exc
-    return TarkovTrackerStatusOut.model_validate(result)
+        ids, _added = key_owns_svc.add_own(db, user, item_id)
+    except key_owns_svc.TarkovKeyOwnsError as exc:
+        raise _key_owns_error(exc) from exc
+    db.commit()
+    return TarkovKeyOwnsOut(item_ids=ids)
 
 
 @router.delete(
-    "/progress/tracker-token",
-    response_model=TarkovTrackerStatusOut,
+    "/key-owns/{item_id}",
+    response_model=TarkovKeyOwnsOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-def guides_tarkov_progress_unbind(
+def guides_tarkov_key_owns_remove(
+    item_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """解绑 Tarkov Tracker token。"""
-    return TarkovTrackerStatusOut.model_validate(tracker_svc.unbind_token(db, user))
+    try:
+        ids, _removed = key_owns_svc.remove_own(db, user, item_id)
+    except key_owns_svc.TarkovKeyOwnsError as exc:
+        raise _key_owns_error(exc) from exc
+    db.commit()
+    return TarkovKeyOwnsOut(item_ids=ids)
+
+
+def _task_dones_error(exc: task_dones_svc.TarkovTaskDonesError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/task-dones",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_list(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """当前模式已勾选完成的任务。"""
+    return TarkovTaskDonesOut(task_ids=task_dones_svc.list_task_ids(db, user.id))
+
+
+@router.put(
+    "/task-dones",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_write(
+    body: TarkovTaskDonesIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """合并或整表替换当前模式的已完成集合。"""
+    if body.replace:
+        ids = task_dones_svc.replace_dones(db, user, body.task_ids)
+    else:
+        ids = task_dones_svc.merge_dones(db, user, body.task_ids)
+    db.commit()
+    return TarkovTaskDonesOut(task_ids=ids)
+
+
+@router.put(
+    "/task-dones/{task_id}",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_add(
+    task_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        ids, _added = task_dones_svc.add_done(db, user, task_id)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return TarkovTaskDonesOut(task_ids=ids)
+
+
+@router.delete(
+    "/task-dones/{task_id}",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_remove(
+    task_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        ids, _removed = task_dones_svc.remove_done(db, user, task_id)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return TarkovTaskDonesOut(task_ids=ids)
 
 
 @router.post(
-    "/progress/sync",
-    response_model=TarkovTrackerStatusOut,
+    "/raid-logs",
+    response_model=TarkovRaidLogsImportOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-def guides_tarkov_progress_sync(
+def guides_tarkov_raid_logs_import(
+    body: TarkovRaidLogsIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """已绑定：从 Tarkov Tracker 再拉一次进度摘要。"""
-    try:
-        result = tracker_svc.sync_progress(db, user)
-    except tracker_svc.TarkovTrackerError as exc:
-        raise _tracker_http_error(exc) from exc
-    return TarkovTrackerStatusOut.model_validate(result)
+    """本机解析后的战局摘要落库；不接收日志原文。"""
+    result = raid_logs_svc.upsert_raids(
+        db,
+        user,
+        [item.model_dump() for item in body.raids],
+    )
+    db.commit()
+    return TarkovRaidLogsImportOut.model_validate(result)

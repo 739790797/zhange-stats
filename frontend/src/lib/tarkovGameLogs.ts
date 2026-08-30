@@ -1,0 +1,974 @@
+import { MAPS_HREF, TARKOV_MAPS, tarkovMapHref } from "@/lib/tarkovHomeNav";
+
+/** 日志 Location / nameId / 场景包名 → 本站地图 id。 */
+const LOCATION_TO_MAP: Record<string, string> = {
+  factory: "factory",
+  factory4_day: "factory",
+  "factory4_day_preset": "factory",
+  factory4_night: "night-factory",
+  "factory (night)": "night-factory",
+  bigmap: "customs",
+  customs: "customs",
+  woods: "woods",
+  shoreline: "shoreline",
+  interchange: "interchange",
+  rezervbase: "reserve",
+  reserve: "reserve",
+  laboratory: "lab",
+  lab: "lab",
+  "the lab": "lab",
+  lighthouse: "lighthouse",
+  tarkovstreets: "streets",
+  streets: "streets",
+  "streets of tarkov": "streets",
+  sandbox: "ground-zero",
+  sandbox_high: "ground-zero",
+  "ground zero": "ground-zero",
+  labyrinth: "labyrinth",
+  "the labyrinth": "labyrinth",
+  terminal: "terminal",
+  icebreaker: "icebreaker",
+};
+
+const SCENE_TO_MAP: Record<string, string> = {
+  factory4_day: "factory",
+  factory4_night: "night-factory",
+  bigmap: "customs",
+  woods: "woods",
+  shoreline: "shoreline",
+  interchange: "interchange",
+  rezervbase: "reserve",
+  laboratory: "lab",
+  lighthouse: "lighthouse",
+  tarkovstreets: "streets",
+  sandbox: "ground-zero",
+  sandbox_high: "ground-zero",
+  labyrinth: "labyrinth",
+  terminal: "terminal",
+  icebreaker: "icebreaker",
+};
+
+const TS_RE =
+  /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(?:\s*[+-]\d{2}:\d{2})?\|/;
+const FOLDER_TS_RE =
+  /(?:^|log_)(\d{4})\.(\d{2})\.(\d{2})_(\d{1,2})-(\d{2})-(\d{2})/i;
+const LOCATION_RE = /Location:\s*([^,]+)/i;
+const SHORT_ID_RE = /shortId:\s*([A-Z0-9]{6})/;
+const RAID_MODE_RE = /RaidMode:\s*(\w+)/i;
+const SCENE_RE = /scene preset path:\s*(maps\/[a-zA-Z0-9_]+\.bundle)/i;
+const SESSION_MODE_RE = /Session mode:\s*([^\s|]+)/i;
+
+export const TARKOV_GAME_LOG_MAX_FILE_BYTES = 32 * 1024 * 1024;
+
+export const TARKOV_GAME_LOG_SCAN_LIMITS = [40, 120, 0] as const;
+
+export type TarkovGameLogScanLimit = (typeof TARKOV_GAME_LOG_SCAN_LIMITS)[number];
+
+export type TarkovLogEventKind =
+  | "session_mode"
+  | "map_loading"
+  | "matching"
+  | "match_found"
+  | "raid_starting"
+  | "raid_started"
+  | "matching_aborted"
+  | "raid_exited";
+
+export type TarkovLogRaidMode = "online" | "offline" | "unknown";
+
+export type TarkovLogEvent = {
+  kind: TarkovLogEventKind;
+  at: string;
+  mapId?: string;
+  mapLabel?: string;
+  location?: string;
+  raidId?: string;
+  raidMode?: TarkovLogRaidMode;
+  sessionMode?: string;
+};
+
+export type TarkovLogRaid = {
+  raidId: string;
+  location: string;
+  mapId: string;
+  mapLabel: string;
+  raidMode: TarkovLogRaidMode;
+  startedAt?: string;
+  endedAt?: string;
+  reconnected?: boolean;
+  aborted?: boolean;
+};
+
+export type TarkovLogQuestKind = "started" | "failed" | "completed";
+
+export type TarkovLogQuestEvent = {
+  kind: TarkovLogQuestKind;
+  at: string;
+  taskId: string;
+};
+
+export type TarkovLogParseResult = {
+  events: TarkovLogEvent[];
+  raids: TarkovLogRaid[];
+  sessionMode?: string;
+  quests?: TarkovLogQuestEvent[];
+};
+
+export type TarkovLogSessionStub = {
+  folder: string;
+  startedAt: string | null;
+};
+
+export type TarkovLogRootKind = "logs" | "install" | "session" | "unknown";
+
+export type TarkovScreenshotRootKind = "screenshots" | "ancestor" | "unknown";
+
+export type TarkovLogHistoryRaid = TarkovLogRaid & {
+  folder: string;
+};
+
+export function normalizeLogLocationKey(raw: string): string {
+  return (raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+export function mapLogLocationToMapId(raw: string): string {
+  const compact = (raw || "").trim().toLowerCase().replace(/\s+/g, "");
+  if (LOCATION_TO_MAP[compact]) return LOCATION_TO_MAP[compact];
+  const spaced = normalizeLogLocationKey(raw).replace(/ /g, "_");
+  if (LOCATION_TO_MAP[spaced]) return LOCATION_TO_MAP[spaced];
+  const spacedKey = normalizeLogLocationKey(raw);
+  return LOCATION_TO_MAP[spacedKey] || LOCATION_TO_MAP[compact] || "";
+}
+
+export function mapLogSceneToMapId(scenePath: string): string {
+  const base = (scenePath || "")
+    .replace(/^maps\//i, "")
+    .replace(/\.bundle$/i, "")
+    .trim()
+    .toLowerCase();
+  return SCENE_TO_MAP[base] || mapLogLocationToMapId(base);
+}
+
+export function logMapLabel(mapId: string, location = ""): string {
+  if (mapId === "night-factory") return "夜间工厂";
+  const row = TARKOV_MAPS.find((item) => item.id === mapId);
+  if (row) return row.label;
+  return (location || "").trim() || "未知地图";
+}
+
+export function logMapHref(mapId: string): string {
+  if (mapId === "night-factory") return tarkovMapHref("factory");
+  const row = TARKOV_MAPS.find((item) => item.id === mapId);
+  if (row && row.status === "ready" && !row.comingSoon) {
+    return tarkovMapHref(mapId);
+  }
+  return MAPS_HREF;
+}
+
+export function isApplicationLogFileName(name: string): boolean {
+  const n = (name || "").toLowerCase();
+  return n.endsWith("application.log") || n.endsWith("application_000.log");
+}
+
+export function isNotificationsLogFileName(name: string): boolean {
+  const n = (name || "").toLowerCase();
+  return n.endsWith("notifications.log") || n.endsWith("notifications_000.log");
+}
+
+export function isReadableTarkovLogFileName(name: string): boolean {
+  return isApplicationLogFileName(name) || isNotificationsLogFileName(name);
+}
+
+export function isSessionFolderName(name: string): boolean {
+  return FOLDER_TS_RE.test(name || "");
+}
+
+export function parseSessionFolderTime(name: string): string | null {
+  const match = FOLDER_TS_RE.exec(name || "");
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  const hh = String(hour).padStart(2, "0");
+  return `${year}-${month}-${day} ${hh}:${minute}:${second}`;
+}
+
+export function matchNamedDir(
+  names: readonly string[],
+  wanted: string,
+): string | null {
+  const key = (wanted || "").toLowerCase();
+  if (!key) return null;
+  return names.find((name) => name.toLowerCase() === key) ?? null;
+}
+
+/** Steam / BSG 安装目录常见文件夹名。 */
+export function matchTarkovGameDir(names: readonly string[]): string | null {
+  return (
+    matchNamedDir(names, "Escape from Tarkov") ||
+    matchNamedDir(names, "EscapeFromTarkov")
+  );
+}
+
+export function isScreenshotFileName(name: string): boolean {
+  return /\.(png|jpe?g|bmp|webp)$/i.test(name || "");
+}
+
+const TARKOV_SCREENSHOT_STAMP_RE = /^\d{4}-\d{2}-\d{2}/;
+
+/** 日志路径页打开时，检查截图目录的间隔。 */
+export const TARKOV_SCREENSHOT_POLL_MS = 2000;
+
+export const TARKOV_SCREENSHOT_FIRST_SCAN_CAP = 40;
+
+export type TarkovScreenshotStamp = {
+  name: string;
+  lastModified: number;
+};
+
+export function isNewerScreenshot(
+  current: TarkovScreenshotStamp | null | undefined,
+  next: TarkovScreenshotStamp,
+): boolean {
+  if (!current) return true;
+  if (next.lastModified !== current.lastModified) {
+    return next.lastModified > current.lastModified;
+  }
+  return next.name.localeCompare(current.name) > 0;
+}
+
+/** 首次只抽文件名较新的一批；之后只读未见过的文件名。 */
+export function screenshotNamesToInspect(
+  names: readonly string[],
+  seen: ReadonlySet<string>,
+  firstScanCap = TARKOV_SCREENSHOT_FIRST_SCAN_CAP,
+): string[] {
+  const images = names.filter((name) => isScreenshotFileName(name));
+  if (!seen.size) {
+    const dated = images.filter((name) => TARKOV_SCREENSHOT_STAMP_RE.test(name));
+    const pool = dated.length ? dated : images;
+    return [...pool]
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, Math.max(1, firstScanCap));
+  }
+  return images.filter((name) => !seen.has(name));
+}
+
+export function screenshotPollHint(ms = TARKOV_SCREENSHOT_POLL_MS): string {
+  const sec = Math.max(1, Math.round(ms / 1000));
+  return `每 ${sec} 秒检查新截图`;
+}
+
+function uniqueWalks(walks: string[][]): string[][] {
+  const seen = new Set<string>();
+  const out: string[][] = [];
+  for (const walk of walks) {
+    const key = walk.map((part) => part.toLowerCase()).join("/");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(walk);
+  }
+  return out;
+}
+
+/**
+ * 从当前目录往下找 Logs。优先 Steam 的 `build/Logs`。
+ * `[]` 表示当前目录已经是 Logs。
+ */
+export function logWalkCandidatesFrom(
+  childNames: readonly string[],
+): string[][] {
+  if (childNames.some((name) => isSessionFolderName(name))) return [[]];
+  const lower = new Set(childNames.map((name) => name.toLowerCase()));
+  const game = matchTarkovGameDir(childNames);
+  const walks: string[][] = [];
+  if (lower.has("build")) walks.push(["build", "Logs"]);
+  if (lower.has("logs")) walks.push(["Logs"]);
+  if (game) {
+    walks.push([game, "build", "Logs"]);
+    walks.push([game, "Logs"]);
+  }
+  if (lower.has("common")) {
+    walks.push(["common", "Escape from Tarkov", "build", "Logs"]);
+    walks.push(["common", "Escape from Tarkov", "Logs"]);
+  }
+  if (lower.has("steamapps")) {
+    walks.push(["steamapps", "common", "Escape from Tarkov", "build", "Logs"]);
+    walks.push(["steamapps", "common", "Escape from Tarkov", "Logs"]);
+  }
+  return uniqueWalks(walks);
+}
+
+/**
+ * 从当前目录往下找截图。常见是「文档 / Escape from Tarkov / Screenshots」。
+ */
+export function screenshotWalkCandidatesFrom(
+  childNames: readonly string[],
+): string[][] {
+  const lower = new Set(childNames.map((name) => name.toLowerCase()));
+  const game = matchTarkovGameDir(childNames);
+  const walks: string[][] = [];
+  if (childNames.some((name) => isScreenshotFileName(name))) walks.push([]);
+  if (lower.has("screenshots")) walks.push(["Screenshots"]);
+  if (game) walks.push([game, "Screenshots"]);
+  return uniqueWalks(walks);
+}
+
+export function classifyLogsRoot(childNames: readonly string[]): TarkovLogRootKind {
+  const names = childNames.map((name) => name.toLowerCase());
+  if (childNames.some((name) => isSessionFolderName(name))) return "logs";
+  if (childNames.some((name) => isReadableTarkovLogFileName(name))) {
+    return "session";
+  }
+  if (logWalkCandidatesFrom(childNames).some((walk) => walk.length > 0)) {
+    return "install";
+  }
+  if (names.includes("logs") || names.includes("build")) return "install";
+  return "unknown";
+}
+
+export function classifyScreenshotsRoot(
+  childNames: readonly string[],
+): TarkovScreenshotRootKind {
+  if (screenshotWalkCandidatesFrom(childNames).some((walk) => walk.length === 0)) {
+    return "screenshots";
+  }
+  if (screenshotWalkCandidatesFrom(childNames).length) return "ancestor";
+  return "unknown";
+}
+
+export function formatResolvedWalk(pickedName: string, walk: readonly string[]): string {
+  const root = (pickedName || "").trim() || "已选目录";
+  if (!walk.length) return root;
+  return `${root} / ${walk.join(" / ")}`;
+}
+
+export const TARKOV_SCREENSHOTS_PATH_HINT =
+  "C:\\Users\\...\\Documents\\Escape from Tarkov\\Screenshots";
+
+export const TARKOV_LOGS_PATH_HINT =
+  "D:\\Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs";
+
+/** 目录绑定输入框：用反斜杠拼出接近本机路径的展示名。 */
+export function formatBindPath(pickedName: string, walk: readonly string[]): string {
+  return joinBindPath([
+    ...splitBindPath(pickedName),
+    ...walk.flatMap((part) => splitBindPath(part)),
+  ]);
+}
+
+export function splitBindPath(path: string): string[] {
+  return (path || "")
+    .replace(/\//g, "\\")
+    .split("\\")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+export function hasDriveLetter(path: string): boolean {
+  return /^[a-zA-Z]:/.test((path || "").trim());
+}
+
+export function joinBindPath(parts: readonly string[]): string {
+  const cleaned = parts.flatMap((part) => splitBindPath(part));
+  if (!cleaned.length) return "";
+  const [head, ...rest] = cleaned;
+  if (/^[a-zA-Z]:$/.test(head)) {
+    return rest.length ? `${head}\\${rest.join("\\")}` : `${head}\\`;
+  }
+  return cleaned.join("\\");
+}
+
+function bindPartsEqual(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function bindPartsEndWith(all: readonly string[], suffix: readonly string[]): boolean {
+  if (!suffix.length || suffix.length > all.length) return false;
+  const tail = all.slice(all.length - suffix.length);
+  return tail.every((part, index) => bindPartsEqual(part, suffix[index]));
+}
+
+function bindLeadingOverlap(prev: readonly string[], next: readonly string[]): number {
+  let best = 0;
+  const max = Math.min(prev.length, next.length);
+  for (let count = 1; count <= max; count += 1) {
+    const left = prev.slice(prev.length - count);
+    const right = next.slice(0, count);
+    if (left.every((part, index) => bindPartsEqual(part, right[index]))) {
+      best = count;
+    }
+  }
+  return best;
+}
+
+/**
+ * 网页选目录拿不到盘符。若上次已补全 `D:\...`，校验/往下走时尽量保住盘符。
+ */
+export function mergeBindPath(previous: string, next: string): string {
+  const nextParts = splitBindPath(next);
+  const prevParts = splitBindPath(previous);
+  if (!nextParts.length) return joinBindPath(prevParts);
+  if (hasDriveLetter(nextParts[0] || "")) return joinBindPath(nextParts);
+  if (!prevParts.length) return joinBindPath(nextParts);
+  if (bindPartsEndWith(prevParts, nextParts)) return joinBindPath(prevParts);
+  const overlap = bindLeadingOverlap(prevParts, nextParts);
+  if (overlap > 0) {
+    return joinBindPath([
+      ...prevParts.slice(0, prevParts.length - overlap),
+      ...nextParts,
+    ]);
+  }
+  const index = prevParts.findIndex((part) => bindPartsEqual(part, nextParts[0]));
+  if (index >= 0) {
+    return joinBindPath([...prevParts.slice(0, index), ...nextParts]);
+  }
+  return joinBindPath(nextParts);
+}
+
+export function listSessionStubs(
+  childNames: readonly string[],
+  opts?: { selfFolder?: string },
+): TarkovLogSessionStub[] {
+  const kind = classifyLogsRoot(childNames);
+  if (kind === "session" && opts?.selfFolder) {
+    return [
+      {
+        folder: opts.selfFolder,
+        startedAt: parseSessionFolderTime(opts.selfFolder),
+      },
+    ];
+  }
+  const stubs = childNames
+    .filter((name) => isSessionFolderName(name))
+    .map((folder) => ({
+      folder,
+      startedAt: parseSessionFolderTime(folder),
+    }));
+  stubs.sort((a, b) => {
+    const ta = a.startedAt || a.folder;
+    const tb = b.startedAt || b.folder;
+    return tb.localeCompare(ta);
+  });
+  return stubs;
+}
+
+export function takeSessionStubs(
+  stubs: readonly TarkovLogSessionStub[],
+  limit: number,
+): TarkovLogSessionStub[] {
+  if (!limit) return [...stubs];
+  return stubs.slice(0, limit);
+}
+
+export function parseLogRaidMode(raw: string): TarkovLogRaidMode {
+  const key = (raw || "").trim().toLowerCase();
+  if (key === "online") return "online";
+  if (key === "offline" || key === "local") return "offline";
+  return "unknown";
+}
+
+export function raidModeLabel(mode: TarkovLogRaidMode): string {
+  if (mode === "online") return "在线";
+  if (mode === "offline") return "离线";
+  return "未知";
+}
+
+export function sessionModeLabel(mode: string): string {
+  const key = (mode || "").trim().toLowerCase();
+  if (key === "pve") return "PvE";
+  if (key === "regular" || key === "pvp") return "正式";
+  return mode.trim();
+}
+
+export function logEventLabel(kind: TarkovLogEventKind): string {
+  switch (kind) {
+    case "map_loading":
+      return "载入地图";
+    case "matching":
+      return "匹配中";
+    case "match_found":
+      return "匹配成功";
+    case "raid_starting":
+      return "倒计时";
+    case "raid_started":
+      return "开战";
+    case "matching_aborted":
+      return "取消匹配";
+    case "raid_exited":
+      return "战局结束";
+    default:
+      return "会话";
+  }
+}
+
+export function isRaidFacingEvent(event: TarkovLogEvent): boolean {
+  return event.kind !== "session_mode";
+}
+
+function attachMap(
+  event: TarkovLogEvent,
+  location: string,
+  mapId = mapLogLocationToMapId(location),
+): TarkovLogEvent {
+  if (!location && !mapId) return event;
+  return {
+    ...event,
+    location: location || event.location,
+    mapId: mapId || event.mapId,
+    mapLabel: logMapLabel(mapId || event.mapId || "", location),
+  };
+}
+
+function emptyRaid(): TarkovLogRaid {
+  return {
+    raidId: "",
+    location: "",
+    mapId: "",
+    mapLabel: "未知地图",
+    raidMode: "unknown",
+  };
+}
+
+function applyRaidFields(raid: TarkovLogRaid, event: TarkovLogEvent) {
+  if (event.raidId && !raid.raidId) raid.raidId = event.raidId;
+  if (event.location) raid.location = event.location;
+  if (event.mapId) raid.mapId = event.mapId;
+  if (event.mapLabel) raid.mapLabel = event.mapLabel;
+  else if (raid.mapId || raid.location) {
+    raid.mapLabel = logMapLabel(raid.mapId, raid.location);
+  }
+  if (event.raidMode && event.raidMode !== "unknown") {
+    raid.raidMode = event.raidMode;
+  }
+}
+
+export function buildRaidsFromEvents(
+  events: readonly TarkovLogEvent[],
+): TarkovLogRaid[] {
+  const raids: TarkovLogRaid[] = [];
+  let current: TarkovLogRaid | null = null;
+
+  const flush = () => {
+    if (!current) return;
+    if (current.raidId || current.startedAt || current.location || current.aborted) {
+      if (!current.mapLabel || current.mapLabel === "未知地图") {
+        current.mapLabel = logMapLabel(current.mapId, current.location);
+      }
+      raids.push(current);
+    }
+    current = null;
+  };
+
+  for (const event of events) {
+    if (event.kind === "session_mode") continue;
+    if (event.kind === "match_found") {
+      if (
+        current?.raidId &&
+        event.raidId &&
+        current.raidId === event.raidId
+      ) {
+        current.reconnected = true;
+        applyRaidFields(current, event);
+        continue;
+      }
+      if (current && (current.raidId || current.startedAt)) {
+        flush();
+        current = emptyRaid();
+      } else if (!current) {
+        current = emptyRaid();
+      }
+      applyRaidFields(current, event);
+      continue;
+    }
+    if (event.kind === "matching_aborted") {
+      if (current && !current.startedAt) {
+        current.aborted = true;
+        applyRaidFields(current, event);
+        flush();
+      }
+      continue;
+    }
+    if (event.kind === "raid_started") {
+      if (!current) current = emptyRaid();
+      current.startedAt = event.at;
+      applyRaidFields(current, event);
+      continue;
+    }
+    if (event.kind === "raid_starting" || event.kind === "map_loading" || event.kind === "matching") {
+      if (!current) current = emptyRaid();
+      applyRaidFields(current, event);
+      continue;
+    }
+    if (event.kind === "raid_exited") {
+      if (
+        current?.raidId &&
+        event.raidId &&
+        current.raidId !== event.raidId
+      ) {
+        flush();
+      }
+      if (!current) current = emptyRaid();
+      current.endedAt = event.at;
+      applyRaidFields(current, event);
+      flush();
+    }
+  }
+  flush();
+  return raids;
+}
+
+function extractJsonObject(
+  text: string,
+  from: number,
+  maxLen = 8000,
+): string | null {
+  const start = text.indexOf("{", from);
+  if (start < 0 || start - from > 240) return null;
+  let depth = 0;
+  for (let i = start; i < text.length && i < start + maxLen; i += 1) {
+    const ch = text[i];
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+const QUEST_MESSAGE_TYPE: Record<number, TarkovLogQuestKind> = {
+  10: "started",
+  11: "failed",
+  12: "completed",
+};
+
+export function taskIdFromQuestTemplate(templateId: string): string {
+  const token = (templateId || "").trim().split(/\s+/)[0] || "";
+  return /^[a-fA-F0-9]{20,32}$/.test(token) ? token : "";
+}
+
+function parseChatQuest(
+  text: string,
+  lineStart: number,
+  at: string,
+): TarkovLogQuestEvent | null {
+  const until = nextLogLineIndex(text, lineStart + 1);
+  const block = text.slice(lineStart, until);
+  const jsonText = extractJsonObject(block, 0, 48_000);
+  if (!jsonText) return null;
+  try {
+    const parsed = JSON.parse(jsonText) as {
+      message?: { type?: unknown; templateId?: unknown };
+    };
+    const rawType = parsed.message?.type;
+    const type =
+      typeof rawType === "number"
+        ? rawType
+        : Number.parseInt(String(rawType || ""), 10);
+    const kind = QUEST_MESSAGE_TYPE[type];
+    if (!kind) return null;
+    const taskId = taskIdFromQuestTemplate(String(parsed.message?.templateId || ""));
+    if (!taskId) return null;
+    return { kind, at, taskId };
+  } catch {
+    return null;
+  }
+}
+
+function nextLogLineIndex(text: string, from: number): number {
+  const rest = text.slice(from);
+  const match = rest.search(/\n\d{4}-\d{2}-\d{2} /);
+  return match < 0 ? text.length : from + match;
+}
+
+function parseUserMatchOver(
+  text: string,
+  lineStart: number,
+  at: string,
+): TarkovLogEvent | null {
+  const until = nextLogLineIndex(text, lineStart + 1);
+  const block = text.slice(lineStart, until);
+  const jsonText = extractJsonObject(block, 0);
+  let location = "";
+  let raidId = "";
+  if (jsonText) {
+    try {
+      const parsed = JSON.parse(jsonText) as {
+        location?: unknown;
+        shortId?: unknown;
+      };
+      if (typeof parsed.location === "string") location = parsed.location;
+      if (typeof parsed.shortId === "string") raidId = parsed.shortId;
+    } catch {
+      /* 通知块偶发截断，退回行内字段 */
+    }
+  }
+  if (!location) {
+    location = (LOCATION_RE.exec(block)?.[1] || "").trim();
+  }
+  if (!raidId) {
+    raidId = (SHORT_ID_RE.exec(block)?.[1] || "").trim();
+  }
+  return attachMap(
+    {
+      kind: "raid_exited",
+      at,
+      raidId: raidId || undefined,
+    },
+    location,
+  );
+}
+
+export function parseTarkovLogText(text: string): TarkovLogParseResult {
+  const source = (text || "").replace(/\r\n/g, "\n");
+  const events: TarkovLogEvent[] = [];
+  const quests: TarkovLogQuestEvent[] = [];
+  let sessionMode = "";
+  const lines = source.split("\n");
+  let offset = 0;
+
+  for (const line of lines) {
+    const lineStart = offset;
+    offset += line.length + 1;
+    const tsMatch = TS_RE.exec(line);
+    const at = tsMatch?.[1] || events[events.length - 1]?.at || quests[quests.length - 1]?.at || "";
+    if (SESSION_MODE_RE.test(line)) {
+      sessionMode = (SESSION_MODE_RE.exec(line)?.[1] || "").trim();
+      events.push({ kind: "session_mode", at, sessionMode });
+      continue;
+    }
+    if (line.includes("Got notification | ChatMessageReceived")) {
+      const quest = parseChatQuest(source, lineStart, at);
+      if (quest) quests.push(quest);
+      continue;
+    }
+    if (line.includes("Got notification | UserMatchOver")) {
+      const exited = parseUserMatchOver(source, lineStart, at);
+      if (exited) events.push(exited);
+      continue;
+    }
+    if (line.includes("application|scene preset path:") || line.includes("|scene preset path:")) {
+      const scene = SCENE_RE.exec(line)?.[1] || "";
+      const mapId = mapLogSceneToMapId(scene);
+      events.push(attachMap({ kind: "map_loading", at }, "", mapId));
+      continue;
+    }
+    if (line.includes("application|LocationLoaded") || line.includes("|LocationLoaded")) {
+      events.push({ kind: "matching", at });
+      continue;
+    }
+    if (
+      line.includes("application|TRACE-NetworkGameCreate profileStatus") ||
+      line.includes("TRACE-NetworkGameCreate profileStatus")
+    ) {
+      const location = (LOCATION_RE.exec(line)?.[1] || "").trim();
+      const raidId = (SHORT_ID_RE.exec(line)?.[1] || "").trim();
+      const raidMode = parseLogRaidMode(RAID_MODE_RE.exec(line)?.[1] || "");
+      events.push(
+        attachMap(
+          {
+            kind: "match_found",
+            at,
+            raidId: raidId || undefined,
+            raidMode,
+          },
+          location,
+        ),
+      );
+      continue;
+    }
+    if (line.includes("application|GameStarting") || /\|GameStarting(?:\||$)/.test(line)) {
+      events.push({ kind: "raid_starting", at });
+      continue;
+    }
+    if (line.includes("application|GameStarted") || /\|GameStarted(?:\||$)/.test(line)) {
+      events.push({ kind: "raid_started", at });
+      continue;
+    }
+    if (
+      line.includes("Network game matching aborted") ||
+      line.includes("Network game matching cancelled")
+    ) {
+      events.push({ kind: "matching_aborted", at });
+    }
+  }
+
+  return {
+    events,
+    raids: buildRaidsFromEvents(events),
+    sessionMode: sessionMode || undefined,
+    quests,
+  };
+}
+
+export function parseTarkovLogBundle(
+  parts: Array<{ name: string; text: string }>,
+): TarkovLogParseResult {
+  const events: TarkovLogEvent[] = [];
+  const quests: TarkovLogQuestEvent[] = [];
+  let sessionMode = "";
+  const ordered = [...parts].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true }),
+  );
+  for (const part of ordered) {
+    const parsed = parseTarkovLogText(part.text);
+    if (parsed.sessionMode) sessionMode = parsed.sessionMode;
+    events.push(...parsed.events);
+    quests.push(...(parsed.quests ?? []));
+  }
+  events.sort((a, b) => {
+    const cmp = (a.at || "").localeCompare(b.at || "");
+    if (cmp !== 0) return cmp;
+    return eventOrder(a.kind) - eventOrder(b.kind);
+  });
+  quests.sort((a, b) => (a.at || "").localeCompare(b.at || ""));
+  return {
+    events,
+    raids: buildRaidsFromEvents(events),
+    sessionMode: sessionMode || undefined,
+    quests,
+  };
+}
+
+function eventOrder(kind: TarkovLogEventKind): number {
+  switch (kind) {
+    case "session_mode":
+      return 0;
+    case "map_loading":
+      return 1;
+    case "matching":
+      return 2;
+    case "match_found":
+      return 3;
+    case "raid_starting":
+      return 4;
+    case "raid_started":
+      return 5;
+    case "matching_aborted":
+      return 6;
+    case "raid_exited":
+      return 7;
+    default:
+      return 8;
+  }
+}
+
+export function historyRaidsFromSessions(
+  sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
+): TarkovLogHistoryRaid[] {
+  const rows: TarkovLogHistoryRaid[] = [];
+  for (const session of sessions) {
+    for (const raid of session.parsed.raids) {
+      if (raid.aborted && !raid.startedAt && !raid.raidId) continue;
+      rows.push({ ...raid, folder: session.folder });
+    }
+  }
+  rows.sort((a, b) => {
+    const ta = a.startedAt || a.endedAt || "";
+    const tb = b.startedAt || b.endedAt || "";
+    return tb.localeCompare(ta);
+  });
+  return rows;
+}
+
+export type TarkovRaidLogImportRow = {
+  folder: string;
+  raid_id: string;
+  location: string;
+  map_id: string;
+  map_label: string;
+  raid_mode: string;
+  session_mode: string;
+  started_at: string;
+  ended_at: string;
+  reconnected: boolean;
+  aborted: boolean;
+};
+
+export function toRaidLogImportRows(
+  sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
+): TarkovRaidLogImportRow[] {
+  const modeByFolder = new Map(
+    sessions.map((session) => [session.folder, session.parsed.sessionMode || ""]),
+  );
+  return historyRaidsFromSessions(sessions).map((raid) => ({
+    folder: raid.folder,
+    raid_id: raid.raidId || "",
+    location: raid.location || "",
+    map_id: raid.mapId || "",
+    map_label: raid.mapLabel || "",
+    raid_mode: raid.raidMode,
+    session_mode: modeByFolder.get(raid.folder) || "",
+    started_at: raid.startedAt || "",
+    ended_at: raid.endedAt || "",
+    reconnected: Boolean(raid.reconnected),
+    aborted: Boolean(raid.aborted),
+  }));
+}
+
+export function formatLogClock(raw: string): string {
+  const text = (raw || "").trim();
+  if (!text) return "—";
+  return text.replace(/\.\d{3}$/, "");
+}
+
+export function latestLogEvent(
+  parsed: TarkovLogParseResult | null | undefined,
+): TarkovLogEvent | null {
+  const events = parsed?.events;
+  if (!events?.length) return null;
+  return events[events.length - 1];
+}
+
+/** 最近一场或最近一条带地图的事件。 */
+export function latestLogMapId(
+  parsed: TarkovLogParseResult | null | undefined,
+): string {
+  const raids = parsed?.raids || [];
+  for (let i = raids.length - 1; i >= 0; i -= 1) {
+    const id = (raids[i]?.mapId || "").trim();
+    if (id) return id;
+  }
+  const events = parsed?.events || [];
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const id = (events[i]?.mapId || "").trim();
+    if (id) return id;
+  }
+  return "";
+}
+
+/** 最新一条战局事件或任务事件的时间，用于顶栏「最近日志」。 */
+export function latestLogActivityAt(
+  parsed: TarkovLogParseResult | null | undefined,
+): string {
+  const eventAt = latestLogEvent(parsed)?.at || "";
+  const quests = parsed?.quests || [];
+  const questAt = quests.length ? quests[quests.length - 1]?.at || "" : "";
+  if (!eventAt) return questAt;
+  if (!questAt) return eventAt;
+  return eventAt.localeCompare(questAt) >= 0 ? eventAt : questAt;
+}
+
+/** 日志目录校验预览：最新一条事件，没有则退回启动文件夹名。 */
+export function formatLatestLogPreview(
+  stub: TarkovLogSessionStub | null | undefined,
+  parsed?: TarkovLogParseResult | null,
+): string {
+  const event = latestLogEvent(parsed);
+  if (event) {
+    const clock = formatLogClock(event.at);
+    const label = logEventLabel(event.kind);
+    const map = event.mapLabel ? ` · ${event.mapLabel}` : "";
+    return `${clock} ${label}${map}`.trim();
+  }
+  if (!stub) return "";
+  return stub.startedAt || stub.folder;
+}
+
+export function scanLimitLabel(limit: TarkovGameLogScanLimit): string {
+  if (limit === 0) return "全部";
+  return `最近 ${limit}`;
+}

@@ -38,17 +38,7 @@ from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.skland.checkin import checkin_job_wrapper as skland_checkin_job_wrapper
 from app.services.steam.poller import poll_job_wrapper
 from app.services.taygedo.checkin import checkin_job_wrapper as taygedo_checkin_job_wrapper
-from app.services.tarkov.bosses import (
-    bosses_sync_job_wrapper as tarkov_bosses_sync_job_wrapper,
-)
-from app.services.tarkov.guides import (
-    guides_sync_job_wrapper as tarkov_guides_sync_job_wrapper,
-)
-from app.services.tarkov.items import items_sync_job_wrapper as tarkov_items_sync_job_wrapper
-from app.services.tarkov.tasks import tasks_sync_job_wrapper as tarkov_tasks_sync_job_wrapper
-from app.services.tarkov.traders import (
-    traders_sync_job_wrapper as tarkov_traders_sync_job_wrapper,
-)
+from app.services.tarkov.sync import full_sync_job_wrapper as tarkov_full_sync_job_wrapper
 
 logger = logging.getLogger("zhange.scheduler")
 
@@ -89,11 +79,7 @@ SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     "arknights_catalog_sync": arknights_catalog_sync_job_wrapper,
     "game_schedule_arknights_sync": game_schedule_arknights_sync_job_wrapper,
     "game_schedule_endfield_sync": game_schedule_endfield_sync_job_wrapper,
-    "tarkov_items_sync": tarkov_items_sync_job_wrapper,
-    "tarkov_tasks_sync": tarkov_tasks_sync_job_wrapper,
-    "tarkov_traders_sync": tarkov_traders_sync_job_wrapper,
-    "tarkov_bosses_sync": tarkov_bosses_sync_job_wrapper,
-    "tarkov_guides_sync": tarkov_guides_sync_job_wrapper,
+    "tarkov_full_sync": tarkov_full_sync_job_wrapper,
     "job_runs_prune": prune_job_wrapper,
 }
 

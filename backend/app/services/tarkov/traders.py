@@ -11,22 +11,19 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovTradersMeta, TarkovTradersRaw
+from app.models.tarkov import TarkovTradersRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     cache_key,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
-    raw_row_id,
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
 
-META_ROW_ID = 1
-RAW_ROW_ID = 1
 TRADERS_JOB_KEY = "tarkov_traders_sync"
 TRADERS_PAGE_SIZE_DEFAULT = 50
 TRADERS_PAGE_SIZE_MAX = 100
@@ -167,31 +164,33 @@ def trader_portrait_url(slug: str) -> str:
     return f"https://tarkov.dev/images/traders/{slug}-portrait.png"
 
 
-def download_json_api_traders(*, lang: str = "zh") -> dict[str, Any]:
+def download_json_api_traders(*, lang: str = "zh") -> TradersUpstreamBundle:
     raw = _http_request(json_resource_url("traders"), timeout=60)
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise TarkovTradersError("json.tarkov.dev traders 解析失败") from exc
-    if not isinstance(payload, dict):
-        raise TarkovTradersError("json.tarkov.dev traders 格式无效")
-    traders = _traders_map(payload)
-    if not traders:
+    if not isinstance(payload, dict) or not _traders_map(payload):
         raise TarkovTradersError("json.tarkov.dev 未解析到商人")
-    locale: dict[str, Any] = {}
     try:
         loc_raw = _http_request(
             json_resource_url("traders", lang=lang),
             timeout=30,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
-        if isinstance(loc_payload, dict) and isinstance(loc_payload.get("data"), dict):
-            locale = loc_payload["data"]
+        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
+        if isinstance(loc_data, dict) and loc_data:
+            payload = dict(payload)
+            payload["locale"] = loc_data
     except TarkovTradersError:
         logger.warning("json.tarkov.dev traders_%s locale unavailable", lang)
     except (UnicodeDecodeError, json.JSONDecodeError):
         logger.warning("json.tarkov.dev traders_%s locale parse failed", lang)
-    return {"traders": traders, "locale": locale}
+    return TradersUpstreamBundle(
+        source=SOURCE_JSON_API,
+        payload=payload,
+        note=f"json.tarkov.dev/{json_api_prefix()}/traders",
+    )
 
 
 def extract_offers_from_items(items_source: str, items_payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -381,59 +380,45 @@ def paginate_offers(
 
 
 def get_traders_raw(db: Session) -> TarkovTradersRaw | None:
-    return (
-        db.query(TarkovTradersRaw)
-        .filter(TarkovTradersRaw.id == raw_row_id())
-        .one_or_none()
-    )
+    from app.services.tarkov import upstream as upstream_svc
 
-
-def get_traders_meta(db: Session) -> TarkovTradersMeta | None:
-    return (
-        db.query(TarkovTradersMeta)
-        .filter(TarkovTradersMeta.id == raw_row_id())
-        .one_or_none()
-    )
+    return upstream_svc.load_raw_row(db, "traders")
 
 
 def persist_traders_bundle(db: Session, bundle: TradersUpstreamBundle) -> dict[str, Any]:
+    from app.services.tarkov import upstream as upstream_svc
+
     rows = parse_trader_rows(bundle.payload)
     if not rows:
         raise TarkovTradersError("未解析到商人数据")
     now = now_naive()
-    raw_json = json.dumps(bundle.payload, ensure_ascii=False)
-    row = get_traders_raw(db)
-    if row is None:
-        db.add(
-            TarkovTradersRaw(
-                id=raw_row_id(),
-                source=bundle.source,
-                raw_json=raw_json,
-                synced_at=now,
-                note=bundle.note,
-            )
-        )
-    else:
-        row.source = bundle.source
-        row.raw_json = raw_json
-        row.synced_at = now
-        row.note = bundle.note
-    meta = get_traders_meta(db)
-    if meta is None:
-        meta = TarkovTradersMeta(id=raw_row_id())
-        db.add(meta)
-    meta.source = bundle.source
-    meta.trader_count = len(rows)
-    meta.offer_count = len(_offers_list(bundle.payload))
-    meta.synced_at = now
-    meta.note = bundle.note
+    offer_count = len(_offers_list(bundle.payload))
+    store = {k: v for k, v in bundle.payload.items() if k != "locale"}
+    traders = store.get("traders")
+    if isinstance(traders, dict):
+        store = {"data": traders}
+    upstream_svc.persist_raw(
+        db,
+        "traders",
+        store,
+        source=bundle.source,
+        note=bundle.note,
+        commit=False,
+    )
+    upstream_svc.persist_locale_if_present(
+        db,
+        "traders",
+        bundle.payload,
+        source=bundle.source,
+        note=bundle.note,
+    )
     db.commit()
     global _parsed_cache
     with _parsed_lock:
         _parsed_cache = None
     return {
         "trader_count": len(rows),
-        "offer_count": meta.offer_count,
+        "offer_count": offer_count,
         "source": bundle.source,
         "synced_at": now.isoformat() if now else None,
         "note": bundle.note,
@@ -441,31 +426,9 @@ def persist_traders_bundle(db: Session, bundle: TradersUpstreamBundle) -> dict[s
 
 
 def _sync_current_mode(db: Session) -> dict[str, Any]:
-    from app.services.tarkov import catalog as catalog_svc
-    from app.services.tarkov import items as items_svc
-
     mode = parse_game_mode()
     logger.info("syncing tarkov traders from upstream (%s)", mode)
-    catalog_svc.ensure_full_item_catalog(db)
-    items_svc.ensure_items(db)
-    source, items_payload, _synced, _note = catalog_svc._load_payload(db)
-    if not catalog_svc.payload_has_full_items(source, items_payload):
-        raise TarkovTradersError("物品 raw 不是整包，无法解析商人报价")
-    traders_payload = download_json_api_traders(lang="zh")
-    offers = extract_offers_from_items(source, items_payload)
-    envelope = {
-        "traders": traders_payload["traders"],
-        "locale": traders_payload.get("locale") or {},
-        "offers": offers,
-    }
-    return persist_traders_bundle(
-        db,
-        TradersUpstreamBundle(
-            source=SOURCE_JSON_API,
-            payload=envelope,
-            note=f"json.tarkov.dev/{json_api_prefix()}/traders + items.buyFromTrader",
-        ),
-    )
+    return persist_traders_bundle(db, download_json_api_traders(lang="zh"))
 
 
 def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
@@ -478,19 +441,26 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
-    row = get_traders_raw(db)
-    if row is None:
-        raise TarkovTradersError("无商人 raw")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovTradersError("商人 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovTradersError("商人 raw_json 格式无效")
-    meta = get_traders_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    note = (meta.note if meta else None) or row.note
-    return row.source, payload, synced, note
+    from app.services.tarkov import upstream as upstream_svc
+
+    source, payload, synced, note = upstream_svc.load_main_payload(
+        db,
+        "traders",
+        error_cls=TarkovTradersError,
+        missing="无商人 raw",
+        invalid="商人 raw_json 无效",
+    )
+    if not _offers_list(payload):
+        try:
+            from app.services.tarkov import catalog as catalog_svc
+
+            items_source, items_payload, _synced, _note = catalog_svc._load_payload(db)
+            if catalog_svc.payload_has_full_items(items_source, items_payload):
+                payload = dict(payload)
+                payload["offers"] = extract_offers_from_items(items_source, items_payload)
+        except Exception:  # noqa: BLE001
+            logger.warning("traders offers from items unavailable", exc_info=True)
+    return source, payload, synced, note
 
 
 def ensure_traders(db: Session) -> None:
@@ -504,8 +474,8 @@ def load_parsed_traders(
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]], str | None, str | None]:
     global _parsed_cache
     ensure_traders(db)
-    meta = get_traders_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    row = get_traders_raw(db)
+    synced = row.synced_at.isoformat() if row and row.synced_at else None
     key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache

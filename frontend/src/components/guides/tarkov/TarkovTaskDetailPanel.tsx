@@ -11,11 +11,8 @@ import {
   traderIconUrl,
   traderPortraitUrl,
 } from "@/lib/tarkovHomeNav";
-import { TarkovTaskProgressSwitch } from "@/components/guides/tarkov/TarkovTaskProgressSwitch";
-import { TarkovTaskNeighborhood } from "@/components/guides/tarkov/TarkovTaskNeighborhood";
 import { TarkovTaskObjectivesRewards } from "@/components/guides/tarkov/TarkovTaskObjectivesRewards";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
-import { tarkovTaskProgressLabel, useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
 import type { components } from "@/api/generated/schema";
 import styles from "./TarkovTaskDetailPanel.module.css";
 
@@ -53,10 +50,9 @@ function traderLevelLabel(
 
 export function TarkovTaskDetailPanel({ taskId }: Props) {
   const gameMode = useTarkovGameMode();
-  const [mine, setMine] = useTarkovTaskMineMode();
   const detailQuery = useQuery({
-    queryKey: ["guides-tarkov-task-detail", gameMode, taskId, mine],
-    queryFn: () => fetchTarkovTaskDetail(taskId, { progress: mine }),
+    queryKey: ["guides-tarkov-task-detail", gameMode, taskId],
+    queryFn: () => fetchTarkovTaskDetail(taskId),
     staleTime: 5 * 60_000,
     retry: 1,
   });
@@ -97,47 +93,10 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
 
   return (
     <div className={styles.stack}>
-      <div className={styles.toolbar}>
-        <TarkovTaskProgressSwitch enabled={mine} onChange={setMine} />
-      </div>
-      {mine && !detail.progress_bound ? (
-        <Alert
-          type="info"
-          showIcon
-          message="还没绑定 Tarkov Tracker"
-          description="打开顶栏「绑定 Token」后，才能显示这任务对你当前账号的状态。"
-        />
-      ) : null}
-      {mine && detail.progress_bound && !detail.progress_ready ? (
-        <Alert
-          type="warning"
-          showIcon
-          message="进度明细还没拉下来"
-          description="点顶栏等级旁的刷新，把 Tracker 的任务状态同步过来。"
-        />
-      ) : null}
       <section className={styles.hero}>
         <div>
           <div className={styles.headRow}>
             <span className={styles.badge}>任务</span>
-            {mine && detail.progress_status ? (
-              <span
-                className={`${styles.progressBadge} ${
-                  detail.progress_status === "available"
-                    ? styles.progressAvailable
-                    : detail.progress_status === "complete"
-                      ? styles.progressComplete
-                      : detail.progress_status === "failed"
-                        ? styles.progressFailed
-                        : styles.progressLocked
-                }`}
-              >
-                {tarkovTaskProgressLabel(detail.progress_status)}
-              </span>
-            ) : null}
-            {detail.kappa_required ? (
-              <span className={styles.endgameChip}>Kappa</span>
-            ) : null}
             {detail.lightkeeper_required ? (
               <span className={styles.endgameChip}>灯塔商人</span>
             ) : null}
@@ -199,13 +158,6 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
               </div>
             </div>
           </div>
-
-          <TarkovTaskNeighborhood
-            currentId={detail.id}
-            nodes={detail.neighborhood?.nodes ?? []}
-            edges={detail.neighborhood?.edges ?? []}
-            showProgress={mine}
-          />
         </div>
 
         <div className={styles.posterWrap}>

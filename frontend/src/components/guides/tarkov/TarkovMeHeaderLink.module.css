@@ -1,0 +1,20 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-family: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.chip:hover,
+.chipOn {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  color: #fff;
+}

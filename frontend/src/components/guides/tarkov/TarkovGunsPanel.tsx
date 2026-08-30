@@ -18,8 +18,8 @@ const EMPTY_ITEMS: TarkovGunItem[] = [];
 
 const GUN_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
   "tarkov.dev": {
-    label: "api.tarkov.dev/graphql",
-    href: "https://api.tarkov.dev/graphql",
+    label: "api.tarkov.dev",
+    href: "https://api.tarkov.dev",
   },
   "json.tarkov.dev": {
     label: "json.tarkov.dev/regular/items",

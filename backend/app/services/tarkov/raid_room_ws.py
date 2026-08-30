@@ -137,6 +137,21 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                         "points": draft["points"],
                     },
                 )
+                continue
+            if event == "player_fix":
+                if not _can_edit(public_id, user):
+                    continue
+                fix = rooms_svc.parse_player_fix(raw)
+                if fix is None:
+                    continue
+                hub.publish(
+                    public_id,
+                    {
+                        "event": "player_fix",
+                        "user_id": user.id,
+                        **fix,
+                    },
+                )
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001

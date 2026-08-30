@@ -192,6 +192,14 @@ def test_extract_detail_hydrates_item_and_category_refs():
     assert detail["item"]["handbookCategories"][0]["name"] == "突击步枪"
 
 
+def test_parse_catalog_items_from_json_dump():
+    env = _json_envelope()
+    dump = {**env["items"], "locale": env["locale"]}
+    rows = catalog.parse_catalog_items(SOURCE_JSON_API, dump)
+    assert {r["id"] for r in rows} == {"hs1", "ar1", "grip1"}
+    assert catalog.payload_has_full_items(SOURCE_JSON_API, dump) is True
+
+
 def test_payload_has_full_items():
     assert catalog.payload_has_full_items(SOURCE_JSON_API, _json_envelope()) is True
     split = {"format": GRAPHQL_SPLIT_FORMAT, "ammo": {}, "guns": {}}
@@ -246,3 +254,64 @@ def test_paginate_catalog_items_clamps_page():
     capped = catalog.paginate_catalog_items(rows, page=1, page_size=1000)
     assert capped["page_size"] == catalog.CATALOG_PAGE_SIZE_MAX
     assert len(capped["items"]) == 5
+
+
+def test_parse_ammo_pack_index_picks_largest_box():
+    pack_cat = catalog.AMMO_PACK_HANDBOOK_ID
+    payload = {
+        "items": {
+            "data": {
+                "items": {
+                    "ammo1": {
+                        "id": "ammo1",
+                        "types": ["ammo"],
+                        "properties": {"propertiesType": "ItemPropertiesAmmo"},
+                    },
+                    "pack30": {
+                        "id": "pack30",
+                        "types": ["ammoBox"],
+                        "iconLink": "https://example/pack30-icon.webp",
+                        "containsItems": [{"item": "ammo1", "count": 30}],
+                    },
+                    "pack50": {
+                        "id": "pack50",
+                        "types": ["ammoBox"],
+                        "baseImageLink": "https://example/pack50-base-image.webp",
+                        "handbookCategories": {pack_cat: {"id": pack_cat}},
+                        "containsItems": [{"item": {"id": "ammo1"}, "count": 50}],
+                    },
+                    "other": {
+                        "id": "other",
+                        "types": ["container"],
+                        "containsItems": [{"item": "ammo1", "count": 99}],
+                    },
+                }
+            }
+        }
+    }
+    index = catalog.parse_ammo_pack_index(SOURCE_JSON_API, payload)
+    assert index["ammo1"]["pack_item_id"] == "pack50"
+    assert index["ammo1"]["pack_icon_link"] == "https://example/pack50-base-image.webp"
+    assert index["ammo1"]["pack_count"] == 50
+    assert "other" not in {row["pack_item_id"] for row in index.values()}
+
+
+def test_parse_ammo_pack_index_reads_properties_contains():
+    payload = {
+        "items": {
+            "data": {
+                "items": {
+                    "pack1": {
+                        "id": "pack1",
+                        "properties": {
+                            "propertiesType": "ItemPropertiesAmmoBox",
+                            "containsItems": [{"item": "ammo2", "count": 20}],
+                        },
+                    }
+                }
+            }
+        }
+    }
+    index = catalog.parse_ammo_pack_index(SOURCE_JSON_API, payload)
+    assert index["ammo2"]["pack_item_id"] == "pack1"
+    assert index["ammo2"]["pack_count"] == 20

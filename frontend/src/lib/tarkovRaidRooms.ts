@@ -1,5 +1,5 @@
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
-import { colorForUserId } from "@/lib/tarkovRaidPrep";
+import { colorForUserId, mapSlugKeys } from "@/lib/tarkovRaidPrep";
 
 export { tarkovRaidRoomHref, colorForUserId };
 
@@ -21,6 +21,9 @@ export function raidRoomWsRetryDelayMs(attempt: number): number {
 }
 
 export const RAID_ROOM_OTHER_FLOOR_OPACITY = 0.28;
+
+/** 房间内截图定位：超过此时长没有新点就从地图上拿掉。 */
+export const PLAYER_FIX_TTL_MS = 8 * 60_000;
 
 export type RaidRoomClaimLike = {
   task_id: string;
@@ -92,7 +95,17 @@ export type RaidRoomSnapshotLike = {
   members?: RaidRoomMemberLike[];
   claims?: RaidRoomClaimLike[];
   key_brings?: RaidRoomKeyBringLike[];
+  key_owns?: RaidRoomKeyBringLike[];
+  objective_dones?: RaidRoomObjectiveDoneLike[];
   marks?: RaidRoomMarkLike[];
+};
+
+export type RaidRoomObjectiveDoneLike = {
+  task_id: string;
+  objective_id: string;
+  user_id: number;
+  display_name?: string | null;
+  created_at?: string | null;
 };
 
 export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
@@ -255,6 +268,35 @@ export function formatKeyBringHint(
   return `${who}。`;
 }
 
+export function formatKeyOwnHint(names: readonly string[]): string {
+  if (!names.length) return "";
+  if (names.length === 1) return `${names[0]}拥有这把钥匙。`;
+  return `${names.join("、")}拥有这把钥匙。`;
+}
+
+export function keyOwnsForUser(
+  itemIds: readonly string[] | null | undefined,
+  user: { userId: number; name: string } | null | undefined,
+): RaidRoomKeyBringLike[] {
+  if (!user || !itemIds?.length) return [];
+  const name = (user.name || "").trim() || `用户${user.userId}`;
+  return itemIds.map((item_id) => ({
+    item_id,
+    user_id: user.userId,
+    display_name: name,
+  }));
+}
+
+export function formatKeyChipHint(
+  ownNames: readonly string[],
+  bringNames: readonly string[],
+  options?: { canToggle?: boolean },
+): string {
+  const own = formatKeyOwnHint(ownNames);
+  const bring = formatKeyBringHint(bringNames, options);
+  return [own, bring].filter(Boolean).join(" ");
+}
+
 export function claimedTaskIds(
   claims: RaidRoomClaimLike[] | null | undefined,
 ): string[] {
@@ -405,6 +447,116 @@ export function strokeFingerprint(mark: RaidRoomMarkLike): string {
     .map((point) => `${roundStrokeCoord(point.x)},${roundStrokeCoord(point.z)}`)
     .join(";");
   return `${mark.kind}:${mark.floor || ""}:${body}`;
+}
+
+export type RaidRoomPlayerFix = {
+  userId: number;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number | null;
+  mapId: string;
+  fileName: string;
+  at: number;
+};
+
+export type TarkovMapPlayerMark = {
+  key: string;
+  userId: number;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number | null;
+  self?: boolean;
+};
+
+function finiteCoord(raw: unknown): number | null {
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+export function parsePlayerFixEvent(
+  raw: {
+    user_id?: unknown;
+    x?: unknown;
+    y?: unknown;
+    z?: unknown;
+    yaw?: unknown;
+    map_id?: unknown;
+    file_name?: unknown;
+  },
+  at = Date.now(),
+): RaidRoomPlayerFix | null {
+  const userId = Number(raw.user_id);
+  const x = finiteCoord(raw.x);
+  const y = finiteCoord(raw.y);
+  const z = finiteCoord(raw.z);
+  if (!userId || x == null || y == null || z == null) return null;
+  const yawRaw = raw.yaw;
+  let yaw: number | null = null;
+  if (yawRaw != null && yawRaw !== "") {
+    const parsed = finiteCoord(yawRaw);
+    if (parsed == null) return null;
+    yaw = parsed;
+  }
+  return {
+    userId,
+    x,
+    y,
+    z,
+    yaw,
+    mapId: String(raw.map_id || "").trim(),
+    fileName: String(raw.file_name || "").trim(),
+    at,
+  };
+}
+
+/** 日志地图未知时仍可画；对不上房间地图则丢掉。 */
+export function playerFixMatchesRoomMap(
+  fixMapId: string | undefined,
+  roomMapId: string,
+): boolean {
+  const room = (roomMapId || "").trim();
+  if (!room) return false;
+  const fix = (fixMapId || "").trim();
+  if (!fix) return true;
+  const roomKeys = mapSlugKeys(room);
+  for (const key of mapSlugKeys(fix)) {
+    if (roomKeys.has(key)) return true;
+  }
+  return false;
+}
+
+export function playerFixIsFresh(
+  at: number,
+  now = Date.now(),
+  ttlMs = PLAYER_FIX_TTL_MS,
+): boolean {
+  return now - at <= ttlMs;
+}
+
+export function upsertPlayerFix(
+  current: readonly RaidRoomPlayerFix[],
+  next: RaidRoomPlayerFix,
+): RaidRoomPlayerFix[] {
+  return [...current.filter((row) => row.userId !== next.userId), next];
+}
+
+export function dropPlayerFixesNotIn(
+  current: readonly RaidRoomPlayerFix[],
+  onlineIds: ReadonlySet<number>,
+): RaidRoomPlayerFix[] {
+  return current.filter((row) => onlineIds.has(row.userId));
+}
+
+export function pruneStalePlayerFixes(
+  current: readonly RaidRoomPlayerFix[],
+  now = Date.now(),
+  ttlMs = PLAYER_FIX_TTL_MS,
+): RaidRoomPlayerFix[] {
+  return current.filter((row) => playerFixIsFresh(row.at, now, ttlMs));
 }
 
 export function mergeBoardMarks(

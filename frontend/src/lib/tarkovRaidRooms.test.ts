@@ -5,6 +5,9 @@ import {
   claimedTaskIds,
   claimTaskIdsForUser,
   formatKeyBringHint,
+  formatKeyChipHint,
+  formatKeyOwnHint,
+  keyOwnsForUser,
   formatRoomRemain,
   groupClaimsByTask,
   groupKeyBringsByItem,
@@ -24,6 +27,11 @@ import {
   strokeFingerprint,
   userBroughtKey,
   withRaidRoomViewerFlags,
+  dropPlayerFixesNotIn,
+  parsePlayerFixEvent,
+  playerFixMatchesRoomMap,
+  pruneStalePlayerFixes,
+  upsertPlayerFix,
 } from "./tarkovRaidRooms";
 
 describe("raid room helpers", () => {
@@ -133,6 +141,15 @@ describe("raid room helpers", () => {
     expect(formatKeyBringHint(["甲"], { canToggle: true })).toBe(
       "甲带了这把钥匙。",
     );
+    expect(formatKeyOwnHint([])).toBe("");
+    expect(formatKeyOwnHint(["甲"])).toBe("甲拥有这把钥匙。");
+    expect(formatKeyOwnHint(["甲", "乙"])).toBe("甲、乙拥有这把钥匙。");
+    expect(formatKeyChipHint(["甲", "乙"], ["丙"])).toBe(
+      "甲、乙拥有这把钥匙。 丙带了这把钥匙。",
+    );
+    expect(keyOwnsForUser(["k1"], { userId: 3, name: "丙" })).toEqual([
+      { item_id: "k1", user_id: 3, display_name: "丙" },
+    ]);
   });
 
   it("matches floors and applies snapshot / presence", () => {
@@ -275,5 +292,48 @@ describe("raid room helpers", () => {
         ],
       }),
     );
+  });
+
+  it("parses and prunes shared screenshot positions", () => {
+    const parsed = parsePlayerFixEvent(
+      {
+        user_id: 12,
+        x: 175.3,
+        y: 1.37,
+        z: 150.68,
+        yaw: -12.4,
+        map_id: "streets-of-tarkov",
+        file_name: "shot.png",
+      },
+      1000,
+    );
+    expect(parsed).toMatchObject({
+      userId: 12,
+      x: 175.3,
+      y: 1.37,
+      z: 150.68,
+      yaw: -12.4,
+      mapId: "streets-of-tarkov",
+      fileName: "shot.png",
+      at: 1000,
+    });
+    expect(parsePlayerFixEvent({ user_id: 1, x: 1, y: 2 })).toBeNull();
+    expect(playerFixMatchesRoomMap("", "customs")).toBe(true);
+    expect(playerFixMatchesRoomMap("streets-of-tarkov", "streets")).toBe(true);
+    expect(playerFixMatchesRoomMap("woods", "customs")).toBe(false);
+    expect(playerFixMatchesRoomMap("customs", "")).toBe(false);
+    const first = parsed!;
+    const second = { ...first, userId: 12, x: 10, at: 2000 };
+    const other = { ...first, userId: 3, at: 2000 };
+    const merged = upsertPlayerFix([first, other], second);
+    expect(merged.find((row) => row.userId === 12)?.x).toBe(10);
+    expect(merged.map((row) => row.userId).sort((a, b) => a - b)).toEqual([
+      3, 12,
+    ]);
+    expect(
+      dropPlayerFixesNotIn([first, other], new Set([12])).map((row) => row.userId),
+    ).toEqual([12]);
+    expect(pruneStalePlayerFixes([first], 1000 + 8 * 60_000 + 1)).toEqual([]);
+    expect(pruneStalePlayerFixes([first], 1000 + 60_000)).toEqual([first]);
   });
 });

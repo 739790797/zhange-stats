@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from app.services.tarkov.guides import parse_barters, parse_crafts, parse_hideout_stations
+from app.services.tarkov.guides import (
+    assemble_guides_envelope,
+    parse_barters,
+    parse_crafts,
+    parse_hideout_stations,
+)
 from app.services.tarkov.tasks import TRADER_BY_ID
 
 PRAPOR = next(tid for tid, (slug, _name) in TRADER_BY_ID.items() if slug == "prapor")
@@ -86,6 +91,20 @@ def _payload() -> dict:
             }
         ],
     }
+
+
+def test_assemble_guides_envelope_from_dumps() -> None:
+    src = _payload()
+    envelope = assemble_guides_envelope(
+        {"data": src["hideout"]},
+        barters_payload={"data": src["barters"]},
+        crafts_payload={"data": src["crafts"]},
+        locale=src["locale"],
+    )
+    rows = parse_hideout_stations(envelope)
+    assert any(r["name"] == "工作台" for r in rows)
+    assert len(parse_barters(envelope)) == 1
+    assert parse_crafts(envelope)[0]["station_slug"] == "workbench"
 
 
 def test_parse_hideout_stations() -> None:

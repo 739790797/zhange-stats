@@ -8,6 +8,8 @@ export type PlatformFeaturesResponse = components["schemas"]["PlatformFeaturesOu
 export type PlatformFeaturesUpdate = components["schemas"]["PlatformFeaturesUpdate"];
 export type JobTriggerResult = components["schemas"]["JobTriggerOut"];
 export type JobTriggerRequest = components["schemas"]["JobTriggerRequest"];
+export type JobRun = components["schemas"]["JobRunOut"];
+export type JobRunsPage = components["schemas"]["JobRunsPageOut"];
 export type JobMemberOption = components["schemas"]["JobMemberOptionOut"];
 export type UserCheckinTask = components["schemas"]["UserCheckinTaskOut"];
 export type UserCheckinTasksPage = components["schemas"]["UserCheckinTasksPageOut"];
@@ -58,6 +60,17 @@ export async function triggerScheduledJob(
   const { data } = await client.post<JobTriggerResult>(
     `/settings/jobs/${encodeURIComponent(jobId)}/trigger`,
     payload || {},
+  );
+  return data;
+}
+
+export async function fetchJobRuns(
+  jobId: string,
+  params?: { page?: number; page_size?: number },
+) {
+  const { data } = await client.get<JobRunsPage>(
+    `/settings/jobs/${encodeURIComponent(jobId)}/runs`,
+    { params },
   );
   return data;
 }

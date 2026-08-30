@@ -16,6 +16,8 @@ class TarkovAmmoItemOut(BaseModel):
     light_bleed_modifier: float = 0
     heavy_bleed_modifier: float = 0
     icon_link: str = ""
+    pack_icon_link: str = ""
+    pack_item_id: str = ""
 
 
 class TarkovAmmoDetailOut(BaseModel):
@@ -51,6 +53,21 @@ class TarkovItemsSyncOut(BaseModel):
     gun_count: int
     source: str | None = None
     synced_at: str | None = None
+    message: str = Field(default="ok")
+
+
+class TarkovFullSyncDomainOut(BaseModel):
+    id: str
+    ok: bool
+    error: str | None = None
+    source: str | None = None
+    synced_at: str | None = None
+
+
+class TarkovFullSyncOut(BaseModel):
+    ok_count: int
+    failed_count: int
+    domains: list[TarkovFullSyncDomainOut] = Field(default_factory=list)
     message: str = Field(default="ok")
 
 
@@ -149,32 +166,6 @@ class TarkovTaskTraderReqOut(BaseModel):
     compare_method: str = ""
 
 
-class TarkovTaskRequirementOut(BaseModel):
-    id: str
-    name: str = ""
-    status: list[str] = Field(default_factory=list)
-    met: bool | None = None
-
-
-class TarkovTaskNeighborhoodNodeOut(BaseModel):
-    id: str
-    name: str = ""
-    trader_slug: str = ""
-    hop: int = 0
-    progress_status: str | None = None
-
-
-class TarkovTaskNeighborhoodEdgeOut(BaseModel):
-    source_id: str
-    target_id: str
-
-
-class TarkovTaskNeighborhoodOut(BaseModel):
-    current_id: str = ""
-    nodes: list[TarkovTaskNeighborhoodNodeOut] = Field(default_factory=list)
-    edges: list[TarkovTaskNeighborhoodEdgeOut] = Field(default_factory=list)
-
-
 class TarkovTaskListItemOut(BaseModel):
     id: str
     name: str
@@ -186,16 +177,14 @@ class TarkovTaskListItemOut(BaseModel):
     map_slug: str = ""
     map_name: str = ""
     min_player_level: int = 0
+    min_trader_level: int = 1
     experience: int = 0
-    kappa_required: bool = False
     lightkeeper_required: bool = False
     faction_name: str = "Any"
     task_image_link: str = ""
     wiki_link: str = ""
     objective_count: int = 0
     objective_types: list[str] = Field(default_factory=list)
-    progress_status: str | None = None
-    task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)
 
 
 class TarkovTaskCatalogOut(BaseModel):
@@ -207,8 +196,6 @@ class TarkovTaskCatalogOut(BaseModel):
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None
-    progress_bound: bool = False
-    progress_ready: bool = False
 
 
 class TarkovTaskObjectiveOut(BaseModel):
@@ -271,8 +258,6 @@ class TarkovRaidPrepOut(BaseModel):
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None
-    progress_bound: bool = False
-    progress_ready: bool = False
 
 
 class TarkovTaskRewardItemOut(BaseModel):
@@ -309,18 +294,12 @@ TarkovRaidPrepOut.model_rebuild()
 class TarkovTaskDetailOut(TarkovTaskListItemOut):
     source: str | None = None
     objectives: list[TarkovTaskObjectiveOut] = Field(default_factory=list)
-    successor_tasks: list[TarkovTaskRequirementOut] = Field(default_factory=list)
     trader_requirements: list[TarkovTaskTraderReqOut] = Field(default_factory=list)
     finish_rewards: TarkovTaskFinishRewardsOut = Field(
         default_factory=TarkovTaskFinishRewardsOut
     )
     needed_keys: list[TarkovTaskNeededKeysOut] = Field(default_factory=list)
-    neighborhood: TarkovTaskNeighborhoodOut = Field(
-        default_factory=TarkovTaskNeighborhoodOut
-    )
     restartable: bool = False
-    progress_bound: bool = False
-    progress_ready: bool = False
 
 
 class TarkovTasksSyncOut(BaseModel):
@@ -503,24 +482,6 @@ class TarkovSiteSearchOut(BaseModel):
     task_count: int = 0
     trader_count: int = 0
     boss_count: int = 0
-
-
-class TarkovTrackerBindIn(BaseModel):
-    token: str = Field(min_length=8, max_length=64)
-
-
-class TarkovTrackerStatusOut(BaseModel):
-    bound: bool
-    game_mode: str = ""
-    game_mode_label: str = ""
-    display_name: str = ""
-    player_level: int = 0
-    pmc_faction: str = ""
-    tasks_complete: int = 0
-    tasks_failed: int = 0
-    token_suffix: str = ""
-    last_synced_at: str | None = None
-    last_error: str | None = None
 
 
 class TarkovMapPointOut(BaseModel):
@@ -756,6 +717,62 @@ class TarkovLootTierCatalogOut(BaseModel):
     note: str | None = None
 
 
+class TarkovKeyPackBarterOut(BaseModel):
+    trader_slug: str = ""
+    trader_name: str = ""
+    min_trader_level: int = 0
+
+
+class TarkovKeyPackCraftOut(BaseModel):
+    station_slug: str = ""
+    station_name: str = ""
+    level: int = 0
+
+
+class TarkovKeyPackTaskOut(BaseModel):
+    id: str
+    name: str = ""
+
+
+class TarkovKeyPackFleaOut(BaseModel):
+    price: int | None = None
+
+
+class TarkovKeyPackSourcesOut(BaseModel):
+    barters: list[TarkovKeyPackBarterOut] = Field(default_factory=list)
+    crafts: list[TarkovKeyPackCraftOut] = Field(default_factory=list)
+    tasks: list[TarkovKeyPackTaskOut] = Field(default_factory=list)
+    flea: TarkovKeyPackFleaOut | None = None
+
+
+class TarkovKeyPackKeyOut(BaseModel):
+    id: str
+    name: str
+    short_name: str = ""
+    icon_link: str = ""
+    types: list[str] = Field(default_factory=list)
+    lock_count: int = 0
+    access: bool = False
+    community: bool = False
+    uses: int | None = None
+    sources: TarkovKeyPackSourcesOut = Field(default_factory=TarkovKeyPackSourcesOut)
+
+
+class TarkovKeyPackMapOut(BaseModel):
+    slug: str
+    name: str
+    english: str = ""
+    keys: list[TarkovKeyPackKeyOut] = Field(default_factory=list)
+
+
+class TarkovKeyPacksOut(BaseModel):
+    maps: list[TarkovKeyPackMapOut] = Field(default_factory=list)
+    unbound: list[TarkovKeyPackKeyOut] = Field(default_factory=list)
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
 class TarkovRaidRoomMapIn(BaseModel):
     map: str = Field(min_length=1, max_length=64)
 
@@ -796,6 +813,63 @@ class TarkovRaidRoomClaimOut(BaseModel):
 
 class TarkovRaidRoomKeyBringOut(BaseModel):
     item_id: str
+    user_id: int
+    display_name: str
+    created_at: str | None = None
+
+
+class TarkovKeyOwnOut(BaseModel):
+    item_id: str
+    user_id: int
+    display_name: str
+    created_at: str | None = None
+
+
+class TarkovKeyOwnsOut(BaseModel):
+    item_ids: list[str] = Field(default_factory=list)
+
+
+class TarkovKeyOwnsIn(BaseModel):
+    item_ids: list[str] = Field(default_factory=list, max_length=400)
+
+
+class TarkovTaskDonesOut(BaseModel):
+    task_ids: list[str] = Field(default_factory=list)
+
+
+class TarkovTaskDonesIn(BaseModel):
+    task_ids: list[str] = Field(default_factory=list, max_length=800)
+    replace: bool = False
+
+
+class TarkovRaidLogIn(BaseModel):
+    folder: str = ""
+    raid_id: str = ""
+    location: str = ""
+    map_id: str = ""
+    map_label: str = ""
+    raid_mode: str = ""
+    session_mode: str = ""
+    started_at: str = ""
+    ended_at: str = ""
+    reconnected: bool = False
+    aborted: bool = False
+
+
+class TarkovRaidLogsIn(BaseModel):
+    raids: list[TarkovRaidLogIn] = Field(default_factory=list, max_length=500)
+
+
+class TarkovRaidLogsImportOut(BaseModel):
+    inserted: int = 0
+    updated: int = 0
+    skipped: int = 0
+    total: int = 0
+
+
+class TarkovRaidRoomObjectiveDoneOut(BaseModel):
+    task_id: str
+    objective_id: str
     user_id: int
     display_name: str
     created_at: str | None = None
@@ -846,4 +920,8 @@ class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
     members: list[TarkovRaidRoomMemberOut] = Field(default_factory=list)
     claims: list[TarkovRaidRoomClaimOut] = Field(default_factory=list)
     key_brings: list[TarkovRaidRoomKeyBringOut] = Field(default_factory=list)
+    key_owns: list[TarkovKeyOwnOut] = Field(default_factory=list)
+    objective_dones: list[TarkovRaidRoomObjectiveDoneOut] = Field(
+        default_factory=list
+    )
     marks: list[TarkovRaidRoomMarkOut] = Field(default_factory=list)

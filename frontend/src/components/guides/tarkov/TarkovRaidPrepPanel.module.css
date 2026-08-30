@@ -178,6 +178,15 @@
   gap: 8px;
 }
 
+.bindLink {
+  color: var(--hb-orange, #c8932a);
+  text-decoration: none;
+}
+
+.bindLink:hover {
+  text-decoration: underline;
+}
+
 .joinForm {
   display: flex;
   gap: 8px;
@@ -703,8 +712,23 @@
   white-space: normal;
 }
 
-.taskObjLineDone > span {
+.taskObjLineMain {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.taskObjLineDone .taskObjLineMain > span:first-child {
   text-decoration: line-through;
+}
+
+.taskObjDoneBy {
+  color: #8fb88a;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .taskObjKeys {
@@ -1000,9 +1024,33 @@
 }
 
 .guideSideList {
+  flex: 1 1 45%;
+  min-height: 120px;
+  overflow: auto;
+}
+
+.guideProgress {
+  flex: 1 1 55%;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid #2a2a2a;
+  overflow: hidden;
+}
+
+.guideProgressHead {
+  flex: none;
+  padding: 8px 10px;
+  border-bottom: 1px solid #2a2a2a;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.guideProgressBody {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  padding: 10px;
 }
 
 .guideSideRow {
@@ -1112,7 +1160,7 @@
   }
 
   .guideSidebar {
-    max-height: 180px;
+    max-height: min(420px, 46vh);
   }
 }
 
@@ -1133,6 +1181,11 @@
 .changeMapBtn:hover {
   border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
   background: #101010;
+}
+
+.changeMapBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .dockLeadActions {
@@ -1569,6 +1622,14 @@
 
 .summaryTaskNameText {
   display: inline-block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
   white-space: nowrap;
   vertical-align: middle;
   cursor: pointer;
@@ -1703,6 +1764,10 @@
   flex: 1 1 auto;
 }
 
+.needChipOwned {
+  border-color: rgba(200, 147, 42, 0.42);
+}
+
 .needChipBrought {
   border-color: rgba(122, 168, 90, 0.72);
   background: #161c12;
@@ -1714,6 +1779,13 @@
 
 .needChipMine {
   box-shadow: inset 0 0 0 1px rgba(200, 147, 42, 0.42);
+}
+
+.needOwnBy {
+  color: #c4b88a;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .needBringBy {

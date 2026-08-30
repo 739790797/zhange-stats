@@ -20,6 +20,8 @@ function ammo(partial: Partial<TarkovAmmoItem> & Pick<TarkovAmmoItem, "id">): Ta
     light_bleed_modifier: 0,
     heavy_bleed_modifier: 0,
     icon_link: "",
+    pack_icon_link: "",
+    pack_item_id: "",
     ...partial,
   };
 }

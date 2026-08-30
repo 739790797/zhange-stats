@@ -8,10 +8,7 @@ import pytest
 
 from app.models.tarkov import (
     TarkovAmmo,
-    TarkovAmmoMeta,
     TarkovGun,
-    TarkovGunMeta,
-    TarkovItemsMeta,
     TarkovItemsRaw,
 )
 from app.services.tarkov import ammo as ammo_svc
@@ -27,24 +24,27 @@ class _FakeQuery:
         self._rows = list(session.store.get(model, []))
 
     def filter(self, *args, **_k):  # noqa: ANN001
-        # Support TarkovAmmo.icon_link != "" and Model.id == N
-        if args:
-            expr = args[0]
+        for expr in args:
             left = getattr(expr, "left", None)
             key = getattr(left, "key", None) or getattr(left, "name", None)
+            op = getattr(getattr(expr, "operator", None), "__name__", "")
+            right = getattr(expr, "right", None)
+            value = getattr(right, "value", right)
             if key == "icon_link":
                 self._rows = [
                     r for r in self._rows if str(getattr(r, "icon_link", "") or "")
                 ]
-            elif key == "id":
-                right = getattr(expr, "right", None)
-                value = getattr(right, "value", right)
+                continue
+            if key in ("id", "mode_id"):
                 try:
                     value = int(value)
                 except (TypeError, ValueError):
                     pass
+            if key == "lang":
+                value = value or ""
+            if key:
                 self._rows = [
-                    r for r in self._rows if getattr(r, "id", None) == value
+                    r for r in self._rows if getattr(r, key, None) == value
                 ]
         return self
 
@@ -55,7 +55,10 @@ class _FakeQuery:
         return len(self._rows)
 
     def delete(self):
-        self.session.store[self.model] = []
+        drop = {id(r) for r in self._rows}
+        self.session.store[self.model] = [
+            r for r in self.session.store.get(self.model, []) if id(r) not in drop
+        ]
         self._rows = []
 
     def one_or_none(self):
@@ -69,11 +72,8 @@ class FakeSession:
     def __init__(self):
         self.store: dict = {
             TarkovAmmo: [],
-            TarkovAmmoMeta: [],
             TarkovGun: [],
-            TarkovGunMeta: [],
             TarkovItemsRaw: [],
-            TarkovItemsMeta: [],
         }
         self.committed = False
 
@@ -82,10 +82,15 @@ class FakeSession:
 
     def add(self, obj):  # noqa: ANN001
         bucket = self.store.setdefault(type(obj), [])
-        if isinstance(
-            obj, (TarkovItemsRaw, TarkovItemsMeta, TarkovAmmoMeta, TarkovGunMeta)
-        ):
-            bucket[:] = [x for x in bucket if getattr(x, "id", None) != obj.id]
+        if isinstance(obj, TarkovItemsRaw):
+            bucket[:] = [
+                x
+                for x in bucket
+                if not (
+                    getattr(x, "mode_id", None) == getattr(obj, "mode_id", None)
+                    and (getattr(x, "lang", "") or "") == (getattr(obj, "lang", "") or "")
+                )
+            ]
         bucket.append(obj)
 
     def commit(self):
@@ -156,11 +161,6 @@ def test_parse_json_items_both():
 def test_sync_json_once_writes_both(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         svc,
-        "download_graphql_items",
-        lambda **_k: (_ for _ in ()).throw(svc.TarkovItemsError("graphql down")),
-    )
-    monkeypatch.setattr(
-        svc,
         "download_json_api_items",
         lambda **_k: svc.ItemsUpstreamBundle(
             source=SOURCE_JSON_API,
@@ -174,9 +174,11 @@ def test_sync_json_once_writes_both(monkeypatch: pytest.MonkeyPatch):
     assert result["ammo_count"] == 1
     assert result["gun_count"] == 1
     assert db.committed is True
-    assert {row.id for row in db.store[TarkovItemsRaw]} == {1, 2}
-    assert len(db.store[TarkovAmmo]) == 1
-    assert len(db.store[TarkovGun]) == 1
+    assert {
+        row.mode_id for row in db.store[TarkovItemsRaw] if not (row.lang or "")
+    } == {1, 2}
+    assert {row.mode_id for row in db.store[TarkovAmmo]} == {1, 2}
+    assert {row.mode_id for row in db.store[TarkovGun]} == {1, 2}
 
 
 def test_ensure_items_rebuilds_once(monkeypatch: pytest.MonkeyPatch):
@@ -229,7 +231,8 @@ def test_ensure_items_rebuilds_once(monkeypatch: pytest.MonkeyPatch):
     }
     db.add(
         TarkovItemsRaw(
-            id=svc.RAW_ROW_ID,
+            mode_id=1,
+            lang="",
             source=SOURCE_GRAPHQL,
             raw_json=json.dumps(payload, ensure_ascii=False),
             synced_at=__import__("datetime").datetime.utcnow(),
@@ -261,7 +264,8 @@ def test_ensure_ammo_and_guns_share_sync(monkeypatch: pytest.MonkeyPatch):
         now = __import__("datetime").datetime.utcnow()
         db.add(
             TarkovItemsRaw(
-                id=svc.RAW_ROW_ID,
+                mode_id=1,
+                lang="",
                 source=SOURCE_JSON_API,
                 raw_json="{}",
                 synced_at=now,
@@ -357,3 +361,45 @@ def test_extract_ammo_item_detail_from_json_envelope():
     assert detail["properties"]["damage"] == 102
     assert detail["item"]["weight"] == 0.01
     assert "properties" not in detail["item"]
+
+
+def test_pve_ammo_write_does_not_wipe_pvp_rows() -> None:
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    now = __import__("datetime").datetime.utcnow()
+    db = FakeSession()
+
+    def _row(item_id: str) -> dict:
+        return {
+            "item_id": item_id,
+            "name": item_id,
+            "short_name": item_id,
+            "caliber": "9x19mm",
+            "ammo_type": "bullet",
+            "damage": 1,
+            "penetration": 1,
+            "armor_damage": 1,
+        }
+
+    with game_mode_scope("pvp"):
+        ammo_svc.replace_derived_ammo_rows(
+            db,
+            [_row("pvp-ammo")],
+            source=SOURCE_JSON_API,
+            note="pvp",
+            synced_at=now,
+        )
+    with game_mode_scope("pve"):
+        ammo_svc.replace_derived_ammo_rows(
+            db,
+            [_row("pve-ammo")],
+            source=SOURCE_JSON_API,
+            note="pve",
+            synced_at=now,
+        )
+
+    by_mode = {}
+    for row in db.store[TarkovAmmo]:
+        by_mode.setdefault(row.mode_id, set()).add(row.item_id)
+    assert by_mode[1] == {"pvp-ammo"}
+    assert by_mode[2] == {"pve-ammo"}

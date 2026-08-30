@@ -474,7 +474,7 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
   padding: 8px 10px;
   width: max-content;
-  max-width: 320px;
+  max-width: none;
   white-space: normal;
 }
 
@@ -525,6 +525,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: max-content;
 }
 
 .questTipRow {
@@ -545,6 +546,26 @@
   color: #b8b39a;
   font-size: 11px;
   line-height: 1.35;
+}
+
+.questTipSteps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.questTipStep {
+  display: block;
+  color: #8a8470;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.questTipStepOn {
+  color: #eee9d6;
+  font-weight: 700;
 }
 
 .questTipOptional {
@@ -670,4 +691,89 @@
 
 .credit {
   font-size: 11px;
+}
+
+.playerEnable {
+  display: block;
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  background: #1a160c;
+  color: var(--hb-orange, #c8932a);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.playerEnable:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.playerStatus {
+  color: #eee9d6;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.playerIcon {
+  background: none;
+  border: 0;
+}
+
+.playerMark {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  color: #c8932a;
+}
+
+.playerGlow {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  box-shadow: 0 0 12px 4px color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.playerDot,
+.playerArrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+.playerDot {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid #111;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.playerArrow {
+  width: 0;
+  height: 0;
+  margin: -10px 0 0 -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 16px solid currentColor;
+  filter: drop-shadow(0 0 2px #000);
+  transform-origin: 6px 10px;
+}
+
+.playerName {
+  position: absolute;
+  left: 50%;
+  top: 28px;
+  transform: translateX(-50%);
+  color: #eee9d6;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px #000;
 }

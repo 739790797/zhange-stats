@@ -7,7 +7,6 @@ json.tarkov.dev 整包含 handbookCategories；GraphQL split 仅弹药/枪械。
 from __future__ import annotations
 
 import html
-import json
 import logging
 import re
 import threading
@@ -41,6 +40,10 @@ _parsed_lock = threading.Lock()
 _parsed_cache: tuple[
     str, str, list[dict[str, Any]], str | None, str | None
 ] | None = None
+_pack_index_cache: tuple[str, dict[str, dict[str, Any]]] | None = None
+
+# 手册「弹药 > 弹药包」
+AMMO_PACK_HANDBOOK_ID = "5b47574386f77428ca22b33c"
 
 
 def _id_list(value: Any) -> list[str]:
@@ -110,7 +113,8 @@ def _extract_ref_id(value: Any) -> str:
 def _items_data_blob(payload: dict[str, Any]) -> dict[str, Any]:
     blob = payload.get("items")
     if not isinstance(blob, dict):
-        return {}
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else None
+        return data if isinstance(data, dict) else {}
     data = blob.get("data") if isinstance(blob.get("data"), dict) else blob
     return data if isinstance(data, dict) else {}
 
@@ -497,6 +501,92 @@ def payload_has_full_items(source: str, payload: dict[str, Any]) -> bool:
     return bool(items_svc._json_items_map(payload))
 
 
+def _is_ammo_pack(raw: dict[str, Any]) -> bool:
+    types = raw.get("types") if isinstance(raw.get("types"), list) else []
+    if any(str(t).strip() == "ammoBox" for t in types):
+        return True
+    handbook = set(_id_list(raw.get("handbookCategories")))
+    if AMMO_PACK_HANDBOOK_ID in handbook:
+        return True
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    return str(props.get("propertiesType") or "") == "ItemPropertiesAmmoBox"
+
+
+def _contained_ammo_entries(raw: dict[str, Any]) -> list[tuple[str, int]]:
+    blobs: list[Any] = []
+    if isinstance(raw.get("containsItems"), list):
+        blobs.append(raw.get("containsItems"))
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    if isinstance(props.get("containsItems"), list):
+        blobs.append(props.get("containsItems"))
+    out: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for contains in blobs:
+        if not isinstance(contains, list):
+            continue
+        for entry in contains:
+            if isinstance(entry, dict):
+                ident = _extract_ref_id(entry.get("item") if "item" in entry else entry)
+                try:
+                    count = int(entry.get("count") or 1)
+                except (TypeError, ValueError):
+                    count = 1
+            else:
+                ident = _extract_ref_id(entry)
+                count = 1
+            if not ident or ident in seen:
+                continue
+            seen.add(ident)
+            out.append((ident, max(count, 1)))
+    return out
+
+
+def parse_ammo_pack_index(
+    source: str, payload: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """子弹 id → 对应弹药包（多包时取发数最多的）。"""
+    index: dict[str, dict[str, Any]] = {}
+    for item_id, raw in iter_raw_items(source, payload):
+        if not item_id or not isinstance(raw, dict) or not _is_ammo_pack(raw):
+            continue
+        icon = str(raw.get("baseImageLink") or raw.get("iconLink") or "").strip()[:512]
+        for ammo_id, count in _contained_ammo_entries(raw):
+            prev = index.get(ammo_id)
+            better = prev is None or count > int(prev.get("pack_count") or 0)
+            if not better and prev is not None and count == int(prev.get("pack_count") or 0):
+                better = bool(icon) and not str(prev.get("pack_icon_link") or "")
+            if not better:
+                continue
+            index[ammo_id] = {
+                "pack_item_id": item_id,
+                "pack_icon_link": icon,
+                "pack_count": count,
+            }
+    return index
+
+
+def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
+    """当前模式 items raw 里的弹药包索引；缺 raw / 解析失败时为空。"""
+    global _pack_index_cache
+    if items_svc.get_items_raw(db) is None:
+        return {}
+    _source, synced, _note = items_svc.items_raw_header(db)
+    key = cache_key(synced or "")
+    with _parsed_lock:
+        cached = _pack_index_cache
+        if cached is not None and cached[0] == key:
+            return cached[1]
+    try:
+        source, payload, synced_at, _note = _load_payload(db)
+    except TarkovItemsError:
+        return {}
+    index = parse_ammo_pack_index(source, payload)
+    key = cache_key(synced_at or "")
+    with _parsed_lock:
+        _pack_index_cache = (key, index)
+    return index
+
+
 def parse_catalog_items(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     locale = items_svc._locale_map(payload)
     rows: list[dict[str, Any]] = []
@@ -614,8 +704,7 @@ def load_parsed_catalog(
     """解析整包目录；synced_at 未变则复用进程缓存，翻页不必重读 raw_json。"""
     global _parsed_cache
     items_svc.ensure_items(db)
-    meta = items_svc.get_items_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    _source, synced, _note = items_svc.items_raw_header(db)
     key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
@@ -640,8 +729,7 @@ def peek_catalog_items(db: Session) -> list[dict[str, Any]]:
     """搜索用：有 raw 则解析，不回源、不把 GraphQL split 升级成 json、不覆盖进程缓存。"""
     if items_svc.get_items_raw(db) is None:
         return []
-    meta = items_svc.get_items_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    _source, synced, _note = items_svc.items_raw_header(db)
     key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
@@ -687,22 +775,16 @@ def extract_item_detail(
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
+    from app.services.tarkov import upstream as upstream_svc
+
     items_svc.ensure_items(db)
-    row = items_svc.get_items_raw(db)
-    if row is None:
-        raise TarkovItemsError("无物品 raw")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovItemsError("物品 raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovItemsError("物品 raw_json 格式无效")
-    meta = items_svc.get_items_meta(db)
-    synced = None
-    if meta and meta.synced_at:
-        synced = meta.synced_at.isoformat()
-    note = (meta.note if meta else None) or row.note
-    return row.source, payload, synced, note
+    return upstream_svc.load_main_payload(
+        db,
+        "items",
+        error_cls=TarkovItemsError,
+        missing="无物品 raw",
+        invalid="物品 raw_json 无效",
+    )
 
 
 def ensure_full_item_catalog(db: Session) -> None:

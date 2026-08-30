@@ -44,6 +44,31 @@ export function parseBeijing(input: ConfigType): Dayjs {
   }
 }
 
+export function nowBeijingStamp(): string {
+  return nowBeijing().format("YYYY-MM-DD HH:mm:ss");
+}
+
+/** 比较北京墙钟；无效时间排在有效时间之前。 */
+export function compareBeijingClock(left: ConfigType, right: ConfigType): number {
+  const a = parseBeijing(left);
+  const b = parseBeijing(right);
+  if (!a.isValid() && !b.isValid()) return 0;
+  if (!a.isValid()) return -1;
+  if (!b.isValid()) return 1;
+  const av = a.valueOf();
+  const bv = b.valueOf();
+  if (av === bv) return 0;
+  return av < bv ? -1 : 1;
+}
+
+export function laterBeijingClock(left: string, right: string): string {
+  const a = (left || "").trim();
+  const b = (right || "").trim();
+  if (!a) return b;
+  if (!b) return a;
+  return compareBeijingClock(a, b) >= 0 ? a : b;
+}
+
 export function formatBeijing(
   input: ConfigType,
   pattern = "YYYY-MM-DD HH:mm:ss",

@@ -183,7 +183,7 @@ def _trader_rows(db: Session) -> list[dict[str, Any]]:
 
 
 def _boss_rows(db: Session) -> list[dict[str, Any]]:
-    if bosses_svc.get_bosses_raw(db) is None:
+    if bosses_svc.get_maps_raw(db) is None:
         return []
     try:
         return list(bosses_svc.list_bosses(db).get("items") or [])

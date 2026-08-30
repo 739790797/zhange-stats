@@ -5,8 +5,9 @@ import {
   collectRaidPrepTaskObjectives,
   colorForTaskId,
   displayRaidPrepTaskName,
+  groupObjectiveDonesForTask,
+  type RaidPrepObjectiveDoneLike,
 } from "@/lib/tarkovRaidPrep";
-import { tarkovTaskProgressLabel } from "@/lib/tarkovTaskProgress";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import styles from "./TarkovRaidPrepPanel.module.css";
@@ -23,6 +24,8 @@ type Props = {
   done?: boolean;
   mapSlug?: string;
   skipped?: ReadonlySet<string>;
+  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+  currentUserId?: number | null;
   onToggleObjective?: (objectiveId: string) => void;
   /** 只显示任务名，不渲染楼层 / 进度 / 参与人等次行。 */
   compact?: boolean;
@@ -43,26 +46,32 @@ export function TarkovRaidPrepTaskCard({
   done,
   mapSlug = "",
   skipped,
+  objectiveDones,
+  currentUserId,
   onToggleObjective,
   compact,
   onToggle,
   onLocate,
   onTitle,
 }: Props) {
-  const isDone = done ?? row.progress_status === "complete";
-  const progress = tarkovTaskProgressLabel(row.progress_status);
+  const isDone = Boolean(done);
   const title = displayRaidPrepTaskName(row);
   const objectives = useMemo(
     () => collectRaidPrepTaskObjectives(row, mapSlug),
     [row, mapSlug],
+  );
+  const doneByOthers = useMemo(
+    () =>
+      groupObjectiveDonesForTask(row.id, objectiveDones, {
+        excludeUserId: currentUserId,
+      }),
+    [row.id, objectiveDones, currentUserId],
   );
   const meta = compact
     ? []
     : [
         names?.length ? names.join("、") : "",
         floors?.length ? floors.join(" / ") : "",
-        progress,
-        row.kappa_required ? "Kappa" : "",
       ].filter(Boolean);
   const swatch = color || colorForTaskId(row.id);
   const nameEl = onTitle ? (
@@ -119,6 +128,7 @@ export function TarkovRaidPrepTaskCard({
           <TarkovRaidPrepObjectiveHint
             objectives={objectives}
             skipped={skipped}
+            doneByOthers={doneByOthers}
             onToggle={onToggleObjective}
             trigger={["hover"]}
           >

@@ -9,10 +9,12 @@ import {
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
 import {
   buildRaidPrepSummary,
+  collectRaidPrepCompletedUsers,
   collectRaidPrepSummaryTypeColumns,
   colorForTaskId,
   colorForUserId,
   expandRaidPrepSummaryItemLines,
+  groupObjectiveDonesForTask,
   isRaidPrepSummaryBringType,
   isRaidPrepSummaryShootType,
   RAID_PREP_SUMMARY_BRING_GROUP_LABEL,
@@ -21,16 +23,19 @@ import {
   raidPrepSkippedIds,
   raidPrepSummaryHasBringTypes,
   raidPrepSummaryHasShootTypes,
+  skipMapToObjectiveDones,
   sortRaidPrepSummaryByParticipants,
   tarkovReadableName,
   type RaidPrepNeededItem,
+  type RaidPrepObjectiveDoneLike,
   type RaidPrepSkipMap,
   type RaidPrepSummaryShootSlot,
   type RaidPrepTaskLike,
   type RaidPrepTaskSummary,
 } from "@/lib/tarkovRaidPrep";
 import {
-  formatKeyBringHint,
+  formatKeyChipHint,
+  formatKeyOwnHint,
   groupKeyBringsByItem,
   type RaidRoomKeyBringLike,
 } from "@/lib/tarkovRaidRooms";
@@ -105,8 +110,10 @@ function neededItemKey(item: RaidPrepNeededItem): string {
   return `${item.kind}-${item.id}-${item.objectiveType}-${item.found_in_raid ? "fir" : "stash"}-${item.optional ? "opt" : "req"}`;
 }
 
+type KeyNameGroup = { userIds: number[]; names: string[] };
+
 type KeyBringControls = {
-  byItem: ReadonlyMap<string, { userIds: number[]; names: string[] }>;
+  byItem: ReadonlyMap<string, KeyNameGroup>;
   currentUserId?: number | null;
   canToggle: boolean;
   onToggle: (itemId: string) => void;
@@ -117,11 +124,13 @@ function NeededItemChip({
   onPeek,
   nativeTitle = true,
   keyBring,
+  keyOwn,
 }: {
   item: RaidPrepNeededItem;
   onPeek: (item: RaidPrepNeededItem) => void;
   nativeTitle?: boolean;
   keyBring?: KeyBringControls;
+  keyOwn?: ReadonlyMap<string, KeyNameGroup>;
 }) {
   if (item.anyOf?.length) {
     return <AnyOfChip item={item} onPeek={onPeek} />;
@@ -135,9 +144,11 @@ function NeededItemChip({
     item.found_in_raid ? "战局内" : "",
     item.optional ? "可选" : "",
   ].filter(Boolean);
-  const bringEnabled = Boolean(keyBring) && item.kind === "key";
+  const isKey = item.kind === "key";
+  const bringEnabled = Boolean(keyBring) && isKey;
   const group = bringEnabled ? keyBring?.byItem.get(item.id) : undefined;
   const names = group?.names || [];
+  const ownNames = isKey ? keyOwn?.get(item.id)?.names || [] : [];
   const mine = Boolean(
     bringEnabled &&
       keyBring?.currentUserId != null &&
@@ -145,23 +156,34 @@ function NeededItemChip({
   );
   const canToggle = Boolean(bringEnabled && keyBring?.canToggle);
   const hint = bringEnabled
-    ? formatKeyBringHint(names, { canToggle })
-    : nativeTitle
-      ? label
-      : undefined;
+    ? formatKeyChipHint(ownNames, names, { canToggle })
+    : ownNames.length
+      ? formatKeyOwnHint(ownNames)
+      : nativeTitle
+        ? label
+        : undefined;
   const chip = (
     <button
       type="button"
       className={[
         styles.needChip,
+        ownNames.length ? styles.needChipOwned : "",
         names.length ? styles.needChipBrought : "",
         mine ? styles.needChipMine : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      title={bringEnabled ? undefined : nativeTitle ? label : undefined}
+      title={
+        bringEnabled || ownNames.length
+          ? undefined
+          : nativeTitle
+            ? label
+            : undefined
+      }
       aria-pressed={bringEnabled ? mine : undefined}
-      aria-label={bringEnabled ? `${label}。${hint}` : undefined}
+      aria-label={
+        bringEnabled || ownNames.length ? `${label}。${hint}` : undefined
+      }
       onClick={(event) => {
         event.stopPropagation();
         if (bringEnabled && canToggle && keyBring && !event.shiftKey) {
@@ -182,13 +204,16 @@ function NeededItemChip({
         {extra.length ? (
           <span className={styles.needMeta}>{extra.join(" · ")}</span>
         ) : null}
+        {ownNames.length ? (
+          <span className={styles.needOwnBy}>{ownNames.join("、")}拥有</span>
+        ) : null}
         {names.length ? (
           <span className={styles.needBringBy}>{names.join("、")}带了</span>
         ) : null}
       </span>
     </button>
   );
-  if (!bringEnabled) return chip;
+  if (!bringEnabled && !ownNames.length) return chip;
   return (
     <span className={styles.needChipWrap}>
       <Tooltip
@@ -418,17 +443,24 @@ function ItemOrEmptyCell({
   className,
   empty,
   keyBring,
+  keyOwn,
 }: {
   item: RaidPrepNeededItem | null;
   onPeek: (item: RaidPrepNeededItem) => void;
   className?: string;
   empty?: string;
   keyBring?: KeyBringControls;
+  keyOwn?: ReadonlyMap<string, KeyNameGroup>;
 }) {
   if (item) {
     return (
       <td className={className}>
-        <NeededItemChip item={item} onPeek={onPeek} keyBring={keyBring} />
+        <NeededItemChip
+          item={item}
+          onPeek={onPeek}
+          keyBring={keyBring}
+          keyOwn={keyOwn}
+        />
       </td>
     );
   }
@@ -453,18 +485,28 @@ function SummaryList({
   rows,
   typeColumns,
   participantsByTask,
+  completedByTask,
   onPeek,
   keyBring,
+  keyOwn,
   skippedByTask,
+  objectiveDones,
+  currentUserId,
   onToggleObjective,
+  onTitle,
 }: {
   rows: RaidPrepTaskSummary[];
   typeColumns: string[];
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
+  completedByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   onPeek: (item: RaidPrepNeededItem) => void;
   keyBring?: KeyBringControls;
+  keyOwn?: ReadonlyMap<string, KeyNameGroup>;
   skippedByTask?: RaidPrepSkipMap;
+  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+  currentUserId?: number | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
+  onTitle?: (taskId: string) => void;
 }) {
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
@@ -498,14 +540,20 @@ function SummaryList({
             {showShootTypes ? (
               <th rowSpan={2}>{typeHead(RAID_PREP_SUMMARY_SHOOT_TYPE)}</th>
             ) : null}
+            <th
+              rowSpan={2}
+              title="必做步骤全部勾完的人（逐步进度见悬停任务名）"
+            >
+              已完成
+            </th>
           </tr>
           <tr>
             <th
               className={`${styles.summaryBringHead} ${bringColClass(0, bringSpan)}`}
               title={
                 keyBring
-                  ? "点击钥匙声明我带了，悬停查看谁带了"
-                  : undefined
+                  ? "点击钥匙声明我带了；总结会提示谁拥有、谁带了"
+                  : "悬停查看谁拥有这把钥匙"
               }
             >
               <span className={taskStyles.typeChip} data-tone="key">
@@ -530,7 +578,13 @@ function SummaryList({
               showShootTypes,
             );
             const noKeys = !(row.keys || []).length;
-            return grid.lines.map((line, index) => (
+            return grid.lines.map((line, index) => {
+              const doneByOthers = groupObjectiveDonesForTask(
+                row.taskId,
+                objectiveDones,
+                { excludeUserId: currentUserId },
+              );
+              return (
               <tr
                 key={`${row.taskId}-${index}`}
                 className={
@@ -566,6 +620,7 @@ function SummaryList({
                         <TarkovRaidPrepObjectiveHint
                           objectives={row.objectives || []}
                           skipped={raidPrepSkippedIds(skippedByTask, row.taskId)}
+                          doneByOthers={doneByOthers}
                           onToggle={
                             onToggleObjective
                               ? (objectiveId) =>
@@ -573,10 +628,24 @@ function SummaryList({
                               : undefined
                           }
                           placement="topLeft"
+                          trigger={onTitle ? ["hover"] : ["hover", "click"]}
                         >
-                          <span className={styles.summaryTaskNameText}>
-                            {row.taskName}
-                          </span>
+                          {onTitle ? (
+                            <button
+                              type="button"
+                              className={styles.summaryTaskNameText}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onTitle(row.taskId);
+                              }}
+                            >
+                              {row.taskName}
+                            </button>
+                          ) : (
+                            <span className={styles.summaryTaskNameText}>
+                              {row.taskName}
+                            </span>
+                          )}
                         </TarkovRaidPrepObjectiveHint>
                       </span>
                     </div>
@@ -588,6 +657,7 @@ function SummaryList({
                   item={line.key}
                   onPeek={onPeek}
                   keyBring={keyBring}
+                  keyOwn={keyOwn}
                   empty={index === 0 && noKeys ? "无所需钥匙" : "—"}
                   className={bringColClass(0, bringSpan)}
                 />
@@ -608,8 +678,18 @@ function SummaryList({
                 {showShootTypes ? (
                   <ShootSlotCell slot={line.shoot} onPeek={onPeek} />
                 ) : null}
+                <td>
+                  {index === 0 ? (
+                    <ParticipantChips
+                      people={completedByTask?.get(row.taskId) || []}
+                    />
+                  ) : (
+                    <span className={styles.summaryNone}> </span>
+                  )}
+                </td>
               </tr>
-            ));
+            );
+            });
           })}
         </tbody>
       </table>
@@ -622,28 +702,44 @@ export function TarkovRaidPrepSummary({
   mapId,
   participantsByTask,
   keyBrings,
+  keyOwns,
   currentUserId,
   canToggleKeyBring = false,
   onToggleKeyBring,
   skippedByTask,
+  objectiveDones,
+  currentUser,
   onToggleObjective,
+  onTitle,
 }: {
   tasks: RaidPrepTaskLike[];
   mapId: string;
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   keyBrings?: readonly RaidRoomKeyBringLike[] | null;
+  keyOwns?: readonly RaidRoomKeyBringLike[] | null;
   currentUserId?: number | null;
   canToggleKeyBring?: boolean;
   onToggleKeyBring?: (itemId: string) => void;
   skippedByTask?: RaidPrepSkipMap;
+  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+  currentUser?: { userId: number; name: string } | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
+  onTitle?: (taskId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
   const rows = useMemo(() => {
-    const built = buildRaidPrepSummary(tasks, mapId, skippedByTask);
+    const built = buildRaidPrepSummary(tasks, mapId);
     return sortRaidPrepSummaryByParticipants(built, participantsByTask);
-  }, [tasks, mapId, skippedByTask, participantsByTask]);
+  }, [tasks, mapId, participantsByTask]);
+  const completedByTask = useMemo(() => {
+    const dones =
+      objectiveDones ??
+      (currentUser
+        ? skipMapToObjectiveDones(skippedByTask, currentUser)
+        : []);
+    return collectRaidPrepCompletedUsers(tasks, mapId, dones);
+  }, [tasks, mapId, objectiveDones, skippedByTask, currentUser]);
   const typeColumns = useMemo(
     () => collectRaidPrepSummaryTypeColumns(rows),
     [rows],
@@ -664,6 +760,17 @@ export function TarkovRaidPrepSummary({
       onToggle: onToggleKeyBring || (() => undefined),
     };
   }, [keyBrings, currentUserId, canToggleKeyBring, onToggleKeyBring]);
+  const keyOwn = useMemo(() => {
+    if (!keyOwns?.length) return undefined;
+    const byItem = new Map<string, KeyNameGroup>();
+    for (const group of groupKeyBringsByItem(keyOwns)) {
+      byItem.set(group.itemId, {
+        userIds: group.userIds,
+        names: group.names,
+      });
+    }
+    return byItem;
+  }, [keyOwns]);
   const itemCount = rows.reduce(
     (sum, row) =>
       sum +
@@ -714,10 +821,22 @@ export function TarkovRaidPrepSummary({
             rows={rows}
             typeColumns={typeColumns}
             participantsByTask={participantsByTask}
+            completedByTask={completedByTask}
             onPeek={setPeek}
             keyBring={keyBring}
+            keyOwn={keyOwn}
             skippedByTask={skippedByTask}
+            objectiveDones={objectiveDones}
+            currentUserId={currentUserId ?? currentUser?.userId}
             onToggleObjective={onToggleObjective}
+            onTitle={
+              onTitle
+                ? (taskId) => {
+                    setOpen(false);
+                    onTitle(taskId);
+                  }
+                : undefined
+            }
           />
         </SummaryRenderError>
       </Modal>

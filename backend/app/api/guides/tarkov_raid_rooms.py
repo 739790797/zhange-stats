@@ -338,6 +338,76 @@ def unbring_tarkov_raid_room_key(
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
+@router.put(
+    "/raid-rooms/{public_id}/objective-dones/{task_id}/{objective_id}",
+    response_model=TarkovRaidRoomDetailOut,
+    dependencies=[_FEATURE],
+)
+def mark_tarkov_raid_room_objective_done(
+    public_id: str,
+    task_id: str,
+    objective_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomDetailOut:
+    try:
+        data, added = rooms_svc.mark_objective_done(
+            db, public_id, user, task_id, objective_id
+        )
+    except rooms_svc.RaidRoomError as extra_exc:
+        db.rollback()
+        _raise(extra_exc)
+        raise
+    db.commit()
+    if added:
+        _publish(
+            public_id,
+            "objective_done_add",
+            data,
+            extra={
+                "task_id": task_id,
+                "objective_id": objective_id,
+                "user_id": user.id,
+            },
+        )
+    return TarkovRaidRoomDetailOut.model_validate(data)
+
+
+@router.delete(
+    "/raid-rooms/{public_id}/objective-dones/{task_id}/{objective_id}",
+    response_model=TarkovRaidRoomDetailOut,
+    dependencies=[_FEATURE],
+)
+def unmark_tarkov_raid_room_objective_done(
+    public_id: str,
+    task_id: str,
+    objective_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomDetailOut:
+    try:
+        data, removed = rooms_svc.unmark_objective_done(
+            db, public_id, user, task_id, objective_id
+        )
+    except rooms_svc.RaidRoomError as extra_exc:
+        db.rollback()
+        _raise(extra_exc)
+        raise
+    db.commit()
+    if removed:
+        _publish(
+            public_id,
+            "objective_done_remove",
+            data,
+            extra={
+                "task_id": task_id,
+                "objective_id": objective_id,
+                "user_id": user.id,
+            },
+        )
+    return TarkovRaidRoomDetailOut.model_validate(data)
+
+
 @router.post(
     "/raid-rooms/{public_id}/marks",
     response_model=TarkovRaidRoomDetailOut,

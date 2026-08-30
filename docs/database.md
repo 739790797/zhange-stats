@@ -21,15 +21,11 @@ users 1 ── 1 members ── * play_sessions / presence_segments
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta · game_schedule_raws
-tarkov_items_raws · tarkov_items_meta
-tarkov_ammo · tarkov_ammo_meta
-tarkov_guns · tarkov_gun_meta
-tarkov_tasks_raws · tarkov_tasks_meta
-tarkov_traders_raws · tarkov_traders_meta
-tarkov_bosses_raws · tarkov_bosses_meta
-tarkov_guides_raws · tarkov_guides_meta
-tarkov_tracker_binds
-tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_marks
+tarkov_items_raws · tarkov_maps_raws · tarkov_tasks_raws · tarkov_traders_raws
+tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extras_raws
+tarkov_ammo · tarkov_guns
+tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_objective_dones / tarkov_raid_room_marks
+tarkov_user_key_owns · tarkov_user_task_dones · tarkov_user_raid_logs
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
 ```
 
@@ -48,25 +44,25 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_items_raws` | 逃离塔科夫物品上游原始 JSON（id=1 PVP / id=2 PVE；GraphQL split 或 json.tarkov.dev items；弹药/枪械共用；失败不覆盖） |
-| `tarkov_items_meta` | 物品同步元数据（id 与 raw 对应，含 ammo/gun 计数与同步时间） |
-| `tarkov_ammo` | 弹药派生读模型（items raw parse；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正；供列表/散点） |
-| `tarkov_ammo_meta` | 弹药展示元数据（单行；与 items 同事务写入） |
-| `tarkov_guns` | 枪械派生读模型（口径/射速/人机/后坐/`allowed_ammo` 等） |
-| `tarkov_gun_meta` | 枪械展示元数据（单行） |
-| `tarkov_tasks_raws` | 逃离塔科夫任务上游原始 JSON（id=1 PVP / id=2 PVE；GraphQL 或 json.tarkov.dev tasks + locale；失败不覆盖） |
-| `tarkov_tasks_meta` | 任务同步元数据（id 与 raw 对应，含 task_count 与同步时间） |
-| `tarkov_traders_raws` | 逃离塔科夫商人上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev traders + locale + 物品 buyFromTrader 报价；失败不覆盖） |
-| `tarkov_traders_meta` | 商人同步元数据（id 与 raw 对应，含 trader_count / offer_count 与同步时间） |
-| `tarkov_bosses_raws` | 逃离塔科夫 BOSS 上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev maps + mobs 精简包 + locale；失败不覆盖） |
-| `tarkov_bosses_meta` | BOSS 同步元数据（id 与 raw 对应，含 boss_count 与同步时间） |
-| `tarkov_guides_raws` | 逃离塔科夫藏身处 / 以物易物 / 制作上游原始 JSON（id=1 PVP / id=2 PVE；json.tarkov.dev hideout+barters+crafts + locale；失败不覆盖） |
-| `tarkov_guides_meta` | 藏身处与交换同步元数据（id 与 raw 对应，含 station_count / barter_count / craft_count 与同步时间） |
-| `tarkov_tracker_binds` | 用户 Tarkov Tracker API token（Fernet 加密；摘要：等级 / 阵营 / 已完成任务数；`progress_json` 为每条任务 complete/failed；API 不回传明文 token） |
-| `tarkov_raid_rooms` | 战局准备席位房：全站固定 5 张桌（`public_id`=`1`…`5`，标题 `1号房`…`5号房`）。大厅始终列出全部席位及在座人员。空桌无房主、`map_slug` 为空；第一位加入者成为房主；房主离开则转给最早在座者；最后一人离开或房主清空房间则清空成员/画板/勾选/钥匙并取消地图。房主可移除在座成员。换图同样清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
+| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`，`resource` 对齐 json.tarkov.dev 文件名。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/extras 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，不再把 maps 塞进 bosses、hideout/barters/crafts 合成 guides。 |
+| `tarkov_items_raws` | json.tarkov.dev `/items` + `/items_zh`。弹药/枪械派生与目录列表的 `source` / `synced_at` / `note` 读当前模式主文件行 |
+| `tarkov_maps_raws` | json.tarkov.dev `/maps` + `/maps_zh`（含 mobs；地图与 BOSS 共用） |
+| `tarkov_tasks_raws` | json.tarkov.dev `/tasks` + `/tasks_zh` |
+| `tarkov_traders_raws` | json.tarkov.dev `/traders` + `/traders_zh`。报价从 items raw 的 buyFromTrader 现场解析 |
+| `tarkov_hideout_raws` | json.tarkov.dev `/hideout` + `/hideout_zh` |
+| `tarkov_barters_raws` | json.tarkov.dev `/barters` |
+| `tarkov_crafts_raws` | json.tarkov.dev `/crafts` |
+| `tarkov_extras_raws` | api.tarkov.dev extras |
+| `tarkov_ammo` | 弹药派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正） |
+| `tarkov_guns` | 枪械派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；口径/射速/人机/后坐/`allowed_ammo` 等） |
+| `tarkov_raid_rooms` | 战局准备席位房：全站固定 5 张桌（`public_id`=`1`…`5`，标题 `1号房`…`5号房`）。大厅始终列出全部席位及在座人员。空桌无房主、`map_slug` 为空；第一位加入者成为房主；房主离开则转给最早在座者；最后一人离开或房主清空房间则清空成员/画板/勾选/钥匙/目标完成并取消地图。房主可移除在座成员。换图同样清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
 | `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开或被房主移除则删行。`last_seen_at` 入座时写入，不再按心跳回收座位。`left_at` 列为旧兼容，新写入不再使用。`room_id` / `user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。ON DELETE CASCADE |
+| `tarkov_user_key_owns` | 用户仓库钥匙拥有（账号级）；复合主键 `(user_id, item_id)`。钥匙分类速查勾选「我有」；准备总结按在座成员展示谁拥有。ON DELETE CASCADE |
+| `tarkov_user_task_dones` | 用户任务完成勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「我做完了」。ON DELETE CASCADE |
+| `tarkov_user_raid_logs` | 用户从本机游戏日志导入的战局摘要（地图 / 编号 / 开结束时间等，不含日志原文）。唯一 `(user_id, dedupe_key)`；索引 `(user_id, started_at)`。`user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_key_brings` | 房间钥匙「我带了」声明；复合主键 `(room_id, item_id, user_id)`。同一把钥匙可多人署名（备份），准备总结里展示谁带了。ON DELETE CASCADE |
+| `tarkov_raid_room_objective_dones` | 房间目标「我做完了」署名；复合主键 `(room_id, task_id, objective_id, user_id)`。删除线只对勾选者本人；准备总结是公共内容，最后一列列出已完成用户。ON DELETE CASCADE |
 | `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
 | `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组键值预设（按 tool_id 存用户选定的配置 `directories`，以及 `pins`：`file` 为服内绝对路径且须在这些目录内，加上 key/value；旧整文件草稿忽略）；`mod_inventory_json` 为当前服 jar 库存（打开页对账指纹，增量拆包认亲；与开服剧本 `mods_json` 不是同一份）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON 性能采样热数据（约 10 秒一条：TPS/MSPT，以及可选实体总数 / 已加载区块）。只保留约 48 小时，供 30 分钟 / 1 小时折线看尖峰 |

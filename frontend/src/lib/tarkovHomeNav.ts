@@ -93,6 +93,22 @@ export const TARKOV_LOOT_TIERS_PATH = "/guides/tarkov/loot-tiers";
 export const TARKOV_HIDEOUT_COST_PATH = "/guides/tarkov/hideout-cost";
 export const TARKOV_WIPE_LENGTH_PATH = "/guides/tarkov/wipe-length";
 export const TARKOV_BITCOIN_FARM_PATH = "/guides/tarkov/bitcoin-farm";
+export const TARKOV_KEY_PACKS_PATH = "/guides/tarkov/key-packs";
+export const TARKOV_GAME_LOGS_PATH = "/guides/tarkov/game-logs";
+export const TARKOV_ME_PATH = "/guides/tarkov/me";
+
+export const TARKOV_ME_TAB_IDS = ["tasks", "keys", "logs"] as const;
+export type TarkovMeTabId = (typeof TARKOV_ME_TAB_IDS)[number];
+
+export function resolveTarkovMeTab(raw: string | null | undefined): TarkovMeTabId {
+  const key = (raw || "").trim();
+  if (key === "logs" || key === "keys" || key === "tasks") return key;
+  return "tasks";
+}
+
+export function tarkovMeHref(tab: TarkovMeTabId = "tasks"): string {
+  return `${TARKOV_ME_PATH}?tab=${encodeURIComponent(tab)}`;
+}
 const PROGRESSION_HREF = "/guides/tarkov/progression";
 export const TARKOV_TASKS_PATH = "/guides/tarkov/tasks";
 export const TARKOV_RAID_PREP_PATH = "/guides/tarkov/raid-prep";
@@ -506,6 +522,32 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   },
 ];
 
+/** 塔科夫个人中心：任务 / 钥匙 / 日志路径。 */
+export const TARKOV_ME_NAV: TarkovHomeLink = {
+  id: "me",
+  label: "个人中心",
+  href: tarkovMeHref(),
+  status: "ready",
+  icon: "◎",
+  keywords: [
+    "任务管理",
+    "任务树",
+    "任务进度",
+    "钥匙管理",
+    "钥匙分类",
+    "钥匙分类速查",
+    "打包",
+    "门锁",
+    "日志路径",
+    "游戏日志",
+    "日志",
+    "截图",
+    "目录绑定",
+    "自动检测",
+    "application",
+  ],
+};
+
 /** 首页战局准备入口（搜索仍收录；工具栏不再重复）。 */
 export const TARKOV_RAID_PREP_NAV: TarkovHomeLink = {
   id: "raid-prep",
@@ -518,6 +560,7 @@ export const TARKOV_RAID_PREP_NAV: TarkovHomeLink = {
 
 /** 首页右侧工具栏。 */
 export const TARKOV_TOOLS: TarkovHomeLink[] = [
+  TARKOV_ME_NAV,
   {
     id: "ammo-chart",
     label: "弹药图表筛选器",
@@ -921,6 +964,9 @@ export function tarkovPageTitle(pathname: string): string {
   if (path.startsWith("/guides/tarkov/loot-tiers")) return "战利品等级";
   if (path.startsWith("/guides/tarkov/wipe-length")) return "平均删档周期";
   if (path.startsWith("/guides/tarkov/bitcoin-farm")) return "比特币矿场利润";
+  if (path.startsWith("/guides/tarkov/me")) return "个人中心";
+  if (path.startsWith("/guides/tarkov/key-packs")) return "个人中心";
+  if (path.startsWith("/guides/tarkov/game-logs")) return "个人中心";
   if (path.startsWith("/guides/tarkov/progression")) return "进度";
   if (path.startsWith("/guides/tarkov/items")) {
     const seg = path.split("/")[4];

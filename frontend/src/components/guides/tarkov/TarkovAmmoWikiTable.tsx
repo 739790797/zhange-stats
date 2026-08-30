@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { TarkovAmmoItem } from "@/api/guidesApi";
 import { formatCaliberLabel } from "@/lib/tarkovAmmoCategories";
+import { ammoPackDisplayUrls } from "@/lib/tarkovAmmoPack";
 import { ammoDetailHref } from "@/lib/tarkovItemTypes";
 import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
@@ -81,6 +82,32 @@ function ArmorEffectCell({ level }: { level: ArmorEffectLevel }) {
   );
 }
 
+function AmmoThumb({
+  src,
+  hd,
+  size,
+}: {
+  src: string;
+  hd: string;
+  size: number;
+}) {
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      preview={{ src: hd, mask: false }}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        objectFit: "contain",
+        flex: `0 0 ${size}px`,
+        cursor: "zoom-in",
+      }}
+    />
+  );
+}
+
 function buildCaliberRowSpan(rows: TarkovAmmoItem[]): Map<string, number> {
   const map = new Map<string, number>();
   let i = 0;
@@ -115,6 +142,8 @@ export function TarkovAmmoWikiTable({
         bleed: 56,
         armor: 36,
         icon: 32,
+        pack: 56,
+        packIcon: 40,
       }
     : {
         caliber: 88,
@@ -125,6 +154,8 @@ export function TarkovAmmoWikiTable({
         bleed: 100,
         armor: 56,
         icon: 48,
+        pack: 80,
+        packIcon: 64,
       };
 
   const rows = useMemo(() => {
@@ -222,19 +253,7 @@ export function TarkovAmmoWikiTable({
             }}
           >
             {thumb ? (
-              <Image
-                src={thumb}
-                alt=""
-                width={w.icon}
-                height={w.icon}
-                preview={{ src: hd, mask: false }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  objectFit: "contain",
-                  flex: `0 0 ${w.icon}px`,
-                  cursor: "zoom-in",
-                }}
-              />
+              <AmmoThumb src={thumb} hd={hd} size={w.icon} />
             ) : (
               <span
                 style={{
@@ -261,6 +280,28 @@ export function TarkovAmmoWikiTable({
             {defaultId && row.id === defaultId ? (
               <span className={styles.defaultBadge}>默认</span>
             ) : null}
+          </span>
+        );
+      },
+    },
+    {
+      title: "弹药包",
+      key: "pack",
+      width: w.pack,
+      align: "center",
+      ...(compact ? {} : { fixed: "left" as const }),
+      render: (_: unknown, row) => {
+        const { thumb, hd } = ammoPackDisplayUrls(row);
+        if (!thumb) {
+          return (
+            <span title="没有对应的弹药包" style={{ color: "#8a8a8a" }}>
+              —
+            </span>
+          );
+        }
+        return (
+          <span title="弹药包形态">
+            <AmmoThumb src={thumb} hd={hd} size={w.packIcon} />
           </span>
         );
       },
@@ -396,7 +437,7 @@ export function TarkovAmmoWikiTable({
         pageSizeOptions: ["20", "50", "100"],
       }}
       tableLayout={compact ? "fixed" : undefined}
-      scroll={compact ? undefined : { x: 1500 }}
+      scroll={compact ? undefined : { x: 1600 }}
       locale={{ emptyText: "当前筛选下无弹药" }}
       onChange={onTableChange}
       onRow={

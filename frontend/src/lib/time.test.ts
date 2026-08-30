@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatBeijing, formatUnixBeijing, parseBeijing } from "./time";
+import {
+  compareBeijingClock,
+  formatBeijing,
+  formatUnixBeijing,
+  laterBeijingClock,
+  parseBeijing,
+} from "./time";
 
 describe("parseBeijing", () => {
   it("treats naive strings as Beijing wall clock", () => {
@@ -26,5 +32,17 @@ describe("formatUnixBeijing", () => {
 describe("parseBeijing validity", () => {
   it("is invalid for nullish", () => {
     expect(parseBeijing(null).isValid()).toBe(false);
+  });
+});
+
+describe("compareBeijingClock", () => {
+  it("orders naive Beijing clocks and keeps the later one", () => {
+    expect(compareBeijingClock("2026-08-30 20:11:02", "2026-08-30 20:11:02.100")).toBeLessThan(
+      0,
+    );
+    expect(laterBeijingClock("2026-08-30 20:11:02", "2026-08-30 19:00:00")).toBe(
+      "2026-08-30 20:11:02",
+    );
+    expect(laterBeijingClock("", "2026-08-31 00:40:00")).toBe("2026-08-31 00:40:00");
   });
 });

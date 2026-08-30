@@ -11,14 +11,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovGuidesMeta, TarkovGuidesRaw
+from app.models.tarkov import TarkovHideoutRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     cache_key,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
-    raw_row_id,
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
@@ -26,8 +25,6 @@ from app.services.tarkov.tasks import TRADER_BY_ID
 
 logger = logging.getLogger(__name__)
 
-META_ROW_ID = 1
-RAW_ROW_ID = 1
 GUIDES_JOB_KEY = "tarkov_guides_sync"
 DOWNLOAD_TIMEOUT = 180
 PAGE_SIZE_DEFAULT = 50
@@ -345,15 +342,53 @@ def parse_crafts(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def get_guides_raw(db: Session) -> TarkovGuidesRaw | None:
-    return db.get(TarkovGuidesRaw, raw_row_id())
+def get_hideout_raw(db: Session) -> TarkovHideoutRaw | None:
+    from app.services.tarkov import upstream as upstream_svc
+
+    return upstream_svc.load_raw_row(db, "hideout")
 
 
-def get_guides_meta(db: Session) -> TarkovGuidesMeta | None:
-    return db.get(TarkovGuidesMeta, raw_row_id())
+def assemble_guides_envelope(
+    hideout_payload: dict[str, Any],
+    *,
+    barters_payload: dict[str, Any] | None = None,
+    crafts_payload: dict[str, Any] | None = None,
+    locale: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """三张 raw 表 / dump 文件 → parse 用的 {hideout, barters, crafts, locale}。"""
+    unwrapped = _unwrap_part(hideout_payload)
+    if (
+        isinstance(unwrapped, dict)
+        and isinstance(unwrapped.get("hideout"), dict)
+        and (
+            isinstance(unwrapped.get("barters"), list)
+            or isinstance(unwrapped.get("crafts"), list)
+        )
+    ):
+        envelope = {
+            "hideout": unwrapped["hideout"],
+            "barters": unwrapped["barters"] if isinstance(unwrapped.get("barters"), list) else [],
+            "crafts": unwrapped["crafts"] if isinstance(unwrapped.get("crafts"), list) else [],
+            "locale": unwrapped["locale"] if isinstance(unwrapped.get("locale"), dict) else {},
+        }
+    else:
+        hideout = unwrapped if isinstance(unwrapped, dict) else {}
+        barters = _unwrap_part(barters_payload) if isinstance(barters_payload, dict) else None
+        crafts = _unwrap_part(crafts_payload) if isinstance(crafts_payload, dict) else None
+        envelope = {
+            "hideout": hideout,
+            "barters": barters if isinstance(barters, list) else [],
+            "crafts": crafts if isinstance(crafts, list) else [],
+            "locale": {},
+        }
+    if locale:
+        envelope["locale"] = locale
+    return envelope
 
 
 def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str, Any]:
+    from app.services.tarkov import upstream as upstream_svc
+
     global _parsed_cache
     stations = parse_hideout_stations(bundle.payload)
     barters = parse_barters(bundle.payload)
@@ -361,33 +396,64 @@ def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str
     if not stations:
         raise TarkovGuidesError("未解析到藏身处数据")
     now = now_naive()
-    raw_json = json.dumps(bundle.payload, ensure_ascii=False)
-    row = get_guides_raw(db)
-    if row is None:
-        db.add(
-            TarkovGuidesRaw(
-                id=raw_row_id(),
-                source=bundle.source,
-                raw_json=raw_json,
-                synced_at=now,
-                note=bundle.note,
-            )
+    hideout = bundle.payload.get("hideout")
+    if not isinstance(hideout, dict):
+        hideout = upstream_svc.unwrap_json_blob(bundle.payload)
+    if not isinstance(hideout, dict):
+        raise TarkovGuidesError("未解析到藏身处数据")
+    persist_barters = bundle.payload.get("barters")
+    persist_crafts = bundle.payload.get("crafts")
+    upstream_svc.persist_raw(
+        db,
+        "hideout",
+        hideout if "data" in hideout else {"data": hideout},
+        source=bundle.source,
+        note=bundle.note,
+        commit=False,
+    )
+    if isinstance(persist_barters, list):
+        upstream_svc.persist_raw(
+            db,
+            "barters",
+            {"data": persist_barters},
+            source=bundle.source,
+            note=bundle.note,
+            commit=False,
         )
-    else:
-        row.source = bundle.source
-        row.raw_json = raw_json
-        row.synced_at = now
-        row.note = bundle.note
-    meta = get_guides_meta(db)
-    if meta is None:
-        meta = TarkovGuidesMeta(id=raw_row_id())
-        db.add(meta)
-    meta.source = bundle.source
-    meta.station_count = len(stations)
-    meta.barter_count = len(barters)
-    meta.craft_count = len(crafts)
-    meta.synced_at = now
-    meta.note = bundle.note
+    elif isinstance(persist_barters, dict):
+        upstream_svc.persist_raw(
+            db,
+            "barters",
+            persist_barters,
+            source=bundle.source,
+            note=bundle.note,
+            commit=False,
+        )
+    if isinstance(persist_crafts, list):
+        upstream_svc.persist_raw(
+            db,
+            "crafts",
+            {"data": persist_crafts},
+            source=bundle.source,
+            note=bundle.note,
+            commit=False,
+        )
+    elif isinstance(persist_crafts, dict):
+        upstream_svc.persist_raw(
+            db,
+            "crafts",
+            persist_crafts,
+            source=bundle.source,
+            note=bundle.note,
+            commit=False,
+        )
+    upstream_svc.persist_locale_if_present(
+        db,
+        "hideout",
+        bundle.payload,
+        source=bundle.source,
+        note=bundle.note,
+    )
     db.commit()
     with _parsed_lock:
         _parsed_cache = None
@@ -418,26 +484,39 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
     )
 
 
+def _unwrap_part(blob: dict[str, Any] | None) -> Any:
+    from app.services.tarkov import upstream as upstream_svc
+
+    if not isinstance(blob, dict):
+        return None
+    return upstream_svc.unwrap_json_blob(blob)
+
+
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
-    row = get_guides_raw(db)
-    if row is None:
-        raise TarkovGuidesError("无藏身处 / 交换 raw")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovGuidesError("guides raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovGuidesError("guides raw_json 格式无效")
-    meta = get_guides_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    note = (meta.note if meta else None) or row.note
-    return row.source, payload, synced, note
+    from app.services.tarkov import upstream as upstream_svc
+
+    source, payload, synced, note = upstream_svc.load_main_payload(
+        db,
+        "hideout",
+        error_cls=TarkovGuidesError,
+        missing="无藏身处 / 交换 raw",
+        invalid="藏身处 raw_json 无效",
+    )
+    envelope = assemble_guides_envelope(
+        payload,
+        barters_payload=upstream_svc.load_raw(db, "barters"),
+        crafts_payload=upstream_svc.load_raw(db, "crafts"),
+        locale=payload.get("locale") if isinstance(payload.get("locale"), dict) else None,
+    )
+    if not envelope.get("locale"):
+        envelope["locale"] = upstream_svc.load_locale_map(db, "hideout", payload=payload)
+    return source, envelope, synced, note
 
 
 def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
     global _parsed_cache
-    meta = get_guides_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    row = get_hideout_raw(db)
+    synced = row.synced_at.isoformat() if row and row.synced_at else None
     key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
@@ -456,7 +535,7 @@ def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, st
 
 
 def ensure_guides(db: Session) -> None:
-    if get_guides_raw(db) is None:
+    if get_hideout_raw(db) is None:
         sync_from_upstream(db, game_mode=parse_game_mode())
 
 

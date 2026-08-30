@@ -8040,6 +8040,134 @@
         }
       }
     },
+    "/api/guides/tarkov/raid-rooms/{public_id}/objective-dones/{task_id}/{objective_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Mark Tarkov Raid Room Objective Done",
+        "operationId": "mark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "objective_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Objective Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Unmark Tarkov Raid Room Objective Done",
+        "operationId": "unmark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "objective_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Objective Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/raid-rooms/{public_id}/marks": {
       "post": {
         "tags": [
@@ -8230,6 +8358,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/sync": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Full Sync",
+        "description": "管理员：回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，落本地后再投影现有栏目。",
+        "operationId": "guides_tarkov_full_sync_api_guides_tarkov_sync_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovFullSyncOut"
                 }
               }
             }
@@ -8822,7 +9002,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Tasks Sync",
-        "description": "管理员：回源同步任务（GraphQL 优先，失败回退 json.tarkov.dev）。",
+        "description": "管理员：回源同步任务（api.tarkov.dev 优先，失败回退 json.tarkov.dev）。",
         "operationId": "guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post",
         "security": [
           {
@@ -8874,7 +9054,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Catalog",
-        "description": "任务目录：商人 / 地图 / Kappa / 关键词过滤。layout=chain 时不分页，返回筛选后的全量（含前置）。",
+        "description": "任务目录：商人 / 地图 / 关键词过滤。layout=all 时不分页，返回筛选后的全量。",
         "operationId": "guides_tarkov_task_catalog_api_guides_tarkov_tasks_get",
         "security": [
           {
@@ -8931,49 +9111,6 @@
                 }
               ],
               "title": "Map"
-            }
-          },
-          {
-            "name": "kappa",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kappa"
-            }
-          },
-          {
-            "name": "progress",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Progress"
-            }
-          },
-          {
-            "name": "progress_status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 16
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Progress Status"
             }
           },
           {
@@ -9114,22 +9251,6 @@
             }
           },
           {
-            "name": "kappa",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kappa"
-            }
-          },
-          {
             "name": "types",
             "in": "query",
             "required": false,
@@ -9144,33 +9265,6 @@
                 }
               ],
               "title": "Types"
-            }
-          },
-          {
-            "name": "progress",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Progress"
-            }
-          },
-          {
-            "name": "progress_status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 16
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Progress Status"
             }
           },
           {
@@ -9244,7 +9338,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Detail",
-        "description": "任务详情：目标、前置、奖励（投影，不含多边形）。",
+        "description": "任务详情：目标、奖励（投影，不含多边形）。",
         "operationId": "guides_tarkov_task_detail_api_guides_tarkov_tasks__task_id__get",
         "security": [
           {
@@ -9259,16 +9353,6 @@
             "schema": {
               "type": "string",
               "title": "Task Id"
-            }
-          },
-          {
-            "name": "progress",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Progress"
             }
           },
           {
@@ -10302,14 +10386,14 @@
         }
       }
     },
-    "/api/guides/tarkov/progress": {
+    "/api/guides/tarkov/key-packs": {
       "get": {
         "tags": [
           "guides"
         ],
-        "summary": "Guides Tarkov Progress Status",
-        "description": "当前用户 Tarkov Tracker 绑定摘要（不回传明文 token）。",
-        "operationId": "guides_tarkov_progress_status_api_guides_tarkov_progress_get",
+        "summary": "Guides Tarkov Key Packs",
+        "description": "钥匙分类速查：门锁 / 入场钥按地图分包。",
+        "operationId": "guides_tarkov_key_packs_api_guides_tarkov_key_packs_get",
         "security": [
           {
             "HTTPBearer": []
@@ -10336,7 +10420,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TarkovTrackerStatusOut"
+                  "$ref": "#/components/schemas/TarkovKeyPacksOut"
                 }
               }
             }
@@ -10354,14 +10438,64 @@
         }
       }
     },
-    "/api/guides/tarkov/progress/tracker-token": {
+    "/api/guides/tarkov/key-owns": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Key Owns List",
+        "description": "当前用户仓库里勾选的钥匙。",
+        "operationId": "guides_tarkov_key_owns_list_api_guides_tarkov_key_owns_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovKeyOwnsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "guides"
         ],
-        "summary": "Guides Tarkov Progress Bind",
-        "description": "绑定 Tarkov Tracker token 并立刻拉取等级 / 进度摘要。",
-        "operationId": "guides_tarkov_progress_bind_api_guides_tarkov_progress_tracker_token_put",
+        "summary": "Guides Tarkov Key Owns Merge",
+        "description": "合并写入一批「我有」（本机勾选迁到账号）。",
+        "operationId": "guides_tarkov_key_owns_merge_api_guides_tarkov_key_owns_put",
         "security": [
           {
             "HTTPBearer": []
@@ -10387,7 +10521,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TarkovTrackerBindIn"
+                "$ref": "#/components/schemas/TarkovKeyOwnsIn"
               }
             }
           }
@@ -10398,7 +10532,67 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TarkovTrackerStatusOut"
+                  "$ref": "#/components/schemas/TarkovKeyOwnsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/key-owns/{item_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Key Owns Add",
+        "operationId": "guides_tarkov_key_owns_add_api_guides_tarkov_key_owns__item_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovKeyOwnsOut"
                 }
               }
             }
@@ -10419,15 +10613,23 @@
         "tags": [
           "guides"
         ],
-        "summary": "Guides Tarkov Progress Unbind",
-        "description": "解绑 Tarkov Tracker token。",
-        "operationId": "guides_tarkov_progress_unbind_api_guides_tarkov_progress_tracker_token_delete",
+        "summary": "Guides Tarkov Key Owns Remove",
+        "operationId": "guides_tarkov_key_owns_remove_api_guides_tarkov_key_owns__item_id__delete",
         "security": [
           {
             "HTTPBearer": []
           }
         ],
         "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
           {
             "name": "game_mode",
             "in": "query",
@@ -10448,7 +10650,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TarkovTrackerStatusOut"
+                  "$ref": "#/components/schemas/TarkovKeyOwnsOut"
                 }
               }
             }
@@ -10466,14 +10668,14 @@
         }
       }
     },
-    "/api/guides/tarkov/progress/sync": {
-      "post": {
+    "/api/guides/tarkov/task-dones": {
+      "get": {
         "tags": [
           "guides"
         ],
-        "summary": "Guides Tarkov Progress Sync",
-        "description": "已绑定：从 Tarkov Tracker 再拉一次进度摘要。",
-        "operationId": "guides_tarkov_progress_sync_api_guides_tarkov_progress_sync_post",
+        "summary": "Guides Tarkov Task Dones List",
+        "description": "当前模式已勾选完成的任务。",
+        "operationId": "guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get",
         "security": [
           {
             "HTTPBearer": []
@@ -10500,7 +10702,247 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TarkovTrackerStatusOut"
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Write",
+        "description": "合并或整表替换当前模式的已完成集合。",
+        "operationId": "guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovTaskDonesIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/task-dones/{task_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Add",
+        "operationId": "guides_tarkov_task_dones_add_api_guides_tarkov_task_dones__task_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Remove",
+        "operationId": "guides_tarkov_task_dones_remove_api_guides_tarkov_task_dones__task_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-logs": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Raid Logs Import",
+        "description": "本机解析后的战局摘要落库；不接收日志原文。",
+        "operationId": "guides_tarkov_raid_logs_import_api_guides_tarkov_raid_logs_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidLogsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidLogsImportOut"
                 }
               }
             }
@@ -23001,6 +23443,16 @@
             "type": "string",
             "title": "Icon Link",
             "default": ""
+          },
+          "pack_icon_link": {
+            "type": "string",
+            "title": "Pack Icon Link",
+            "default": ""
+          },
+          "pack_item_id": {
+            "type": "string",
+            "title": "Pack Item Id",
+            "default": ""
           }
         },
         "type": "object",
@@ -24008,6 +24460,87 @@
         ],
         "title": "TarkovCraftOut"
       },
+      "TarkovFullSyncDomainOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "ok"
+        ],
+        "title": "TarkovFullSyncDomainOut"
+      },
+      "TarkovFullSyncOut": {
+        "properties": {
+          "ok_count": {
+            "type": "integer",
+            "title": "Ok Count"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovFullSyncDomainOut"
+            },
+            "type": "array",
+            "title": "Domains"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok_count",
+          "failed_count"
+        ],
+        "title": "TarkovFullSyncOut"
+      },
       "TarkovGuideItemRefOut": {
         "properties": {
           "id": {
@@ -24674,6 +25207,328 @@
         ],
         "title": "TarkovItemsSyncOut"
       },
+      "TarkovKeyOwnOut": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "user_id",
+          "display_name"
+        ],
+        "title": "TarkovKeyOwnOut"
+      },
+      "TarkovKeyOwnsIn": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 400,
+            "title": "Item Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyOwnsIn"
+      },
+      "TarkovKeyOwnsOut": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Item Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyOwnsOut"
+      },
+      "TarkovKeyPackBarterOut": {
+        "properties": {
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          },
+          "min_trader_level": {
+            "type": "integer",
+            "title": "Min Trader Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyPackBarterOut"
+      },
+      "TarkovKeyPackCraftOut": {
+        "properties": {
+          "station_slug": {
+            "type": "string",
+            "title": "Station Slug",
+            "default": ""
+          },
+          "station_name": {
+            "type": "string",
+            "title": "Station Name",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyPackCraftOut"
+      },
+      "TarkovKeyPackFleaOut": {
+        "properties": {
+          "price": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyPackFleaOut"
+      },
+      "TarkovKeyPackKeyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "lock_count": {
+            "type": "integer",
+            "title": "Lock Count",
+            "default": 0
+          },
+          "access": {
+            "type": "boolean",
+            "title": "Access",
+            "default": false
+          },
+          "community": {
+            "type": "boolean",
+            "title": "Community",
+            "default": false
+          },
+          "uses": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uses"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/TarkovKeyPackSourcesOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TarkovKeyPackKeyOut"
+      },
+      "TarkovKeyPackMapOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "english": {
+            "type": "string",
+            "title": "English",
+            "default": ""
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackKeyOut"
+            },
+            "type": "array",
+            "title": "Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "TarkovKeyPackMapOut"
+      },
+      "TarkovKeyPackSourcesOut": {
+        "properties": {
+          "barters": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackBarterOut"
+            },
+            "type": "array",
+            "title": "Barters"
+          },
+          "crafts": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackCraftOut"
+            },
+            "type": "array",
+            "title": "Crafts"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackTaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "flea": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovKeyPackFleaOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyPackSourcesOut"
+      },
+      "TarkovKeyPackTaskOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovKeyPackTaskOut"
+      },
+      "TarkovKeyPacksOut": {
+        "properties": {
+          "maps": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackMapOut"
+            },
+            "type": "array",
+            "title": "Maps"
+          },
+          "unbound": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackKeyOut"
+            },
+            "type": "array",
+            "title": "Unbound"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyPacksOut"
+      },
       "TarkovLootTierCatalogOut": {
         "properties": {
           "items": {
@@ -25241,6 +26096,107 @@
         "type": "object",
         "title": "TarkovMapVariantOut"
       },
+      "TarkovRaidLogIn": {
+        "properties": {
+          "folder": {
+            "type": "string",
+            "title": "Folder",
+            "default": ""
+          },
+          "raid_id": {
+            "type": "string",
+            "title": "Raid Id",
+            "default": ""
+          },
+          "location": {
+            "type": "string",
+            "title": "Location",
+            "default": ""
+          },
+          "map_id": {
+            "type": "string",
+            "title": "Map Id",
+            "default": ""
+          },
+          "map_label": {
+            "type": "string",
+            "title": "Map Label",
+            "default": ""
+          },
+          "raid_mode": {
+            "type": "string",
+            "title": "Raid Mode",
+            "default": ""
+          },
+          "session_mode": {
+            "type": "string",
+            "title": "Session Mode",
+            "default": ""
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At",
+            "default": ""
+          },
+          "ended_at": {
+            "type": "string",
+            "title": "Ended At",
+            "default": ""
+          },
+          "reconnected": {
+            "type": "boolean",
+            "title": "Reconnected",
+            "default": false
+          },
+          "aborted": {
+            "type": "boolean",
+            "title": "Aborted",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidLogIn"
+      },
+      "TarkovRaidLogsImportOut": {
+        "properties": {
+          "inserted": {
+            "type": "integer",
+            "title": "Inserted",
+            "default": 0
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated",
+            "default": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidLogsImportOut"
+      },
+      "TarkovRaidLogsIn": {
+        "properties": {
+          "raids": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidLogIn"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Raids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidLogsIn"
+      },
       "TarkovRaidPrepOut": {
         "properties": {
           "map_slug": {
@@ -25302,16 +26258,6 @@
               }
             ],
             "title": "Note"
-          },
-          "progress_bound": {
-            "type": "boolean",
-            "title": "Progress Bound",
-            "default": false
-          },
-          "progress_ready": {
-            "type": "boolean",
-            "title": "Progress Ready",
-            "default": false
           }
         },
         "type": "object",
@@ -25372,15 +26318,15 @@
             "title": "Min Player Level",
             "default": 0
           },
+          "min_trader_level": {
+            "type": "integer",
+            "title": "Min Trader Level",
+            "default": 1
+          },
           "experience": {
             "type": "integer",
             "title": "Experience",
             "default": 0
-          },
-          "kappa_required": {
-            "type": "boolean",
-            "title": "Kappa Required",
-            "default": false
           },
           "lightkeeper_required": {
             "type": "boolean",
@@ -25413,24 +26359,6 @@
             },
             "type": "array",
             "title": "Objective Types"
-          },
-          "progress_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Progress Status"
-          },
-          "task_requirements": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
-            },
-            "type": "array",
-            "title": "Task Requirements"
           },
           "objectives": {
             "items": {
@@ -25602,6 +26530,20 @@
             },
             "type": "array",
             "title": "Key Brings"
+          },
+          "key_owns": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyOwnOut"
+            },
+            "type": "array",
+            "title": "Key Owns"
+          },
+          "objective_dones": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomObjectiveDoneOut"
+            },
+            "type": "array",
+            "title": "Objective Dones"
           },
           "marks": {
             "items": {
@@ -25957,6 +26899,45 @@
         ],
         "title": "TarkovRaidRoomMemberOut"
       },
+      "TarkovRaidRoomObjectiveDoneOut": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "objective_id": {
+            "type": "string",
+            "title": "Objective Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "objective_id",
+          "user_id",
+          "display_name"
+        ],
+        "title": "TarkovRaidRoomObjectiveDoneOut"
+      },
       "TarkovRaidRoomOccupantOut": {
         "properties": {
           "user_id": {
@@ -26166,16 +27147,6 @@
               }
             ],
             "title": "Note"
-          },
-          "progress_bound": {
-            "type": "boolean",
-            "title": "Progress Bound",
-            "default": false
-          },
-          "progress_ready": {
-            "type": "boolean",
-            "title": "Progress Ready",
-            "default": false
           }
         },
         "type": "object",
@@ -26235,15 +27206,15 @@
             "title": "Min Player Level",
             "default": 0
           },
+          "min_trader_level": {
+            "type": "integer",
+            "title": "Min Trader Level",
+            "default": 1
+          },
           "experience": {
             "type": "integer",
             "title": "Experience",
             "default": 0
-          },
-          "kappa_required": {
-            "type": "boolean",
-            "title": "Kappa Required",
-            "default": false
           },
           "lightkeeper_required": {
             "type": "boolean",
@@ -26277,24 +27248,6 @@
             "type": "array",
             "title": "Objective Types"
           },
-          "progress_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Progress Status"
-          },
-          "task_requirements": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
-            },
-            "type": "array",
-            "title": "Task Requirements"
-          },
           "source": {
             "anyOf": [
               {
@@ -26313,13 +27266,6 @@
             "type": "array",
             "title": "Objectives"
           },
-          "successor_tasks": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
-            },
-            "type": "array",
-            "title": "Successor Tasks"
-          },
           "trader_requirements": {
             "items": {
               "$ref": "#/components/schemas/TarkovTaskTraderReqOut"
@@ -26337,22 +27283,9 @@
             "type": "array",
             "title": "Needed Keys"
           },
-          "neighborhood": {
-            "$ref": "#/components/schemas/TarkovTaskNeighborhoodOut"
-          },
           "restartable": {
             "type": "boolean",
             "title": "Restartable",
-            "default": false
-          },
-          "progress_bound": {
-            "type": "boolean",
-            "title": "Progress Bound",
-            "default": false
-          },
-          "progress_ready": {
-            "type": "boolean",
-            "title": "Progress Ready",
             "default": false
           }
         },
@@ -26362,6 +27295,38 @@
           "name"
         ],
         "title": "TarkovTaskDetailOut"
+      },
+      "TarkovTaskDonesIn": {
+        "properties": {
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 800,
+            "title": "Task Ids"
+          },
+          "replace": {
+            "type": "boolean",
+            "title": "Replace",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskDonesIn"
+      },
+      "TarkovTaskDonesOut": {
+        "properties": {
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Task Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskDonesOut"
       },
       "TarkovTaskFinishRewardsOut": {
         "properties": {
@@ -26433,15 +27398,15 @@
             "title": "Min Player Level",
             "default": 0
           },
+          "min_trader_level": {
+            "type": "integer",
+            "title": "Min Trader Level",
+            "default": 1
+          },
           "experience": {
             "type": "integer",
             "title": "Experience",
             "default": 0
-          },
-          "kappa_required": {
-            "type": "boolean",
-            "title": "Kappa Required",
-            "default": false
           },
           "lightkeeper_required": {
             "type": "boolean",
@@ -26474,24 +27439,6 @@
             },
             "type": "array",
             "title": "Objective Types"
-          },
-          "progress_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Progress Status"
-          },
-          "task_requirements": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
-            },
-            "type": "array",
-            "title": "Task Requirements"
           }
         },
         "type": "object",
@@ -26554,88 +27501,6 @@
           "map"
         ],
         "title": "TarkovTaskNeededKeysOut"
-      },
-      "TarkovTaskNeighborhoodEdgeOut": {
-        "properties": {
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "target_id": {
-            "type": "string",
-            "title": "Target Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_id",
-          "target_id"
-        ],
-        "title": "TarkovTaskNeighborhoodEdgeOut"
-      },
-      "TarkovTaskNeighborhoodNodeOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          },
-          "trader_slug": {
-            "type": "string",
-            "title": "Trader Slug",
-            "default": ""
-          },
-          "hop": {
-            "type": "integer",
-            "title": "Hop",
-            "default": 0
-          },
-          "progress_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Progress Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "title": "TarkovTaskNeighborhoodNodeOut"
-      },
-      "TarkovTaskNeighborhoodOut": {
-        "properties": {
-          "current_id": {
-            "type": "string",
-            "title": "Current Id",
-            "default": ""
-          },
-          "nodes": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskNeighborhoodNodeOut"
-            },
-            "type": "array",
-            "title": "Nodes"
-          },
-          "edges": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovTaskNeighborhoodEdgeOut"
-            },
-            "type": "array",
-            "title": "Edges"
-          }
-        },
-        "type": "object",
-        "title": "TarkovTaskNeighborhoodOut"
       },
       "TarkovTaskObjectiveOut": {
         "properties": {
@@ -26794,42 +27659,6 @@
         },
         "type": "object",
         "title": "TarkovTaskPossibleLocationOut"
-      },
-      "TarkovTaskRequirementOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          },
-          "status": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Status"
-          },
-          "met": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Met"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "title": "TarkovTaskRequirementOut"
       },
       "TarkovTaskRewardItemOut": {
         "properties": {
@@ -27085,96 +27914,6 @@
           "task_count"
         ],
         "title": "TarkovTasksSyncOut"
-      },
-      "TarkovTrackerBindIn": {
-        "properties": {
-          "token": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 8,
-            "title": "Token"
-          }
-        },
-        "type": "object",
-        "required": [
-          "token"
-        ],
-        "title": "TarkovTrackerBindIn"
-      },
-      "TarkovTrackerStatusOut": {
-        "properties": {
-          "bound": {
-            "type": "boolean",
-            "title": "Bound"
-          },
-          "game_mode": {
-            "type": "string",
-            "title": "Game Mode",
-            "default": ""
-          },
-          "game_mode_label": {
-            "type": "string",
-            "title": "Game Mode Label",
-            "default": ""
-          },
-          "display_name": {
-            "type": "string",
-            "title": "Display Name",
-            "default": ""
-          },
-          "player_level": {
-            "type": "integer",
-            "title": "Player Level",
-            "default": 0
-          },
-          "pmc_faction": {
-            "type": "string",
-            "title": "Pmc Faction",
-            "default": ""
-          },
-          "tasks_complete": {
-            "type": "integer",
-            "title": "Tasks Complete",
-            "default": 0
-          },
-          "tasks_failed": {
-            "type": "integer",
-            "title": "Tasks Failed",
-            "default": 0
-          },
-          "token_suffix": {
-            "type": "string",
-            "title": "Token Suffix",
-            "default": ""
-          },
-          "last_synced_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Synced At"
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "bound"
-        ],
-        "title": "TarkovTrackerStatusOut"
       },
       "TarkovTraderCatalogOut": {
         "properties": {

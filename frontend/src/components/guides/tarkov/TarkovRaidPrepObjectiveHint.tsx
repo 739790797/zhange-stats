@@ -2,52 +2,70 @@ import { Popover } from "antd";
 import type { ReactNode } from "react";
 import {
   formatRaidPrepKeyNeedLine,
+  type RaidPrepCompletedUser,
   type RaidPrepObjectiveHint,
 } from "@/lib/tarkovRaidPrep";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
-type Props = {
+export type TarkovRaidPrepObjectiveProgressProps = {
   objectives: RaidPrepObjectiveHint[];
   skipped?: ReadonlySet<string>;
+  /** 他人已完成的步骤（不含当前用户）。 */
+  doneByOthers?: ReadonlyMap<string, readonly RaidPrepCompletedUser[]>;
   onToggle?: (objectiveId: string) => void;
+};
+
+type HintProps = TarkovRaidPrepObjectiveProgressProps & {
   children: ReactNode;
   placement?: "top" | "topLeft" | "topRight" | "leftTop" | "bottomLeft";
   trigger?: Array<"hover" | "click">;
 };
 
-export function TarkovRaidPrepObjectiveHint({
+function formatOthersDone(names: readonly string[]): string {
+  if (!names.length) return "";
+  return `${names.join("、")} 已完成`;
+}
+
+export function TarkovRaidPrepObjectiveProgress({
   objectives,
   skipped,
+  doneByOthers,
   onToggle,
-  children,
-  placement = "topLeft",
-  trigger = ["hover", "click"],
-}: Props) {
+}: TarkovRaidPrepObjectiveProgressProps) {
   const doneIds = skipped || new Set<string>();
-  const content = (
+  return (
     <div
       className={styles.taskObjHint}
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className={styles.taskObjHintLead}>
-        勾选表示这部分已经做完，本局不再显示点位和对应钥匙
+        勾选表示你已做完：只对你划掉并隐藏点位。他人完成的步骤会在后方标注。
       </div>
       {objectives.length ? (
         objectives.map((obj) => {
-          const done = doneIds.has(obj.id);
+          const mineDone = doneIds.has(obj.id);
+          const others = doneByOthers?.get(obj.id) || [];
           const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
+          const othersLabel = formatOthersDone(others.map((row) => row.name));
           return (
             <label key={obj.id} className={styles.taskObjCheck}>
               <input
                 type="checkbox"
-                checked={done}
+                checked={mineDone}
                 disabled={!onToggle}
-                aria-label={`${done ? "取消勾选" : "勾选已完成"} ${obj.text}${keyLine ? ` ${keyLine}` : ""}`}
+                aria-label={`${mineDone ? "取消勾选" : "勾选已完成"} ${obj.text}${othersLabel ? `，${othersLabel}` : ""}${keyLine ? ` ${keyLine}` : ""}`}
                 onChange={() => onToggle?.(obj.id)}
               />
-              <span className={done ? styles.taskObjLineDone : styles.taskObjLine}>
-                <span>{obj.text}</span>
+              <span
+                className={mineDone ? styles.taskObjLineDone : styles.taskObjLine}
+              >
+                <span className={styles.taskObjLineMain}>
+                  <span>{obj.text}</span>
+                  {othersLabel ? (
+                    <span className={styles.taskObjDoneBy}>{othersLabel}</span>
+                  ) : null}
+                </span>
                 {keyLine ? (
                   <span className={styles.taskObjKeys}>{keyLine}</span>
                 ) : null}
@@ -60,9 +78,27 @@ export function TarkovRaidPrepObjectiveHint({
       )}
     </div>
   );
+}
+
+export function TarkovRaidPrepObjectiveHint({
+  objectives,
+  skipped,
+  doneByOthers,
+  onToggle,
+  children,
+  placement = "topLeft",
+  trigger = ["hover", "click"],
+}: HintProps) {
   return (
     <Popover
-      content={content}
+      content={
+        <TarkovRaidPrepObjectiveProgress
+          objectives={objectives}
+          skipped={skipped}
+          doneByOthers={doneByOthers}
+          onToggle={onToggle}
+        />
+      }
       trigger={trigger}
       mouseEnterDelay={0.12}
       mouseLeaveDelay={0.35}

@@ -1,0 +1,60 @@
+.bind {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.status {
+  padding: 48px;
+  text-align: center;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  color: #eee9d6;
+  font-size: 13px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pathInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pathOn {
+  border-color: var(--hb-orange, #c8932a) !important;
+}
+
+.sideBtn {
+  flex: 0 0 auto;
+  min-width: 64px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+@media (max-width: 640px) {
+  .field {
+    flex-wrap: wrap;
+  }
+
+  .pathInput {
+    flex: 1 1 100%;
+  }
+}

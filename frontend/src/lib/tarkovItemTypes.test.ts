@@ -32,6 +32,9 @@ describe("itemHrefFromTypes", () => {
     expect(itemHrefFromTypes("a1", ["ammo"])).toBe(
       "/guides/tarkov/items/ammo/a1",
     );
+    expect(itemHrefFromTypes("p1", ["ammoBox"])).toBe(
+      "/guides/tarkov/items/ammo/p1",
+    );
     expect(itemHrefFromTypes("g1", ["gun"])).toBe(
       "/guides/tarkov/items/guns/g1",
     );

@@ -387,6 +387,7 @@ export function itemDetailHref(typeSlug: string, itemId: string): string {
 
 const TYPE_TO_ITEM_SLUG: [string, string][] = [
   ["ammo", "ammo"],
+  ["ammoBox", "ammo"],
   ["gun", "guns"],
   ["preset", "guns"],
   ["keys", "keys"],

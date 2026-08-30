@@ -1,20 +1,31 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
 
-class TarkovItemsRaw(Base):
-    """逃离塔科夫物品上游原始响应（id=1 PVP，id=2 PVE）。"""
+class TarkovCatalogRawMixin:
+    """图鉴 raw 同构列：一张上游文件一张表，locale 用 lang。"""
 
-    __tablename__ = "tarkov_items_raws"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mode_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lang: Mapped[str] = mapped_column(String(8), nullable=False, default="")
     source: Mapped[str] = mapped_column(String(64), nullable=False)
-    # GraphQL split 信封 / json.tarkov.dev items 信封，体积可能较大
     raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -24,17 +35,76 @@ class TarkovItemsRaw(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-class TarkovItemsMeta(Base):
-    """物品同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
+class TarkovItemsRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev items / items_zh。"""
 
-    __tablename__ = "tarkov_items_meta"
+    __tablename__ = "tarkov_items_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_items_raws_mode_lang"),
+    )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    ammo_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    gun_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+class TarkovMapsRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev maps / maps_zh。"""
+
+    __tablename__ = "tarkov_maps_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_maps_raws_mode_lang"),
+    )
+
+
+class TarkovTasksRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev tasks / tasks_zh。"""
+
+    __tablename__ = "tarkov_tasks_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_tasks_raws_mode_lang"),
+    )
+
+
+class TarkovTradersRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev traders / traders_zh。"""
+
+    __tablename__ = "tarkov_traders_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_traders_raws_mode_lang"),
+    )
+
+
+class TarkovHideoutRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev hideout / hideout_zh。"""
+
+    __tablename__ = "tarkov_hideout_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_hideout_raws_mode_lang"),
+    )
+
+
+class TarkovBartersRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev barters。"""
+
+    __tablename__ = "tarkov_barters_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_barters_raws_mode_lang"),
+    )
+
+
+class TarkovCraftsRaw(TarkovCatalogRawMixin, Base):
+    """json.tarkov.dev crafts。"""
+
+    __tablename__ = "tarkov_crafts_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_crafts_raws_mode_lang"),
+    )
+
+
+class TarkovExtrasRaw(TarkovCatalogRawMixin, Base):
+    """api.tarkov.dev extras。"""
+
+    __tablename__ = "tarkov_extras_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_extras_raws_mode_lang"),
+    )
 
 
 class TarkovAmmo(Base):
@@ -42,6 +112,7 @@ class TarkovAmmo(Base):
 
     __tablename__ = "tarkov_ammo"
 
+    mode_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     short_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
@@ -65,23 +136,12 @@ class TarkovAmmo(Base):
     )
 
 
-class TarkovAmmoMeta(Base):
-    """弹药展示元数据（单行 id=1；与 items 同步写入，供弹药 API）。"""
-
-    __tablename__ = "tarkov_ammo_meta"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    ammo_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
 class TarkovGun(Base):
     """逃离塔科夫枪械（由 items raw 二次解析的派生读模型）。"""
 
     __tablename__ = "tarkov_guns"
 
+    mode_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     short_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
@@ -102,173 +162,6 @@ class TarkovGun(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
-
-
-class TarkovGunMeta(Base):
-    """枪械展示元数据（单行 id=1；与 items 同步写入）。"""
-
-    __tablename__ = "tarkov_gun_meta"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    gun_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovTasksRaw(Base):
-    """逃离塔科夫任务上游原始响应（id=1 PVP，id=2 PVE）。"""
-
-    __tablename__ = "tarkov_tasks_raws"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovTasksMeta(Base):
-    """任务同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
-
-    __tablename__ = "tarkov_tasks_meta"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    task_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovTradersRaw(Base):
-    """逃离塔科夫商人上游原始响应（id=1 PVP，id=2 PVE）。"""
-
-    __tablename__ = "tarkov_traders_raws"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovTradersMeta(Base):
-    """商人同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
-
-    __tablename__ = "tarkov_traders_meta"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    trader_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    offer_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovBossesRaw(Base):
-    """逃离塔科夫 BOSS 上游原始响应（maps + mobs 精简包；id=1 PVP，id=2 PVE）。"""
-
-    __tablename__ = "tarkov_bosses_raws"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovBossesMeta(Base):
-    """BOSS 同步元数据（id=1 PVP，id=2 PVE；与 raw 同事务写入）。"""
-
-    __tablename__ = "tarkov_bosses_meta"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    boss_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovTrackerBind(Base):
-    """当前用户的 Tarkov Tracker API token（Fernet 加密；API 不回传明文）。"""
-
-    __tablename__ = "tarkov_tracker_binds"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
-        nullable=False,
-    )
-    token_enc: Mapped[str] = mapped_column(Text, nullable=False)
-    token_suffix: Mapped[str] = mapped_column(String(8), nullable=False, default="")
-    game_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="")
-    display_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
-    player_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    pmc_faction: Mapped[str] = mapped_column(String(8), nullable=False, default="")
-    game_edition: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    tasks_complete: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    tasks_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Tracker GET /progress 投影：player_level / pmc_faction / tasks{id→flags}
-    progress_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_synced_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    bound_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-
-class TarkovGuidesRaw(Base):
-    """藏身处 / 以物易物 / 制作上游原始响应（id=1 PVP，id=2 PVE）。"""
-
-    __tablename__ = "tarkov_guides_raws"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class TarkovGuidesMeta(Base):
-    """藏身处 / 交换同步元数据（id=1 PVP，id=2 PVE）。"""
-
-    __tablename__ = "tarkov_guides_meta"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    station_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    barter_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    craft_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class TarkovRaidRoom(Base):
@@ -347,6 +240,86 @@ class TarkovRaidRoomTaskClaim(Base):
     )
 
 
+class TarkovUserTaskDone(Base):
+    """用户任务完成：按 PVP/PVE 分开勾选，供个人中心任务树。"""
+
+    __tablename__ = "tarkov_user_task_dones"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserKeyOwn(Base):
+    """用户仓库钥匙拥有：账号级，钥匙分类速查勾选，准备总结展示谁有。"""
+
+    __tablename__ = "tarkov_user_key_owns"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserRaidLog(Base):
+    """用户从本机游戏日志导入的战局摘要（不含原文）。"""
+
+    __tablename__ = "tarkov_user_raid_logs"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "dedupe_key",
+            name="uq_tarkov_user_raid_logs_user_dedupe",
+        ),
+        Index("ix_tarkov_user_raid_logs_user_started", "user_id", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    dedupe_key: Mapped[str] = mapped_column(String(220), nullable=False)
+    folder: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    raid_id: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    location: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    map_id: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    map_label: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    raid_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    session_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    started_at: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    ended_at: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    reconnected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    aborted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class TarkovRaidRoomKeyBring(Base):
     """房间钥匙声明：同一把钥匙可多人署名（备份），展示「谁带了」。"""
 
@@ -358,6 +331,30 @@ class TarkovRaidRoomKeyBring(Base):
         primary_key=True,
     )
     item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovRaidRoomObjectiveDone(Base):
+    """房间目标完成：同一目标可多人署名，准备总结列出已完成用户。"""
+
+    __tablename__ = "tarkov_raid_room_objective_dones"
+
+    room_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("tarkov_raid_rooms.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    objective_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),

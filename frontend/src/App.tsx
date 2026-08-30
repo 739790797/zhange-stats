@@ -87,6 +87,13 @@ const TarkovWipeLengthPage = lazy(
 const TarkovBitcoinFarmPage = lazy(
   () => import("@/pages/guides/TarkovBitcoinFarmPage"),
 );
+const TarkovMePage = lazy(() => import("@/pages/guides/TarkovMePage"));
+const TarkovKeyPacksPage = lazy(
+  () => import("@/pages/guides/TarkovKeyPacksPage"),
+);
+const TarkovGameLogsPage = lazy(
+  () => import("@/pages/guides/TarkovGameLogsPage"),
+);
 const TarkovProgressionPage = lazy(
   () => import("@/pages/guides/TarkovProgressionPage"),
 );
@@ -253,6 +260,15 @@ export default function App() {
                   <Route
                     path="bitcoin-farm"
                     element={<TarkovBitcoinFarmPage />}
+                  />
+                  <Route path="me" element={<TarkovMePage />} />
+                  <Route
+                    path="key-packs"
+                    element={<TarkovKeyPacksPage />}
+                  />
+                  <Route
+                    path="game-logs"
+                    element={<TarkovGameLogsPage />}
                   />
                   <Route
                     path="progression"

@@ -225,38 +225,10 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "kind": "game",
                 "children": [
                     {
-                        "id": "guides.tarkov.items_sync",
-                        "name": "物品数据更新",
+                        "id": "guides.tarkov.full_sync",
+                        "name": "攻略数据全量更新",
                         "kind": "job",
-                        "job_id": "tarkov_items_sync",
-                        "schedule": "cron",
-                    },
-                    {
-                        "id": "guides.tarkov.tasks_sync",
-                        "name": "任务数据更新",
-                        "kind": "job",
-                        "job_id": "tarkov_tasks_sync",
-                        "schedule": "cron",
-                    },
-                    {
-                        "id": "guides.tarkov.traders_sync",
-                        "name": "商人数据更新",
-                        "kind": "job",
-                        "job_id": "tarkov_traders_sync",
-                        "schedule": "cron",
-                    },
-                    {
-                        "id": "guides.tarkov.bosses_sync",
-                        "name": "BOSS 数据更新",
-                        "kind": "job",
-                        "job_id": "tarkov_bosses_sync",
-                        "schedule": "cron",
-                    },
-                    {
-                        "id": "guides.tarkov.guides_sync",
-                        "name": "藏身处与交换数据更新",
-                        "kind": "job",
-                        "job_id": "tarkov_guides_sync",
+                        "job_id": "tarkov_full_sync",
                         "schedule": "cron",
                     },
                 ],
@@ -291,11 +263,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "exilium_checkin": "exilium.checkin",
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
-    "tarkov_items_sync": "guides.tarkov.items_sync",
-    "tarkov_tasks_sync": "guides.tarkov.tasks_sync",
-    "tarkov_traders_sync": "guides.tarkov.traders_sync",
-    "tarkov_bosses_sync": "guides.tarkov.bosses_sync",
-    "tarkov_guides_sync": "guides.tarkov.guides_sync",
+    "tarkov_full_sync": "guides.tarkov.full_sync",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
@@ -318,11 +286,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "endfield_schedule": "终末地活动日历",
     "guides": "游戏",
     "minecraft": "Minecraft",
-    "tarkov_items": "物品数据更新",
-    "tarkov_tasks": "任务数据更新",
-    "tarkov_traders": "商人数据更新",
-    "tarkov_bosses": "BOSS 数据更新",
-    "tarkov_guides": "藏身处与交换数据更新",
+    "tarkov_full": "攻略数据全量更新",
 }
 
 
@@ -381,15 +345,6 @@ def load_feature_flags(db: Session) -> dict[str, bool]:
                 for fid in base:
                     if fid in flags and flags[fid] is not None:
                         base[fid] = bool(flags[fid])
-                # 旧弹药/枪械开关 → 物品同步
-                if "guides.tarkov.items_sync" not in flags:
-                    legacy = [
-                        flags.get("guides.tarkov.ammo_sync"),
-                        flags.get("guides.tarkov.gun_sync"),
-                    ]
-                    known = [bool(v) for v in legacy if v is not None]
-                    if known:
-                        base["guides.tarkov.items_sync"] = all(known)
                 # 旧合并活动日历 → 按游戏拆分
                 if "skland.game_schedule_sync" in flags:
                     legacy_on = bool(flags["skland.game_schedule_sync"])

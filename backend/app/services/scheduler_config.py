@@ -24,11 +24,7 @@ JOB_IDS = (
     "exilium_checkin",
     "kujiequ_checkin",
     "mihoyo_checkin",
-    "tarkov_items_sync",
-    "tarkov_tasks_sync",
-    "tarkov_traders_sync",
-    "tarkov_bosses_sync",
-    "tarkov_guides_sync",
+    "tarkov_full_sync",
     "job_runs_prune",
 )
 
@@ -94,37 +90,10 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "hour": _clamp_hour(s.GAME_SCHEDULE_SYNC_HOUR),
             "minute": _clamp_minute(s.GAME_SCHEDULE_SYNC_MINUTE),
         },
-        "tarkov_items_sync": {
-            "enabled": bool(
-                getattr(s, "TARKOV_ITEMS_SYNC_ENABLED", True)
-                and getattr(s, "TARKOV_AMMO_SYNC_ENABLED", True)
-            ),
-            "hour": _clamp_hour(
-                getattr(s, "TARKOV_ITEMS_SYNC_HOUR", None) or s.TARKOV_AMMO_SYNC_HOUR
-            ),
-            "minute": _clamp_minute(
-                getattr(s, "TARKOV_ITEMS_SYNC_MINUTE", None) or s.TARKOV_AMMO_SYNC_MINUTE
-            ),
-        },
-        "tarkov_tasks_sync": {
-            "enabled": bool(getattr(s, "TARKOV_TASKS_SYNC_ENABLED", True)),
-            "hour": _clamp_hour(getattr(s, "TARKOV_TASKS_SYNC_HOUR", 4)),
-            "minute": _clamp_minute(getattr(s, "TARKOV_TASKS_SYNC_MINUTE", 35)),
-        },
-        "tarkov_traders_sync": {
-            "enabled": bool(getattr(s, "TARKOV_TRADERS_SYNC_ENABLED", True)),
-            "hour": _clamp_hour(getattr(s, "TARKOV_TRADERS_SYNC_HOUR", 4)),
-            "minute": _clamp_minute(getattr(s, "TARKOV_TRADERS_SYNC_MINUTE", 40)),
-        },
-        "tarkov_bosses_sync": {
-            "enabled": bool(getattr(s, "TARKOV_BOSSES_SYNC_ENABLED", True)),
-            "hour": _clamp_hour(getattr(s, "TARKOV_BOSSES_SYNC_HOUR", 4)),
-            "minute": _clamp_minute(getattr(s, "TARKOV_BOSSES_SYNC_MINUTE", 45)),
-        },
-        "tarkov_guides_sync": {
-            "enabled": bool(getattr(s, "TARKOV_GUIDES_SYNC_ENABLED", True)),
-            "hour": _clamp_hour(getattr(s, "TARKOV_GUIDES_SYNC_HOUR", 4)),
-            "minute": _clamp_minute(getattr(s, "TARKOV_GUIDES_SYNC_MINUTE", 50)),
+        "tarkov_full_sync": {
+            "enabled": bool(getattr(s, "TARKOV_FULL_SYNC_ENABLED", True)),
+            "hour": _clamp_hour(getattr(s, "TARKOV_FULL_SYNC_HOUR", 4)),
+            "minute": _clamp_minute(getattr(s, "TARKOV_FULL_SYNC_MINUTE", 25)),
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),
@@ -204,12 +173,6 @@ def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
     for jid in JOB_IDS:
         fallback = base[jid]
         item = stored.get(jid)
-        if not isinstance(item, dict) and jid == "tarkov_items_sync":
-            # 旧分 job → 合并 items
-            for legacy in ("tarkov_ammo_sync", "tarkov_gun_sync"):
-                if isinstance(stored.get(legacy), dict):
-                    item = stored[legacy]
-                    break
         if not isinstance(item, dict) and jid in (
             "game_schedule_arknights_sync",
             "game_schedule_endfield_sync",

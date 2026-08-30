@@ -9,8 +9,11 @@ import {
   TARKOV_ITEM_MENU_GROUPS,
   TARKOV_MAPS,
   TARKOV_PROGRESSION,
+  TARKOV_ME_NAV,
   TARKOV_RAID_PREP_NAV,
   TARKOV_TOOLS,
+  resolveTarkovMeTab,
+  tarkovMeHref,
   TARKOV_TOP_NAV,
   TARKOV_TRADERS,
   bossPortraitUrl,
@@ -83,6 +86,36 @@ describe("filterHomeSearch", () => {
     expect(filterHomeSearch("战局", index).some((h) => h.id === "raid-prep")).toBe(
       true,
     );
+  });
+
+  it("finds task tree inside 个人中心", () => {
+    expect(
+      filterHomeSearch("任务树", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("任务管理", index).some((h) => h.id === "me"),
+    ).toBe(true);
+  });
+
+  it("finds key packs inside 个人中心", () => {
+    expect(
+      filterHomeSearch("钥匙分类", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(filterHomeSearch("打包", index).some((h) => h.id === "me")).toBe(
+      true,
+    );
+  });
+
+  it("finds game logs inside 个人中心", () => {
+    expect(
+      filterHomeSearch("游戏日志", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("目录绑定", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("application", index).some((h) => h.id === "me"),
+    ).toBe(true);
   });
 });
 
@@ -361,7 +394,7 @@ describe("TARKOV_HOME_TRADERS", () => {
 });
 
 describe("TARKOV_TOOLS", () => {
-  it("keeps ammo chart first after raid prep moved to the home column", () => {
+  it("puts 个人中心 first and keeps ammo after raid prep left the rail", () => {
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("raid-prep");
     expect(TARKOV_RAID_PREP_NAV).toMatchObject({
       id: "raid-prep",
@@ -369,10 +402,23 @@ describe("TARKOV_TOOLS", () => {
       href: "/guides/tarkov/raid-prep",
       status: "ready",
     });
+    expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("key-packs");
+    expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("game-logs");
     expect(TARKOV_TOOLS[0]).toMatchObject({
+      id: "me",
+      label: "个人中心",
+      href: "/guides/tarkov/me?tab=tasks",
+      status: "ready",
+    });
+    expect(TARKOV_TOOLS[1]).toMatchObject({
       id: "ammo-chart",
       label: "弹药图表筛选器",
       href: `${ITEMS_BASE_PATH}/ammo`,
+      status: "ready",
+    });
+    expect(TARKOV_ME_NAV).toMatchObject({
+      id: "me",
+      href: "/guides/tarkov/me?tab=tasks",
       status: "ready",
     });
   });
@@ -419,6 +465,22 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/hideout-cost")).toBe(
       "藏身处建造成本",
     );
+    expect(tarkovPageTitle("/guides/tarkov/me")).toBe("个人中心");
+    expect(tarkovPageTitle("/guides/tarkov/key-packs")).toBe("个人中心");
+    expect(tarkovPageTitle("/guides/tarkov/game-logs")).toBe("个人中心");
+  });
+});
+
+describe("tarkov me tabs", () => {
+  it("defaults unknown tabs to keys and builds hrefs", () => {
+    expect(resolveTarkovMeTab(null)).toBe("tasks");
+    expect(resolveTarkovMeTab("tasks")).toBe("tasks");
+    expect(resolveTarkovMeTab("keys")).toBe("keys");
+    expect(resolveTarkovMeTab("logs")).toBe("logs");
+    expect(resolveTarkovMeTab("nope")).toBe("tasks");
+    expect(tarkovMeHref("logs")).toBe("/guides/tarkov/me?tab=logs");
+    expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
+    expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
   });
 });
 

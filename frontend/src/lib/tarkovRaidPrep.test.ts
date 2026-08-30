@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRaidPrepOverlays,
+  raidPrepObjectiveStepText,
+  collectRaidPrepOverlaySteps,
   resolveRaidPrepLocatePoint,
   buildRaidPrepSummary,
   clusterRaidPrepOverlayLabels,
@@ -35,6 +37,9 @@ import {
   overlayVisibleOnFloor,
   parseCsvParam,
   partitionRaidPrepRows,
+  planRaidPrepTaskProgressSync,
+  raidPrepIdsFromTaskProgress,
+  describeRaidPrepTaskProgressSync,
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
   collectRaidPrepQuestFilterPeople,
@@ -46,12 +51,21 @@ import {
   serializeSelectedIds,
   sortRaidPrepSummaryByParticipants,
   displayRaidPrepTaskName,
+  collectRaidPrepCompletedUsers,
+  formatRaidPrepOverlayPointTitle,
   formatRaidPrepParticipantLine,
+  objectiveDonesToSkipMap,
+  objectiveDonesToSkipMapAny,
+  raidPrepMapObjectiveIds,
+  roomObjectiveMarksForCompletedTasks,
+  skipMapToObjectiveDones,
+  groupObjectiveDonesForTask,
   raidPrepParticipantNames,
   tarkovReadableName,
   traderFilterLabel,
   type RaidPrepTaskLike,
   type TarkovRaidPrepOverlay,
+  RAID_PREP_MAX_SELECTED,
   RAID_PREP_TASK_COLORS,
 } from "./tarkovRaidPrep";
 
@@ -224,7 +238,7 @@ describe("buildRaidPrepOverlays", () => {
     expect(overlays).toHaveLength(2);
     expect(overlays[0]).toMatchObject({
       kind: "zone",
-      title: "Debut 1",
+      title: "Debut（第1处）",
       traderSlug: "prapor",
       keyNames: [],
       showNoKey: false,
@@ -238,7 +252,7 @@ describe("buildRaidPrepOverlays", () => {
     });
     expect(overlays[1]).toMatchObject({
       kind: "spawn",
-      title: "Debut 2",
+      title: "Debut（第2处）",
       keyNames: [],
       showNoKey: false,
       optional: false,
@@ -277,7 +291,10 @@ describe("buildRaidPrepOverlays", () => {
       ],
     };
     const overlays = buildRaidPrepOverlays([mixed], "customs");
-    expect(overlays.map((row) => row.title)).toEqual(["逃跑 1", "逃跑 2"]);
+    expect(overlays.map((row) => row.title)).toEqual([
+      "逃跑（第1处）",
+      "逃跑（第2处）",
+    ]);
     expect(overlays[0]).toMatchObject({
       keyNames: ["Dorm 114"],
       showNoKey: false,
@@ -299,6 +316,66 @@ describe("buildRaidPrepOverlays", () => {
     expect(formatRaidPrepKeyNeedLine([])).toBe("");
   });
 
+  it("uses the objective description without a type prefix", () => {
+    expect(
+      raidPrepObjectiveStepText({
+        type: "mark",
+        description: "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
+      }),
+    ).toBe("在海岸线找到第二处交易现场，并使用MS2000指示器标记");
+    expect(raidPrepObjectiveStepText({ type: "mark" })).toBe("标记");
+    expect(
+      raidPrepObjectiveStepText({
+        type: "visit",
+        description: "探路",
+        optional: true,
+      }),
+    ).toBe("探路（可选）");
+  });
+
+  it("highlights the hovered location among all map steps", () => {
+    const task: RaidPrepTaskLike = {
+      id: "anesthesia",
+      name: "麻醉",
+      objectives: [
+        {
+          id: "o-1",
+          type: "mark",
+          description: "在海岸线找到第一处交易现场，并使用MS2000指示器标记",
+          zones: [{ id: "z1", map_slug: "shoreline", x: 1, z: 1 }],
+        },
+        {
+          id: "o-2",
+          type: "mark",
+          description: "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
+          zones: [{ id: "z2", map_slug: "shoreline", x: 80, z: 90 }],
+        },
+      ],
+    };
+    const overlays = buildRaidPrepOverlays([task], "shoreline");
+    expect(overlays.map((row) => row.subtitle)).toEqual([
+      "在海岸线找到第一处交易现场，并使用MS2000指示器标记",
+      "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
+    ]);
+    expect(collectRaidPrepOverlaySteps(task, "shoreline", "o-2")).toEqual([
+      {
+        id: "o-1",
+        text: "在海岸线找到第一处交易现场，并使用MS2000指示器标记",
+        optional: false,
+        active: false,
+      },
+      {
+        id: "o-2",
+        text: "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
+        optional: false,
+        active: true,
+      },
+    ]);
+    expect(overlays[1]!.steps.filter((step) => step.active).map((step) => step.text)).toEqual([
+      "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
+    ]);
+  });
+
   it("leaves a single-point task unnumbered", () => {
     const overlays = buildRaidPrepOverlays(
       [
@@ -318,6 +395,123 @@ describe("buildRaidPrepOverlays", () => {
     );
     expect(overlays).toHaveLength(1);
     expect(overlays[0].title).toBe("Debut");
+  });
+
+  it("does not glue a point index onto a name that already ends with -2", () => {
+    const overlays = buildRaidPrepOverlays(
+      [
+        {
+          id: "wet-2",
+          name: "湿活-2",
+          objectives: [
+            {
+              id: "o-visit",
+              type: "visit",
+              zones: [
+                { id: "z1", map_slug: "customs", x: 1, z: 1 },
+                { id: "z2", map_slug: "customs", x: 2, z: 2 },
+                { id: "z3", map_slug: "customs", x: 3, z: 3 },
+                { id: "z4", map_slug: "customs", x: 4, z: 4 },
+              ],
+            },
+          ],
+        },
+      ],
+      "customs",
+    );
+    expect(overlays.map((row) => row.title)).toEqual([
+      "湿活-2（第1处）",
+      "湿活-2（第2处）",
+      "湿活-2（第3处）",
+      "湿活-2（第4处）",
+    ]);
+  });
+
+  it("drops duplicate copies of the same zone so steps are not repeated", () => {
+    const truck1 = {
+      id: "place_n1",
+      map_slug: "shoreline",
+      x: -234.49,
+      z: -164.42,
+    };
+    const truck2 = {
+      id: "place_n2",
+      map_slug: "shoreline",
+      x: -596.26,
+      z: 475.53,
+    };
+    const task: RaidPrepTaskLike = {
+      id: "humanitarian-supplies",
+      name: "人道主义援助",
+      objectives: [
+        {
+          id: "o-mark-1",
+          type: "mark",
+          description: "使用MS2000指示器标记第一辆UN卡车",
+          zones: [truck1, truck1],
+        },
+        {
+          id: "o-visit-1",
+          type: "visit",
+          description: "在海岸线找到第一辆装有UN失货货物的卡车",
+          optional: true,
+          zones: [truck1, truck1],
+        },
+        {
+          id: "o-mark-2",
+          type: "mark",
+          description: "使用MS2000指示器标记第二辆UN卡车",
+          zones: [truck2, truck2],
+        },
+        {
+          id: "o-visit-2",
+          type: "visit",
+          description: "在海岸线找到第二辆装有UN失货货物的卡车",
+          optional: true,
+          zones: [truck2, truck2],
+        },
+      ],
+    };
+    const overlays = buildRaidPrepOverlays([task], "shoreline");
+    expect(overlays).toHaveLength(4);
+    expect(overlays.map((row) => [row.title, row.optional, row.subtitle])).toEqual([
+      [
+        "人道主义援助（第1处）",
+        false,
+        "使用MS2000指示器标记第一辆UN卡车",
+      ],
+      [
+        "人道主义援助（第2处）",
+        true,
+        "在海岸线找到第一辆装有UN失货货物的卡车（可选）",
+      ],
+      [
+        "人道主义援助（第3处）",
+        false,
+        "使用MS2000指示器标记第二辆UN卡车",
+      ],
+      [
+        "人道主义援助（第4处）",
+        true,
+        "在海岸线找到第二辆装有UN失货货物的卡车（可选）",
+      ],
+    ]);
+    expect(overlays[2]!.steps.map((step) => [step.active, step.text])).toEqual([
+      [false, "使用MS2000指示器标记第一辆UN卡车"],
+      [false, "在海岸线找到第一辆装有UN失货货物的卡车（可选）"],
+      [true, "使用MS2000指示器标记第二辆UN卡车"],
+      [false, "在海岸线找到第二辆装有UN失货货物的卡车（可选）"],
+    ]);
+    const labels = clusterRaidPrepOverlayLabels(overlays);
+    const atFirst = labels.find((row) => Math.round(row.x) === -234);
+    expect(atFirst?.items.map((item) => item.subtitle)).toEqual([
+      expect.stringContaining("第一辆UN卡车"),
+      expect.stringContaining("第一辆装有UN"),
+    ]);
+    expect(resolveRaidPrepLocatePoints(task, "shoreline")).toEqual([
+      { x: -234.49, z: -164.42 },
+      { x: -596.26, z: 475.53 },
+    ]);
   });
 
   it("marks optional objectives and prefers their required_keys", () => {
@@ -511,6 +705,12 @@ describe("readable item names", () => {
         normalized_name: "debut",
       }),
     ).toBe("debut");
+  });
+
+  it("numbers overlay points without gluing onto a trailing -2", () => {
+    expect(formatRaidPrepOverlayPointTitle("湿活-2", 0, 1)).toBe("湿活-2");
+    expect(formatRaidPrepOverlayPointTitle("湿活-2", 0, 4)).toBe("湿活-2（第1处）");
+    expect(formatRaidPrepOverlayPointTitle("湿活-2", 3, 4)).toBe("湿活-2（第4处）");
   });
 
   it("skips unresolved key ids on the task card", () => {
@@ -1084,6 +1284,71 @@ describe("raid prep needed items", () => {
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
   });
 
+  it("groups others' objective completions per step", () => {
+    const grouped = groupObjectiveDonesForTask("wet-2", [
+      { task_id: "wet-2", objective_id: "o-1", user_id: 1, display_name: "甲" },
+      { task_id: "wet-2", objective_id: "o-2", user_id: 1, display_name: "甲" },
+      { task_id: "wet-2", objective_id: "o-1", user_id: 2, display_name: "乙" },
+    ], { excludeUserId: 2 });
+    expect(grouped.get("o-1")?.map((row) => row.name)).toEqual(["甲"]);
+    expect(grouped.get("o-2")?.map((row) => row.name)).toEqual(["甲"]);
+    expect(grouped.has("o-3")).toBe(false);
+  });
+
+  it("lists users who finished every required map objective", () => {
+    const tasks: RaidPrepTaskLike[] = [
+      {
+        id: "wet-2",
+        name: "湿活-2",
+        objectives: [
+          { id: "o-1", type: "visit", description: "点1" },
+          { id: "o-2", type: "visit", description: "点2" },
+          { id: "o-opt", type: "visit", description: "可选", optional: true },
+        ],
+      },
+    ];
+    const dones = [
+      { task_id: "wet-2", objective_id: "o-1", user_id: 1, display_name: "甲" },
+      { task_id: "wet-2", objective_id: "o-2", user_id: 1, display_name: "甲" },
+      { task_id: "wet-2", objective_id: "o-1", user_id: 2, display_name: "乙" },
+    ];
+    const completed = collectRaidPrepCompletedUsers(tasks, "customs", dones);
+    expect(completed.get("wet-2")?.map((row) => row.name)).toEqual(["甲"]);
+    const mine = objectiveDonesToSkipMap(dones, 2);
+    expect([...mine.get("wet-2")!]).toEqual(["o-1"]);
+    expect([...objectiveDonesToSkipMapAny(dones).get("wet-2")!].sort()).toEqual([
+      "o-1",
+      "o-2",
+    ]);
+    expect(raidPrepMapObjectiveIds(tasks[0]!, "customs")).toEqual([
+      "o-1",
+      "o-2",
+      "o-opt",
+    ]);
+    expect(
+      roomObjectiveMarksForCompletedTasks(
+        ["wet-2", "other"],
+        tasks,
+        "customs",
+        dones,
+        2,
+      ),
+    ).toEqual([
+      { taskId: "wet-2", objectiveId: "o-2" },
+      { taskId: "wet-2", objectiveId: "o-opt" },
+    ]);
+    expect(
+      skipMapToObjectiveDones(mine, { userId: 2, name: "乙" }),
+    ).toEqual([
+      {
+        task_id: "wet-2",
+        objective_id: "o-1",
+        user_id: 2,
+        display_name: "乙",
+      },
+    ]);
+  });
+
   it("round-trips personal objective-done maps", () => {
     const skipped = toggleRaidPrepObjectiveDone(new Map(), "t1", "o-key");
     expect([...skipped.get("t1")!]).toEqual(["o-key"]);
@@ -1130,6 +1395,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
       color: pink,
       title,
       subtitle: "",
+      steps: [],
       traderSlug: "",
       keyNames: [],
       showNoKey: false,
@@ -1215,6 +1481,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
         color: blue,
         title: "Debut",
         subtitle: "",
+        steps: [],
         traderSlug: "",
         keyNames: [],
         showNoKey: false,
@@ -1287,11 +1554,11 @@ describe("clusterRaidPrepOverlayLabels", () => {
   it("stacks numbered points of the same task instead of merging them", () => {
     const labels = clusterRaidPrepOverlayLabels(
       [
-        overlay("逃跑 1", [{ x: 10, z: 10 }], {
+        overlay("逃跑（第1处）", [{ x: 10, z: 10 }], {
           taskId: "t-run",
           keyNames: ["Dorm 114"],
         }),
-        overlay("逃跑 2", [{ x: 12, z: 11 }], {
+        overlay("逃跑（第2处）", [{ x: 12, z: 11 }], {
           taskId: "t-run",
           key: "run-2",
           showNoKey: true,
@@ -1300,7 +1567,10 @@ describe("clusterRaidPrepOverlayLabels", () => {
       36,
     );
     expect(labels).toHaveLength(1);
-    expect(labels[0].items.map((item) => item.title)).toEqual(["逃跑 1", "逃跑 2"]);
+    expect(labels[0].items.map((item) => item.title)).toEqual([
+      "逃跑（第1处）",
+      "逃跑（第2处）",
+    ]);
     expect(labels[0].items[0]).toMatchObject({
       keyNames: ["Dorm 114"],
       showNoKey: false,
@@ -1388,31 +1658,25 @@ describe("traderFilterLabel", () => {
 });
 
 describe("filterRaidPrepRows", () => {
-  it("filters by trader, query, and progress status", () => {
+  it("filters by trader and query", () => {
     const rows = [
       {
         id: "a",
         name: "Alpha",
         trader_slug: "prapor",
         trader_name: "Prapor",
-        progress_status: "active",
       },
       {
         id: "b",
         name: "Beta",
         trader_slug: "therapist",
         trader_name: "Therapist",
-        progress_status: "complete",
       },
     ];
     expect(filterRaidPrepRows(rows, { trader: "prapor" }).map((r) => r.id)).toEqual([
       "a",
     ]);
     expect(filterRaidPrepRows(rows, { q: "beta" }).map((r) => r.id)).toEqual(["b"]);
-    expect(
-      filterRaidPrepRows(rows, { progressStatus: "complete" }).map((r) => r.id),
-    ).toEqual(["b"]);
-    expect(filterRaidPrepRows(rows, { progressStatus: "all" })).toHaveLength(2);
   });
 });
 
@@ -1480,5 +1744,106 @@ describe("resolveRaidPrepLocatePoints", () => {
     expect(resolveRaidPrepLocatePoints(task, "customs")).toEqual([
       { x: 4, z: 5, y: 15 },
     ]);
+  });
+
+  it("does not cycle the same truck twice when zone copies repeat", () => {
+    const task: RaidPrepTaskLike = {
+      id: "t-truck",
+      objectives: [
+        {
+          id: "o-mark",
+          zones: [
+            { id: "z1", map_slug: "customs", x: 3, z: 4 },
+            { id: "z1", map_slug: "customs", x: 3, z: 4 },
+          ],
+        },
+        {
+          id: "o-visit",
+          optional: true,
+          zones: [{ id: "z1", map_slug: "customs", x: 3, z: 4 }],
+        },
+      ],
+    };
+    expect(resolveRaidPrepLocatePoints(task, "customs")).toEqual([{ x: 3, z: 4 }]);
+  });
+});
+
+describe("raidPrepIdsFromTaskProgress", () => {
+  it("keeps catalog order and drops done or unknown ids", () => {
+    expect(
+      raidPrepIdsFromTaskProgress(
+        ["woods-a", "woods-b", "woods-c"],
+        ["woods-c", "other", "woods-a", "woods-b"],
+        ["woods-b"],
+      ),
+    ).toEqual(["woods-a", "woods-c"]);
+  });
+
+  it("ignores blanks and repeats", () => {
+    expect(
+      raidPrepIdsFromTaskProgress(
+        [" a ", "a", "b"],
+        ["a", " a ", "", "b"],
+        [" b "],
+      ),
+    ).toEqual(["a"]);
+  });
+});
+
+describe("planRaidPrepTaskProgressSync", () => {
+  it("merges in-progress map tasks onto the current selection", () => {
+    const plan = planRaidPrepTaskProgressSync({
+      catalogIds: ["a", "b", "c"],
+      selectedIds: ["c"],
+      startedIds: ["a", "x"],
+      doneIds: ["b"],
+    });
+    expect(plan.matchedIds).toEqual(["a"]);
+    expect(plan.addedIds).toEqual(["a"]);
+    expect(plan.nextIds).toEqual(["c", "a"]);
+    expect(plan.hint).toBe("已勾选 1 个进行中任务");
+  });
+
+  it("does not uncheck existing picks when nothing new matches", () => {
+    const plan = planRaidPrepTaskProgressSync({
+      catalogIds: ["a", "b"],
+      selectedIds: ["a"],
+      startedIds: ["a"],
+    });
+    expect(plan.addedIds).toEqual([]);
+    expect(plan.nextIds).toEqual(["a"]);
+    expect(plan.hint).toBe("进行中的本图任务已全部勾选");
+  });
+
+  it("caps new unique tasks against occupied room ids", () => {
+    const occupied = Array.from({ length: RAID_PREP_MAX_SELECTED }, (_, i) => `r${i}`);
+    const plan = planRaidPrepTaskProgressSync({
+      catalogIds: ["new", occupied[0]!],
+      selectedIds: [],
+      startedIds: ["new", occupied[0]!],
+      occupiedIds: occupied,
+    });
+    expect(plan.addedIds).toEqual([occupied[0]]);
+    expect(plan.nextIds).toEqual([occupied[0]]);
+    expect(plan.hint).toBe(
+      `已勾选 1 个进行中任务（已达 ${RAID_PREP_MAX_SELECTED} 个上限）`,
+    );
+  });
+
+  it("explains an empty personal-center started list", () => {
+    expect(
+      describeRaidPrepTaskProgressSync({
+        startedCount: 0,
+        matchedCount: 0,
+        addedCount: 0,
+      }),
+    ).toBe("个人中心没有进行中的任务");
+    expect(
+      describeRaidPrepTaskProgressSync({
+        startedCount: 2,
+        matchedCount: 0,
+        addedCount: 0,
+      }),
+    ).toBe("没有进行中且属于本图的任务");
   });
 });

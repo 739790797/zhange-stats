@@ -14,11 +14,13 @@ from app.core.timeutil import now_naive, to_naive
 from app.models.tarkov import (
     TarkovRaidRoom,
     TarkovRaidRoomKeyBring,
+    TarkovRaidRoomObjectiveDone,
     TarkovRaidRoomMark,
     TarkovRaidRoomMember,
     TarkovRaidRoomTaskClaim,
 )
 from app.models.user import User
+from app.services.tarkov.key_owns import list_owns_for_users
 from app.services.tarkov.tasks import MAP_SLUG_EQUIV_GROUPS
 
 MARK_PIN = "pin"
@@ -30,6 +32,7 @@ SLOT_PUBLIC_IDS = tuple(str(slot) for slot in range(1, SLOT_COUNT + 1))
 MAX_MEMBERS = 5
 MAX_UNIQUE_TASKS = 40
 MAX_UNIQUE_KEYS = 80
+MAX_UNIQUE_OBJECTIVES = 200
 MAX_PINS = 80
 MAX_LINES = 80
 MAX_STROKES = 240
@@ -97,6 +100,13 @@ def _item_id(raw: str) -> str:
     return text
 
 
+def _objective_id(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text or len(text) > TASK_ID_MAX:
+        raise RaidRoomError("目标无效")
+    return text
+
+
 def _floor(raw: str | None) -> str:
     text = (raw or "").strip()
     if len(text) > FLOOR_MAX:
@@ -144,6 +154,43 @@ def parse_draw_draft(payload: dict[str, Any]) -> dict[str, Any] | None:
         return {"floor": floor, "points": normalize_stroke_points(raw_points)}
     except RaidRoomError:
         return None
+
+
+PLAYER_FIX_NAME_MAX = 200
+
+
+def parse_player_fix(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """校验截图坐标广播；只传数字，不传图片。无效输入返回 None。"""
+    try:
+        x = _round_coord(_coord(payload.get("x"), "x"))
+        y = _round_coord(_coord(payload.get("y"), "y"))
+        z = _round_coord(_coord(payload.get("z"), "z"))
+    except RaidRoomError:
+        return None
+    yaw_raw = payload.get("yaw")
+    yaw: float | None
+    if yaw_raw is None or yaw_raw == "":
+        yaw = None
+    else:
+        try:
+            yaw_num = float(yaw_raw)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(yaw_num):
+            return None
+        yaw = round(yaw_num, STROKE_ROUND)
+    map_id = normalize_room_map_slug(str(payload.get("map_id") or ""))
+    file_name = str(payload.get("file_name") or "").strip().replace("\n", " ")
+    if len(file_name) > PLAYER_FIX_NAME_MAX:
+        file_name = file_name[:PLAYER_FIX_NAME_MAX]
+    return {
+        "x": x,
+        "y": y,
+        "z": z,
+        "yaw": yaw,
+        "map_id": map_id,
+        "file_name": file_name,
+    }
 
 
 def ensure_slot_rooms(db: Session, *, now: datetime | None = None) -> None:
@@ -196,6 +243,11 @@ def _wipe_board(db: Session, room_id: int) -> None:
     (
         db.query(TarkovRaidRoomKeyBring)
         .filter(TarkovRaidRoomKeyBring.room_id == room_id)
+        .delete(synchronize_session=False)
+    )
+    (
+        db.query(TarkovRaidRoomObjectiveDone)
+        .filter(TarkovRaidRoomObjectiveDone.room_id == room_id)
         .delete(synchronize_session=False)
     )
     (
@@ -354,6 +406,12 @@ def serialize_room(
         .order_by(TarkovRaidRoomKeyBring.created_at.asc())
         .all()
     )
+    objective_dones = (
+        db.query(TarkovRaidRoomObjectiveDone)
+        .filter(TarkovRaidRoomObjectiveDone.room_id == room.id)
+        .order_by(TarkovRaidRoomObjectiveDone.created_at.asc())
+        .all()
+    )
     marks = (
         db.query(TarkovRaidRoomMark)
         .filter(TarkovRaidRoomMark.room_id == room.id)
@@ -372,6 +430,8 @@ def serialize_room(
         ids.add(row.user_id)
     for row in key_brings:
         ids.add(row.user_id)
+    for row in objective_dones:
+        ids.add(row.user_id)
     for row in marks:
         ids.add(row.author_user_id)
     names = _user_names(db, ids, fallback)
@@ -382,6 +442,8 @@ def serialize_room(
     is_host = viewer_id is not None and viewer_id == room.host_user_id
     can_edit = is_member and bool((room.map_slug or "").strip())
     occupants = [row for row in members if row.left_at is None]
+    occupant_ids = [row.user_id for row in occupants]
+    key_owns = list_owns_for_users(db, occupant_ids)
     return {
         "public_id": room.public_id,
         "title": (room.title or "").strip() or slot_title(int(room.public_id)),
@@ -435,6 +497,25 @@ def serialize_room(
                 "created_at": _iso(row.created_at),
             }
             for row in key_brings
+        ],
+        "key_owns": [
+            {
+                "item_id": row.item_id,
+                "user_id": row.user_id,
+                "display_name": names.get(row.user_id) or f"用户{row.user_id}",
+                "created_at": _iso(row.created_at),
+            }
+            for row in key_owns
+        ],
+        "objective_dones": [
+            {
+                "task_id": row.task_id,
+                "objective_id": row.objective_id,
+                "user_id": row.user_id,
+                "display_name": names.get(row.user_id) or f"用户{row.user_id}",
+                "created_at": _iso(row.created_at),
+            }
+            for row in objective_dones
         ],
         "marks": [
             serialize_mark(row, names.get(row.author_user_id) or f"用户{row.author_user_id}")
@@ -502,6 +583,14 @@ def _drop_member_contrib(db: Session, room_id: int, user_id: int) -> None:
         .filter(
             TarkovRaidRoomKeyBring.room_id == room_id,
             TarkovRaidRoomKeyBring.user_id == user_id,
+        )
+        .delete(synchronize_session=False)
+    )
+    (
+        db.query(TarkovRaidRoomObjectiveDone)
+        .filter(
+            TarkovRaidRoomObjectiveDone.room_id == room_id,
+            TarkovRaidRoomObjectiveDone.user_id == user_id,
         )
         .delete(synchronize_session=False)
     )
@@ -945,6 +1034,103 @@ def unbring_key(
             TarkovRaidRoomKeyBring.room_id == room.id,
             TarkovRaidRoomKeyBring.item_id == iid,
             TarkovRaidRoomKeyBring.user_id == user.id,
+        )
+        .first()
+    )
+    removed = False
+    if row is not None:
+        db.delete(row)
+        db.flush()
+        removed = True
+    return serialize_room(db, room, viewer=user), removed
+
+
+def mark_objective_done(
+    db: Session,
+    public_id: str,
+    user: User,
+    task_id: str,
+    objective_id: str,
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], bool]:
+    stamp = to_naive(now or now_naive())
+    room = _get_room(db, public_id)
+    _require_active_member(db, room, user, now=now)
+    _require_map(room)
+    tid = _task_id(task_id)
+    oid = _objective_id(objective_id)
+    existing = (
+        db.query(TarkovRaidRoomObjectiveDone)
+        .filter(
+            TarkovRaidRoomObjectiveDone.room_id == room.id,
+            TarkovRaidRoomObjectiveDone.task_id == tid,
+            TarkovRaidRoomObjectiveDone.objective_id == oid,
+            TarkovRaidRoomObjectiveDone.user_id == user.id,
+        )
+        .first()
+    )
+    added = False
+    if existing is None:
+        pair_taken = (
+            db.query(TarkovRaidRoomObjectiveDone)
+            .filter(
+                TarkovRaidRoomObjectiveDone.room_id == room.id,
+                TarkovRaidRoomObjectiveDone.task_id == tid,
+                TarkovRaidRoomObjectiveDone.objective_id == oid,
+            )
+            .first()
+        )
+        if pair_taken is None:
+            unique = len(
+                {
+                    (row.task_id, row.objective_id)
+                    for row in db.query(
+                        TarkovRaidRoomObjectiveDone.task_id,
+                        TarkovRaidRoomObjectiveDone.objective_id,
+                    )
+                    .filter(TarkovRaidRoomObjectiveDone.room_id == room.id)
+                    .distinct()
+                    .all()
+                }
+            )
+            if unique >= MAX_UNIQUE_OBJECTIVES:
+                raise RaidRoomError("本房目标完成记录已满", 409)
+        db.add(
+            TarkovRaidRoomObjectiveDone(
+                room_id=room.id,
+                task_id=tid,
+                objective_id=oid,
+                user_id=user.id,
+                created_at=stamp,
+            )
+        )
+        db.flush()
+        added = True
+    return serialize_room(db, room, viewer=user), added
+
+
+def unmark_objective_done(
+    db: Session,
+    public_id: str,
+    user: User,
+    task_id: str,
+    objective_id: str,
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], bool]:
+    room = _get_room(db, public_id)
+    _require_active_member(db, room, user, now=now)
+    _require_map(room)
+    tid = _task_id(task_id)
+    oid = _objective_id(objective_id)
+    row = (
+        db.query(TarkovRaidRoomObjectiveDone)
+        .filter(
+            TarkovRaidRoomObjectiveDone.room_id == room.id,
+            TarkovRaidRoomObjectiveDone.task_id == tid,
+            TarkovRaidRoomObjectiveDone.objective_id == oid,
+            TarkovRaidRoomObjectiveDone.user_id == user.id,
         )
         .first()
     )

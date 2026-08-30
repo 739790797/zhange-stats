@@ -27,12 +27,14 @@ import {
   type RaidPrepHeightSpan,
   type RaidPrepMapParticipant,
   type RaidPrepOverlayLabelItem,
+  type RaidPrepOverlayStep,
   type RaidPrepPoint,
   type TarkovRaidPrepOverlay,
 } from "@/lib/tarkovRaidPrep";
 import { traderIconUrl, traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import {
   RAID_ROOM_OTHER_FLOOR_OPACITY,
+  type TarkovMapPlayerMark,
   isMapDrawTool,
   isTypingTarget,
   markMatchesFloor,
@@ -89,6 +91,7 @@ import {
   withSpawnKindsForPresent,
   type TarkovSpawnKind,
 } from "@/lib/tarkovMapSpawns";
+import { useTarkovScreenshotPosition } from "@/lib/useTarkovScreenshotPosition";
 import styles from "./TarkovMapViewer.module.css";
 
 export type TarkovMapFocusRequest = RaidPrepPoint & { seq: number };
@@ -104,6 +107,8 @@ type Props = {
   className?: string;
   boardMarks?: RaidRoomMarkLike[];
   remoteDrafts?: RaidRoomDraftStroke[];
+  remotePlayerFixes?: TarkovMapPlayerMark[];
+  suppressLocalFix?: boolean;
   drawColor?: string;
   authorUserId?: number;
   drawMode?: TarkovMapDrawMode;
@@ -136,6 +141,7 @@ type MapRuntime = {
   live: L.LayerGroup;
   mine: L.LayerGroup;
   remote: L.LayerGroup;
+  player: L.LayerGroup;
   localStroke?: L.Polyline;
   mineKeys: Set<string>;
   strokeLayers: Map<string, L.Layer>;
@@ -352,6 +358,7 @@ type QuestBubbleRow = {
   taskId?: string;
   title: string;
   subtitle: string;
+  steps?: RaidPrepOverlayStep[];
   color: string;
   traderSlug: string;
   keyNames?: string[];
@@ -379,17 +386,30 @@ function questParticipantChipsHtml(
   return `<span class="${styles.questTipPeople}">${chips}</span>`;
 }
 
-function overlayBubbleHtml(row: QuestBubbleRow): string {
-  const kind =
-    row.kind === "spawn"
-      ? "可能刷新点"
-      : row.kind === "zone"
-        ? "目标区域"
+function overlayBubbleStepsHtml(row: QuestBubbleRow): string {
+  const steps =
+    row.steps && row.steps.length
+      ? row.steps
+      : row.subtitle
+        ? [{ text: row.subtitle, active: true }]
+        : row.kind === "spawn"
+          ? [{ text: "可能刷新点", active: true }]
+          : row.kind === "zone"
+            ? [{ text: "目标区域", active: true }]
+            : [];
+  if (!steps.length) return "";
+  return `<span class="${styles.questTipSteps}">${steps
+    .map((step) => {
+      const on = step.active ? ` ${styles.questTipStepOn}` : "";
+      const color = step.active
+        ? ` style="color:${escapeHtml(row.color)}"`
         : "";
-  const meta = row.subtitle || kind;
-  const optionalTag = row.optional
-    ? `<span class="${styles.questTipOptional}">可选</span>`
-    : "";
+      return `<span class="${styles.questTipStep}${on}"${color}>${escapeHtml(step.text)}</span>`;
+    })
+    .join("")}</span>`;
+}
+
+function overlayBubbleHtml(row: QuestBubbleRow): string {
   const keys = (row.keyNames || [])
     .filter(Boolean)
     .map(
@@ -400,7 +420,7 @@ function overlayBubbleHtml(row: QuestBubbleRow): string {
   const keyRow = keys
     ? `<span class="${styles.questTipKeys}"><span class="${styles.questTipKeyLabel}">所需钥匙</span>${keys}</span>`
     : "";
-  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span><span class="${styles.questTipMeta}">${optionalTag}${escapeHtml(meta)}</span>${keyRow}${questParticipantChipsHtml(row.participants)}</span>`;
+  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span>${overlayBubbleStepsHtml(row)}${keyRow}${questParticipantChipsHtml(row.participants)}</span>`;
 }
 
 function traderSlugForIcon(slug: string): string {
@@ -463,6 +483,7 @@ function questBubbleFromOverlay(
     taskId: row.taskId,
     title: row.title,
     subtitle: row.subtitle,
+    steps: row.steps,
     color: row.color,
     traderSlug: row.traderSlug,
     keyNames: row.keyNames,
@@ -552,6 +573,12 @@ function addQuestLabels(
   const lineH = 22;
   for (const label of labels) {
     label.items.forEach((item, index) => {
+      const source = overlays.find(
+        (row) =>
+          row.taskId === item.taskId &&
+          row.title === item.title &&
+          Boolean(row.optional) === Boolean(item.optional),
+      );
       const offFloor = !overlayVisibleOnFloor(item.height, floor, floorBands);
       const marker = L.marker(pos({ x: label.x, z: label.z }), {
         icon: L.divIcon({
@@ -569,7 +596,8 @@ function addQuestLabels(
         {
           taskId: item.taskId,
           title: item.title,
-          subtitle: item.subtitle,
+          subtitle: source?.subtitle || item.subtitle,
+          steps: source?.steps,
           color: item.color,
           traderSlug: item.traderSlug,
           keyNames: item.keyNames,
@@ -582,6 +610,42 @@ function addQuestLabels(
       );
       marker.addTo(group);
     });
+  }
+}
+
+function addPlayerFixMarkers(
+  group: L.LayerGroup,
+  marks: TarkovMapPlayerMark[],
+  mapRotation = 0,
+  currentFloor = "",
+  floorBands: ReturnType<typeof mapLayerFloorBands> = [],
+) {
+  group.clearLayers();
+  for (const mark of marks) {
+    const yaw = mark.yaw == null ? null : mark.yaw + mapRotation;
+    const floor = overlayFloorForPoint(mark.y, floorBands);
+    const current = !floor || !currentFloor || floor === currentFloor;
+    const color = escapeHtml(mark.color);
+    const name = mark.self ? "" : escapeHtml(mark.name);
+    const pip =
+      yaw == null
+        ? `<span class="${styles.playerDot}"></span>`
+        : `<span class="${styles.playerArrow}" style="transform:rotate(${yaw}deg)"></span>`;
+    const label = name
+      ? `<span class="${styles.playerName}">${name}</span>`
+      : "";
+    const html = `<span class="${styles.playerMark}" style="color:${color};opacity:${current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY}"><span class="${styles.playerGlow}"></span>${pip}${label}</span>`;
+    L.marker(pos({ x: mark.x, z: mark.z }), {
+      icon: L.divIcon({
+        className: styles.playerIcon,
+        html,
+        iconSize: [32, name ? 44 : 32],
+        iconAnchor: [16, 16],
+      }),
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: mark.self ? 920 : 900,
+    }).addTo(group);
   }
 }
 
@@ -838,6 +902,8 @@ export function TarkovMapViewer({
   className = "",
   boardMarks = [],
   remoteDrafts = [],
+  remotePlayerFixes = [],
+  suppressLocalFix = false,
   drawColor = "#c8932a",
   authorUserId = 0,
   drawMode = "pan",
@@ -890,6 +956,9 @@ export function TarkovMapViewer({
   const floorRef = useRef("");
   const coordsElRef = useRef<HTMLDivElement | null>(null);
   const wrapElRef = useRef<HTMLDivElement | null>(null);
+  const shotWatch = useTarkovScreenshotPosition();
+  const playerFixSigRef = useRef("");
+  const shotResumeOnceRef = useRef(false);
   const [prefs, setPrefs] = useState(loadTarkovMapViewerPrefs);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1071,6 +1140,7 @@ export function TarkovMapViewer({
       live: L.layerGroup(),
       mine: L.layerGroup(),
       remote: L.layerGroup(),
+      player: L.layerGroup(),
       mineKeys: new Set(),
       strokeLayers: new Map(),
     };
@@ -1264,6 +1334,7 @@ export function TarkovMapViewer({
       runtime.mine.addTo(map);
       runtime.live.addTo(map);
       runtime.remote.addTo(map);
+      runtime.player.addTo(map);
       map.fitBounds(bounds, { animate: false });
       const detachPanPerf = attachPanPerfGuards(
         map,
@@ -1547,6 +1618,62 @@ export function TarkovMapViewer({
   }, [focusRequest, ready, floorBands, interactive?.key, updatePrefs]);
 
   useEffect(() => {
+    const runtime = runtimeRef.current;
+    const map = runtime?.map;
+    const fix = suppressLocalFix ? null : shotWatch.fix;
+    if (!ready || !runtime || !map) return;
+    const marks: TarkovMapPlayerMark[] = [...remotePlayerFixes];
+    if (fix) {
+      marks.push({
+        key: `self:${fix.fileName}`,
+        userId: authorUserId,
+        name: "",
+        color: authorUserId ? colorForUserId(authorUserId) : "#c8932a",
+        x: fix.x,
+        y: fix.y,
+        z: fix.z,
+        yaw: fix.yaw,
+        self: true,
+      });
+    }
+    if (!marks.length) {
+      runtime.player.clearLayers();
+      playerFixSigRef.current = "";
+      return;
+    }
+    addPlayerFixMarkers(
+      runtime.player,
+      marks,
+      interactive?.coordinateRotation || 0,
+      floor,
+      floorBands,
+    );
+    if (!fix) return;
+    const sig = `${fix.fileName}:${fix.lastModified}`;
+    if (playerFixSigRef.current === sig) return;
+    playerFixSigRef.current = sig;
+    const mapKey = interactive?.key || "";
+    const nextFloor = overlayFloorForPoint(fix.y, floorBands);
+    if (mapKey && nextFloor !== floorRef.current) {
+      updatePrefs((prev) => withMapFloor(prev, mapKey, nextFloor));
+    }
+    const latLng = L.latLng(pos({ x: fix.x, z: fix.z }));
+    const zoom = Math.max(map.getZoom(), map.getMinZoom() + 1);
+    map.flyTo(latLng, zoom, { animate: true, duration: 0.35 });
+  }, [
+    shotWatch.fix,
+    remotePlayerFixes,
+    suppressLocalFix,
+    authorUserId,
+    ready,
+    floor,
+    floorBands,
+    interactive?.coordinateRotation,
+    interactive?.key,
+    updatePrefs,
+  ]);
+
+  useEffect(() => {
     const map = runtimeRef.current?.map;
     const pane = runtimeRef.current?.boardPane;
     if (!map) return;
@@ -1599,6 +1726,12 @@ export function TarkovMapViewer({
     <div
       ref={wrapElRef}
       className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${spaceHeld ? styles.wrapSpace : ""} ${className}`.trim()}
+      onPointerDown={() => {
+        if (shotResumeOnceRef.current) return;
+        if (shotWatch.perm !== "prompt" || !shotWatch.hasStored) return;
+        shotResumeOnceRef.current = true;
+        void shotWatch.enable();
+      }}
     >
       <div className={styles.map} ref={mapDivRef} />
       {topRight ? <div className={styles.topRight}>{topRight}</div> : null}
@@ -1870,6 +2003,30 @@ export function TarkovMapViewer({
                       />
                       <span>任务</span>
                     </label>
+                  )
+                ) : null}
+                {shotWatch.supported ? (
+                  shotWatch.perm === "granted" ? (
+                    <span className={styles.filterRow}>
+                      <span className={styles.playerStatus}>
+                        {shotWatch.fix
+                          ? "截图定位中"
+                          : shotWatch.lastFileName
+                            ? "截图无坐标，请在战局里用游戏截图键"
+                            : "战局里按游戏截图键定位"}
+                      </span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.playerEnable}
+                      disabled={shotWatch.busy || shotWatch.perm === "unknown"}
+                      onClick={() => void shotWatch.enable()}
+                    >
+                      {shotWatch.hasStored
+                        ? "继续读取截图目录"
+                        : "设定截图目录"}
+                    </button>
                   )
                 ) : null}
               </div>

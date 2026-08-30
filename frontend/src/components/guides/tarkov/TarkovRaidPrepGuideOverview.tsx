@@ -5,10 +5,21 @@ import {
   eftarkovTaskGuideUrl,
   resolveRaidPrepGuideId,
 } from "@/lib/eftarkovGuide";
-import { colorForTaskId, colorForUserId, displayRaidPrepTaskName } from "@/lib/tarkovRaidPrep";
+import {
+  collectRaidPrepTaskObjectives,
+  colorForTaskId,
+  colorForUserId,
+  displayRaidPrepTaskName,
+  groupObjectiveDonesForTask,
+  raidPrepSkippedIds,
+  type RaidPrepObjectiveDoneLike,
+  type RaidPrepSkipMap,
+  type RaidPrepTaskLike,
+} from "@/lib/tarkovRaidPrep";
 import {
   type RaidPrepParticipant,
 } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
+import { TarkovRaidPrepObjectiveProgress } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -18,11 +29,17 @@ export type RaidPrepGuideTask = {
   normalized_name?: string | null;
   trader_slug?: string | null;
   trader_name?: string | null;
+  objectives?: RaidPrepTaskLike["objectives"];
 };
 
 type Props = {
   tasks: RaidPrepGuideTask[];
+  mapId?: string;
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
+  skippedByTask?: RaidPrepSkipMap;
+  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+  currentUserId?: number | null;
+  onToggleObjective?: (taskId: string, objectiveId: string) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   activeId?: string;
@@ -63,7 +80,12 @@ function ParticipantLine({
 
 export function TarkovRaidPrepGuideOverview({
   tasks,
+  mapId = "",
   participantsByTask,
+  skippedByTask,
+  objectiveDones,
+  currentUserId,
+  onToggleObjective,
   open: openProp,
   onOpenChange,
   activeId: activeIdProp,
@@ -79,6 +101,23 @@ export function TarkovRaidPrepGuideOverview({
   const guideId = resolveRaidPrepGuideId(selectedIds, activeId);
   const activeUrl = guideId ? eftarkovTaskGuideUrl(guideId) : null;
   const activeTask = tasks.find((row) => row.id === guideId);
+  const activeObjectives = useMemo(
+    () => (activeTask ? collectRaidPrepTaskObjectives(activeTask, mapId) : []),
+    [activeTask, mapId],
+  );
+  const activeSkipped = useMemo(
+    () => (guideId ? raidPrepSkippedIds(skippedByTask, guideId) : undefined),
+    [guideId, skippedByTask],
+  );
+  const activeDoneByOthers = useMemo(
+    () =>
+      guideId
+        ? groupObjectiveDonesForTask(guideId, objectiveDones, {
+            excludeUserId: currentUserId,
+          })
+        : undefined,
+    [guideId, objectiveDones, currentUserId],
+  );
 
   useEffect(() => {
     if (!selectedIds.length) {
@@ -122,6 +161,24 @@ export function TarkovRaidPrepGuideOverview({
         ) : (
           <div className={styles.guideLayout}>
             <aside className={styles.guideSidebar} aria-label="已选任务">
+              {activeTask ? (
+                <div className={styles.guideProgress}>
+                  <div className={styles.guideProgressHead}>任务进度</div>
+                  <div className={styles.guideProgressBody}>
+                    <TarkovRaidPrepObjectiveProgress
+                      objectives={activeObjectives}
+                      skipped={activeSkipped}
+                      doneByOthers={activeDoneByOthers}
+                      onToggle={
+                        onToggleObjective && guideId
+                          ? (objectiveId) =>
+                              onToggleObjective(guideId, objectiveId)
+                          : undefined
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div className={styles.guideSideHead}>
                 <span>参与人员</span>
                 <span>任务名称</span>

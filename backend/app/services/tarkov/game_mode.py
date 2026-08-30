@@ -1,7 +1,7 @@
 """逃离塔科夫 PVP / PVE。
 
-上游：GraphQL `gameMode: regular | pve`；json.tarkov.dev `/regular/` 与 `/pve/`。
-落库：各 *_raws / *_meta 用 id=1 存 PVP、id=2 存 PVE（现有 id=1 即 PVP）。
+上游：api.tarkov.dev `gameMode: regular | pve`；json.tarkov.dev `/regular/` 与 `/pve/`。
+落库：各 tarkov_{resource}_raws 用 mode_id=1 存 PVP、mode_id=2 存 PVE；lang='' 主文件、lang=zh locale。
 读路径靠 ContextVar，避免把 game_mode 逐层往下传。
 """
 

@@ -1,4 +1,4 @@
-"""逃离塔科夫地图：读 bosses maps raw 投影目录/详情（不另存一份）。"""
+"""逃离塔科夫地图：读 tarkov_maps_raws 投影目录/详情（不另存一份）。"""
 
 from __future__ import annotations
 
@@ -21,10 +21,10 @@ from app.services.tarkov.bosses import (
     _mob_name,
     _mobs_blob,
     map_xyz,
-    ensure_bosses,
-    get_bosses_raw,
+    ensure_maps,
+    get_maps_raw,
 )
-from app.services.tarkov.bosses import _load_payload as load_bosses_payload
+from app.services.tarkov.bosses import _load_payload as load_maps_payload
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +397,7 @@ def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
     )
     payload = json.loads(raw.decode("utf-8"))
     if payload.get("errors"):
-        raise TarkovBossesError(f"tarkov.dev GraphQL 错误: {payload.get('errors')}")
+        raise TarkovBossesError(f"api.tarkov.dev 错误: {payload.get('errors')}")
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     rows = data.get("maps") if isinstance(data, dict) else None
     if not isinstance(rows, list):
@@ -449,7 +449,7 @@ def _apply_graphql_markers(
     try:
         by_slug = _graphql_map_markers()
     except Exception:  # noqa: BLE001
-        logger.warning("tarkov.dev GraphQL map markers unavailable", exc_info=True)
+        logger.warning("api.tarkov.dev map markers unavailable", exc_info=True)
         return
     extra = by_slug.get(str(row.get("slug") or "")) or by_slug.get(str(row.get("id") or ""))
     if not extra:
@@ -595,9 +595,9 @@ _HUB_FIELDS = (
 
 
 def list_maps(db: Session) -> dict[str, Any]:
-    if get_bosses_raw(db) is None:
-        ensure_bosses(db)
-    source, payload, synced_at, note = load_bosses_payload(db)
+    if get_maps_raw(db) is None:
+        ensure_maps(db)
+    source, payload, synced_at, note = load_maps_payload(db)
     rows = parse_map_rows(payload)
     hub = [
         {key: r.get(key) for key in _HUB_FIELDS}
@@ -617,9 +617,9 @@ def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
     key = resolve_map_slug(slug)
     if not key:
         raise TarkovBossesError("地图 slug 无效")
-    if get_bosses_raw(db) is None:
-        ensure_bosses(db)
-    source, payload, synced_at, note = load_bosses_payload(db)
+    if get_maps_raw(db) is None:
+        ensure_maps(db)
+    source, payload, synced_at, note = load_maps_payload(db)
     rows = parse_map_rows(payload)
     row = _find_map(rows, key)
     if row is None:

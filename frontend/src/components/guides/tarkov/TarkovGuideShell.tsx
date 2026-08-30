@@ -13,7 +13,15 @@ import {
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
 import { TarkovThemed } from "@/components/guides/tarkov/TarkovThemed";
-import { TarkovTrackerBindButton } from "@/components/guides/tarkov/TarkovTrackerBindButton";
+import { TarkovMeHeaderLink } from "@/components/guides/tarkov/TarkovMeHeaderLink";
+import {
+  TarkovLiveWatchProvider,
+  useTarkovLiveWatch,
+} from "@/lib/tarkovLiveWatchContext";
+import {
+  formatLiveWatchLogLine,
+  formatLiveWatchShotLine,
+} from "@/lib/tarkovLiveWatch";
 import {
   TARKOV_GAME_MODES,
   useTarkovGameMode,
@@ -113,6 +121,35 @@ function NavCaret() {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+function TarkovLiveWatchStatus() {
+  const live = useTarkovLiveWatch();
+  if (!live.visible) return null;
+  const needResume = live.shotPerm === "prompt" || live.logPerm === "prompt";
+  const body = (
+    <>
+      <span>{formatLiveWatchShotLine(live.lastShotAt)}</span>
+      <span>{formatLiveWatchLogLine(live.lastLogAt)}</span>
+    </>
+  );
+  if (needResume) {
+    return (
+      <button
+        type="button"
+        className={`${styles.pollClock} ${styles.pollClockBtn}`}
+        title="继续读取已绑定的截图和日志目录"
+        onClick={() => void live.resume()}
+      >
+        {body}
+      </button>
+    );
+  }
+  return (
+    <div className={styles.pollClock} aria-live="polite">
+      {body}
+    </div>
   );
 }
 
@@ -221,16 +258,20 @@ export function TarkovGuideShell({ children }: Props) {
 
   return (
     <TarkovThemed>
+    <TarkovLiveWatchProvider>
     <div className={styles.shell}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
-          <Link
-            to={TARKOV_HOME_PATH}
-            className={styles.brand}
-            aria-label="逃离塔科夫"
-          >
-            <TarkovGameLogo />
-          </Link>
+          <div className={styles.topLeft}>
+            <Link
+              to={TARKOV_HOME_PATH}
+              className={styles.brand}
+              aria-label="逃离塔科夫"
+            >
+              <TarkovGameLogo />
+            </Link>
+            <TarkovLiveWatchStatus />
+          </div>
           <nav className={styles.nav} aria-label="攻略栏目">
             {navItems.map((item) => {
               const extraHrefs = (item.groups ?? []).flatMap((g) =>
@@ -326,13 +367,14 @@ export function TarkovGuideShell({ children }: Props) {
               <kbd className={styles.topKbd}>/</kbd>
             </form>
             <div className={styles.tracker}>
-              <TarkovTrackerBindButton />
+              <TarkovMeHeaderLink />
             </div>
           </div>
         </div>
       </header>
       <div className={styles.body}>{children}</div>
     </div>
+    </TarkovLiveWatchProvider>
     </TarkovThemed>
   );
 }

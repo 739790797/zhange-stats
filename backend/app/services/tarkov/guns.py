@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.tarkov import TarkovGun, TarkovGunMeta
+from app.models.tarkov import TarkovGun
 from app.services.tarkov.ammo import (
     SOURCE_GRAPHQL,
     SOURCE_JSON_API,
@@ -22,11 +22,10 @@ from app.services.tarkov.ammo import (
     _http_request,
     normalize_caliber,
 )
-from app.services.tarkov.game_mode import graphql_game_mode
+from app.services.tarkov.game_mode import graphql_game_mode, raw_row_id
 
 logger = logging.getLogger(__name__)
 
-META_ROW_ID = 1
 DOWNLOAD_TIMEOUT = 120
 
 # BSG itemCategories.normalizedName under weapon
@@ -337,7 +336,7 @@ def _as_float(value: Any) -> float:
 def parse_graphql_guns(payload: dict[str, Any]) -> list[dict[str, Any]]:
     errors = payload.get("errors")
     if errors:
-        raise TarkovGunError(f"tarkov.dev GraphQL 错误: {errors}")
+        raise TarkovGunError(f"api.tarkov.dev 错误: {errors}")
     data = payload.get("data") or {}
     rows_raw = data.get("items")
     if not isinstance(rows_raw, list):
@@ -434,7 +433,10 @@ def parse_gun_raw(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     if src == SOURCE_JSON_API:
         items_payload = payload.get("items")
         if not isinstance(items_payload, dict):
-            raise TarkovGunError("json.tarkov.dev raw 缺少 items")
+            if isinstance(payload.get("data"), dict):
+                items_payload = payload
+            else:
+                raise TarkovGunError("json.tarkov.dev raw 缺少 items")
         locale = payload.get("locale")
         if locale is not None and not isinstance(locale, dict):
             locale = None
@@ -490,7 +492,7 @@ def download_graphql_guns(*, lang: str = "zh") -> GunUpstreamBundle:
         return GunUpstreamBundle(
             source=SOURCE_GRAPHQL,
             payload=payload,
-            note="api.tarkov.dev GraphQL items(type:gun)",
+            note="api.tarkov.dev items(type:gun)",
         )
     if last_error:
         raise last_error
@@ -498,20 +500,13 @@ def download_graphql_guns(*, lang: str = "zh") -> GunUpstreamBundle:
 
 
 def gun_count(db: Session) -> int:
-    return db.query(TarkovGun).count()
-
-
-def get_gun_meta(db: Session) -> TarkovGunMeta | None:
-    return (
-        db.query(TarkovGunMeta)
-        .filter(TarkovGunMeta.id == META_ROW_ID)
-        .one_or_none()
-    )
+    return db.query(TarkovGun).filter(TarkovGun.mode_id == raw_row_id()).count()
 
 
 def list_guns(db: Session) -> list[TarkovGun]:
     return (
         db.query(TarkovGun)
+        .filter(TarkovGun.mode_id == raw_row_id())
         .order_by(
             TarkovGun.caliber.asc(),
             TarkovGun.name.asc(),
@@ -530,10 +525,12 @@ def replace_derived_gun_rows(
 ) -> None:
     if not rows:
         raise TarkovGunError("未解析到枪械数据")
-    db.query(TarkovGun).delete()
+    mode_id = raw_row_id()
+    db.query(TarkovGun).filter(TarkovGun.mode_id == mode_id).delete()
     for row in rows:
         db.add(
             TarkovGun(
+                mode_id=mode_id,
                 item_id=row["item_id"],
                 name=row["name"],
                 short_name=row["short_name"],
@@ -553,14 +550,6 @@ def replace_derived_gun_rows(
                 updated_at=synced_at,
             )
         )
-    meta = get_gun_meta(db)
-    if meta is None:
-        meta = TarkovGunMeta(id=META_ROW_ID)
-        db.add(meta)
-    meta.source = source
-    meta.gun_count = len(rows)
-    meta.synced_at = synced_at
-    meta.note = note
 
 
 def ensure_guns(db: Session) -> list[TarkovGun]:

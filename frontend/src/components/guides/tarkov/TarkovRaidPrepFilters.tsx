@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { traderFilterLabel } from "@/lib/tarkovRaidPrep";
-import {
-  TARKOV_TASK_PROGRESS_FILTERS,
-} from "@/lib/tarkovTaskProgress";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 export type RaidPrepTraderChip = {
@@ -18,9 +15,7 @@ type Props = {
   traders: RaidPrepTraderChip[];
   trader: string;
   onTrader: (slug: string) => void;
-  progressStatus?: string;
-  onProgressStatus?: (status: string) => void;
-  /** 搜索框上方插槽（如「更换地图」） */
+  /** 搜索框上方插槽（如「更换地图」「从任务进度同步」） */
   leading?: ReactNode;
 };
 
@@ -30,8 +25,6 @@ export function TarkovRaidPrepFilters({
   traders,
   trader,
   onTrader,
-  progressStatus,
-  onProgressStatus,
   leading,
 }: Props) {
   return (
@@ -86,44 +79,6 @@ export function TarkovRaidPrepFilters({
             );
           })}
         </div>
-        {onProgressStatus ? (
-          <>
-            <span className={styles.filterLabel}>进度</span>
-            <div
-              className={styles.typeMiniBar}
-              role="radiogroup"
-              aria-label="按进度筛选"
-            >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={!progressStatus || progressStatus === "all"}
-                className={`${styles.dockChip} ${
-                  !progressStatus || progressStatus === "all"
-                    ? styles.dockChipOn
-                    : ""
-                }`}
-                onClick={() => onProgressStatus("")}
-              >
-                全部
-              </button>
-              {TARKOV_TASK_PROGRESS_FILTERS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={progressStatus === item.id}
-                  className={`${styles.dockChip} ${
-                    progressStatus === item.id ? styles.dockChipOn : ""
-                  }`}
-                  onClick={() => onProgressStatus(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : null}
       </div>
     </>
   );

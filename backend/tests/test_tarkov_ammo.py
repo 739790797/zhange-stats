@@ -69,26 +69,6 @@ def test_parse_graphql_ammo_errors():
         svc.parse_graphql_ammo({"errors": ["GraphQL server unavailable"]})
 
 
-def test_parse_tarkovdata_ammo():
-    table = {
-        "56dff4ecd2720b5d7b8b456b": {
-            "id": "56dff4ecd2720b5d7b8b456b",
-            "name": "5.45x39mm BS gs",
-            "shortName": "BS",
-            "caliber": "Caliber545x39",
-            "ballistics": {
-                "damage": 40,
-                "penetrationPower": 51,
-                "armorDamage": 57,
-            },
-        }
-    }
-    rows = svc.parse_tarkovdata_ammo(table)
-    assert len(rows) == 1
-    assert rows[0]["caliber"] == "5.45x39mm"
-    assert rows[0]["short_name"] == "BS"
-
-
 def test_parse_json_api_ammo():
     payload = {
         "data": {

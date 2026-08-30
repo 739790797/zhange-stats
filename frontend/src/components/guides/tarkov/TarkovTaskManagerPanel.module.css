@@ -1,0 +1,589 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.overview {
+  padding: 14px 18px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+}
+
+.stats {
+  display: flex;
+  min-width: 0;
+}
+
+.stat {
+  flex: 0 1 0;
+  min-width: 0;
+  padding-right: 8px;
+}
+
+.statLabel {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.statValue {
+  margin-top: 2px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.statTodo .statValue {
+  color: #d8d4b8;
+}
+
+.statActive .statValue {
+  color: #e0b45a;
+}
+
+.statDone .statValue {
+  color: #8fbf88;
+}
+
+.meter {
+  display: flex;
+  margin-top: 8px;
+  height: 10px;
+  overflow: hidden;
+  background: #161710;
+}
+
+.meter > span {
+  flex: 0 1 0;
+  min-width: 0;
+}
+
+.meterDone {
+  background: #6a9a64;
+}
+
+.meterActive {
+  background: var(--hb-orange, #c8932a);
+}
+
+.meterTodo {
+  background: #3a3d30;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.side {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  min-width: 0;
+  max-height: calc(100vh - 24px);
+  flex-direction: column;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+}
+
+.filters {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--hb-border, #3a3d30);
+}
+
+.search {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1b14;
+  color: var(--hb-text, #eee9d6);
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+}
+
+.filterTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.filterTable td {
+  width: 50%;
+  padding: 0;
+  border: 1px solid var(--hb-border, #3a3d30);
+  vertical-align: middle;
+}
+
+.filterTable tr + tr td,
+.filterTable tbody + tbody td {
+  border-top: 0;
+}
+
+.filterTable td + td {
+  border-left: 0;
+}
+
+.saveBtn,
+.syncBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  background: #1a1b14;
+  color: var(--hb-orange, #c8932a);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.saveBtn:hover:not(:disabled),
+.syncBtn:hover:not(:disabled) {
+  background: #101010;
+}
+
+.saveBtn:disabled,
+.syncBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.syncHint {
+  color: var(--hb-muted, #8a8c78);
+  font-size: 11px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+a.syncHint:hover {
+  color: var(--hb-orange, #c8932a);
+}
+
+.mapGlyph {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.rail {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.traderBtn {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.traderBtn:hover {
+  background: var(--hb-panel-hover, #2b2d22);
+}
+
+.traderOn {
+  border-color: var(--hb-orange, #c8932a);
+  background: #1a160c;
+}
+
+.traderAll {
+  grid-template-columns: 1fr;
+  min-height: 40px;
+  color: var(--hb-orange, #c8932a);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.traderCaption {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.traderName {
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traderOn .traderName,
+.traderBtn:hover .traderName {
+  color: var(--hb-orange, #c8932a);
+}
+
+.traderMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.traderCount {
+  color: var(--hb-muted, #8a8c78);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.traderCountDone {
+  color: #8fbf88;
+}
+
+.bar {
+  display: block;
+  flex: 1;
+  height: 3px;
+  background: #2a2a2a;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--hb-orange, #c8932a);
+}
+
+.board {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.loyaltyMeta {
+  margin-left: 8px;
+  color: var(--hb-muted, #8a8c78);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.traderHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.traderHeadTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sectionMeta {
+  margin-left: auto;
+  color: var(--hb-muted, #8a8c78);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.colName {
+  width: 200px;
+}
+
+.colType {
+  width: 52px;
+}
+
+.colStatus {
+  width: 88px;
+}
+
+.colMap {
+  width: 108px;
+}
+
+.table thead th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--hb-border, #3a3d30);
+  color: var(--hb-muted, #8a8c78);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.loyaltyRow th {
+  padding: 0;
+  border-bottom: 1px solid #2a2a2a;
+  background: #1a1b14;
+  color: var(--hb-orange, #c8932a);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.loyaltyToggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 10px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.loyaltyToggle:hover {
+  background: #22241a;
+}
+
+.loyaltyCaret {
+  display: inline-block;
+  width: 1em;
+  color: var(--hb-muted, #8a8c78);
+  font-weight: 400;
+}
+
+.row td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #242424;
+  background: #141414;
+  vertical-align: middle;
+}
+
+.rowActive td {
+  background: #1a160c;
+}
+
+.rowDone td {
+  opacity: 0.62;
+}
+
+.row:hover td {
+  background: #1c1c16;
+}
+
+.rowActive:hover td {
+  background: #201a0e;
+}
+
+.cellName {
+  width: 200px;
+  min-width: 160px;
+}
+
+.cellType {
+  width: 52px;
+  text-align: center;
+}
+
+.cellStatus {
+  width: 72px;
+  white-space: nowrap;
+}
+
+.cellMap {
+  width: 108px;
+  white-space: nowrap;
+}
+
+.table thead th.cellType {
+  padding: 6px 4px;
+  text-align: center;
+}
+
+.typeHit {
+  display: inline-block;
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.rowMap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.rowMap .mapGlyph {
+  width: 14px;
+  height: 14px;
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name:hover {
+  color: var(--hb-orange, #c8932a);
+}
+
+.rowDone .name {
+  text-decoration: line-through;
+  text-decoration-color: #5a5a4a;
+}
+
+.statusSelect {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 16px 0 6px;
+  border: 1px solid #3a3d30;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%238a8c78' d='M1.2 1.4 6 6.2 10.8 1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  background-size: 8px 6px;
+  color: var(--hb-muted, #8a8c78);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+}
+
+.statusSelect::-ms-expand {
+  display: none;
+}
+
+.statusSelect:hover,
+.statusSelect:focus {
+  background-color: #101010;
+  outline: none;
+}
+
+.statusSelect option {
+  background: #141414;
+  color: #d8d6c2;
+}
+
+.statusSelectActive {
+  border-color: #c8932a;
+  color: #e0b45a;
+}
+
+.statusSelectDone {
+  border-color: #3d5c3a;
+  color: #8fbf88;
+}
+
+.empty {
+  padding: 36px 12px;
+  color: var(--hb-muted, #8a8878);
+  font-size: 13px;
+}
+
+@media (max-width: 920px) {
+  .statValue {
+    font-size: 24px;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .side {
+    position: static;
+    max-height: none;
+  }
+
+  .rail {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .traderBtn {
+    min-width: 168px;
+  }
+
+  .traderAll {
+    min-width: 72px;
+  }
+}
+
+@media (max-width: 560px) {
+  .stats {
+    gap: 8px 12px;
+  }
+
+  .statValue {
+    font-size: 22px;
+  }
+
+}

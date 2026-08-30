@@ -12,14 +12,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovBossesMeta, TarkovBossesRaw
+from app.models.tarkov import TarkovMapsRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     cache_key,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
-    raw_row_id,
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
@@ -27,8 +26,6 @@ from app.services.tarkov.tasks import TRADER_BY_ID
 
 logger = logging.getLogger(__name__)
 
-META_ROW_ID = 1
-RAW_ROW_ID = 1
 BOSSES_JOB_KEY = "tarkov_bosses_sync"
 DOWNLOAD_TIMEOUT = 180
 LOOT_VALUE_CUTOFF = 80_000
@@ -365,6 +362,46 @@ def _maps_blob(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return blob if isinstance(blob, dict) else {}
 
 
+def copy_missing_map_locks(
+    new_maps: dict[str, Any],
+    old_maps: dict[str, Any],
+) -> int:
+    """精简写入若丢掉 locks / accessKeys，按 id 或 normalizedName 从旧包补回。"""
+    by_slug: dict[str, dict[str, Any]] = {}
+    for raw in old_maps.values():
+        if not isinstance(raw, dict):
+            continue
+        slug = str(raw.get("normalizedName") or "").strip().lower()
+        if slug:
+            by_slug[slug] = raw
+    copied = 0
+    for key, raw in new_maps.items():
+        if not isinstance(raw, dict):
+            continue
+        if (isinstance(raw.get("locks"), list) and raw.get("locks")) or (
+            isinstance(raw.get("accessKeys"), list) and raw.get("accessKeys")
+        ):
+            continue
+        prev = old_maps.get(key) if isinstance(old_maps.get(key), dict) else None
+        if prev is None:
+            slug = str(raw.get("normalizedName") or "").strip().lower()
+            prev = by_slug.get(slug)
+        if not isinstance(prev, dict):
+            continue
+        locks = prev.get("locks") if isinstance(prev.get("locks"), list) else None
+        access = (
+            prev.get("accessKeys") if isinstance(prev.get("accessKeys"), list) else None
+        )
+        if not locks and not access:
+            continue
+        if locks:
+            raw["locks"] = locks
+        if access:
+            raw["accessKeys"] = access
+        copied += 1
+    return copied
+
+
 def _mobs_blob(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     if not isinstance(data, dict):
@@ -620,26 +657,24 @@ def download_json_api_maps(*, lang: str = "zh") -> BossesUpstreamBundle:
     if not _maps_blob(payload) or not _mobs_blob(payload):
         raise TarkovBossesError("json.tarkov.dev 未解析到地图 / BOSS")
 
-    locale: dict[str, Any] = {}
     try:
         loc_raw = _http_request(
             json_resource_url("maps", lang=lang),
             timeout=60,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
-        if isinstance(loc_payload, dict) and isinstance(loc_payload.get("data"), dict):
-            locale = loc_payload["data"]
+        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
+        if isinstance(loc_data, dict) and loc_data:
+            payload = dict(payload)
+            payload["locale"] = loc_data
     except TarkovBossesError:
         logger.warning("json.tarkov.dev maps_%s locale unavailable", lang)
     except (UnicodeDecodeError, json.JSONDecodeError):
         logger.warning("json.tarkov.dev maps_%s locale parse failed", lang)
 
-    slim = slim_maps_payload(payload, locale)
-    if not slim["maps"] or not slim["mobs"]:
-        raise TarkovBossesError("json.tarkov.dev maps 精简后为空")
     return BossesUpstreamBundle(
         source=SOURCE_JSON_API,
-        payload=slim,
+        payload=payload,
         note=f"json.tarkov.dev/{json_api_prefix()}/maps",
     )
 
@@ -827,8 +862,8 @@ def _project_mob(
 
 
 def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    maps = payload.get("maps") if isinstance(payload.get("maps"), dict) else {}
-    mobs = payload.get("mobs") if isinstance(payload.get("mobs"), dict) else {}
+    maps = _maps_blob(payload)
+    mobs = _mobs_blob(payload)
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
 
     spawn_ids: list[str] = []
@@ -1093,45 +1128,46 @@ def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
         return {}
 
 
-def get_bosses_raw(db: Session) -> TarkovBossesRaw | None:
-    return db.get(TarkovBossesRaw, raw_row_id())
+def get_maps_raw(db: Session) -> TarkovMapsRaw | None:
+    from app.services.tarkov import upstream as upstream_svc
+
+    return upstream_svc.load_raw_row(db, "maps")
 
 
-def get_bosses_meta(db: Session) -> TarkovBossesMeta | None:
-    return db.get(TarkovBossesMeta, raw_row_id())
+def persist_maps_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str, Any]:
+    from app.services.tarkov import upstream as upstream_svc
 
-
-def persist_bosses_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str, Any]:
     global _parsed_cache
     rows = parse_boss_rows(bundle.payload)
     if not rows:
         raise TarkovBossesError("未解析到 BOSS 数据")
     now = now_naive()
-    raw_json = json.dumps(bundle.payload, ensure_ascii=False)
-    row = get_bosses_raw(db)
-    if row is None:
-        db.add(
-            TarkovBossesRaw(
-                id=raw_row_id(),
-                source=bundle.source,
-                raw_json=raw_json,
-                synced_at=now,
-                note=bundle.note,
-            )
-        )
-    else:
-        row.source = bundle.source
-        row.raw_json = raw_json
-        row.synced_at = now
-        row.note = bundle.note
-    meta = get_bosses_meta(db)
-    if meta is None:
-        meta = TarkovBossesMeta(id=raw_row_id())
-        db.add(meta)
-    meta.source = bundle.source
-    meta.boss_count = len(rows)
-    meta.synced_at = now
-    meta.note = bundle.note
+    previous = upstream_svc.load_raw(db, "maps")
+    store = {k: v for k, v in bundle.payload.items() if k != "locale"}
+    if isinstance(store.get("maps"), dict):
+        store = {
+            "data": {
+                "maps": store["maps"],
+                "mobs": store.get("mobs") or {},
+            }
+        }
+    if isinstance(previous, dict):
+        copy_missing_map_locks(_maps_blob(store), _maps_blob(previous))
+    upstream_svc.persist_raw(
+        db,
+        "maps",
+        store,
+        source=bundle.source,
+        note=bundle.note,
+        commit=False,
+    )
+    upstream_svc.persist_locale_if_present(
+        db,
+        "maps",
+        bundle.payload,
+        source=bundle.source,
+        note=bundle.note,
+    )
     db.commit()
     with _parsed_lock:
         _parsed_cache = None
@@ -1145,7 +1181,7 @@ def persist_bosses_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str
 
 def _sync_current_mode(db: Session) -> dict[str, Any]:
     logger.info("syncing tarkov bosses from upstream (%s)", parse_game_mode())
-    return persist_bosses_bundle(db, download_json_api_maps(lang="zh"))
+    return persist_maps_bundle(db, download_json_api_maps(lang="zh"))
 
 
 def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str, Any]:
@@ -1158,25 +1194,21 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
-    row = get_bosses_raw(db)
-    if row is None:
-        raise TarkovBossesError("无 BOSS raw")
-    try:
-        payload = json.loads(row.raw_json)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise TarkovBossesError("BOSS raw_json 无效") from exc
-    if not isinstance(payload, dict):
-        raise TarkovBossesError("BOSS raw_json 格式无效")
-    meta = get_bosses_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
-    note = (meta.note if meta else None) or row.note
-    return row.source, payload, synced, note
+    from app.services.tarkov import upstream as upstream_svc
+
+    return upstream_svc.load_main_payload(
+        db,
+        "maps",
+        error_cls=TarkovBossesError,
+        missing="无地图 raw",
+        invalid="地图 raw_json 无效",
+    )
 
 
 def load_parsed_bosses(db: Session) -> tuple[str, list[dict[str, Any]], str | None, str | None]:
     global _parsed_cache
-    meta = get_bosses_meta(db)
-    synced = meta.synced_at.isoformat() if meta and meta.synced_at else None
+    row = get_maps_raw(db)
+    synced = row.synced_at.isoformat() if row and row.synced_at else None
     key = cache_key(synced or "")
     with _parsed_lock:
         cached = _parsed_cache
@@ -1190,8 +1222,8 @@ def load_parsed_bosses(db: Session) -> tuple[str, list[dict[str, Any]], str | No
     return source, rows, synced_at, note
 
 
-def ensure_bosses(db: Session) -> None:
-    if get_bosses_raw(db) is None:
+def ensure_maps(db: Session) -> None:
+    if get_maps_raw(db) is None:
         sync_from_upstream(db, game_mode=parse_game_mode())
 
 
@@ -1215,7 +1247,7 @@ def _public_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_bosses(db: Session) -> dict[str, Any]:
-    ensure_bosses(db)
+    ensure_maps(db)
     source, rows, synced_at, note = load_parsed_bosses(db)
     return {
         "items": [_public_summary(r) for r in rows],
@@ -1247,7 +1279,7 @@ def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
     slug = resolve_boss_slug(slug)
     if not slug:
         raise TarkovBossesError("BOSS slug 无效")
-    ensure_bosses(db)
+    ensure_maps(db)
     source, rows, synced_at, note = load_parsed_bosses(db)
     row = _find_boss_row(rows, slug)
     if row is None:

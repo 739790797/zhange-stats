@@ -59,6 +59,17 @@ export async function fetchTarkovItemDetail(itemId: string) {
 
 export type TarkovSiteSearch = components["schemas"]["TarkovSiteSearchOut"];
 
+export type TarkovFullSync = components["schemas"]["TarkovFullSyncOut"];
+
+export async function syncTarkovCatalog() {
+  const { data } = await client.post<TarkovFullSync>(
+    "/guides/tarkov/sync",
+    {},
+    { timeout: 300_000 },
+  );
+  return data;
+}
+
 export async function fetchTarkovSiteSearch(q: string) {
   const query = (q || "").trim();
   const { data } = await client.get<TarkovSiteSearch>("/guides/tarkov/search", {
@@ -72,30 +83,21 @@ export async function fetchTarkovTasks(opts: {
   q?: string;
   trader?: string;
   map?: string;
-  kappa?: boolean;
-  progress?: boolean;
-  progressStatus?: string;
   page?: number;
   pageSize?: number;
-  layout?: "table" | "chain";
+  layout?: "table" | "all";
 }) {
   const q = (opts.q || "").trim();
   const trader = (opts.trader || "").trim();
   const map = (opts.map || "").trim();
-  const progressStatus = (opts.progressStatus || "").trim();
-  const layout = opts.layout === "chain" ? "chain" : undefined;
+  const layout = opts.layout === "all" ? "all" : undefined;
   const { data } = await client.get<TarkovTaskCatalog>("/guides/tarkov/tasks", {
     params: {
       ...(q ? { q } : {}),
       ...(trader ? { trader } : {}),
       ...(map ? { map } : {}),
-      ...(opts.kappa === true ? { kappa: true } : {}),
-      ...(opts.progress === true ? { progress: true } : {}),
-      ...(opts.progress === true && progressStatus
-        ? { progress_status: progressStatus }
-        : {}),
       ...(layout ? { layout } : {}),
-      ...(layout === "chain"
+      ...(layout === "all"
         ? {}
         : {
             page: opts.page ?? 1,
@@ -114,29 +116,20 @@ export async function fetchTarkovRaidPrep(opts: {
   map: string;
   q?: string;
   trader?: string;
-  kappa?: boolean;
   types?: string[];
-  progress?: boolean;
-  progressStatus?: string;
   geometry?: boolean;
   ids?: string[];
 }) {
   const q = (opts.q || "").trim();
   const trader = (opts.trader || "").trim();
   const types = (opts.types || []).filter(Boolean).join(",");
-  const progressStatus = (opts.progressStatus || "").trim();
   const ids = (opts.ids || []).map((id) => id.trim()).filter(Boolean).join(",");
   const { data } = await client.get<TarkovRaidPrep>("/guides/tarkov/raid-prep", {
     params: {
       map: opts.map,
       ...(q ? { q } : {}),
       ...(trader ? { trader } : {}),
-      ...(opts.kappa === true ? { kappa: true } : {}),
       ...(types ? { types } : {}),
-      ...(opts.progress === true ? { progress: true } : {}),
-      ...(opts.progress === true && progressStatus
-        ? { progress_status: progressStatus }
-        : {}),
       ...(opts.geometry === true ? { geometry: true } : {}),
       ...(ids ? { ids } : {}),
     },
@@ -145,16 +138,10 @@ export async function fetchTarkovRaidPrep(opts: {
   return data;
 }
 
-export async function fetchTarkovTaskDetail(
-  taskId: string,
-  opts?: { progress?: boolean },
-) {
+export async function fetchTarkovTaskDetail(taskId: string) {
   const { data } = await client.get<TarkovTaskDetail>(
     `/guides/tarkov/tasks/${encodeURIComponent(taskId)}`,
-    {
-      params: opts?.progress === true ? { progress: true } : {},
-      timeout: 120_000,
-    },
+    { timeout: 120_000 },
   );
   return data;
 }
@@ -216,41 +203,6 @@ export async function fetchTarkovBossDetail(slug: string) {
   return data;
 }
 
-export type TarkovTrackerStatus = components["schemas"]["TarkovTrackerStatusOut"];
-
-export async function fetchTarkovProgress() {
-  const { data } = await client.get<TarkovTrackerStatus>("/guides/tarkov/progress", {
-    timeout: 30_000,
-  });
-  return data;
-}
-
-export async function bindTarkovTrackerToken(token: string) {
-  const { data } = await client.put<TarkovTrackerStatus>(
-    "/guides/tarkov/progress/tracker-token",
-    { token },
-    { timeout: 30_000 },
-  );
-  return data;
-}
-
-export async function unbindTarkovTrackerToken() {
-  const { data } = await client.delete<TarkovTrackerStatus>(
-    "/guides/tarkov/progress/tracker-token",
-    { timeout: 30_000 },
-  );
-  return data;
-}
-
-export async function syncTarkovProgress() {
-  const { data } = await client.post<TarkovTrackerStatus>(
-    "/guides/tarkov/progress/sync",
-    {},
-    { timeout: 30_000 },
-  );
-  return data;
-}
-
 export type TarkovMapCatalog = components["schemas"]["TarkovMapCatalogOut"];
 export type TarkovMapListItem = components["schemas"]["TarkovMapListItemOut"];
 export type TarkovMapDetail = components["schemas"]["TarkovMapDetailOut"];
@@ -267,6 +219,11 @@ export type TarkovCraftCatalog = components["schemas"]["TarkovCraftCatalogOut"];
 export type TarkovCraft = components["schemas"]["TarkovCraftOut"];
 export type TarkovLootTierCatalog = components["schemas"]["TarkovLootTierCatalogOut"];
 export type TarkovLootTierItem = components["schemas"]["TarkovLootTierItemOut"];
+export type TarkovKeyPacks = components["schemas"]["TarkovKeyPacksOut"];
+export type TarkovKeyPackMap = components["schemas"]["TarkovKeyPackMapOut"];
+export type TarkovKeyPackKey = components["schemas"]["TarkovKeyPackKeyOut"];
+export type TarkovKeyOwns = components["schemas"]["TarkovKeyOwnsOut"];
+export type TarkovKeyOwn = components["schemas"]["TarkovKeyOwnOut"];
 
 export async function fetchTarkovMaps() {
   const { data } = await client.get<TarkovMapCatalog>("/guides/tarkov/maps", {
@@ -362,6 +319,80 @@ export async function fetchTarkovLootTiers(opts: {
   return data;
 }
 
+export async function fetchTarkovKeyPacks() {
+  const { data } = await client.get<TarkovKeyPacks>("/guides/tarkov/key-packs", {
+    timeout: 120_000,
+  });
+  return data;
+}
+
+export async function fetchTarkovKeyOwns() {
+  const { data } = await client.get<TarkovKeyOwns>("/guides/tarkov/key-owns", {
+    timeout: 30_000,
+  });
+  return data;
+}
+
+export async function mergeTarkovKeyOwns(itemIds: string[]) {
+  const { data } = await client.put<TarkovKeyOwns>(
+    "/guides/tarkov/key-owns",
+    { item_ids: itemIds },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function addTarkovKeyOwn(itemId: string) {
+  const { data } = await client.put<TarkovKeyOwns>(
+    `/guides/tarkov/key-owns/${encodeURIComponent(itemId)}`,
+    {},
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function removeTarkovKeyOwn(itemId: string) {
+  const { data } = await client.delete<TarkovKeyOwns>(
+    `/guides/tarkov/key-owns/${encodeURIComponent(itemId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export type TarkovTaskDones = components["schemas"]["TarkovTaskDonesOut"];
+
+export async function fetchTarkovTaskDones() {
+  const { data } = await client.get<TarkovTaskDones>("/guides/tarkov/task-dones", {
+    timeout: 30_000,
+  });
+  return data;
+}
+
+export async function writeTarkovTaskDones(
+  taskIds: string[],
+  opts?: { replace?: boolean },
+) {
+  const { data } = await client.put<TarkovTaskDones>(
+    "/guides/tarkov/task-dones",
+    { task_ids: taskIds, replace: Boolean(opts?.replace) },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export type TarkovRaidLogImport = components["schemas"]["TarkovRaidLogIn"];
+export type TarkovRaidLogsImportResult =
+  components["schemas"]["TarkovRaidLogsImportOut"];
+
+export async function importTarkovRaidLogs(raids: TarkovRaidLogImport[]) {
+  const { data } = await client.post<TarkovRaidLogsImportResult>(
+    "/guides/tarkov/raid-logs",
+    { raids },
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
 export type TarkovRaidRoomLobby = components["schemas"]["TarkovRaidRoomLobbyOut"];
 export type TarkovRaidRoomLobbyItem =
   components["schemas"]["TarkovRaidRoomLobbyItemOut"];
@@ -371,6 +402,8 @@ export type TarkovRaidRoomMark = components["schemas"]["TarkovRaidRoomMarkOut"];
 export type TarkovRaidRoomClaim = components["schemas"]["TarkovRaidRoomClaimOut"];
 export type TarkovRaidRoomKeyBring =
   components["schemas"]["TarkovRaidRoomKeyBringOut"];
+export type TarkovRaidRoomObjectiveDone =
+  components["schemas"]["TarkovRaidRoomObjectiveDoneOut"];
 
 const RAID_ROOMS = "/guides/tarkov/raid-rooms";
 
@@ -480,6 +513,31 @@ export async function bringTarkovRaidRoomKey(publicId: string, itemId: string) {
 export async function unbringTarkovRaidRoomKey(publicId: string, itemId: string) {
   const { data } = await client.delete<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/key-brings/${encodeURIComponent(itemId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function markTarkovRaidRoomObjectiveDone(
+  publicId: string,
+  taskId: string,
+  objectiveId: string,
+) {
+  const { data } = await client.put<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/objective-dones/${encodeURIComponent(taskId)}/${encodeURIComponent(objectiveId)}`,
+    {},
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function unmarkTarkovRaidRoomObjectiveDone(
+  publicId: string,
+  taskId: string,
+  objectiveId: string,
+) {
+  const { data } = await client.delete<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/objective-dones/${encodeURIComponent(taskId)}/${encodeURIComponent(objectiveId)}`,
     { timeout: 30_000 },
   );
   return data;

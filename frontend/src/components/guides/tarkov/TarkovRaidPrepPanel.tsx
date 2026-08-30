@@ -1,8 +1,9 @@
-import { Alert, Spin } from "antd";
+import { Alert, Spin, message } from "antd";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
+  fetchTarkovKeyOwns,
   fetchTarkovMapDetail,
   fetchTarkovRaidPrep,
 } from "@/api/guidesApi";
@@ -17,19 +18,20 @@ import {
   normalizeRaidPrepMapId,
   parseCsvParam,
   partitionRaidPrepRows,
+  planRaidPrepTaskProgressSync,
   raidPrepMapOptions,
   raidPrepObjectiveDoneScope,
   raidPrepSkippedIds,
   resolveRaidPrepLocatePoints,
   selectedTasksFromCatalog,
   serializeSelectedIds,
+  skipMapToObjectiveDones,
   useRaidPrepObjectiveDone,
 } from "@/lib/tarkovRaidPrep";
 import { mergeRaidPrepOcrSelection } from "@/lib/tarkovRaidPrepOcr";
-import { useTarkovTaskMineMode } from "@/lib/tarkovTaskProgress";
+import { keyOwnsForUser } from "@/lib/tarkovRaidRooms";
+import { loadTaskDoneIds, loadTaskStartedIds } from "@/lib/tarkovTaskTree";
 import { PanelFallback } from "@/components/RouteFallback";
-import { TarkovTaskProgressSwitch } from "@/components/guides/tarkov/TarkovTaskProgressSwitch";
-import { TarkovTrackerBindButton } from "@/components/guides/tarkov/TarkovTrackerBindButton";
 import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
 import {
   TarkovRaidPrepEntryModal,
@@ -60,9 +62,7 @@ export function TarkovRaidPrepPanel() {
   const mapId = normalizeRaidPrepMapId(searchParams.get("map") || "");
   const trader = (searchParams.get("trader") || "").trim();
   const q = (searchParams.get("q") || "").trim();
-  const pstatus = (searchParams.get("pstatus") || "").trim();
   const selected = parseCsvParam(searchParams.get("sel"));
-  const [mine, setMine] = useTarkovTaskMineMode();
   const [keyword, setKeyword] = useState(q);
   const [entryOpen, setEntryOpen] = useState(!mapId);
   const [changeMapOpen, setChangeMapOpen] = useState(false);
@@ -76,6 +76,17 @@ export function TarkovRaidPrepPanel() {
   );
   const [objDone, toggleObjDone] = useRaidPrepObjectiveDone(
     raidPrepObjectiveDoneScope("solo", mapId),
+  );
+  const ownsQuery = useQuery({
+    queryKey: ["guides-tarkov-key-owns"],
+    queryFn: fetchTarkovKeyOwns,
+    staleTime: 60_000,
+  });
+  const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
+  const keyOwns = useMemo(
+    () =>
+      keyOwnsForUser(ownsQuery.data?.item_ids, me ? { userId: me.id, name: myName } : null),
+    [ownsQuery.data?.item_ids, me, myName],
   );
   const focusSeqRef = useRef(0);
   const locateIndexRef = useRef<Record<string, number>>({});
@@ -126,7 +137,6 @@ export function TarkovRaidPrepPanel() {
       params.delete("sel");
       params.delete("q");
       params.delete("trader");
-      params.delete("pstatus");
     });
     setKeyword("");
     locateIndexRef.current = {};
@@ -134,12 +144,8 @@ export function TarkovRaidPrepPanel() {
 
   /** 目录不含区轮廓；筛选在前端。 */
   const prepQuery = useQuery({
-    queryKey: ["guides-tarkov-raid-prep", gameMode, mapId, mine],
-    queryFn: () =>
-      fetchTarkovRaidPrep({
-        map: mapId,
-        progress: mine,
-      }),
+    queryKey: ["guides-tarkov-raid-prep", gameMode, mapId],
+    queryFn: () => fetchTarkovRaidPrep({ map: mapId }),
     enabled: Boolean(mapId),
     staleTime: 5 * 60_000,
     retry: 1,
@@ -172,16 +178,6 @@ export function TarkovRaidPrepPanel() {
     () => prepQuery.data?.items ?? [],
     [prepQuery.data],
   );
-  const bound = Boolean(prepQuery.data?.progress_bound);
-  const canFilterProgress = mine && bound;
-  const statusFilter = canFilterProgress ? pstatus || "all" : "";
-
-  useEffect(() => {
-    if (canFilterProgress || !pstatus) return;
-    const next = new URLSearchParams(searchParamsRef.current);
-    next.delete("pstatus");
-    setSearchParams(next, { replace: true });
-  }, [canFilterProgress, pstatus, setSearchParams]);
 
   useEffect(() => {
     if (!prepQuery.isSuccess || !catalog.length) return;
@@ -197,12 +193,8 @@ export function TarkovRaidPrepPanel() {
 
   const rows = useMemo(
     () =>
-      filterRaidPrepRows(catalog, {
-        trader,
-        q,
-        progressStatus: canFilterProgress ? statusFilter : undefined,
-      }),
-    [catalog, trader, q, canFilterProgress, statusFilter],
+      filterRaidPrepRows(catalog, { trader, q }),
+    [catalog, trader, q],
   );
 
   const selectedTasks = useMemo(
@@ -249,6 +241,26 @@ export function TarkovRaidPrepPanel() {
       if (serialized) params.set("sel", serialized);
       else params.delete("sel");
     });
+  };
+
+  const syncFromTaskProgress = () => {
+    const plan = planRaidPrepTaskProgressSync({
+      catalogIds: catalog.map((row) => row.id),
+      selectedIds: selected,
+      startedIds: loadTaskStartedIds(gameMode),
+      doneIds: loadTaskDoneIds(gameMode),
+    });
+    if (plan.addedIds.length) {
+      patchParams((params) => {
+        const serialized = serializeSelectedIds(plan.nextIds);
+        if (serialized) params.set("sel", serialized);
+        else params.delete("sel");
+      });
+      setDockOpen(true);
+      message.success(plan.hint);
+      return;
+    }
+    message.info(plan.hint);
   };
 
   const locateTask = useCallback(
@@ -329,14 +341,6 @@ export function TarkovRaidPrepPanel() {
           <p className={styles.roomTitle}>战局准备 · {mapLabel}</p>
         </div>
         <div className={styles.topActions}>
-          <TarkovTaskProgressSwitch
-            enabled={mine}
-            onChange={(value) => {
-              setMine(value);
-              const next = new URLSearchParams(searchParamsRef.current);
-              setSearchParams(next, { replace: true });
-            }}
-          />
           <button
             type="button"
             className={styles.dockToggle}
@@ -349,20 +353,6 @@ export function TarkovRaidPrepPanel() {
           </Link>
         </div>
       </div>
-
-      {mine && prepQuery.data && !bound ? (
-        <Alert
-          type="info"
-          showIcon
-          message="还没绑定 Tarkov Tracker"
-          description={
-            <span className={styles.bindHint}>
-              绑定后才能按进行中 / 缺少前置筛选。
-              <TarkovTrackerBindButton />
-            </span>
-          }
-        />
-      ) : null}
 
       {prepQuery.isError ? (
         <Alert
@@ -410,16 +400,52 @@ export function TarkovRaidPrepPanel() {
                         tasks={selectedTasks}
                         mapId={mapId}
                         participantsByTask={participantsByTask}
+                        keyOwns={keyOwns}
                         skippedByTask={objDone}
+                        objectiveDones={
+                          me
+                            ? skipMapToObjectiveDones(objDone, {
+                                userId: me.id,
+                                name:
+                                  (me.display_name || me.username || "").trim() ||
+                                  `用户${me.id}`,
+                              })
+                            : undefined
+                        }
+                        currentUser={
+                          me
+                            ? {
+                                userId: me.id,
+                                name:
+                                  (me.display_name || me.username || "").trim() ||
+                                  `用户${me.id}`,
+                              }
+                            : null
+                        }
                         onToggleObjective={toggleObjDone}
+                        onTitle={openGuide}
                       />
                       <TarkovRaidPrepGuideOverview
                         open={guideOpen}
                         onOpenChange={setGuideOpen}
                         tasks={selectedTasks}
+                        mapId={mapId}
                         activeId={guideTaskId}
                         onActiveIdChange={setGuideTaskId}
                         participantsByTask={participantsByTask}
+                        skippedByTask={objDone}
+                        objectiveDones={
+                          me
+                            ? skipMapToObjectiveDones(objDone, {
+                                userId: me.id,
+                                name:
+                                  (me.display_name || me.username || "").trim() ||
+                                  `用户${me.id}`,
+                              })
+                            : undefined
+                        }
+                        currentUserId={me?.id}
+                        onToggleObjective={toggleObjDone}
                       />
                     </div>
                   }
@@ -441,16 +467,6 @@ export function TarkovRaidPrepPanel() {
                 else params.delete("trader");
               })
             }
-            progressStatus={canFilterProgress ? pstatus || "all" : undefined}
-            onProgressStatus={
-              canFilterProgress
-                ? (status) =>
-                    patchParams((params) => {
-                      if (status && status !== "all") params.set("pstatus", status);
-                      else params.delete("pstatus");
-                    })
-                : undefined
-            }
             leading={
               <div className={styles.dockLeadActions}>
                 <button
@@ -466,6 +482,15 @@ export function TarkovRaidPrepPanel() {
                   onClick={() => setOcrOpen(true)}
                 >
                   截图识别
+                </button>
+                <button
+                  type="button"
+                  className={styles.changeMapBtn}
+                  disabled={!catalog.length}
+                  title="按个人中心进行中的任务，勾选本图相关项"
+                  onClick={syncFromTaskProgress}
+                >
+                  从任务进度同步
                 </button>
               </div>
             }

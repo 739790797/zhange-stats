@@ -1,7 +1,6 @@
 """逃离塔科夫弹药：parse / 派生读模型。
 
-共享回源见 tarkov_items（一次 items → 弹药+枪械派生）。
-本模块保留 GraphQL/json 下载与解析，供 items 编排与单测使用。
+共享回源见 tarkov_items（一次 items dump → 弹药+枪械派生）。
 """
 
 from __future__ import annotations
@@ -14,8 +13,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.tarkov import TarkovAmmo, TarkovAmmoMeta
-from app.services.tarkov.game_mode import json_api_prefix, json_resource_url
+from app.models.tarkov import TarkovAmmo
+from app.services.tarkov.game_mode import json_api_prefix, json_resource_url, raw_row_id
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
@@ -26,9 +25,7 @@ TARKOV_JSON_ITEMS_LOCALE_URL = "https://json.tarkov.dev/regular/items_{lang}"
 
 SOURCE_GRAPHQL = "tarkov.dev"
 SOURCE_JSON_API = "json.tarkov.dev"
-SOURCE_TARKOVDATA = "tarkovdata"
 
-META_ROW_ID = 1
 DOWNLOAD_TIMEOUT = 120
 
 _AMMO_QUERY = """
@@ -237,7 +234,7 @@ def _ammo_row(
 def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
     errors = payload.get("errors")
     if errors:
-        raise TarkovAmmoError(f"tarkov.dev GraphQL 错误: {errors}")
+        raise TarkovAmmoError(f"api.tarkov.dev 错误: {errors}")
     data = payload.get("data") or {}
     rows_raw = data.get("ammo")
     if not isinstance(rows_raw, list):
@@ -268,41 +265,6 @@ def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 recoil_modifier=raw.get("recoilModifier"),
                 light_bleed_modifier=raw.get("lightBleedModifier"),
                 heavy_bleed_modifier=raw.get("heavyBleedModifier"),
-            )
-        )
-    return rows
-
-
-def parse_tarkovdata_ammo(table: dict[str, Any]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for key, raw in table.items():
-        if not isinstance(raw, dict):
-            continue
-        ballistics = raw.get("ballistics") if isinstance(raw.get("ballistics"), dict) else {}
-        item_id = str(raw.get("id") or key).strip()
-        if not item_id:
-            continue
-        # tarkovdata 无稳定 ammoType 字段时保持空，不猜测
-        rows.append(
-            _ammo_row(
-                item_id=item_id,
-                name=str(raw.get("name") or ""),
-                short_name=str(raw.get("shortName") or ""),
-                caliber_raw=raw.get("caliber"),
-                ammo_type_raw=raw.get("ammoType") or ballistics.get("ammoType"),
-                damage=ballistics.get("damage"),
-                penetration=ballistics.get("penetrationPower"),
-                armor_damage=ballistics.get("armorDamage"),
-                initial_speed=ballistics.get("initialSpeed")
-                or ballistics.get("velocity"),
-                accuracy_modifier=ballistics.get("accuracyModifier")
-                or ballistics.get("accuracy"),
-                recoil_modifier=ballistics.get("recoilModifier")
-                or ballistics.get("recoil"),
-                light_bleed_modifier=ballistics.get("lightBleedModifier")
-                or ballistics.get("lightBleedChance"),
-                heavy_bleed_modifier=ballistics.get("heavyBleedModifier")
-                or ballistics.get("heavyBleedChance"),
             )
         )
     return rows
@@ -377,13 +339,14 @@ def parse_ammo_raw(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]
     if src == SOURCE_JSON_API:
         items_payload = payload.get("items")
         if not isinstance(items_payload, dict):
-            raise TarkovAmmoError("json.tarkov.dev raw 缺少 items")
+            if isinstance(payload.get("data"), dict):
+                items_payload = payload
+            else:
+                raise TarkovAmmoError("json.tarkov.dev raw 缺少 items")
         locale = payload.get("locale")
         if locale is not None and not isinstance(locale, dict):
             locale = None
         return parse_json_api_ammo(items_payload, locale=locale)
-    if src == SOURCE_TARKOVDATA:
-        return parse_tarkovdata_ammo(payload)
     raise TarkovAmmoError(f"未知弹药 raw 来源: {src or '—'}")
 
 
@@ -431,7 +394,7 @@ def download_graphql_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
         return AmmoUpstreamBundle(
             source=SOURCE_GRAPHQL,
             payload=payload,
-            note="api.tarkov.dev GraphQL ammo",
+            note="api.tarkov.dev ammo",
         )
     if last_error:
         raise last_error
@@ -439,55 +402,48 @@ def download_graphql_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
 
 
 def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
-    """json.tarkov.dev items + locale 信封（GraphQL 宕机回退）。"""
+    """json.tarkov.dev items dump；locale 挂在 payload 上，persist 时另写 lang=zh。"""
     raw = _http_request(json_resource_url("items"), timeout=180)
     try:
-        items_payload = json.loads(raw.decode("utf-8"))
+        payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise TarkovAmmoError("json.tarkov.dev items 解析失败") from exc
-    if not isinstance(items_payload, dict):
+    if not isinstance(payload, dict):
         raise TarkovAmmoError("json.tarkov.dev items 格式无效")
 
-    locale: dict[str, Any] | None = None
     try:
         loc_raw = _http_request(
             json_resource_url("items", lang=lang),
             timeout=60,
         )
         loc_payload = json.loads(loc_raw.decode("utf-8"))
-        if isinstance(loc_payload, dict) and isinstance(loc_payload.get("data"), dict):
-            locale = loc_payload["data"]
+        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
+        if isinstance(loc_data, dict) and loc_data:
+            payload = dict(payload)
+            payload["locale"] = loc_data
     except TarkovAmmoError:
         logger.warning("json.tarkov.dev items_%s locale unavailable", lang)
     except (UnicodeDecodeError, json.JSONDecodeError):
         logger.warning("json.tarkov.dev items_%s locale parse failed", lang)
 
-    envelope: dict[str, Any] = {"items": items_payload, "locale": locale}
-    rows = parse_ammo_raw(SOURCE_JSON_API, envelope)
+    rows = parse_ammo_raw(SOURCE_JSON_API, payload)
     if not rows:
         raise TarkovAmmoError("json.tarkov.dev 未解析到弹药")
     return AmmoUpstreamBundle(
         source=SOURCE_JSON_API,
-        payload=envelope,
+        payload=payload,
         note=f"json.tarkov.dev/{json_api_prefix()}/items",
     )
 
 
 def ammo_count(db: Session) -> int:
-    return db.query(TarkovAmmo).count()
-
-
-def get_ammo_meta(db: Session) -> TarkovAmmoMeta | None:
-    return (
-        db.query(TarkovAmmoMeta)
-        .filter(TarkovAmmoMeta.id == META_ROW_ID)
-        .one_or_none()
-    )
+    return db.query(TarkovAmmo).filter(TarkovAmmo.mode_id == raw_row_id()).count()
 
 
 def list_ammo(db: Session) -> list[TarkovAmmo]:
     return (
         db.query(TarkovAmmo)
+        .filter(TarkovAmmo.mode_id == raw_row_id())
         .order_by(
             TarkovAmmo.caliber.asc(),
             TarkovAmmo.penetration.asc(),
@@ -508,10 +464,12 @@ def replace_derived_ammo_rows(
     if not rows:
         raise TarkovAmmoError("未解析到弹药数据")
 
-    db.query(TarkovAmmo).delete()
+    mode_id = raw_row_id()
+    db.query(TarkovAmmo).filter(TarkovAmmo.mode_id == mode_id).delete()
     for row in rows:
         db.add(
             TarkovAmmo(
+                mode_id=mode_id,
                 item_id=row["item_id"],
                 name=row["name"],
                 short_name=row["short_name"],
@@ -529,15 +487,6 @@ def replace_derived_ammo_rows(
                 updated_at=synced_at,
             )
         )
-
-    meta = get_ammo_meta(db)
-    if meta is None:
-        meta = TarkovAmmoMeta(id=META_ROW_ID)
-        db.add(meta)
-    meta.source = source
-    meta.ammo_count = len(rows)
-    meta.synced_at = synced_at
-    meta.note = note
 
 
 def ensure_ammo(db: Session) -> list[TarkovAmmo]:
