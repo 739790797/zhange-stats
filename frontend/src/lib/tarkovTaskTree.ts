@@ -468,12 +468,13 @@ export function saveTaskSyncMark(
 ): { syncedAt: string; cursorAt: string } {
   const state = readState();
   const stamped = asClock(syncedAt);
-  const nextCursor = laterBeijingClock(
-    asClock(state.cursorAt?.[mode]),
-    asClock(cursorAt) || stamped,
-  );
+  const existing = asClock(state.cursorAt?.[mode]);
+  const incoming = asClock(cursorAt);
+  const nextCursor = incoming ? laterBeijingClock(existing, incoming) : existing;
   state.syncedAt = { ...state.syncedAt, [mode]: stamped };
-  state.cursorAt = { ...state.cursorAt, [mode]: nextCursor };
+  if (nextCursor) {
+    state.cursorAt = { ...state.cursorAt, [mode]: nextCursor };
+  }
   writeState(state);
   return { syncedAt: stamped, cursorAt: nextCursor };
 }

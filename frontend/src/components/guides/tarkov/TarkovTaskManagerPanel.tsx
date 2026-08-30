@@ -39,14 +39,12 @@ import {
   formatQuestSyncDeltaLine,
   mergeQuestProgressFromLogs,
   questProgressDelta,
-  takeQuestSyncSessions,
 } from "@/lib/tarkovTaskLogSync";
 import {
   describeTaskMap,
   factionTaskSuffix,
   groupTasksByLoyaltyLevel,
   groupTasksByTrader,
-  loadTaskCursorAt,
   loadTaskDoneIds,
   loadTaskStartedIds,
   loadTaskSyncAt,
@@ -465,7 +463,7 @@ export function TarkovTaskManagerPanel() {
 
   const stampSync = (cursorAt?: string) => {
     const syncedAt = nowBeijingStamp();
-    const marked = saveTaskSyncMark(gameMode, syncedAt, cursorAt || syncedAt);
+    const marked = saveTaskSyncMark(gameMode, syncedAt, cursorAt);
     setLastSyncAt(marked.syncedAt);
     notifyTarkovTaskProgress({
       mode: gameMode,
@@ -496,12 +494,8 @@ export function TarkovTaskManagerPanel() {
     try {
       const handle = await ensureLogsDir();
       if (!handle) return;
-      const afterAt = loadTaskCursorAt(gameMode);
       const { sessions } = await readLogsIndex(handle);
-      const targets = takeQuestSyncSessions(
-        takeSessionStubs(sessions, 0),
-        afterAt,
-      );
+      const targets = takeSessionStubs(sessions, 0);
       if (!targets.length) {
         message.info("这个目录里没有启动记录。");
         return;
@@ -524,15 +518,14 @@ export function TarkovTaskManagerPanel() {
         parsedSessions,
         gameMode,
         knownIds,
-        afterAt,
       );
       touchedRef.current = true;
       applyProgress(merged.done, merged.started);
       writeMut.mutate(merged.done);
-      stampSync(merged.latestEventAt || afterAt);
+      stampSync(merged.latestEventAt);
       message.success(
         formatQuestSyncDeltaLine(
-          afterAt ? "incremental" : "backfill",
+          "backfill",
           questProgressDelta(prevDone, prevStarted, merged.done, merged.started),
         ),
       );

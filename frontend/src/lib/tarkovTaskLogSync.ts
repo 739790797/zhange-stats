@@ -54,11 +54,9 @@ export function applyQuestLogState(
     if (state === "completed") {
       nextDone.add(id);
       nextStarted.delete(id);
-    } else if (state === "started") {
-      nextStarted.add(id);
-      nextDone.delete(id);
     } else {
-      nextStarted.delete(id);
+      // started / failed：失败只是这次没做成，任务仍挂在身上
+      nextStarted.add(id);
       nextDone.delete(id);
     }
   }

@@ -62,6 +62,19 @@ describe("applyQuestLogState", () => {
     expect(merged.done.sort()).toEqual(["old", "t1"]);
     expect(merged.started).toEqual(["t2"]);
   });
+
+  it("keeps a failed attempt as in-progress instead of wiping it", () => {
+    const merged = applyQuestLogState(
+      ["t1"],
+      ["t2"],
+      new Map([
+        ["t1", "failed"],
+        ["t2", "failed"],
+      ]),
+    );
+    expect(merged.done).toEqual([]);
+    expect(merged.started.sort()).toEqual(["t1", "t2"]);
+  });
 });
 
 describe("collectQuestEventsFromSessions", () => {

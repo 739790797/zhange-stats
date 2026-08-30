@@ -166,7 +166,11 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         afterAt,
       );
       const syncedAt = nowBeijingStamp();
-      saveTaskSyncMark(mode, syncedAt, next.latestEventAt || afterAt || syncedAt);
+      saveTaskSyncMark(
+        mode,
+        syncedAt,
+        next.eventCount > 0 ? next.latestEventAt : undefined,
+      );
       if (next.changed) {
         saveTaskProgress(mode, next.done, next.started);
       }

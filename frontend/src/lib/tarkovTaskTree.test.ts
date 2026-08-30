@@ -218,6 +218,9 @@ describe("task dones storage", () => {
     expect(loadTaskSyncAt("pve")).toBe("");
     saveTaskSyncMark("pvp", "2026-08-31 00:41:00", "2026-08-30 19:00:00");
     expect(loadTaskCursorAt("pvp")).toBe("2026-08-30 20:11:02");
+    saveTaskSyncMark("pvp", "2026-08-31 00:42:00");
+    expect(loadTaskSyncAt("pvp")).toBe("2026-08-31 00:42:00");
+    expect(loadTaskCursorAt("pvp")).toBe("2026-08-30 20:11:02");
     expect(loadTaskStartedIds("pvp")).toEqual(["s"]);
   });
 
