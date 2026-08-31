@@ -25,6 +25,8 @@ export function TarkovMePanel() {
     if (id !== "keys") {
       params.delete("map");
       params.delete("have");
+      params.delete("page");
+      params.delete("pageSize");
     }
     if (id !== "keys" && id !== "tasks") {
       params.delete("q");

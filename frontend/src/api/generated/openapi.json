@@ -7443,6 +7443,26 @@
         ],
         "summary": "List Tarkov Raid Rooms",
         "operationId": "list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7453,13 +7473,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/guides/tarkov/raid-rooms/{public_id}/map": {
@@ -7483,6 +7508,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "requestBody": {
@@ -7540,6 +7578,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -7587,8 +7638,170 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomJoinIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/game-mode": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Set Tarkov Raid Room Game Mode",
+        "operationId": "set_tarkov_raid_room_game_mode_api_guides_tarkov_raid_rooms__public_id__game_mode_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomGameModeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/password": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Set Tarkov Raid Room Password",
+        "operationId": "set_tarkov_raid_room_password_api_guides_tarkov_raid_rooms__public_id__password_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomPasswordIn"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7634,6 +7847,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -7681,6 +7907,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -7737,8 +7976,91 @@
               "type": "integer",
               "title": "User Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/task-progress": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Put Tarkov Raid Room Task Progress",
+        "operationId": "put_tarkov_raid_room_task_progress_api_guides_tarkov_raid_rooms__public_id__task_progress_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomTaskProgressIn"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7793,6 +8115,19 @@
               "type": "string",
               "title": "Task Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -7847,6 +8182,79 @@
               "type": "string",
               "title": "Task Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/claims/from-progress": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Seed Tarkov Raid Room Claims From Progress",
+        "operationId": "seed_tarkov_raid_room_claims_from_progress_api_guides_tarkov_raid_rooms__public_id__claims_from_progress_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -7894,6 +8302,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "requestBody": {
@@ -7960,6 +8381,19 @@
               "type": "string",
               "title": "Item Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8014,8 +8448,91 @@
               "type": "string",
               "title": "Item Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/{public_id}/objective-dones": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Mark Tarkov Raid Room Objectives Done",
+        "operationId": "mark_tarkov_raid_room_objectives_done_api_guides_tarkov_raid_rooms__public_id__objective_dones_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomObjectiveDonesIn"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8079,6 +8596,19 @@
               "type": "string",
               "title": "Objective Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8142,6 +8672,19 @@
               "type": "string",
               "title": "Objective Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8189,6 +8732,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "requestBody": {
@@ -8246,6 +8802,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8302,6 +8871,19 @@
               "type": "integer",
               "title": "Mark Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -8349,6 +8931,19 @@
               "type": "string",
               "title": "Public Id"
             }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
           }
         ],
         "responses": {
@@ -9198,7 +9793,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Prep",
-        "description": "战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。",
+        "description": "战局准备：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。",
         "operationId": "guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get",
         "security": [
           {
@@ -9315,6 +9910,137 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovRaidPrepOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-prep/state": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Raid Prep State Get",
+        "description": "单人战局准备：当前模式/地图的勾选、目标完成和钥匙声明。",
+        "operationId": "guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "title": "Map"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovUserRaidPrepStateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Raid Prep State Put",
+        "operationId": "guides_tarkov_raid_prep_state_put_api_guides_tarkov_raid_prep_state_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "title": "Map"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovUserRaidPrepStateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovUserRaidPrepStateOut"
                 }
               }
             }
@@ -10392,7 +11118,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Key Packs",
-        "description": "钥匙分类速查：门锁 / 入场钥按地图分包。",
+        "description": "钥匙分类速查：门锁 / 入场钥按地图分包；附带用途（任务需要 / 门锁类型）。",
         "operationId": "guides_tarkov_key_packs_api_guides_tarkov_key_packs_get",
         "security": [
           {
@@ -10943,6 +11669,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovRaidLogsImportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Raid Logs List",
+        "description": "最近导入的战局摘要，可供战局准备战后结算。",
+        "operationId": "guides_tarkov_raid_logs_list_api_guides_tarkov_raid_logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Map Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidLogsOut"
                 }
               }
             }
@@ -25380,6 +26185,30 @@
             ],
             "title": "Uses"
           },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "lock_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lock Types"
+          },
+          "needs_power": {
+            "type": "boolean",
+            "title": "Needs Power",
+            "default": false
+          },
+          "used_in_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyPackUsedInOut"
+            },
+            "type": "array",
+            "title": "Used In Tasks"
+          },
           "sources": {
             "$ref": "#/components/schemas/TarkovKeyPackSourcesOut"
           }
@@ -25475,6 +26304,31 @@
           "id"
         ],
         "title": "TarkovKeyPackTaskOut"
+      },
+      "TarkovKeyPackUsedInOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovKeyPackUsedInOut"
       },
       "TarkovKeyPacksOut": {
         "properties": {
@@ -26157,6 +27011,100 @@
         "type": "object",
         "title": "TarkovRaidLogIn"
       },
+      "TarkovRaidLogOut": {
+        "properties": {
+          "folder": {
+            "type": "string",
+            "title": "Folder",
+            "default": ""
+          },
+          "raid_id": {
+            "type": "string",
+            "title": "Raid Id",
+            "default": ""
+          },
+          "location": {
+            "type": "string",
+            "title": "Location",
+            "default": ""
+          },
+          "map_id": {
+            "type": "string",
+            "title": "Map Id",
+            "default": ""
+          },
+          "map_label": {
+            "type": "string",
+            "title": "Map Label",
+            "default": ""
+          },
+          "raid_mode": {
+            "type": "string",
+            "title": "Raid Mode",
+            "default": ""
+          },
+          "session_mode": {
+            "type": "string",
+            "title": "Session Mode",
+            "default": ""
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At",
+            "default": ""
+          },
+          "ended_at": {
+            "type": "string",
+            "title": "Ended At",
+            "default": ""
+          },
+          "reconnected": {
+            "type": "boolean",
+            "title": "Reconnected",
+            "default": false
+          },
+          "aborted": {
+            "type": "boolean",
+            "title": "Aborted",
+            "default": false
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidLogOut"
+      },
       "TarkovRaidLogsImportOut": {
         "properties": {
           "inserted": {
@@ -26196,6 +27144,41 @@
         },
         "type": "object",
         "title": "TarkovRaidLogsIn"
+      },
+      "TarkovRaidLogsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidLogOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidLogsOut"
+      },
+      "TarkovRaidPrepObjectiveDoneIn": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Task Id"
+          },
+          "objective_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Objective Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "objective_id"
+        ],
+        "title": "TarkovRaidPrepObjectiveDoneIn"
       },
       "TarkovRaidPrepOut": {
         "properties": {
@@ -26451,6 +27434,21 @@
             "title": "Map Slug",
             "default": ""
           },
+          "game_mode": {
+            "type": "string",
+            "title": "Game Mode",
+            "default": "pvp"
+          },
+          "listed": {
+            "type": "boolean",
+            "title": "Listed",
+            "default": true
+          },
+          "has_password": {
+            "type": "boolean",
+            "title": "Has Password",
+            "default": false
+          },
           "host_user_id": {
             "anyOf": [
               {
@@ -26551,6 +27549,20 @@
             },
             "type": "array",
             "title": "Marks"
+          },
+          "task_progress": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomMemberProgressOut"
+            },
+            "type": "array",
+            "title": "Task Progress"
+          },
+          "map_overlap": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomMapOverlapOut"
+            },
+            "type": "array",
+            "title": "Map Overlap"
           }
         },
         "type": "object",
@@ -26558,6 +27570,50 @@
           "public_id"
         ],
         "title": "TarkovRaidRoomDetailOut"
+      },
+      "TarkovRaidRoomGameModeIn": {
+        "properties": {
+          "game_mode": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Game Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "game_mode"
+        ],
+        "title": "TarkovRaidRoomGameModeIn"
+      },
+      "TarkovRaidRoomJoinIn": {
+        "properties": {
+          "game_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Mode"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomJoinIn"
       },
       "TarkovRaidRoomKeyBringOut": {
         "properties": {
@@ -26608,6 +27664,21 @@
             "type": "string",
             "title": "Map Slug",
             "default": ""
+          },
+          "game_mode": {
+            "type": "string",
+            "title": "Game Mode",
+            "default": "pvp"
+          },
+          "listed": {
+            "type": "boolean",
+            "title": "Listed",
+            "default": true
+          },
+          "has_password": {
+            "type": "boolean",
+            "title": "Has Password",
+            "default": false
           },
           "host_user_id": {
             "anyOf": [
@@ -26692,6 +27763,48 @@
           "map"
         ],
         "title": "TarkovRaidRoomMapIn"
+      },
+      "TarkovRaidRoomMapOverlapOut": {
+        "properties": {
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug"
+          },
+          "with_tasks_count": {
+            "type": "integer",
+            "title": "With Tasks Count",
+            "default": 0
+          },
+          "synced_count": {
+            "type": "integer",
+            "title": "Synced Count",
+            "default": 0
+          },
+          "occupant_count": {
+            "type": "integer",
+            "title": "Occupant Count",
+            "default": 0
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomOverlapCellOut"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomOverlapTaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "map_slug"
+        ],
+        "title": "TarkovRaidRoomMapOverlapOut"
       },
       "TarkovRaidRoomMarkIn": {
         "properties": {
@@ -26899,6 +28012,40 @@
         ],
         "title": "TarkovRaidRoomMemberOut"
       },
+      "TarkovRaidRoomMemberProgressOut": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "uploaded": {
+            "type": "boolean",
+            "title": "Uploaded",
+            "default": false
+          },
+          "started_count": {
+            "type": "integer",
+            "title": "Started Count",
+            "default": 0
+          },
+          "uploaded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "TarkovRaidRoomMemberProgressOut"
+      },
       "TarkovRaidRoomObjectiveDoneOut": {
         "properties": {
           "task_id": {
@@ -26938,6 +28085,20 @@
         ],
         "title": "TarkovRaidRoomObjectiveDoneOut"
       },
+      "TarkovRaidRoomObjectiveDonesIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidPrepObjectiveDoneIn"
+            },
+            "type": "array",
+            "maxItems": 80,
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomObjectiveDonesIn"
+      },
       "TarkovRaidRoomOccupantOut": {
         "properties": {
           "user_id": {
@@ -26965,6 +28126,94 @@
           "display_name"
         ],
         "title": "TarkovRaidRoomOccupantOut"
+      },
+      "TarkovRaidRoomOverlapCellOut": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "uploaded": {
+            "type": "boolean",
+            "title": "Uploaded",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "TarkovRaidRoomOverlapCellOut"
+      },
+      "TarkovRaidRoomOverlapTaskOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "user_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "User Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovRaidRoomOverlapTaskOut"
+      },
+      "TarkovRaidRoomPasswordIn": {
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomPasswordIn"
+      },
+      "TarkovRaidRoomTaskProgressIn": {
+        "properties": {
+          "started_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 400,
+            "title": "Started Ids"
+          },
+          "done_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 800,
+            "title": "Done Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomTaskProgressIn"
       },
       "TarkovSearchHitOut": {
         "properties": {
@@ -28362,6 +29611,84 @@
           "trader_count"
         ],
         "title": "TarkovTradersSyncOut"
+      },
+      "TarkovUserRaidPrepStateIn": {
+        "properties": {
+          "selected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Selected"
+          },
+          "objective_dones": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidPrepObjectiveDoneIn"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Objective Dones"
+          },
+          "key_brings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 80,
+            "title": "Key Brings"
+          }
+        },
+        "type": "object",
+        "title": "TarkovUserRaidPrepStateIn"
+      },
+      "TarkovUserRaidPrepStateOut": {
+        "properties": {
+          "map": {
+            "type": "string",
+            "title": "Map",
+            "default": ""
+          },
+          "game_mode": {
+            "type": "string",
+            "title": "Game Mode",
+            "default": "pvp"
+          },
+          "selected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Selected"
+          },
+          "objective_dones": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidPrepObjectiveDoneIn"
+            },
+            "type": "array",
+            "title": "Objective Dones"
+          },
+          "key_brings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Brings"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "title": "TarkovUserRaidPrepStateOut"
       },
       "TaygedoAttendanceCalendarOut": {
         "properties": {

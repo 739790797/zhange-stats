@@ -152,3 +152,49 @@ def upsert_raids(
         "skipped": max(0, len(raids or []) - len(incoming)),
         "total": inserted + updated,
     }
+
+
+def serialize_raid(row: TarkovUserRaidLog) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "folder": row.folder,
+        "raid_id": row.raid_id,
+        "location": row.location,
+        "map_id": row.map_id,
+        "map_label": row.map_label,
+        "raid_mode": row.raid_mode,
+        "session_mode": row.session_mode,
+        "started_at": row.started_at,
+        "ended_at": row.ended_at,
+        "reconnected": bool(row.reconnected),
+        "aborted": bool(row.aborted),
+        "created_at": row.created_at.isoformat(timespec="seconds")
+        if row.created_at
+        else None,
+        "updated_at": row.updated_at.isoformat(timespec="seconds")
+        if row.updated_at
+        else None,
+    }
+
+
+def list_raids(
+    db: Session,
+    user: User,
+    *,
+    map_id: str = "",
+    limit: int = 30,
+) -> dict[str, Any]:
+    cap = max(1, min(int(limit or 30), 100))
+    query = db.query(TarkovUserRaidLog).filter(TarkovUserRaidLog.user_id == user.id)
+    slug = (map_id or "").strip().lower()
+    if slug:
+        query = query.filter(TarkovUserRaidLog.map_id == slug)
+    rows = (
+        query.order_by(
+            TarkovUserRaidLog.started_at.desc(),
+            TarkovUserRaidLog.id.desc(),
+        )
+        .limit(cap)
+        .all()
+    )
+    return {"items": [serialize_raid(row) for row in rows]}

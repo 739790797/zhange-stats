@@ -380,6 +380,54 @@ export async function writeTarkovTaskDones(
   return data;
 }
 
+export async function fetchTarkovRaidLogs(opts?: {
+  mapId?: string;
+  limit?: number;
+}) {
+  const { data } = await client.get<TarkovRaidLogsList>("/guides/tarkov/raid-logs", {
+    params: {
+      ...(opts?.mapId ? { map_id: opts.mapId } : {}),
+      limit: opts?.limit ?? 30,
+    },
+    timeout: 30_000,
+  });
+  return data;
+}
+
+export type TarkovRaidLogsList = components["schemas"]["TarkovRaidLogsOut"];
+export type TarkovRaidLog = components["schemas"]["TarkovRaidLogOut"];
+
+export type TarkovRaidPrepState =
+  components["schemas"]["TarkovUserRaidPrepStateOut"];
+
+export async function fetchTarkovRaidPrepState(map: string) {
+  const { data } = await client.get<TarkovRaidPrepState>(
+    "/guides/tarkov/raid-prep/state",
+    { params: { map }, timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function putTarkovRaidPrepState(
+  map: string,
+  body: {
+    selected: string[];
+    objective_dones?: Array<{ task_id: string; objective_id: string }>;
+    key_brings?: string[];
+  },
+) {
+  const { data } = await client.put<TarkovRaidPrepState>(
+    "/guides/tarkov/raid-prep/state",
+    {
+      selected: body.selected,
+      objective_dones: body.objective_dones ?? [],
+      key_brings: body.key_brings ?? [],
+    },
+    { params: { map }, timeout: 30_000 },
+  );
+  return data;
+}
+
 export type TarkovRaidLogImport = components["schemas"]["TarkovRaidLogIn"];
 export type TarkovRaidLogsImportResult =
   components["schemas"]["TarkovRaidLogsImportOut"];
@@ -407,10 +455,23 @@ export type TarkovRaidRoomObjectiveDone =
 
 const RAID_ROOMS = "/guides/tarkov/raid-rooms";
 
-export async function fetchTarkovRaidRooms() {
+export async function fetchTarkovRaidRooms(gameMode?: string) {
   const { data } = await client.get<TarkovRaidRoomLobby>(RAID_ROOMS, {
     timeout: 30_000,
+    params: gameMode ? { game_mode: gameMode } : undefined,
   });
+  return data;
+}
+
+export async function setTarkovRaidRoomGameMode(
+  publicId: string,
+  gameMode: string,
+) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/game-mode`,
+    { game_mode: gameMode },
+    { timeout: 30_000 },
+  );
   return data;
 }
 
@@ -431,9 +492,48 @@ export async function fetchTarkovRaidRoom(publicId: string) {
   return data;
 }
 
-export async function joinTarkovRaidRoom(publicId: string) {
+export async function joinTarkovRaidRoom(
+  publicId: string,
+  opts?: { gameMode?: string; password?: string },
+) {
   const { data } = await client.post<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/join`,
+    {
+      game_mode: opts?.gameMode || undefined,
+      password: opts?.password || undefined,
+    },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function setTarkovRaidRoomPassword(
+  publicId: string,
+  password: string | null,
+) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/password`,
+    { password: password ?? "" },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function putTarkovRaidRoomTaskProgress(
+  publicId: string,
+  body: { started_ids: string[]; done_ids: string[] },
+) {
+  const { data } = await client.put<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/task-progress`,
+    body,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function seedTarkovRaidRoomClaimsFromProgress(publicId: string) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims/from-progress`,
     {},
     { timeout: 30_000 },
   );
@@ -469,7 +569,10 @@ export async function removeTarkovRaidRoomMember(
   return data;
 }
 
-export async function claimTarkovRaidRoomTask(publicId: string, taskId: string) {
+export async function claimTarkovRaidRoomTask(
+  publicId: string,
+  taskId: string,
+) {
   const { data } = await client.put<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims/${encodeURIComponent(taskId)}`,
     {},
@@ -513,6 +616,18 @@ export async function bringTarkovRaidRoomKey(publicId: string, itemId: string) {
 export async function unbringTarkovRaidRoomKey(publicId: string, itemId: string) {
   const { data } = await client.delete<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/key-brings/${encodeURIComponent(itemId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function markTarkovRaidRoomObjectivesDone(
+  publicId: string,
+  items: { task_id: string; objective_id: string }[],
+) {
+  const { data } = await client.put<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/objective-dones`,
+    { items },
     { timeout: 30_000 },
   );
   return data;

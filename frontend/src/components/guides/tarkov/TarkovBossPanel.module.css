@@ -182,56 +182,42 @@
   background: var(--hb-panel, #22241a);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
-  gap: 18px 14px;
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 8px;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  text-decoration: none;
-  text-align: center;
-  box-sizing: border-box;
-}
-
-.card:hover {
-  background: transparent;
-  border-color: transparent;
-}
-
-.avatar {
-  width: 96px;
-  height: 96px;
+.listAvatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   object-fit: cover;
   object-position: top center;
   background: #101010;
   border: 1px solid #2a2a2a;
 }
 
-.english {
-  color: var(--hb-text, #eee9d6);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.25;
-  min-height: 1.25em;
+.mapsCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  line-height: 1.55;
 }
 
-.card:hover .english {
+.mapChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #e4e0cc;
+  white-space: nowrap;
+}
+
+.mapIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: #c8c4b0;
+}
+
+.mapChance {
   color: var(--hb-orange, #c8932a);
-}
-
-.zh {
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 12px;
-  margin-top: -4px;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 860px) {

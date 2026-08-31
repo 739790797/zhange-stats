@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo } from "react";
 import { traderIconUrl, traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import styles from "./TarkovTraderThumb.module.css";
 
@@ -8,27 +8,34 @@ type Props = {
   title?: string;
 };
 
-export function TarkovTraderThumb({ slug, size = 40, title }: Props) {
-  const [kind, setKind] = useState<"icon" | "portrait" | "none">("icon");
-  if (kind === "none") {
-    return (
-      <span
-        className={styles.fallback}
-        style={{ width: size, height: size }}
-        title={title}
-      />
-    );
-  }
+export const TarkovTraderThumb = memo(function TarkovTraderThumb({
+  slug,
+  size = 40,
+  title,
+}: Props) {
   return (
-    <img
-      className={styles.thumb}
-      src={kind === "icon" ? traderIconUrl(slug) : traderPortraitUrl(slug)}
-      alt=""
-      width={size}
-      height={size}
-      title={title}
-      style={{ width: size, height: size }}
-      onError={() => setKind((prev) => (prev === "icon" ? "portrait" : "none"))}
-    />
+    <span className={styles.wrap} style={{ width: size, height: size }} title={title}>
+      <img
+        key={slug}
+        className={styles.thumb}
+        src={traderIconUrl(slug)}
+        alt=""
+        width={size}
+        height={size}
+        decoding="async"
+        onError={(event) => {
+          const img = event.currentTarget;
+          if (img.dataset.step !== "portrait") {
+            img.dataset.step = "portrait";
+            img.src = traderPortraitUrl(slug);
+            return;
+          }
+          img.hidden = true;
+          const fallback = img.nextElementSibling;
+          if (fallback instanceof HTMLElement) fallback.hidden = false;
+        }}
+      />
+      <span className={styles.fallback} hidden />
+    </span>
   );
-}
+});

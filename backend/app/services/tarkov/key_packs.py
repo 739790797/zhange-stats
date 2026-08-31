@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.services.tarkov.ammo import TARKOV_GRAPHQL_URL
 from app.services.tarkov.bosses import MAP_ZH
-from app.services.tarkov.catalog import load_parsed_catalog
+from app.services.tarkov.catalog import (
+    KEYS_HANDBOOK_IDS,
+    KEY_TYPES,
+    load_parsed_catalog,
+)
 from app.services.tarkov.game_mode import (
     graphql_game_mode,
     json_resource_url,
@@ -26,26 +30,19 @@ from app.services.tarkov.tasks import TRADER_BY_ID, TarkovTasksError, load_parse
 
 logger = logging.getLogger(__name__)
 
-KEYS_HANDBOOK_IDS = {
-    "5b47574386f77428ca22b342",
-    "5c518ec986f7743b68682ce2",
-    "5c518ed586f774119a772aee",
-}
-KEY_TYPES = {"key", "keys"}
-
 _LOCKS_QUERY = """
 query MapLocks($lang: LanguageCode, $gameMode: GameMode) {
   maps(lang: $lang, gameMode: $gameMode) {
     name
     normalizedName
     accessKeys { id name shortName iconLink }
-    locks { lockType key { id name shortName iconLink } }
+    locks { lockType needsPower key { id name shortName iconLink } }
   }
 }
 """.strip()
 
 _CACHE_TTL_SEC = 3600
-_CACHE_VER = "locks-v2"
+_CACHE_VER = "locks-v3"
 _lock_cache: dict[str, dict[str, Any]] = {}
 
 SOURCE_GRAPHQL = "api.tarkov.dev maps.locks"
@@ -190,8 +187,10 @@ def _hydrate_key(
             "icon_link": str(cat.get("icon_link") or ref.get("icon_link") or ""),
             "types": types,
             "uses": uses,
+            "description": str(cat.get("description") or ""),
             "community": False,
             "sources": empty_key_sources(),
+            "used_in_tasks": [],
         }
     return {
         "id": ref["id"],
@@ -200,8 +199,10 @@ def _hydrate_key(
         "icon_link": str(ref.get("icon_link") or ""),
         "types": ["keys"],
         "uses": uses,
+        "description": "",
         "community": False,
         "sources": empty_key_sources(),
+        "used_in_tasks": [],
     }
 
 
@@ -277,6 +278,8 @@ def _ensure_entry(
             **_hydrate_key(ref, catalog_by_id),
             "lock_count": 0,
             "access": False,
+            "lock_types": [],
+            "needs_power": False,
         }
         pack_keys[ident] = entry
     return entry
@@ -329,6 +332,13 @@ def group_key_packs(
             bound_ids.add(ref["id"])
             entry = _ensure_entry(pack_keys, ref, catalog_by_id)
             entry["lock_count"] = int(entry.get("lock_count") or 0) + 1
+            lock_type = str(lock.get("lockType") or lock.get("lock_type") or "").strip()
+            if lock_type:
+                types = entry.setdefault("lock_types", [])
+                if lock_type not in types:
+                    types.append(lock_type)
+            if lock.get("needsPower") or lock.get("needs_power"):
+                entry["needs_power"] = True
 
         for access in raw.get("accessKeys") or []:
             ref = _item_ref(access)
@@ -374,6 +384,8 @@ def group_key_packs(
                 ),
                 "lock_count": 0,
                 "access": False,
+                "lock_types": [],
+                "needs_power": False,
             }
         )
     unbound.sort(key=lambda row: (str(row.get("name") or ""), str(row.get("id") or "")))
@@ -558,6 +570,118 @@ def attach_key_sources(
     return grouped
 
 
+def _item_id(raw: Any) -> str:
+    if isinstance(raw, str):
+        return raw.strip()
+    if isinstance(raw, dict):
+        return str(raw.get("id") or raw.get("_id") or "").strip()
+    return ""
+
+
+def _iter_required_key_ids(groups: Any) -> list[str]:
+    out: list[str] = []
+    for group in groups or []:
+        items = group if isinstance(group, list) else [group]
+        for item in items:
+            ident = _item_id(item)
+            if ident:
+                out.append(ident)
+    return out
+
+
+def _objective_note(obj: dict[str, Any], locale: dict[str, Any] | None) -> str:
+    oid = str(obj.get("id") or "").strip()
+    note = str(obj.get("description") or "").strip()
+    if locale:
+        resolved = tasks_svc._resolve_obj_description(obj, locale)
+        if resolved:
+            note = resolved
+    if not note or note == oid:
+        return ""
+    if oid and tasks_svc._is_placeholder_name(oid, note):
+        return ""
+    if note.endswith(" description") or note.endswith(" Description"):
+        return ""
+    return note
+
+
+def _required_key_hits(
+    row: dict[str, Any],
+    locale: dict[str, Any] | None = None,
+) -> list[tuple[str, str]]:
+    hits: list[tuple[str, str]] = []
+    for needed in row.get("neededKeys") or row.get("needed_keys") or []:
+        if not isinstance(needed, dict):
+            continue
+        for key in needed.get("keys") or []:
+            ident = _item_id(key)
+            if ident:
+                hits.append((ident, ""))
+    for obj in row.get("objectives") or []:
+        if not isinstance(obj, dict):
+            continue
+        if "requiredKeys" in obj:
+            groups = obj.get("requiredKeys")
+        else:
+            groups = obj.get("required_keys")
+        ids = _iter_required_key_ids(groups)
+        if not ids:
+            continue
+        note = _objective_note(obj, locale)
+        for ident in ids:
+            hits.append((ident, note))
+    return hits
+
+
+def build_key_usage_index(
+    task_rows: list[dict[str, Any]] | None = None,
+    *,
+    locale: dict[str, Any] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """物品 id → 需要这把钥匙的任务（目标说明可反查房间 / 门）。"""
+    buckets: dict[str, dict[str, dict[str, Any]]] = {}
+    for raw in task_rows or []:
+        if not isinstance(raw, dict):
+            continue
+        task_id = str(raw.get("id") or "").strip()
+        if not task_id:
+            continue
+        name = _task_source_name(raw) or task_id
+        for key_id, note in _required_key_hits(raw, locale):
+            task = buckets.setdefault(key_id, {}).setdefault(
+                task_id,
+                {"id": task_id, "name": name, "notes": []},
+            )
+            if note and note not in task["notes"] and len(task["notes"]) < 6:
+                task["notes"].append(note)
+    out: dict[str, list[dict[str, Any]]] = {}
+    for key_id, tasks in buckets.items():
+        rows = list(tasks.values())
+        rows.sort(key=lambda row: (str(row.get("name") or ""), str(row.get("id") or "")))
+        out[key_id] = rows
+    return out
+
+
+def attach_key_usage(
+    grouped: dict[str, Any],
+    index: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    for pack in grouped.get("maps") or []:
+        if not isinstance(pack, dict):
+            continue
+        for key in pack.get("keys") or []:
+            if isinstance(key, dict):
+                key["used_in_tasks"] = [
+                    dict(row) for row in (index.get(str(key.get("id") or "")) or [])
+                ]
+    for key in grouped.get("unbound") or []:
+        if isinstance(key, dict):
+            key["used_in_tasks"] = [
+                dict(row) for row in (index.get(str(key.get("id") or "")) or [])
+            ]
+    return grouped
+
+
 def parse_locks_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if payload.get("errors"):
         raise TarkovKeyPacksError(f"api.tarkov.dev 错误: {payload.get('errors')}")
@@ -728,19 +852,20 @@ def _guides_for_sources(db: Session) -> tuple[list[dict[str, Any]], list[dict[st
         return [], []
 
 
-def _tasks_for_sources(db: Session) -> list[dict[str, Any]]:
+def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """任务 raw：奖励来源 + 所需钥匙。摘要行没有 neededKeys。"""
+    locale: dict[str, Any] = {}
+    rows: list[dict[str, Any]] = []
     try:
         _source, rows, locale, _synced, _note = load_parsed_tasks(db)
     except TarkovTasksError as exc:
         logger.warning("key packs tasks unavailable: %s", exc)
-        return []
+        return [], {}
     names = {
         str(row.get("id") or ""): str(row.get("name") or "")
         for row in rows
         if isinstance(row, dict) and row.get("id")
     }
-    if any(_task_reward_item_ids(row) for row in rows if isinstance(row, dict)):
-        return rows
     try:
         _src, payload, _synced, _note = tasks_svc._load_payload(db)
         locale = locale or tasks_svc._locale_map(payload)
@@ -760,11 +885,10 @@ def _tasks_for_sources(db: Session) -> list[dict[str, Any]]:
             elif loc_name:
                 copied["name"] = loc_name
             raw_rows.append(copied)
-        if any(_task_reward_item_ids(row) for row in raw_rows):
-            return raw_rows
+        return raw_rows, locale
     except TarkovTasksError as exc:
         logger.warning("key packs raw task rewards unavailable: %s", exc)
-    return rows
+    return rows, locale
 
 
 def _merge_note(catalog_note: str | None, source: str) -> str | None:
@@ -783,7 +907,7 @@ def list_key_packs(db: Session) -> dict[str, Any]:
     catalog_rows, synced_at, note = _catalog_rows(db)
     grouped = group_key_packs(maps, catalog_rows)
     barters, crafts = _guides_for_sources(db)
-    task_rows = _tasks_for_sources(db)
+    task_rows, locale = _tasks_for_keys(db)
     attach_key_sources(
         grouped,
         build_key_source_index(
@@ -793,6 +917,7 @@ def list_key_packs(db: Session) -> dict[str, Any]:
             catalog_rows=catalog_rows,
         ),
     )
+    attach_key_usage(grouped, build_key_usage_index(task_rows, locale=locale))
     return {
         **grouped,
         "source": source,

@@ -1,4 +1,4 @@
-import { Alert, Button, Input, Spin, message } from "antd";
+import { Alert, Button, Input, InputNumber, Spin, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   displayPathForResolved,
@@ -11,18 +11,26 @@ import {
   pickLogsDirectory,
   pickScreenshotsDirectory,
   queryLogsDirPermission,
+  queryScreenshotsDirPermission,
   readLogsIndex,
   requestLogsDirPermission,
+  requestScreenshotsDirPermission,
   resolveScreenshotsDirDetailed,
   saveLogsDir,
   saveLogsDisplayPath,
   saveScreenshotsDir,
   saveScreenshotsDisplayPath,
+  screenshotsDirCanWrite,
   type ReadableDir,
 } from "@/lib/tarkovGameLogAccess";
 import {
   TARKOV_LOGS_PATH_HINT,
+  TARKOV_SCREENSHOT_PRUNE_KEEP_MAX,
+  TARKOV_SCREENSHOT_PRUNE_KEEP_MIN,
   TARKOV_SCREENSHOTS_PATH_HINT,
+  loadScreenshotPrunePref,
+  saveScreenshotPrunePref,
+  screenshotPruneVerifyResult,
 } from "@/lib/tarkovGameLogs";
 import styles from "./TarkovGameLogsPanel.module.css";
 
@@ -48,7 +56,14 @@ export function TarkovGameLogsPanel() {
   const [perm, setPerm] = useState<Perm>("unknown");
   const [dirName, setDirName] = useState("");
   const [shotPerm, setShotPerm] = useState<Perm>("unknown");
+  const [shotCanWrite, setShotCanWrite] = useState(false);
   const [shotLabel, setShotLabel] = useState("");
+  const [pruneEnabled, setPruneEnabled] = useState(
+    () => loadScreenshotPrunePref().enabled,
+  );
+  const [pruneKeepMax, setPruneKeepMax] = useState(
+    () => loadScreenshotPrunePref().keepMax,
+  );
   const [action, setAction] = useState<Action>("");
   const [error, setError] = useState("");
   const [active, setActive] = useState<BindField>("shots");
@@ -131,24 +146,35 @@ export function TarkovGameLogsPanel() {
           setPerm("prompt");
         }
       }
+      const prune = loadScreenshotPrunePref();
+      if (!cancelled) {
+        setPruneEnabled(prune.enabled);
+        setPruneKeepMax(prune.keepMax);
+      }
       if (!storedShot) {
         setShotPerm("none");
+        setShotCanWrite(false);
         return;
       }
       shotRef.current = storedShot;
       setShotLabel(storedShotPath || storedShot.name);
-      const shotCurrent = await queryLogsDirPermission(storedShot);
+      const shotCurrent = await queryScreenshotsDirPermission(storedShot);
       if (cancelled) return;
       if (shotCurrent === "granted") {
         try {
           await loadShots(storedShot);
           setShotPerm("granted");
+          setShotCanWrite(await screenshotsDirCanWrite(storedShot));
         } catch {
-          if (!cancelled) setShotPerm("prompt");
+          if (!cancelled) {
+            setShotPerm("prompt");
+            setShotCanWrite(false);
+          }
         }
         return;
       }
       setShotPerm("prompt");
+      setShotCanWrite(false);
     })();
     return () => {
       cancelled = true;
@@ -186,34 +212,46 @@ export function TarkovGameLogsPanel() {
     }
   };
 
+  const finishShotBind = async (handle: ReadableDir): Promise<boolean> => {
+    await saveScreenshotsDir(handle);
+    await loadShots(handle);
+    const canWrite = await screenshotsDirCanWrite(handle);
+    setShotPerm("granted");
+    setShotCanWrite(canWrite);
+    const check = screenshotPruneVerifyResult({
+      pruneEnabled: loadScreenshotPrunePref().enabled,
+      canWrite,
+    });
+    if (!check.ok) {
+      setError(check.text);
+      return false;
+    }
+    return true;
+  };
+
   const bindShots = async (opts: {
     existingOnly?: boolean;
   }): Promise<boolean> => {
     if (opts.existingOnly) {
       if (!shotRef.current) return false;
-      const next = await ensureGranted(shotRef.current);
+      const next = await requestScreenshotsDirPermission(shotRef.current);
       if (next === "granted") {
-        await saveScreenshotsDir(shotRef.current);
-        await loadShots(shotRef.current);
-        setShotPerm("granted");
-        return true;
+        return finishShotBind(shotRef.current);
       }
       setShotPerm("prompt");
+      setShotCanWrite(false);
       setError("浏览器没有批准读取截图目录。");
       return false;
     }
     try {
       const picked = await pickScreenshotsDirectory(shotRef.current);
-      const next = await ensureGranted(picked);
+      const next = await requestScreenshotsDirPermission(picked);
       if (next !== "granted") {
         setError("浏览器没有批准读取截图目录。");
         return false;
       }
       shotRef.current = picked;
-      await saveScreenshotsDir(picked);
-      await loadShots(picked);
-      setShotPerm("granted");
-      return true;
+      return finishShotBind(picked);
     } catch (err) {
       if (isPickerAbort(err)) return false;
       throw err;
@@ -227,8 +265,16 @@ export function TarkovGameLogsPanel() {
     try {
       const ok = await work();
       if (ok && (nextAction === "verify-shots" || nextAction === "verify-logs")) {
+        const shotOk = screenshotPruneVerifyResult({
+          pruneEnabled: loadScreenshotPrunePref().enabled,
+          canWrite: shotRef.current
+            ? await screenshotsDirCanWrite(shotRef.current)
+            : false,
+        });
         message.success(
-          nextAction === "verify-shots" ? "截图目录校验通过" : "日志目录校验通过",
+          nextAction === "verify-shots"
+            ? shotOk.text
+            : "日志目录校验通过",
         );
       }
     } catch (err) {
@@ -292,10 +338,18 @@ export function TarkovGameLogsPanel() {
           </Button>
           <Button
             className={styles.sideBtn}
-            type={shotPerm === "prompt" ? "primary" : "default"}
+            type={
+              shotPerm === "prompt" || (pruneEnabled && !shotCanWrite)
+                ? "primary"
+                : "default"
+            }
             disabled={busy || shotPerm === "none"}
             loading={action === "verify-shots"}
-            title="继续读取已保存的截图目录"
+            title={
+              pruneEnabled
+                ? "校验读取，并检查删除所需的写入授权"
+                : "继续读取已保存的截图目录"
+            }
             onClick={() => {
               setActive("shots");
               void runBind("verify-shots", () => bindShots({ existingOnly: true }));
@@ -304,10 +358,55 @@ export function TarkovGameLogsPanel() {
             {shotPerm === "prompt" ? "继续授权" : "校验"}
           </Button>
         </div>
+        <div className={styles.pruneRow}>
+          <label className={styles.pruneLabel} htmlFor="tarkov-shot-prune">
+            <input
+              id="tarkov-shot-prune"
+              className={styles.pruneCheck}
+              type="checkbox"
+              checked={pruneEnabled}
+              onChange={(event) => {
+                const enabled = event.target.checked;
+                const next = saveScreenshotPrunePref({
+                  enabled,
+                  keepMax: pruneKeepMax,
+                });
+                setPruneEnabled(next.enabled);
+                setPruneKeepMax(next.keepMax);
+                if (enabled && !shotCanWrite) {
+                  message.warning(
+                    "删除旧截图需要新的目录写入授权，请点「校验」或「更换」，并在弹窗里允许查看并编辑。",
+                  );
+                }
+              }}
+            />
+            <span>截图多于</span>
+          </label>
+          <InputNumber
+            className={styles.pruneInput}
+            min={TARKOV_SCREENSHOT_PRUNE_KEEP_MIN}
+            max={TARKOV_SCREENSHOT_PRUNE_KEEP_MAX}
+            value={pruneKeepMax}
+            disabled={!pruneEnabled}
+            onChange={(value) => {
+              const next = saveScreenshotPrunePref({
+                enabled: pruneEnabled,
+                keepMax: Number(value),
+              });
+              setPruneKeepMax(next.keepMax);
+            }}
+          />
+          <span>张时删除旧图</span>
+        </div>
         <p className={styles.hint}>
           常见位置：{TARKOV_SCREENSHOTS_PATH_HINT}
           <br />
-          战局里用游戏截图键（Print Screen）会把坐标写进文件名，开房间时队友能在地图上看到你的点。
+          战局里用游戏截图键（Print Screen）会把坐标写进文件名，开房间时队友能在地图上看到你的点。页面只读最新一张。请只选 Screenshots 文件夹。
+          {pruneEnabled
+            ? shotCanWrite
+              ? ` 已具备写入授权，超过 ${pruneKeepMax} 张游戏截图时会删掉最旧的。`
+              : " 开启删除后需要写入授权：旧的只读授权不够，请点「校验」或「更换」，弹窗里选「查看并编辑」。"
+            : ""}
           {shotPerm === "prompt"
             ? " 目录已保存，点「继续授权」即可，不用重新选文件夹。"
             : ""}

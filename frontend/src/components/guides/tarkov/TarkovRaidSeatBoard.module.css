@@ -45,6 +45,17 @@
   border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
 }
 
+.seatLocked {
+  border-style: dashed;
+}
+
+.lockMark {
+  margin-left: 6px;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .thumb {
   display: block;
   flex: none;
@@ -65,6 +76,8 @@
 }
 
 .name {
+  display: flex;
+  align-items: center;
   color: #eee9d6;
   font-size: 13px;
   font-weight: 600;

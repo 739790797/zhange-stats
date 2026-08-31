@@ -7,6 +7,7 @@ import {
   logStampFromParsed,
   nextLiveQuestProgress,
   planLogSessionReads,
+  planRaidLogImport,
   sameIdLists,
 } from "./tarkovLiveWatch";
 
@@ -184,5 +185,57 @@ describe("logStampFromParsed", () => {
       30,
     );
     expect(logStampFromParsed(null, [])).toBeNull();
+  });
+});
+
+describe("planRaidLogImport", () => {
+  const endedSession = {
+    folder: "log_new",
+    parsed: {
+      events: [],
+      raids: [
+        {
+          raidId: "PQXKR6",
+          location: "Shoreline",
+          mapId: "shoreline",
+          mapLabel: "海岸线",
+          raidMode: "online" as const,
+          startedAt: "2023-12-29 19:03:40.000",
+          endedAt: "2023-12-29 19:41:00.000",
+        },
+      ],
+    },
+  };
+
+  it("records ended raids on first sight without uploading", () => {
+    const first = planRaidLogImport(new Set(), [endedSession]);
+    expect(first.rows).toEqual([]);
+    expect([...first.nextKeys]).toEqual(["log_new|PQXKR6"]);
+  });
+
+  it("uploads when a new UserMatchOver appears", () => {
+    const seen = planRaidLogImport(new Set(), [endedSession]).nextKeys;
+    const second = planRaidLogImport(seen, [
+      {
+        folder: "log_new",
+        parsed: {
+          events: [],
+          raids: [
+            ...endedSession.parsed.raids,
+            {
+              raidId: "ZZZZZZ",
+              location: "Woods",
+              mapId: "woods",
+              mapLabel: "森林",
+              raidMode: "online" as const,
+              startedAt: "2026-08-31 12:00:00.000",
+              endedAt: "2026-08-31 12:40:00.000",
+            },
+          ],
+        },
+      },
+    ]);
+    expect(second.rows).toHaveLength(2);
+    expect(second.rows.some((row) => row.raid_id === "ZZZZZZ")).toBe(true);
   });
 });

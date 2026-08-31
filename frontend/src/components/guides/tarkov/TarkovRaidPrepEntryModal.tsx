@@ -8,6 +8,7 @@ import {
 } from "@/lib/tarkovHomeNav";
 import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
 import { parseRaidRoomPublicId } from "@/lib/tarkovRaidRooms";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   raidPrepMapOptions,
   type RaidPrepMapOption,
@@ -109,6 +110,7 @@ export function TarkovRaidPrepEntryModal({
   onSoloMap,
 }: Props) {
   const navigate = useNavigate();
+  const gameMode = useTarkovGameMode();
   const loggedIn = Boolean(useAuthStore((s) => s.token));
   const [step, setStep] = useState<RaidPrepEntryStep>(stepProp);
   const [joinText, setJoinText] = useState("");
@@ -187,7 +189,7 @@ export function TarkovRaidPrepEntryModal({
           >
             <span className={styles.entryModeTitle}>加入房间</span>
             <span className={styles.entryModeHint}>
-              五张固定桌，空桌第一人当房主，换桌会离开原来的座位
+              当前模式五张公开桌（PVP / PVE 各一套）；房主可设密码，空桌第一人当房主
             </span>
           </button>
         </div>
@@ -207,9 +209,9 @@ export function TarkovRaidPrepEntryModal({
             className={styles.joinForm}
             onSubmit={(event) => {
               event.preventDefault();
-              const parsed = parseRaidRoomPublicId(joinText);
+              const parsed = parseRaidRoomPublicId(joinText, gameMode);
               if (!parsed) {
-                setJoinError("粘贴房间链接或 1～5 号");
+                setJoinError("粘贴房间链接或当前模式 1～5 号");
                 return;
               }
               setJoinError("");
@@ -223,7 +225,7 @@ export function TarkovRaidPrepEntryModal({
                 setJoinText(event.target.value);
                 if (joinError) setJoinError("");
               }}
-              placeholder="粘贴房间链接或 1～5 号"
+              placeholder="粘贴房间链接或当前模式 1～5 号"
               aria-label="房间链接或房间号"
             />
             <button type="submit" className={styles.dockChip}>

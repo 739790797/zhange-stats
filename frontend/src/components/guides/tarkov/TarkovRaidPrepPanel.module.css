@@ -109,6 +109,15 @@
   opacity: 0.55;
 }
 
+.memberWs {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 11px;
+}
+
+.roomLive[data-in-raid="true"] {
+  color: var(--hb-orange, #c8932a);
+}
+
 .manageList {
   display: flex;
   flex-direction: column;
@@ -146,6 +155,35 @@
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #2a2a2a;
+}
+
+.managePassword {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a2a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.managePasswordHint {
+  margin: 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.managePasswordActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.joinGate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 280px;
 }
 
 .topActions {
@@ -251,6 +289,40 @@
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   gap: 8px;
   overflow: hidden;
+}
+
+.stage[data-pick="true"] {
+  overflow: auto;
+}
+
+.stage[data-pick="true"] .workspace {
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+  flex: none;
+}
+
+.stage[data-pick="true"] .mapPane,
+.stage[data-pick="true"] .mapFill,
+.stage[data-pick="true"] .mapFill > * {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+
+.stage[data-pick="true"] .mapPane {
+  width: min(100%, 680px);
+}
+
+.stage[data-pick="true"] .mapPickPane {
+  overflow: visible;
+  padding: 4px 0 24px;
+}
+
+.stage[data-pick="true"] .dock,
+.stage[data-pick="true"] .dockToggle,
+.stage[data-pick="true"] .drawDock {
+  display: none;
 }
 
 .mapPane {
@@ -735,6 +807,10 @@
   color: #e8c36a;
 }
 
+.taskObjHintHost {
+  display: contents;
+}
+
 .taskObjTooltip :global(.ant-popover-inner) {
   max-width: min(420px, calc(100vw - 32px));
 }
@@ -1141,7 +1217,7 @@
 }
 
 .guideModalLead {
-  flex: none;
+  margin-bottom: 8px;
 }
 
 .guideFrame {
@@ -1207,11 +1283,75 @@
   gap: 10px;
 }
 
+.ocrIdle {
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  text-align: center;
+}
+
 .ocrWorking {
   align-items: center;
   justify-content: center;
   padding: 28px 0;
   gap: 12px;
+}
+
+.ocrKeyWorking {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 8px 0 0;
+  gap: 12px;
+}
+
+.ocrWorkingMeta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ocrOverlay {
+  width: 100%;
+  min-width: 0;
+}
+
+.ocrOverlayCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
+  border: 1px solid var(--hb-border, #3a3d30);
+}
+
+.ocrLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 6px 0 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ocrLegendHit {
+  color: #22c55e;
+}
+
+.ocrLegendBand {
+  color: #facc15;
+}
+
+.ocrLegendEmpty {
+  color: #9ca3af;
+}
+
+.ocrLegendMiss {
+  color: #f59e0b;
+}
+
+.ocrLegendWhole {
+  color: #38bdf8;
 }
 
 .ocrLead {
@@ -1236,12 +1376,27 @@
 }
 
 .ocrPasteHint {
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 12px;
+  margin: 0;
+  color: var(--hb-text, #eee9d6);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .ocrFileInput {
   display: none;
+}
+
+.ocrPaste {
+  width: 100%;
+  min-height: 84px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #14160f;
+  color: inherit;
+  font: inherit;
+  resize: vertical;
 }
 
 .ocrError {
@@ -1403,6 +1558,13 @@
   margin: 0 0 10px;
   color: var(--hb-muted, #b0ae9a);
   font-size: 13px;
+}
+
+.summaryMissing {
+  margin: 0 0 10px;
+  color: #e0a090;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .summaryModalBody {
@@ -1613,11 +1775,63 @@
 }
 
 .summaryTaskName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: #eee9d6;
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
+}
+
+.summaryTable tbody tr.summaryTaskUnavailable td,
+.summaryTable tbody tr.summaryTaskUnavailable td :not(.summaryKeyWhy):not(.needOwnToggle) {
+  color: #6a685c !important;
+}
+
+.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskName,
+.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskName:hover,
+.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskName:hover .summaryTaskNameText,
+.summaryTable tbody tr.summaryTaskUnavailable .needChip:hover .needName {
+  color: #6a685c !important;
+}
+
+.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskNameText,
+.summaryTable tbody tr.summaryTaskUnavailable .summaryPersonName,
+.summaryTable tbody tr.summaryTaskUnavailable .needName,
+.summaryTable tbody tr.summaryTaskUnavailable .needMeta,
+.summaryTable tbody tr.summaryTaskUnavailable .needOwnBy,
+.summaryTable tbody tr.summaryTaskUnavailable .needBringBy,
+.summaryTable tbody tr.summaryTaskUnavailable .summaryShootText,
+.summaryTable tbody tr.summaryTaskUnavailable .summaryNone {
+  text-decoration: line-through;
+  text-decoration-color: #4e4c42;
+}
+
+.summaryKeyWhy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #4a4c3c;
+  border-radius: 50%;
+  background: #2a2c22;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none !important;
+  cursor: help;
+}
+
+.summaryKeyWhy:hover {
+  border-color: var(--hb-orange, #c8932a);
+  color: var(--hb-orange, #c8932a);
 }
 
 .summaryTaskNameText {
@@ -1759,6 +1973,67 @@
   vertical-align: middle;
 }
 
+.needChipCluster {
+  display: inline-flex;
+  align-items: stretch;
+  vertical-align: middle;
+  max-width: 100%;
+}
+
+.needChipSplit {
+  border-right: 0;
+}
+
+.needOwnToggle {
+  flex: none;
+  align-self: stretch;
+  min-width: 52px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid #2a2a2a;
+  background: #1c1e16;
+  color: var(--hb-orange, #c8932a);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.needOwnToggle:hover {
+  background: #2a2414;
+  color: #e0b45a;
+}
+
+.needOwnToggleOn {
+  color: #9a9788;
+}
+
+.needOwnToggleOn:hover {
+  color: #c88880;
+}
+
+.needChipCluster:has(.needChipMissing) .needOwnToggle {
+  border-color: #8a3a32;
+  background: #1c1210;
+}
+
+.needChipCluster:has(.needChipOwned) .needOwnToggle {
+  border-color: rgba(200, 147, 42, 0.42);
+}
+
+.needChipCluster:has(.needChipBrought) .needOwnToggle {
+  border-color: rgba(122, 168, 90, 0.72);
+  background: #161c12;
+}
+
+.summaryTable tbody tr.summaryTaskUnavailable .needOwnToggle {
+  color: var(--hb-orange, #c8932a) !important;
+  text-decoration: none !important;
+}
+
 .needCollapsed .needChipWrap {
   min-width: 0;
   flex: 1 1 auto;
@@ -1778,7 +2053,12 @@
 }
 
 .needChipMine {
-  box-shadow: inset 0 0 0 1px rgba(200, 147, 42, 0.42);
+  box-shadow: inset 0 0 0 1px var(--hb-orange-dim, rgba(200, 147, 42, 0.7));
+}
+
+.needChipMissing {
+  border-color: #8a3a32;
+  background: #1c1210;
 }
 
 .needOwnBy {

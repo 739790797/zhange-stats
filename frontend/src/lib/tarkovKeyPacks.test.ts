@@ -1,17 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ALL_PACK_SLUG,
   UNBOUND_PACK_SLUG,
   TARKOV_KEY_PACKS_STORAGE_KEY,
   COMMUNITY_KEY_HINT,
   buildKeyPackNav,
+  collectPackKeys,
   filterPackKeys,
+  isAllPackSlug,
   firstPackSlugForQuery,
   formatKeyMetaTags,
   formatKeySourceTags,
   formatKeyTagLine,
+  formatKeyFleaTag,
+  formatKeyLockTypeLine,
+  formatKeyLockTypes,
+  formatKeyObtainTags,
+  formatKeyUsageText,
+  isKeySpawnHint,
+  formatKeyUsageMarks,
+  formatKeyUsageNeedTags,
+  formatKeyUsageTags,
   formatKeyUses,
   isCommunityKeyBind,
+  keyFleaSortValue,
   keyMatchesQuery,
+  keyUsesSortValue,
+  lockTypeLabel,
   loadOwnedIds,
   packOwnedCount,
   parseOwnedState,
@@ -93,6 +108,25 @@ describe("packOwnedCount / filter", () => {
     expect(keyMatchesQuery(keys[1], "customs")).toBe(false);
   });
 
+  it("matches description, required task, and lock type", () => {
+    const key = {
+      id: "dorm-114",
+      name: "宿舍 114 钥匙",
+      description: "三层宿舍 114 房间的钥匙。",
+      lock_types: ["door"],
+      needs_power: true,
+      used_in_tasks: [
+        { id: "t1", name: "验收", notes: ["打开宿舍 114 的门"] },
+      ],
+    };
+    expect(keyMatchesQuery(key, "三层宿舍")).toBe(true);
+    expect(keyMatchesQuery(key, "验收")).toBe(true);
+    expect(keyMatchesQuery(key, "打开宿舍")).toBe(true);
+    expect(keyMatchesQuery(key, "门")).toBe(true);
+    expect(keyMatchesQuery(key, "供电")).toBe(true);
+    expect(keyMatchesQuery(key, "别墅")).toBe(false);
+  });
+
   it("filters by owned / missing / query", () => {
     expect(filterPackKeys(keys, "", "owned", owned).map((k) => k.id)).toEqual([
       "a",
@@ -111,8 +145,29 @@ describe("resolvePackSlug", () => {
     const slugs = ["customs", "streets-of-tarkov", UNBOUND_PACK_SLUG];
     expect(resolvePackSlug("streets", slugs)).toBe("streets-of-tarkov");
     expect(resolvePackSlug("unbound", slugs)).toBe(UNBOUND_PACK_SLUG);
-    expect(resolvePackSlug("nope", slugs)).toBe("customs");
-    expect(resolvePackSlug("", slugs)).toBe("customs");
+    expect(resolvePackSlug("nope", slugs)).toBe(ALL_PACK_SLUG);
+    expect(resolvePackSlug("", slugs)).toBe(ALL_PACK_SLUG);
+    expect(resolvePackSlug("all", slugs)).toBe(ALL_PACK_SLUG);
+    expect(resolvePackSlug(null, [])).toBe(ALL_PACK_SLUG);
+  });
+});
+
+describe("collectPackKeys / isAllPackSlug", () => {
+  it("dedupes keys across packs", () => {
+    expect(
+      collectPackKeys([
+        { keys: [{ id: "a", name: "宿舍" }, { id: "b", name: "别墅" }] },
+        { keys: [{ id: "b", name: "别墅" }, { id: "c", name: "实验室" }] },
+        { keys: [{ id: "", name: "空" }] },
+      ]).map((key) => key.id),
+    ).toEqual(["a", "b", "c"]);
+  });
+
+  it("treats empty and all as the all-maps filter", () => {
+    expect(isAllPackSlug(null)).toBe(true);
+    expect(isAllPackSlug("")).toBe(true);
+    expect(isAllPackSlug("all")).toBe(true);
+    expect(isAllPackSlug("customs")).toBe(false);
   });
 });
 
@@ -168,6 +223,29 @@ describe("firstPackSlugForQuery", () => {
     ).toBe("shoreline");
     expect(firstPackSlugForQuery([], "x")).toBeNull();
   });
+
+  it("jumps by required task name", () => {
+    expect(
+      firstPackSlugForQuery(
+        [
+          { slug: "customs", name: "海关", english: "Customs", keys: [] },
+          {
+            slug: "shoreline",
+            name: "海岸线",
+            english: "Shoreline",
+            keys: [
+              {
+                id: "v",
+                name: "别墅钥匙",
+                used_in_tasks: [{ id: "t", name: "保健医生的心愿" }],
+              },
+            ],
+          },
+        ],
+        "保健医生",
+      ),
+    ).toBe("shoreline");
+  });
 });
 
 describe("community bind hint", () => {
@@ -203,6 +281,33 @@ describe("formatKeyUses / formatKeyMetaTags", () => {
   });
 });
 
+describe("formatKeyUsageTags", () => {
+  it("labels lock types and required tasks", () => {
+    expect(lockTypeLabel("door")).toBe("门");
+    expect(lockTypeLabel("container")).toBe("容器");
+    const tags = formatKeyUsageTags({
+      id: "k1",
+      lock_types: ["door", "container"],
+      needs_power: true,
+      used_in_tasks: [
+        { id: "t1", name: "验收", notes: ["打开宿舍 114 的门"] },
+        { id: "t2", name: "缺货" },
+        { id: "t3", name: "三" },
+        { id: "t4", name: "四" },
+      ],
+    });
+    expect(tags[0]).toMatchObject({ kind: "lock", label: "门锁", hint: "门 · 容器" });
+    expect(tags[1]).toMatchObject({ kind: "power", label: "需供电" });
+    expect(tags[2]).toMatchObject({
+      kind: "need",
+      label: "任务需要",
+      hint: "验收 · 打开宿舍 114 的门",
+    });
+    expect(tags[2].href).toContain("/tasks/t1");
+    expect(tags[tags.length - 1].hint).toBe("另有 1 个任务");
+  });
+});
+
 describe("formatKeySourceTags", () => {
   it("emits one tag per available source without flea tiers", () => {
     const tags = formatKeySourceTags({
@@ -227,6 +332,28 @@ describe("formatKeySourceTags", () => {
     expect(tags[2].href).toContain("/tasks/task-1");
     expect(tags[3].hint).toContain("88,000");
     expect(tags[3].hint).not.toMatch(/级/);
+  });
+
+  it("splits flea from obtain tags and shortens labels", () => {
+    const key = {
+      id: "k1",
+      name: "宿舍 114 钥匙",
+      types: ["keys"],
+      sources: {
+        barters: [{ trader_name: "大妈", trader_slug: "therapist", min_trader_level: 1 }],
+        crafts: [{ station_name: "情报中心", station_slug: "intelligence-center", level: 2 }],
+        tasks: [{ id: "task-1", name: "验收" }],
+        flea: { price: 88000 },
+      },
+    };
+    expect(formatKeyObtainTags(key).map((row) => row.label)).toEqual([
+      "商人",
+      "制作",
+      "任务",
+    ]);
+    expect(formatKeyFleaTag(key)?.hint).toContain("88,000");
+    expect(formatKeyObtainTags({ id: "x" })).toEqual([]);
+    expect(formatKeyFleaTag({ id: "x" })).toBeNull();
   });
 
   it("omits missing sources", () => {
@@ -256,6 +383,86 @@ describe("formatKeySourceTags", () => {
         href: "/guides/tarkov/tasks/6745fcde0dfbbc74ca0f721d",
       },
     ]);
+  });
+});
+
+describe("split spawn hints from usage", () => {
+  it("treats jacket / found-in text as drop location, not what the key opens", () => {
+    const description =
+      "工厂紧急出口钥匙。可以在海关三层宿舍303房间或二层宿舍206房间的夹克中找到。";
+    expect(isKeySpawnHint("打开宿舍 114 的门")).toBe(false);
+    expect(isKeySpawnHint("可以在海关宿舍303房间的夹克中找到")).toBe(true);
+    expect(formatKeyUsageText({ id: "factory-exit", name: "工厂紧急出口钥匙", description })).toBe(
+      "",
+    );
+    expect(
+      formatKeyUsageText({
+        id: "dorm-114",
+        name: "宿舍 114 钥匙",
+        description: "三层宿舍 114 房间的钥匙。",
+      }),
+    ).toBe("三层宿舍 114 房间的钥匙。");
+    expect(
+      formatKeyObtainTags({
+        id: "factory-exit",
+        name: "工厂紧急出口钥匙",
+        description,
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("formatKeyUsageMarks / sort values", () => {
+  it("keeps access and power on usage marks, lock types in their own field", () => {
+    const key = {
+      id: "k1",
+      access: true,
+      lock_types: ["door", "container"],
+      needs_power: true,
+      used_in_tasks: [{ id: "t1", name: "验收" }],
+    };
+    expect(formatKeyUsageMarks(key)).toEqual(["入场", "需供电"]);
+    expect(formatKeyLockTypes(key)).toEqual(["门", "容器"]);
+    expect(formatKeyLockTypeLine(key)).toBe("门 · 容器");
+    expect(formatKeyUsageNeedTags(key)).toHaveLength(1);
+    expect(formatKeyUsageNeedTags(key)[0].href).toContain("/tasks/t1");
+  });
+
+  it("infers lock device from description and falls back to door when locks exist", () => {
+    expect(
+      formatKeyLockTypes({
+        id: "safe",
+        description: "加油站保险箱的钥匙。",
+      }),
+    ).toEqual(["保险箱"]);
+    expect(
+      formatKeyLockTypes({
+        id: "trunk",
+        name: "Yotota 车钥匙",
+        description: "打开后备箱。",
+      }),
+    ).toEqual(["后备箱"]);
+    expect(
+      formatKeyLockTypes({
+        id: "rb-ak",
+        description: "联邦储备局大楼地下第三层的钥匙。",
+        lock_count: 1,
+      }),
+    ).toEqual(["门"]);
+    expect(formatKeyLockTypes({ id: "none" })).toEqual([]);
+  });
+
+  it("sorts infinite uses last and missing flea first", () => {
+    expect(keyUsesSortValue({ id: "a", uses: 40 })).toBe(40);
+    expect(keyUsesSortValue({ id: "b", uses: 0 })).toBe(Number.POSITIVE_INFINITY);
+    expect(keyUsesSortValue({ id: "c" })).toBe(-1);
+    expect(keyFleaSortValue({ id: "a", sources: { flea: { price: 88000 } } })).toBe(
+      88000,
+    );
+    expect(keyFleaSortValue({ id: "b", sources: { flea: { price: null } } })).toBe(
+      0,
+    );
+    expect(keyFleaSortValue({ id: "c" })).toBe(-1);
   });
 });
 

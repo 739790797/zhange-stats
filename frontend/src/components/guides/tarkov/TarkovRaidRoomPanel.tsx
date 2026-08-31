@@ -1,8 +1,9 @@
-import { Alert, Modal, Spin, message } from "antd";
+import { Alert, Input, Modal, Spin, message } from "antd";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  addTarkovKeyOwn,
   addTarkovRaidRoomMark,
   bringTarkovRaidRoomKey,
   claimTarkovRaidRoomTask,
@@ -11,14 +12,20 @@ import {
   fetchTarkovMapDetail,
   fetchTarkovRaidPrep,
   fetchTarkovRaidRoom,
+  fetchTarkovTaskDones,
   joinTarkovRaidRoom,
   leaveTarkovRaidRoom,
   markTarkovRaidRoomObjectiveDone,
+  markTarkovRaidRoomObjectivesDone,
+  putTarkovRaidRoomTaskProgress,
   removeTarkovRaidRoomMark,
   removeTarkovRaidRoomMember,
   resetTarkovRaidRoom,
+  seedTarkovRaidRoomClaimsFromProgress,
   setTarkovRaidRoomMap,
+  setTarkovRaidRoomPassword,
   tarkovRaidRoomWsUrl,
+  removeTarkovKeyOwn,
   unbringTarkovRaidRoomKey,
   unmarkTarkovRaidRoomObjectiveDone,
   unclaimTarkovRaidRoomTask,
@@ -26,7 +33,7 @@ import {
   type TarkovRaidRoomDetail,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
-import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useTarkovGameMode, useTarkovGameModeControls, parseTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_RAID_PREP_PATH,
   tarkovRaidRoomShareUrl,
@@ -34,9 +41,13 @@ import {
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
+  collectUnavailableRaidPrepTaskIds,
   colorForTaskIndex,
+  mergeRaidPrepAvailableKeyIds,
   colorForUserId,
   filterRaidPrepRows,
+  hideCompletedRaidPrepRows,
+  hydrateRaidPrepCatalogRows,
   partitionRaidPrepRows,
   planRaidPrepTaskProgressSync,
   objectiveDonesToSkipMap,
@@ -46,35 +57,41 @@ import {
   resolveRaidPrepLocatePoints,
   roomObjectiveMarksForCompletedTasks,
   selectedTasksFromCatalog,
+  settleRaidPrepSelection,
   userMarkedObjective,
 } from "@/lib/tarkovRaidPrep";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
-import { useTarkovLiveWatch } from "@/lib/tarkovLiveWatchContext";
+import { useTarkovLastLogMapId, useTarkovLastLogPhase } from "@/lib/tarkovLiveWatchContext";
+import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
+import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
+import { applyTarkovKeyOwnsCache } from "@/lib/tarkovKeyPacks";
 import { loadTaskDoneIds, loadTaskStartedIds } from "@/lib/tarkovTaskTree";
 import {
   applyRoomWsEvent,
-  dropPlayerFixesNotIn,
+  formatRaidRoomLiveStatus,
+  formatRaidRoomMemberWsLine,
   groupClaimsByTask,
   claimTaskIdsForUser,
+  parseRaidRoomLogPhases,
+  raidRoomLiveStatus,
+  patchRaidRoomKeyOwns,
   userBroughtKey,
+  userOwnsKey,
   isTypingTarget,
   mergeBoardMarks,
   parsePlayerFixEvent,
   parseStrokePoints,
   playerFixMatchesRoomMap,
-  pruneStalePlayerFixes,
+  RAID_ROOM_WS_PING_MS,
   raidRoomWsRetryDelayMs,
-  upsertPlayerFix,
   withRaidRoomViewerFlags,
-  type RaidRoomDraftStroke,
   type RaidRoomMarkLike,
-  type RaidRoomPlayerFix,
+  type RaidRoomLogPhase,
   type StrokePoint,
   type TarkovMapDrawMode,
-  type TarkovMapPlayerMark,
 } from "@/lib/tarkovRaidRooms";
 import { PanelFallback } from "@/components/RouteFallback";
 import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
@@ -82,22 +99,25 @@ import { TarkovRaidPrepOcrModal } from "@/components/guides/tarkov/TarkovRaidPre
 import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
-import { MapPickGrid } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
+import { TarkovRaidPrepRestList } from "@/components/guides/tarkov/TarkovRaidPrepRestList";
+import { TarkovRaidRoomOverlapBoard } from "@/components/guides/tarkov/TarkovRaidRoomOverlapBoard";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { useAuthStore } from "@/stores/authStore";
 import catalogCss from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
-const TarkovMapViewer = lazy(() =>
-  import("@/components/guides/tarkov/TarkovMapViewer").then((m) => ({
-    default: m.TarkovMapViewer,
+const TarkovRaidRoomLiveMap = lazy(() =>
+  import("@/components/guides/tarkov/TarkovRaidRoomLiveMap").then((m) => ({
+    default: m.TarkovRaidRoomLiveMap,
   })),
 );
 
 export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const gameMode = useTarkovGameMode();
+  const { setMode } = useTarkovGameModeControls();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
+  const queryClient = useQueryClient();
   const me = useAuthStore((s) => s.user);
   const [room, setRoom] = useState<TarkovRaidRoomDetail | null>(null);
   const [keyword, setKeyword] = useState("");
@@ -108,11 +128,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const meIdRef = useRef(me?.id);
   meIdRef.current = me?.id;
   const [pendingMarks, setPendingMarks] = useState<RaidRoomMarkLike[]>([]);
-  const [remoteDrafts, setRemoteDrafts] = useState<RaidRoomDraftStroke[]>([]);
-  const [remoteFixes, setRemoteFixes] = useState<RaidRoomPlayerFix[]>([]);
   const [wsGen, setWsGen] = useState(0);
-  const live = useTarkovLiveWatch();
-  const lastSentFixRef = useRef("");
+  const [wsLive, setWsLive] = useState(false);
+  const [logPhases, setLogPhases] = useState<RaidRoomLogPhase[]>([]);
+  const lastLogMapId = useTarkovLastLogMapId();
+  const lastLogPhase = useTarkovLastLogPhase();
+  const lastLogPhaseSigRef = useRef("");
+  const [taskListEl, setTaskListEl] = useState<HTMLDivElement | null>(null);
+  const [restHeadEl, setRestHeadEl] = useState<HTMLDivElement | null>(null);
   const [error, setError] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTaskId, setGuideTaskId] = useState("");
@@ -120,8 +143,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [highlightTaskId, setHighlightTaskId] = useState("");
   const [dockOpen, setDockOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [mapPickOpen, setMapPickOpen] = useState(false);
+  const [mapPickView, setMapPickView] = useState(false);
+  const [pickingMap, setPickingMap] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [joinPassword, setJoinPassword] = useState("");
+  const [passwordDraft, setPasswordDraft] = useState("");
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
@@ -136,13 +162,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const focusSeqRef = useRef(0);
   const locateIndexRef = useRef<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
+  const lastProgressKeyRef = useRef("");
 
   const roomQuery = useQuery({
     queryKey: ["guides-tarkov-raid-room", publicId],
     queryFn: () => fetchTarkovRaidRoom(publicId),
     retry: 1,
     refetchInterval: (query) =>
-      query.state.data?.is_member ? 30_000 : false,
+      query.state.data?.is_member && !wsLive ? 30_000 : false,
   });
   const refetchRoomRef = useRef(roomQuery.refetch);
   refetchRoomRef.current = roomQuery.refetch;
@@ -208,6 +235,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           yaw?: unknown;
           map_id?: unknown;
           file_name?: unknown;
+          log_phases?: unknown;
           mark?: { author_user_id?: number };
         };
         try {
@@ -216,48 +244,50 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           return;
         }
         if (payload.event === "snapshot") {
+          setWsLive(true);
           setWsGen((n) => n + 1);
+          setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: "ping" }));
+          }
+        }
+        if (payload.event === "log_phase") {
+          setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
         }
         if (payload.event === "player_fix") {
           const parsed = parsePlayerFixEvent(payload);
           if (!parsed || parsed.userId === meIdRef.current) return;
           if (!playerFixMatchesRoomMap(parsed.mapId, mapIdRef.current)) return;
-          setRemoteFixes((current) => upsertPlayerFix(current, parsed));
+          useRaidRoomLiveStore.getState().upsertFix(parsed);
           return;
         }
         if (payload.event === "presence" && payload.online_user_ids) {
           const online = new Set(payload.online_user_ids);
-          setRemoteFixes((current) => dropPlayerFixesNotIn(current, online));
+          useRaidRoomLiveStore.getState().dropFixesNotIn(online);
         }
         if (payload.event === "draw_draft") {
           const uid = Number(payload.user_id);
           if (!uid || uid === meIdRef.current) return;
           const points = parseStrokePoints(payload.points);
-          setRemoteDrafts((current) => {
-            const rest = current.filter((row) => row.userId !== uid);
-            if (!points.length) return rest;
-            return [
-              ...rest,
-              {
-                userId: uid,
-                floor: String(payload.floor || ""),
-                points,
-                color: colorForUserId(uid),
-              },
-            ];
-          });
+          useRaidRoomLiveStore.getState().setDraft(
+            points.length
+              ? {
+                  userId: uid,
+                  floor: String(payload.floor || ""),
+                  points,
+                  color: colorForUserId(uid),
+                }
+              : null,
+            uid,
+          );
           return;
         }
         if (payload.event === "mark_add") {
           const uid = Number(payload.mark?.author_user_id);
-          if (uid) {
-            setRemoteDrafts((current) =>
-              current.filter((row) => row.userId !== uid),
-            );
-          }
+          if (uid) useRaidRoomLiveStore.getState().setDraft(null, uid);
         }
         if (payload.event === "board_clear") {
-          setRemoteDrafts([]);
+          useRaidRoomLiveStore.getState().clearDrafts();
           setPendingMarks([]);
         }
         if (payload.event === "reset") {
@@ -266,11 +296,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         }
         if (payload.event === "member_leave") {
           const uid = Number(payload.user_id);
-          if (uid) {
-            setRemoteFixes((current) =>
-              current.filter((row) => row.userId !== uid),
-            );
-          }
+          if (uid) useRaidRoomLiveStore.getState().dropFixUser(uid);
           if (uid && uid === meIdRef.current) {
             navigate(TARKOV_RAID_PREP_PATH);
             return;
@@ -281,6 +307,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         );
       };
       ws.onclose = () => {
+        setWsLive(false);
         if (stopped) return;
         void refetchRoomRef.current();
         retryTimer = window.setTimeout(() => {
@@ -295,58 +322,57 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ event: "ping" }));
       }
-    }, 25000);
+    }, RAID_ROOM_WS_PING_MS);
+    const onVisible = () => {
+      if (
+        document.visibilityState === "visible" &&
+        wsRef.current?.readyState === WebSocket.OPEN
+      ) {
+        wsRef.current.send(JSON.stringify({ event: "ping" }));
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(ping);
       window.clearTimeout(retryTimer);
+      setWsLive(false);
       wsRef.current?.close();
       wsRef.current = null;
     };
   }, [token, publicId, room?.is_member]);
 
   useEffect(() => {
-    setRemoteFixes((current) =>
-      current.filter((row) => playerFixMatchesRoomMap(row.mapId, mapId)),
-    );
-  }, [mapId]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setRemoteFixes((current) => pruneStalePlayerFixes(current));
-    }, 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    lastSentFixRef.current = "";
-  }, [wsGen]);
+    lastLogPhaseSigRef.current = "";
+    setLogPhases([]);
+  }, [publicId]);
 
   useEffect(() => {
     const ws = wsRef.current;
-    const fix = live.fix;
-    if (!canEdit || !fix || !ws || ws.readyState !== WebSocket.OPEN) return;
     if (
-      live.lastLogMapId &&
-      !playerFixMatchesRoomMap(live.lastLogMapId, mapId)
+      !room?.is_member ||
+      !lastLogPhase ||
+      !wsLive ||
+      !ws ||
+      ws.readyState !== WebSocket.OPEN
     ) {
       return;
     }
-    const sig = `${fix.fileName}:${fix.lastModified}:${mapId}:${wsGen}`;
-    if (lastSentFixRef.current === sig) return;
-    lastSentFixRef.current = sig;
+    const sig = `${lastLogPhase.kind}:${lastLogPhase.raidId}:${lastLogPhase.at}:${wsGen}`;
+    if (lastLogPhaseSigRef.current === sig) return;
+    lastLogPhaseSigRef.current = sig;
     ws.send(
       JSON.stringify({
-        event: "player_fix",
-        x: fix.x,
-        y: fix.y,
-        z: fix.z,
-        yaw: fix.yaw,
-        map_id: live.lastLogMapId || mapId,
-        file_name: fix.fileName,
+        event: "log_phase",
+        kind: lastLogPhase.kind,
+        map_id: lastLogPhase.mapId,
+        map_label: lastLogPhase.mapLabel,
+        raid_id: lastLogPhase.raidId,
+        at: lastLogPhase.at,
       }),
     );
-  }, [canEdit, live.fix, live.lastLogMapId, mapId, wsGen]);
+  }, [lastLogPhase, room?.is_member, wsGen, wsLive]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -362,6 +388,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     staleTime: 5 * 60_000,
     retry: 1,
   });
+  const taskDonesQuery = useQuery({
+    queryKey: ["guides-tarkov-task-dones", gameMode],
+    queryFn: fetchTarkovTaskDones,
+    staleTime: 30_000,
+  });
+  const doneTaskIds = taskDonesQuery.data?.task_ids ?? loadTaskDoneIds(gameMode);
 
   const mapQuery = useQuery({
     queryKey: ["guides-tarkov-map", gameMode, mapId],
@@ -376,19 +408,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     .filter(Boolean)
     .sort()
     .join(",");
-  const geometryQuery = useQuery({
-    queryKey: ["guides-tarkov-raid-prep-geometry", gameMode, mapId, claimedKey],
-    queryFn: () =>
-      fetchTarkovRaidPrep({
-        map: mapId,
-        geometry: true,
-        ids: claimedKey.split(",").filter(Boolean),
-      }),
-    enabled: Boolean(mapId) && Boolean(claimedKey),
-    staleTime: 5 * 60_000,
-    retry: 1,
-    placeholderData: keepPreviousData,
-  });
+  const claimedIds = useMemo(
+    () => claimedKey.split(",").filter(Boolean),
+    [claimedKey],
+  );
+  const geometry = useRaidPrepGeometry(mapId, claimedIds);
 
   const applyRoom = useCallback((next: TarkovRaidRoomDetail) => {
     setRoom(withRaidRoomViewerFlags(next, meIdRef.current));
@@ -407,6 +431,40 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     },
     [applyRoom],
   );
+
+  useEffect(() => {
+    if (!token || !publicId || !room?.is_member) return undefined;
+    let cancelled = false;
+    const push = () => {
+      const started = loadTaskStartedIds(gameMode);
+      const done = loadTaskDoneIds(gameMode);
+      const key = `${publicId}:${gameMode}:${started.join(",")}|${done.join(",")}`;
+      if (key === lastProgressKeyRef.current) return;
+      lastProgressKeyRef.current = key;
+      void putTarkovRaidRoomTaskProgress(publicId, {
+        started_ids: started,
+        done_ids: done,
+      })
+        .then((next) => {
+          if (!cancelled) applyRoom(next);
+        })
+        .catch((exc) => {
+          lastProgressKeyRef.current = "";
+          if (!cancelled) setError(apiError(exc, "同步进行中任务失败"));
+        });
+    };
+    push();
+    const onProgress = (event: Event) => {
+      const detail = (event as CustomEvent<TarkovTaskProgressDetail>).detail;
+      if (!detail || detail.mode !== gameMode) return;
+      push();
+    };
+    window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
+    };
+  }, [applyRoom, gameMode, publicId, room?.is_member, token]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -441,9 +499,25 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     onError: (exc) => setError(apiError(exc, "离开失败")),
   });
   const joinMut = useMutation({
-    mutationFn: () => joinTarkovRaidRoom(publicId),
-    onSuccess: (next) => applyRoom(next),
+    mutationFn: () =>
+      joinTarkovRaidRoom(publicId, {
+        gameMode,
+        password: joinPassword.trim() || undefined,
+      }),
+    onSuccess: (next) => {
+      setJoinPassword("");
+      applyRoom(next);
+    },
     onError: (exc) => setError(apiError(exc, "加入失败")),
+  });
+  const passwordMut = useMutation({
+    mutationFn: (password: string | null) =>
+      setTarkovRaidRoomPassword(publicId, password),
+    onSuccess: (next) => {
+      setPasswordDraft("");
+      applyRoom(next);
+    },
+    onError: (exc) => setError(apiError(exc, "设置密码失败")),
   });
 
   const claims = room?.claims;
@@ -470,29 +544,30 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     () => prepQuery.data?.items ?? [],
     [prepQuery.data],
   );
+  const catalogRich = useMemo(
+    () => hydrateRaidPrepCatalogRows(catalog, geometry.byId),
+    [catalog, geometry.byId],
+  );
   const selectedTasks = useMemo(
     () =>
       selectedTasksFromCatalog(
-        catalog,
+        catalogRich,
         groups.map((row) => row.taskId),
       ),
-    [catalog, groups],
+    [catalogRich, groups],
   );
   const mySelectedTasks = useMemo(
-    () => selectedTasksFromCatalog(catalog, myClaimIds),
-    [catalog, myClaimIds],
+    () => selectedTasksFromCatalog(catalogRich, myClaimIds),
+    [catalogRich, myClaimIds],
   );
-  const overlayTasks = useMemo(
-    () =>
-      selectedTasksFromCatalog(
-        geometryQuery.data?.items ?? [],
-        groups.map((row) => row.taskId),
-      ),
-    [geometryQuery.data, groups],
-  );
+  const overlayTasks = geometry.items;
   const rows = useMemo(
-    () => filterRaidPrepRows(catalog, { trader, q: query }),
-    [catalog, trader, query],
+    () =>
+      hideCompletedRaidPrepRows(
+        filterRaidPrepRows(catalogRich, { trader, q: query }),
+        doneTaskIds,
+      ),
+    [catalogRich, trader, query, doneTaskIds],
   );
   const { picked, rest } = useMemo(
     () => partitionRaidPrepRows(rows, mySelectedTasks),
@@ -500,9 +575,25 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   );
   const overlayTasksRef = useRef(overlayTasks);
   overlayTasksRef.current = overlayTasks;
+  const unavailableTaskIds = useMemo(
+    () =>
+      collectUnavailableRaidPrepTaskIds(
+        selectedTasks,
+        mapId,
+        mapObjDone,
+        mergeRaidPrepAvailableKeyIds(room?.key_owns, room?.key_brings),
+      ),
+    [selectedTasks, mapId, mapObjDone, room?.key_owns, room?.key_brings],
+  );
   const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId, mapObjDone),
-    [overlayTasks, mapId, mapObjDone],
+    () =>
+      buildRaidPrepOverlays(
+        overlayTasks,
+        mapId,
+        mapObjDone,
+        unavailableTaskIds,
+      ),
+    [overlayTasks, mapId, mapObjDone, unavailableTaskIds],
   );
 
   const markQueueRef = useRef(Promise.resolve());
@@ -518,16 +609,16 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           roomObjDonesRef.current,
           meIdRef.current,
         );
-        for (const row of pending) {
-          const ok = await run(() =>
-            markTarkovRaidRoomObjectiveDone(
-              publicId,
-              row.taskId,
-              row.objectiveId,
-            ),
-          );
-          if (!ok) break;
-        }
+        if (!pending.length) return;
+        await run(() =>
+          markTarkovRaidRoomObjectivesDone(
+            publicId,
+            pending.map((row) => ({
+              task_id: row.taskId,
+              objective_id: row.objectiveId,
+            })),
+          ),
+        );
       }).catch(() => {
         /* 单次失败不堵后续日志回填 */
       });
@@ -540,11 +631,40 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       const detail = (event as CustomEvent<TarkovTaskProgressDetail>).detail;
       if (!detail || detail.mode !== gameMode) return;
       flushCompletedTaskMarks(detail.completedIds || []);
+      if (!canEdit) return;
+      const plan = planRaidPrepTaskProgressSync({
+        catalogIds: catalog.map((row) => row.id),
+        selectedIds: myClaimIds,
+        startedIds: detail.started,
+        doneIds: detail.done,
+        occupiedIds: groups.map((row) => row.taskId),
+      });
+      if (plan.addedIds.length) {
+        void run(() => claimTarkovRaidRoomTasks(publicId, plan.addedIds));
+      }
+      const settled = settleRaidPrepSelection({
+        selectedIds: myClaimIds,
+        completedIds: detail.completedIds?.length
+          ? detail.completedIds
+          : detail.done,
+      });
+      for (const id of settled.removedIds) {
+        void run(() => unclaimTarkovRaidRoomTask(publicId, id));
+      }
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
     return () =>
       window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
-  }, [flushCompletedTaskMarks, gameMode]);
+  }, [
+    canEdit,
+    catalog,
+    flushCompletedTaskMarks,
+    gameMode,
+    groups,
+    myClaimIds,
+    publicId,
+    run,
+  ]);
 
   useEffect(() => {
     if (!canEdit || !mapId || !claimedKey) return;
@@ -559,7 +679,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     claimedKey,
     flushCompletedTaskMarks,
     gameMode,
-    geometryQuery.dataUpdatedAt,
+    geometry.items,
     mapId,
   ]);
   const colorByTask = useMemo(() => {
@@ -578,63 +698,80 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     room?.occupants?.length
       ? room.occupants
       : (room?.members || []).filter((row) => row.in_room !== false);
-  const remotePlayerMarks = useMemo<TarkovMapPlayerMark[]>(() => {
-    const names = new Map<number, string>();
-    for (const row of members) {
-      names.set(row.user_id, row.display_name);
-    }
-    return remoteFixes
-      .filter((row) => playerFixMatchesRoomMap(row.mapId, mapId))
-      .map((row) => ({
-        key: `u:${row.userId}:${row.fileName || row.at}`,
-        userId: row.userId,
-        name: names.get(row.userId) || "",
-        color: colorForUserId(row.userId),
-        x: row.x,
-        y: row.y,
-        z: row.z,
-        yaw: row.yaw,
-      }));
-  }, [mapId, members, remoteFixes]);
+  const phaseByUser = useMemo(() => {
+    const map = new Map<number, RaidRoomLogPhase>();
+    for (const row of logPhases) map.set(row.userId, row);
+    return map;
+  }, [logPhases]);
+  const roomLiveStatus = raidRoomLiveStatus(
+    members.map((row) => row.user_id),
+    logPhases,
+  );
   const hideLocalFix = Boolean(
-    live.lastLogMapId && !playerFixMatchesRoomMap(live.lastLogMapId, mapId),
+    lastLogMapId && !playerFixMatchesRoomMap(lastLogMapId, mapId),
   );
 
-  const pickMap = (nextMap: string) => {
-    if (!nextMap || nextMap === mapId) {
-      setMapPickOpen(false);
-      return;
-    }
-    const apply = () => {
-      setMapPickOpen(false);
-      void run(() => setTarkovRaidRoomMap(publicId, nextMap));
-    };
-    if (!mapId) {
-      apply();
-      return;
-    }
+  const askChangeMap = () => {
     Modal.confirm({
-      title: "更换地图？",
-      content: "换图会清空点位、任务勾选、钥匙声明和完成进度",
-      okText: "换图",
+      title: "回到任务统计？",
+      content:
+        "将回到开房时的地图任务统计。点一张图才会换图，并清空当前点位、勾选、钥匙和完成进度。",
+      okText: "回到统计",
       cancelText: "取消",
-      onOk: () => apply(),
+      onOk: () => {
+        setMapPickView(true);
+        setDockOpen(false);
+      },
     });
   };
 
-  const toggleClaim = (taskId: string) => {
-    if (!canEdit) return;
-    if (myClaims.has(taskId)) {
-      void run(() => unclaimTarkovRaidRoomTask(publicId, taskId));
-      return;
-    }
-    const uniqueClaimed = groups.length;
-    if (!groups.some((g) => g.taskId === taskId) && uniqueClaimed >= RAID_PREP_MAX_SELECTED) {
-      setError(`最多勾选 ${RAID_PREP_MAX_SELECTED} 个任务`);
-      return;
-    }
-    void run(() => claimTarkovRaidRoomTask(publicId, taskId));
+  const seedClaims = () => {
+    if (!room?.is_host || !mapId) return;
+    void (async () => {
+      const ok = await run(() => seedTarkovRaidRoomClaimsFromProgress(publicId));
+      if (ok) message.success("已按在座进行中任务勾到房间");
+    })();
   };
+
+  const pickMapAndSeed = (nextMap: string) => {
+    if (!nextMap || pickingMap) return;
+    if (nextMap === mapId) {
+      setMapPickView(false);
+      return;
+    }
+    const apply = async () => {
+      setPickingMap(true);
+      try {
+        const mapped = await run(() => setTarkovRaidRoomMap(publicId, nextMap));
+        if (!mapped) return;
+        setMapPickView(false);
+        const seeded = await run(() =>
+          seedTarkovRaidRoomClaimsFromProgress(publicId),
+        );
+        if (seeded) message.success("已选图，并按进行中任务勾到房间");
+      } finally {
+        setPickingMap(false);
+      }
+    };
+    void apply();
+  };
+
+  const toggleClaim = useCallback(
+    (taskId: string) => {
+      if (!canEdit) return;
+      if (myClaims.has(taskId)) {
+        void run(() => unclaimTarkovRaidRoomTask(publicId, taskId));
+        return;
+      }
+      const uniqueClaimed = groups.length;
+      if (!groups.some((g) => g.taskId === taskId) && uniqueClaimed >= RAID_PREP_MAX_SELECTED) {
+        setError(`最多勾选 ${RAID_PREP_MAX_SELECTED} 个任务`);
+        return;
+      }
+      void run(() => claimTarkovRaidRoomTask(publicId, taskId));
+    },
+    [canEdit, groups, myClaims, publicId, run],
+  );
 
   const syncFromTaskProgress = () => {
     if (!canEdit) return;
@@ -658,27 +795,77 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     })();
   };
 
-  const toggleKeyBring = (itemId: string) => {
-    if (!canEdit) return;
-    if (userBroughtKey(room?.key_brings, itemId, me?.id)) {
-      void run(() => unbringTarkovRaidRoomKey(publicId, itemId));
-      return;
-    }
-    void run(() => bringTarkovRaidRoomKey(publicId, itemId));
-  };
-
-  const toggleObjDone = (taskId: string, objectiveId: string) => {
-    if (!canEdit) return;
-    if (userMarkedObjective(room?.objective_dones, taskId, objectiveId, me?.id)) {
-      void run(() =>
-        unmarkTarkovRaidRoomObjectiveDone(publicId, taskId, objectiveId),
+  const toggleKeyBring = useCallback(
+    (itemId: string) => {
+      if (!canEdit) return;
+      if (userBroughtKey(room?.key_brings, itemId, me?.id)) {
+        void run(() => unbringTarkovRaidRoomKey(publicId, itemId));
+        return;
+      }
+      void run(() => bringTarkovRaidRoomKey(publicId, itemId));
+    },
+    [canEdit, me?.id, publicId, room?.key_brings, run],
+  );
+  const toggleKeyOwn = useCallback(
+    async (itemId: string) => {
+      if (!me) return;
+      const have = userOwnsKey(room?.key_owns, itemId, me.id);
+      const name =
+        (me.display_name || me.username || "").trim() || `用户${me.id}`;
+      const user = { userId: me.id, name };
+      setRoom((current) =>
+        current
+          ? {
+              ...current,
+              key_owns: patchRaidRoomKeyOwns(
+                current.key_owns,
+                itemId,
+                user,
+                !have,
+              ),
+            }
+          : current,
       );
-      return;
-    }
-    void run(() =>
-      markTarkovRaidRoomObjectiveDone(publicId, taskId, objectiveId),
-    );
-  };
+      try {
+        const data = have
+          ? await removeTarkovKeyOwn(itemId)
+          : await addTarkovKeyOwn(itemId);
+        applyTarkovKeyOwnsCache(queryClient, data.item_ids || []);
+      } catch (exc) {
+        setRoom((current) =>
+          current
+            ? {
+                ...current,
+                key_owns: patchRaidRoomKeyOwns(
+                  current.key_owns,
+                  itemId,
+                  user,
+                  have,
+                ),
+              }
+            : current,
+        );
+        setError(apiError(exc, "更新钥匙拥有失败"));
+      }
+    },
+    [me, queryClient, room?.key_owns],
+  );
+
+  const toggleObjDone = useCallback(
+    (taskId: string, objectiveId: string) => {
+      if (!canEdit) return;
+      if (userMarkedObjective(room?.objective_dones, taskId, objectiveId, me?.id)) {
+        void run(() =>
+          unmarkTarkovRaidRoomObjectiveDone(publicId, taskId, objectiveId),
+        );
+        return;
+      }
+      void run(() =>
+        markTarkovRaidRoomObjectiveDone(publicId, taskId, objectiveId),
+      );
+    },
+    [canEdit, me?.id, publicId, room?.objective_dones, run],
+  );
 
   const locateTask = useCallback(
     async (row: (typeof rows)[number]) => {
@@ -689,12 +876,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       );
       if (!points.length && row.has_map_markers) {
         try {
-          const extra = await fetchTarkovRaidPrep({
-            map: mapId,
-            geometry: true,
-            ids: [row.id],
-          });
-          const rich = extra.items.find((item) => item.id === row.id);
+          const rich = await geometry.ensure(row.id);
           points = rich
             ? resolveRaidPrepLocatePoints(
                 rich,
@@ -719,13 +901,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [mapId, overlayTasks, mapObjDone],
-  );
-
-  const taskLocateHandler = useCallback(
-    (row: (typeof rows)[number]) =>
-      row.has_map_markers ? () => locateTask(row) : undefined,
-    [locateTask],
+    [geometry, mapId, overlayTasks, mapObjDone],
   );
 
   const openGuide = useCallback((taskId: string) => {
@@ -733,7 +909,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     setGuideOpen(true);
   }, []);
 
-  const onStroke = (stroke: { floor: string; points: StrokePoint[] }) => {
+  const onQuestLabelClick = useCallback((taskId: string) => {
+    setHighlightTaskId(taskId);
+    openGuide(taskId);
+  }, [openGuide]);
+
+  const onStroke = useCallback((stroke: { floor: string; points: StrokePoint[] }) => {
     if (!canEdit || !stroke.points.length) return;
     const first = stroke.points[0];
     const last = stroke.points[stroke.points.length - 1];
@@ -768,24 +949,53 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       void ok;
       setPendingMarks((current) => current.filter((row) => row.id !== tempId));
     })();
-  };
+  }, [canEdit, me?.display_name, me?.id, publicId, run]);
 
-  const onDraftStroke = (draft: { floor: string; points: StrokePoint[] } | null) => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(
-      JSON.stringify({
-        event: "draw_draft",
-        floor: draft?.floor || "",
-        points: (draft?.points || []).map((point) => [point.x, point.z]),
-      }),
-    );
-  };
+  const onPin = useCallback(
+    (mark: { floor: string; x: number; z: number }) => {
+      if (!canEdit) return;
+      void run(() =>
+        addTarkovRaidRoomMark(publicId, {
+          kind: "pin",
+          floor: mark.floor,
+          x: mark.x,
+          z: mark.z,
+        }),
+      );
+    },
+    [canEdit, publicId, run],
+  );
 
-  const onEraseMark = (markId: number) => {
-    if (!canEdit || markId <= 0) return;
-    void run(() => removeTarkovRaidRoomMark(publicId, markId));
-  };
+  const onLine = useCallback(
+    (mark: {
+      floor: string;
+      x: number;
+      z: number;
+      x2: number;
+      z2: number;
+    }) => {
+      if (!canEdit) return;
+      void run(() =>
+        addTarkovRaidRoomMark(publicId, {
+          kind: "line",
+          floor: mark.floor,
+          x: mark.x,
+          z: mark.z,
+          x2: mark.x2,
+          z2: mark.z2,
+        }),
+      );
+    },
+    [canEdit, publicId, run],
+  );
+
+  const onEraseMark = useCallback(
+    (markId: number) => {
+      if (!canEdit || markId <= 0) return;
+      void run(() => removeTarkovRaidRoomMark(publicId, markId));
+    },
+    [canEdit, publicId, run],
+  );
 
   const boardMarks = useMemo(
     () => mergeBoardMarks(room?.marks || [], pendingMarks),
@@ -811,46 +1021,81 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   }
   if (!room) return null;
 
+  const showOverlap = !mapId || mapPickView;
+
   return (
-    <div className={styles.stage} data-dock={dockOpen ? "open" : "closed"}>
-      {room.is_host && !mapId ? (
-        <p className={styles.banner}>选好地图后才能勾任务、画点和声明钥匙</p>
-      ) : null}
-      {room.is_member && !room.is_host && !mapId ? (
-        <p className={styles.banner}>等待房主选择地图</p>
+    <div
+      className={styles.stage}
+      data-dock={dockOpen ? "open" : "closed"}
+      data-pick={showOverlap ? "true" : undefined}
+    >
+      {room.game_mode && room.game_mode !== gameMode ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={`房间绑定 ${String(room.game_mode).toUpperCase()}，当前目录是 ${gameMode.toUpperCase()}`}
+          description={
+            <button
+              type="button"
+              className={styles.dockChip}
+              onClick={() => setMode(parseTarkovGameMode(room.game_mode))}
+            >
+              顶栏切换到 {String(room.game_mode).toUpperCase()}
+            </button>
+          }
+        />
       ) : null}
       <div className={styles.topBar}>
         <div className={styles.roomId}>
           <h1 className={styles.roomTitle}>{title}</h1>
           <div className={styles.roomMeta}>
             {mapLabel || "未选地图"} · {room.member_count}/{room.max_members}
+            {room.has_password ? " · 有密码" : ""}
+            {" · "}
+            <span
+              className={styles.roomLive}
+              data-in-raid={roomLiveStatus === "in_raid" ? "true" : "false"}
+            >
+              {formatRaidRoomLiveStatus(roomLiveStatus)}
+            </span>
           </div>
         </div>
         <div className={styles.members} aria-label="房间成员">
-          {members.map((row) => (
-            <span
-              key={row.user_id}
-              className={styles.memberChip}
-              data-online={row.online ? "true" : "false"}
-              title={row.online ? "在线" : "离线"}
-            >
+          {members.map((row) => {
+            const phase = phaseByUser.get(row.user_id);
+            const wsLine = formatRaidRoomMemberWsLine({
+              online: row.online,
+              phaseKind: phase?.kind,
+            });
+            return (
               <span
-                className={styles.memberDot}
-                style={{ background: colorForUserId(row.user_id) }}
-              />
-              {row.display_name}
-              {row.is_host ? " · 房主" : ""}
-            </span>
-          ))}
+                key={row.user_id}
+                className={styles.memberChip}
+                data-online={row.online ? "true" : "false"}
+                data-phase={phase?.kind || ""}
+                title={wsLine}
+              >
+                <span
+                  className={styles.memberDot}
+                  style={{ background: colorForUserId(row.user_id) }}
+                />
+                {row.display_name}
+                {row.is_host ? " · 房主" : ""}
+                <span className={styles.memberWs}>{wsLine}</span>
+              </span>
+            );
+          })}
         </div>
         <div className={styles.topActions}>
-          <button
-            type="button"
-            className={styles.dockToggle}
-            onClick={() => setDockOpen((open) => !open)}
-          >
-            {dockOpen ? "收起任务" : "任务列表"}
-          </button>
+          {mapId && !mapPickView ? (
+            <button
+              type="button"
+              className={styles.dockToggle}
+              onClick={() => setDockOpen((open) => !open)}
+            >
+              {dockOpen ? "收起任务" : "任务列表"}
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.dockChip}
@@ -870,13 +1115,22 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           >
             {copiedLink ? "已复制" : "复制链接"}
           </button>
-          {room.is_host && mapId ? (
+          {room.is_host && mapId && !mapPickView ? (
             <button
               type="button"
               className={styles.dockChip}
-              onClick={() => setMapPickOpen(true)}
+              onClick={askChangeMap}
             >
               更换地图
+            </button>
+          ) : null}
+          {room.is_host && mapPickView && mapId ? (
+            <button
+              type="button"
+              className={styles.dockChip}
+              onClick={() => setMapPickView(false)}
+            >
+              取消换图
             </button>
           ) : null}
           {room.is_host ? (
@@ -905,14 +1159,28 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           showIcon
           message="你还不是房间成员"
           description={
-            <button
-              type="button"
-              className={styles.dockChip}
-              disabled={joinMut.isPending}
-              onClick={() => joinMut.mutate()}
-            >
-              {joinMut.isPending ? "加入中…" : "加入房间"}
-            </button>
+            <div className={styles.joinGate}>
+              {room.has_password ? (
+                <Input.Password
+                  value={joinPassword}
+                  onChange={(event) => setJoinPassword(event.target.value)}
+                  placeholder="房间密码"
+                  maxLength={32}
+                  onPressEnter={() => joinMut.mutate()}
+                />
+              ) : null}
+              <button
+                type="button"
+                className={styles.dockChip}
+                disabled={
+                  joinMut.isPending ||
+                  (Boolean(room.has_password) && !joinPassword.trim())
+                }
+                onClick={() => joinMut.mutate()}
+              >
+                {joinMut.isPending ? "加入中…" : "加入房间"}
+              </button>
+            </div>
           }
         />
       ) : null}
@@ -920,12 +1188,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
       <div className={styles.workspace}>
         <div className={styles.mapPane}>
-          {canEdit ? (
+          {canEdit && !showOverlap ? (
             <div className={styles.drawDock}>
               {(
                 [
                   ["pan", "拖拽", "拖拽移动地图"],
                   ["pen", "画笔", "按住拖拽涂鸦，空格拖地图"],
+                  ["pin", "钉点", "单击钉一个点"],
+                  ["line", "直线", "点两点连成直线"],
                   ["erase", "橡皮", "点一下擦掉笔画"],
                 ] as const
               ).map(([mode, label, hint]) => (
@@ -966,25 +1236,39 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               {tool === "pen" ? (
                 <span className={styles.drawHint}>拖拽涂鸦，按住空格拖地图</span>
               ) : null}
+              {tool === "pin" ? (
+                <span className={styles.drawHint}>单击钉点</span>
+              ) : null}
+              {tool === "line" ? (
+                <span className={styles.drawHint}>点两个位置连直线</span>
+              ) : null}
               {tool === "erase" ? (
                 <span className={styles.drawHint}>点一下擦掉笔画</span>
               ) : null}
             </div>
           ) : null}
           <div className={styles.mapFill}>
-            {!mapId ? (
-              room.is_host ? (
+            {showOverlap ? (
+              room.is_member ? (
                 <div className={styles.mapPickPane}>
-                  <p className={styles.mapPickHint}>选择这局地图。之后换图会清空点位、任务勾选、钥匙声明和完成进度。</p>
-                  <MapPickGrid
-                    options={mapOptions}
-                    onPick={pickMap}
+                  {mapPickView && mapId ? (
+                    <p className={styles.mapPickHint}>
+                      点一张图才会换图并清空进度；点当前地图或「取消换图」则返回。
+                    </p>
+                  ) : null}
+                  <TarkovRaidRoomOverlapBoard
+                    rows={room.map_overlap || []}
+                    members={members}
+                    progress={room.task_progress || []}
+                    mapOptions={mapOptions}
+                    isHost={room.is_host}
+                    picking={pickingMap}
+                    currentMapSlug={mapId || undefined}
+                    onPickMap={room.is_host ? pickMapAndSeed : undefined}
                   />
                 </div>
               ) : (
-                <div className={catalogCss.status}>
-                  {room.is_member ? "等待房主选择地图" : "加入后可一起准备"}
-                </div>
+                <div className={catalogCss.status}>加入后可一起准备</div>
               )
             ) : mapQuery.isLoading ? (
               <div className={catalogCss.status}>
@@ -999,8 +1283,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               />
             ) : (
               <Suspense fallback={<PanelFallback tip="加载地图…" />}>
-                <TarkovMapViewer
-                  slug={mapId}
+                <TarkovRaidRoomLiveMap
+                  publicId={publicId}
+                  mapId={mapId}
                   parentSlug={mapQuery.data?.parent_slug || undefined}
                   extracts={mapQuery.data?.extracts}
                   bosses={mapQuery.data?.bosses}
@@ -1009,20 +1294,18 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   focusRequest={focusRequest}
                   highlightTaskId={highlightTaskId}
                   boardMarks={boardMarks}
-                  remoteDrafts={remoteDrafts}
-                  remotePlayerFixes={remotePlayerMarks}
                   suppressLocalFix={hideLocalFix}
-                  drawColor={colorForUserId(me?.id || 0)}
                   authorUserId={me?.id || 0}
                   drawMode={canEdit ? tool : "pan"}
+                  canEdit={canEdit}
+                  members={members}
+                  wsRef={wsRef}
+                  wsGen={wsGen}
                   onStroke={onStroke}
-                  onDraftStroke={onDraftStroke}
+                  onPin={onPin}
+                  onLine={onLine}
                   onEraseMark={onEraseMark}
-                  fill
-                  onQuestLabelClick={(taskId) => {
-                    setHighlightTaskId(taskId);
-                    openGuide(taskId);
-                  }}
+                  onQuestLabelClick={onQuestLabelClick}
                   questParticipantsByTask={participantsByTask}
                   topRight={
                     <div className={styles.summaryStack}>
@@ -1035,6 +1318,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         currentUserId={me?.id}
                         canToggleKeyBring={canEdit}
                         onToggleKeyBring={toggleKeyBring}
+                        canToggleKeyOwn={Boolean(me)}
+                        onToggleKeyOwn={me ? toggleKeyOwn : undefined}
                         skippedByTask={objDone}
                         objectiveDones={room?.objective_dones}
                         onToggleObjective={toggleObjDone}
@@ -1060,6 +1345,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             )}
           </div>
         </div>
+        {mapId && !mapPickView ? (
         <aside className={styles.dock} aria-label="任务列表">
           <TarkovRaidPrepFilters
             keyword={keyword}
@@ -1087,6 +1373,16 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     >
                       从任务进度同步
                     </button>
+                    {room.is_host ? (
+                      <button
+                        type="button"
+                        className={styles.changeMapBtn}
+                        title="按在座已上传的进行中任务，把本图相关项勾进房间"
+                        onClick={seedClaims}
+                      >
+                        按全员进行中勾选
+                      </button>
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -1119,10 +1415,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             </div>
           </div>
           <div
+            ref={setTaskListEl}
             className={styles.taskList}
             onClick={() => setHighlightTaskId("")}
           >
-            {listScope === "picked" ? (
+            {prepQuery.isLoading && !prepQuery.data && !picked.length ? (
+              <div className={styles.empty}>
+                <Spin />
+              </div>
+            ) : listScope === "picked" ? (
               picked.length ? (
                 picked.map((row, index) => (
                   <TarkovRaidPrepTaskCard
@@ -1138,65 +1439,64 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     skipped={raidPrepSkippedIds(objDone, row.id)}
                     objectiveDones={room?.objective_dones}
                     currentUserId={me?.id}
-                    onToggleObjective={(objectiveId) =>
-                      toggleObjDone(row.id, objectiveId)
-                    }
-                    onToggle={() => toggleClaim(row.id)}
-                    onLocate={taskLocateHandler(row)}
-                    onTitle={() => openGuide(row.id)}
+                    onToggleObjective={toggleObjDone}
+                    onToggle={toggleClaim}
+                    onNeedDetail={geometry.ensure}
+                    onLocate={locateTask}
+                    onTitle={openGuide}
                   />
                 ))
               ) : (
                 <div className={styles.empty}>还没勾选任务</div>
               )
-            ) : prepQuery.isLoading && !prepQuery.data && !picked.length ? (
-              <div className={styles.empty}>
-                <Spin />
-              </div>
             ) : (
               <>
-                {myClaims.size > 0 &&
-                prepQuery.isLoading &&
-                !picked.length ? (
-                  <div className={styles.pickedBlock}>
-                    <p className={styles.pickedLabel}>我的已选 {myClaims.size}</p>
-                    <div className={styles.empty}>
-                      <Spin />
+                <div ref={setRestHeadEl}>
+                  {myClaims.size > 0 &&
+                  prepQuery.isLoading &&
+                  !picked.length ? (
+                    <div className={styles.pickedBlock}>
+                      <p className={styles.pickedLabel}>我的已选 {myClaims.size}</p>
+                      <div className={styles.empty}>
+                        <Spin />
+                      </div>
                     </div>
-                  </div>
-                ) : picked.length ? (
-                  <div className={styles.pickedBlock}>
-                    <p className={styles.pickedLabel}>我的已选 {picked.length}</p>
-                    {picked.map((row, index) => (
-                      <TarkovRaidPrepTaskCard
-                        key={row.id}
-                        row={row}
-                        mapSlug={mapId}
-                        compact
-                        checked={myClaims.has(row.id)}
-                        highlighted
-                        active={highlightTaskId === row.id}
-                        color={colorByTask.get(row.id) || colorForTaskIndex(index)}
-                        disabled={!canEdit}
-                        skipped={raidPrepSkippedIds(objDone, row.id)}
-                        objectiveDones={room?.objective_dones}
-                        currentUserId={me?.id}
-                        onToggleObjective={(objectiveId) =>
-                          toggleObjDone(row.id, objectiveId)
-                        }
-                        onToggle={() => toggleClaim(row.id)}
-                        onLocate={taskLocateHandler(row)}
-                        onTitle={() => openGuide(row.id)}
-                      />
-                    ))}
-                  </div>
-                ) : null}
+                  ) : picked.length ? (
+                    <div className={styles.pickedBlock}>
+                      <p className={styles.pickedLabel}>我的已选 {picked.length}</p>
+                      {picked.map((row, index) => (
+                        <TarkovRaidPrepTaskCard
+                          key={row.id}
+                          row={row}
+                          mapSlug={mapId}
+                          compact
+                          checked={myClaims.has(row.id)}
+                          highlighted
+                          active={highlightTaskId === row.id}
+                          color={colorByTask.get(row.id) || colorForTaskIndex(index)}
+                          disabled={!canEdit}
+                          skipped={raidPrepSkippedIds(objDone, row.id)}
+                          objectiveDones={room?.objective_dones}
+                          currentUserId={me?.id}
+                          onToggleObjective={toggleObjDone}
+                          onToggle={toggleClaim}
+                          onNeedDetail={geometry.ensure}
+                          onLocate={locateTask}
+                          onTitle={openGuide}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  {rest.length && picked.length ? (
+                    <p className={styles.restLabel}>筛选结果</p>
+                  ) : null}
+                </div>
                 {rest.length ? (
-                  <>
-                    {picked.length ? (
-                      <p className={styles.restLabel}>筛选结果</p>
-                    ) : null}
-                    {rest.map((row) => (
+                  <TarkovRaidPrepRestList
+                    items={rest}
+                    scrollParent={taskListEl}
+                    head={restHeadEl}
+                    renderRow={(row) => (
                       <TarkovRaidPrepTaskCard
                         key={row.id}
                         row={row}
@@ -1208,15 +1508,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         skipped={raidPrepSkippedIds(objDone, row.id)}
                         objectiveDones={room?.objective_dones}
                         currentUserId={me?.id}
-                        onToggleObjective={(objectiveId) =>
-                          toggleObjDone(row.id, objectiveId)
-                        }
-                        onToggle={() => toggleClaim(row.id)}
-                        onLocate={taskLocateHandler(row)}
-                        onTitle={() => openGuide(row.id)}
+                        onToggleObjective={toggleObjDone}
+                        onToggle={toggleClaim}
+                        onNeedDetail={geometry.ensure}
+                        onLocate={locateTask}
+                        onTitle={openGuide}
                       />
-                    ))}
-                  </>
+                    )}
+                  />
                 ) : prepQuery.isLoading && !prepQuery.data ? (
                   <div className={styles.empty}>
                     <Spin />
@@ -1232,6 +1531,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             )}
           </div>
         </aside>
+        ) : null}
       </div>
       <TarkovRaidPrepOcrModal
         open={ocrOpen}
@@ -1245,24 +1545,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           await run(() => claimTarkovRaidRoomTasks(publicId, next));
         }}
       />
-      <Modal
-        title="更换地图"
-        open={mapPickOpen}
-        onCancel={() => setMapPickOpen(false)}
-        footer={null}
-        width={960}
-        destroyOnClose
-        classNames={{ body: styles.entryModalBody }}
-      >
-        <p className={styles.mapPickHint}>
-          换图会清空点位、任务勾选、钥匙声明和完成进度
-        </p>
-        <MapPickGrid
-          options={mapOptions}
-          selectedId={mapId || undefined}
-          onPick={pickMap}
-        />
-      </Modal>
       <Modal
         title="房间管理"
         open={manageOpen}
@@ -1305,6 +1587,39 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             </div>
           ))}
         </div>
+        <div className={styles.managePassword}>
+          <p className={styles.managePasswordHint}>
+            {room.has_password
+              ? "已设密码，未入座的人需要输入才能加入"
+              : "未设密码，大厅点一下即可加入"}
+          </p>
+          <Input.Password
+            value={passwordDraft}
+            onChange={(event) => setPasswordDraft(event.target.value)}
+            placeholder={room.has_password ? "输入新密码" : "设置密码"}
+            maxLength={32}
+          />
+          <div className={styles.managePasswordActions}>
+            <button
+              type="button"
+              className={styles.dockChip}
+              disabled={passwordMut.isPending || !passwordDraft.trim()}
+              onClick={() => passwordMut.mutate(passwordDraft.trim())}
+            >
+              {room.has_password ? "修改密码" : "设置密码"}
+            </button>
+            {room.has_password ? (
+              <button
+                type="button"
+                className={styles.dockChip}
+                disabled={passwordMut.isPending}
+                onClick={() => passwordMut.mutate("")}
+              >
+                清除密码
+              </button>
+            ) : null}
+          </div>
+        </div>
         <div className={styles.manageFooter}>
           <button
             type="button"
@@ -1313,7 +1628,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             onClick={() => {
               Modal.confirm({
                 title: "清空房间？",
-                content: "会请出所有人，并清空地图、点位、任务勾选、钥匙声明和完成进度。",
+                content: "会请出所有人，并清空地图、点位、任务勾选、钥匙声明、完成进度和密码。",
                 okText: "清空房间",
                 cancelText: "取消",
                 onOk: () => resetMut.mutateAsync(),

@@ -3,7 +3,10 @@
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   latestLogActivityAt,
+  raidLogEndedKey,
+  toRaidLogImportRows,
   type TarkovLogParseResult,
+  type TarkovRaidLogImportRow,
 } from "@/lib/tarkovGameLogs";
 import { mergeQuestProgressFromLogs } from "@/lib/tarkovTaskLogSync";
 import { formatBeijing } from "@/lib/time";
@@ -137,4 +140,18 @@ export function logStampFromParsed(
   if (at) return at;
   if (!fileTimes.length) return null;
   return Math.max(...fileTimes);
+}
+
+/** UserMatchOver 后本机把战局摘要推到账号；有新的 ended_at 才导入。 */
+export function planRaidLogImport(
+  prevEndedKeys: ReadonlySet<string>,
+  sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
+): { nextKeys: Set<string>; rows: TarkovRaidLogImportRow[] } {
+  const all = toRaidLogImportRows(sessions);
+  const ended = all.filter((row) => Boolean(row.ended_at));
+  const nextKeys = new Set(ended.map((row) => raidLogEndedKey(row)));
+  const hasFresh =
+    prevEndedKeys.size > 0 &&
+    ended.some((row) => !prevEndedKeys.has(raidLogEndedKey(row)));
+  return { nextKeys, rows: hasFresh ? all : [] };
 }

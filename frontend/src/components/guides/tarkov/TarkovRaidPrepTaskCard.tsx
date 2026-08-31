@@ -1,5 +1,5 @@
 import { EnvironmentOutlined } from "@ant-design/icons";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
 import {
   collectRaidPrepTaskObjectives,
@@ -26,15 +26,16 @@ type Props = {
   skipped?: ReadonlySet<string>;
   objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
   currentUserId?: number | null;
-  onToggleObjective?: (objectiveId: string) => void;
+  onToggleObjective?: (taskId: string, objectiveId: string) => void;
   /** 只显示任务名，不渲染楼层 / 进度 / 参与人等次行。 */
   compact?: boolean;
-  onToggle: () => void;
-  onLocate?: () => void;
-  onTitle?: () => void;
+  onToggle: (taskId: string) => void;
+  onNeedDetail?: (taskId: string) => void;
+  onLocate?: (row: TarkovRaidPrepTask) => void;
+  onTitle?: (taskId: string) => void;
 };
 
-export function TarkovRaidPrepTaskCard({
+function TarkovRaidPrepTaskCardInner({
   row,
   checked,
   highlighted,
@@ -51,6 +52,7 @@ export function TarkovRaidPrepTaskCard({
   onToggleObjective,
   compact,
   onToggle,
+  onNeedDetail,
   onLocate,
   onTitle,
 }: Props) {
@@ -80,7 +82,7 @@ export function TarkovRaidPrepTaskCard({
       className={styles.taskName}
       onClick={(event) => {
         event.stopPropagation();
-        onTitle();
+        onTitle(row.id);
       }}
     >
       {title}
@@ -109,7 +111,7 @@ export function TarkovRaidPrepTaskCard({
           disabled={disabled}
           aria-label={`选择 ${title}`}
           onChange={() => {
-            if (!disabled) onToggle();
+            if (!disabled) onToggle(row.id);
           }}
         />
       </label>
@@ -126,10 +128,16 @@ export function TarkovRaidPrepTaskCard({
       <div className={styles.taskBody}>
         <div className={styles.taskTitle}>
           <TarkovRaidPrepObjectiveHint
+            taskId={row.id}
             objectives={objectives}
             skipped={skipped}
             doneByOthers={doneByOthers}
-            onToggle={onToggleObjective}
+            onNeedDetail={onNeedDetail}
+            onToggle={
+              onToggleObjective
+                ? (objectiveId) => onToggleObjective(row.id, objectiveId)
+                : undefined
+            }
             trigger={["hover"]}
           >
             {nameEl}
@@ -142,7 +150,7 @@ export function TarkovRaidPrepTaskCard({
               onTitle
                 ? (event) => {
                     event.stopPropagation();
-                    onTitle();
+                    onTitle(row.id);
                   }
                 : undefined
             }
@@ -151,7 +159,7 @@ export function TarkovRaidPrepTaskCard({
           </div>
         ) : null}
       </div>
-      {onLocate ? (
+      {onLocate && row.has_map_markers ? (
         <button
           type="button"
           className={styles.locateBtn}
@@ -159,7 +167,7 @@ export function TarkovRaidPrepTaskCard({
           title="定位到地图点位"
           onClick={(event) => {
             event.stopPropagation();
-            onLocate();
+            onLocate(row);
           }}
         >
           <EnvironmentOutlined />
@@ -168,3 +176,5 @@ export function TarkovRaidPrepTaskCard({
     </div>
   );
 }
+
+export const TarkovRaidPrepTaskCard = memo(TarkovRaidPrepTaskCardInner);

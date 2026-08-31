@@ -8,6 +8,7 @@ import {
   formatLogClock,
   latestLogActivityAt,
   latestLogMapId,
+  logPhaseFromParsed,
   formatResolvedWalk,
   hasDriveLetter,
   joinBindPath,
@@ -18,8 +19,13 @@ import {
   isReadableTarkovLogFileName,
   isNewerScreenshot,
   isScreenshotFileName,
+  isTarkovGameScreenshotName,
+  latestScreenshotName,
+  parseScreenshotPrunePref,
   screenshotNamesToInspect,
+  screenshotNamesToPrune,
   screenshotPollHint,
+  screenshotPruneVerifyResult,
   isSessionFolderName,
   logWalkCandidatesFrom,
   listSessionStubs,
@@ -114,19 +120,89 @@ describe("classifyLogsRoot", () => {
         { name: "b.png", lastModified: 20 },
       ),
     ).toBe(true);
+    expect(latestScreenshotName(["old.png", "2026-08-30[21-35]_19.91 (0).png"])).toBe(
+      "2026-08-30[21-35]_19.91 (0).png",
+    );
+    expect(
+      latestScreenshotName([
+        "2026-08-30[21-35]_19.91 (0).png",
+        "2026-08-30[21-36]_20.00 (0).png",
+      ]),
+    ).toBe("2026-08-30[21-36]_20.00 (0).png");
+    expect(isTarkovGameScreenshotName("2026-08-30[21-35]_19.91 (0).png")).toBe(
+      true,
+    );
+    expect(isTarkovGameScreenshotName("vacation.jpg")).toBe(false);
     expect(
       screenshotNamesToInspect(
         ["old.png", "2026-08-30[21-35]_19.91 (0).png", "note.txt"],
         new Set(),
-        1,
       ),
     ).toEqual(["2026-08-30[21-35]_19.91 (0).png"]);
     expect(
       screenshotNamesToInspect(
+        [
+          "2026-08-30[21-35]_19.91 (0).png",
+          "2026-08-30[21-36]_20.00 (0).png",
+        ],
+        new Set(),
+      ),
+    ).toEqual(["2026-08-30[21-36]_20.00 (0).png"]);
+    expect(
+      screenshotNamesToInspect(
         ["old.png", "2026-08-30[21-35]_19.91 (0).png"],
-        new Set(["old.png"]),
+        new Set(["2026-08-30[21-35]_19.91 (0).png"]),
+      ),
+    ).toEqual([]);
+    expect(
+      screenshotNamesToPrune(
+        [
+          "vacation.jpg",
+          "2026-08-30[21-35]_19.91 (0).png",
+          "2026-08-30[21-36]_20.00 (0).png",
+        ],
+        "2026-08-30[21-36]_20.00 (0).png",
+        1,
       ),
     ).toEqual(["2026-08-30[21-35]_19.91 (0).png"]);
+    expect(
+      screenshotNamesToPrune(
+        [
+          "2026-08-30[21-34]_1.png",
+          "2026-08-30[21-35]_2.png",
+          "2026-08-30[21-36]_3.png",
+        ],
+        "2026-08-30[21-36]_3.png",
+        2,
+      ),
+    ).toEqual(["2026-08-30[21-34]_1.png"]);
+    expect(
+      screenshotNamesToPrune(
+        [
+          "2026-08-30[21-34]_1.png",
+          "2026-08-30[21-35]_2.png",
+          "2026-08-30[21-36]_3.png",
+        ],
+        "2026-08-30[21-36]_3.png",
+        20,
+      ),
+    ).toEqual([]);
+    expect(parseScreenshotPrunePref(null).enabled).toBe(false);
+    expect(parseScreenshotPrunePref('{"enabled":true,"keepMax":8}')).toEqual({
+      enabled: true,
+      keepMax: 8,
+    });
+    expect(screenshotPruneVerifyResult({ pruneEnabled: false, canWrite: false })).toEqual({
+      ok: true,
+      text: "截图目录校验通过",
+    });
+    expect(screenshotPruneVerifyResult({ pruneEnabled: true, canWrite: false })).toEqual({
+      ok: false,
+      text: "自动删截图需要写入授权。请点「更换」重新选择 Screenshots 文件夹，并在弹窗里允许查看并编辑。",
+    });
+    expect(screenshotPruneVerifyResult({ pruneEnabled: true, canWrite: true }).ok).toBe(
+      true,
+    );
     expect(screenshotPollHint(2000)).toBe("每 2 秒检查新截图");
     expect(
       formatResolvedWalk("Escape from Tarkov", ["build", "Logs"]),
@@ -282,6 +358,20 @@ describe("parseTarkovLogText", () => {
       endedAt: "2023-12-29 19:41:00.000",
       mapId: "shoreline",
     });
+    expect(logPhaseFromParsed(parsed)).toMatchObject({
+      kind: "raid_exited",
+      raidId: "PQXKR6",
+      mapId: "shoreline",
+    });
+    expect(
+      logPhaseFromParsed(
+        parseTarkovLogText(
+          [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join(
+            "\n",
+          ),
+        ),
+      ),
+    ).toMatchObject({ kind: "raid_started", raidId: "PQXKR6" });
   });
 
   it("marks cancelled matching and night factory", () => {

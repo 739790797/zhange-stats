@@ -62,6 +62,17 @@ def _snapshot(public_id: str, user: User) -> dict[str, Any]:
         db.close()
 
 
+def _touch_ws_member(public_id: str, user: User) -> None:
+    db: Session = SessionLocal()
+    try:
+        rooms_svc.touch_member(db, public_id, user)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _can_edit(public_id: str, user: User) -> bool:
     db: Session = SessionLocal()
     try:
@@ -105,8 +116,15 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         return
 
     online = await hub.join(public_id, client, user.id)
+    _touch_ws_member(public_id, user)
     await client.send_json(
-        {"event": "snapshot", "seq": 0, "snapshot": snapshot, "online_user_ids": list(online)}
+        {
+            "event": "snapshot",
+            "seq": 0,
+            "snapshot": snapshot,
+            "online_user_ids": list(online),
+            "log_phases": hub.log_phases(public_id),
+        }
     )
     hub.publish(
         public_id,
@@ -119,6 +137,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 continue
             event = str(raw.get("event") or "").strip()
             if event == "ping":
+                _touch_ws_member(public_id, user)
                 await client.send_json({"event": "pong"})
                 continue
             if event == "draw_draft":
@@ -152,12 +171,28 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                         **fix,
                     },
                 )
+                continue
+            if event == "log_phase":
+                phase = rooms_svc.parse_log_phase(raw)
+                if phase is None:
+                    continue
+                phases = hub.set_log_phase(public_id, user.id, phase)
+                hub.publish(
+                    public_id,
+                    {
+                        "event": "log_phase",
+                        "user_id": user.id,
+                        "log_phases": phases,
+                        **phase,
+                    },
+                )
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001
         logger.debug("raid room ws ended", exc_info=True)
     finally:
         online = await hub.leave(public_id, client)
+        _touch_ws_member(public_id, user)
         hub.publish(
             public_id,
             {"event": "presence", "online_user_ids": list(online)},

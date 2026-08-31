@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -51,7 +53,22 @@ def test_normalize_room_map_slug() -> None:
     assert rooms.normalize_slot_id("1") == "1"
     assert rooms.normalize_slot_id("5") == "5"
     assert rooms.normalize_slot_id("6") == ""
+    assert rooms.normalize_slot_id("pve-1") == "pve-1"
+    assert rooms.normalize_slot_id("pve-5") == "pve-5"
+    assert rooms.normalize_slot_id("pve-6") == ""
     assert rooms.normalize_slot_id("abcdef123456") == ""
+    assert rooms.normalize_public_id("1") == "1"
+    assert rooms.normalize_public_id("pve-2") == "pve-2"
+    assert rooms.normalize_public_id("ab12cd34") == ""
+    assert rooms.slot_public_id(3, "pve") == "pve-3"
+    assert rooms.slot_ids_for_mode("pvp") == ("1", "2", "3", "4", "5")
+    assert rooms.slot_ids_for_mode("pve") == (
+        "pve-1",
+        "pve-2",
+        "pve-3",
+        "pve-4",
+        "pve-5",
+    )
 
 
 def test_five_seats_first_joiner_host_and_capacity() -> None:
@@ -60,9 +77,11 @@ def test_five_seats_first_joiner_host_and_capacity() -> None:
     now = now_naive()
     lobby = rooms.list_live_rooms(db, viewer=host, now=now)
     assert [row["public_id"] for row in lobby["items"]] == ["1", "2", "3", "4", "5"]
+    assert all(row["game_mode"] == "pvp" for row in lobby["items"])
     assert all(row["member_count"] == 0 for row in lobby["items"])
     assert all(row["host_user_id"] is None for row in lobby["items"])
-    assert all(row["title"] == f"{row['public_id']}号房" for row in lobby["items"])
+    assert all(row["has_password"] is False for row in lobby["items"])
+    assert all(row["title"] == f"{i}号房" for i, row in enumerate(lobby["items"], start=1))
 
     created, joined, vacated = rooms.join_room(db, "1", host, now=now)
     assert joined is True
@@ -487,6 +506,15 @@ def test_stroke_marks_and_draft_parse() -> None:
     }
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": "nope"}) is None
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3, "yaw": "bad"}) is None
+    assert rooms.parse_log_phase({"kind": "raid_started", "map_id": "bigmap", "raid_id": "ab12cd", "at": "2026-08-31 13:00:00.000", "map_label": "海关"}) == {
+        "kind": "raid_started",
+        "map_id": "customs",
+        "map_label": "海关",
+        "raid_id": "AB12CD",
+        "at": "2026-08-31 13:00:00.000",
+    }
+    assert rooms.parse_log_phase({"kind": "nope"}) is None
+    assert rooms.parse_log_phase({"kind": "raid_exited", "raid_id": "zz"})["kind"] == "raid_exited"
 
 
 def test_bring_key_shared_and_toggle() -> None:
@@ -586,6 +614,24 @@ def test_mark_objective_done_shared_and_toggle() -> None:
     assert not ok
 
 
+def test_mark_objectives_done_batch() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    room = _seat(db, host, now=now)
+    snap, added = rooms.mark_objectives_done(
+        db,
+        room["public_id"],
+        host,
+        [("wet-2", "o-1"), ("wet-2", "o-2"), ("wet-2", "o-1")],
+        now=now,
+    )
+    assert added == [("wet-2", "o-1"), ("wet-2", "o-2")]
+    assert {
+        (row["task_id"], row["objective_id"]) for row in snap["objective_dones"]
+    } == {("wet-2", "o-1"), ("wet-2", "o-2")}
+
+
 def test_host_can_remove_member_and_their_claims() -> None:
     db = _session()
     host = _user(db, "host", "甲")
@@ -630,3 +676,317 @@ def test_remove_member_host_only() -> None:
     assert not self_ok
     still = rooms.get_room(db, "1", guest, now=now)
     assert still["member_count"] == 2
+
+
+def test_room_password_gates_join_and_clears_when_empty() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    other = _user(db, "other", "丙")
+    now = now_naive()
+    rooms.join_room(db, "1", host, now=now)
+    locked = rooms.set_room_password(db, "1", host, "secret", now=now)
+    assert locked["has_password"] is True
+    assert "password_hash" not in locked
+    lobby = rooms.list_live_rooms(db, viewer=guest, now=now, game_mode="pvp")
+    assert "private" not in lobby
+    seat = next(row for row in lobby["items"] if row["public_id"] == "1")
+    assert seat["has_password"] is True
+    rooms.join_room(db, "2", guest, now=now)
+    try:
+        rooms.join_room(db, "1", guest, now=now)
+        missing = True
+    except rooms.RaidRoomError as exc:
+        missing = False
+        assert exc.status_code == 403
+        assert "密码" in exc.message
+    assert not missing
+    still = rooms.get_room(db, "2", guest, now=now)
+    assert still["is_member"] is True
+    try:
+        rooms.join_room(db, "1", guest, now=now, password="wrong")
+        wrong = True
+    except rooms.RaidRoomError as extra_exc:
+        wrong = False
+        assert extra_exc.status_code == 403
+    assert not wrong
+    still_two = rooms.get_room(db, "2", guest, now=now)
+    assert still_two["is_member"] is True
+    joined, added, vacated = rooms.join_room(
+        db, "1", guest, now=now, password="secret"
+    )
+    assert added is True
+    assert joined["is_member"] is True
+    assert vacated
+    again, added_again, _vacated = rooms.join_room(db, "1", host, now=now)
+    assert added_again is False
+    assert again["is_member"] is True
+    try:
+        rooms.set_room_password(db, "1", guest, "nope", now=now)
+        guest_ok = True
+    except rooms.RaidRoomError as guest_exc:
+        guest_ok = False
+        assert guest_exc.status_code == 403
+    assert not guest_ok
+    rooms.set_room_password(db, "1", host, "", now=now)
+    cleared = rooms.get_room(db, "1", host, now=now)
+    assert cleared["has_password"] is False
+    rooms.set_room_password(db, "1", host, "again", now=now)
+    rooms.leave_room(db, "1", host, now=now)
+    rooms.leave_room(db, "1", guest, now=now)
+    empty = rooms.list_live_rooms(db, viewer=other, now=now, game_mode="pvp")
+    empty_seat = next(row for row in empty["items"] if row["public_id"] == "1")
+    assert empty_seat["has_password"] is False
+    snap, added_empty, _vacated2 = rooms.join_room(db, "1", other, now=now)
+    assert added_empty is True
+    assert snap["is_host"] is True
+    assert snap["has_password"] is False
+
+
+def test_reset_clears_room_password() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    rooms.join_room(db, "1", host, now=now)
+    rooms.set_room_password(db, "1", host, "keep", now=now)
+    rooms.reset_room(db, "1", host, now=now)
+    lobby = rooms.list_live_rooms(db, viewer=host, now=now, game_mode="pvp")
+    seat = next(row for row in lobby["items"] if row["public_id"] == "1")
+    assert seat["has_password"] is False
+    snap, added, _vacated = rooms.join_room(db, "1", host, now=now)
+    assert added is True
+    assert snap["has_password"] is False
+
+
+def test_join_empty_slot_keeps_fixed_mode() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    snap, joined, _vacated = rooms.join_room(
+        db, "2", host, now=now, game_mode="pve"
+    )
+    assert joined is True
+    assert snap["game_mode"] == "pvp"
+    try:
+        rooms.set_room_game_mode(db, "2", host, "pve", now=now)
+        changed = True
+    except rooms.RaidRoomError as extra_exc:
+        changed = False
+        assert extra_exc.status_code == 403
+    assert not changed
+    pve, pve_joined, _vacated2 = rooms.join_room(
+        db, "pve-2", host, now=now, game_mode="pvp"
+    )
+    assert pve_joined is True
+    assert pve["game_mode"] == "pve"
+    assert pve["title"] == "2号房"
+
+
+def test_lobby_lists_only_current_mode_slots() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    rooms.join_room(db, "1", host, now=now)
+    pvp = rooms.list_live_rooms(db, viewer=host, now=now, game_mode="pvp")
+    assert [row["public_id"] for row in pvp["items"]] == ["1", "2", "3", "4", "5"]
+    assert pvp["items"][0]["is_member"] is True
+    with game_mode_scope("pve"):
+        pve = rooms.list_live_rooms(db, viewer=host, now=now)
+    assert [row["public_id"] for row in pve["items"]] == [
+        "pve-1",
+        "pve-2",
+        "pve-3",
+        "pve-4",
+        "pve-5",
+    ]
+    assert all(row["game_mode"] == "pve" for row in pve["items"])
+    assert all(row["is_member"] is False for row in pve["items"])
+    assert all(row["title"] == f"{i}号房" for i, row in enumerate(pve["items"], start=1))
+
+
+def test_room_claims_allow_multiple_members() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    rooms.claim_task(db, "1", host, "t1", now=now)
+    snap, added = rooms.claim_task(db, "1", guest, "t1", now=now)
+    assert added is True
+    owners = [
+        row["user_id"]
+        for row in snap["claims"]
+        if row["task_id"] == "t1"
+    ]
+    assert set(owners) == {host.id, guest.id}
+
+
+def test_stale_member_pruned_when_offline() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    almost = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS - 1)
+    still = rooms.get_room(
+        db, "1", host, now=almost, online_user_ids={host.id}
+    )
+    assert guest.id in [row["user_id"] for row in still["occupants"]]
+    later = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS + 60)
+    snap = rooms.get_room(
+        db, "1", host, now=later, online_user_ids={host.id}
+    )
+    assert snap["member_count"] == 1
+    assert [row["user_id"] for row in snap["occupants"]] == [host.id]
+    rooms.join_room(db, "1", guest, now=later)
+    rooms.touch_member(db, "1", guest, now=later)
+    kept = rooms.get_room(
+        db,
+        "1",
+        host,
+        now=later + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS + 60),
+        online_user_ids={guest.id},
+    )
+    assert guest.id in [row["user_id"] for row in kept["occupants"]]
+
+
+def test_ws_online_keeps_member_even_if_last_seen_is_old() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    later = now + timedelta(hours=5)
+    snap = rooms.get_room(
+        db, "1", host, now=later, online_user_ids={host.id, guest.id}
+    )
+    assert {row["user_id"] for row in snap["occupants"]} == {host.id, guest.id}
+
+
+def test_get_room_is_not_a_heartbeat() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    mid = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS - 60)
+    mid_snap = rooms.get_room(db, "1", guest, now=mid, online_user_ids=set())
+    assert mid_snap["is_member"] is True
+    later = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS + 60)
+    kicked = rooms.get_room(
+        db, "1", guest, now=later, online_user_ids={host.id}
+    )
+    assert kicked["is_member"] is False
+    host_snap = rooms.get_room(
+        db, "1", host, now=later, online_user_ids={host.id}
+    )
+    assert host_snap["is_member"] is True
+    assert guest.id not in [row["user_id"] for row in host_snap["occupants"]]
+
+
+def test_active_started_ids_drops_done() -> None:
+    assert rooms.active_started_ids(["a", "b", "c"], ["b", "d"]) == ["a", "c"]
+    assert rooms.active_started_ids(["a", "a"], []) == ["a"]
+
+
+def test_build_raid_room_map_overlap_ranks_coverage() -> None:
+    catalogs = {
+        "customs": {"t1": "A", "t2": "B", "t3": "C"},
+        "woods": {"t1": "A", "t9": "Z"},
+    }
+    occupants = [
+        {"user_id": 1, "uploaded": True, "started_ids": ["t1", "t2"]},
+        {"user_id": 2, "uploaded": True, "started_ids": ["t1", "t9"]},
+        {"user_id": 3, "uploaded": False, "started_ids": ["t1"]},
+    ]
+    rows = rooms.build_raid_room_map_overlap(
+        occupants, catalogs, ["customs", "woods"]
+    )
+    by_slug = {row["map_slug"]: row for row in rows}
+    customs = by_slug["customs"]
+    woods = by_slug["woods"]
+    assert customs["with_tasks_count"] == 2
+    assert woods["with_tasks_count"] == 2
+    assert [cell["count"] for cell in customs["cells"]] == [2, 1, 0]
+    assert by_slug["customs"]["cells"][2]["uploaded"] is False
+    assert "overlap_count" not in customs
+    assert "all_have" not in customs
+    assert rows[0]["map_slug"] == "customs"
+    shared = [t for t in customs["tasks"] if t["id"] == "t1"][0]
+    assert shared["user_ids"] == [1, 2]
+
+
+def test_set_member_task_progress_marks_uploaded() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    rooms.join_room(db, "1", host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    empty = rooms.get_room(db, "1", host, now=now)
+    assert all(not row["uploaded"] for row in empty["task_progress"])
+    snap = rooms.set_member_task_progress(
+        db, "1", host, ["t1", "t2"], ["t2"], now=now
+    )
+    mine = next(row for row in snap["task_progress"] if row["user_id"] == host.id)
+    other = next(row for row in snap["task_progress"] if row["user_id"] == guest.id)
+    assert mine["uploaded"] is True
+    assert mine["started_count"] == 1
+    assert other["uploaded"] is False
+    guest_snap = rooms.set_member_task_progress(
+        db, "1", guest, ["t1"], [], now=now
+    )
+    assert isinstance(guest_snap["map_overlap"], list)
+
+
+def test_seed_claims_from_progress_host_only() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    rooms.set_member_task_progress(db, "1", host, ["t-host"], [], now=now)
+    rooms.set_member_task_progress(db, "1", guest, ["t-guest"], [], now=now)
+    try:
+        rooms.seed_claims_from_progress(db, "1", guest, now=now)
+        ok = True
+    except rooms.RaidRoomError as exc:
+        ok = False
+        assert exc.status_code == 403
+    assert not ok
+    snap, added = rooms.seed_claims_from_progress(db, "1", host, now=now)
+    # no tasks raw → catalog empty, nothing claimed
+    assert added == 0
+    assert snap["claims"] == []
+
+
+def test_seed_claims_from_progress_uses_catalog(monkeypatch) -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    rooms.set_member_task_progress(db, "1", host, ["t-host", "skip"], [], now=now)
+    rooms.set_member_task_progress(db, "1", guest, ["t-guest"], [], now=now)
+
+    def _index(_db):
+        return {"customs": {"t-host": "H", "t-guest": "G"}}
+
+    monkeypatch.setattr(
+        "app.services.tarkov.tasks.raid_prep_map_task_index",
+        _index,
+    )
+    snap, added = rooms.seed_claims_from_progress(db, "1", host, now=now)
+    assert added == 2
+    ids = {(row["task_id"], row["user_id"]) for row in snap["claims"]}
+    assert ("t-host", host.id) in ids
+    assert ("t-guest", guest.id) in ids
+    assert ("skip", host.id) not in ids

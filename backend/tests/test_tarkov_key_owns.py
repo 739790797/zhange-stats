@@ -73,3 +73,5 @@ def test_room_snapshot_lists_seated_owns() -> None:
         (row["item_id"], row["display_name"]) for row in snap["key_owns"]
     }
     assert names == {("key-a", "甲"), ("key-a", "乙"), ("key-b", "乙")}
+    assert rooms.occupant_public_ids(db, host.id) == ["1"]
+    assert rooms.occupant_public_ids(db, outsider.id) == []

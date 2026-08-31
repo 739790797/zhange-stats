@@ -109,6 +109,19 @@ export function resolveTarkovMeTab(raw: string | null | undefined): TarkovMeTabI
 export function tarkovMeHref(tab: TarkovMeTabId = "tasks"): string {
   return `${TARKOV_ME_PATH}?tab=${encodeURIComponent(tab)}`;
 }
+
+export function tarkovKeyPackHref(opts?: {
+  q?: string;
+  map?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set("tab", "keys");
+  const map = (opts?.map || "").trim();
+  const q = (opts?.q || "").trim();
+  if (map) params.set("map", map);
+  if (q) params.set("q", q);
+  return `${TARKOV_ME_PATH}?${params.toString()}`;
+}
 const PROGRESSION_HREF = "/guides/tarkov/progression";
 export const TARKOV_TASKS_PATH = "/guides/tarkov/tasks";
 export const TARKOV_RAID_PREP_PATH = "/guides/tarkov/raid-prep";
@@ -231,6 +244,39 @@ export const TARKOV_MAPS: TarkovMapCard[] = MAP_DEFS.map((def) => {
     keywords: [def.english, ...(def.keywords || [])],
   };
 });
+
+export type TarkovMapMark = {
+  id: string;
+  label: string;
+  icon: string;
+};
+
+/** 用中文/英文名找回首页同款地图图标；变体图（夜间工厂、暗室、21+）复用主图。 */
+export function tarkovMapMarkByName(name: string): TarkovMapMark | null {
+  const text = (name || "").trim();
+  if (!text) return null;
+  const lowered = text.toLowerCase();
+  const exact = TARKOV_MAPS.find(
+    (row) => row.label === text || row.english.toLowerCase() === lowered,
+  );
+  if (exact) return { id: exact.id, label: text, icon: exact.icon };
+  if (text === "夜间工厂" || lowered.includes("factory (night)")) {
+    return {
+      id: "night-factory",
+      label: text,
+      icon: TARKOV_MAP_ICON_PATHS.factory,
+    };
+  }
+  const prefixed = [...TARKOV_MAPS]
+    .sort((a, b) => b.label.length - a.label.length)
+    .find(
+      (row) =>
+        text.startsWith(row.label) ||
+        lowered.startsWith(row.english.toLowerCase()),
+    );
+  if (prefixed) return { id: prefixed.id, label: text, icon: prefixed.icon };
+  return { id: "", label: text, icon: "" };
+}
 
 export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
@@ -536,6 +582,9 @@ export const TARKOV_ME_NAV: TarkovHomeLink = {
     "钥匙管理",
     "钥匙分类",
     "钥匙分类速查",
+    "钥匙用途",
+    "开哪扇门",
+    "任务钥匙",
     "打包",
     "门锁",
     "日志路径",

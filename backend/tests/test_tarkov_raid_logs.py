@@ -88,3 +88,32 @@ def test_upsert_inserts_then_updates_same_raid() -> None:
     assert row.ended_at == "2026-08-30 20:40:00.000"
     assert row.reconnected is True
     assert row.raid_id == "PQXKR6"
+
+
+def test_list_raids_filters_map_and_orders() -> None:
+    db = _session()
+    user = _user(db)
+    logs.upsert_raids(
+        db,
+        user,
+        [
+            {
+                "folder": "a",
+                "raid_id": "AAAAAA",
+                "map_id": "woods",
+                "started_at": "2026-08-30 10:00:00.000",
+                "ended_at": "2026-08-30 10:20:00.000",
+            },
+            {
+                "folder": "b",
+                "raid_id": "BBBBBB",
+                "map_id": "customs",
+                "started_at": "2026-08-31 10:00:00.000",
+                "aborted": True,
+            },
+        ],
+    )
+    woods = logs.list_raids(db, user, map_id="woods")
+    assert [row["raid_id"] for row in woods["items"]] == ["AAAAAA"]
+    recent = logs.list_raids(db, user, limit=1)
+    assert recent["items"][0]["raid_id"] == "BBBBBB"

@@ -1,5 +1,5 @@
 import { Modal, Spin } from "antd";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
 import {
   formatRaidPrepOcrProgress,
@@ -8,7 +8,11 @@ import {
   newRaidPrepOcrIds,
   type RaidPrepOcrMatch,
 } from "@/lib/tarkovRaidPrepOcr";
-import { recognizeRaidPrepTaskScreenshot, terminateRaidPrepOcrWorker } from "@/lib/tarkovRaidPrepOcrEngine";
+import {
+  preloadRaidPrepOcrWorker,
+  recognizeRaidPrepTaskScreenshot,
+  terminateRaidPrepOcrWorker,
+} from "@/lib/tarkovRaidPrepOcrEngine";
 import { RAID_PREP_MAX_SELECTED, tarkovReadableName } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import styles from "./TarkovRaidPrepPanel.module.css";
@@ -43,7 +47,6 @@ export function TarkovRaidPrepOcrModal({
   onConfirm,
   maxSelected = RAID_PREP_MAX_SELECTED,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
@@ -60,14 +63,15 @@ export function TarkovRaidPrepOcrModal({
     setMatches([]);
     setChecked({});
     setSubmitting(false);
-    if (inputRef.current) inputRef.current.value = "";
   }, []);
 
   useEffect(() => {
     if (!open) {
       reset();
       void terminateRaidPrepOcrWorker();
+      return;
     }
+    preloadRaidPrepOcrWorker();
   }, [open, reset]);
 
   const runRecognize = useCallback(
@@ -114,31 +118,25 @@ export function TarkovRaidPrepOcrModal({
     [catalog],
   );
 
-  const onPickFile = (file: File | null | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("请上传图片文件");
-      return;
-    }
-    void runRecognize(file);
-  };
-
   useEffect(() => {
     if (!open) return undefined;
     const onPaste = (event: ClipboardEvent) => {
       if (phase === "working" || submitting) return;
       const items = event.clipboardData?.items;
-      if (!items) return;
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) {
-            event.preventDefault();
-            void runRecognize(file);
+      if (items) {
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (file) {
+              event.preventDefault();
+              void runRecognize(file);
+              return;
+            }
           }
-          break;
         }
       }
+      event.preventDefault();
+      setError("请 Ctrl+V 粘贴截图");
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
@@ -217,7 +215,7 @@ export function TarkovRaidPrepOcrModal({
 
   return (
     <Modal
-      title="截图识别任务"
+      title="截图识别"
       open={open}
       onCancel={onClose}
       footer={footer}
@@ -227,29 +225,7 @@ export function TarkovRaidPrepOcrModal({
     >
       {phase === "idle" ? (
         <div className={styles.ocrIdle}>
-          <p className={styles.ocrLead}>
-            上传或粘贴游戏内「任务」页全屏截图，识别后勾选并合并到已选任务。
-          </p>
-          <p className={styles.ocrMeta}>
-            建议 1920×1080 / 2560×1440 全屏截图；16:9 压缩图也可用。仅识别当前可见列表。
-          </p>
-          <div className={styles.ocrActions}>
-            <button
-              type="button"
-              className={`${styles.dockChip} ${styles.dockChipOn}`}
-              onClick={() => inputRef.current?.click()}
-            >
-              选择图片
-            </button>
-            <span className={styles.ocrPasteHint}>或 Ctrl+V 粘贴截图</span>
-          </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            className={styles.ocrFileInput}
-            onChange={(event) => onPickFile(event.target.files?.[0])}
-          />
+          <p className={styles.ocrPasteHint}>Ctrl+V粘贴截图进行识别</p>
           {error ? <p className={styles.ocrError}>{error}</p> : null}
         </div>
       ) : null}
@@ -258,7 +234,7 @@ export function TarkovRaidPrepOcrModal({
         <div className={styles.ocrWorking}>
           <Spin />
           <p className={styles.ocrMeta}>{progress}</p>
-          <p className={styles.ocrMeta}>模型从本站加载，无需访问外网</p>
+          <p className={styles.ocrMeta}>中英模型从本站加载，无需访问外网</p>
         </div>
       ) : null}
 

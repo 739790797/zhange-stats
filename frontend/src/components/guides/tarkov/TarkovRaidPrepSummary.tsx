@@ -7,6 +7,7 @@ import {
   itemTypeHrefFromTypes,
 } from "@/lib/tarkovItemTypes";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
+import { tarkovKeyPackHref } from "@/lib/tarkovHomeNav";
 import {
   buildRaidPrepSummary,
   collectRaidPrepCompletedUsers,
@@ -20,7 +21,11 @@ import {
   RAID_PREP_SUMMARY_BRING_GROUP_LABEL,
   RAID_PREP_SUMMARY_BRING_TYPES,
   RAID_PREP_SUMMARY_SHOOT_TYPE,
+  mergeRaidPrepNeededItems,
+  raidPrepKeyIsMissing,
   raidPrepSkippedIds,
+  raidPrepTaskKeysUnavailable,
+  RAID_PREP_UNAVAILABLE_KEY_HINT,
   raidPrepSummaryHasBringTypes,
   raidPrepSummaryHasShootTypes,
   skipMapToObjectiveDones,
@@ -36,6 +41,7 @@ import {
 import {
   formatKeyChipHint,
   formatKeyOwnHint,
+  formatKeyOwnToggleLabel,
   groupKeyBringsByItem,
   type RaidRoomKeyBringLike,
 } from "@/lib/tarkovRaidRooms";
@@ -119,6 +125,13 @@ type KeyBringControls = {
   onToggle: (itemId: string) => void;
 };
 
+type KeyOwnControls = {
+  byItem: ReadonlyMap<string, KeyNameGroup>;
+  currentUserId?: number | null;
+  canToggle: boolean;
+  onToggle: (itemId: string) => void;
+};
+
 function NeededItemChip({
   item,
   onPeek,
@@ -130,10 +143,10 @@ function NeededItemChip({
   onPeek: (item: RaidPrepNeededItem) => void;
   nativeTitle?: boolean;
   keyBring?: KeyBringControls;
-  keyOwn?: ReadonlyMap<string, KeyNameGroup>;
+  keyOwn?: KeyOwnControls;
 }) {
   if (item.anyOf?.length) {
-    return <AnyOfChip item={item} onPeek={onPeek} />;
+    return <AnyOfChip item={item} onPeek={onPeek} keyBring={keyBring} keyOwn={keyOwn} />;
   }
   const thumb = inventoryThumbUrl(item.icon_link, item.id);
   const count = item.kind === "key" ? "" : item.count > 1 ? `×${item.count}` : "";
@@ -148,13 +161,19 @@ function NeededItemChip({
   const bringEnabled = Boolean(keyBring) && isKey;
   const group = bringEnabled ? keyBring?.byItem.get(item.id) : undefined;
   const names = group?.names || [];
-  const ownNames = isKey ? keyOwn?.get(item.id)?.names || [] : [];
+  const ownNames = isKey ? keyOwn?.byItem.get(item.id)?.names || [] : [];
   const mine = Boolean(
     bringEnabled &&
       keyBring?.currentUserId != null &&
       group?.userIds.includes(keyBring.currentUserId),
   );
+  const iOwn = Boolean(
+    isKey &&
+      keyOwn?.currentUserId != null &&
+      keyOwn.byItem.get(item.id)?.userIds.includes(keyOwn.currentUserId),
+  );
   const canToggle = Boolean(bringEnabled && keyBring?.canToggle);
+  const canToggleOwn = Boolean(isKey && keyOwn?.canToggle);
   const hint = bringEnabled
     ? formatKeyChipHint(ownNames, names, { canToggle })
     : ownNames.length
@@ -162,6 +181,8 @@ function NeededItemChip({
       : nativeTitle
         ? label
         : undefined;
+  const missing = isKey && raidPrepKeyIsMissing(ownNames, names);
+  const ownLabel = formatKeyOwnToggleLabel(iOwn);
   const chip = (
     <button
       type="button"
@@ -170,6 +191,8 @@ function NeededItemChip({
         ownNames.length ? styles.needChipOwned : "",
         names.length ? styles.needChipBrought : "",
         mine ? styles.needChipMine : "",
+        missing ? styles.needChipMissing : "",
+        canToggleOwn ? styles.needChipSplit : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -213,11 +236,46 @@ function NeededItemChip({
       </span>
     </button>
   );
-  if (!bringEnabled && !ownNames.length) return chip;
+  const ownBtn = canToggleOwn ? (
+    <button
+      type="button"
+      className={`${styles.needOwnToggle} ${iOwn ? styles.needOwnToggleOn : ""}`}
+      aria-pressed={iOwn}
+      aria-label={
+        iOwn ? "从钥匙管理去掉这把钥匙" : "记到钥匙管理：我有这把钥匙"
+      }
+      title={iOwn ? "从钥匙管理去掉" : "记到钥匙管理"}
+      onClick={(event) => {
+        event.stopPropagation();
+        keyOwn?.onToggle(item.id);
+      }}
+    >
+      {ownLabel}
+    </button>
+  ) : null;
+  const wrapClass = ownBtn ? styles.needChipCluster : styles.needChipWrap;
+  if (!bringEnabled && !ownNames.length && !missing && !ownBtn) return chip;
+  if (missing) {
+    return (
+      <span className={wrapClass}>
+        <Tooltip
+          title="没人拥有这把钥匙"
+          overlayInnerStyle={{ whiteSpace: "pre-line" }}
+          mouseEnterDelay={0.12}
+          placement="topLeft"
+          zIndex={1200}
+        >
+          {chip}
+        </Tooltip>
+        {ownBtn}
+      </span>
+    );
+  }
   return (
-    <span className={styles.needChipWrap}>
+    <span className={wrapClass}>
       <Tooltip
         title={hint}
+        overlayInnerStyle={{ whiteSpace: "pre-line" }}
         mouseEnterDelay={0.12}
         mouseLeaveDelay={0.08}
         placement="topLeft"
@@ -225,6 +283,7 @@ function NeededItemChip({
       >
         {chip}
       </Tooltip>
+      {ownBtn}
     </span>
   );
 }
@@ -232,9 +291,13 @@ function NeededItemChip({
 function AnyOfChip({
   item,
   onPeek,
+  keyBring,
+  keyOwn,
 }: {
   item: RaidPrepNeededItem;
   onPeek: (item: RaidPrepNeededItem) => void;
+  keyBring?: KeyBringControls;
+  keyOwn?: KeyOwnControls;
 }) {
   const options = item.anyOf || [];
   const qty = item.count > 1 ? ` ×${item.count}` : "";
@@ -285,6 +348,8 @@ function AnyOfChip({
               key={neededItemKey(opt)}
               item={opt}
               onPeek={onPeek}
+              keyBring={keyBring}
+              keyOwn={keyOwn}
             />
           ))}
         </div>
@@ -450,7 +515,7 @@ function ItemOrEmptyCell({
   className?: string;
   empty?: string;
   keyBring?: KeyBringControls;
-  keyOwn?: ReadonlyMap<string, KeyNameGroup>;
+  keyOwn?: KeyOwnControls;
 }) {
   if (item) {
     return (
@@ -494,6 +559,7 @@ function SummaryList({
   currentUserId,
   onToggleObjective,
   onTitle,
+  mapId,
 }: {
   rows: RaidPrepTaskSummary[];
   typeColumns: string[];
@@ -501,12 +567,13 @@ function SummaryList({
   completedByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   onPeek: (item: RaidPrepNeededItem) => void;
   keyBring?: KeyBringControls;
-  keyOwn?: ReadonlyMap<string, KeyNameGroup>;
+  keyOwn?: KeyOwnControls;
   skippedByTask?: RaidPrepSkipMap;
   objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
   currentUserId?: number | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   onTitle?: (taskId: string) => void;
+  mapId?: string;
 }) {
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
@@ -518,8 +585,48 @@ function SummaryList({
   const showBringTypes = raidPrepSummaryHasBringTypes(rows, typeColumns);
   const showShootTypes = raidPrepSummaryHasShootTypes(rows);
   const bringSpan = 1 + (showBringTypes ? 1 : 0);
+  const missingKeys = mergeRaidPrepNeededItems(
+    rows.flatMap((row) => row.keys || []),
+  ).filter(
+    (item) =>
+      raidPrepKeyIsMissing(
+        keyOwn?.byItem.get(item.id)?.names,
+        keyBring?.byItem.get(item.id)?.names,
+      ),
+  );
+  const availableKeyIds = new Set<string>();
+  if (keyOwn) {
+    for (const [id, group] of keyOwn.byItem) {
+      if (group.names.length) availableKeyIds.add(id);
+    }
+  }
+  if (keyBring) {
+    for (const [id, group] of keyBring.byItem) {
+      if (group.names.length) availableKeyIds.add(id);
+    }
+  }
   return (
     <div className={styles.summaryScroll}>
+      {missingKeys.length ? (
+        <p className={styles.summaryMissing}>
+          缺钥匙{" "}
+          {missingKeys.map((item, index) => {
+            const name =
+              tarkovReadableName(item.name, item.id) || "未知钥匙";
+            return (
+              <span key={item.id}>
+                {index ? "、" : ""}
+                <Link
+                  className={styles.wiki}
+                  to={tarkovKeyPackHref({ q: name, map: mapId })}
+                >
+                  {name}
+                </Link>
+              </span>
+            );
+          })}
+        </p>
+      ) : null}
       <table className={styles.summaryTable}>
         <thead>
           <tr>
@@ -578,6 +685,10 @@ function SummaryList({
               showShootTypes,
             );
             const noKeys = !(row.keys || []).length;
+            const unavailable = raidPrepTaskKeysUnavailable(
+              row.keys,
+              availableKeyIds,
+            );
             return grid.lines.map((line, index) => {
               const doneByOthers = groupObjectiveDonesForTask(
                 row.taskId,
@@ -587,11 +698,12 @@ function SummaryList({
               return (
               <tr
                 key={`${row.taskId}-${index}`}
-                className={
-                  index < grid.lines.length - 1
-                    ? styles.summaryTaskCont
-                    : undefined
-                }
+                className={[
+                  index < grid.lines.length - 1 ? styles.summaryTaskCont : "",
+                  unavailable ? styles.summaryTaskUnavailable : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined}
               >
                 <td>
                   {index === 0 ? (
@@ -647,6 +759,23 @@ function SummaryList({
                             </span>
                           )}
                         </TarkovRaidPrepObjectiveHint>
+                        {unavailable ? (
+                          <Tooltip
+                            title={RAID_PREP_UNAVAILABLE_KEY_HINT}
+                            mouseEnterDelay={0.12}
+                            placement="top"
+                            zIndex={1200}
+                          >
+                            <button
+                              type="button"
+                              className={styles.summaryKeyWhy}
+                              aria-label={RAID_PREP_UNAVAILABLE_KEY_HINT}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              ?
+                            </button>
+                          </Tooltip>
+                        ) : null}
                       </span>
                     </div>
                   ) : (
@@ -706,6 +835,8 @@ export function TarkovRaidPrepSummary({
   currentUserId,
   canToggleKeyBring = false,
   onToggleKeyBring,
+  canToggleKeyOwn = false,
+  onToggleKeyOwn,
   skippedByTask,
   objectiveDones,
   currentUser,
@@ -720,6 +851,8 @@ export function TarkovRaidPrepSummary({
   currentUserId?: number | null;
   canToggleKeyBring?: boolean;
   onToggleKeyBring?: (itemId: string) => void;
+  canToggleKeyOwn?: boolean;
+  onToggleKeyOwn?: (itemId: string) => void;
   skippedByTask?: RaidPrepSkipMap;
   objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
   currentUser?: { userId: number; name: string } | null;
@@ -729,21 +862,24 @@ export function TarkovRaidPrepSummary({
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
   const rows = useMemo(() => {
-    const built = buildRaidPrepSummary(tasks, mapId);
+    if (!open) return [];
+    const built = buildRaidPrepSummary(tasks, mapId, skippedByTask);
     return sortRaidPrepSummaryByParticipants(built, participantsByTask);
-  }, [tasks, mapId, participantsByTask]);
+  }, [open, tasks, mapId, participantsByTask, skippedByTask]);
   const completedByTask = useMemo(() => {
+    if (!open) return new Map();
     const dones =
       objectiveDones ??
       (currentUser
         ? skipMapToObjectiveDones(skippedByTask, currentUser)
         : []);
     return collectRaidPrepCompletedUsers(tasks, mapId, dones);
-  }, [tasks, mapId, objectiveDones, skippedByTask, currentUser]);
+  }, [open, tasks, mapId, objectiveDones, skippedByTask, currentUser]);
   const typeColumns = useMemo(
-    () => collectRaidPrepSummaryTypeColumns(rows),
-    [rows],
+    () => (open ? collectRaidPrepSummaryTypeColumns(rows) : []),
+    [open, rows],
   );
+  const viewerId = currentUserId ?? currentUser?.userId ?? null;
   const keyBring = useMemo<KeyBringControls | undefined>(() => {
     if (!onToggleKeyBring && !keyBrings?.length) return undefined;
     const byItem = new Map<string, { userIds: number[]; names: string[] }>();
@@ -755,13 +891,13 @@ export function TarkovRaidPrepSummary({
     }
     return {
       byItem,
-      currentUserId,
+      currentUserId: viewerId,
       canToggle: Boolean(canToggleKeyBring && onToggleKeyBring),
       onToggle: onToggleKeyBring || (() => undefined),
     };
-  }, [keyBrings, currentUserId, canToggleKeyBring, onToggleKeyBring]);
-  const keyOwn = useMemo(() => {
-    if (!keyOwns?.length) return undefined;
+  }, [keyBrings, viewerId, canToggleKeyBring, onToggleKeyBring]);
+  const keyOwn = useMemo<KeyOwnControls | undefined>(() => {
+    if (!onToggleKeyOwn && !keyOwns?.length) return undefined;
     const byItem = new Map<string, KeyNameGroup>();
     for (const group of groupKeyBringsByItem(keyOwns)) {
       byItem.set(group.itemId, {
@@ -769,22 +905,13 @@ export function TarkovRaidPrepSummary({
         names: group.names,
       });
     }
-    return byItem;
-  }, [keyOwns]);
-  const itemCount = rows.reduce(
-    (sum, row) =>
-      sum +
-      Object.values(row.itemsByType || {}).reduce(
-        (inner, items) => inner + items.length,
-        0,
-      ),
-    0,
-  );
-  const keyCount = rows.reduce((sum, row) => sum + (row.keys || []).length, 0);
-  const meta = rows.length
-    ? `已选 ${rows.length} · 物品 ${itemCount} · 钥匙 ${keyCount}`
-    : "勾选任务后查看所需物品";
-
+    return {
+      byItem,
+      currentUserId: viewerId,
+      canToggle: Boolean(canToggleKeyOwn && onToggleKeyOwn),
+      onToggle: onToggleKeyOwn || (() => undefined),
+    };
+  }, [keyOwns, viewerId, canToggleKeyOwn, onToggleKeyOwn]);
   return (
     <>
       <button
@@ -794,7 +921,9 @@ export function TarkovRaidPrepSummary({
       >
         <span className={styles.summaryBtnText}>
           <span className={styles.summaryTitle}>准备内容总结</span>
-          <span className={styles.summaryCount}>{meta}</span>
+          {tasks.length ? null : (
+            <span className={styles.summaryCount}>勾选任务后查看所需物品</span>
+          )}
         </span>
         <span className={styles.summaryAction}>查看</span>
       </button>
@@ -837,6 +966,7 @@ export function TarkovRaidPrepSummary({
                   }
                 : undefined
             }
+            mapId={mapId}
           />
         </SummaryRenderError>
       </Modal>

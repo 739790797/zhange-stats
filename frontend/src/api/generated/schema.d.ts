@@ -2569,6 +2569,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms/{public_id}/game-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Tarkov Raid Room Game Mode */
+        post: operations["set_tarkov_raid_room_game_mode_api_guides_tarkov_raid_rooms__public_id__game_mode_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Tarkov Raid Room Password */
+        post: operations["set_tarkov_raid_room_password_api_guides_tarkov_raid_rooms__public_id__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-rooms/{public_id}/leave": {
         parameters: {
             query?: never;
@@ -2620,6 +2654,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms/{public_id}/task-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Tarkov Raid Room Task Progress */
+        put: operations["put_tarkov_raid_room_task_progress_api_guides_tarkov_raid_rooms__public_id__task_progress_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-rooms/{public_id}/claims/{task_id}": {
         parameters: {
             query?: never;
@@ -2633,6 +2684,23 @@ export interface paths {
         post?: never;
         /** Unclaim Tarkov Raid Room Task */
         delete: operations["unclaim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/claims/from-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seed Tarkov Raid Room Claims From Progress */
+        post: operations["seed_tarkov_raid_room_claims_from_progress_api_guides_tarkov_raid_rooms__public_id__claims_from_progress_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2668,6 +2736,23 @@ export interface paths {
         post?: never;
         /** Unbring Tarkov Raid Room Key */
         delete: operations["unbring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/objective-dones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark Tarkov Raid Room Objectives Done */
+        put: operations["mark_tarkov_raid_room_objectives_done_api_guides_tarkov_raid_rooms__public_id__objective_dones_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3008,10 +3093,31 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Prep
-         * @description 战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。
+         * @description 战局准备：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。
          */
         get: operations["guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-prep/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Raid Prep State Get
+         * @description 单人战局准备：当前模式/地图的勾选、目标完成和钥匙声明。
+         */
+        get: operations["guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get"];
+        /** Guides Tarkov Raid Prep State Put */
+        put: operations["guides_tarkov_raid_prep_state_put_api_guides_tarkov_raid_prep_state_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3328,7 +3434,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Key Packs
-         * @description 钥匙分类速查：门锁 / 入场钥按地图分包。
+         * @description 钥匙分类速查：门锁 / 入场钥按地图分包；附带用途（任务需要 / 门锁类型）。
          */
         get: operations["guides_tarkov_key_packs_api_guides_tarkov_key_packs_get"];
         put?: never;
@@ -3430,7 +3536,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Guides Tarkov Raid Logs List
+         * @description 最近导入的战局摘要，可供战局准备战后结算。
+         */
+        get: operations["guides_tarkov_raid_logs_list_api_guides_tarkov_raid_logs_get"];
         put?: never;
         /**
          * Guides Tarkov Raid Logs Import
@@ -10042,6 +10152,20 @@ export interface components {
             community: boolean;
             /** Uses */
             uses?: number | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Lock Types */
+            lock_types?: string[];
+            /**
+             * Needs Power
+             * @default false
+             */
+            needs_power: boolean;
+            /** Used In Tasks */
+            used_in_tasks?: components["schemas"]["TarkovKeyPackUsedInOut"][];
             sources?: components["schemas"]["TarkovKeyPackSourcesOut"];
         };
         /** TarkovKeyPackMapOut */
@@ -10077,6 +10201,18 @@ export interface components {
              * @default
              */
             name: string;
+        };
+        /** TarkovKeyPackUsedInOut */
+        TarkovKeyPackUsedInOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Notes */
+            notes?: string[];
         };
         /** TarkovKeyPacksOut */
         TarkovKeyPacksOut: {
@@ -10486,6 +10622,70 @@ export interface components {
              */
             aborted: boolean;
         };
+        /** TarkovRaidLogOut */
+        TarkovRaidLogOut: {
+            /**
+             * Folder
+             * @default
+             */
+            folder: string;
+            /**
+             * Raid Id
+             * @default
+             */
+            raid_id: string;
+            /**
+             * Location
+             * @default
+             */
+            location: string;
+            /**
+             * Map Id
+             * @default
+             */
+            map_id: string;
+            /**
+             * Map Label
+             * @default
+             */
+            map_label: string;
+            /**
+             * Raid Mode
+             * @default
+             */
+            raid_mode: string;
+            /**
+             * Session Mode
+             * @default
+             */
+            session_mode: string;
+            /**
+             * Started At
+             * @default
+             */
+            started_at: string;
+            /**
+             * Ended At
+             * @default
+             */
+            ended_at: string;
+            /**
+             * Reconnected
+             * @default false
+             */
+            reconnected: boolean;
+            /**
+             * Aborted
+             * @default false
+             */
+            aborted: boolean;
+            /** Id */
+            id?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
         /** TarkovRaidLogsImportOut */
         TarkovRaidLogsImportOut: {
             /**
@@ -10513,6 +10713,18 @@ export interface components {
         TarkovRaidLogsIn: {
             /** Raids */
             raids?: components["schemas"]["TarkovRaidLogIn"][];
+        };
+        /** TarkovRaidLogsOut */
+        TarkovRaidLogsOut: {
+            /** Items */
+            items?: components["schemas"]["TarkovRaidLogOut"][];
+        };
+        /** TarkovRaidPrepObjectiveDoneIn */
+        TarkovRaidPrepObjectiveDoneIn: {
+            /** Task Id */
+            task_id: string;
+            /** Objective Id */
+            objective_id: string;
         };
         /** TarkovRaidPrepOut */
         TarkovRaidPrepOut: {
@@ -10659,6 +10871,21 @@ export interface components {
              * @default
              */
             map_slug: string;
+            /**
+             * Game Mode
+             * @default pvp
+             */
+            game_mode: string;
+            /**
+             * Listed
+             * @default true
+             */
+            listed: boolean;
+            /**
+             * Has Password
+             * @default false
+             */
+            has_password: boolean;
             /** Host User Id */
             host_user_id?: number | null;
             /**
@@ -10707,6 +10934,22 @@ export interface components {
             objective_dones?: components["schemas"]["TarkovRaidRoomObjectiveDoneOut"][];
             /** Marks */
             marks?: components["schemas"]["TarkovRaidRoomMarkOut"][];
+            /** Task Progress */
+            task_progress?: components["schemas"]["TarkovRaidRoomMemberProgressOut"][];
+            /** Map Overlap */
+            map_overlap?: components["schemas"]["TarkovRaidRoomMapOverlapOut"][];
+        };
+        /** TarkovRaidRoomGameModeIn */
+        TarkovRaidRoomGameModeIn: {
+            /** Game Mode */
+            game_mode: string;
+        };
+        /** TarkovRaidRoomJoinIn */
+        TarkovRaidRoomJoinIn: {
+            /** Game Mode */
+            game_mode?: string | null;
+            /** Password */
+            password?: string | null;
         };
         /** TarkovRaidRoomKeyBringOut */
         TarkovRaidRoomKeyBringOut: {
@@ -10733,6 +10976,21 @@ export interface components {
              * @default
              */
             map_slug: string;
+            /**
+             * Game Mode
+             * @default pvp
+             */
+            game_mode: string;
+            /**
+             * Listed
+             * @default true
+             */
+            listed: boolean;
+            /**
+             * Has Password
+             * @default false
+             */
+            has_password: boolean;
             /** Host User Id */
             host_user_id?: number | null;
             /**
@@ -10769,6 +11027,30 @@ export interface components {
         TarkovRaidRoomMapIn: {
             /** Map */
             map: string;
+        };
+        /** TarkovRaidRoomMapOverlapOut */
+        TarkovRaidRoomMapOverlapOut: {
+            /** Map Slug */
+            map_slug: string;
+            /**
+             * With Tasks Count
+             * @default 0
+             */
+            with_tasks_count: number;
+            /**
+             * Synced Count
+             * @default 0
+             */
+            synced_count: number;
+            /**
+             * Occupant Count
+             * @default 0
+             */
+            occupant_count: number;
+            /** Cells */
+            cells?: components["schemas"]["TarkovRaidRoomOverlapCellOut"][];
+            /** Tasks */
+            tasks?: components["schemas"]["TarkovRaidRoomOverlapTaskOut"][];
         };
         /** TarkovRaidRoomMarkIn */
         TarkovRaidRoomMarkIn: {
@@ -10845,6 +11127,23 @@ export interface components {
             /** Joined At */
             joined_at?: string | null;
         };
+        /** TarkovRaidRoomMemberProgressOut */
+        TarkovRaidRoomMemberProgressOut: {
+            /** User Id */
+            user_id: number;
+            /**
+             * Uploaded
+             * @default false
+             */
+            uploaded: boolean;
+            /**
+             * Started Count
+             * @default 0
+             */
+            started_count: number;
+            /** Uploaded At */
+            uploaded_at?: string | null;
+        };
         /** TarkovRaidRoomObjectiveDoneOut */
         TarkovRaidRoomObjectiveDoneOut: {
             /** Task Id */
@@ -10857,6 +11156,11 @@ export interface components {
             display_name: string;
             /** Created At */
             created_at?: string | null;
+        };
+        /** TarkovRaidRoomObjectiveDonesIn */
+        TarkovRaidRoomObjectiveDonesIn: {
+            /** Items */
+            items?: components["schemas"]["TarkovRaidPrepObjectiveDoneIn"][];
         };
         /** TarkovRaidRoomOccupantOut */
         TarkovRaidRoomOccupantOut: {
@@ -10874,6 +11178,45 @@ export interface components {
              * @default false
              */
             online: boolean;
+        };
+        /** TarkovRaidRoomOverlapCellOut */
+        TarkovRaidRoomOverlapCellOut: {
+            /** User Id */
+            user_id: number;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Uploaded
+             * @default false
+             */
+            uploaded: boolean;
+        };
+        /** TarkovRaidRoomOverlapTaskOut */
+        TarkovRaidRoomOverlapTaskOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** User Ids */
+            user_ids?: number[];
+        };
+        /** TarkovRaidRoomPasswordIn */
+        TarkovRaidRoomPasswordIn: {
+            /** Password */
+            password?: string | null;
+        };
+        /** TarkovRaidRoomTaskProgressIn */
+        TarkovRaidRoomTaskProgressIn: {
+            /** Started Ids */
+            started_ids?: string[];
+            /** Done Ids */
+            done_ids?: string[];
         };
         /** TarkovSearchHitOut */
         TarkovSearchHitOut: {
@@ -11648,6 +11991,36 @@ export interface components {
              * @default ok
              */
             message: string;
+        };
+        /** TarkovUserRaidPrepStateIn */
+        TarkovUserRaidPrepStateIn: {
+            /** Selected */
+            selected?: string[];
+            /** Objective Dones */
+            objective_dones?: components["schemas"]["TarkovRaidPrepObjectiveDoneIn"][];
+            /** Key Brings */
+            key_brings?: string[];
+        };
+        /** TarkovUserRaidPrepStateOut */
+        TarkovUserRaidPrepStateOut: {
+            /**
+             * Map
+             * @default
+             */
+            map: string;
+            /**
+             * Game Mode
+             * @default pvp
+             */
+            game_mode: string;
+            /** Selected */
+            selected?: string[];
+            /** Objective Dones */
+            objective_dones?: components["schemas"]["TarkovRaidPrepObjectiveDoneIn"][];
+            /** Key Brings */
+            key_brings?: string[];
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** TaygedoAttendanceCalendarOut */
         TaygedoAttendanceCalendarOut: {
@@ -17069,7 +17442,10 @@ export interface operations {
     };
     list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17085,11 +17461,23 @@ export interface operations {
                     "application/json": components["schemas"]["TarkovRaidRoomLobbyOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     set_tarkov_raid_room_map_api_guides_tarkov_raid_rooms__public_id__map_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17124,7 +17512,10 @@ export interface operations {
     };
     get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17155,14 +17546,97 @@ export interface operations {
     };
     join_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__join_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomJoinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_tarkov_raid_room_game_mode_api_guides_tarkov_raid_rooms__public_id__game_mode_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomGameModeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_tarkov_raid_room_password_api_guides_tarkov_raid_rooms__public_id__password_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomPasswordIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -17186,7 +17660,10 @@ export interface operations {
     };
     leave_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__leave_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17217,7 +17694,10 @@ export interface operations {
     };
     reset_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__reset_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17248,7 +17728,10 @@ export interface operations {
     };
     remove_tarkov_raid_room_member_api_guides_tarkov_raid_rooms__public_id__members__user_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17278,9 +17761,50 @@ export interface operations {
             };
         };
     };
+    put_tarkov_raid_room_task_progress_api_guides_tarkov_raid_rooms__public_id__task_progress_put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomTaskProgressIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     claim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17312,7 +17836,10 @@ export interface operations {
     };
     unclaim_tarkov_raid_room_task_api_guides_tarkov_raid_rooms__public_id__claims__task_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17342,9 +17869,46 @@ export interface operations {
             };
         };
     };
+    seed_tarkov_raid_room_claims_from_progress_api_guides_tarkov_raid_rooms__public_id__claims_from_progress_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     claim_tarkov_raid_room_tasks_api_guides_tarkov_raid_rooms__public_id__claims_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17379,7 +17943,10 @@ export interface operations {
     };
     bring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17411,7 +17978,10 @@ export interface operations {
     };
     unbring_tarkov_raid_room_key_api_guides_tarkov_raid_rooms__public_id__key_brings__item_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17441,9 +18011,50 @@ export interface operations {
             };
         };
     };
+    mark_tarkov_raid_room_objectives_done_api_guides_tarkov_raid_rooms__public_id__objective_dones_put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomObjectiveDonesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17476,7 +18087,10 @@ export interface operations {
     };
     unmark_tarkov_raid_room_objective_done_api_guides_tarkov_raid_rooms__public_id__objective_dones__task_id___objective_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17509,7 +18123,10 @@ export interface operations {
     };
     add_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17544,7 +18161,10 @@ export interface operations {
     };
     undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17575,7 +18195,10 @@ export interface operations {
     };
     remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -17607,7 +18230,10 @@ export interface operations {
     };
     clear_tarkov_raid_room_marks_api_guides_tarkov_raid_rooms__public_id__marks_clear_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
             header?: never;
             path: {
                 public_id: string;
@@ -18061,6 +18687,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovRaidPrepOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get: {
+        parameters: {
+            query: {
+                map: string;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovUserRaidPrepStateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_raid_prep_state_put_api_guides_tarkov_raid_prep_state_put: {
+        parameters: {
+            query: {
+                map: string;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovUserRaidPrepStateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovUserRaidPrepStateOut"];
                 };
             };
             /** @description Validation Error */
@@ -18871,6 +19567,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_raid_logs_list_api_guides_tarkov_raid_logs_get: {
+        parameters: {
+            query?: {
+                map_id?: string | null;
+                limit?: number;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidLogsOut"];
                 };
             };
             /** @description Validation Error */

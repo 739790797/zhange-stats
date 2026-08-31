@@ -92,6 +92,8 @@ _parsed_lock = threading.Lock()
 _parsed_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
 # cache_key:canon_map → (map_name, rows)；与 _parsed_cache 同锁、同次 sync 清空
 _raid_prep_cache: dict[str, tuple[str, list[dict[str, Any]]]] = {}
+# cache_key → map_slug → {task_id: name}
+_raid_prep_index_cache: dict[str, dict[str, dict[str, str]]] = {}
 
 
 class TarkovTasksError(Exception):
@@ -1123,6 +1125,7 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
     with _parsed_lock:
         _parsed_cache = None
         _raid_prep_cache.clear()
+        _raid_prep_index_cache.clear()
     return {
         "task_count": len(rows),
         "source": bundle.source,
@@ -1317,13 +1320,38 @@ def crop_raid_prep_detail_for_map(
 
 
 def strip_raid_prep_geometry(row: dict[str, Any]) -> dict[str, Any]:
-    """目录响应去掉 zone / 刷新点轮廓，保留物品与类型供总结。"""
+    """去掉 zone / 刷新点轮廓，保留物品与类型供总结。"""
     objectives_out: list[dict[str, Any]] = []
     for obj in row.get("objectives") or []:
         if not isinstance(obj, dict):
             continue
         objectives_out.append({**obj, "zones": [], "possible_locations": []})
     return {**row, "objectives": objectives_out}
+
+
+RAID_PREP_CATALOG_KEYS = (
+    "id",
+    "name",
+    "normalized_name",
+    "trader_id",
+    "trader_slug",
+    "trader_name",
+    "has_map_markers",
+    "min_player_level",
+    "objective_count",
+    "objective_types",
+)
+
+
+def strip_raid_prep_catalog(row: dict[str, Any]) -> dict[str, Any]:
+    """目录行：列表 / 筛选 / OCR 够用，不含目标正文和区轮廓。"""
+    out: dict[str, Any] = {key: row.get(key) for key in RAID_PREP_CATALOG_KEYS}
+    out.setdefault("id", "")
+    out.setdefault("name", "")
+    out.setdefault("has_map_markers", False)
+    out["objectives"] = []
+    out["needed_keys"] = []
+    return out
 
 
 def collect_raid_prep_rows(
@@ -1386,6 +1414,74 @@ def collect_raid_prep_rows(
         )
     )
     return map_name, rows
+
+
+def raid_prep_room_map_slugs() -> list[str]:
+    """战局准备房间用的短 id（lab / night-factory），去重保序。"""
+    out: list[str] = []
+    seen: set[str] = set()
+    for _mid, (slug, _name) in MAP_BY_ID.items():
+        key = slug
+        for group in MAP_SLUG_EQUIV_GROUPS:
+            if slug in group:
+                key = group[0]
+                break
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def collect_raid_prep_task_index(
+    payload: dict[str, Any],
+) -> dict[str, dict[str, str]]:
+    """一次扫描：地图短 id → {task_id: name}。不含区轮廓。"""
+    slugs = raid_prep_room_map_slugs()
+    out: dict[str, dict[str, str]] = {slug: {} for slug in slugs}
+    locale = _locale_map(payload)
+    quest_items = _quest_items_map(payload)
+    for raw in _tasks_map(payload).values():
+        if not isinstance(raw, dict):
+            continue
+        detail = project_task_detail(
+            raw,
+            locale,
+            quest_items=quest_items,
+        )
+        if detail is None:
+            continue
+        tid = str(detail.get("id") or "").strip()
+        if not tid:
+            continue
+        name = str(detail.get("name") or "").strip() or tid
+        for slug in slugs:
+            if task_hits_map(detail, slug):
+                out[slug][tid] = name
+    return out
+
+
+def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, str]]:
+    """按当前 game_mode 读任务 raw 建瘦索引；无 raw 时各图空字典。"""
+    slugs = raid_prep_room_map_slugs()
+    empty = {slug: {} for slug in slugs}
+    if get_tasks_raw(db) is None:
+        return empty
+    row = get_tasks_raw(db)
+    synced = row.synced_at.isoformat() if row and row.synced_at else None
+    key = cache_key(synced or "")
+    with _parsed_lock:
+        hit = _raid_prep_index_cache.get(key)
+        if hit is not None:
+            return hit
+    try:
+        _source, payload, _synced_at, _note = _load_payload(db)
+    except TarkovTasksError:
+        return empty
+    index = collect_raid_prep_task_index(payload)
+    with _parsed_lock:
+        _raid_prep_index_cache[key] = index
+    return index
 
 
 def load_raid_prep_rows(
@@ -1499,7 +1595,7 @@ def list_raid_prep(
                 if str(row.get("id") or "").strip() in wanted
             ]
     else:
-        rows = [strip_raid_prep_geometry(dict(row)) for row in base_rows]
+        rows = [strip_raid_prep_catalog(dict(row)) for row in base_rows]
     filtered = filter_task_rows(
         rows,
         trader=trader,
@@ -1518,9 +1614,10 @@ def list_raid_prep(
         ]
     ordered = sort_task_rows(filtered)
     ordered.sort(key=lambda r: not r.get("has_map_markers"))
-    _enrich_items_from_catalog(
-        db, ordered, quest_items=_quest_items_map(payload)
-    )
+    if geometry:
+        _enrich_items_from_catalog(
+            db, ordered, quest_items=_quest_items_map(payload)
+        )
     return {
         "map_slug": map_slug,
         "map_name": map_name,

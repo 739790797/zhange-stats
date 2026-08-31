@@ -15,6 +15,7 @@ class RaidRoomHub:
     def __init__(self) -> None:
         self._rooms: dict[str, dict[WebSocket, int]] = {}
         self._seq: dict[str, int] = {}
+        self._log_phases: dict[str, dict[int, dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -25,9 +26,23 @@ class RaidRoomHub:
         self._seq[public_id] = int(self._seq.get(public_id) or 0) + 1
         return self._seq[public_id]
 
+    def known_public_ids(self) -> set[str]:
+        return set(self._rooms.keys())
+
     def online_user_ids(self, public_id: str) -> set[int]:
         sockets = self._rooms.get(public_id) or {}
         return set(sockets.values())
+
+    def log_phases(self, public_id: str) -> list[dict[str, Any]]:
+        room = self._log_phases.get(public_id) or {}
+        return [{"user_id": uid, **dict(payload)} for uid, payload in room.items()]
+
+    def set_log_phase(
+        self, public_id: str, user_id: int, payload: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        room = self._log_phases.setdefault(public_id, {})
+        room[int(user_id)] = dict(payload)
+        return self.log_phases(public_id)
 
     async def join(self, public_id: str, ws: WebSocket, user_id: int) -> set[int]:
         self.bind_loop(asyncio.get_running_loop())

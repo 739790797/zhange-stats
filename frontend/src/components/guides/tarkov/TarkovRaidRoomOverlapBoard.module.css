@@ -1,0 +1,187 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.syncNote {
+  margin: 0;
+  color: var(--hb-orange, #c8932a);
+  font-size: 12px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 0 8px;
+  border-bottom: 1px solid var(--hb-border, #3a3d30);
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table tbody th,
+.table tbody td {
+  height: 72px;
+}
+
+.table thead th {
+  color: var(--hb-muted, #b0ae9a);
+  font-weight: 600;
+  height: 40px;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+  white-space: normal;
+  padding-left: 0;
+}
+
+.table thead th:first-child {
+  min-width: 7.5em;
+}
+
+.userCol {
+  width: 4.4em;
+}
+
+.table tbody td.userCol {
+  padding: 0;
+}
+
+.peopleHead,
+.peopleCell {
+  width: 7.2em;
+}
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.row:hover {
+  background: rgba(200, 147, 42, 0.06);
+}
+
+.rowCurrent {
+  background: rgba(200, 147, 42, 0.12);
+}
+
+.rowCurrent:hover {
+  background: rgba(200, 147, 42, 0.16);
+}
+
+.mapCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mapName {
+  color: var(--hb-text, #eee9d6);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.thumb {
+  display: block;
+  flex: none;
+  width: 44px;
+  height: 30px;
+  object-fit: cover;
+  background: #14160f;
+  border: 1px solid var(--hb-border, #3a3d30);
+  box-sizing: border-box;
+}
+
+.countWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 72px;
+  cursor: default;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2em;
+  font-size: 24px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.countMuted {
+  color: var(--hb-muted, #b0ae9a);
+  font-weight: 500;
+}
+
+.countHit {
+  color: var(--hb-orange, #c8932a);
+}
+
+.peopleCell {
+  color: var(--hb-text, #eee9d6);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pickBtn {
+  margin: 0;
+  padding: 0 12px;
+  height: 32px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1b14;
+  color: var(--hb-orange, #c8932a);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pickBtn:hover {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  background: #101010;
+}
+
+.pickBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tip :global(.ant-tooltip-inner) {
+  max-width: 280px;
+  padding: 8px 10px;
+  background: #1a1b14;
+  color: var(--hb-text, #eee9d6);
+}
+
+.tipList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tipList li {
+  font-size: 12px;
+  line-height: 1.45;
+}

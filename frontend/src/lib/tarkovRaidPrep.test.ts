@@ -6,6 +6,10 @@ import {
   resolveRaidPrepLocatePoint,
   buildRaidPrepSummary,
   clusterRaidPrepOverlayLabels,
+  hydrateRaidPrepCatalogRows,
+  mergeRaidPrepGeometryItems,
+  missingRaidPrepGeometryIds,
+  raidPrepVirtualWindow,
   colorForTaskIndex,
   collectRaidPrepTaskItems,
   collectRaidPrepTaskKeys,
@@ -40,6 +44,14 @@ import {
   planRaidPrepTaskProgressSync,
   raidPrepIdsFromTaskProgress,
   describeRaidPrepTaskProgressSync,
+  hideCompletedRaidPrepRows,
+  mergeRaidPrepNeededItems,
+  raidPrepKeyIsMissing,
+  raidPrepTaskKeysUnavailable,
+  collectUnavailableRaidPrepTaskIds,
+  mergeRaidPrepAvailableKeyIds,
+  settleRaidPrepSelection,
+  formatRaidPrepOverlayKeyLabel,
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
   collectRaidPrepQuestFilterPeople,
@@ -63,6 +75,7 @@ import {
   raidPrepParticipantNames,
   tarkovReadableName,
   traderFilterLabel,
+  type RaidPrepNeededItem,
   type RaidPrepTaskLike,
   type TarkovRaidPrepOverlay,
   RAID_PREP_MAX_SELECTED,
@@ -1642,6 +1655,63 @@ describe("clusterRaidPrepOverlayLabels", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("keeps many far-apart seeds as separate labels", () => {
+    const overlays = Array.from({ length: 40 }, (_, index) =>
+      overlay(`Task-${index}`, [{ x: index * 400, z: index * 400 }], {
+        taskId: `t${index}`,
+      }),
+    );
+    expect(clusterRaidPrepOverlayLabels(overlays, 36)).toHaveLength(40);
+  });
+});
+
+describe("raidPrepVirtualWindow", () => {
+  it("returns empty for zero rows", () => {
+    expect(
+      raidPrepVirtualWindow({
+        scrollTop: 0,
+        viewportHeight: 400,
+        count: 0,
+        rowHeight: 56,
+      }),
+    ).toEqual({ start: 0, end: 0, padTop: 0, padBottom: 0 });
+  });
+
+  it("windows a long list with overscan", () => {
+    const win = raidPrepVirtualWindow({
+      scrollTop: 560,
+      viewportHeight: 280,
+      count: 80,
+      rowHeight: 56,
+      overscan: 2,
+    });
+    expect(win.start).toBe(8);
+    expect(win.end).toBe(17);
+    expect(win.padTop).toBe(448);
+    expect(win.padBottom).toBe((80 - 17) * 56);
+  });
+});
+
+describe("raid prep geometry cache", () => {
+  it("lists missing ids and merges fetched items", () => {
+    const cached = { a: { id: "a", name: "A" } };
+    expect(missingRaidPrepGeometryIds(cached, ["a", "b", "b", ""])).toEqual([
+      "b",
+    ]);
+    expect(
+      mergeRaidPrepGeometryItems(cached, [{ id: "b", name: "B" }]),
+    ).toEqual({
+      a: { id: "a", name: "A" },
+      b: { id: "b", name: "B" },
+    });
+    expect(
+      hydrateRaidPrepCatalogRows(
+        [{ id: "a", name: "lean" }, { id: "b", name: "lean-b" }],
+        { a: { id: "a", name: "rich" } },
+      ),
+    ).toEqual([{ id: "a", name: "rich" }, { id: "b", name: "lean-b" }]);
+  });
 });
 
 describe("traderFilterLabel", () => {
@@ -1845,5 +1915,149 @@ describe("planRaidPrepTaskProgressSync", () => {
         addedCount: 0,
       }),
     ).toBe("没有进行中且属于本图的任务");
+  });
+});
+
+describe("raid prep packing and settle", () => {
+  it("hides completed catalog rows", () => {
+    expect(
+      hideCompletedRaidPrepRows(
+        [{ id: "a" }, { id: "b" }, { id: "c" }],
+        ["b", ""],
+      ),
+    ).toEqual([{ id: "a" }, { id: "c" }]);
+  });
+
+  it("merges the same needed item across tasks", () => {
+    const merged = mergeRaidPrepNeededItems([
+      {
+        id: "bolt",
+        name: "螺栓",
+        icon_link: "",
+        types: [],
+        count: 3,
+        found_in_raid: false,
+        optional: false,
+        kind: "item",
+        role: "find",
+        objectiveType: "findItem",
+      },
+      {
+        id: "bolt",
+        name: "螺栓",
+        icon_link: "",
+        types: [],
+        count: 2,
+        found_in_raid: false,
+        optional: false,
+        kind: "item",
+        role: "find",
+        objectiveType: "findItem",
+      },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.count).toBe(5);
+  });
+
+  it("treats a key as missing only when nobody owns or brings it", () => {
+    expect(raidPrepKeyIsMissing(["甲"], [])).toBe(false);
+    expect(raidPrepKeyIsMissing([], ["乙"])).toBe(false);
+    expect(raidPrepKeyIsMissing([], [])).toBe(true);
+  });
+
+  it("blocks a task only when every required key is missing", () => {
+    const key = (
+      id: string,
+      optional = false,
+    ): RaidPrepNeededItem => ({
+      id,
+      name: id,
+      icon_link: "",
+      types: [],
+      count: 1,
+      found_in_raid: false,
+      optional,
+      kind: "key",
+      role: "钥匙",
+      objectiveType: "key",
+    });
+    expect(raidPrepTaskKeysUnavailable([], new Set())).toBe(false);
+    expect(raidPrepTaskKeysUnavailable([key("k1", true)], new Set())).toBe(false);
+    expect(raidPrepTaskKeysUnavailable([key("k1"), key("k2", true)], new Set())).toBe(
+      true,
+    );
+    expect(
+      raidPrepTaskKeysUnavailable([key("k1"), key("k2")], new Set(["k2"])),
+    ).toBe(false);
+    expect(raidPrepTaskKeysUnavailable([key("k1")], new Set(["k1"]))).toBe(false);
+    expect(
+      raidPrepTaskKeysUnavailable(
+        [{ ...key("any"), anyOf: [key("a"), key("b")] }],
+        new Set(["b"]),
+      ),
+    ).toBe(false);
+    expect(mergeRaidPrepAvailableKeyIds([{ item_id: "k1" }], [{ item_id: "k2" }])).toEqual(
+      new Set(["k1", "k2"]),
+    );
+  });
+
+  it("omits tasks whose required keys nobody owns or brings", () => {
+    const task: RaidPrepTaskLike = {
+      id: "wet-2",
+      name: "带血的水",
+      needed_keys: [
+        {
+          map: { slug: "customs" },
+          keys: [{ id: "office", name: "公司主管办公室钥匙" }],
+        },
+      ],
+      objectives: [
+        {
+          id: "o-1",
+          type: "visit",
+          description: "检查办公室",
+          required_keys: [[{ id: "office", name: "公司主管办公室钥匙" }]],
+          zones: [{ id: "z-1", map_slug: "customs", x: 1, z: 1 }],
+        },
+      ],
+    };
+    expect(
+      collectUnavailableRaidPrepTaskIds([task], "customs", undefined, new Set()),
+    ).toEqual(new Set(["wet-2"]));
+    expect(
+      collectUnavailableRaidPrepTaskIds(
+        [task],
+        "customs",
+        undefined,
+        new Set(["office"]),
+      ),
+    ).toEqual(new Set());
+    expect(buildRaidPrepOverlays([task], "customs")).toHaveLength(1);
+    expect(
+      buildRaidPrepOverlays([task], "customs", undefined, new Set(["wet-2"])),
+    ).toEqual([]);
+  });
+
+  it("drops completed tasks after a successful raid", () => {
+    expect(
+      settleRaidPrepSelection({
+        selectedIds: ["a", "b", "c"],
+        completedIds: ["b"],
+      }),
+    ).toEqual({ nextIds: ["a", "c"], removedIds: ["b"] });
+    expect(
+      settleRaidPrepSelection({
+        selectedIds: ["a", "b"],
+        completedIds: ["b"],
+        aborted: true,
+      }).nextIds,
+    ).toEqual(["a", "b"]);
+  });
+
+  it("shows overlay key names on the map label", () => {
+    expect(formatRaidPrepOverlayKeyLabel(["宿舍 114", "Dorm 105"])).toBe(
+      "宿舍 114、Dorm 105",
+    );
+    expect(formatRaidPrepOverlayKeyLabel([], true)).toBe("不需要钥匙");
   });
 });

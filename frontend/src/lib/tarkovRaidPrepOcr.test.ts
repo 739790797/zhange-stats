@@ -46,7 +46,7 @@ describe("formatRaidPrepOcrProgress", () => {
       "正在加载识别引擎…",
     );
     expect(formatRaidPrepOcrProgress("loading language traineddata")).toBe(
-      "正在加载中文模型…",
+      "正在加载识别模型…",
     );
     expect(formatRaidPrepOcrProgress("recognizing text", 0.4)).toBe(
       "正在识别文字… 40%",

@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import { tarkovRaidRoomHref, tarkovRaidRoomShareUrl } from "./tarkovHomeNav";
 import {
   applyRoomWsEvent,
+  raidRoomLiveSig,
   claimedTaskIds,
   claimTaskIdsForUser,
   formatKeyBringHint,
   formatKeyChipHint,
   formatKeyOwnHint,
+  formatKeyOwnToggleLabel,
   keyOwnsForUser,
+  patchRaidRoomKeyOwns,
+  userOwnsKey,
   formatRoomRemain,
   groupClaimsByTask,
   groupKeyBringsByItem,
@@ -16,10 +20,17 @@ import {
   isMapDrawTool,
   mergeBoardMarks,
   parseRaidRoomPublicId,
+  parseRaidRoomLogPhases,
+  raidRoomLiveStatus,
+  formatRaidRoomLiveStatus,
+  formatRaidRoomMemberWsLine,
   RAID_ROOM_SLOT_IDS,
+  mergeRaidLobbySeats,
+  raidRoomSlotIdsForMode,
   parseStrokePoints,
   partitionRaidLobbyRooms,
   raidRoomIsFull,
+  RAID_ROOM_WS_PING_MS,
   raidRoomWsRetryDelayMs,
   remainMs,
   roomDisplayTitle,
@@ -28,6 +39,10 @@ import {
   userBroughtKey,
   withRaidRoomViewerFlags,
   dropPlayerFixesNotIn,
+  formatRaidRoomOverlapCell,
+  raidRoomOverlapPeopleLabel,
+  raidRoomOverlapTasksForUser,
+  sortRaidRoomMapOverlap,
   parsePlayerFixEvent,
   playerFixMatchesRoomMap,
   pruneStalePlayerFixes,
@@ -46,11 +61,91 @@ describe("raid room helpers", () => {
     expect(parseRaidRoomPublicId("1")).toBe("1");
     expect(parseRaidRoomPublicId("5")).toBe("5");
     expect(parseRaidRoomPublicId("6")).toBe("");
+    expect(parseRaidRoomPublicId("1", "pve")).toBe("pve-1");
+    expect(parseRaidRoomPublicId("pve-3")).toBe("pve-3");
+    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/pve-2")).toBe(
+      "pve-2",
+    );
+    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3")).toBe(
+      "3",
+    );
+    expect(parseRaidRoomPublicId("ab12cd34")).toBe("");
+    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/ab12cd34")).toBe(
+      "",
+    );
     expect(parseRaidRoomPublicId("ABCDEF123456")).toBe("");
     expect(parseRaidRoomPublicId("nope")).toBe("");
     expect(RAID_ROOM_SLOT_IDS).toEqual(["1", "2", "3", "4", "5"]);
+    expect(raidRoomSlotIdsForMode("pve")).toEqual([
+      "pve-1",
+      "pve-2",
+      "pve-3",
+      "pve-4",
+      "pve-5",
+    ]);
+    expect(raidRoomLiveStatus([1, 2], [])).toBe("preparing");
+    expect(
+      raidRoomLiveStatus(
+        [1, 2],
+        [{ userId: 2, kind: "raid_started", mapId: "", mapLabel: "", raidId: "", at: "" }],
+      ),
+    ).toBe("in_raid");
+    expect(
+      raidRoomLiveStatus(
+        [1, 2],
+        [{ userId: 2, kind: "raid_exited", mapId: "", mapLabel: "", raidId: "", at: "" }],
+      ),
+    ).toBe("preparing");
+    expect(formatRaidRoomLiveStatus("in_raid")).toBe("已在战局中");
+    expect(formatRaidRoomMemberWsLine({ online: true })).toBe("WS在线 · 无日志");
+    expect(
+      formatRaidRoomMemberWsLine({ online: false, phaseKind: "raid_started" }),
+    ).toBe("WS离线 · 开战");
+    expect(
+      parseRaidRoomLogPhases([
+        { user_id: 3, kind: "raid_started", map_id: "customs", raid_id: "AB12" },
+      ]),
+    ).toEqual([
+      {
+        userId: 3,
+        kind: "raid_started",
+        mapId: "customs",
+        mapLabel: "",
+        raidId: "AB12",
+        at: "",
+      },
+    ]);
+    expect(
+      mergeRaidLobbySeats(
+        [
+          { public_id: "1", member_count: 3 },
+          { public_id: "pve-1", member_count: 2, map_slug: "customs" },
+        ],
+        raidRoomSlotIdsForMode("pve").map((id) => ({
+          public_id: id,
+          member_count: 0,
+          map_slug: "",
+        })),
+      ),
+    ).toEqual([
+      { public_id: "pve-1", member_count: 2, map_slug: "customs" },
+      { public_id: "pve-2", member_count: 0, map_slug: "" },
+      { public_id: "pve-3", member_count: 0, map_slug: "" },
+      { public_id: "pve-4", member_count: 0, map_slug: "" },
+      { public_id: "pve-5", member_count: 0, map_slug: "" },
+    ]);
+    expect(
+      mergeRaidLobbySeats(undefined, [
+        { public_id: "1", member_count: 0 },
+        { public_id: "2", member_count: 0 },
+      ]),
+    ).toEqual([
+      { public_id: "1", member_count: 0 },
+      { public_id: "2", member_count: 0 },
+    ]);
     expect(raidRoomWsRetryDelayMs(0)).toBe(1000);
     expect(raidRoomWsRetryDelayMs(5)).toBe(30_000);
+    expect(RAID_ROOM_WS_PING_MS).toBe(25_000);
     expect(
       roomDisplayTitle({ title: "", host_display_name: "甲" }, "海关"),
     ).toBe("甲 的 海关");
@@ -145,11 +240,28 @@ describe("raid room helpers", () => {
     expect(formatKeyOwnHint(["甲"])).toBe("甲拥有这把钥匙。");
     expect(formatKeyOwnHint(["甲", "乙"])).toBe("甲、乙拥有这把钥匙。");
     expect(formatKeyChipHint(["甲", "乙"], ["丙"])).toBe(
-      "甲、乙拥有这把钥匙。 丙带了这把钥匙。",
+      "甲、乙拥有这把钥匙。\n丙带了这把钥匙。",
     );
     expect(keyOwnsForUser(["k1"], { userId: 3, name: "丙" })).toEqual([
       { item_id: "k1", user_id: 3, display_name: "丙" },
     ]);
+    expect(userOwnsKey(keyOwnsForUser(["k1"], { userId: 3, name: "丙" }), "k1", 3)).toBe(
+      true,
+    );
+    expect(userOwnsKey([], "k1", 3)).toBe(false);
+    expect(formatKeyOwnToggleLabel(false)).toBe("我有");
+    expect(formatKeyOwnToggleLabel(true)).toBe("取消");
+    expect(
+      patchRaidRoomKeyOwns([], "k1", { userId: 3, name: "丙" }, true),
+    ).toEqual([{ item_id: "k1", user_id: 3, display_name: "丙" }]);
+    expect(
+      patchRaidRoomKeyOwns(
+        [{ item_id: "k1", user_id: 3, display_name: "丙" }],
+        "k1",
+        { userId: 3, name: "丙" },
+        false,
+      ),
+    ).toEqual([]);
   });
 
   it("matches floors and applies snapshot / presence", () => {
@@ -182,6 +294,22 @@ describe("raid room helpers", () => {
     expect(snap?.can_edit).toBe(false);
     expect(withRaidRoomViewerFlags(room, 9).is_member).toBe(false);
     expect(withRaidRoomViewerFlags(room, 1).is_host).toBe(true);
+    const same = applyRoomWsEvent(
+      { ...room, claims: [{ user_id: 1, task_id: "t1", display_name: "甲" }] },
+      {
+        event: "snapshot",
+        snapshot: {
+          ...room,
+          claims: [{ user_id: 1, task_id: "t1", display_name: "甲" }],
+        },
+        online_user_ids: [1],
+      },
+      1,
+    );
+    expect(same?.members?.map((row) => row.online)).toEqual([true, false]);
+    expect(raidRoomLiveSig(same)).toBe(
+      raidRoomLiveSig({ ...room, claims: [{ user_id: 1, task_id: "t1", display_name: "甲" }] }),
+    );
   });
 
   it("simplifies freehand strokes and reads mark points", () => {
@@ -258,6 +386,8 @@ describe("raid room helpers", () => {
   it("treats pan as a map tool, not a draw tool", () => {
     expect(isMapDrawTool("pan")).toBe(false);
     expect(isMapDrawTool("pen")).toBe(true);
+    expect(isMapDrawTool("pin")).toBe(true);
+    expect(isMapDrawTool("line")).toBe(true);
     expect(isMapDrawTool("erase")).toBe(true);
   });
 
@@ -335,5 +465,59 @@ describe("raid room helpers", () => {
     ).toEqual([12]);
     expect(pruneStalePlayerFixes([first], 1000 + 8 * 60_000 + 1)).toEqual([]);
     expect(pruneStalePlayerFixes([first], 1000 + 60_000)).toEqual([first]);
+  });
+
+  it("formats overlap cells and ranks map rows", () => {
+    expect(formatRaidRoomOverlapCell(undefined)).toBe("—");
+    expect(formatRaidRoomOverlapCell({ user_id: 1, count: 0, uploaded: false })).toBe("—");
+    expect(formatRaidRoomOverlapCell({ user_id: 1, count: 3, uploaded: true })).toBe("3");
+    expect(raidRoomOverlapPeopleLabel(2)).toBe("2人");
+    expect(
+      raidRoomOverlapTasksForUser(
+        {
+          map_slug: "customs",
+          with_tasks_count: 2,
+          synced_count: 2,
+          occupant_count: 2,
+          tasks: [
+            { id: "t1", name: "A", user_ids: [1, 2] },
+            { id: "t2", name: "B", user_ids: [1] },
+          ],
+        },
+        2,
+      ).map((row) => row.id),
+    ).toEqual(["t1"]);
+    const ranked = sortRaidRoomMapOverlap(
+      [
+        {
+          map_slug: "woods",
+          with_tasks_count: 1,
+          synced_count: 2,
+          occupant_count: 2,
+        },
+        {
+          map_slug: "customs",
+          with_tasks_count: 2,
+          synced_count: 2,
+          occupant_count: 2,
+          cells: [
+            { user_id: 1, count: 3, uploaded: true },
+            { user_id: 2, count: 1, uploaded: true },
+          ],
+        },
+        {
+          map_slug: "factory",
+          with_tasks_count: 2,
+          synced_count: 2,
+          occupant_count: 2,
+          cells: [
+            { user_id: 1, count: 1, uploaded: true },
+            { user_id: 2, count: 1, uploaded: true },
+          ],
+        },
+      ],
+      ["factory", "customs", "woods"],
+    );
+    expect(ranked.map((row) => row.map_slug)).toEqual(["customs", "factory", "woods"]);
   });
 });

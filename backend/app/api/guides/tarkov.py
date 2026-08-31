@@ -43,6 +43,9 @@ from app.api.guides.schemas import (
     TarkovTaskDonesOut,
     TarkovRaidLogsIn,
     TarkovRaidLogsImportOut,
+    TarkovRaidLogsOut,
+    TarkovUserRaidPrepStateIn,
+    TarkovUserRaidPrepStateOut,
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
@@ -55,9 +58,11 @@ from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import guns as gun_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import key_owns as key_owns_svc
+from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import task_dones as task_dones_svc
 from app.services.tarkov import raid_logs as raid_logs_svc
+from app.services.tarkov import raid_prep_state as raid_prep_state_svc
 from app.services.tarkov import maps as maps_svc
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
@@ -70,7 +75,6 @@ from app.services.tarkov.game_mode import (
 )
 
 router = APIRouter(prefix="/tarkov")
-router.include_router(tarkov_raid_rooms.router)
 
 
 async def tarkov_game_mode(
@@ -90,6 +94,9 @@ async def tarkov_game_mode(
 
 
 router.dependencies.append(Depends(tarkov_game_mode))
+# include 会把当时的父级 deps 拍进子路由；先 include 再 append 的话
+# GET /raid-rooms 吃不到 game_mode，大厅永远按 PVP 五桌返回。
+router.include_router(tarkov_raid_rooms.router)
 
 
 def _parse_str_list(raw: str | None) -> list[str]:
@@ -481,7 +488,7 @@ def guides_tarkov_raid_prep(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """战局准备：按地图列出相关任务；默认不含区轮廓，geometry+ids 才返回点位。"""
+    """战局准备：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。"""
     type_list = _parse_csv_ids(types)
     id_list = _parse_csv_ids(ids)[:40]
     try:
@@ -500,6 +507,51 @@ def guides_tarkov_raid_prep(
             raise HTTPException(status_code=400, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
     return TarkovRaidPrepOut.model_validate(result)
+
+
+@router.get(
+    "/raid-prep/state",
+    response_model=TarkovUserRaidPrepStateOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_raid_prep_state_get(
+    map_slug: str = Query(..., alias="map", max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """单人战局准备：当前模式/地图的勾选、目标完成和钥匙声明。"""
+    try:
+        data = raid_prep_state_svc.get_state(db, user, map_slug)
+    except raid_prep_state_svc.TarkovRaidPrepStateError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return TarkovUserRaidPrepStateOut.model_validate(data)
+
+
+@router.put(
+    "/raid-prep/state",
+    response_model=TarkovUserRaidPrepStateOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_raid_prep_state_put(
+    body: TarkovUserRaidPrepStateIn,
+    map_slug: str = Query(..., alias="map", max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        data = raid_prep_state_svc.put_state(
+            db,
+            user,
+            map_slug,
+            selected=body.selected,
+            objective_dones=[item.model_dump() for item in body.objective_dones],
+            key_brings=body.key_brings,
+        )
+    except raid_prep_state_svc.TarkovRaidPrepStateError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    db.commit()
+    return TarkovUserRaidPrepStateOut.model_validate(data)
 
 
 @router.get(
@@ -849,7 +901,7 @@ def guides_tarkov_key_packs(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """钥匙分类速查：门锁 / 入场钥按地图分包。"""
+    """钥匙分类速查：门锁 / 入场钥按地图分包；附带用途（任务需要 / 门锁类型）。"""
     _ = user
     try:
         result = key_packs_svc.list_key_packs(db)
@@ -906,6 +958,7 @@ def guides_tarkov_key_owns_add(
     except key_owns_svc.TarkovKeyOwnsError as exc:
         raise _key_owns_error(exc) from exc
     db.commit()
+    rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
 
 
@@ -924,6 +977,7 @@ def guides_tarkov_key_owns_remove(
     except key_owns_svc.TarkovKeyOwnsError as exc:
         raise _key_owns_error(exc) from exc
     db.commit()
+    rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
 
 
@@ -1017,3 +1071,21 @@ def guides_tarkov_raid_logs_import(
     )
     db.commit()
     return TarkovRaidLogsImportOut.model_validate(result)
+
+
+@router.get(
+    "/raid-logs",
+    response_model=TarkovRaidLogsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_raid_logs_list(
+    map_id: str | None = Query(default=None, max_length=32),
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """最近导入的战局摘要，可供战局准备战后结算。"""
+    data = raid_logs_svc.list_raids(
+        db, user, map_id=map_id or "", limit=limit
+    )
+    return TarkovRaidLogsOut.model_validate(data)

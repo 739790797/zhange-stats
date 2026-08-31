@@ -16,6 +16,7 @@ import {
   collectRaidPrepQuestFilterPeople,
   colorForTaskId,
   colorForUserId,
+  formatRaidPrepOverlayKeyLabel,
   mapLayerFloorBands,
   overlayFloorForPoint,
   overlayFloorForSpan,
@@ -113,6 +114,14 @@ type Props = {
   authorUserId?: number;
   drawMode?: TarkovMapDrawMode;
   onStroke?: (stroke: { floor: string; points: StrokePoint[] }) => void;
+  onPin?: (mark: { floor: string; x: number; z: number }) => void;
+  onLine?: (mark: {
+    floor: string;
+    x: number;
+    z: number;
+    x2: number;
+    z2: number;
+  }) => void;
   onDraftStroke?: (draft: { floor: string; points: StrokePoint[] } | null) => void;
   onEraseMark?: (markId: number) => void;
   onFloorChange?: (floor: string) => void;
@@ -145,6 +154,8 @@ type MapRuntime = {
   localStroke?: L.Polyline;
   mineKeys: Set<string>;
   strokeLayers: Map<string, L.Layer>;
+  draftLayers: Map<number, L.Layer>;
+  playerLayers: Map<string, L.Marker>;
   boardPane?: HTMLElement;
   svgRoot?: SVGSVGElement;
 };
@@ -152,6 +163,7 @@ type MapRuntime = {
 const BOARD_PANE = "boardPane";
 const SVG_BASE_PANE = "svgBasePane";
 const DRAFT_THROTTLE_MS = 48;
+const QUEST_LABEL_ZOOM_MS = 80;
 
 function escapeHtml(text: string): string {
   return text
@@ -186,6 +198,51 @@ function setSvgFloor(
     group.classList.toggle("overlay-layer", flags["overlay-layer"]);
     group.classList.toggle("hidden-layer", flags["hidden-layer"]);
   }
+}
+
+function attachInteractiveTiles(
+  runtime: MapRuntime,
+  layer: TarkovDevMapLayer,
+  bounds: L.LatLngBounds,
+  maxZoom: number,
+) {
+  const tileSize = layer.tileSize || 256;
+  if (!runtime.tileLayer && layer.tilePath) {
+    runtime.tileLayer = L.tileLayer(layer.tilePath, {
+      tileSize,
+      bounds,
+      maxZoom,
+      maxNativeZoom: layer.maxZoom ?? 5,
+    });
+  }
+  for (const floorLayer of layer.layers || []) {
+    if (!floorLayer.tilePath || runtime.floorTiles.has(floorLayer.name)) continue;
+    runtime.floorTiles.set(
+      floorLayer.name,
+      L.tileLayer(floorLayer.tilePath, {
+        tileSize,
+        bounds,
+        maxZoom,
+        maxNativeZoom: layer.maxZoom ?? 5,
+      }),
+    );
+  }
+}
+
+async function attachInteractiveSvg(
+  runtime: MapRuntime,
+  layer: TarkovDevMapLayer,
+  bounds: L.LatLngBounds,
+) {
+  if (runtime.svgOverlay || !layer.svgPath) return;
+  const svg = await loadSvgElement(layer.svgPath);
+  runtime.svgRoot = svg;
+  setSvgFloor(svg, layer.svgLayer || "", "");
+  const svgBounds = getBounds(layer.svgBounds) || bounds;
+  runtime.svgOverlay = L.svgOverlay(svg, svgBounds, {
+    pane: SVG_BASE_PANE,
+    interactive: false,
+  });
 }
 
 async function loadSvgElement(svgPath: string): Promise<SVGSVGElement> {
@@ -437,16 +494,38 @@ function questTraderImgHtml(slug: string): string {
 
 function questLabelLineHtml(
   item: RaidPrepOverlayLabelItem,
-  highlightTaskId?: string,
   offFloor = false,
 ): string {
   const title = item.optional ? `${item.title}（可选）` : item.title;
-  const on = highlightTaskId && item.taskId === highlightTaskId ? " data-on=\"true\"" : "";
   const keyMark = item.keyNames.length
-    ? `<span class="${styles.questLabelKey}">需要钥匙</span>`
+    ? `<span class="${styles.questLabelKey}">${escapeHtml(formatRaidPrepOverlayKeyLabel(item.keyNames, item.showNoKey) || "钥匙")}</span>`
     : "";
   const dim = offFloor ? ` ${styles.questLabelOff}` : "";
-  return `<span class="${styles.questLabelRow}${dim}" data-task-id="${escapeHtml(item.taskId)}"${on}>${questTraderImgHtml(item.traderSlug)}<span class="${styles.questName}" style="color:${item.color}">${escapeHtml(title)}</span>${keyMark}</span>`;
+  return `<span class="${styles.questLabelRow}${dim}" data-task-id="${escapeHtml(item.taskId)}">${questTraderImgHtml(item.traderSlug)}<span class="${styles.questName}" style="color:${item.color}">${escapeHtml(title)}</span>${keyMark}</span>`;
+}
+
+function applyQuestLabelHighlight(
+  root: HTMLElement | undefined,
+  highlightTaskId: string,
+) {
+  if (!root) return;
+  const on = (highlightTaskId || "").trim();
+  for (const node of root.querySelectorAll<HTMLElement>("[data-task-id]")) {
+    const id = node.getAttribute("data-task-id") || "";
+    if (on && id === on) node.setAttribute("data-on", "true");
+    else node.removeAttribute("data-on");
+  }
+}
+
+function overlayByLabelItem(
+  overlays: TarkovRaidPrepOverlay[],
+): Map<string, TarkovRaidPrepOverlay> {
+  const map = new Map<string, TarkovRaidPrepOverlay>();
+  for (const row of overlays) {
+    const key = `${row.taskId}\0${row.optional ? "1" : "0"}\0${row.title}`;
+    if (!map.has(key)) map.set(key, row);
+  }
+  return map;
 }
 
 type QuestClickHandler = (
@@ -558,7 +637,6 @@ function addQuestLabels(
   overlays: TarkovRaidPrepOverlay[],
   map: L.Map,
   onLabelClick: QuestClickHandler | undefined,
-  highlightTaskId: string | undefined,
   namesByTask: ReadonlyMap<string, readonly RaidPrepMapParticipant[]> | undefined,
   floor: string,
   floorBands: ReturnType<typeof mapLayerFloorBands>,
@@ -570,20 +648,18 @@ function addQuestLabels(
     gap: RAID_PREP_LABEL_CLUSTER_PX,
     project: questLabelProject(map),
   });
+  const byItem = overlayByLabelItem(overlays);
   const lineH = 22;
   for (const label of labels) {
     label.items.forEach((item, index) => {
-      const source = overlays.find(
-        (row) =>
-          row.taskId === item.taskId &&
-          row.title === item.title &&
-          Boolean(row.optional) === Boolean(item.optional),
+      const source = byItem.get(
+        `${item.taskId}\0${item.optional ? "1" : "0"}\0${item.title}`,
       );
       const offFloor = !overlayVisibleOnFloor(item.height, floor, floorBands);
       const marker = L.marker(pos({ x: label.x, z: label.z }), {
         icon: L.divIcon({
           className: styles.questIcon,
-          html: `<span class="${styles.questLabelStack}">${questLabelLineHtml(item, highlightTaskId, offFloor)}</span>`,
+          html: `<span class="${styles.questLabelStack}">${questLabelLineHtml(item, offFloor)}</span>`,
           iconSize: [1, 1],
           iconAnchor: [0, -index * lineH],
         }),
@@ -613,39 +689,110 @@ function addQuestLabels(
   }
 }
 
-function addPlayerFixMarkers(
-  group: L.LayerGroup,
+function playerFixMarkerHtml(
+  mark: TarkovMapPlayerMark,
+  mapRotation: number,
+  currentFloor: string,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+): { html: string; name: string } {
+  const yaw = mark.yaw == null ? null : mark.yaw + mapRotation;
+  const floor = overlayFloorForPoint(mark.y, floorBands);
+  const current = !floor || !currentFloor || floor === currentFloor;
+  const color = escapeHtml(mark.color);
+  const name = mark.self ? "" : escapeHtml(mark.name);
+  const pip =
+    yaw == null
+      ? `<span class="${styles.playerDot}"></span>`
+      : `<span class="${styles.playerArrow}" style="transform:rotate(${yaw}deg)"></span>`;
+  const label = name
+    ? `<span class="${styles.playerName}">${name}</span>`
+    : "";
+  return {
+    name,
+    html: `<span class="${styles.playerMark}" style="color:${color};opacity:${current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY}"><span class="${styles.playerGlow}"></span>${pip}${label}</span>`,
+  };
+}
+
+function syncPlayerFixMarkers(
+  runtime: MapRuntime,
   marks: TarkovMapPlayerMark[],
   mapRotation = 0,
   currentFloor = "",
   floorBands: ReturnType<typeof mapLayerFloorBands> = [],
 ) {
-  group.clearLayers();
+  const group = runtime.player;
+  const keep = new Set(marks.map((mark) => mark.key));
+  for (const [key, layer] of [...runtime.playerLayers.entries()]) {
+    if (keep.has(key)) continue;
+    group.removeLayer(layer);
+    runtime.playerLayers.delete(key);
+  }
   for (const mark of marks) {
-    const yaw = mark.yaw == null ? null : mark.yaw + mapRotation;
-    const floor = overlayFloorForPoint(mark.y, floorBands);
-    const current = !floor || !currentFloor || floor === currentFloor;
-    const color = escapeHtml(mark.color);
-    const name = mark.self ? "" : escapeHtml(mark.name);
-    const pip =
-      yaw == null
-        ? `<span class="${styles.playerDot}"></span>`
-        : `<span class="${styles.playerArrow}" style="transform:rotate(${yaw}deg)"></span>`;
-    const label = name
-      ? `<span class="${styles.playerName}">${name}</span>`
-      : "";
-    const html = `<span class="${styles.playerMark}" style="color:${color};opacity:${current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY}"><span class="${styles.playerGlow}"></span>${pip}${label}</span>`;
-    L.marker(pos({ x: mark.x, z: mark.z }), {
-      icon: L.divIcon({
-        className: styles.playerIcon,
-        html,
-        iconSize: [32, name ? 44 : 32],
-        iconAnchor: [16, 16],
-      }),
-      interactive: false,
-      keyboard: false,
-      zIndexOffset: mark.self ? 920 : 900,
-    }).addTo(group);
+    const { html, name } = playerFixMarkerHtml(
+      mark,
+      mapRotation,
+      currentFloor,
+      floorBands,
+    );
+    const icon = L.divIcon({
+      className: styles.playerIcon,
+      html,
+      iconSize: [32, name ? 44 : 32],
+      iconAnchor: [16, 16],
+    });
+    let marker = runtime.playerLayers.get(mark.key);
+    if (!marker) {
+      marker = L.marker(pos({ x: mark.x, z: mark.z }), {
+        icon,
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: mark.self ? 920 : 900,
+      });
+      marker.addTo(group);
+      runtime.playerLayers.set(mark.key, marker);
+      continue;
+    }
+    marker.setLatLng(pos({ x: mark.x, z: mark.z }));
+    marker.setIcon(icon);
+    marker.setZIndexOffset(mark.self ? 920 : 900);
+  }
+}
+
+function syncRemoteDrafts(
+  runtime: MapRuntime,
+  drafts: RaidRoomDraftStroke[],
+  floor: string,
+) {
+  const keep = new Set(
+    drafts.map((row) => row.userId).filter((id): id is number => Boolean(id)),
+  );
+  for (const [userId, layer] of [...runtime.draftLayers.entries()]) {
+    if (keep.has(userId)) continue;
+    runtime.remote.removeLayer(layer);
+    runtime.draftLayers.delete(userId);
+  }
+  for (const draft of drafts) {
+    const userId = draft.userId;
+    if (!userId) continue;
+    const current = markMatchesFloor(draft, floor);
+    const existing = runtime.draftLayers.get(userId);
+    if (existing instanceof L.Polyline) {
+      existing.setLatLngs(strokeLatLngs(draft.points));
+      existing.setStyle(strokePathOptions(draft.color, current, false));
+      continue;
+    }
+    if (existing) {
+      runtime.remote.removeLayer(existing);
+      runtime.draftLayers.delete(userId);
+    }
+    const painted = addStrokeLayer(
+      runtime.remote,
+      draft.points,
+      draft.color,
+      current,
+      false,
+    );
+    if (painted) runtime.draftLayers.set(userId, painted);
   }
 }
 
@@ -908,6 +1055,8 @@ export function TarkovMapViewer({
   authorUserId = 0,
   drawMode = "pan",
   onStroke,
+  onPin,
+  onLine,
   onDraftStroke,
   onEraseMark,
   onFloorChange,
@@ -929,6 +1078,9 @@ export function TarkovMapViewer({
   const runtimeRef = useRef<MapRuntime | null>(null);
   const drawModeRef = useRef(drawMode);
   const onStrokeRef = useRef(onStroke);
+  const onPinRef = useRef(onPin);
+  const onLineRef = useRef(onLine);
+  const lineStartRef = useRef<StrokePoint | null>(null);
   const onDraftStrokeRef = useRef(onDraftStroke);
   const onEraseMarkRef = useRef(onEraseMark);
   const onQuestLabelClickRef = useRef(onQuestLabelClick);
@@ -954,6 +1106,7 @@ export function TarkovMapViewer({
   const drawingRef = useRef(false);
   const spaceHeldRef = useRef(false);
   const floorRef = useRef("");
+  const styleRef = useRef("");
   const coordsElRef = useRef<HTMLDivElement | null>(null);
   const wrapElRef = useRef<HTMLDivElement | null>(null);
   const shotWatch = useTarkovScreenshotPosition();
@@ -980,6 +1133,7 @@ export function TarkovMapViewer({
     [floors],
   );
   const style = resolveMapStyle(prefs.style, canSvg, canTile);
+  styleRef.current = style;
   const floor = resolveMapFloor(
     prefs.floorsByMap[interactive?.key || ""],
     floorNames,
@@ -1026,17 +1180,23 @@ export function TarkovMapViewer({
     }
     return next;
   }, [questParticipantsByTask, selectedQuestKeys]);
-  const overlaySig = displayedQuestOverlays
-    .map((row) => {
-      const people = raidPrepParticipants(
-        displayedParticipantsByTask?.get(row.taskId),
-      );
-      const sig = people
-        .map((person) => `${person.userId ?? ""}:${person.name}`)
-        .join(",");
-      return `${row.key}:${sig}`;
-    })
-    .join("\0") + `\0${floor}`;
+  const overlaySig = useMemo(
+    () =>
+      displayedQuestOverlays
+        .map((row) => {
+          const people = raidPrepParticipants(
+            displayedParticipantsByTask?.get(row.taskId),
+          );
+          const sig = people
+            .map((person) => `${person.userId ?? ""}:${person.name}`)
+            .join(",");
+          return `${row.key}:${sig}`;
+        })
+        .join("\0") + `\0${floor}`,
+    [displayedQuestOverlays, displayedParticipantsByTask, floor],
+  );
+  const highlightTaskIdRef = useRef(highlightTaskId);
+  highlightTaskIdRef.current = highlightTaskId;
   const { extractKinds, spawnKinds, showLabels, showQuests } = prefs;
   const extractKindOptions = TARKOV_EXTRACT_KINDS;
   const extractsParentOn = allPresentExtractKindsOn(
@@ -1066,6 +1226,8 @@ export function TarkovMapViewer({
     Boolean(showQuests && questTree && questPeopleOnCount > 0 && questPeopleOnCount < questPeople.length);
   drawModeRef.current = drawMode;
   onStrokeRef.current = onStroke;
+  onPinRef.current = onPin;
+  onLineRef.current = onLine;
   onDraftStrokeRef.current = onDraftStroke;
   onEraseMarkRef.current = onEraseMark;
   onQuestLabelClickRef.current = onQuestLabelClick;
@@ -1143,6 +1305,8 @@ export function TarkovMapViewer({
       player: L.layerGroup(),
       mineKeys: new Set(),
       strokeLayers: new Map(),
+      draftLayers: new Map(),
+      playerLayers: new Map(),
     };
     runtimeRef.current = runtime;
 
@@ -1281,40 +1445,24 @@ export function TarkovMapViewer({
         window.removeEventListener("lostpointercapture", onPointerUp, true);
       };
 
-      const tileSize = layer.tileSize || 256;
-      if (layer.tilePath) {
-        runtime.tileLayer = L.tileLayer(layer.tilePath, {
-          tileSize,
-          bounds,
-          maxZoom,
-          maxNativeZoom: layer.maxZoom ?? 5,
-        });
-      }
-      for (const floorLayer of layer.layers || []) {
-        if (!floorLayer.tilePath) continue;
-        runtime.floorTiles.set(
-          floorLayer.name,
-          L.tileLayer(floorLayer.tilePath, {
-            tileSize,
-            bounds,
-            maxZoom,
-            maxNativeZoom: layer.maxZoom ?? 5,
-          }),
-        );
-      }
-      if (layer.svgPath) {
+      const preferSvg = styleRef.current === "svg";
+      if (preferSvg) {
         try {
-          const svg = await loadSvgElement(layer.svgPath);
-          if (cancelled) return;
-          runtime.svgRoot = svg;
-          setSvgFloor(svg, layer.svgLayer || "", "");
-          const svgBounds = getBounds(layer.svgBounds) || bounds;
-          runtime.svgOverlay = L.svgOverlay(svg, svgBounds, {
-            pane: SVG_BASE_PANE,
-            interactive: false,
-          });
+          await attachInteractiveSvg(runtime, layer, bounds);
         } catch {
           /* 抽象图失败时仍可用瓦片 */
+        }
+        if (cancelled) return;
+        if (!runtime.svgOverlay) attachInteractiveTiles(runtime, layer, bounds, maxZoom);
+      } else {
+        attachInteractiveTiles(runtime, layer, bounds, maxZoom);
+        if (!runtime.tileLayer) {
+          try {
+            await attachInteractiveSvg(runtime, layer, bounds);
+          } catch {
+            /* 瓦片失败时再试 SVG */
+          }
+          if (cancelled) return;
         }
       }
       if (!runtime.tileLayer && !runtime.svgOverlay) {
@@ -1399,37 +1547,73 @@ export function TarkovMapViewer({
   useEffect(() => {
     const runtime = runtimeRef.current;
     const map = runtime?.map;
-    if (!ready || !runtime || !map || !interactive) return;
-    const svgOverlay = runtime.svgOverlay;
-    const wantSvg = style === "svg" && Boolean(svgOverlay);
-    const floorLayer = floors.find((item) => item.name === floor);
-    const keepBaseOpaque = floorLayer?.show === true;
-    if (wantSvg && svgOverlay) {
-      svgOverlay.addTo(map);
-      runtime.tileLayer?.remove();
-      for (const tile of runtime.floorTiles.values()) tile.remove();
-      setSvgFloor(
-        runtime.svgRoot,
-        interactive.svgLayer || "",
-        floorLayer?.svgLayer || "",
-        keepBaseOpaque,
+    if (!ready || !runtime || !map || !interactive) return undefined;
+    const bounds = getBounds(interactive.bounds);
+    if (!bounds) return undefined;
+    const maxZoom = Math.max(7, interactive.maxZoom ?? 5);
+    let cancelled = false;
+    const apply = async () => {
+      const floorLayer = floors.find((item) => item.name === floor);
+      const keepBaseOpaque = floorLayer?.show === true;
+      if (style === "svg") {
+        if (!runtime.svgOverlay && interactive.svgPath) {
+          try {
+            await attachInteractiveSvg(runtime, interactive, bounds);
+          } catch {
+            /* 切到抽象图失败则继续用瓦片 */
+          }
+          if (cancelled) return;
+        }
+        if (runtime.svgOverlay) {
+          runtime.svgOverlay.addTo(map);
+          runtime.tileLayer?.remove();
+          for (const tile of runtime.floorTiles.values()) tile.remove();
+          setSvgFloor(
+            runtime.svgRoot,
+            interactive.svgLayer || "",
+            floorLayer?.svgLayer || "",
+            keepBaseOpaque,
+          );
+          return;
+        }
+      }
+      if (!runtime.tileLayer && interactive.tilePath) {
+        attachInteractiveTiles(runtime, interactive, bounds, maxZoom);
+      }
+      runtime.svgOverlay?.remove();
+      runtime.tileLayer?.addTo(map);
+      runtime.tileLayer?.setOpacity(
+        mapBaseOffLevel(floor, keepBaseOpaque) ? MAP_OFF_LEVEL_OPACITY : 1,
       );
-      return;
-    }
-    runtime.svgOverlay?.remove();
-    runtime.tileLayer?.addTo(map);
-    runtime.tileLayer?.setOpacity(
-      mapBaseOffLevel(floor, keepBaseOpaque) ? MAP_OFF_LEVEL_OPACITY : 1,
-    );
-    for (const [name, tile] of runtime.floorTiles) {
-      if (name === floor) tile.addTo(map);
-      else tile.remove();
-    }
+      for (const [name, tile] of runtime.floorTiles) {
+        if (name === floor) tile.addTo(map);
+        else tile.remove();
+      }
+    };
+    void apply();
+    return () => {
+      cancelled = true;
+    };
   }, [style, floor, interactive, floors, ready]);
+
+  const handleQuestClick = useCallback<QuestClickHandler>((taskId, height) => {
+    if (isMapDrawTool(drawModeRef.current)) return false;
+    const nextFloor = overlayFloorForSpan(height, floorBandsRef.current);
+    if (nextFloor !== floorRef.current) {
+      const mapKey = interactiveKeyRef.current;
+      if (mapKey) {
+        updatePrefsRef.current((prev) =>
+          withMapFloor(prev, mapKey, nextFloor),
+        );
+      }
+      return true;
+    }
+    onQuestLabelClickRef.current?.(taskId);
+    return true;
+  }, []);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
-    /* ready 表示 fitBounds 已完成；抽象图加载中 map 已有但未 setView */
     if (!ready || !runtime?.map || !interactive) return;
     if (anyPresentExtractKindOn(extractKinds, extractKindOptions)) {
       addExtractMarkers(runtime.extracts, extracts, extractKinds);
@@ -1453,62 +1637,104 @@ export function TarkovMapViewer({
       runtime.svgRoot,
       showLabels && Boolean(interactive.labels?.length),
     );
-    const onQuestClick: QuestClickHandler = (taskId, height) => {
-      if (isMapDrawTool(drawModeRef.current)) return false;
-      const nextFloor = overlayFloorForSpan(height, floorBandsRef.current);
-      if (nextFloor !== floorRef.current) {
-        const mapKey = interactiveKeyRef.current;
-        if (mapKey) {
-          updatePrefsRef.current((prev) =>
-            withMapFloor(prev, mapKey, nextFloor),
-          );
-        }
-        return true;
-      }
-      onQuestLabelClickRef.current?.(taskId);
-      return true;
-    };
-    if (showQuests) {
-      if (overlaySigRef.current !== overlaySig) {
-        overlaySigRef.current = overlaySig;
-        addQuestOverlays(
-          runtime.quests,
+  }, [
+    extracts,
+    bosses,
+    spawns,
+    extractKinds,
+    spawnKinds,
+    showLabels,
+    interactive,
+    ready,
+  ]);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!ready || !runtime?.map) return;
+    if (!showQuests) {
+      overlaySigRef.current = "";
+      runtime.quests.clearLayers();
+      return;
+    }
+    if (overlaySigRef.current === overlaySig) return;
+    overlaySigRef.current = overlaySig;
+    addQuestOverlays(
+      runtime.quests,
+      displayedQuestOverlays,
+      displayedParticipantsByTask,
+      handleQuestClick,
+      floor,
+      floorBands,
+    );
+  }, [
+    overlaySig,
+    displayedQuestOverlays,
+    displayedParticipantsByTask,
+    floor,
+    floorBands,
+    showQuests,
+    ready,
+    handleQuestClick,
+  ]);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    const map = runtime?.map;
+    if (!ready || !runtime || !map) return undefined;
+    if (!showQuests) {
+      runtime.questLabels.clearLayers();
+      return undefined;
+    }
+    addQuestLabels(
+      runtime.questLabels,
+      displayedQuestOverlays,
+      map,
+      handleQuestClick,
+      displayedParticipantsByTask,
+      floor,
+      floorBands,
+    );
+    applyQuestLabelHighlight(map.getContainer(), highlightTaskIdRef.current);
+    let zoomTimer = 0;
+    const refreshQuestLabels = () => {
+      window.clearTimeout(zoomTimer);
+      zoomTimer = window.setTimeout(() => {
+        addQuestLabels(
+          runtime.questLabels,
           displayedQuestOverlays,
+          map,
+          handleQuestClick,
           displayedParticipantsByTask,
-          onQuestClick,
           floor,
           floorBands,
         );
-      }
-      addQuestLabels(
-        runtime.questLabels,
-        displayedQuestOverlays,
-        runtime.map,
-        onQuestClick,
-        highlightTaskId,
-        displayedParticipantsByTask,
-        floor,
-        floorBands,
-      );
-    } else {
-      overlaySigRef.current = "";
-      runtime.quests.clearLayers();
-      runtime.questLabels.clearLayers();
-    }
-    const refreshQuestLabels = () => {
-      if (!showQuests) return;
-      addQuestLabels(
-        runtime.questLabels,
-        displayedQuestOverlays,
-        runtime.map,
-        onQuestClick,
-        highlightTaskId,
-        displayedParticipantsByTask,
-        floor,
-        floorBands,
-      );
+        applyQuestLabelHighlight(map.getContainer(), highlightTaskIdRef.current);
+      }, QUEST_LABEL_ZOOM_MS);
     };
-    runtime.map.on("zoomend", refreshQuestLabels);
+    map.on("zoomend", refreshQuestLabels);
+    return () => {
+      window.clearTimeout(zoomTimer);
+      map.off("zoomend", refreshQuestLabels);
+    };
+  }, [
+    displayedQuestOverlays,
+    displayedParticipantsByTask,
+    floor,
+    floorBands,
+    showQuests,
+    ready,
+    handleQuestClick,
+  ]);
+
+  useEffect(() => {
+    const map = runtimeRef.current?.map;
+    if (!ready || !map) return;
+    applyQuestLabelHighlight(map.getContainer(), highlightTaskId);
+  }, [highlightTaskId, ready]);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!ready || !runtime) return;
     addBoardMarks(
       runtime,
       visibleMarks,
@@ -1516,29 +1742,7 @@ export function TarkovMapViewer({
       drawMode === "erase",
       (markId) => onEraseMarkRef.current?.(markId),
     );
-    return () => {
-      runtime.map.off("zoomend", refreshQuestLabels);
-    };
-  }, [
-    extracts,
-    bosses,
-    spawns,
-    questOverlays,
-    overlaySig,
-    displayedQuestOverlays,
-    displayedParticipantsByTask,
-    highlightTaskId,
-    visibleMarks,
-    floor,
-    floorBands,
-    drawMode,
-    extractKinds,
-    spawnKinds,
-    showLabels,
-    showQuests,
-    interactive,
-    ready,
-  ]);
+  }, [visibleMarks, floor, drawMode, ready]);
 
   useEffect(() => {
     setOptimisticMarks([]);
@@ -1584,16 +1788,7 @@ export function TarkovMapViewer({
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (!runtime?.map || !interactive) return;
-    runtime.remote.clearLayers();
-    for (const draft of remoteDrafts) {
-      addStrokeLayer(
-        runtime.remote,
-        draft.points,
-        draft.color,
-        markMatchesFloor(draft, floor),
-        false,
-      );
-    }
+    syncRemoteDrafts(runtime, remoteDrafts, floor);
   }, [remoteDrafts, floor, interactive, ready]);
 
   useEffect(() => {
@@ -1602,7 +1797,7 @@ export function TarkovMapViewer({
       runtimeRef.current?.map.invalidateSize();
     }, 60);
     return () => window.clearTimeout(handle);
-  }, [ready, fill, questOverlays.length]);
+  }, [ready, fill]);
 
   useEffect(() => {
     const map = runtimeRef.current?.map;
@@ -1638,11 +1833,12 @@ export function TarkovMapViewer({
     }
     if (!marks.length) {
       runtime.player.clearLayers();
+      runtime.playerLayers.clear();
       playerFixSigRef.current = "";
       return;
     }
-    addPlayerFixMarkers(
-      runtime.player,
+    syncPlayerFixMarkers(
+      runtime,
       marks,
       interactive?.coordinateRotation || 0,
       floor,
@@ -1651,6 +1847,7 @@ export function TarkovMapViewer({
     if (!fix) return;
     const sig = `${fix.fileName}:${fix.lastModified}`;
     if (playerFixSigRef.current === sig) return;
+    const hadFix = Boolean(playerFixSigRef.current);
     playerFixSigRef.current = sig;
     const mapKey = interactive?.key || "";
     const nextFloor = overlayFloorForPoint(fix.y, floorBands);
@@ -1658,6 +1855,10 @@ export function TarkovMapViewer({
       updatePrefs((prev) => withMapFloor(prev, mapKey, nextFloor));
     }
     const latLng = L.latLng(pos({ x: fix.x, z: fix.z }));
+    if (hadFix) {
+      map.panTo(latLng, { animate: true, duration: 0.2 });
+      return;
+    }
     const zoom = Math.max(map.getZoom(), map.getMinZoom() + 1);
     map.flyTo(latLng, zoom, { animate: true, duration: 0.35 });
   }, [
@@ -1689,6 +1890,35 @@ export function TarkovMapViewer({
     }
     if (pane) pane.style.pointerEvents = drawMode === "erase" ? "auto" : "none";
   }, [drawMode, spaceHeld, ready]);
+
+  useEffect(() => {
+    if (drawMode !== "line") lineStartRef.current = null;
+    const map = runtimeRef.current?.map;
+    if (!ready || !map) return undefined;
+    const onClick = (event: L.LeafletMouseEvent) => {
+      const mode = drawModeRef.current;
+      if (mode !== "pin" && mode !== "line") return;
+      if (spaceHeldRef.current) return;
+      const floor = floorRef.current;
+      const x = event.latlng.lng;
+      const z = event.latlng.lat;
+      if (mode === "pin") {
+        onPinRef.current?.({ floor, x, z });
+        return;
+      }
+      const start = lineStartRef.current;
+      if (!start) {
+        lineStartRef.current = { x, z };
+        return;
+      }
+      lineStartRef.current = null;
+      onLineRef.current?.({ floor, x: start.x, z: start.z, x2: x, z2: z });
+    };
+    map.on("click", onClick);
+    return () => {
+      map.off("click", onClick);
+    };
+  }, [drawMode, ready]);
 
   useEffect(() => {
     const clearSpace = () => {

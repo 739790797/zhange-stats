@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTarkovTasks, writeTarkovTaskDones } from "@/api/guidesApi";
+import { fetchTarkovTasks, importTarkovRaidLogs, writeTarkovTaskDones } from "@/api/guidesApi";
 import {
   isFileSystemAccessSupported,
   isPickerAbort,
@@ -17,21 +17,34 @@ import {
   loadStoredLogsPath,
   loadStoredScreenshotsDir,
   loadStoredScreenshotsPath,
+  observeDirectory,
   peekSessionFingerprint,
   pickScreenshotsDirectory,
   pollLatestScreenshot,
   queryLogsDirPermission,
+  queryScreenshotsDirPermission,
+  readScreenshotByName,
+  removeScreenshotFiles,
   readLogsIndex,
   readSessionLogs,
   requestLogsDirPermission,
+  requestScreenshotsDirPermission,
   saveScreenshotsDir,
+  screenshotsDirCanWrite,
   type ReadableDir,
 } from "@/lib/tarkovGameLogAccess";
 import {
   TARKOV_SCREENSHOT_POLL_MS,
+  TARKOV_SCREENSHOT_PRUNE_BATCH,
+  TARKOV_SCREENSHOT_PRUNE_EVENT,
   isNewerScreenshot,
   latestLogMapId,
+  latestScreenshotName,
+  loadScreenshotPrunePref,
+  logPhaseFromParsed,
   parseTarkovLogBundle,
+  screenshotNamesToPrune,
+  type TarkovLogPhasePayload,
 } from "@/lib/tarkovGameLogs";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
@@ -41,6 +54,7 @@ import {
   nextLiveQuestProgress,
   notifyTarkovTaskProgress,
   planLogSessionReads,
+  planRaidLogImport,
   sameIdLists,
   type LogPollCursor,
 } from "@/lib/tarkovLiveWatch";
@@ -102,13 +116,44 @@ const EMPTY: TarkovLiveWatchValue = {
   resume: async () => undefined,
 };
 
+type TarkovLiveShotMeta = {
+  supported: boolean;
+  perm: LiveWatchPerm;
+  hasStored: boolean;
+  storedLabel: string;
+  busy: boolean;
+  enable: () => Promise<void>;
+};
+
+const EMPTY_SHOT_META: TarkovLiveShotMeta = {
+  supported: false,
+  perm: "none",
+  hasStored: false,
+  storedLabel: "",
+  busy: false,
+  enable: async () => undefined,
+};
+
 const TarkovLiveWatchContext = createContext<TarkovLiveWatchValue>(EMPTY);
+const TarkovLiveFixContext = createContext<TarkovScreenshotFix | null>(null);
+const TarkovLiveLogMapContext = createContext("");
+const TarkovLiveLogPhaseContext = createContext<TarkovLogPhasePayload | null>(
+  null,
+);
+const TarkovLiveShotMetaContext =
+  createContext<TarkovLiveShotMeta>(EMPTY_SHOT_META);
 
 export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const supported = isFileSystemAccessSupported();
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
   const shotRef = useRef<ReadableDir | null>(null);
+  const shotDirRef = useRef<ReadableDir | null>(null);
+  const shotCanWriteRef = useRef(false);
+  const shotPruneRef = useRef<string[]>([]);
+  const shotWatchingRef = useRef(false);
+  const shotNeedListRef = useRef(false);
+  const shotPrunePrefRef = useRef(loadScreenshotPrunePref());
   const logRef = useRef<ReadableDir | null>(null);
   const seenShotNamesRef = useRef<Set<string>>(new Set());
   const shotStampRef = useRef<{ name: string; lastModified: number } | null>(
@@ -118,6 +163,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const lastParsedRef = useRef<Array<{ parsed: ReturnType<typeof parseTarkovLogBundle> }>>(
     [],
   );
+  const endedRaidKeysRef = useRef<Set<string>>(new Set());
   const shotTickBusyRef = useRef(false);
   const logTickBusyRef = useRef(false);
   const gameModeRef = useRef(gameMode);
@@ -136,6 +182,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const [lastLogAt, setLastLogAt] = useState<number | string | null>(null);
   const [lastShotName, setLastShotName] = useState("");
   const [lastLogMapId, setLastLogMapId] = useState("");
+  const [lastLogPhase, setLastLogPhase] = useState<TarkovLogPhasePayload | null>(
+    null,
+  );
   const [fix, setFix] = useState<TarkovScreenshotFix | null>(null);
   const [shotBusy, setShotBusy] = useState(false);
 
@@ -207,23 +256,31 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     ]);
     if (!storedShot) {
       shotRef.current = null;
+      shotDirRef.current = null;
+      shotCanWriteRef.current = false;
       setShotPerm("none");
       setShotLabel("");
     } else {
       shotRef.current = storedShot;
+      shotDirRef.current = null;
       seenShotNamesRef.current = new Set();
       shotStampRef.current = null;
       setShotLabel(shotPath || storedShot.name);
-      const current = await queryLogsDirPermission(storedShot);
+      const current = await queryScreenshotsDirPermission(storedShot);
       setShotPerm(current === "granted" ? "granted" : "prompt");
+      shotCanWriteRef.current =
+        current === "granted" && (await screenshotsDirCanWrite(storedShot));
     }
     if (!storedLog) {
       logRef.current = null;
       setLogPerm("none");
       setLogLabel("");
+      setLastLogPhase(null);
+      endedRaidKeysRef.current = new Set();
     } else {
       logRef.current = storedLog;
       logCursorRef.current = null;
+      endedRaidKeysRef.current = new Set();
       setLogLabel(logPath || storedLog.name);
       const current = await queryLogsDirPermission(storedLog);
       setLogPerm(current === "granted" ? "granted" : "prompt");
@@ -235,8 +292,20 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     const onDirs = () => {
       void hydrate();
     };
+    const onPrune = () => {
+      shotPrunePrefRef.current = loadScreenshotPrunePref();
+      if (!shotPrunePrefRef.current.enabled) {
+        shotPruneRef.current = [];
+        return;
+      }
+      shotNeedListRef.current = true;
+    };
     window.addEventListener(TARKOV_LIVE_DIRS_EVENT, onDirs);
-    return () => window.removeEventListener(TARKOV_LIVE_DIRS_EVENT, onDirs);
+    window.addEventListener(TARKOV_SCREENSHOT_PRUNE_EVENT, onPrune);
+    return () => {
+      window.removeEventListener(TARKOV_LIVE_DIRS_EVENT, onDirs);
+      window.removeEventListener(TARKOV_SCREENSHOT_PRUNE_EVENT, onPrune);
+    };
   }, [hydrate]);
 
   useEffect(() => {
@@ -248,34 +317,101 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     if (!supported || shotPerm !== "granted") return;
     seenShotNamesRef.current = new Set();
     shotStampRef.current = null;
+    shotDirRef.current = null;
+    shotPruneRef.current = [];
+    shotWatchingRef.current = false;
     let cancelled = false;
-    const tick = async () => {
+    let stopObserve: (() => void) | null = null;
+    const applyLatest = (latest: {
+      name: string;
+      lastModified: number;
+    }) => {
+      setLastShotName(latest.name);
+      setLastShotAt(latest.lastModified);
+      if (!isNewerScreenshot(shotStampRef.current, latest)) return;
+      shotStampRef.current = {
+        name: latest.name,
+        lastModified: latest.lastModified,
+      };
+      const parsed = parseTarkovScreenshotName(latest.name);
+      if (!parsed) return;
+      setFix({
+        ...parsed,
+        fileName: latest.name,
+        lastModified: latest.lastModified,
+      });
+    };
+
+    const queuePrune = (names: readonly string[], keepLatest: string | null) => {
+      const pref = shotPrunePrefRef.current;
+      if (!pref.enabled) {
+        shotPruneRef.current = [];
+        return;
+      }
+      const queued = new Set(shotPruneRef.current);
+      for (const name of screenshotNamesToPrune(
+        names,
+        keepLatest,
+        pref.keepMax,
+      )) {
+        if (queued.has(name)) continue;
+        queued.add(name);
+        shotPruneRef.current.push(name);
+      }
+    };
+
+    const drainPrune = async () => {
+      const dir = shotDirRef.current;
+      if (
+        !dir ||
+        !shotCanWriteRef.current ||
+        !shotPrunePrefRef.current.enabled ||
+        !shotPruneRef.current.length
+      ) {
+        return;
+      }
+      const batch = shotPruneRef.current.splice(0, TARKOV_SCREENSHOT_PRUNE_BATCH);
+      const removed = await removeScreenshotFiles(dir, batch);
+      for (const name of removed) seenShotNamesRef.current.delete(name);
+    };
+
+    const tick = async (forceList = false, appeared: string[] = []) => {
       if (cancelled || document.hidden || shotTickBusyRef.current) return;
       const handle = shotRef.current;
       if (!handle) return;
       shotTickBusyRef.current = true;
       try {
-        const { names, latest } = await pollLatestScreenshot(
-          handle,
-          seenShotNamesRef.current,
-        );
-        if (cancelled) return;
-        for (const name of names) seenShotNamesRef.current.add(name);
-        if (!latest) return;
-        setLastShotName(latest.name);
-        setLastShotAt(latest.lastModified);
-        if (!isNewerScreenshot(shotStampRef.current, latest)) return;
-        shotStampRef.current = {
-          name: latest.name,
-          lastModified: latest.lastModified,
-        };
-        const parsed = parseTarkovScreenshotName(latest.name);
-        if (!parsed) return;
-        setFix({
-          ...parsed,
-          fileName: latest.name,
-          lastModified: latest.lastModified,
-        });
+        if (appeared.length && shotDirRef.current) {
+          const prev = shotStampRef.current?.name || null;
+          for (const name of appeared) {
+            const row = await readScreenshotByName(shotDirRef.current, name);
+            if (!row) continue;
+            seenShotNamesRef.current.add(row.name);
+            applyLatest(row);
+          }
+          const keep = shotStampRef.current?.name || null;
+          queuePrune([...(prev ? [prev] : []), ...appeared], keep);
+        } else if (forceList || !shotWatchingRef.current) {
+          const { names, latest, dir } = await pollLatestScreenshot(
+            handle,
+            seenShotNamesRef.current,
+            shotDirRef.current,
+          );
+          if (cancelled) return;
+          shotDirRef.current = dir;
+          for (const name of names) seenShotNamesRef.current.add(name);
+          const keepLatest = latest?.name || latestScreenshotName(names);
+          if (latest) applyLatest(latest);
+          queuePrune(names, keepLatest);
+          if (!stopObserve) {
+            stopObserve = await observeDirectory(dir, (next) => {
+              shotWatchingRef.current = true;
+              void tick(next.length === 0, next);
+            });
+            if (stopObserve) shotWatchingRef.current = true;
+          }
+        }
+        await drainPrune();
       } catch {
         /* 保留上一次定位 */
       } finally {
@@ -283,13 +419,22 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       }
     };
     const onVisible = () => {
-      if (!document.hidden) void tick();
+      if (!document.hidden) void tick(true);
     };
-    void tick();
-    const timer = window.setInterval(() => void tick(), TARKOV_SCREENSHOT_POLL_MS);
+    void tick(true);
+    const timer = window.setInterval(() => {
+      if (shotNeedListRef.current) {
+        shotNeedListRef.current = false;
+        void tick(true);
+        return;
+      }
+      if (shotWatchingRef.current) void drainPrune();
+      else void tick(true);
+    }, TARKOV_SCREENSHOT_POLL_MS);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      stopObserve?.();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
@@ -334,8 +479,26 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           if (stamp != null) setLastLogAt(stamp);
           const mapId = latestLogMapId(newestRead.parsed);
           if (mapId) setLastLogMapId(mapId);
+          setLastLogPhase(logPhaseFromParsed(newestRead.parsed));
         }
-        applySessions(parsedSessions.map((row) => ({ parsed: row.parsed })));
+        const sessionRows = parsedSessions.map((row) => ({
+          folder: row.read.folder,
+          parsed: row.parsed,
+        }));
+        applySessions(sessionRows);
+        const importPlan = planRaidLogImport(endedRaidKeysRef.current, sessionRows);
+        endedRaidKeysRef.current = importPlan.nextKeys;
+        if (importPlan.rows.length) {
+          void importTarkovRaidLogs(importPlan.rows)
+            .then(() => {
+              void queryClient.invalidateQueries({
+                queryKey: ["guides-tarkov-raid-logs"],
+              });
+            })
+            .catch(() => {
+              /* 未登录或网络失败时本机相位仍已更新 */
+            });
+        }
       } catch {
         /* 保留上一次任务进度 */
       } finally {
@@ -353,15 +516,16 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [applySessions, logPerm, supported]);
+  }, [applySessions, logPerm, queryClient, supported]);
 
   const resume = useCallback(async () => {
     if (!supported) return;
     const shot = shotRef.current;
     if (shot) {
-      const next = await requestLogsDirPermission(shot);
+      const next = await requestScreenshotsDirPermission(shot);
       if (next === "granted") {
         await saveScreenshotsDir(shot);
+        shotCanWriteRef.current = await screenshotsDirCanWrite(shot);
         setShotPerm("granted");
       } else {
         setShotPerm("prompt");
@@ -394,9 +558,10 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     try {
       const existing = shotRef.current;
       if (existing) {
-        const next = await requestLogsDirPermission(existing);
+        const next = await requestScreenshotsDirPermission(existing);
         if (next === "granted") {
           await saveScreenshotsDir(existing);
+          shotCanWriteRef.current = await screenshotsDirCanWrite(existing);
           setShotPerm("granted");
           return;
         }
@@ -404,14 +569,16 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         return;
       }
       const picked = await pickScreenshotsDirectory(null);
-      const next = await requestLogsDirPermission(picked);
+      const next = await requestScreenshotsDirPermission(picked);
       if (next !== "granted") {
         setShotPerm("prompt");
         return;
       }
       shotRef.current = picked;
+      shotDirRef.current = null;
       seenShotNamesRef.current = new Set();
       shotStampRef.current = null;
+      shotCanWriteRef.current = await screenshotsDirCanWrite(picked);
       setShotLabel(picked.name);
       await saveScreenshotsDir(picked);
       setShotPerm("granted");
@@ -470,13 +637,49 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const shotMeta = useMemo<TarkovLiveShotMeta>(
+    () => ({
+      supported,
+      perm: shotPerm,
+      hasStored: hasStoredShots,
+      storedLabel: shotLabel,
+      busy: shotBusy,
+      enable: enableShots,
+    }),
+    [enableShots, hasStoredShots, shotBusy, shotLabel, shotPerm, supported],
+  );
+
   return (
     <TarkovLiveWatchContext.Provider value={value}>
-      {children}
+      <TarkovLiveShotMetaContext.Provider value={shotMeta}>
+        <TarkovLiveLogMapContext.Provider value={lastLogMapId}>
+          <TarkovLiveLogPhaseContext.Provider value={lastLogPhase}>
+            <TarkovLiveFixContext.Provider value={fix}>
+              {children}
+            </TarkovLiveFixContext.Provider>
+          </TarkovLiveLogPhaseContext.Provider>
+        </TarkovLiveLogMapContext.Provider>
+      </TarkovLiveShotMetaContext.Provider>
     </TarkovLiveWatchContext.Provider>
   );
 }
 
 export function useTarkovLiveWatch(): TarkovLiveWatchValue {
   return useContext(TarkovLiveWatchContext);
+}
+
+export function useTarkovScreenshotFix(): TarkovScreenshotFix | null {
+  return useContext(TarkovLiveFixContext);
+}
+
+export function useTarkovLastLogMapId(): string {
+  return useContext(TarkovLiveLogMapContext);
+}
+
+export function useTarkovLastLogPhase(): TarkovLogPhasePayload | null {
+  return useContext(TarkovLiveLogPhaseContext);
+}
+
+export function useTarkovLiveShotMeta(): TarkovLiveShotMeta {
+  return useContext(TarkovLiveShotMetaContext);
 }

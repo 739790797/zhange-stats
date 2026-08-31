@@ -13,7 +13,9 @@ from app.services.tarkov.key_packs import (
     TarkovKeyPacksError,
     UNAVAILABLE_MSG,
     attach_key_sources,
+    attach_key_usage,
     build_key_source_index,
+    build_key_usage_index,
     fetch_map_locks,
     group_key_packs,
     maps_have_lock_data,
@@ -70,6 +72,8 @@ def test_group_merges_variant_locks_into_parent() -> None:
     assert by_id["k-gate"]["lock_count"] == 2
     assert by_id["k-office"]["lock_count"] == 1
     assert by_id["k-gate"]["name"] == "大门钥匙"
+    assert by_id["k-gate"]["lock_types"] == []
+    assert by_id["k-gate"]["needs_power"] is False
 
 
 def test_group_keeps_multi_map_key_on_each_pack() -> None:
@@ -146,6 +150,7 @@ def test_group_catalog_name_wins_and_unbound_bucket() -> None:
     assert out["maps"][0]["keys"][0]["name"] == "宿舍 114 钥匙"
     assert out["maps"][0]["keys"][0]["short_name"] == "114"
     assert out["maps"][0]["keys"][0]["uses"] == 40
+    assert out["maps"][0]["keys"][0]["description"] == ""
     assert [row["id"] for row in out["unbound"]] == ["quest-only"]
     assert out["unbound"][0]["name"] == "任务专用钥"
     assert out["unbound"][0]["uses"] == 0
@@ -311,6 +316,92 @@ def test_task_source_replaces_placeholder_name() -> None:
     assert index["old-toilet-key"]["tasks"] == [
         {"id": "6745fcde0dfbbc74ca0f721d", "name": "Old House Toilet"}
     ]
+
+
+def test_group_collects_lock_types_and_power() -> None:
+    maps = [
+        {
+            "name": "海关",
+            "normalizedName": "customs",
+            "locks": [
+                {
+                    "lockType": "door",
+                    "needsPower": False,
+                    "key": _key("dorm-114", "宿舍 114"),
+                },
+                {
+                    "lockType": "door",
+                    "key": _key("dorm-114", "宿舍 114"),
+                },
+                {
+                    "lockType": "container",
+                    "needsPower": True,
+                    "key": _key("dorm-114", "宿舍 114"),
+                },
+            ],
+        }
+    ]
+    catalog = [
+        {
+            "id": "dorm-114",
+            "name": "宿舍 114 钥匙",
+            "types": ["keys"],
+            "handbook_ids": [KEYS_ROOT],
+            "description": "三层宿舍 114 房间的钥匙。",
+        }
+    ]
+    out = group_key_packs(maps, catalog)
+    key = out["maps"][0]["keys"][0]
+    assert key["lock_count"] == 3
+    assert key["lock_types"] == ["door", "container"]
+    assert key["needs_power"] is True
+    assert key["description"] == "三层宿舍 114 房间的钥匙。"
+
+
+def test_build_key_usage_index_joins_needed_keys_and_objectives() -> None:
+    index = build_key_usage_index(
+        [
+            {
+                "id": "task-1",
+                "name": "验收",
+                "neededKeys": [{"keys": [{"id": "dorm-114"}]}],
+                "objectives": [
+                    {
+                        "id": "obj-1",
+                        "description": "打开宿舍 114 的门",
+                        "requiredKeys": [[{"id": "dorm-114"}]],
+                    }
+                ],
+            },
+            {
+                "id": "task-2",
+                "name": "缺货",
+                "needed_keys": [{"keys": [{"id": "dorm-114"}, {"id": "other"}]}],
+            },
+        ]
+    )
+    dorm = {row["id"]: row for row in index["dorm-114"]}
+    assert set(dorm) == {"task-1", "task-2"}
+    assert dorm["task-1"]["notes"] == ["打开宿舍 114 的门"]
+    assert dorm["task-2"]["notes"] == []
+    assert [row["id"] for row in index["other"]] == ["task-2"]
+
+
+def test_attach_key_usage_fills_grouped_keys() -> None:
+    grouped = {
+        "maps": [{"slug": "customs", "keys": [{"id": "dorm-114", "name": "114"}]}],
+        "unbound": [{"id": "lonely", "name": "无用途"}],
+    }
+    attach_key_usage(
+        grouped,
+        {
+            "dorm-114": [
+                {"id": "t", "name": "验收", "notes": ["打开宿舍 114 的门"]}
+            ]
+        },
+    )
+    assert grouped["maps"][0]["keys"][0]["used_in_tasks"][0]["name"] == "验收"
+    assert grouped["unbound"][0]["used_in_tasks"] == []
 
 
 def test_attach_key_sources_fills_grouped_keys() -> None:

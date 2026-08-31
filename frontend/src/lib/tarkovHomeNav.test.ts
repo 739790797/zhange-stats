@@ -14,6 +14,7 @@ import {
   TARKOV_TOOLS,
   resolveTarkovMeTab,
   tarkovMeHref,
+  tarkovKeyPackHref,
   TARKOV_TOP_NAV,
   TARKOV_TRADERS,
   bossPortraitUrl,
@@ -23,6 +24,7 @@ import {
   buildSiteSearchSections,
   filterHomeSearch,
   isTarkovTopNavActive,
+  tarkovMapMarkByName,
   tarkovPageTitle,
   textMatchesQuery,
 } from "./tarkovHomeNav";
@@ -100,6 +102,9 @@ describe("filterHomeSearch", () => {
   it("finds key packs inside 个人中心", () => {
     expect(
       filterHomeSearch("钥匙分类", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("钥匙用途", index).some((h) => h.id === "me"),
     ).toBe(true);
     expect(filterHomeSearch("打包", index).some((h) => h.id === "me")).toBe(
       true,
@@ -281,6 +286,30 @@ describe("TARKOV_MAPS", () => {
     expect(
       TARKOV_MAPS.filter((m) => !m.comingSoon).every((m) => m.status === "ready"),
     ).toBe(true);
+  });
+});
+
+describe("tarkovMapMarkByName", () => {
+  it("resolves home labels and variant names to the same icons", () => {
+    expect(tarkovMapMarkByName("海关")).toMatchObject({
+      id: "customs",
+      label: "海关",
+    });
+    expect(tarkovMapMarkByName("夜间工厂")?.id).toBe("night-factory");
+    expect(tarkovMapMarkByName("夜间工厂")?.icon).toBe(
+      TARKOV_MAPS.find((row) => row.id === "factory")?.icon,
+    );
+    expect(tarkovMapMarkByName("实验室 (Dark)")).toMatchObject({
+      id: "lab",
+      label: "实验室 (Dark)",
+    });
+    expect(tarkovMapMarkByName("中心区 21+")?.id).toBe("ground-zero");
+    expect(tarkovMapMarkByName("未知地点")).toEqual({
+      id: "",
+      label: "未知地点",
+      icon: "",
+    });
+    expect(tarkovMapMarkByName("")).toBeNull();
   });
 });
 
@@ -481,6 +510,9 @@ describe("tarkov me tabs", () => {
     expect(tarkovMeHref("logs")).toBe("/guides/tarkov/me?tab=logs");
     expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
     expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
+    expect(tarkovKeyPackHref({ q: "Dorm 114", map: "customs" })).toBe(
+      "/guides/tarkov/me?tab=keys&map=customs&q=Dorm+114",
+    );
   });
 });
 

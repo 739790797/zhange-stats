@@ -6,6 +6,7 @@ import {
   isReadableTarkovLogFileName,
   isScreenshotFileName,
   screenshotNamesToInspect,
+  screenshotNamesToPrune,
   listSessionStubs,
   logWalkCandidatesFrom,
   mergeBindPath,
@@ -23,15 +24,17 @@ const LOGS_PATH_KEY = "logs-dir-path";
 const SHOTS_PATH_KEY = "screenshots-dir-path";
 
 type FsPermission = "granted" | "denied" | "prompt";
+type FsMode = "read" | "readwrite";
 
 export type ReadableDir = {
   name: string;
-  queryPermission: (opts?: { mode?: "read" }) => Promise<FsPermission>;
-  requestPermission: (opts?: { mode?: "read" }) => Promise<FsPermission>;
+  queryPermission: (opts?: { mode?: FsMode }) => Promise<FsPermission>;
+  requestPermission: (opts?: { mode?: FsMode }) => Promise<FsPermission>;
   values?: () => AsyncIterableIterator<ReadableEntry>;
   entries?: () => AsyncIterableIterator<[string, ReadableEntry]>;
   getDirectoryHandle: (name: string) => Promise<ReadableDir>;
   getFileHandle: (name: string) => Promise<ReadableFile>;
+  removeEntry?: (name: string) => Promise<void>;
 };
 
 export type ReadableFile = {
@@ -68,9 +71,29 @@ export type TarkovLogSessionRead = {
 type PickerWindow = Window & {
   showDirectoryPicker?: (opts?: {
     id?: string;
-    mode?: "read";
+    mode?: FsMode;
     startIn?: "documents" | "desktop" | "downloads" | ReadableDir;
   }) => Promise<ReadableDir>;
+};
+
+type FileSystemObserverCtor = new (
+  callback: (records: readonly FileSystemChangeRecord[]) => void,
+) => {
+  observe: (
+    handle: ReadableDir,
+    opts?: { recursive?: boolean },
+  ) => void | Promise<void>;
+  disconnect: () => void;
+};
+
+type FileSystemChangeRecord = {
+  type?: string;
+  relativePathComponents?: readonly string[];
+  changedHandle?: { name?: string; kind?: string };
+};
+
+type ObserverWindow = Window & {
+  FileSystemObserver?: FileSystemObserverCtor;
 };
 
 export type ResolvedTarkovDir = {
@@ -213,22 +236,59 @@ export async function clearStoredScreenshotsDir(): Promise<void> {
   notifyTarkovLiveDirsChanged();
 }
 
-export async function queryLogsDirPermission(
+async function queryDirPermission(
   handle: ReadableDir,
+  mode: FsMode,
 ): Promise<FsPermission> {
   if (typeof handle.queryPermission !== "function") return "granted";
   try {
-    return await handle.queryPermission({ mode: "read" });
+    return await handle.queryPermission({ mode });
   } catch {
     return "prompt";
   }
 }
 
+async function requestDirPermission(
+  handle: ReadableDir,
+  mode: FsMode,
+): Promise<FsPermission> {
+  if (typeof handle.requestPermission !== "function") return "granted";
+  return handle.requestPermission({ mode });
+}
+
+export async function queryLogsDirPermission(
+  handle: ReadableDir,
+): Promise<FsPermission> {
+  return queryDirPermission(handle, "read");
+}
+
 export async function requestLogsDirPermission(
   handle: ReadableDir,
 ): Promise<FsPermission> {
-  if (typeof handle.requestPermission !== "function") return "granted";
-  return handle.requestPermission({ mode: "read" });
+  return requestDirPermission(handle, "read");
+}
+
+/** 截图目录要能删已读文件；旧授权只有读权限时仍可定位。 */
+export async function queryScreenshotsDirPermission(
+  handle: ReadableDir,
+): Promise<FsPermission> {
+  const write = await queryDirPermission(handle, "readwrite");
+  if (write === "granted") return write;
+  return queryDirPermission(handle, "read");
+}
+
+export async function requestScreenshotsDirPermission(
+  handle: ReadableDir,
+): Promise<FsPermission> {
+  const write = await requestDirPermission(handle, "readwrite");
+  if (write === "granted") return write;
+  return requestDirPermission(handle, "read");
+}
+
+export async function screenshotsDirCanWrite(
+  handle: ReadableDir,
+): Promise<boolean> {
+  return (await queryDirPermission(handle, "readwrite")) === "granted";
 }
 
 function requirePicker() {
@@ -254,9 +314,46 @@ export async function pickScreenshotsDirectory(
 ): Promise<ReadableDir> {
   return requirePicker()({
     id: "zhange-tarkov-screenshots",
-    mode: "read",
+    mode: "readwrite",
     startIn: startIn || "documents",
   });
+}
+
+export function isFileSystemObserverSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return typeof (window as ObserverWindow).FileSystemObserver === "function";
+}
+
+export async function observeDirectory(
+  handle: ReadableDir,
+  onChange: (appeared: string[]) => void,
+): Promise<(() => void) | null> {
+  const Ctor = (window as ObserverWindow).FileSystemObserver;
+  if (!Ctor) return null;
+  let dead = false;
+  const observer = new Ctor((records) => {
+    if (dead) return;
+    const appeared: string[] = [];
+    for (const record of records) {
+      const type = String(record.type || "");
+      if (type && type !== "appeared" && type !== "modified") continue;
+      const name =
+        record.relativePathComponents?.[0] || record.changedHandle?.name || "";
+      if (name && !isScreenshotFileName(name)) continue;
+      if (name) appeared.push(name);
+    }
+    onChange(appeared);
+  });
+  try {
+    await Promise.resolve(observer.observe(handle));
+  } catch {
+    observer.disconnect();
+    return null;
+  }
+  return () => {
+    dead = true;
+    observer.disconnect();
+  };
 }
 
 export function isPickerAbort(error: unknown): boolean {
@@ -526,35 +623,74 @@ export async function listRecentScreenshots(
 
 export type TarkovScreenshotRead = TarkovScreenshotStub & { file: File };
 
-export async function pollLatestScreenshot(
-  handle: ReadableDir,
-  seenNames: ReadonlySet<string>,
-): Promise<{
-  names: string[];
-  latest: TarkovScreenshotRead | null;
-}> {
-  const { dir } = await resolveScreenshotsDirDetailed(handle);
-  const entries = await listDirEntries(dir);
-  const files = entries.filter(
-    (entry) => entry.kind === "file" && isScreenshotFileName(entry.name),
-  );
-  const names = files.map((entry) => entry.name);
-  const inspect = new Set(screenshotNamesToInspect(names, seenNames));
-  let latest: TarkovScreenshotRead | null = null;
-  for (const entry of files) {
-    if (!inspect.has(entry.name)) continue;
-    const fileHandle =
-      entry.getFile != null
-        ? (entry as ReadableFile)
-        : await dir.getFileHandle(entry.name);
+export async function readScreenshotByName(
+  dir: ReadableDir,
+  name: string,
+): Promise<TarkovScreenshotRead | null> {
+  if (!isScreenshotFileName(name)) return null;
+  try {
+    const fileHandle = await dir.getFileHandle(name);
     const file = await fileHandle.getFile();
-    const row: TarkovScreenshotRead = {
+    return {
       name: file.name,
       lastModified: file.lastModified,
       size: file.size,
       file,
     };
+  } catch {
+    return null;
+  }
+}
+
+export async function removeScreenshotFiles(
+  dir: ReadableDir,
+  names: readonly string[],
+): Promise<string[]> {
+  if (typeof dir.removeEntry !== "function") return [];
+  const removed: string[] = [];
+  for (const name of names) {
+    try {
+      await dir.removeEntry(name);
+      removed.push(name);
+    } catch {
+      /* 游戏可能还占着文件 */
+    }
+  }
+  return removed;
+}
+
+export async function pruneConsumedScreenshots(
+  dir: ReadableDir,
+  names: readonly string[],
+  keepLatest: string | null,
+  keepMax: number,
+): Promise<string[]> {
+  return removeScreenshotFiles(
+    dir,
+    screenshotNamesToPrune(names, keepLatest, keepMax),
+  );
+}
+
+export async function pollLatestScreenshot(
+  handle: ReadableDir,
+  seenNames: ReadonlySet<string>,
+  cachedDir?: ReadableDir | null,
+): Promise<{
+  names: string[];
+  latest: TarkovScreenshotRead | null;
+  dir: ReadableDir;
+}> {
+  const dir = cachedDir || (await resolveScreenshotsDirDetailed(handle)).dir;
+  const entries = await listDirEntries(dir);
+  const names = entries
+    .filter((entry) => entry.kind === "file" && isScreenshotFileName(entry.name))
+    .map((entry) => entry.name);
+  const inspect = screenshotNamesToInspect(names, seenNames);
+  let latest: TarkovScreenshotRead | null = null;
+  for (const name of inspect) {
+    const row = await readScreenshotByName(dir, name);
+    if (!row) continue;
     if (!latest || isNewerScreenshot(latest, row)) latest = row;
   }
-  return { names, latest };
+  return { names, latest, dir };
 }

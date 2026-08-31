@@ -792,6 +792,32 @@ def test_strip_raid_prep_geometry_keeps_items():
     assert row["objectives"][0]["zones"] == [{"id": "z1"}]
 
 
+def test_strip_raid_prep_catalog_drops_objectives():
+    row = {
+        "id": "t1",
+        "name": "Debut",
+        "normalized_name": "debut",
+        "trader_slug": "prapor",
+        "trader_name": "Prapor",
+        "has_map_markers": True,
+        "min_player_level": 2,
+        "objective_count": 1,
+        "objective_types": ["visit"],
+        "wiki_link": "https://example.test",
+        "objectives": [{"id": "o1", "description": "go", "items": [{"name": "hdd"}]}],
+        "needed_keys": [{"item_id": "k1"}],
+    }
+    out = tasks.strip_raid_prep_catalog(row)
+    assert out["id"] == "t1"
+    assert out["name"] == "Debut"
+    assert out["trader_slug"] == "prapor"
+    assert out["has_map_markers"] is True
+    assert out["objectives"] == []
+    assert out["needed_keys"] == []
+    assert "wiki_link" not in out
+    assert row["objectives"][0]["description"] == "go"
+
+
 def test_canonical_raid_map_slug():
     assert tasks.canonical_raid_map_slug("streets-of-tarkov") == "streets"
     assert tasks.canonical_raid_map_slug("bigmap") == "customs"
@@ -858,3 +884,32 @@ def test_collect_raid_prep_rows_bigmap_alias():
     name, rows = tasks.collect_raid_prep_rows(payload, "bigmap")
     assert name == "海关"
     assert [r["id"] for r in rows] == ["on-customs"]
+
+
+def test_collect_raid_prep_task_index_buckets_maps():
+    payload = {
+        "tasks": {
+            "on-map": {
+                "id": "on-map",
+                "name": "On streets",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [STREETS]}],
+            },
+            "other": {
+                "id": "other",
+                "name": "On customs",
+                "trader": PRAPOR,
+                "map": CUSTOMS,
+                "objectives": [{"id": "v2", "type": "visit", "maps": [CUSTOMS]}],
+            },
+        },
+        "locale": {},
+    }
+    index = tasks.collect_raid_prep_task_index(payload)
+    slugs = tasks.raid_prep_room_map_slugs()
+    assert "streets" in slugs
+    assert "night-factory" in slugs
+    assert index["streets"]["on-map"] == "On streets"
+    assert "on-map" not in index["customs"]
+    assert index["customs"]["other"] == "On customs"

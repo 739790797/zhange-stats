@@ -221,12 +221,109 @@ const TARKOV_SCREENSHOT_STAMP_RE = /^\d{4}-\d{2}-\d{2}/;
 /** 日志路径页打开时，检查截图目录的间隔。 */
 export const TARKOV_SCREENSHOT_POLL_MS = 2000;
 
-export const TARKOV_SCREENSHOT_FIRST_SCAN_CAP = 40;
+/** 一次轮询最多删多少张已读游戏截图，避免卡死主线程。 */
+export const TARKOV_SCREENSHOT_PRUNE_BATCH = 40;
+
+export const TARKOV_SCREENSHOT_PRUNE_EVENT = "zhange-tarkov-screenshot-prune";
+export const TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY =
+  "zhange.guides.tarkov.screenshotPrune.v1";
+export const TARKOV_SCREENSHOT_PRUNE_KEEP_DEFAULT = 20;
+export const TARKOV_SCREENSHOT_PRUNE_KEEP_MIN = 1;
+export const TARKOV_SCREENSHOT_PRUNE_KEEP_MAX = 200;
+
+export type TarkovScreenshotPrunePref = {
+  enabled: boolean;
+  keepMax: number;
+};
+
+const DEFAULT_SCREENSHOT_PRUNE_PREF: TarkovScreenshotPrunePref = {
+  enabled: false,
+  keepMax: TARKOV_SCREENSHOT_PRUNE_KEEP_DEFAULT,
+};
+
+export function clampScreenshotPruneKeep(value: unknown): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return TARKOV_SCREENSHOT_PRUNE_KEEP_DEFAULT;
+  return Math.min(
+    TARKOV_SCREENSHOT_PRUNE_KEEP_MAX,
+    Math.max(TARKOV_SCREENSHOT_PRUNE_KEEP_MIN, n),
+  );
+}
+
+export function parseScreenshotPrunePref(
+  raw: string | null | undefined,
+): TarkovScreenshotPrunePref {
+  if (!raw) return { ...DEFAULT_SCREENSHOT_PRUNE_PREF };
+  try {
+    const row = JSON.parse(raw) as { enabled?: unknown; keepMax?: unknown };
+    return {
+      enabled: row.enabled === true,
+      keepMax: clampScreenshotPruneKeep(row.keepMax),
+    };
+  } catch {
+    return { ...DEFAULT_SCREENSHOT_PRUNE_PREF };
+  }
+}
+
+export function loadScreenshotPrunePref(): TarkovScreenshotPrunePref {
+  if (typeof window === "undefined") return { ...DEFAULT_SCREENSHOT_PRUNE_PREF };
+  return parseScreenshotPrunePref(
+    window.localStorage.getItem(TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY),
+  );
+}
+
+export function saveScreenshotPrunePref(
+  pref: TarkovScreenshotPrunePref,
+): TarkovScreenshotPrunePref {
+  const next = {
+    enabled: pref.enabled === true,
+    keepMax: clampScreenshotPruneKeep(pref.keepMax),
+  };
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(
+      TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY,
+      JSON.stringify(next),
+    );
+    window.dispatchEvent(new Event(TARKOV_SCREENSHOT_PRUNE_EVENT));
+  }
+  return next;
+}
+
+export function screenshotPruneVerifyResult(opts: {
+  pruneEnabled: boolean;
+  canWrite: boolean;
+}): { ok: boolean; text: string } {
+  if (!opts.pruneEnabled) {
+    return { ok: true, text: "截图目录校验通过" };
+  }
+  if (!opts.canWrite) {
+    return {
+      ok: false,
+      text: "自动删截图需要写入授权。请点「更换」重新选择 Screenshots 文件夹，并在弹窗里允许查看并编辑。",
+    };
+  }
+  return { ok: true, text: "截图目录校验通过，已具备删除授权" };
+}
 
 export type TarkovScreenshotStamp = {
   name: string;
   lastModified: number;
 };
+
+export function isTarkovGameScreenshotName(name: string): boolean {
+  return (
+    isScreenshotFileName(name) && TARKOV_SCREENSHOT_STAMP_RE.test(name || "")
+  );
+}
+
+/** 游戏截图文件名带日期前缀，字典序最新的就是最新一张。 */
+export function latestScreenshotName(names: readonly string[]): string | null {
+  const images = names.filter((name) => isScreenshotFileName(name));
+  const dated = images.filter((name) => TARKOV_SCREENSHOT_STAMP_RE.test(name));
+  const pool = dated.length ? dated : images;
+  if (!pool.length) return null;
+  return [...pool].sort((a, b) => b.localeCompare(a))[0] || null;
+}
 
 export function isNewerScreenshot(
   current: TarkovScreenshotStamp | null | undefined,
@@ -239,21 +336,36 @@ export function isNewerScreenshot(
   return next.name.localeCompare(current.name) > 0;
 }
 
-/** 首次只抽文件名较新的一批；之后只读未见过的文件名。 */
+/** 只碰最新一张；已读过就跳过。 */
 export function screenshotNamesToInspect(
   names: readonly string[],
   seen: ReadonlySet<string>,
-  firstScanCap = TARKOV_SCREENSHOT_FIRST_SCAN_CAP,
 ): string[] {
-  const images = names.filter((name) => isScreenshotFileName(name));
-  if (!seen.size) {
-    const dated = images.filter((name) => TARKOV_SCREENSHOT_STAMP_RE.test(name));
-    const pool = dated.length ? dated : images;
-    return [...pool]
-      .sort((a, b) => b.localeCompare(a))
-      .slice(0, Math.max(1, firstScanCap));
+  const latest = latestScreenshotName(names);
+  if (!latest || seen.has(latest)) return [];
+  return [latest];
+}
+
+/** 游戏截图多于 keepMax 时，从最旧的开始删；最新一张始终留着。 */
+export function screenshotNamesToPrune(
+  names: readonly string[],
+  keepLatest: string | null,
+  keepMax: number,
+  batch = TARKOV_SCREENSHOT_PRUNE_BATCH,
+): string[] {
+  const dated = names.filter((name) => isTarkovGameScreenshotName(name));
+  const cap = clampScreenshotPruneKeep(keepMax);
+  if (dated.length <= cap) return [];
+  const newestFirst = [...dated].sort((a, b) => b.localeCompare(a));
+  const keep = new Set(newestFirst.slice(0, cap));
+  if (keepLatest) keep.add(keepLatest);
+  const out: string[] = [];
+  for (const name of newestFirst) {
+    if (out.length >= Math.max(0, batch)) break;
+    if (keep.has(name)) continue;
+    out.push(name);
   }
-  return images.filter((name) => !seen.has(name));
+  return out;
 }
 
 export function screenshotPollHint(ms = TARKOV_SCREENSHOT_POLL_MS): string {
@@ -483,7 +595,7 @@ export function sessionModeLabel(mode: string): string {
   return mode.trim();
 }
 
-export function logEventLabel(kind: TarkovLogEventKind): string {
+export function logEventLabel(kind: string): string {
   switch (kind) {
     case "map_loading":
       return "载入地图";
@@ -888,6 +1000,23 @@ export type TarkovRaidLogImportRow = {
   aborted: boolean;
 };
 
+export function raidLogEndedKey(row: {
+  folder?: string;
+  raid_id?: string;
+  raidId?: string;
+  started_at?: string;
+  startedAt?: string;
+  map_id?: string;
+  mapId?: string;
+}): string {
+  const folder = (row.folder || "").trim();
+  const raidId = (row.raid_id || row.raidId || "").trim();
+  if (raidId) return `${folder}|${raidId}`;
+  const started = (row.started_at || row.startedAt || "").trim();
+  const mapId = (row.map_id || row.mapId || "").trim();
+  return `${folder}|${started}|${mapId}`;
+}
+
 export function toRaidLogImportRows(
   sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
 ): TarkovRaidLogImportRow[] {
@@ -921,6 +1050,60 @@ export function latestLogEvent(
   const events = parsed?.events;
   if (!events?.length) return null;
   return events[events.length - 1];
+}
+
+export type TarkovLogPhasePayload = {
+  kind: TarkovLogEventKind;
+  mapId: string;
+  mapLabel: string;
+  raidId: string;
+  at: string;
+};
+
+function lastRaidFacingEvent(
+  parsed: TarkovLogParseResult,
+): TarkovLogEvent | null {
+  const events = parsed.events || [];
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    if (event && isRaidFacingEvent(event)) return event;
+  }
+  return null;
+}
+
+/** 最近一场战局对应的房间同步相位：开战 / 结束优先于匹配中。 */
+export function logPhaseFromParsed(
+  parsed: TarkovLogParseResult | null | undefined,
+): TarkovLogPhasePayload | null {
+  if (!parsed) return null;
+  const raids = parsed.raids || [];
+  const raid = raids[raids.length - 1];
+  if (raid) {
+    let kind: TarkovLogEventKind = "matching";
+    if (raid.endedAt) kind = "raid_exited";
+    else if (raid.startedAt) kind = "raid_started";
+    else if (raid.aborted) kind = "matching_aborted";
+    else {
+      const event = lastRaidFacingEvent(parsed);
+      if (event) kind = event.kind;
+    }
+    return {
+      kind,
+      mapId: raid.mapId || "",
+      mapLabel: raid.mapLabel || "",
+      raidId: raid.raidId || "",
+      at: raid.endedAt || raid.startedAt || lastRaidFacingEvent(parsed)?.at || "",
+    };
+  }
+  const event = lastRaidFacingEvent(parsed);
+  if (!event) return null;
+  return {
+    kind: event.kind,
+    mapId: event.mapId || "",
+    mapLabel: event.mapLabel || "",
+    raidId: event.raidId || "",
+    at: event.at || "",
+  };
 }
 
 /** 最近一场或最近一条带地图的事件。 */

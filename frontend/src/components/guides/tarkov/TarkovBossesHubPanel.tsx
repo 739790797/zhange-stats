@@ -1,11 +1,116 @@
-import { Alert, Spin } from "antd";
+import { Alert, Spin, Table } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTarkovBosses } from "@/api/guidesApi";
+import {
+  fetchTarkovBosses,
+  type TarkovBossListItem,
+} from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { tarkovBossHref } from "@/lib/tarkovHomeNav";
+import { tarkovBossHref, tarkovMapMarkByName } from "@/lib/tarkovHomeNav";
+import tableStyles from "./TarkovDarkTable.module.css";
+import catalogStyles from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovBossPanel.module.css";
+
+function dash(value: string | undefined): string {
+  const text = (value || "").trim();
+  return text || "—";
+}
+
+function mapsWithChance(row: TarkovBossListItem): { map: string; chance: string }[] {
+  const label = (row.spawn_label || "").trim();
+  if (label) {
+    const parsed = label.split("，").flatMap((part) => {
+      const match = part.trim().match(/^(\d+(?:–\d+)?%)[（(](.+)[）)]$/);
+      return match ? [{ chance: match[1], map: match[2] }] : [];
+    });
+    if (parsed.length) return parsed;
+  }
+  return (row.maps_label || "")
+    .split("、")
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((map) => ({ map, chance: "" }));
+}
+
+const columns: ColumnsType<TarkovBossListItem> = [
+  {
+    title: "Boss 名称",
+    key: "name",
+    width: 240,
+    fixed: "left",
+    render: (_: unknown, row) => (
+      <span className={styles.itemCell}>
+        {row.portrait_link ? (
+          <img
+            className={styles.listAvatar}
+            src={row.portrait_link}
+            alt=""
+            width={40}
+            height={40}
+          />
+        ) : (
+          <span className={styles.listAvatar} />
+        )}
+        <Link className={catalogStyles.nameLink} to={tarkovBossHref(row.slug)}>
+          {row.name || row.slug}
+        </Link>
+      </span>
+    ),
+  },
+  {
+    title: "昵称",
+    dataIndex: "nickname",
+    key: "nickname",
+    width: 120,
+    render: (value: string) => dash(value),
+  },
+  {
+    title: "地图（加概率）",
+    key: "maps",
+    render: (_: unknown, row) => {
+      const items = mapsWithChance(row);
+      if (!items.length) return "—";
+      return (
+        <span className={styles.mapsCell}>
+          {items.map((item) => {
+            const mark = tarkovMapMarkByName(item.map);
+            const label = mark?.label || item.map;
+            return (
+              <span
+                key={`${item.map}-${item.chance}`}
+                className={styles.mapChip}
+              >
+                {mark?.icon ? (
+                  <svg
+                    className={styles.mapIcon}
+                    viewBox="0 0 24 24"
+                    width={16}
+                    height={16}
+                    aria-hidden
+                  >
+                    <path d={mark.icon} fill="currentColor" />
+                  </svg>
+                ) : null}
+                <span>{label}</span>
+                {item.chance ? (
+                  <span className={styles.mapChance}>（{item.chance}）</span>
+                ) : null}
+              </span>
+            );
+          })}
+        </span>
+      );
+    },
+  },
+  {
+    title: "行为模式",
+    key: "behavior",
+    width: 200,
+    render: (_: unknown, row) => dash(row.behavior_zh || row.behavior),
+  },
+];
 
 export function TarkovBossesHubPanel() {
   const gameMode = useTarkovGameMode();
@@ -38,28 +143,17 @@ export function TarkovBossesHubPanel() {
   const rows = catalogQuery.data?.items ?? [];
 
   return (
-    <div className={styles.grid}>
-      {rows.map((item) => (
-        <Link
-          key={item.id || item.slug}
-          to={tarkovBossHref(item.slug)}
-          className={styles.card}
-        >
-          <div className={styles.english}>{item.name}</div>
-          {item.nickname ? <div className={styles.zh}>{item.nickname}</div> : null}
-          {item.portrait_link ? (
-            <img
-              className={styles.avatar}
-              src={item.portrait_link}
-              alt=""
-              width={96}
-              height={96}
-            />
-          ) : (
-            <span className={styles.avatar} />
-          )}
-        </Link>
-      ))}
+    <div className={catalogStyles.panel}>
+      <Table<TarkovBossListItem>
+        className={tableStyles.table}
+        size="small"
+        rowKey={(row) => row.id || row.slug}
+        columns={columns}
+        dataSource={rows}
+        pagination={false}
+        scroll={{ x: 720 }}
+        locale={{ emptyText: "暂无 BOSS 数据" }}
+      />
     </div>
   );
 }

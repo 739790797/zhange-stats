@@ -86,3 +86,41 @@ def test_async_game_mode_dep_keeps_401_and_mode():
     assert client.get("/mode?game_mode=pve").json() == {"mode": "pve"}
     assert client.get("/mode").json() == {"mode": "pvp"}
     assert parse_game_mode() == "pvp"
+
+
+def test_included_router_gets_game_mode_when_include_after_dep():
+    """战局房间是 include 进来的：父级 deps 必须在 include 之前挂上。"""
+    from fastapi import APIRouter, Depends, FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.guides.tarkov import tarkov_game_mode
+
+    child = APIRouter()
+
+    @child.get("/raid-rooms")
+    def list_rooms():
+        return {"mode": parse_game_mode()}
+
+    parent = APIRouter(prefix="/tarkov")
+    parent.dependencies.append(Depends(tarkov_game_mode))
+    parent.include_router(child)
+
+    app = FastAPI()
+    app.include_router(parent, prefix="/guides")
+    client = TestClient(app, raise_server_exceptions=True)
+    assert client.get("/guides/tarkov/raid-rooms?game_mode=pve").json() == {
+        "mode": "pve"
+    }
+    assert client.get("/guides/tarkov/raid-rooms").json() == {"mode": "pvp"}
+
+
+def test_raid_rooms_list_openapi_exposes_game_mode():
+    from app.main import app
+
+    schema = app.openapi()
+    op = (schema.get("paths") or {}).get("/api/guides/tarkov/raid-rooms", {}).get(
+        "get"
+    )
+    assert op is not None
+    names = {p["name"] for p in (op.get("parameters") or []) if "name" in p}
+    assert "game_mode" in names

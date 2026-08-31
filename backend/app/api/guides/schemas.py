@@ -734,6 +734,12 @@ class TarkovKeyPackTaskOut(BaseModel):
     name: str = ""
 
 
+class TarkovKeyPackUsedInOut(BaseModel):
+    id: str
+    name: str = ""
+    notes: list[str] = Field(default_factory=list)
+
+
 class TarkovKeyPackFleaOut(BaseModel):
     price: int | None = None
 
@@ -755,6 +761,10 @@ class TarkovKeyPackKeyOut(BaseModel):
     access: bool = False
     community: bool = False
     uses: int | None = None
+    description: str = ""
+    lock_types: list[str] = Field(default_factory=list)
+    needs_power: bool = False
+    used_in_tasks: list[TarkovKeyPackUsedInOut] = Field(default_factory=list)
     sources: TarkovKeyPackSourcesOut = Field(default_factory=TarkovKeyPackSourcesOut)
 
 
@@ -777,12 +787,58 @@ class TarkovRaidRoomMapIn(BaseModel):
     map: str = Field(min_length=1, max_length=64)
 
 
+class TarkovRaidRoomJoinIn(BaseModel):
+    game_mode: str | None = None
+    password: str | None = Field(default=None, max_length=32)
+
+
+class TarkovRaidRoomPasswordIn(BaseModel):
+    password: str | None = Field(default=None, max_length=32)
+
+
+class TarkovRaidRoomGameModeIn(BaseModel):
+    game_mode: str = Field(min_length=1, max_length=16)
+
+
 class TarkovRaidRoomClaimIn(BaseModel):
     task_id: str = Field(min_length=1, max_length=64)
 
 
 class TarkovRaidRoomClaimsIn(BaseModel):
     task_ids: list[str] = Field(default_factory=list, max_length=40)
+
+
+class TarkovRaidRoomTaskProgressIn(BaseModel):
+    started_ids: list[str] = Field(default_factory=list, max_length=400)
+    done_ids: list[str] = Field(default_factory=list, max_length=800)
+
+
+class TarkovRaidRoomOverlapTaskOut(BaseModel):
+    id: str
+    name: str = ""
+    user_ids: list[int] = Field(default_factory=list)
+
+
+class TarkovRaidRoomOverlapCellOut(BaseModel):
+    user_id: int
+    count: int = 0
+    uploaded: bool = False
+
+
+class TarkovRaidRoomMapOverlapOut(BaseModel):
+    map_slug: str
+    with_tasks_count: int = 0
+    synced_count: int = 0
+    occupant_count: int = 0
+    cells: list[TarkovRaidRoomOverlapCellOut] = Field(default_factory=list)
+    tasks: list[TarkovRaidRoomOverlapTaskOut] = Field(default_factory=list)
+
+
+class TarkovRaidRoomMemberProgressOut(BaseModel):
+    user_id: int
+    uploaded: bool = False
+    started_count: int = 0
+    uploaded_at: str | None = None
 
 
 class TarkovRaidRoomMarkIn(BaseModel):
@@ -867,6 +923,16 @@ class TarkovRaidLogsImportOut(BaseModel):
     total: int = 0
 
 
+class TarkovRaidLogOut(TarkovRaidLogIn):
+    id: int | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class TarkovRaidLogsOut(BaseModel):
+    items: list[TarkovRaidLogOut] = Field(default_factory=list)
+
+
 class TarkovRaidRoomObjectiveDoneOut(BaseModel):
     task_id: str
     objective_id: str
@@ -900,6 +966,9 @@ class TarkovRaidRoomLobbyItemOut(BaseModel):
     public_id: str
     title: str = ""
     map_slug: str = ""
+    game_mode: str = "pvp"
+    listed: bool = True
+    has_password: bool = False
     host_user_id: int | None = None
     host_display_name: str = ""
     member_count: int = 0
@@ -925,3 +994,37 @@ class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
         default_factory=list
     )
     marks: list[TarkovRaidRoomMarkOut] = Field(default_factory=list)
+    task_progress: list[TarkovRaidRoomMemberProgressOut] = Field(
+        default_factory=list
+    )
+    map_overlap: list[TarkovRaidRoomMapOverlapOut] = Field(default_factory=list)
+
+
+class TarkovRaidPrepObjectiveDoneIn(BaseModel):
+    task_id: str = Field(min_length=1, max_length=64)
+    objective_id: str = Field(min_length=1, max_length=64)
+
+
+class TarkovRaidRoomObjectiveDonesIn(BaseModel):
+    items: list[TarkovRaidPrepObjectiveDoneIn] = Field(
+        default_factory=list, max_length=80
+    )
+
+
+class TarkovUserRaidPrepStateIn(BaseModel):
+    selected: list[str] = Field(default_factory=list, max_length=40)
+    objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(
+        default_factory=list, max_length=200
+    )
+    key_brings: list[str] = Field(default_factory=list, max_length=80)
+
+
+class TarkovUserRaidPrepStateOut(BaseModel):
+    map: str = ""
+    game_mode: str = "pvp"
+    selected: list[str] = Field(default_factory=list)
+    objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(
+        default_factory=list
+    )
+    key_brings: list[str] = Field(default_factory=list)
+    updated_at: str | None = None

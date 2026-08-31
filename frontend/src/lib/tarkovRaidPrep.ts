@@ -627,11 +627,18 @@ export function filterRaidPrepRows<
   opts: {
     trader?: string;
     q?: string;
+    excludeIds?: readonly string[];
   } = {},
 ): T[] {
   const traderKey = (opts.trader || "").trim().toLowerCase();
   const needle = (opts.q || "").trim().toLowerCase();
+  const exclude = new Set(
+    (opts.excludeIds || []).map((id) => (id || "").trim()).filter(Boolean),
+  );
   return rows.filter((row) => {
+    if (exclude.size && exclude.has(String(row.id || "").trim())) {
+      return false;
+    }
     if (traderKey) {
       const slug = String(row.trader_slug || "").toLowerCase();
       const tid = String(row.trader_id || "").toLowerCase();
@@ -959,6 +966,132 @@ export function planRaidPrepTaskProgressSync(opts: {
       addedCount: addedIds.length,
       capped,
     }),
+  };
+}
+
+export function hideCompletedRaidPrepRows<T extends { id: string }>(
+  rows: readonly T[],
+  doneIds: readonly string[] | null | undefined,
+): T[] {
+  const done = new Set(trimIdList(doneIds));
+  if (!done.size) return [...rows];
+  return rows.filter((row) => !done.has(row.id));
+}
+
+export function mergeRaidPrepNeededItems(
+  items: readonly RaidPrepNeededItem[],
+): RaidPrepNeededItem[] {
+  const merged = new Map<string, RaidPrepNeededItem>();
+  const leftover: RaidPrepNeededItem[] = [];
+  for (const item of items) {
+    if (item.anyOf?.length) {
+      leftover.push(item);
+      continue;
+    }
+    const key = [
+      item.kind,
+      item.id,
+      item.objectiveType,
+      item.found_in_raid ? "fir" : "stash",
+      item.optional ? "opt" : "req",
+    ].join("|");
+    const prev = merged.get(key);
+    if (!prev) {
+      merged.set(key, { ...item });
+      continue;
+    }
+    prev.count = raidPrepObjectiveCount(prev) + raidPrepObjectiveCount(item);
+  }
+  return [...merged.values(), ...leftover];
+}
+
+export function raidPrepKeyIsMissing(
+  ownNames: readonly string[] | null | undefined,
+  bringNames: readonly string[] | null | undefined,
+): boolean {
+  return !(ownNames || []).length && !(bringNames || []).length;
+}
+
+export const RAID_PREP_UNAVAILABLE_KEY_HINT =
+  "所需钥匙还没人拥有，这局做不了，已从地图上隐藏。";
+
+export function mergeRaidPrepAvailableKeyIds(
+  ...lists: Array<readonly { item_id?: string | null }[] | null | undefined>
+): Set<string> {
+  const ids = new Set<string>();
+  for (const list of lists) {
+    for (const row of list || []) {
+      const id = String(row.item_id || "").trim();
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+function raidPrepKeyItemAvailable(
+  item: RaidPrepNeededItem,
+  availableIds: ReadonlySet<string>,
+): boolean {
+  if (item.anyOf?.length) {
+    return item.anyOf.some((opt) => raidPrepKeyItemAvailable(opt, availableIds));
+  }
+  return availableIds.has(item.id);
+}
+
+/** 有必带钥匙，且每把都没人拥有。可选钥匙不挡。 */
+export function raidPrepTaskKeysUnavailable(
+  keys: readonly RaidPrepNeededItem[] | null | undefined,
+  availableIds: ReadonlySet<string>,
+): boolean {
+  const required = (keys || []).filter(
+    (item) => item.kind === "key" && !item.optional,
+  );
+  if (!required.length) return false;
+  return required.every((item) => !raidPrepKeyItemAvailable(item, availableIds));
+}
+
+export function collectUnavailableRaidPrepTaskIds(
+  tasks: readonly RaidPrepTaskLike[],
+  mapSlug: string,
+  skippedByTask: RaidPrepSkipMap | undefined,
+  availableIds: ReadonlySet<string>,
+): Set<string> {
+  const hidden = new Set<string>();
+  for (const task of tasks) {
+    const keys = collectRaidPrepTaskKeys(
+      task,
+      mapSlug,
+      raidPrepSkippedIds(skippedByTask, task.id),
+    );
+    if (raidPrepTaskKeysUnavailable(keys, availableIds)) hidden.add(task.id);
+  }
+  return hidden;
+}
+
+export function formatRaidPrepOverlayKeyLabel(
+  keyNames: readonly string[] | null | undefined,
+  showNoKey = false,
+): string {
+  if (showNoKey) return "不需要钥匙";
+  const names = (keyNames || []).map((name) => name.trim()).filter(Boolean);
+  if (!names.length) return "";
+  if (names.length <= 2) return names.join("、");
+  return `${names.slice(0, 2).join("、")}…`;
+}
+
+export function settleRaidPrepSelection(opts: {
+  selectedIds: readonly string[];
+  completedIds: readonly string[];
+  aborted?: boolean;
+}): { nextIds: string[]; removedIds: string[] } {
+  const selected = trimIdList(opts.selectedIds);
+  if (opts.aborted) return { nextIds: selected, removedIds: [] };
+  const done = new Set(trimIdList(opts.completedIds));
+  if (!done.size) return { nextIds: selected, removedIds: [] };
+  const removedIds = selected.filter((id) => done.has(id));
+  return {
+    nextIds: selected.filter((id) => !done.has(id)),
+    removedIds,
   };
 }
 
@@ -1423,7 +1556,13 @@ export function useRaidPrepObjectiveDone(scope: string) {
       return next;
     });
   }, [scope]);
-  return [done, toggle] as const;
+  const replace = useCallback((next: RaidPrepSkipMap) => {
+    const copy = new Map<string, Set<string>>();
+    for (const [taskId, ids] of next) copy.set(taskId, new Set(ids));
+    writeRaidPrepObjectiveDone(scope, copy);
+    setDone(copy);
+  }, [scope]);
+  return [done, toggle, replace] as const;
 }
 
 function namedRefItem(
@@ -1778,8 +1917,12 @@ export function buildRaidPrepSummary(
 ): RaidPrepTaskSummary[] {
   return tasks.map((task) => {
     const skipped = raidPrepSkippedIds(skippedByTask, task.id);
-    const items = collectRaidPrepTaskItems(task, mapSlug, skipped);
-    const keys = collectRaidPrepTaskKeys(task, mapSlug, skipped);
+    const items = mergeRaidPrepNeededItems(
+      collectRaidPrepTaskItems(task, mapSlug, skipped),
+    );
+    const keys = mergeRaidPrepNeededItems(
+      collectRaidPrepTaskKeys(task, mapSlug, skipped),
+    );
     const objectives = collectRaidPrepTaskObjectives(task, mapSlug);
     return {
       taskId: task.id,
@@ -1848,10 +1991,12 @@ export function buildRaidPrepOverlays(
   tasks: RaidPrepTaskLike[],
   mapSlug: string,
   skippedByTask?: RaidPrepSkipMap,
+  hiddenTaskIds?: ReadonlySet<string>,
 ): TarkovRaidPrepOverlay[] {
   const keys = mapSlugKeys(mapSlug);
   const overlays: TarkovRaidPrepOverlay[] = [];
   tasks.forEach((task, taskIndex) => {
+    if (hiddenTaskIds?.has(task.id)) return;
     const color = colorForTaskIndex(taskIndex);
     const taskName = displayRaidPrepTaskName(task);
     const traderSlug = (task.trader_slug || "").trim();
@@ -2103,16 +2248,34 @@ function clusterSeedRoots(
   };
   const pts = seeds.map(project);
   const gap2 = gap * gap;
+  const cell = Math.max(gap, 1);
+  const buckets = new Map<string, number[]>();
+  for (let i = 0; i < pts.length; i += 1) {
+    const point = pts[i]!;
+    const key = `${Math.floor(point.x / cell)}:${Math.floor(point.z / cell)}`;
+    const list = buckets.get(key);
+    if (list) list.push(i);
+    else buckets.set(key, [i]);
+  }
   for (let i = 0; i < pts.length; i += 1) {
     const a = pts[i]!;
-    for (let j = i + 1; j < pts.length; j += 1) {
-      const b = pts[j]!;
-      const dx = a.x - b.x;
-      const dz = a.z - b.z;
-      if (dx * dx + dz * dz > gap2) continue;
-      const ra = find(i);
-      const rb = find(j);
-      if (ra !== rb) parent[rb] = ra;
+    const gx = Math.floor(a.x / cell);
+    const gz = Math.floor(a.z / cell);
+    for (let ox = -1; ox <= 1; ox += 1) {
+      for (let oz = -1; oz <= 1; oz += 1) {
+        const list = buckets.get(`${gx + ox}:${gz + oz}`);
+        if (!list) continue;
+        for (const j of list) {
+          if (j <= i) continue;
+          const b = pts[j]!;
+          const dx = a.x - b.x;
+          const dz = a.z - b.z;
+          if (dx * dx + dz * dz > gap2) continue;
+          const ra = find(i);
+          const rb = find(j);
+          if (ra !== rb) parent[rb] = ra;
+        }
+      }
     }
   }
   return seeds.map((_, index) => find(index));
@@ -2213,4 +2376,82 @@ export function clusterRaidPrepOverlayLabels(
   }
   labels.sort((a, b) => a.z - b.z || a.x - b.x);
   return labels;
+}
+
+export type RaidPrepVirtualWindow = {
+  start: number;
+  end: number;
+  padTop: number;
+  padBottom: number;
+};
+
+/** 侧栏未选列表窗口：按估算行高切一段，overscan 避免白边。 */
+export function raidPrepVirtualWindow(opts: {
+  scrollTop: number;
+  viewportHeight: number;
+  count: number;
+  rowHeight: number;
+  overscan?: number;
+}): RaidPrepVirtualWindow {
+  const count = Math.max(0, Math.trunc(opts.count));
+  const rowHeight = Math.max(1, opts.rowHeight);
+  if (!count) return { start: 0, end: 0, padTop: 0, padBottom: 0 };
+  const overscan = Math.max(0, Math.trunc(opts.overscan ?? 8));
+  const scrollTop = Math.max(0, opts.scrollTop);
+  const viewport = Math.max(0, opts.viewportHeight);
+  const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const visible = Math.ceil(viewport / rowHeight) + overscan * 2;
+  const end = Math.min(count, start + visible);
+  return {
+    start,
+    end,
+    padTop: start * rowHeight,
+    padBottom: Math.max(0, (count - end) * rowHeight),
+  };
+}
+
+export const RAID_PREP_REST_VIRTUAL_MIN = 24;
+export const RAID_PREP_REST_ROW_PX = 56;
+
+export function missingRaidPrepGeometryIds(
+  cached: Readonly<Record<string, { id?: string }>> | null | undefined,
+  ids: readonly string[],
+): string[] {
+  const have = cached || {};
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = (raw || "").trim();
+    if (!id || seen.has(id) || have[id]) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+export function mergeRaidPrepGeometryItems<T extends { id?: string }>(
+  cached: Readonly<Record<string, T>> | null | undefined,
+  items: readonly T[],
+): Record<string, T> {
+  const next: Record<string, T> = { ...(cached || {}) };
+  for (const item of items) {
+    const id = (item.id || "").trim();
+    if (id) next[id] = item;
+  }
+  return next;
+}
+
+export function raidPrepGeometryQueryKey(gameMode: string, mapId: string) {
+  return ["guides-tarkov-raid-prep-geometry", gameMode, mapId] as const;
+}
+
+export function hydrateRaidPrepCatalogRows<T extends { id?: string }>(
+  catalog: readonly T[],
+  byId: Readonly<Record<string, T>>,
+): T[] {
+  if (!catalog.length) return [];
+  return catalog.map((row) => {
+    const id = (row.id || "").trim();
+    return (id && byId[id]) || row;
+  });
 }

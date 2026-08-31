@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 CATALOG_PAGE_SIZE_DEFAULT = 50
 CATALOG_PAGE_SIZE_MAX = 100
 
+KEYS_HANDBOOK_IDS = {
+    "5b47574386f77428ca22b342",
+    "5c518ec986f7743b68682ce2",
+    "5c518ed586f774119a772aee",
+}
+KEY_TYPES = {"key", "keys"}
+
 # 列表不带槽位/预设等大对象；详情仍返回完整 properties。
 _HEAVY_PROP_KEYS = {
     "slots",
@@ -418,17 +425,19 @@ def _row_from_raw(
     if not item_id:
         return None
     props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
-    name, short_name, _desc = _localized_name(item_id, raw, locale)
+    name, short_name, description = _localized_name(item_id, raw, locale)
     types = raw.get("types") if isinstance(raw.get("types"), list) else []
-    return {
+    type_list = [str(t) for t in types if t is not None and str(t).strip()]
+    handbook_ids = _id_list(raw.get("handbookCategories"))
+    row = {
         "id": item_id,
         "name": name,
         "short_name": short_name,
         "icon_link": str(
             raw.get("baseImageLink") or raw.get("iconLink") or ""
         ),
-        "types": [str(t) for t in types if t is not None and str(t).strip()],
-        "handbook_ids": _id_list(raw.get("handbookCategories")),
+        "types": type_list,
+        "handbook_ids": handbook_ids,
         "properties_type": str(props.get("propertiesType") or ""),
         "weight": _as_float(raw.get("weight")),
         "width": _as_int(raw.get("width")),
@@ -438,6 +447,15 @@ def _row_from_raw(
         "last_low_price": _as_int(raw.get("lastLowPrice")),
         "properties": _compact_properties(props) if isinstance(props, dict) else {},
     }
+    if description and _is_handbook_key(handbook_ids, type_list):
+        row["description"] = description
+    return row
+
+
+def _is_handbook_key(handbook_ids: list[str], types: list[str]) -> bool:
+    handbook = {str(x) for x in handbook_ids if x}
+    type_set = {str(x).strip().lower() for x in types if x}
+    return bool(handbook & KEYS_HANDBOOK_IDS) or bool(type_set & KEY_TYPES)
 
 
 def _iter_json_items(

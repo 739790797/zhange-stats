@@ -1,17 +1,67 @@
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
 import { colorForUserId, mapSlugKeys } from "@/lib/tarkovRaidPrep";
+import { logEventLabel } from "@/lib/tarkovGameLogs";
 
 export { tarkovRaidRoomHref, colorForUserId };
 
+export const RAID_ROOM_SLOT_COUNT = 5;
 export const RAID_ROOM_SLOT_IDS = ["1", "2", "3", "4", "5"] as const;
 
-export function parseRaidRoomPublicId(raw: string): string {
+const RAID_ROOM_SLOT_ID_RE = /^(?:pve-)?[1-5]$/i;
+
+export function raidRoomSlotPublicId(
+  slot: number,
+  gameMode: string = "pvp",
+): string {
+  const n = Math.trunc(slot);
+  if (n < 1 || n > RAID_ROOM_SLOT_COUNT) return "";
+  return String(gameMode || "").trim().toLowerCase() === "pve"
+    ? `pve-${n}`
+    : String(n);
+}
+
+export function raidRoomSlotIdsForMode(gameMode: string = "pvp"): string[] {
+  return RAID_ROOM_SLOT_IDS.map((id) =>
+    raidRoomSlotPublicId(Number(id), gameMode),
+  );
+}
+
+/** 按当前模式 1～5 号对齐大厅条目；对不上的桌用占位，不因模式错位整表清空。 */
+export function mergeRaidLobbySeats<T extends { public_id: string }>(
+  items: readonly T[] | null | undefined,
+  placeholders: readonly T[],
+): T[] {
+  const byId = new Map(
+    (items || []).map((row) => [String(row.public_id).toLowerCase(), row]),
+  );
+  return placeholders.map(
+    (seat) => byId.get(String(seat.public_id).toLowerCase()) ?? seat,
+  );
+}
+
+export function parseRaidRoomPublicId(
+  raw: string,
+  gameMode?: string,
+): string {
   const text = (raw || "").trim();
   if (!text) return "";
-  const fromPath = text.match(/raid-prep\/rooms\/([a-zA-Z0-9]+)/i);
-  const candidate = (fromPath?.[1] || text).trim();
-  if (/^[1-5]$/.test(candidate)) return candidate;
+  const fromPath = text.match(/raid-prep\/rooms\/([a-zA-Z0-9-]+)/i);
+  if (fromPath?.[1]) return normalizeRaidRoomPublicId(fromPath[1]);
+  const candidate = text.toLowerCase();
+  if (/^[1-5]$/.test(candidate)) {
+    return raidRoomSlotPublicId(Number(candidate), gameMode || "pvp");
+  }
+  return normalizeRaidRoomPublicId(candidate);
+}
+
+export function normalizeRaidRoomPublicId(raw: string): string {
+  const key = (raw || "").trim().toLowerCase();
+  if (RAID_ROOM_SLOT_ID_RE.test(key)) return key;
   return "";
+}
+
+export function isRaidRoomSlotId(publicId: string): boolean {
+  return RAID_ROOM_SLOT_ID_RE.test(publicId);
 }
 
 /** WS 断线后指数退避，上限 30 秒。 */
@@ -19,6 +69,9 @@ export function raidRoomWsRetryDelayMs(attempt: number): number {
   const n = Number.isFinite(attempt) ? Math.max(0, Math.trunc(attempt)) : 0;
   return Math.min(30_000, 1000 * 2 ** n);
 }
+
+/** 房间占用心跳：只要这条 WS 还在，服务端就不收座位。 */
+export const RAID_ROOM_WS_PING_MS = 25_000;
 
 export const RAID_ROOM_OTHER_FLOOR_OPACITY = 0.28;
 
@@ -50,7 +103,7 @@ export type RaidRoomMarkLike = {
   author_display_name?: string;
 };
 
-export type TarkovMapDrawMode = "pan" | "pen" | "erase";
+export type TarkovMapDrawMode = "pan" | "pen" | "pin" | "line" | "erase";
 
 export type StrokePoint = {
   x: number;
@@ -82,12 +135,74 @@ export type RaidRoomOccupantLike = {
   online?: boolean;
 };
 
+export type RaidRoomLogPhase = {
+  userId: number;
+  kind: string;
+  mapId: string;
+  mapLabel: string;
+  raidId: string;
+  at: string;
+};
+
+export function parseRaidRoomLogPhases(raw: unknown): RaidRoomLogPhase[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RaidRoomLogPhase[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const userId = Number(rec.user_id ?? rec.userId);
+    const kind = String(rec.kind || "").trim();
+    if (!Number.isFinite(userId) || userId <= 0 || !kind) continue;
+    out.push({
+      userId,
+      kind,
+      mapId: String(rec.map_id ?? rec.mapId ?? "").trim(),
+      mapLabel: String(rec.map_label ?? rec.mapLabel ?? "").trim(),
+      raidId: String(rec.raid_id ?? rec.raidId ?? "").trim(),
+      at: String(rec.at || "").trim(),
+    });
+  }
+  return out;
+}
+
+/** 在座任一人日志为开战且未结束 → 已在战局中；否则准备中。 */
+export function raidRoomLiveStatus(
+  occupantIds: readonly number[],
+  phases: readonly RaidRoomLogPhase[],
+): "preparing" | "in_raid" {
+  const seated = new Set(occupantIds.filter((id) => Number.isFinite(id) && id > 0));
+  if (!seated.size) return "preparing";
+  for (const phase of phases) {
+    if (seated.has(phase.userId) && phase.kind === "raid_started") return "in_raid";
+  }
+  return "preparing";
+}
+
+export function formatRaidRoomLiveStatus(status: "preparing" | "in_raid"): string {
+  return status === "in_raid" ? "已在战局中" : "准备中";
+}
+
+export function formatRaidRoomMemberWsLine(opts: {
+  online?: boolean;
+  phaseKind?: string;
+}): string {
+  const ws = opts.online ? "WS在线" : "WS离线";
+  const kind = (opts.phaseKind || "").trim();
+  if (!kind) return `${ws} · 无日志`;
+  return `${ws} · ${logEventLabel(kind)}`;
+}
+
 export type RaidRoomSnapshotLike = {
   public_id: string;
   title?: string;
   map_slug: string;
+  game_mode?: string | null;
+  listed?: boolean;
+  has_password?: boolean;
   host_user_id?: number | null;
   host_display_name: string;
+  member_count?: number;
+  max_members?: number;
   can_edit?: boolean;
   is_host?: boolean;
   is_member?: boolean;
@@ -98,6 +213,36 @@ export type RaidRoomSnapshotLike = {
   key_owns?: RaidRoomKeyBringLike[];
   objective_dones?: RaidRoomObjectiveDoneLike[];
   marks?: RaidRoomMarkLike[];
+  task_progress?: RaidRoomMemberProgressLike[];
+  map_overlap?: RaidRoomMapOverlapLike[];
+};
+
+export type RaidRoomMemberProgressLike = {
+  user_id: number;
+  uploaded: boolean;
+  started_count: number;
+  uploaded_at?: string | null;
+};
+
+export type RaidRoomOverlapCellLike = {
+  user_id: number;
+  count: number;
+  uploaded: boolean;
+};
+
+export type RaidRoomOverlapTaskLike = {
+  id: string;
+  name?: string;
+  user_ids?: number[];
+};
+
+export type RaidRoomMapOverlapLike = {
+  map_slug: string;
+  with_tasks_count: number;
+  synced_count: number;
+  occupant_count: number;
+  cells?: RaidRoomOverlapCellLike[];
+  tasks?: RaidRoomOverlapTaskLike[];
 };
 
 export type RaidRoomObjectiveDoneLike = {
@@ -123,6 +268,47 @@ export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
     is_member: seated,
     can_edit: seated && Boolean((room.map_slug || "").trim()),
   };
+}
+
+export function formatRaidRoomOverlapCell(
+  cell: RaidRoomOverlapCellLike | undefined,
+): string {
+  if (!cell || !cell.uploaded) return "—";
+  return String(cell.count);
+}
+
+export function raidRoomOverlapPeopleLabel(count: number): string {
+  return `${count}人`;
+}
+
+export function raidRoomOverlapTasksForUser(
+  row: RaidRoomMapOverlapLike,
+  userId: number,
+): RaidRoomOverlapTaskLike[] {
+  return (row.tasks || []).filter((task) =>
+    (task.user_ids || []).includes(userId),
+  );
+}
+
+export function raidRoomMapTaskTotal(row: RaidRoomMapOverlapLike): number {
+  return (row.cells || []).reduce(
+    (sum, cell) => sum + (cell.uploaded ? cell.count : 0),
+    0,
+  );
+}
+
+export function sortRaidRoomMapOverlap(
+  rows: readonly RaidRoomMapOverlapLike[],
+  mapOrder: readonly string[],
+): RaidRoomMapOverlapLike[] {
+  const order = new Map(mapOrder.map((id, index) => [id, index]));
+  return [...rows].sort((left, right) => {
+    const withTasks = right.with_tasks_count - left.with_tasks_count;
+    if (withTasks) return withTasks;
+    const total = raidRoomMapTaskTotal(right) - raidRoomMapTaskTotal(left);
+    if (total) return total;
+    return (order.get(left.map_slug) ?? 99) - (order.get(right.map_slug) ?? 99);
+  });
 }
 
 export type RaidRoomClaimGroup = {
@@ -253,6 +439,40 @@ export function userBroughtKey(
   );
 }
 
+export function userOwnsKey(
+  owns: readonly RaidRoomKeyBringLike[] | null | undefined,
+  itemId: string,
+  userId: number | null | undefined,
+): boolean {
+  return userBroughtKey(owns, itemId, userId);
+}
+
+export function patchRaidRoomKeyOwns(
+  owns: readonly RaidRoomKeyBringLike[] | null | undefined,
+  itemId: string,
+  user: { userId: number; name: string },
+  nextHas: boolean,
+): RaidRoomKeyBringLike[] {
+  const id = String(itemId || "").trim();
+  const rest = (owns || []).filter(
+    (row) =>
+      !(row.user_id === user.userId && String(row.item_id || "").trim() === id),
+  );
+  if (!nextHas || !id) return rest;
+  return [
+    ...rest,
+    {
+      item_id: id,
+      user_id: user.userId,
+      display_name: (user.name || "").trim() || `用户${user.userId}`,
+    },
+  ];
+}
+
+export function formatKeyOwnToggleLabel(ownedByMe: boolean): string {
+  return ownedByMe ? "取消" : "我有";
+}
+
 export function formatKeyBringHint(
   names: readonly string[],
   options?: { canToggle?: boolean },
@@ -294,7 +514,7 @@ export function formatKeyChipHint(
 ): string {
   const own = formatKeyOwnHint(ownNames);
   const bring = formatKeyBringHint(bringNames, options);
-  return [own, bring].filter(Boolean).join(" ");
+  return [own, bring].filter(Boolean).join("\n");
 }
 
 export function claimedTaskIds(
@@ -328,6 +548,40 @@ export function markMatchesFloor(
   return (mark.floor || "") === (floor || "");
 }
 
+export function raidRoomLiveSig(
+  room: RaidRoomSnapshotLike | null | undefined,
+): string {
+  if (!room) return "";
+  const claims = (room.claims || [])
+    .map((row) => `${row.user_id}:${row.task_id}`)
+    .sort()
+    .join(",");
+  const marks = (room.marks || []).map((row) => row.id).join(",");
+  const dones = (room.objective_dones || [])
+    .map((row) => `${row.user_id}:${row.task_id}:${row.objective_id}`)
+    .sort()
+    .join(",");
+  const keys = (room.key_brings || [])
+    .map((row) => `${row.user_id}:${row.item_id}`)
+    .sort()
+    .join(",");
+  const owns = (room.key_owns || [])
+    .map((row) => `${row.user_id}:${row.item_id}`)
+    .sort()
+    .join(",");
+  return [
+    room.map_slug,
+    room.host_user_id ?? "",
+    room.title || "",
+    room.member_count ?? "",
+    claims,
+    marks,
+    dones,
+    keys,
+    owns,
+  ].join("|");
+}
+
 export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
   current: T | null,
   event: {
@@ -356,7 +610,12 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
       userId,
     );
   };
-  if (event.snapshot) return withPresence(event.snapshot);
+  if (event.snapshot) {
+    if (current && raidRoomLiveSig(current) === raidRoomLiveSig(event.snapshot)) {
+      return withPresence(current);
+    }
+    return withPresence(event.snapshot);
+  }
   if (event.event === "presence" && current) return withPresence(current);
   return current ? withRaidRoomViewerFlags(current, userId) : null;
 }
@@ -437,7 +696,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function isMapDrawTool(mode: TarkovMapDrawMode): boolean {
-  return mode === "pen" || mode === "erase";
+  return mode === "pen" || mode === "pin" || mode === "line" || mode === "erase";
 }
 
 export function strokeFingerprint(mark: RaidRoomMarkLike): string {

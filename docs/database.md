@@ -25,7 +25,7 @@ tarkov_items_raws · tarkov_maps_raws · tarkov_tasks_raws · tarkov_traders_raw
 tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extras_raws
 tarkov_ammo · tarkov_guns
 tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_objective_dones / tarkov_raid_room_marks
-tarkov_user_key_owns · tarkov_user_task_dones · tarkov_user_raid_logs
+tarkov_user_key_owns · tarkov_user_task_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
 ```
 
@@ -55,12 +55,13 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `tarkov_extras_raws` | api.tarkov.dev extras |
 | `tarkov_ammo` | 弹药派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正） |
 | `tarkov_guns` | 枪械派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；口径/射速/人机/后坐/`allowed_ammo` 等） |
-| `tarkov_raid_rooms` | 战局准备席位房：全站固定 5 张桌（`public_id`=`1`…`5`，标题 `1号房`…`5号房`）。大厅始终列出全部席位及在座人员。空桌无房主、`map_slug` 为空；第一位加入者成为房主；房主离开则转给最早在座者；最后一人离开或房主清空房间则清空成员/画板/勾选/钥匙/目标完成并取消地图。房主可移除在座成员。换图同样清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
-| `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开或被房主移除则删行。`last_seen_at` 入座时写入，不再按心跳回收座位。`left_at` 列为旧兼容，新写入不再使用。`room_id` / `user_id` ON DELETE CASCADE |
-| `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。ON DELETE CASCADE |
+| `tarkov_raid_rooms` | 战局准备席位房：PVP / PVE 各固定 5 张公开桌（`public_id`=`1`…`5` 为 PVP，`pve-1`…`pve-5` 为 PVE，标题均为 `1号房`…`5号房`，`listed=true`，模式写死不可改）。大厅按当前顶栏模式只列出对应 5 张。`password_hash` 可空（bcrypt）；空则任何人可入座，房主可设/改/清。API 只回 `has_password`，不回哈希。加入有密码的桌须在 join 带明文；已在座者再 join 不用。最后一人离开或房主清空房间则清空成员/画板/勾选/钥匙/目标完成/密码并取消地图（公开桌复位到该桌固定模式）。空桌无房主、`map_slug` 为空；第一位加入者成为房主；房主离开则转给最早在座者。房主可移除在座成员。换图同样清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
+| `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开或被房主移除则删行。`last_seen_at` 入座、WS 连接/断开与 WS ping 时刷新；HTTP 拉房间不算心跳。WebSocket 在线集合里的人不踢；不在线且 `last_seen_at` 超过 2 小时则收回座位。`left_at` 列为旧兼容，新写入不再使用。`started_task_ids_json` 为入座后上传的「进行中」任务 id（已去掉完成项），`task_progress_at` 为空表示尚未上传。`room_id` / `user_id` ON DELETE CASCADE |
+| `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。同一任务可多人勾选。ON DELETE CASCADE |
 | `tarkov_user_key_owns` | 用户仓库钥匙拥有（账号级）；复合主键 `(user_id, item_id)`。钥匙分类速查勾选「我有」；准备总结按在座成员展示谁拥有。ON DELETE CASCADE |
 | `tarkov_user_task_dones` | 用户任务完成勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「我做完了」。ON DELETE CASCADE |
 | `tarkov_user_raid_logs` | 用户从本机游戏日志导入的战局摘要（地图 / 编号 / 开结束时间等，不含日志原文）。唯一 `(user_id, dedupe_key)`；索引 `(user_id, started_at)`。`user_id` ON DELETE CASCADE |
+| `tarkov_user_raid_preps` | 单人战局准备落盘（按 `game_mode` + `map_slug`）；复合主键 `(user_id, game_mode, map_slug)`。`selected_json` / `objective_dones_json` / `key_brings_json` 为 JSON 列表。ON DELETE CASCADE |
 | `tarkov_raid_room_key_brings` | 房间钥匙「我带了」声明；复合主键 `(room_id, item_id, user_id)`。同一把钥匙可多人署名（备份），准备总结里展示谁带了。ON DELETE CASCADE |
 | `tarkov_raid_room_objective_dones` | 房间目标「我做完了」署名；复合主键 `(room_id, task_id, objective_id, user_id)`。删除线只对勾选者本人；准备总结是公共内容，最后一列列出已完成用户。ON DELETE CASCADE |
 | `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |

@@ -165,7 +165,7 @@ class TarkovGun(Base):
 
 
 class TarkovRaidRoom(Base):
-    """战局准备席位房：全站固定 1～5 号，空桌无房主；换图或清空房间不留档。"""
+    """战局准备席位房：PVP / PVE 各 5 张公开桌；房主可设密码；换图或清空不留档。"""
 
     __tablename__ = "tarkov_raid_rooms"
     __table_args__ = (Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),)
@@ -174,6 +174,9 @@ class TarkovRaidRoom(Base):
     public_id: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String(40), nullable=False, default="")
     map_slug: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    game_mode: Mapped[str] = mapped_column(String(8), nullable=False, default="pvp")
+    listed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     host_user_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -215,6 +218,12 @@ class TarkovRaidRoomMember(Base):
         server_default=func.now(),
     )
     left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_task_ids_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]"
+    )
+    task_progress_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class TarkovRaidRoomTaskClaim(Base):
@@ -313,6 +322,30 @@ class TarkovUserRaidLog(Base):
         nullable=False,
         server_default=func.now(),
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserRaidPrep(Base):
+    """单人战局准备：按账号 / 模式 / 地图保存勾选、目标完成和钥匙声明。"""
+
+    __tablename__ = "tarkov_user_raid_preps"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    map_slug: Mapped[str] = mapped_column(String(64), primary_key=True)
+    selected_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    objective_dones_json: Mapped[list[Any]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    key_brings_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

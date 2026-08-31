@@ -49,6 +49,31 @@
   word-break: break-all;
 }
 
+.pruneRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #eee9d6;
+  font-size: 13px;
+}
+
+.pruneLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pruneCheck {
+  margin: 0;
+  accent-color: var(--hb-orange, #c8932a);
+}
+
+.pruneInput {
+  width: 72px;
+}
+
 @media (max-width: 640px) {
   .field {
     flex-wrap: wrap;
