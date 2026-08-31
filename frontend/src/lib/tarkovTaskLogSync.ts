@@ -5,13 +5,8 @@ import type {
   TarkovLogParseResult,
   TarkovLogQuestEvent,
   TarkovLogQuestKind,
-  TarkovLogSessionStub,
 } from "@/lib/tarkovGameLogs";
-import {
-  compareBeijingClock,
-  formatBeijing,
-  laterBeijingClock,
-} from "@/lib/time";
+import { formatBeijing, laterBeijingClock } from "@/lib/time";
 
 export type QuestLogState = TarkovLogQuestKind;
 
@@ -41,6 +36,19 @@ export function replayQuestEvents(
   return out;
 }
 
+/** 账号已有同等或更强进度时，这条日志不再改状态。 */
+export function accountHasQuestState(
+  done: ReadonlySet<string>,
+  started: ReadonlySet<string>,
+  taskId: string,
+  state: QuestLogState,
+): boolean {
+  const id = taskId.trim();
+  if (!id) return true;
+  if (state === "completed") return done.has(id);
+  return done.has(id) || started.has(id);
+}
+
 export function applyQuestLogState(
   doneIds: Iterable<string>,
   startedIds: Iterable<string>,
@@ -51,13 +59,13 @@ export function applyQuestLogState(
   const nextStarted = new Set(startedIds);
   for (const [id, state] of logState) {
     if (knownIds && !knownIds.has(id)) continue;
+    if (accountHasQuestState(nextDone, nextStarted, id, state)) continue;
     if (state === "completed") {
       nextDone.add(id);
       nextStarted.delete(id);
     } else {
       // started / failed：失败只是这次没做成，任务仍挂在身上
       nextStarted.add(id);
-      nextDone.delete(id);
     }
   }
   return { done: [...nextDone], started: [...nextStarted] };
@@ -78,18 +86,6 @@ export function collectQuestEventsFromSessions(
   return out;
 }
 
-export function filterQuestEventsAfter(
-  events: readonly TarkovLogQuestEvent[],
-  afterAt: string | null | undefined,
-): TarkovLogQuestEvent[] {
-  const cursor = (afterAt || "").trim();
-  if (!cursor) return [...events];
-  return events.filter((event) => {
-    const at = (event.at || "").trim();
-    return at && compareBeijingClock(at, cursor) > 0;
-  });
-}
-
 export function latestQuestEventAt(
   events: readonly TarkovLogQuestEvent[],
 ): string {
@@ -98,25 +94,6 @@ export function latestQuestEventAt(
     latest = laterBeijingClock(latest, event.at || "");
   }
   return latest;
-}
-
-/** 有游标时只读游标之后启动的目录，并始终留下最近两场（当前+上一场）。 */
-export function takeQuestSyncSessions(
-  stubs: readonly TarkovLogSessionStub[],
-  afterAt: string | null | undefined,
-  keepNewest = 2,
-): TarkovLogSessionStub[] {
-  const cursor = (afterAt || "").trim();
-  if (!cursor) return [...stubs];
-  const keep = new Set(
-    stubs.slice(0, Math.max(0, keepNewest)).map((stub) => stub.folder),
-  );
-  for (const stub of stubs) {
-    if (!stub.startedAt || compareBeijingClock(stub.startedAt, cursor) > 0) {
-      keep.add(stub.folder);
-    }
-  }
-  return stubs.filter((stub) => keep.has(stub.folder));
 }
 
 export function formatLastQuestSyncLine(
@@ -171,12 +148,8 @@ export function mergeQuestProgressFromLogs(
   sessions: Array<{ parsed: TarkovLogParseResult }>,
   gameMode: TarkovGameMode,
   knownIds?: ReadonlySet<string>,
-  afterAt?: string | null,
 ): QuestLogMergeResult {
-  const events = filterQuestEventsAfter(
-    collectQuestEventsFromSessions(sessions, gameMode),
-    afterAt,
-  );
+  const events = collectQuestEventsFromSessions(sessions, gameMode);
   const applied = applyQuestLogState(
     doneIds,
     startedIds,

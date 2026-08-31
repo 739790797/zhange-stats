@@ -461,9 +461,9 @@ export function TarkovTaskManagerPanel() {
     return stored;
   };
 
-  const stampSync = (cursorAt?: string) => {
+  const stampSync = () => {
     const syncedAt = nowBeijingStamp();
-    const marked = saveTaskSyncMark(gameMode, syncedAt, cursorAt);
+    const marked = saveTaskSyncMark(gameMode, syncedAt);
     setLastSyncAt(marked.syncedAt);
     notifyTarkovTaskProgress({
       mode: gameMode,
@@ -512,6 +512,7 @@ export function TarkovTaskManagerPanel() {
       }
       const prevDone = doneIdsRef.current;
       const prevStarted = startedIdsRef.current;
+      const hadSync = Boolean(lastSyncAt);
       const merged = mergeQuestProgressFromLogs(
         prevDone,
         prevStarted,
@@ -522,10 +523,10 @@ export function TarkovTaskManagerPanel() {
       touchedRef.current = true;
       applyProgress(merged.done, merged.started);
       writeMut.mutate(merged.done);
-      stampSync(merged.latestEventAt);
+      stampSync();
       message.success(
         formatQuestSyncDeltaLine(
-          "backfill",
+          hadSync ? "incremental" : "backfill",
           questProgressDelta(prevDone, prevStarted, merged.done, merged.started),
         ),
       );

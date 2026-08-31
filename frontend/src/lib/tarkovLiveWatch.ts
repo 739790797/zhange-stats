@@ -111,7 +111,6 @@ export function nextLiveQuestProgress(
   sessions: Array<{ parsed: TarkovLogParseResult }>,
   gameMode: TarkovGameMode,
   knownIds?: ReadonlySet<string>,
-  afterAt?: string | null,
 ): LiveQuestProgressPlan {
   const merged = mergeQuestProgressFromLogs(
     doneIds,
@@ -119,7 +118,6 @@ export function nextLiveQuestProgress(
     sessions,
     gameMode,
     knownIds,
-    afterAt,
   );
   return {
     done: merged.done,

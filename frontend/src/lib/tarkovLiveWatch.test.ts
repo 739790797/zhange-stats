@@ -133,7 +133,43 @@ describe("nextLiveQuestProgress", () => {
     });
   });
 
-  it("ignores log events at or before the cursor", () => {
+  it("applies historical log tasks even when their clock is old", () => {
+    expect(
+      nextLiveQuestProgress(
+        ["keep"],
+        [],
+        [
+          {
+            parsed: {
+              events: [],
+              raids: [],
+              sessionMode: "pve",
+              quests: [
+                {
+                  kind: "started",
+                  taskId: "keep",
+                  at: "2026-01-01 10:00:00",
+                },
+                {
+                  kind: "completed",
+                  taskId: "missed",
+                  at: "2026-01-01 09:00:00",
+                },
+              ],
+            },
+          },
+        ],
+        "pve",
+      ),
+    ).toMatchObject({
+      done: ["keep", "missed"],
+      started: [],
+      changed: true,
+      eventCount: 2,
+    });
+  });
+
+  it("does not un-complete an account task from an older start event", () => {
     expect(
       nextLiveQuestProgress(
         ["keep"],
@@ -155,14 +191,11 @@ describe("nextLiveQuestProgress", () => {
           },
         ],
         "pve",
-        undefined,
-        "2026-01-01 10:00:00",
       ),
     ).toMatchObject({
       done: ["keep"],
       started: [],
       changed: false,
-      eventCount: 0,
     });
   });
 });

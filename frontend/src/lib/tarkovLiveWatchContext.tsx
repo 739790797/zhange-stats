@@ -64,7 +64,6 @@ import {
 } from "@/lib/tarkovScreenshotPos";
 import { nowBeijingStamp } from "@/lib/time";
 import {
-  loadTaskCursorAt,
   loadTaskDoneIds,
   loadTaskStartedIds,
   saveTaskProgress,
@@ -205,21 +204,15 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       const mode = gameModeRef.current;
       const prevDone = loadTaskDoneIds(mode);
       const prevStarted = loadTaskStartedIds(mode);
-      const afterAt = loadTaskCursorAt(mode);
       const next = nextLiveQuestProgress(
         prevDone,
         prevStarted,
         sessions,
         mode,
         knownIdsRef.current,
-        afterAt,
       );
       const syncedAt = nowBeijingStamp();
-      saveTaskSyncMark(
-        mode,
-        syncedAt,
-        next.eventCount > 0 ? next.latestEventAt : undefined,
-      );
+      saveTaskSyncMark(mode, syncedAt);
       if (next.changed) {
         saveTaskProgress(mode, next.done, next.started);
       }

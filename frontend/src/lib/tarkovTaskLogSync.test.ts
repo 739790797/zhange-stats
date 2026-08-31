@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountHasQuestState,
   applyQuestLogState,
   collectQuestEventsFromSessions,
-  filterQuestEventsAfter,
   formatLastQuestSyncLine,
   formatQuestSyncDeltaLine,
   formatSignedDelta,
@@ -10,7 +10,6 @@ import {
   mergeQuestProgressFromLogs,
   replayQuestEvents,
   sessionModeMatchesGameMode,
-  takeQuestSyncSessions,
 } from "./tarkovTaskLogSync";
 import type { TarkovLogQuestEvent } from "./tarkovGameLogs";
 
@@ -47,6 +46,22 @@ describe("replayQuestEvents", () => {
   });
 });
 
+describe("accountHasQuestState", () => {
+  it("treats done as covering start/fail, and only done as covering complete", () => {
+    const done = new Set(["done"]);
+    const started = new Set(["active"]);
+    expect(accountHasQuestState(done, started, "done", "completed")).toBe(true);
+    expect(accountHasQuestState(done, started, "done", "started")).toBe(true);
+    expect(accountHasQuestState(done, started, "active", "started")).toBe(true);
+    expect(accountHasQuestState(done, started, "active", "failed")).toBe(true);
+    expect(accountHasQuestState(done, started, "active", "completed")).toBe(
+      false,
+    );
+    expect(accountHasQuestState(done, started, "new", "started")).toBe(false);
+    expect(accountHasQuestState(done, started, "new", "completed")).toBe(false);
+  });
+});
+
 describe("applyQuestLogState", () => {
   it("merges log state onto existing progress and drops unknown ids", () => {
     const merged = applyQuestLogState(
@@ -65,7 +80,7 @@ describe("applyQuestLogState", () => {
 
   it("keeps a failed attempt as in-progress instead of wiping it", () => {
     const merged = applyQuestLogState(
-      ["t1"],
+      [],
       ["t2"],
       new Map([
         ["t1", "failed"],
@@ -74,6 +89,21 @@ describe("applyQuestLogState", () => {
     );
     expect(merged.done).toEqual([]);
     expect(merged.started.sort()).toEqual(["t1", "t2"]);
+  });
+
+  it("fills missing historical tasks without un-completing the account", () => {
+    const merged = applyQuestLogState(
+      ["done"],
+      ["active"],
+      new Map([
+        ["done", "started"],
+        ["active", "failed"],
+        ["old-complete", "completed"],
+        ["old-start", "started"],
+      ]),
+    );
+    expect(merged.done.sort()).toEqual(["done", "old-complete"]);
+    expect(merged.started.sort()).toEqual(["active", "old-start"]);
   });
 });
 
@@ -130,7 +160,7 @@ describe("mergeQuestProgressFromLogs", () => {
     expect(merged.latestEventAt).toBe("2026-01-01 11:00:00");
   });
 
-  it("only applies events after the cursor", () => {
+  it("applies historical log tasks the account is still missing", () => {
     const merged = mergeQuestProgressFromLogs(
       ["old"],
       [],
@@ -143,52 +173,17 @@ describe("mergeQuestProgressFromLogs", () => {
             quests: [
               ev("completed", "old", "2026-01-01 10:00:00"),
               ev("started", "old", "2026-01-01 12:00:00"),
-              ev("completed", "new", "2026-01-01 12:00:01"),
+              ev("completed", "missed", "2026-01-01 09:00:00"),
+              ev("started", "fresh", "2026-01-01 12:00:01"),
             ],
           },
         },
       ],
       "pve",
-      undefined,
-      "2026-01-01 12:00:00",
     );
-    expect(merged.done.sort()).toEqual(["new", "old"]);
-    expect(merged.started).toEqual([]);
-    expect(merged.eventCount).toBe(1);
-  });
-});
-
-describe("filterQuestEventsAfter", () => {
-  it("keeps events strictly after the cursor", () => {
-    const events = [
-      ev("started", "a", "2026-01-01 10:00:00"),
-      ev("completed", "b", "2026-01-01 10:00:01"),
-    ];
-    expect(filterQuestEventsAfter(events, "").map((row) => row.taskId)).toEqual([
-      "a",
-      "b",
-    ]);
-    expect(
-      filterQuestEventsAfter(events, "2026-01-01 10:00:00").map((row) => row.taskId),
-    ).toEqual(["b"]);
-  });
-});
-
-describe("takeQuestSyncSessions", () => {
-  it("keeps newest two and later folders when a cursor exists", () => {
-    const stubs = [
-      { folder: "new", startedAt: "2026-01-03 00:00:00" },
-      { folder: "mid", startedAt: "2026-01-02 00:00:00" },
-      { folder: "old", startedAt: "2026-01-01 00:00:00" },
-    ];
-    expect(takeQuestSyncSessions(stubs, null).map((row) => row.folder)).toEqual([
-      "new",
-      "mid",
-      "old",
-    ]);
-    expect(
-      takeQuestSyncSessions(stubs, "2026-01-02 12:00:00").map((row) => row.folder),
-    ).toEqual(["new", "mid"]);
+    expect(merged.done.sort()).toEqual(["missed", "old"]);
+    expect(merged.started).toEqual(["fresh"]);
+    expect(merged.eventCount).toBe(4);
   });
 });
 
