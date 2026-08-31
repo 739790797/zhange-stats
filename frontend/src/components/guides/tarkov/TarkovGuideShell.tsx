@@ -3,6 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
+import {
+  groupBossesByKind,
+  TARKOV_BOSS_KIND_LABELS,
+  TARKOV_BOSS_KINDS,
+} from "@/lib/tarkovBossKinds";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
   TARKOV_HOME_PATH,
@@ -14,6 +19,7 @@ import {
 } from "@/lib/tarkovHomeNav";
 import { TarkovThemed } from "@/components/guides/tarkov/TarkovThemed";
 import { TarkovMeHeaderLink } from "@/components/guides/tarkov/TarkovMeHeaderLink";
+import { TarkovRaidRoomHeaderLink } from "@/components/guides/tarkov/TarkovRaidRoomHeaderLink";
 import {
   TarkovLiveWatchProvider,
   useTarkovLiveWatch,
@@ -232,22 +238,27 @@ export function TarkovGuideShell({ children }: Props) {
   const navItems = useMemo(() => {
     const bosses = bossesQuery.data?.items;
     if (!bosses?.length) return TARKOV_TOP_NAV;
+    const grouped = groupBossesByKind(bosses);
     return TARKOV_TOP_NAV.map((item) => {
       if (item.id !== "bosses") return item;
       return {
         ...item,
-        groups: [
-          {
-            id: "bosses",
-            label: "BOSS",
-            items: bosses.map((boss) => ({
-              id: boss.id || boss.slug,
-              label: boss.name,
-              href: tarkovBossHref(boss.slug),
-              status: "ready" as const,
-            })),
-          },
-        ],
+        groups: TARKOV_BOSS_KINDS.flatMap((kind) => {
+          const items = grouped[kind];
+          if (!items.length) return [];
+          return [
+            {
+              id: kind,
+              label: TARKOV_BOSS_KIND_LABELS[kind],
+              items: items.map((boss) => ({
+                id: boss.id || boss.slug,
+                label: boss.name,
+                href: tarkovBossHref(boss.slug),
+                status: "ready" as const,
+              })),
+            },
+          ];
+        }),
       };
     });
   }, [bossesQuery.data]);
@@ -266,6 +277,7 @@ export function TarkovGuideShell({ children }: Props) {
             >
               <TarkovGameLogo />
             </Link>
+            <TarkovRaidRoomHeaderLink />
             <TarkovLiveWatchStatus />
           </div>
           <nav className={styles.nav} aria-label="攻略栏目">
@@ -295,7 +307,11 @@ export function TarkovGuideShell({ children }: Props) {
                       {item.groups.map((group) => (
                         <div
                           key={group.id}
-                          className={`${styles.dropCol} ${bossMenu ? styles.dropColBosses : ""}`}
+                          className={`${styles.dropCol} ${
+                            bossMenu && group.id === "boss"
+                              ? styles.dropColBosses
+                              : ""
+                          }`}
                         >
                           <p className={styles.dropHead}>{group.label}</p>
                           {group.items.map((link) =>

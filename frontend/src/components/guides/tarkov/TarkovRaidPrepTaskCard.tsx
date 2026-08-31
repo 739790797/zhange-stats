@@ -5,8 +5,6 @@ import {
   collectRaidPrepTaskObjectives,
   colorForTaskId,
   displayRaidPrepTaskName,
-  groupObjectiveDonesForTask,
-  type RaidPrepObjectiveDoneLike,
 } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
@@ -24,8 +22,6 @@ type Props = {
   done?: boolean;
   mapSlug?: string;
   skipped?: ReadonlySet<string>;
-  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
-  currentUserId?: number | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   /** 只显示任务名，不渲染楼层 / 进度 / 参与人等次行。 */
   compact?: boolean;
@@ -47,8 +43,6 @@ function TarkovRaidPrepTaskCardInner({
   done,
   mapSlug = "",
   skipped,
-  objectiveDones,
-  currentUserId,
   onToggleObjective,
   compact,
   onToggle,
@@ -61,13 +55,6 @@ function TarkovRaidPrepTaskCardInner({
   const objectives = useMemo(
     () => collectRaidPrepTaskObjectives(row, mapSlug),
     [row, mapSlug],
-  );
-  const doneByOthers = useMemo(
-    () =>
-      groupObjectiveDonesForTask(row.id, objectiveDones, {
-        excludeUserId: currentUserId,
-      }),
-    [row.id, objectiveDones, currentUserId],
   );
   const meta = compact
     ? []
@@ -131,7 +118,6 @@ function TarkovRaidPrepTaskCardInner({
             taskId={row.id}
             objectives={objectives}
             skipped={skipped}
-            doneByOthers={doneByOthers}
             onNeedDetail={onNeedDetail}
             onToggle={
               onToggleObjective

@@ -10,9 +10,7 @@ import {
   colorForTaskId,
   colorForUserId,
   displayRaidPrepTaskName,
-  groupObjectiveDonesForTask,
   raidPrepSkippedIds,
-  type RaidPrepObjectiveDoneLike,
   type RaidPrepSkipMap,
   type RaidPrepTaskLike,
 } from "@/lib/tarkovRaidPrep";
@@ -37,8 +35,6 @@ type Props = {
   mapId?: string;
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   skippedByTask?: RaidPrepSkipMap;
-  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
-  currentUserId?: number | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -83,8 +79,6 @@ export function TarkovRaidPrepGuideOverview({
   mapId = "",
   participantsByTask,
   skippedByTask,
-  objectiveDones,
-  currentUserId,
   onToggleObjective,
   open: openProp,
   onOpenChange,
@@ -108,15 +102,6 @@ export function TarkovRaidPrepGuideOverview({
   const activeSkipped = useMemo(
     () => (guideId ? raidPrepSkippedIds(skippedByTask, guideId) : undefined),
     [guideId, skippedByTask],
-  );
-  const activeDoneByOthers = useMemo(
-    () =>
-      guideId
-        ? groupObjectiveDonesForTask(guideId, objectiveDones, {
-            excludeUserId: currentUserId,
-          })
-        : undefined,
-    [guideId, objectiveDones, currentUserId],
   );
 
   useEffect(() => {
@@ -168,7 +153,6 @@ export function TarkovRaidPrepGuideOverview({
                     <TarkovRaidPrepObjectiveProgress
                       objectives={activeObjectives}
                       skipped={activeSkipped}
-                      doneByOthers={activeDoneByOthers}
                       onToggle={
                         onToggleObjective && guideId
                           ? (objectiveId) =>

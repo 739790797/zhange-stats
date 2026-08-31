@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Alert, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
@@ -7,6 +8,11 @@ import {
   type TarkovBossListItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import {
+  groupBossesByKind,
+  TARKOV_BOSS_KIND_LABELS,
+  TARKOV_BOSS_KINDS,
+} from "@/lib/tarkovBossKinds";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovBossHref, tarkovMapMarkByName } from "@/lib/tarkovHomeNav";
 import tableStyles from "./TarkovDarkTable.module.css";
@@ -36,7 +42,7 @@ function mapsWithChance(row: TarkovBossListItem): { map: string; chance: string 
 
 const columns: ColumnsType<TarkovBossListItem> = [
   {
-    title: "Boss 名称",
+    title: "名称",
     key: "name",
     width: 240,
     fixed: "left",
@@ -120,6 +126,8 @@ export function TarkovBossesHubPanel() {
     staleTime: 5 * 60_000,
     retry: 1,
   });
+  const rows = catalogQuery.data?.items ?? [];
+  const groups = useMemo(() => groupBossesByKind(rows), [rows]);
 
   if (catalogQuery.isLoading) {
     return (
@@ -140,20 +148,36 @@ export function TarkovBossesHubPanel() {
     );
   }
 
-  const rows = catalogQuery.data?.items ?? [];
+  const sections = TARKOV_BOSS_KINDS.filter((kind) => groups[kind].length);
 
   return (
-    <div className={catalogStyles.panel}>
-      <Table<TarkovBossListItem>
-        className={tableStyles.table}
-        size="small"
-        rowKey={(row) => row.id || row.slug}
-        columns={columns}
-        dataSource={rows}
-        pagination={false}
-        scroll={{ x: 720 }}
-        locale={{ emptyText: "暂无 BOSS 数据" }}
-      />
+    <div className={catalogStyles.stack}>
+      {sections.length ? (
+        sections.map((kind) => (
+          <section key={kind} className={catalogStyles.panel}>
+            <div className={styles.listSection}>
+              <h2 className={styles.listSectionHead}>
+                {TARKOV_BOSS_KIND_LABELS[kind]}
+                <span className={styles.listSectionCount}>
+                  {groups[kind].length}
+                </span>
+              </h2>
+              <Table<TarkovBossListItem>
+                className={tableStyles.table}
+                size="small"
+                rowKey={(row) => row.id || row.slug}
+                columns={columns}
+                dataSource={groups[kind]}
+                pagination={false}
+                scroll={{ x: 720 }}
+                locale={{ emptyText: "暂无数据" }}
+              />
+            </div>
+          </section>
+        ))
+      ) : (
+        <div className={catalogStyles.panel}>暂无 BOSS 数据</div>
+      )}
     </div>
   );
 }

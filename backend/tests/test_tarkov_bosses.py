@@ -164,6 +164,7 @@ def test_parse_boss_rows_from_json_dump():
     assert dump_rows
     assert [r["slug"] for r in dump_rows] == [r["slug"] for r in env_rows]
     killa = next(r for r in dump_rows if r["slug"] == "killa")
+    assert killa["kind"] == "boss"
     assert killa["health_total"] == 890
     assert "立交桥" in killa["maps_label"]
 
@@ -202,6 +203,118 @@ def test_aliases():
     assert bosses.resolve_boss_slug("Killa") == "killa"
     assert bosses.resolve_boss_slug("bear") == "vs-rf"
     assert bosses.resolve_boss_slug("usec") == "vs-rf-sniper"
+
+
+def test_classify_boss_kind_splits_soldiers_and_elites():
+    assert bosses.classify_boss_kind("bossKilla", "killa") == "boss"
+    assert bosses.classify_boss_kind("blackDivision", "black-div") == "boss"
+    assert bosses.classify_boss_kind("PmcBot", "raider") == "elite"
+    assert bosses.classify_boss_kind("exUsec", "rogue") == "elite"
+    assert bosses.classify_boss_kind("sectantPriest", "cultist-priest") == "elite"
+    assert bosses.classify_boss_kind("vsRF", "vs-rf") == "soldier"
+    assert bosses.classify_boss_kind("vsRFSniper", "vs-rf-sniper") == "soldier"
+    assert bosses.classify_boss_kind("Sentry", "sentry") == "soldier"
+    assert bosses.classify_boss_kind("pmcBEAR", "bear") == "soldier"
+    assert bosses.classify_boss_kind("pmcUSEC", "usec") == "soldier"
+
+
+def test_generic_normalized_name_uses_mob_id_slug():
+    payload = {
+        "maps": {
+            "terminal": {
+                "id": "terminal",
+                "name": "Terminal",
+                "normalizedName": "terminal",
+                "bosses": [
+                    {
+                        "mob": "vsRF",
+                        "spawnChance": 1,
+                        "spawnLocations": [],
+                        "escorts": [],
+                    }
+                ],
+            }
+        },
+        "mobs": {
+            "vsRF": {
+                "id": "vsRF",
+                "name": "vsRF",
+                "normalizedName": "af",
+                "health": [],
+                "items": [],
+                "equipment": [],
+            }
+        },
+    }
+    rows = bosses.parse_boss_rows(payload)
+    assert len(rows) == 1
+    assert rows[0]["slug"] == "vs-rf"
+    assert rows[0]["kind"] == "soldier"
+    assert rows[0]["name"] == "俄军"
+
+
+def test_pve_pmc_bear_is_not_the_terminal_vsrf():
+    payload = {
+        "maps": {
+            "customs": {
+                "id": "customs",
+                "name": "Customs",
+                "normalizedName": "customs",
+                "bosses": [
+                    {
+                        "mob": "pmcBEAR",
+                        "spawnChance": 0.5,
+                        "spawnLocations": [],
+                        "escorts": [],
+                    }
+                ],
+            },
+            "terminal": {
+                "id": "terminal",
+                "name": "Terminal",
+                "normalizedName": "terminal",
+                "bosses": [
+                    {
+                        "mob": "vsRF",
+                        "spawnChance": 1,
+                        "spawnLocations": [],
+                        "escorts": [],
+                    }
+                ],
+            },
+        },
+        "mobs": {
+            "pmcBEAR": {
+                "id": "pmcBEAR",
+                "name": "pmcBEAR",
+                "normalizedName": "bear",
+                "health": [],
+                "items": [],
+                "equipment": [],
+            },
+            "vsRF": {
+                "id": "vsRF",
+                "name": "vsRF",
+                "normalizedName": "af",
+                "health": [],
+                "items": [],
+                "equipment": [],
+            },
+        },
+        "locale": {"pmcBEAR": "BEAR", "vsRF": "俄军"},
+    }
+    rows = bosses.parse_boss_rows(payload)
+    by_id = {r["id"]: r for r in rows}
+    assert by_id["pmcBEAR"]["slug"] == "bear"
+    assert by_id["pmcBEAR"]["kind"] == "soldier"
+    assert by_id["pmcBEAR"]["name"] == "BEAR"
+    assert by_id["vsRF"]["slug"] == "vs-rf"
+    assert by_id["vsRF"]["kind"] == "soldier"
+    assert by_id["vsRF"]["name"] == "俄军"
+    names = [r["name"] for r in rows]
+    assert names.count("BEAR") == 1
+    assert bosses._find_boss_row(rows, "bear")["id"] == "pmcBEAR"
+    assert bosses._find_boss_row(rows, "vs-rf")["id"] == "vsRF"
 
 
 def test_copy_missing_map_locks_keeps_old_doors():
@@ -333,15 +446,21 @@ def test_parse_keeps_duplicate_normalized_names():
     assert len(rows) == 5
     by_id = {r["id"]: r for r in rows}
     assert by_id["Sentry"]["slug"] == "sentry"
+    assert by_id["Sentry"]["kind"] == "soldier"
     assert by_id["Sentry"]["name"] == "守军"
     assert by_id["vsRF"]["slug"] == "vs-rf"
-    assert by_id["vsRF"]["name"] == "BEAR"
+    assert by_id["vsRF"]["kind"] == "soldier"
+    assert by_id["vsRF"]["name"] == "俄军"
     assert by_id["vsRFSniper"]["slug"] == "vs-rf-sniper"
-    assert by_id["vsRFSniper"]["name"] == "USEC"
+    assert by_id["vsRFSniper"]["kind"] == "soldier"
+    assert by_id["vsRFSniper"]["name"] == "俄军狙击"
     assert by_id["PmcBot"]["slug"] == "raider"
+    assert by_id["PmcBot"]["kind"] == "elite"
     assert by_id["PmcBot"]["name"] == "掠夺者"
     assert by_id["blackDivision"]["slug"] == "black-div"
+    assert by_id["blackDivision"]["kind"] == "boss"
     assert by_id["blackDivision"]["name"] == "黑色军团"
+    assert [r["kind"] for r in rows] == ["boss", "elite", "soldier", "soldier", "soldier"]
     assert by_id["Sentry"]["maps_label"] == "海岸线"
     assert "码头" in by_id["vsRF"]["maps_label"]
     assert "实验室" in by_id["PmcBot"]["maps_label"]

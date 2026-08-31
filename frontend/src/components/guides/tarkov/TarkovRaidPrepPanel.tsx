@@ -19,9 +19,7 @@ import { tarkovMapHref } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
-  collectUnavailableRaidPrepTaskIds,
   colorForTaskIndex,
-  mergeRaidPrepAvailableKeyIds,
   filterRaidPrepRows,
   hideCompletedRaidPrepRows,
   hydrateRaidPrepCatalogRows,
@@ -48,6 +46,7 @@ import {
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
 import { useTarkovLastLogMapId } from "@/lib/tarkovLiveWatchContext";
+import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
 import { loadTaskDoneIds, loadTaskStartedIds } from "@/lib/tarkovTaskTree";
 import { PanelFallback } from "@/components/RouteFallback";
@@ -91,7 +90,7 @@ export function TarkovRaidPrepPanel() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTaskId, setGuideTaskId] = useState("");
   const [highlightTaskId, setHighlightTaskId] = useState("");
-  const [dockOpen, setDockOpen] = useState(false);
+  const [dockOpen, setDockOpen] = useTarkovRaidDockOpen();
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
@@ -402,19 +401,9 @@ export function TarkovRaidPrepPanel() {
         : [],
     [keyBringIds, me, myName],
   );
-  const unavailableTaskIds = useMemo(
-    () =>
-      collectUnavailableRaidPrepTaskIds(
-        selectedTasks,
-        mapId,
-        objDone,
-        mergeRaidPrepAvailableKeyIds(keyOwns, keyBrings),
-      ),
-    [selectedTasks, mapId, objDone, keyOwns, keyBrings],
-  );
   const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId, objDone, unavailableTaskIds),
-    [overlayTasks, mapId, objDone, unavailableTaskIds],
+    () => buildRaidPrepOverlays(overlayTasks, mapId),
+    [overlayTasks, mapId],
   );
   const hideLocalFix = Boolean(
     lastLogMapId && !playerFixMatchesRoomMap(lastLogMapId, mapId),
@@ -497,17 +486,12 @@ export function TarkovRaidPrepPanel() {
       let points = resolveRaidPrepLocatePoints(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
-        raidPrepSkippedIds(objDone, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
           const rich = await geometry.ensure(row.id);
           points = rich
-            ? resolveRaidPrepLocatePoints(
-                rich,
-                mapId,
-                raidPrepSkippedIds(objDone, row.id),
-              )
+            ? resolveRaidPrepLocatePoints(rich, mapId)
             : [];
         } catch {
           return;
@@ -526,7 +510,7 @@ export function TarkovRaidPrepPanel() {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [geometry, mapId, overlayTasks, objDone],
+    [geometry, mapId, overlayTasks],
   );
 
   const openGuide = useCallback((taskId: string) => {
@@ -567,6 +551,8 @@ export function TarkovRaidPrepPanel() {
           <button
             type="button"
             className={styles.dockToggle}
+            aria-expanded={dockOpen}
+            aria-controls="tarkov-raid-dock"
             onClick={() => setDockOpen((open) => !open)}
           >
             {dockOpen ? "收起任务" : "任务列表"}
@@ -588,6 +574,18 @@ export function TarkovRaidPrepPanel() {
 
       <div className={styles.workspace}>
         <div className={styles.mapPane}>
+          <button
+            type="button"
+            className={styles.dockEdge}
+            aria-expanded={dockOpen}
+            aria-controls="tarkov-raid-dock"
+            onClick={() => setDockOpen((open) => !open)}
+          >
+            <span className={styles.srOnly}>
+              {dockOpen ? "收起任务栏" : "展开任务栏"}
+            </span>
+            <span aria-hidden>{dockOpen ? "›" : "‹"}</span>
+          </button>
           <div className={styles.mapFill}>
             {mapQuery.isLoading ? (
               <div className={catalogCss.status}>
@@ -651,8 +649,6 @@ export function TarkovRaidPrepPanel() {
                         onActiveIdChange={setGuideTaskId}
                         participantsByTask={participantsByTask}
                         skippedByTask={objDone}
-                        objectiveDones={objectiveDones}
-                        currentUserId={me?.id}
                         onToggleObjective={toggleObjDone}
                       />
                     </div>
@@ -663,7 +659,11 @@ export function TarkovRaidPrepPanel() {
           </div>
         </div>
 
-        <aside className={styles.dock} aria-label="任务列表">
+        <aside
+          id="tarkov-raid-dock"
+          className={styles.dock}
+          aria-label="任务列表"
+        >
           <TarkovRaidPrepFilters
             keyword={keyword}
             onKeyword={setKeyword}

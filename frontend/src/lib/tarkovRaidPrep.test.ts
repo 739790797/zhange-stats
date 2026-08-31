@@ -67,11 +67,9 @@ import {
   formatRaidPrepOverlayPointTitle,
   formatRaidPrepParticipantLine,
   objectiveDonesToSkipMap,
-  objectiveDonesToSkipMapAny,
   raidPrepMapObjectiveIds,
   roomObjectiveMarksForCompletedTasks,
   skipMapToObjectiveDones,
-  groupObjectiveDonesForTask,
   raidPrepParticipantNames,
   tarkovReadableName,
   traderFilterLabel,
@@ -565,7 +563,7 @@ describe("buildRaidPrepOverlays", () => {
     });
   });
 
-  it("drops skipped objectives from the map and remaining keys", () => {
+  it("keeps skipped objectives on the map and drops them from remaining keys", () => {
     const mixed: RaidPrepTaskLike = {
       id: "t-storage",
       name: "备储专家",
@@ -591,15 +589,12 @@ describe("buildRaidPrepOverlays", () => {
         },
       ],
     };
-    const skipped = new Map([["t-storage", new Set(["o-key"])]]);
-    const overlays = buildRaidPrepOverlays([mixed], "customs", skipped);
-    expect(overlays).toHaveLength(1);
-    expect(overlays[0]).toMatchObject({
-      title: "备储专家",
-      keyNames: [],
-      showNoKey: false,
-      subtitle: expect.stringContaining("检查兵营南楼白"),
-    });
+    const overlays = buildRaidPrepOverlays([mixed], "customs");
+    expect(overlays).toHaveLength(2);
+    expect(overlays.map((row) => row.subtitle)).toEqual([
+      "检查兵营东楼黑",
+      "检查兵营南楼白",
+    ]);
     expect(collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-key"]))).toEqual(
       [],
     );
@@ -1297,17 +1292,6 @@ describe("raid prep needed items", () => {
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
   });
 
-  it("groups others' objective completions per step", () => {
-    const grouped = groupObjectiveDonesForTask("wet-2", [
-      { task_id: "wet-2", objective_id: "o-1", user_id: 1, display_name: "甲" },
-      { task_id: "wet-2", objective_id: "o-2", user_id: 1, display_name: "甲" },
-      { task_id: "wet-2", objective_id: "o-1", user_id: 2, display_name: "乙" },
-    ], { excludeUserId: 2 });
-    expect(grouped.get("o-1")?.map((row) => row.name)).toEqual(["甲"]);
-    expect(grouped.get("o-2")?.map((row) => row.name)).toEqual(["甲"]);
-    expect(grouped.has("o-3")).toBe(false);
-  });
-
   it("lists users who finished every required map objective", () => {
     const tasks: RaidPrepTaskLike[] = [
       {
@@ -1329,9 +1313,28 @@ describe("raid prep needed items", () => {
     expect(completed.get("wet-2")?.map((row) => row.name)).toEqual(["甲"]);
     const mine = objectiveDonesToSkipMap(dones, 2);
     expect([...mine.get("wet-2")!]).toEqual(["o-1"]);
-    expect([...objectiveDonesToSkipMapAny(dones).get("wet-2")!].sort()).toEqual([
-      "o-1",
-      "o-2",
+    const wet: RaidPrepTaskLike = {
+      ...tasks[0]!,
+      objectives: [
+        {
+          id: "o-1",
+          type: "visit",
+          description: "在海岸线找到渔民的住所",
+          zones: [{ id: "z1", map_slug: "shoreline", x: 1, z: 1 }],
+        },
+        {
+          id: "o-2",
+          type: "visit",
+          description: "使用MS2000指示器标记钓鱼点",
+          zones: [{ id: "z2", map_slug: "shoreline", x: 80, z: 90 }],
+        },
+      ],
+    };
+    expect(
+      buildRaidPrepOverlays([wet], "shoreline").map((row) => row.subtitle),
+    ).toEqual([
+      "在海岸线找到渔民的住所",
+      "使用MS2000指示器标记钓鱼点",
     ]);
     expect(raidPrepMapObjectiveIds(tasks[0]!, "customs")).toEqual([
       "o-1",
@@ -2033,9 +2036,6 @@ describe("raid prep packing and settle", () => {
       ),
     ).toEqual(new Set());
     expect(buildRaidPrepOverlays([task], "customs")).toHaveLength(1);
-    expect(
-      buildRaidPrepOverlays([task], "customs", undefined, new Set(["wet-2"])),
-    ).toEqual([]);
   });
 
   it("drops completed tasks after a successful raid", () => {

@@ -42,11 +42,60 @@ SLUG_ALIASES = {
     "usec": "vs-rf-sniper",
 }
 
-# json dump 里 vsRF / vsRFSniper / Sentry 共用 normalizedName=af，中文还可能撞名。
+# json dump 里 vsRF / vsRFSniper / Sentry 共用 normalizedName=af，中文还可能撞名「俄军」。
+# 不可再标成 BEAR/USEC：PvE 另有 pmcBEAR / pmcUSEC。
 MOB_DISPLAY_NAMES: dict[str, str] = {
-    "vsRF": "BEAR",
-    "vsRFSniper": "USEC",
+    "vsRF": "俄军",
+    "vsRFSniper": "俄军狙击",
 }
+
+# json.tarkov.dev maps.bosses = 游戏 BossLocationSpawn，含具名 BOSS、精英小队、普通阵营兵。
+BOSS_KIND_BOSS = "boss"
+BOSS_KIND_ELITE = "elite"
+BOSS_KIND_SOLDIER = "soldier"
+BOSS_KIND_ORDER = {
+    BOSS_KIND_BOSS: 0,
+    BOSS_KIND_ELITE: 1,
+    BOSS_KIND_SOLDIER: 2,
+}
+# 占位 normalizedName，不能当 slug。
+GENERIC_MOB_NORMS = frozenset({"af"})
+# BEAR / USEC / 守军 / 普通 Scav：不是具名 BOSS。
+SOLDIER_MOB_IDS = frozenset(
+    {
+        "vsrf",
+        "vsrfsniper",
+        "sentry",
+        "assault",
+        "marksman",
+        "cursedassault",
+        "pmcbear",
+        "pmcusec",
+    }
+)
+SOLDIER_SLUGS = frozenset({"vs-rf", "vs-rf-sniper", "sentry", "bear", "usec"})
+# 掠夺者 / 游荡者 / 邪教徒 / 猎血犬：精英小队，不是单体 BOSS。
+ELITE_MOB_IDS = frozenset(
+    {
+        "pmcbot",
+        "exusec",
+        "sectantpriest",
+        "sectantwarrior",
+        "arenafighter",
+        "arenafighterevent",
+        "crazyassaultevent",
+    }
+)
+ELITE_SLUGS = frozenset(
+    {
+        "raider",
+        "rogue",
+        "cultist-priest",
+        "cultist-warrior",
+        "cultist",
+        "bloodhound",
+    }
+)
 
 NICKNAMES: dict[str, str] = {
     "reshala": "沙拉",
@@ -713,12 +762,52 @@ def _kebab_id(mob_id: str) -> str:
     return text or mob_id.lower()
 
 
+def classify_boss_kind(mob_id: str, slug: str = "") -> str:
+    """区分具名 BOSS、精英小队、地图 dump 里的阵营小兵。"""
+    ident = (mob_id or "").strip().lower()
+    sl = (slug or "").strip().lower()
+    if ident in SOLDIER_MOB_IDS or sl in SOLDIER_SLUGS or ident.startswith("vsrf"):
+        return BOSS_KIND_SOLDIER
+    if (
+        ident in ELITE_MOB_IDS
+        or sl in ELITE_SLUGS
+        or ident.startswith("sectant")
+        or ident.startswith("arenafighter")
+    ):
+        return BOSS_KIND_ELITE
+    return BOSS_KIND_BOSS
+
+
+def _spawn_mobs(
+    maps: dict[str, dict[str, Any]],
+    mobs: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for map_raw in maps.values():
+        if not isinstance(map_raw, dict):
+            continue
+        for spawn in map_raw.get("bosses") or []:
+            if not isinstance(spawn, dict):
+                continue
+            mob_id = str(spawn.get("mob") or "").strip()
+            if not mob_id or mob_id in out:
+                continue
+            raw = mobs.get(mob_id)
+            if isinstance(raw, dict):
+                out[mob_id] = raw
+    return out
+
+
 def assign_boss_slugs(mobs_by_id: dict[str, dict[str, Any]]) -> dict[str, str]:
     """同一 normalizedName 的多个 mob（如 af）各自保留独立 slug。"""
     bases: dict[str, str] = {}
     counts: dict[str, int] = {}
     for mob_id, raw in mobs_by_id.items():
-        base = str(raw.get("normalizedName") or "").strip() or _kebab_id(mob_id)
+        norm = str(raw.get("normalizedName") or "").strip()
+        if not norm or norm.lower() in GENERIC_MOB_NORMS:
+            base = _kebab_id(mob_id)
+        else:
+            base = norm
         bases[mob_id] = base
         counts[base] = counts.get(base, 0) + 1
     out: dict[str, str] = {}
@@ -843,6 +932,7 @@ def _project_mob(
     return {
         "id": str(raw.get("id") or mob_id),
         "slug": slug,
+        "kind": classify_boss_kind(str(raw.get("id") or mob_id), slug),
         "normalized_name": norm,
         "name": _mob_name(str(raw.get("id") or mob_id), raw, locale),
         "nickname": NICKNAMES.get(nick_key, ""),
@@ -866,23 +956,7 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     mobs = _mobs_blob(payload)
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
 
-    spawn_ids: list[str] = []
-    seen_ids: set[str] = set()
-    for map_raw in maps.values():
-        if not isinstance(map_raw, dict):
-            continue
-        for spawn in map_raw.get("bosses") or []:
-            if not isinstance(spawn, dict):
-                continue
-            mob_id = str(spawn.get("mob") or "").strip()
-            if not mob_id or mob_id in seen_ids:
-                continue
-            if not isinstance(mobs.get(mob_id), dict):
-                continue
-            seen_ids.add(mob_id)
-            spawn_ids.append(mob_id)
-
-    spawn_mobs = {mob_id: mobs[mob_id] for mob_id in spawn_ids}
+    spawn_mobs = _spawn_mobs(maps, mobs)
     slugs = assign_boss_slugs(spawn_mobs)
     by_id: dict[str, dict[str, Any]] = {
         mob_id: _project_mob(mob_id, raw, locale, slug=slugs[mob_id])
@@ -955,7 +1029,12 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not row["maps"]:
             continue
         rows.append(_finish_boss_row(row))
-    rows.sort(key=lambda r: str(r.get("name") or "").lower())
+    rows.sort(
+        key=lambda r: (
+            BOSS_KIND_ORDER.get(str(r.get("kind") or ""), 9),
+            str(r.get("name") or "").lower(),
+        )
+    )
     return rows
 
 
@@ -1233,6 +1312,7 @@ def _public_summary(row: dict[str, Any]) -> dict[str, Any]:
         "slug": row.get("slug") or "",
         "name": row.get("name") or "",
         "nickname": row.get("nickname") or "",
+        "kind": row.get("kind") or BOSS_KIND_BOSS,
         "behavior": row.get("behavior") or "",
         "behavior_zh": row.get("behavior_zh") or "",
         "maps_label": row.get("maps_label") or "",
@@ -1259,24 +1339,37 @@ def list_bosses(db: Session) -> dict[str, Any]:
 
 
 def _find_boss_row(rows: list[dict[str, Any]], slug: str) -> dict[str, Any] | None:
-    key = resolve_boss_slug(slug)
-    if not key:
+    raw = (slug or "").strip().lower()
+    if not raw:
         return None
-    for row in rows:
-        if str(row.get("slug") or "") == key:
-            return row
-    lowered = key.lower()
-    for row in rows:
-        if str(row.get("id") or "").lower() == lowered:
-            return row
-    hits = [r for r in rows if str(r.get("normalized_name") or "") == key]
-    if len(hits) == 1:
-        return hits[0]
+    keys = [raw]
+    aliased = SLUG_ALIASES.get(raw)
+    if aliased and aliased not in keys:
+        keys.append(aliased)
+
+    def _by_slug(key: str) -> dict[str, Any] | None:
+        for row in rows:
+            if str(row.get("slug") or "") == key:
+                return row
+        return None
+
+    for key in keys:
+        hit = _by_slug(key)
+        if hit is not None:
+            return hit
+    for key in keys:
+        for row in rows:
+            if str(row.get("id") or "").lower() == key:
+                return row
+    for key in keys:
+        hits = [r for r in rows if str(r.get("normalized_name") or "") == key]
+        if len(hits) == 1:
+            return hits[0]
     return None
 
 
 def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
-    slug = resolve_boss_slug(slug)
+    slug = (slug or "").strip()
     if not slug:
         raise TarkovBossesError("BOSS slug 无效")
     ensure_maps(db)

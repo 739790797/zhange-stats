@@ -11,13 +11,9 @@ import {
   removeTarkovKeyOwn,
 } from "@/api/guidesApi";
 import { TarkovGuideItemCell } from "@/components/guides/tarkov/TarkovGuideItemCell";
-import { TarkovKeyOcrModal } from "@/components/guides/tarkov/TarkovKeyOcrModal";
 import { apiError } from "@/lib/apiError";
-import { flattenKeyPackKeys } from "@/lib/tarkovKeyOcr";
-import { mergeOcrSelection } from "@/lib/tarkovOcr";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
-import { useAuthStore } from "@/stores/authStore";
 import {
   ALL_PACK_SLUG,
   COMMUNITY_KEY_HINT,
@@ -147,8 +143,6 @@ export function TarkovKeyPacksPanel() {
   const [keyword, setKeyword] = useState(q);
   const qRef = useRef(q);
   const migratedRef = useRef(false);
-  const token = useAuthStore((s) => s.token);
-  const [ocrOpen, setOcrOpen] = useState(false);
   const [ownedIds, setOwnedIds] = useState<string[]>(() => loadOwnedIds());
   const owned = useMemo(() => new Set(ownedIds), [ownedIds]);
   const ownedIdsRef = useRef(ownedIds);
@@ -237,7 +231,6 @@ export function TarkovKeyPacksPanel() {
       ),
     [catalogQuery.data],
   );
-  const keyCatalog = useMemo(() => flattenKeyPackKeys(packs), [packs]);
   const slugs = useMemo(() => packs.map((row) => row.slug), [packs]);
   const allKeys = useMemo(() => collectPackKeys(packs), [packs]);
   const activeSlug = resolvePackSlug(mapRaw, slugs);
@@ -449,13 +442,6 @@ export function TarkovKeyPacksPanel() {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className={styles.ocrBtn}
-          onClick={() => setOcrOpen(true)}
-        >
-          截图识别
-        </button>
       </div>
       <div className={styles.rail} role="list" aria-label="地图">
         <button
@@ -549,20 +535,6 @@ export function TarkovKeyPacksPanel() {
           />
         </div>
       </div>
-      <TarkovKeyOcrModal
-        open={ocrOpen}
-        onClose={() => setOcrOpen(false)}
-        catalog={keyCatalog}
-        ownedIds={ownedIds}
-        onConfirm={async (ids) => {
-          touchedRef.current = true;
-          if (token) {
-            await mergeMut.mutateAsync(ids);
-            return;
-          }
-          applyOwns(mergeOcrSelection(ownedIdsRef.current, ids, 400));
-        }}
-      />
     </div>
   );
 }

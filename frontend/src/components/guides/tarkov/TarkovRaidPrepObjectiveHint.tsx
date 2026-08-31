@@ -2,7 +2,6 @@ import { Popover } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   formatRaidPrepKeyNeedLine,
-  type RaidPrepCompletedUser,
   type RaidPrepObjectiveHint,
 } from "@/lib/tarkovRaidPrep";
 import styles from "./TarkovRaidPrepPanel.module.css";
@@ -10,8 +9,6 @@ import styles from "./TarkovRaidPrepPanel.module.css";
 export type TarkovRaidPrepObjectiveProgressProps = {
   objectives: RaidPrepObjectiveHint[];
   skipped?: ReadonlySet<string>;
-  /** 他人已完成的步骤（不含当前用户）。 */
-  doneByOthers?: ReadonlyMap<string, readonly RaidPrepCompletedUser[]>;
   onToggle?: (objectiveId: string) => void;
 };
 
@@ -63,15 +60,9 @@ function releaseHintScrollListen() {
   document.removeEventListener("touchmove", onHintScrollDismiss, true);
 }
 
-function formatOthersDone(names: readonly string[]): string {
-  if (!names.length) return "";
-  return `${names.join("、")} 已完成`;
-}
-
 export function TarkovRaidPrepObjectiveProgress({
   objectives,
   skipped,
-  doneByOthers,
   onToggle,
 }: TarkovRaidPrepObjectiveProgressProps) {
   const doneIds = skipped || new Set<string>();
@@ -82,32 +73,25 @@ export function TarkovRaidPrepObjectiveProgress({
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className={styles.taskObjHintLead}>
-        勾选表示你已做完：只对你划掉并隐藏点位。他人完成的步骤会在后方标注。
+        勾选表示你已做完：只对你划掉，地图点位不会因此隐藏。
       </div>
       {objectives.length ? (
         objectives.map((obj) => {
           const mineDone = doneIds.has(obj.id);
-          const others = doneByOthers?.get(obj.id) || [];
           const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
-          const othersLabel = formatOthersDone(others.map((row) => row.name));
           return (
             <label key={obj.id} className={styles.taskObjCheck}>
               <input
                 type="checkbox"
                 checked={mineDone}
                 disabled={!onToggle}
-                aria-label={`${mineDone ? "取消勾选" : "勾选已完成"} ${obj.text}${othersLabel ? `，${othersLabel}` : ""}${keyLine ? ` ${keyLine}` : ""}`}
+                aria-label={`${mineDone ? "取消勾选" : "勾选已完成"} ${obj.text}${keyLine ? ` ${keyLine}` : ""}`}
                 onChange={() => onToggle?.(obj.id)}
               />
               <span
                 className={mineDone ? styles.taskObjLineDone : styles.taskObjLine}
               >
-                <span className={styles.taskObjLineMain}>
-                  <span>{obj.text}</span>
-                  {othersLabel ? (
-                    <span className={styles.taskObjDoneBy}>{othersLabel}</span>
-                  ) : null}
-                </span>
+                <span>{obj.text}</span>
                 {keyLine ? (
                   <span className={styles.taskObjKeys}>{keyLine}</span>
                 ) : null}
@@ -125,7 +109,6 @@ export function TarkovRaidPrepObjectiveProgress({
 export function TarkovRaidPrepObjectiveHint({
   objectives,
   skipped,
-  doneByOthers,
   onToggle,
   taskId,
   onNeedDetail,
@@ -184,7 +167,6 @@ export function TarkovRaidPrepObjectiveHint({
         <TarkovRaidPrepObjectiveProgress
           objectives={objectives}
           skipped={skipped}
-          doneByOthers={doneByOthers}
           onToggle={onToggle}
         />
       }

@@ -29,6 +29,7 @@ import {
   raidRoomSlotIdsForMode,
   parseStrokePoints,
   partitionRaidLobbyRooms,
+  raidRoomReturnHref,
   raidRoomIsFull,
   RAID_ROOM_WS_PING_MS,
   raidRoomWsRetryDelayMs,
@@ -152,6 +153,36 @@ describe("raid room helpers", () => {
     expect(
       roomDisplayTitle({ title: "夜厂局", host_display_name: "甲" }, "海关"),
     ).toBe("夜厂局");
+  });
+
+  it("returns 回到房间 href only when seated elsewhere", () => {
+    const items = [
+      { public_id: "3", is_member: true },
+      { public_id: "4", is_member: false },
+    ];
+    expect(raidRoomReturnHref(items, "/guides/tarkov")).toBe(
+      "/guides/tarkov/raid-prep/rooms/3",
+    );
+    expect(raidRoomReturnHref(items, "/guides/tarkov/items/ammo")).toBe(
+      "/guides/tarkov/raid-prep/rooms/3",
+    );
+    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/3")).toBe(
+      "",
+    );
+    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/3/")).toBe(
+      "",
+    );
+    expect(raidRoomReturnHref([{ public_id: "pve-2", is_member: true }], "/guides/tarkov")).toBe(
+      "/guides/tarkov/raid-prep/rooms/pve-2",
+    );
+    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/pve-2")).toBe(
+      "/guides/tarkov/raid-prep/rooms/3",
+    );
+    expect(raidRoomReturnHref([], "/guides/tarkov")).toBe("");
+    expect(raidRoomReturnHref(null, "/guides/tarkov")).toBe("");
+    expect(raidRoomReturnHref([{ public_id: "3", is_member: false }], "/guides/tarkov")).toBe(
+      "",
+    );
   });
 
   it("partitions lobby rooms into mine, hosted, and joinable", () => {

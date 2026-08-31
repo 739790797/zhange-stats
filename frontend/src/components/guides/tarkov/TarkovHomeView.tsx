@@ -8,6 +8,7 @@ import {
   type TarkovBossListItem,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { filterCatalogBosses } from "@/lib/tarkovBossKinds";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
@@ -85,7 +86,7 @@ type HomeBossRow = {
 };
 
 function homeBossesFromApi(items: TarkovBossListItem[]): HomeBossRow[] {
-  return items.map((item) => ({
+  return filterCatalogBosses(items).map((item) => ({
     id: item.id || item.slug,
     href: tarkovBossHref(item.slug),
     name: item.name,

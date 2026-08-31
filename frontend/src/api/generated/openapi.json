@@ -24516,6 +24516,12 @@
             "title": "Nickname",
             "default": ""
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
+            "default": "boss"
+          },
           "behavior": {
             "type": "string",
             "title": "Behavior",
@@ -24735,6 +24741,12 @@
             "type": "string",
             "title": "Nickname",
             "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
+            "default": "boss"
           },
           "behavior": {
             "type": "string",
@@ -26549,6 +26561,12 @@
             "title": "Name",
             "default": ""
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
+            "default": "boss"
+          },
           "spawn_chance": {
             "type": "integer",
             "title": "Spawn Chance",
@@ -27473,7 +27491,7 @@
           "max_members": {
             "type": "integer",
             "title": "Max Members",
-            "default": 5
+            "default": 8
           },
           "is_member": {
             "type": "boolean",
@@ -27704,7 +27722,7 @@
           "max_members": {
             "type": "integer",
             "title": "Max Members",
-            "default": 5
+            "default": 8
           },
           "is_member": {
             "type": "boolean",

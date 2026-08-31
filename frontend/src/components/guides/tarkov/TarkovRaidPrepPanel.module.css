@@ -195,7 +195,8 @@
 }
 
 .dockToggle {
-  display: none;
+  display: inline-flex;
+  align-items: center;
   flex: none;
   margin: 0;
   padding: 0 10px;
@@ -207,6 +208,10 @@
   font-size: 12px;
   cursor: pointer;
   appearance: none;
+}
+
+.dockEdge {
+  display: none;
 }
 
 .bindHint {
@@ -289,6 +294,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   gap: 8px;
   overflow: hidden;
+  position: relative;
 }
 
 .stage[data-pick="true"] {
@@ -321,6 +327,7 @@
 
 .stage[data-pick="true"] .dock,
 .stage[data-pick="true"] .dockToggle,
+.stage[data-pick="true"] .dockEdge,
 .stage[data-pick="true"] .drawDock {
   display: none;
 }
@@ -335,6 +342,47 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+@media (min-width: 981px) {
+  .stage[data-dock="closed"] .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stage[data-dock="closed"] .dock {
+    display: none;
+  }
+
+  .dockEdge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    z-index: 30;
+    width: 18px;
+    height: 56px;
+    margin: 0;
+    padding: 0;
+    transform: translateY(-50%);
+    border: 1px solid var(--hb-border, #3a3d30);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    background: var(--hb-panel, #22241a);
+    color: var(--hb-muted, #b0ae9a);
+    font: inherit;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    appearance: none;
+  }
+
+  .dockEdge:hover {
+    color: var(--hb-orange, #c8932a);
+    border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+    background: #101010;
+  }
 }
 
 .mapFill {
@@ -784,23 +832,8 @@
   white-space: normal;
 }
 
-.taskObjLineMain {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.taskObjLineDone .taskObjLineMain > span:first-child {
+.taskObjLineDone > span:first-child {
   text-decoration: line-through;
-}
-
-.taskObjDoneBy {
-  color: #8fb88a;
-  font-size: 11px;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
 }
 
 .taskObjKeys {
@@ -2339,6 +2372,10 @@
   .dockToggle {
     display: inline-flex;
     align-items: center;
+  }
+
+  .dockEdge {
+    display: none;
   }
 }
 

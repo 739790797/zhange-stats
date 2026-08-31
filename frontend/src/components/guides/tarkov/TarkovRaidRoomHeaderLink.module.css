@@ -1,0 +1,19 @@
+.link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  background: rgba(200, 147, 42, 0.14);
+  color: var(--hb-orange, #c8932a);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  border-color: var(--hb-orange, #c8932a);
+  color: #fff;
+}

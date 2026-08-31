@@ -41,9 +41,7 @@ import {
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
-  collectUnavailableRaidPrepTaskIds,
   colorForTaskIndex,
-  mergeRaidPrepAvailableKeyIds,
   colorForUserId,
   filterRaidPrepRows,
   hideCompletedRaidPrepRows,
@@ -51,7 +49,6 @@ import {
   partitionRaidPrepRows,
   planRaidPrepTaskProgressSync,
   objectiveDonesToSkipMap,
-  objectiveDonesToSkipMapAny,
   raidPrepMapOptions,
   raidPrepSkippedIds,
   resolveRaidPrepLocatePoints,
@@ -66,6 +63,7 @@ import {
 } from "@/lib/tarkovLiveWatch";
 import { useTarkovLastLogMapId, useTarkovLastLogPhase } from "@/lib/tarkovLiveWatchContext";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
+import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
 import { applyTarkovKeyOwnsCache } from "@/lib/tarkovKeyPacks";
 import { loadTaskDoneIds, loadTaskStartedIds } from "@/lib/tarkovTaskTree";
@@ -141,7 +139,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [guideTaskId, setGuideTaskId] = useState("");
   const [ocrOpen, setOcrOpen] = useState(false);
   const [highlightTaskId, setHighlightTaskId] = useState("");
-  const [dockOpen, setDockOpen] = useState(false);
+  const [dockOpen, setDockOpen] = useTarkovRaidDockOpen();
   const [copiedLink, setCopiedLink] = useState(false);
   const [mapPickView, setMapPickView] = useState(false);
   const [pickingMap, setPickingMap] = useState(false);
@@ -154,10 +152,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const objDone = useMemo(
     () => objectiveDonesToSkipMap(room?.objective_dones, me?.id),
     [room?.objective_dones, me?.id],
-  );
-  const mapObjDone = useMemo(
-    () => objectiveDonesToSkipMapAny(room?.objective_dones),
-    [room?.objective_dones],
   );
   const focusSeqRef = useRef(0);
   const locateIndexRef = useRef<Record<string, number>>({});
@@ -495,7 +489,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
   const leaveMut = useMutation({
     mutationFn: () => leaveTarkovRaidRoom(publicId),
-    onSuccess: () => navigate(TARKOV_RAID_PREP_PATH),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-raid-rooms"] });
+      navigate(TARKOV_RAID_PREP_PATH);
+    },
     onError: (exc) => setError(apiError(exc, "离开失败")),
   });
   const joinMut = useMutation({
@@ -575,25 +572,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   );
   const overlayTasksRef = useRef(overlayTasks);
   overlayTasksRef.current = overlayTasks;
-  const unavailableTaskIds = useMemo(
-    () =>
-      collectUnavailableRaidPrepTaskIds(
-        selectedTasks,
-        mapId,
-        mapObjDone,
-        mergeRaidPrepAvailableKeyIds(room?.key_owns, room?.key_brings),
-      ),
-    [selectedTasks, mapId, mapObjDone, room?.key_owns, room?.key_brings],
-  );
   const overlays = useMemo(
-    () =>
-      buildRaidPrepOverlays(
-        overlayTasks,
-        mapId,
-        mapObjDone,
-        unavailableTaskIds,
-      ),
-    [overlayTasks, mapId, mapObjDone, unavailableTaskIds],
+    () => buildRaidPrepOverlays(overlayTasks, mapId),
+    [overlayTasks, mapId],
   );
 
   const markQueueRef = useRef(Promise.resolve());
@@ -872,17 +853,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       let points = resolveRaidPrepLocatePoints(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
-        raidPrepSkippedIds(mapObjDone, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
           const rich = await geometry.ensure(row.id);
           points = rich
-            ? resolveRaidPrepLocatePoints(
-                rich,
-                mapId,
-                raidPrepSkippedIds(mapObjDone, row.id),
-              )
+            ? resolveRaidPrepLocatePoints(rich, mapId)
             : [];
         } catch {
           return;
@@ -901,7 +877,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [geometry, mapId, overlayTasks, mapObjDone],
+    [geometry, mapId, overlayTasks],
   );
 
   const openGuide = useCallback((taskId: string) => {
@@ -1091,6 +1067,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             <button
               type="button"
               className={styles.dockToggle}
+              aria-expanded={dockOpen}
+              aria-controls="tarkov-raid-dock"
               onClick={() => setDockOpen((open) => !open)}
             >
               {dockOpen ? "收起任务" : "任务列表"}
@@ -1188,6 +1166,20 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
       <div className={styles.workspace}>
         <div className={styles.mapPane}>
+          {mapId && !mapPickView ? (
+            <button
+              type="button"
+              className={styles.dockEdge}
+              aria-expanded={dockOpen}
+              aria-controls="tarkov-raid-dock"
+              onClick={() => setDockOpen((open) => !open)}
+            >
+              <span className={styles.srOnly}>
+                {dockOpen ? "收起任务栏" : "展开任务栏"}
+              </span>
+              <span aria-hidden>{dockOpen ? "›" : "‹"}</span>
+            </button>
+          ) : null}
           {canEdit && !showOverlap ? (
             <div className={styles.drawDock}>
               {(
@@ -1330,8 +1322,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         mapId={mapId}
                         participantsByTask={participantsByTask}
                         skippedByTask={objDone}
-                        objectiveDones={room?.objective_dones}
-                        currentUserId={me?.id}
                         onToggleObjective={toggleObjDone}
                         open={guideOpen}
                         onOpenChange={setGuideOpen}
@@ -1346,7 +1336,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           </div>
         </div>
         {mapId && !mapPickView ? (
-        <aside className={styles.dock} aria-label="任务列表">
+        <aside
+          id="tarkov-raid-dock"
+          className={styles.dock}
+          aria-label="任务列表"
+        >
           <TarkovRaidPrepFilters
             keyword={keyword}
             onKeyword={setKeyword}
@@ -1437,8 +1431,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     color={colorByTask.get(row.id) || colorForTaskIndex(index)}
                     disabled={!canEdit}
                     skipped={raidPrepSkippedIds(objDone, row.id)}
-                    objectiveDones={room?.objective_dones}
-                    currentUserId={me?.id}
                     onToggleObjective={toggleObjDone}
                     onToggle={toggleClaim}
                     onNeedDetail={geometry.ensure}
@@ -1476,8 +1468,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                           color={colorByTask.get(row.id) || colorForTaskIndex(index)}
                           disabled={!canEdit}
                           skipped={raidPrepSkippedIds(objDone, row.id)}
-                          objectiveDones={room?.objective_dones}
-                          currentUserId={me?.id}
                           onToggleObjective={toggleObjDone}
                           onToggle={toggleClaim}
                           onNeedDetail={geometry.ensure}
@@ -1506,8 +1496,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         active={highlightTaskId === row.id}
                         disabled={!canEdit}
                         skipped={raidPrepSkippedIds(objDone, row.id)}
-                        objectiveDones={room?.objective_dones}
-                        currentUserId={me?.id}
                         onToggleObjective={toggleObjDone}
                         onToggle={toggleClaim}
                         onNeedDetail={geometry.ensure}

@@ -1250,7 +1250,7 @@ export function raidPrepRequiredObjectiveIds(
   return required.length ? required : optional;
 }
 
-/** 当前地图上该任务的全部目标（含可选），整任务完成时用来抹点。 */
+/** 当前地图上该任务的全部目标（含可选），整任务完成时用来回填个人勾选。 */
 export function raidPrepMapObjectiveIds(
   task: RaidPrepTaskLike,
   mapSlug: string,
@@ -1283,17 +1283,6 @@ export function objectiveDonesToSkipMap(
   if (userId == null) return out;
   for (const row of dones || []) {
     if (row.user_id !== userId) continue;
-    addObjectiveDoneToSkipMap(out, row);
-  }
-  return out;
-}
-
-/** 房间地图：任一成员标过的目标都藏点。勾选框仍用个人 skip。 */
-export function objectiveDonesToSkipMapAny(
-  dones: readonly RaidPrepObjectiveDoneLike[] | null | undefined,
-): Map<string, Set<string>> {
-  const out = new Map<string, Set<string>>();
-  for (const row of dones || []) {
     addObjectiveDoneToSkipMap(out, row);
   }
   return out;
@@ -1337,46 +1326,6 @@ export function skipMapToObjectiveDones(
         display_name: user.name,
       });
     }
-  }
-  return out;
-}
-
-export function groupObjectiveDonesForTask(
-  taskId: string,
-  dones: readonly RaidPrepObjectiveDoneLike[] | null | undefined,
-  options?: { excludeUserId?: number | null },
-): Map<string, RaidPrepCompletedUser[]> {
-  const tid = String(taskId || "").trim();
-  if (!tid) return new Map();
-  const exclude = options?.excludeUserId;
-  const order: number[] = [];
-  const byObjective = new Map<string, Map<number, string>>();
-  for (const row of dones || []) {
-    if (String(row.task_id || "").trim() !== tid) continue;
-    const objId = String(row.objective_id || "").trim();
-    if (!objId) continue;
-    if (exclude != null && row.user_id === exclude) continue;
-    let users = byObjective.get(objId);
-    if (!users) {
-      users = new Map();
-      byObjective.set(objId, users);
-    }
-    if (!users.has(row.user_id)) {
-      users.set(
-        row.user_id,
-        (row.display_name || "").trim() || `用户${row.user_id}`,
-      );
-      if (!order.includes(row.user_id)) order.push(row.user_id);
-    }
-  }
-  const out = new Map<string, RaidPrepCompletedUser[]>();
-  for (const [objId, users] of byObjective) {
-    out.set(
-      objId,
-      order
-        .filter((userId) => users.has(userId))
-        .map((userId) => ({ userId, name: users.get(userId)! })),
-    );
   }
   return out;
 }
@@ -1987,23 +1936,19 @@ function distinguishTaskOverlays(
   return overlays;
 }
 
+/** 地图任务点：只按本图几何生成，不因勾选或缺钥匙藏点；全员同一套。 */
 export function buildRaidPrepOverlays(
   tasks: RaidPrepTaskLike[],
   mapSlug: string,
-  skippedByTask?: RaidPrepSkipMap,
-  hiddenTaskIds?: ReadonlySet<string>,
 ): TarkovRaidPrepOverlay[] {
   const keys = mapSlugKeys(mapSlug);
   const overlays: TarkovRaidPrepOverlay[] = [];
   tasks.forEach((task, taskIndex) => {
-    if (hiddenTaskIds?.has(task.id)) return;
     const color = colorForTaskIndex(taskIndex);
     const taskName = displayRaidPrepTaskName(task);
     const traderSlug = (task.trader_slug || "").trim();
-    const skipped = raidPrepSkippedIds(skippedByTask, task.id);
     const taskSteps = collectRaidPrepTaskObjectives(task, mapSlug);
     (task.objectives || []).forEach((obj, objIndex) => {
-      if (skipped.has(raidPrepObjectiveKey(obj, objIndex))) return;
       const objId = raidPrepObjectiveKey(obj, objIndex);
       const steps = taskSteps.map((step) => ({
         id: step.id,

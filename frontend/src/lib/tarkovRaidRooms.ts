@@ -340,6 +340,21 @@ export type RaidLobbyRoomLike = {
   max_members?: number | null;
 };
 
+/** 当前入座的那一桌；未入座返回空。已在该房间页时也返回空（不必再「回去」）。 */
+export function raidRoomReturnHref(
+  items:
+    | readonly { is_member?: boolean; public_id?: string | null }[]
+    | null
+    | undefined,
+  pathname: string,
+): string {
+  const seated = (items || []).find((row) => row.is_member);
+  const id = normalizeRaidRoomPublicId(seated?.public_id || "");
+  if (!id) return "";
+  if (parseRaidRoomPublicId(pathname) === id) return "";
+  return tarkovRaidRoomHref(id);
+}
+
 /** 大厅条目：自己所在 / 自己主持 / 尚未加入（含已满，供列表灰显）。 */
 export function partitionRaidLobbyRooms<T extends RaidLobbyRoomLike>(
   items: T[],

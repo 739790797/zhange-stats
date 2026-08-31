@@ -11,24 +11,6 @@
   height: 40px;
 }
 
-.ocrBtn {
-  margin: 0;
-  padding: 0 12px;
-  height: 40px;
-  border: 1px solid #2a2a2a;
-  background: #1a1b14;
-  color: var(--hb-orange, #c8932a);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ocrBtn:hover {
-  background: #101010;
-  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
-}
-
 .layout {
   display: flex;
   flex-direction: column;

@@ -112,7 +112,26 @@ def test_parse_map_rows_variants_and_extracts() -> None:
     assert transit["z"] == 9
     bosses = factory["bosses"]
     assert bosses and bosses[0]["slug"] == "tagilla"
+    assert bosses[0]["kind"] == "boss"
     assert bosses[0]["spawn_chance"] == 30
+
+
+def test_map_bosses_mark_soldiers() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["bosses"] = [
+        {"mob": "bossTagilla", "spawnChance": 0.3},
+        {"mob": "vsRF", "spawnChance": 1},
+    ]
+    payload["mobs"]["vsRF"] = {
+        "id": "vsRF",
+        "name": "vsRF",
+        "normalizedName": "af",
+    }
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    by_id = {str(row["id"]): row for row in factory["bosses"]}
+    assert by_id["vsRF"]["kind"] == "soldier"
+    assert by_id["vsRF"]["slug"] == "vs-rf"
+    assert by_id["bossTagilla"]["kind"] == "boss"
 
 
 def test_map_xyz_nested_and_array() -> None:

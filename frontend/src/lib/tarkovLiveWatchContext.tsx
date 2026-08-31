@@ -17,6 +17,7 @@ import {
   loadStoredLogsPath,
   loadStoredScreenshotsDir,
   loadStoredScreenshotsPath,
+  listScreenshotFileNames,
   observeDirectory,
   peekSessionFingerprint,
   pickScreenshotsDirectory,
@@ -263,6 +264,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       setShotPerm(current === "granted" ? "granted" : "prompt");
       shotCanWriteRef.current =
         current === "granted" && (await screenshotsDirCanWrite(storedShot));
+      if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
+        shotNeedListRef.current = true;
+      }
     }
     if (!storedLog) {
       logRef.current = null;
@@ -375,15 +379,17 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       shotTickBusyRef.current = true;
       try {
         if (appeared.length && shotDirRef.current) {
-          const prev = shotStampRef.current?.name || null;
           for (const name of appeared) {
             const row = await readScreenshotByName(shotDirRef.current, name);
             if (!row) continue;
             seenShotNamesRef.current.add(row.name);
             applyLatest(row);
           }
-          const keep = shotStampRef.current?.name || null;
-          queuePrune([...(prev ? [prev] : []), ...appeared], keep);
+          const names = await listScreenshotFileNames(shotDirRef.current);
+          queuePrune(
+            names,
+            shotStampRef.current?.name || latestScreenshotName(names),
+          );
         } else if (forceList || !shotWatchingRef.current) {
           const { names, latest, dir } = await pollLatestScreenshot(
             handle,
@@ -421,8 +427,14 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         void tick(true);
         return;
       }
-      if (shotWatchingRef.current) void drainPrune();
-      else void tick(true);
+      if (
+        shotWatchingRef.current &&
+        !(shotPrunePrefRef.current.enabled && shotCanWriteRef.current)
+      ) {
+        void drainPrune();
+        return;
+      }
+      void tick(true);
     }, TARKOV_SCREENSHOT_POLL_MS);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -519,6 +531,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       if (next === "granted") {
         await saveScreenshotsDir(shot);
         shotCanWriteRef.current = await screenshotsDirCanWrite(shot);
+        if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
+          shotNeedListRef.current = true;
+        }
         setShotPerm("granted");
       } else {
         setShotPerm("prompt");
@@ -555,6 +570,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         if (next === "granted") {
           await saveScreenshotsDir(existing);
           shotCanWriteRef.current = await screenshotsDirCanWrite(existing);
+          if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
+            shotNeedListRef.current = true;
+          }
           setShotPerm("granted");
           return;
         }
@@ -572,6 +590,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       seenShotNamesRef.current = new Set();
       shotStampRef.current = null;
       shotCanWriteRef.current = await screenshotsDirCanWrite(picked);
+      if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
+        shotNeedListRef.current = true;
+      }
       setShotLabel(picked.name);
       await saveScreenshotsDir(picked);
       setShotPerm("granted");

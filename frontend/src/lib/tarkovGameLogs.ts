@@ -346,7 +346,7 @@ export function screenshotNamesToInspect(
   return [latest];
 }
 
-/** 游戏截图多于 keepMax 时，从最旧的开始删；最新一张始终留着。 */
+/** 游戏截图多于 keepMax 时，从最旧的开始删；最新一张始终留着。必须传入整目录文件名，不能只传新出现的几张。 */
 export function screenshotNamesToPrune(
   names: readonly string[],
   keepLatest: string | null,

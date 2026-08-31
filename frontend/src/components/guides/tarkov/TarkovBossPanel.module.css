@@ -152,6 +152,34 @@
   font-size: 16px;
 }
 
+.listSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.listSectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  color: var(--hb-orange, #c8932a);
+  font-family: var(--hb-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.listSectionCount {
+  color: var(--hb-muted, #b0ae9a);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .itemCell {
   display: inline-flex;
   align-items: center;

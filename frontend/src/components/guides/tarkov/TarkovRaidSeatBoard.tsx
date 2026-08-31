@@ -38,7 +38,7 @@ function emptySeats(gameMode: string): TarkovRaidRoomLobbyItem[] {
     host_user_id: null,
     host_display_name: "",
     member_count: 0,
-    max_members: 5,
+    max_members: 8,
     is_member: false,
     occupants: [],
   }));
@@ -157,7 +157,7 @@ export function TarkovRaidSeatBoard({
           const mapLabel = labelById.get(room.map_slug) || "";
           const mine = Boolean(room.is_member);
           const occupants = room.occupants || [];
-          const max = Number(room.max_members) || 5;
+          const max = Number(room.max_members) || 8;
           const count = Number(room.member_count) || occupants.length;
           const locked = Boolean(room.has_password) && !mine;
           return (

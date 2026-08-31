@@ -671,6 +671,15 @@ export async function pruneConsumedScreenshots(
   );
 }
 
+export async function listScreenshotFileNames(
+  dir: ReadableDir,
+): Promise<string[]> {
+  const entries = await listDirEntries(dir);
+  return entries
+    .filter((entry) => entry.kind === "file" && isScreenshotFileName(entry.name))
+    .map((entry) => entry.name);
+}
+
 export async function pollLatestScreenshot(
   handle: ReadableDir,
   seenNames: ReadonlySet<string>,
@@ -681,10 +690,7 @@ export async function pollLatestScreenshot(
   dir: ReadableDir;
 }> {
   const dir = cachedDir || (await resolveScreenshotsDirDetailed(handle)).dir;
-  const entries = await listDirEntries(dir);
-  const names = entries
-    .filter((entry) => entry.kind === "file" && isScreenshotFileName(entry.name))
-    .map((entry) => entry.name);
+  const names = await listScreenshotFileNames(dir);
   const inspect = screenshotNamesToInspect(names, seenNames);
   let latest: TarkovScreenshotRead | null = null;
   for (const name of inspect) {

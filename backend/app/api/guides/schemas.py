@@ -423,6 +423,10 @@ class TarkovBossListItemOut(BaseModel):
     slug: str
     name: str
     nickname: str = ""
+    kind: str = Field(
+        default="boss",
+        description="boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
+    )
     behavior: str = ""
     behavior_zh: str = ""
     maps_label: str = ""
@@ -500,6 +504,10 @@ class TarkovMapBossOut(BaseModel):
     id: str = ""
     slug: str = ""
     name: str = ""
+    kind: str = Field(
+        default="boss",
+        description="boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
+    )
     spawn_chance: int = 0
     locations: list[TarkovMapBossLocationOut] = Field(default_factory=list)
 
@@ -972,7 +980,7 @@ class TarkovRaidRoomLobbyItemOut(BaseModel):
     host_user_id: int | None = None
     host_display_name: str = ""
     member_count: int = 0
-    max_members: int = 5
+    max_members: int = 8
     is_member: bool = False
     created_at: str | None = None
     occupants: list[TarkovRaidRoomOccupantOut] = Field(default_factory=list)

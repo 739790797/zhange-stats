@@ -52,8 +52,18 @@
   min-width: 7.5em;
 }
 
-.userCol {
-  width: 4.4em;
+.table thead th.userCol {
+  width: auto;
+  min-width: 4.4em;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.userHead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 
 .table tbody td.userCol {
@@ -66,12 +76,11 @@
 }
 
 .dot {
+  flex: none;
   display: inline-block;
   width: 7px;
   height: 7px;
-  margin-right: 5px;
   border-radius: 50%;
-  vertical-align: middle;
 }
 
 .row:hover {

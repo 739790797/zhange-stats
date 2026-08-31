@@ -11,6 +11,10 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
+import {
+  normalizeBossKind,
+  TARKOV_BOSS_KIND_LABELS,
+} from "@/lib/tarkovBossKinds";
 import { tarkovBossHref, tarkovMapHref, tarkovRaidPrepHref } from "@/lib/tarkovHomeNav";
 import { normalizeRaidPrepMapId } from "@/lib/tarkovRaidPrep";
 import { tarkovExtractStyle } from "@/lib/tarkovMapExtracts";
@@ -81,12 +85,27 @@ export function TarkovMapDetailPanel({ slug }: Props) {
     {
       title: "BOSS",
       key: "name",
-      render: (_: unknown, row) =>
-        row.slug ? (
+      render: (_: unknown, row) => {
+        const kind = normalizeBossKind(row.kind);
+        const name = row.slug ? (
           <Link to={tarkovBossHref(row.slug)}>{row.name}</Link>
         ) : (
           row.name
-        ),
+        );
+        if (kind === "boss") return name;
+        return (
+          <span className={styles.bossNameCell}>
+            {name}
+            <span
+              className={`${styles.kindTag} ${
+                kind === "elite" ? styles.kindTagElite : styles.kindTagSoldier
+              }`}
+            >
+              {TARKOV_BOSS_KIND_LABELS[kind]}
+            </span>
+          </span>
+        );
+      },
     },
     {
       title: "出生率",

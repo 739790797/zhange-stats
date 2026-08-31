@@ -16,6 +16,7 @@ import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
+import { normalizeBossKind, TARKOV_BOSS_KIND_LABELS } from "@/lib/tarkovBossKinds";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
@@ -154,7 +155,9 @@ export function TarkovBossPanel({ slug }: Props) {
       <section className={styles.hero}>
         <div>
           <div className={styles.headRow}>
-            <span className={styles.badge}>BOSS</span>
+            <span className={styles.badge}>
+              {TARKOV_BOSS_KIND_LABELS[normalizeBossKind(detail.kind)]}
+            </span>
             <h2 className={styles.name}>{detail.name}</h2>
             {detail.nickname ? (
               <span className={styles.nickname}>{detail.nickname}</span>

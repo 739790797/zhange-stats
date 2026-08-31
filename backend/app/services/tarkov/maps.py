@@ -20,6 +20,9 @@ from app.services.tarkov.bosses import (
     _maps_blob,
     _mob_name,
     _mobs_blob,
+    _spawn_mobs,
+    assign_boss_slugs,
+    classify_boss_kind,
     map_xyz,
     ensure_maps,
     get_maps_raw,
@@ -232,6 +235,7 @@ def _map_bosses(
     raw: dict[str, Any],
     mobs: dict[str, dict[str, Any]],
     locale: dict[str, Any],
+    slugs: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -243,13 +247,18 @@ def _map_bosses(
             continue
         seen.add(mob_id)
         mob = mobs.get(mob_id) if isinstance(mobs.get(mob_id), dict) else {}
-        slug = str((mob or {}).get("normalizedName") or "").strip()
+        slug = ""
+        if slugs:
+            slug = str(slugs.get(mob_id) or "").strip()
+        if not slug:
+            slug = str((mob or {}).get("normalizedName") or "").strip()
         chance = float(spawn.get("spawnChance") or 0)
         out.append(
             {
                 "id": mob_id,
                 "slug": slug,
                 "name": _mob_name(mob_id, mob or {}, locale),
+                "kind": classify_boss_kind(mob_id, slug),
                 "spawn_chance": round(chance * 100) if chance <= 1 else int(chance),
                 "locations": _boss_locations(spawn, locale),
             }
@@ -526,6 +535,7 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     maps = _maps_blob(payload)
     mobs = _mobs_blob(payload)
+    slugs = assign_boss_slugs(_spawn_mobs(maps, mobs))
     rows: list[dict[str, Any]] = []
     for key, raw in maps.items():
         if not isinstance(raw, dict):
@@ -555,7 +565,7 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "interactive_url": _interactive_url(slug),
                 "parent_slug": VARIANT_PARENT.get(slug, ""),
                 "extracts": _extracts(raw, locale),
-                "bosses": _map_bosses(raw, mobs, locale),
+                "bosses": _map_bosses(raw, mobs, locale, slugs),
                 "spawns": _parse_map_spawns(raw.get("spawns")),
             }
         )

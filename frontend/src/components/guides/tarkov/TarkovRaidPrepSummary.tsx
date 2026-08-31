@@ -15,7 +15,6 @@ import {
   colorForTaskId,
   colorForUserId,
   expandRaidPrepSummaryItemLines,
-  groupObjectiveDonesForTask,
   isRaidPrepSummaryBringType,
   isRaidPrepSummaryShootType,
   RAID_PREP_SUMMARY_BRING_GROUP_LABEL,
@@ -555,8 +554,6 @@ function SummaryList({
   keyBring,
   keyOwn,
   skippedByTask,
-  objectiveDones,
-  currentUserId,
   onToggleObjective,
   onTitle,
   mapId,
@@ -569,8 +566,6 @@ function SummaryList({
   keyBring?: KeyBringControls;
   keyOwn?: KeyOwnControls;
   skippedByTask?: RaidPrepSkipMap;
-  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
-  currentUserId?: number | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   onTitle?: (taskId: string) => void;
   mapId?: string;
@@ -689,13 +684,7 @@ function SummaryList({
               row.keys,
               availableKeyIds,
             );
-            return grid.lines.map((line, index) => {
-              const doneByOthers = groupObjectiveDonesForTask(
-                row.taskId,
-                objectiveDones,
-                { excludeUserId: currentUserId },
-              );
-              return (
+            return grid.lines.map((line, index) => (
               <tr
                 key={`${row.taskId}-${index}`}
                 className={[
@@ -732,7 +721,6 @@ function SummaryList({
                         <TarkovRaidPrepObjectiveHint
                           objectives={row.objectives || []}
                           skipped={raidPrepSkippedIds(skippedByTask, row.taskId)}
-                          doneByOthers={doneByOthers}
                           onToggle={
                             onToggleObjective
                               ? (objectiveId) =>
@@ -817,8 +805,7 @@ function SummaryList({
                   )}
                 </td>
               </tr>
-            );
-            });
+            ));
           })}
         </tbody>
       </table>
@@ -955,8 +942,6 @@ export function TarkovRaidPrepSummary({
             keyBring={keyBring}
             keyOwn={keyOwn}
             skippedByTask={skippedByTask}
-            objectiveDones={objectiveDones}
-            currentUserId={currentUserId ?? currentUser?.userId}
             onToggleObjective={onToggleObjective}
             onTitle={
               onTitle

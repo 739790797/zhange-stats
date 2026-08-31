@@ -50,11 +50,6 @@ function cellFor(row: RaidRoomMapOverlapLike, userId: number) {
   return (row.cells || []).find((cell) => cell.user_id === userId);
 }
 
-function shortName(name: string): string {
-  const text = (name || "").trim() || "成员";
-  return text.length > 4 ? `${text.slice(0, 4)}…` : text;
-}
-
 function CountTip({
   tasks,
   uploaded,
@@ -149,20 +144,25 @@ export function TarkovRaidRoomOverlapBoard({
           <thead>
             <tr>
               <th scope="col">地图</th>
-              {members.map((row) => (
-                <th
-                  key={row.user_id}
-                  className={styles.userCol}
-                  title={row.display_name}
-                >
-                  <span
-                    className={styles.dot}
-                    style={{ background: colorForUserId(row.user_id) }}
-                    aria-hidden
-                  />
-                  {shortName(row.display_name)}
-                </th>
-              ))}
+              {members.map((row) => {
+                const name = (row.display_name || "").trim() || "成员";
+                return (
+                  <th
+                    key={row.user_id}
+                    className={styles.userCol}
+                    title={name}
+                  >
+                    <span className={styles.userHead}>
+                      <span
+                        className={styles.dot}
+                        style={{ background: colorForUserId(row.user_id) }}
+                        aria-hidden
+                      />
+                      {name}
+                    </span>
+                  </th>
+                );
+              })}
               <th scope="col" className={styles.peopleHead}>
                 有任务人数
               </th>

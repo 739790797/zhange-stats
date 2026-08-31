@@ -9261,6 +9261,12 @@ export interface components {
              */
             nickname: string;
             /**
+             * Kind
+             * @description boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵
+             * @default boss
+             */
+            kind: string;
+            /**
              * Behavior
              * @default
              */
@@ -9400,6 +9406,12 @@ export interface components {
              * @default
              */
             nickname: string;
+            /**
+             * Kind
+             * @description boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵
+             * @default boss
+             */
+            kind: string;
             /**
              * Behavior
              * @default
@@ -10335,6 +10347,12 @@ export interface components {
              */
             name: string;
             /**
+             * Kind
+             * @description boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵
+             * @default boss
+             */
+            kind: string;
+            /**
              * Spawn Chance
              * @default 0
              */
@@ -10900,7 +10918,7 @@ export interface components {
             member_count: number;
             /**
              * Max Members
-             * @default 5
+             * @default 8
              */
             max_members: number;
             /**
@@ -11005,7 +11023,7 @@ export interface components {
             member_count: number;
             /**
              * Max Members
-             * @default 5
+             * @default 8
              */
             max_members: number;
             /**

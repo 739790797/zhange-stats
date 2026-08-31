@@ -92,7 +92,7 @@ def test_five_seats_first_joiner_host_and_capacity() -> None:
     assert created["can_edit"] is False
     rooms.set_room_map(db, "1", host, "customs", now=now)
 
-    guests = [_user(db, f"u{i}", f"客{i}") for i in range(4)]
+    guests = [_user(db, f"u{i}", f"客{i}") for i in range(rooms.MAX_MEMBERS - 1)]
     for guest in guests:
         rooms.join_room(db, "1", guest, now=now)
     outsider = _user(db, "out", "路人")
@@ -100,8 +100,8 @@ def test_five_seats_first_joiner_host_and_capacity() -> None:
     assert len(lobby_all["items"]) == 5
     seat = next(row for row in lobby_all["items"] if row["public_id"] == "1")
     assert seat["is_member"] is False
-    assert seat["member_count"] == 5
-    assert seat["max_members"] == 5
+    assert seat["member_count"] == rooms.MAX_MEMBERS
+    assert seat["max_members"] == rooms.MAX_MEMBERS
     assert [row["display_name"] for row in seat["occupants"]][0] == "房主"
     extra = _user(db, "late", "迟到")
     try:

@@ -187,6 +187,20 @@ describe("classifyLogsRoot", () => {
         20,
       ),
     ).toEqual([]);
+    const thirtyFour = Array.from({ length: 34 }, (_, index) => {
+      const stamp = String(index).padStart(2, "0");
+      return `2026-08-31[20-${stamp}]_${index}.jpg`;
+    });
+    expect(
+      screenshotNamesToPrune(thirtyFour, thirtyFour[33]!, 20),
+    ).toHaveLength(14);
+    expect(
+      screenshotNamesToPrune(
+        [thirtyFour[0]!, thirtyFour[33]!],
+        thirtyFour[33]!,
+        20,
+      ),
+    ).toEqual([]);
     expect(parseScreenshotPrunePref(null).enabled).toBe(false);
     expect(parseScreenshotPrunePref('{"enabled":true,"keepMax":8}')).toEqual({
       enabled: true,

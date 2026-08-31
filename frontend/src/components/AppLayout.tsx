@@ -6,7 +6,9 @@ import {
   LockOutlined,
   LogoutOutlined,
   MailOutlined,
+  MenuFoldOutlined,
   MenuOutlined,
+  MenuUnfoldOutlined,
   ScheduleOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -44,6 +46,10 @@ import {
   firstEnabledPlatformPath,
   isFeatureOn,
 } from "@/lib/platformFeatures";
+import {
+  loadAppSiderCollapsed,
+  saveAppSiderCollapsed,
+} from "@/lib/appSiderPrefs";
 import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -149,6 +155,7 @@ export function AppLayout() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [siderCollapsed, setSiderCollapsed] = useState(loadAppSiderCollapsed);
   const screens = Grid.useBreakpoint();
   const isMobile = screens.md === false;
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
@@ -406,6 +413,11 @@ export function AppLayout() {
     navigate("/login");
   };
 
+  const toggleSider = (collapsed: boolean) => {
+    setSiderCollapsed(collapsed);
+    saveAppSiderCollapsed(collapsed);
+  };
+
   const siderInner = (
     <div
       style={{
@@ -539,7 +551,7 @@ export function AppLayout() {
         >
           {siderInner}
         </Drawer>
-      ) : (
+      ) : siderCollapsed ? null : (
         <Sider
           width={220}
           style={{
@@ -562,6 +574,27 @@ export function AppLayout() {
           flexDirection: "column",
         }}
       >
+        {isMobile ? null : (
+          <div
+            className={`app-sider-toggle-wrap${
+              siderCollapsed ? " app-sider-toggle-wrap--collapsed" : ""
+            }`}
+          >
+            <Tooltip title={siderCollapsed ? "展开侧栏" : "收起侧栏"}>
+              <Button
+                type="text"
+                size="small"
+                className="app-sider-toggle"
+                icon={
+                  siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+                }
+                aria-label={siderCollapsed ? "展开侧栏" : "收起侧栏"}
+                aria-expanded={!siderCollapsed}
+                onClick={() => toggleSider(!siderCollapsed)}
+              />
+            </Tooltip>
+          </div>
+        )}
         {isMobile ? (
           <Header
             style={{
