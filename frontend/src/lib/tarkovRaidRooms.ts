@@ -1,6 +1,12 @@
+import { logMapLabel } from "@/lib/tarkovGameLogs";
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
-import { colorForUserId, mapSlugKeys } from "@/lib/tarkovRaidPrep";
-import { logEventLabel } from "@/lib/tarkovGameLogs";
+import {
+  colorForUserId,
+  isRaidPrepAutoMapKind,
+  mapSlugKeys,
+  normalizeRaidPrepMapId,
+  raidPrepMapsEquivalent,
+} from "@/lib/tarkovRaidPrep";
 
 export { tarkovRaidRoomHref, colorForUserId };
 
@@ -126,6 +132,7 @@ export type RaidRoomMemberLike = {
   is_host?: boolean;
   in_room?: boolean;
   online?: boolean;
+  joined_at?: string | null;
 };
 
 export type RaidRoomOccupantLike = {
@@ -133,7 +140,89 @@ export type RaidRoomOccupantLike = {
   display_name: string;
   is_host?: boolean;
   online?: boolean;
+  joined_at?: string | null;
 };
+
+export type RaidRoomActingMemberLike = {
+  user_id: number;
+  online?: boolean;
+  joined_at?: string | null;
+  in_room?: boolean;
+};
+
+/** 房主在线则仍是房主；房主离线未交权时，最早入座的在线成员代行换图。 */
+export function raidRoomActingHostUserId(
+  hostUserId: number | null | undefined,
+  members: readonly RaidRoomActingMemberLike[],
+): number {
+  const seated = members.filter(
+    (row) => Number(row.user_id) > 0 && row.in_room !== false,
+  );
+  const hostId = Number(hostUserId);
+  const host = Number.isFinite(hostId) && hostId > 0
+    ? seated.find((row) => row.user_id === hostId)
+    : undefined;
+  if (host?.online) return host.user_id;
+  const online = seated.filter((row) => row.online);
+  if (!online.length) return 0;
+  return [...online].sort((a, b) => {
+    const left = (a.joined_at || "").trim();
+    const right = (b.joined_at || "").trim();
+    if (left && right && left !== right) return left.localeCompare(right);
+    if (left && !right) return -1;
+    if (!left && right) return 1;
+    return a.user_id - b.user_id;
+  })[0]!.user_id;
+}
+
+export function raidRoomCanAutoSwitchMap(
+  viewerUserId: number | null | undefined,
+  hostUserId: number | null | undefined,
+  members: readonly RaidRoomActingMemberLike[],
+): boolean {
+  const viewer = Number(viewerUserId);
+  if (!Number.isFinite(viewer) || viewer <= 0) return false;
+  return raidRoomActingHostUserId(hostUserId, members) === viewer;
+}
+
+export function normalizeRaidRoomRaidId(raw: string | null | undefined): string {
+  return (raw || "").trim().toUpperCase();
+}
+
+/**
+ * 自己与另一名在座成员广播了同一战局 shortId → 切到该局地图。
+ * 只认匹配成功 / 倒计时 / 开战，结束相位不跟。
+ */
+export function raidRoomSharedRaidMapId(opts: {
+  myUserId: number;
+  myRaidId: string;
+  myMapId: string;
+  myKind?: string;
+  currentMapId: string;
+  phases: readonly Pick<RaidRoomLogPhase, "userId" | "raidId" | "mapId" | "kind">[];
+  occupantIds: readonly number[];
+}): string {
+  const viewer = Number(opts.myUserId);
+  const mine = normalizeRaidRoomRaidId(opts.myRaidId);
+  if (!viewer || !mine || !isRaidPrepAutoMapKind(opts.myKind)) return "";
+  const seated = new Set(
+    opts.occupantIds.filter((id) => Number.isFinite(id) && id > 0),
+  );
+  const peer = opts.phases.find(
+    (row) =>
+      row.userId !== viewer &&
+      seated.has(row.userId) &&
+      isRaidPrepAutoMapKind(row.kind) &&
+      normalizeRaidRoomRaidId(row.raidId) === mine,
+  );
+  if (!peer) return "";
+  const next = normalizeRaidPrepMapId(opts.myMapId || peer.mapId);
+  if (!next) return "";
+  if (opts.currentMapId && raidPrepMapsEquivalent(next, opts.currentMapId)) {
+    return "";
+  }
+  return next;
+}
 
 export type RaidRoomLogPhase = {
   userId: number;
@@ -165,6 +254,30 @@ export function parseRaidRoomLogPhases(raw: unknown): RaidRoomLogPhase[] {
   return out;
 }
 
+/** 自己的芯片跟本机日志，避免 WS 回显慢一拍还停在开战。 */
+export function overlayRaidRoomLocalPhase(
+  phases: readonly RaidRoomLogPhase[],
+  userId: number | null | undefined,
+  local:
+    | Pick<RaidRoomLogPhase, "kind" | "mapId" | "mapLabel" | "raidId" | "at">
+    | null
+    | undefined,
+): RaidRoomLogPhase[] {
+  const uid = Number(userId);
+  if (!Number.isFinite(uid) || uid <= 0 || !(local?.kind || "").trim()) {
+    return [...phases];
+  }
+  const mine: RaidRoomLogPhase = {
+    userId: uid,
+    kind: local.kind,
+    mapId: local.mapId || "",
+    mapLabel: local.mapLabel || "",
+    raidId: local.raidId || "",
+    at: local.at || "",
+  };
+  return [...phases.filter((row) => row.userId !== uid), mine];
+}
+
 /** 在座任一人日志为开战且未结束 → 已在战局中；否则准备中。 */
 export function raidRoomLiveStatus(
   occupantIds: readonly number[],
@@ -182,14 +295,41 @@ export function formatRaidRoomLiveStatus(status: "preparing" | "in_raid"): strin
   return status === "in_raid" ? "已在战局中" : "准备中";
 }
 
-export function formatRaidRoomMemberWsLine(opts: {
-  online?: boolean;
-  phaseKind?: string;
+export const RAID_ROOM_LOBBY_REGION = "大厅";
+
+/** 结束 / 取消匹配 → 大厅；匹配成功、倒计时、开战才出地图。 */
+export function raidRoomMemberRegionLabel(opts: {
+  kind?: string | null;
+  mapLabel?: string | null;
+  mapId?: string | null;
 }): string {
-  const ws = opts.online ? "WS在线" : "WS离线";
-  const kind = (opts.phaseKind || "").trim();
-  if (!kind) return `${ws} · 无日志`;
-  return `${ws} · ${logEventLabel(kind)}`;
+  if (!isRaidPrepAutoMapKind(opts.kind)) {
+    const kind = (opts.kind || "").trim();
+    if (kind === "raid_exited" || kind === "matching_aborted") {
+      return RAID_ROOM_LOBBY_REGION;
+    }
+    return "";
+  }
+  const label = (opts.mapLabel || "").trim();
+  if (label) return label;
+  const mapId = (opts.mapId || "").trim();
+  return mapId ? logMapLabel(mapId) : "";
+}
+
+/** 顶栏成员条：⭐只标房主；开战出地图，结束回大厅。 */
+export function formatRaidRoomMemberChipLine(opts: {
+  name?: string;
+  isHost?: boolean;
+  online?: boolean;
+  kind?: string | null;
+  mapLabel?: string | null;
+  mapId?: string | null;
+}): string {
+  const name = (opts.name || "").trim() || "?";
+  const prefix = opts.isHost ? "⭐" : "";
+  const status = opts.online ? "在线" : "离线";
+  const region = raidRoomMemberRegionLabel(opts);
+  return [prefix + name, status, region].filter(Boolean).join(" ");
 }
 
 export type RaidRoomSnapshotLike = {
@@ -563,6 +703,35 @@ export function markMatchesFloor(
   return (mark.floor || "") === (floor || "");
 }
 
+/** REST / 无 presence 的 snapshot 不改在线；在线只信 WS 的 online_user_ids。 */
+export function keepRaidRoomPresence<T extends RaidRoomSnapshotLike>(
+  next: T,
+  current: T | null | undefined,
+): T {
+  if (!current) return next;
+  const byId = new Map<number, boolean>();
+  for (const row of current.occupants || []) {
+    byId.set(row.user_id, Boolean(row.online));
+  }
+  for (const row of current.members || []) {
+    byId.set(row.user_id, Boolean(row.online));
+  }
+  if (!byId.size) return next;
+  const patch = <R extends { user_id: number; online?: boolean }>(
+    rows: R[] | undefined,
+  ): R[] | undefined =>
+    rows?.map((row) =>
+      byId.has(row.user_id)
+        ? { ...row, online: Boolean(byId.get(row.user_id)) }
+        : row,
+    );
+  return {
+    ...next,
+    occupants: patch(next.occupants) ?? next.occupants,
+    members: patch(next.members) ?? next.members,
+  };
+}
+
 export function raidRoomLiveSig(
   room: RaidRoomSnapshotLike | null | undefined,
 ): string {
@@ -626,10 +795,15 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
     );
   };
   if (event.snapshot) {
-    if (current && raidRoomLiveSig(current) === raidRoomLiveSig(event.snapshot)) {
-      return withPresence(current);
+    const base =
+      current && raidRoomLiveSig(current) === raidRoomLiveSig(event.snapshot)
+        ? current
+        : event.snapshot;
+    if (online) return withPresence(base);
+    if (current) {
+      return withRaidRoomViewerFlags(keepRaidRoomPresence(base, current), userId);
     }
-    return withPresence(event.snapshot);
+    return withRaidRoomViewerFlags(base, userId);
   }
   if (event.event === "presence" && current) return withPresence(current);
   return current ? withRaidRoomViewerFlags(current, userId) : null;

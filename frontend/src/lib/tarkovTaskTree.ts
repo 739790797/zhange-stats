@@ -1,6 +1,7 @@
 /** 个人中心任务勾选：按商人分组、本机/账号完成态。 */
 
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
+import { notifyTarkovTaskProgress } from "@/lib/tarkovLiveWatch";
 import { TARKOV_MAPS } from "@/lib/tarkovHomeNav";
 import { laterBeijingClock } from "@/lib/time";
 import {
@@ -243,6 +244,28 @@ export function setTaskStatus(
   if (status === "done") done.add(ident);
   else if (status === "active") started.add(ident);
   return { done: [...done], started: [...started] };
+}
+
+/** 写下拉状态到本机进度，并通知战局准备 / 个人中心刷新。 */
+export function commitTaskStatus(
+  mode: TarkovGameMode,
+  taskId: string,
+  status: TaskStatusKind,
+): { done: string[]; started: string[] } {
+  const next = setTaskStatus(
+    loadTaskDoneIds(mode),
+    loadTaskStartedIds(mode),
+    taskId,
+    status,
+  );
+  saveTaskProgress(mode, next.done, next.started);
+  notifyTarkovTaskProgress({
+    mode,
+    done: next.done,
+    started: next.started,
+    changed: true,
+  });
+  return next;
 }
 
 export function applyTaskDoneToggle(

@@ -37,6 +37,7 @@ type Props = {
   mapId?: string;
   participantsByTask?: ReadonlyMap<string, readonly RaidPrepParticipant[]>;
   skippedByTask?: RaidPrepSkipMap;
+  doneTaskIds?: ReadonlySet<string> | readonly string[] | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -81,6 +82,7 @@ export function TarkovRaidPrepGuideOverview({
   mapId = "",
   participantsByTask,
   skippedByTask,
+  doneTaskIds,
   onToggleObjective,
   open: openProp,
   onOpenChange,
@@ -108,6 +110,10 @@ export function TarkovRaidPrepGuideOverview({
   const activeSkipped = useMemo(
     () => (guideId ? raidPrepSkippedIds(skippedByTask, guideId) : undefined),
     [guideId, skippedByTask],
+  );
+  const doneIdSet = useMemo(
+    () => (doneTaskIds instanceof Set ? doneTaskIds : new Set(doneTaskIds || [])),
+    [doneTaskIds],
   );
 
   useEffect(() => {
@@ -157,9 +163,13 @@ export function TarkovRaidPrepGuideOverview({
                   <div className={styles.guideProgressHead}>任务进度</div>
                   <div className={styles.guideProgressBody}>
                     <TarkovRaidPrepObjectiveProgress
+                      taskName={displayRaidPrepTaskName(activeTask)}
+                      traderSlug={activeTask.trader_slug || ""}
+                      traderName={activeTask.trader_name || ""}
                       objectives={activeObjectives}
                       otherMapGroups={activeOtherMaps}
                       skipped={activeSkipped}
+                      taskDone={Boolean(guideId && doneIdSet.has(guideId))}
                       onToggle={
                         onToggleObjective && guideId
                           ? (objectiveId) =>

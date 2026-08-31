@@ -207,6 +207,99 @@ def test_set_map_wipes_board_keeps_members() -> None:
     assert same["map_slug"] == "woods"
 
 
+def test_acting_host_can_set_map_when_titled_host_offline() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    first = _user(db, "first", "乙")
+    later = _user(db, "later", "丙")
+    now = now_naive()
+    rooms.join_room(db, "1", host, now=now)
+    rooms.join_room(db, "1", first, now=now + timedelta(seconds=1))
+    rooms.join_room(db, "1", later, now=now + timedelta(seconds=2))
+    rooms.set_room_map(db, "1", host, "customs", now=now)
+    from app.models.tarkov import TarkovRaidRoom
+
+    room = db.query(TarkovRaidRoom).filter_by(public_id="1").one()
+    seated = rooms._seated_members(db, room.id)
+    assert rooms.acting_host_user_id(host.id, seated, {host.id, first.id, later.id}) == host.id
+    assert rooms.acting_host_user_id(host.id, seated, {first.id, later.id}) == first.id
+    assert rooms.acting_host_user_id(host.id, seated, None) == host.id
+    try:
+        rooms.set_room_map(
+            db,
+            "1",
+            later,
+            "woods",
+            now=now,
+            online_user_ids={first.id, later.id},
+        )
+        later_ok = True
+    except rooms.RaidRoomError as exc:
+        later_ok = False
+        assert exc.status_code == 403
+    assert later_ok is False
+    snap = rooms.set_room_map(
+        db,
+        "1",
+        first,
+        "woods",
+        now=now,
+        online_user_ids={first.id, later.id},
+    )
+    assert snap["map_slug"] == "woods"
+    assert snap["host_user_id"] == host.id
+
+
+def test_same_raid_id_lets_member_set_map() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    rooms.join_room(db, "1", host, now=now)
+    rooms.join_room(db, "1", guest, now=now + timedelta(seconds=1))
+    rooms.set_room_map(db, "1", host, "customs", now=now)
+    phases = [
+        {
+            "user_id": host.id,
+            "kind": "raid_started",
+            "raid_id": "PQXKR6",
+            "map_id": "woods",
+        },
+        {
+            "user_id": guest.id,
+            "kind": "raid_started",
+            "raid_id": "PQXKR6",
+            "map_id": "woods",
+        },
+    ]
+    snap = rooms.set_room_map(
+        db,
+        "1",
+        guest,
+        "woods",
+        now=now,
+        online_user_ids={host.id, guest.id},
+        log_phases=phases,
+    )
+    assert snap["map_slug"] == "woods"
+    assert snap["host_user_id"] == host.id
+    try:
+        rooms.set_room_map(
+            db,
+            "1",
+            guest,
+            "factory",
+            now=now,
+            online_user_ids={host.id, guest.id},
+            log_phases=phases,
+        )
+        other_ok = True
+    except rooms.RaidRoomError as exc:
+        other_ok = False
+        assert exc.status_code == 403
+    assert other_ok is False
+
+
 def test_writes_require_map() -> None:
     db = _session()
     host = _user(db, "host", "甲")
@@ -513,6 +606,19 @@ def test_stroke_marks_and_draft_parse() -> None:
         "raid_id": "AB12CD",
         "at": "2026-08-31 13:00:00.000",
     }
+    assert rooms.shared_raid_map_slug(
+        2,
+        {1, 2},
+        [
+            {"user_id": 1, "kind": "raid_started", "raid_id": "PQXKR6", "map_id": "woods"},
+            {"user_id": 2, "kind": "raid_started", "raid_id": "pqxkr6", "map_id": "woods"},
+        ],
+    ) == "woods"
+    assert rooms.shared_raid_map_slug(
+        2,
+        {1, 2},
+        [{"user_id": 1, "kind": "raid_started", "raid_id": "PQXKR6", "map_id": "woods"}],
+    ) == ""
     assert rooms.parse_log_phase({"kind": "nope"}) is None
     assert rooms.parse_log_phase({"kind": "raid_exited", "raid_id": "zz"})["kind"] == "raid_exited"
 

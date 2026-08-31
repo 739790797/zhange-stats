@@ -10,6 +10,7 @@ import {
   fetchTarkovRaidPrep,
   fetchTarkovRaidPrepState,
   fetchTarkovTaskDones,
+  writeTarkovTaskDones,
   putTarkovRaidPrepState,
   removeTarkovKeyOwn,
 } from "@/api/guidesApi";
@@ -22,22 +23,29 @@ import {
   colorForTaskIndex,
   filterRaidPrepOverlaysForViewer,
   filterRaidPrepRows,
-  hideCompletedRaidPrepRows,
+  groupRaidPrepRowsByProgress,
   hydrateRaidPrepCatalogRows,
   normalizeRaidPrepMapId,
+  raidPrepAutoSwitchMapId,
   objectiveDonesToSkipMap,
   parseCsvParam,
-  partitionRaidPrepRows,
+  pinSelectedRaidPrepRows,
   planRaidPrepTaskProgressSync,
   raidPrepMapOptions,
   raidPrepObjectiveDoneScope,
+  raidPrepObjectiveDoneLegacyScopes,
+  mergeRaidPrepSkipMaps,
+  raidPrepSkipMapsEqual,
+  readRaidPrepObjectiveDoneWithLegacy,
   raidPrepSkippedIds,
-  resolveRaidPrepLocatePoints,
+  resolveRaidPrepLocateTargets,
   selectedTasksFromCatalog,
   serializeSelectedIds,
+  raidPrepTaskProgressStatus,
   settleRaidPrepSelection,
   skipMapToObjectiveDones,
   useRaidPrepObjectiveDone,
+  type RaidPrepTaskProgressStatus,
 } from "@/lib/tarkovRaidPrep";
 import { mergeRaidPrepOcrSelection } from "@/lib/tarkovRaidPrepOcr";
 import { applyTarkovKeyOwnsCache } from "@/lib/tarkovKeyPacks";
@@ -46,12 +54,21 @@ import {
   TARKOV_TASK_PROGRESS_EVENT,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
-import { useTarkovLastLogMapId } from "@/lib/tarkovLiveWatchContext";
+import { logMapLabel } from "@/lib/tarkovGameLogs";
+import {
+  useTarkovLastLogMapId,
+  useTarkovLastLogPhase,
+} from "@/lib/tarkovLiveWatchContext";
 import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
-import { loadTaskDoneIds, loadTaskStartedIds } from "@/lib/tarkovTaskTree";
+import {
+  commitTaskStatus,
+  loadTaskDoneIds,
+  loadTaskStartedIds,
+} from "@/lib/tarkovTaskTree";
 import { PanelFallback } from "@/components/RouteFallback";
 import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
+import { TarkovRaidPrepTaskGroups } from "@/components/guides/tarkov/TarkovRaidPrepTaskGroups";
 import {
   TarkovRaidPrepEntryModal,
   raidPrepEntryFallbackPath,
@@ -60,7 +77,6 @@ import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrep
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
 import { TarkovRaidPrepOcrModal } from "@/components/guides/tarkov/TarkovRaidPrepOcrModal";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
-import { TarkovRaidPrepRestList } from "@/components/guides/tarkov/TarkovRaidPrepRestList";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { useAuthStore } from "@/stores/authStore";
 import catalogCss from "./TarkovItemCatalogPanel.module.css";
@@ -81,7 +97,6 @@ export function TarkovRaidPrepPanel() {
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
   const mapId = normalizeRaidPrepMapId(searchParams.get("map") || "");
-  const trader = (searchParams.get("trader") || "").trim();
   const q = (searchParams.get("q") || "").trim();
   const selected = parseCsvParam(searchParams.get("sel"));
   const [keyword, setKeyword] = useState(q);
@@ -95,14 +110,20 @@ export function TarkovRaidPrepPanel() {
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
+  const objDoneScope = raidPrepObjectiveDoneScope(mapId, gameMode, me?.id);
+  const objDoneLegacy = useMemo(
+    () => raidPrepObjectiveDoneLegacyScopes(mapId),
+    [mapId],
+  );
   const [objDone, toggleObjDone, replaceObjDone] = useRaidPrepObjectiveDone(
-    raidPrepObjectiveDoneScope("solo", mapId),
+    objDoneScope,
+    objDoneLegacy,
   );
   const [keyBringIds, setKeyBringIds] = useState<string[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
-  const [listScope, setListScope] = useState<"all" | "picked">("all");
-  const [taskListEl, setTaskListEl] = useState<HTMLDivElement | null>(null);
-  const [restHeadEl, setRestHeadEl] = useState<HTMLDivElement | null>(null);
+  const lastLogPhase = useTarkovLastLogPhase();
+  const autoMapSigRef = useRef("");
+  const [progressTick, setProgressTick] = useState(0);
   const hydratedKeyRef = useRef("");
   const persistReadyRef = useRef(false);
   const [persistTick, setPersistTick] = useState(0);
@@ -129,6 +150,10 @@ export function TarkovRaidPrepPanel() {
     staleTime: 30_000,
   });
   const doneTaskIds = taskDonesQuery.data?.task_ids ?? loadTaskDoneIds(gameMode);
+  const startedTaskIds = useMemo(
+    () => loadTaskStartedIds(gameMode),
+    [gameMode, progressTick],
+  );
   const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
   const keyOwns = useMemo(
     () =>
@@ -188,6 +213,21 @@ export function TarkovRaidPrepPanel() {
     setKeyword("");
     locateIndexRef.current = {};
   };
+
+  const autoMapId = raidPrepAutoSwitchMapId({
+    currentMapId: mapId,
+    logMapId: lastLogPhase?.mapId || lastLogMapId,
+    phaseKind: lastLogPhase?.kind,
+    fillEmpty: false,
+  });
+  useEffect(() => {
+    if (!autoMapId) return;
+    const sig = `${autoMapId}:${lastLogPhase?.raidId || ""}:${lastLogPhase?.kind || "idle"}`;
+    if (autoMapSigRef.current === sig) return;
+    autoMapSigRef.current = sig;
+    setMap(autoMapId);
+    message.info(`已按游戏日志切换到${logMapLabel(autoMapId)}`);
+  }, [autoMapId, lastLogPhase?.kind, lastLogPhase?.raidId]);
 
   /** 目录不含区轮廓；筛选在前端。 */
   const prepQuery = useQuery({
@@ -271,16 +311,20 @@ export function TarkovRaidPrepPanel() {
     if (stateQuery.data) {
       setKeyBringIds(stateQuery.data.key_brings || []);
       if (me) {
-        replaceObjDone(
-          objectiveDonesToSkipMap(
-            (stateQuery.data.objective_dones || []).map((row) => ({
-              task_id: row.task_id,
-              objective_id: row.objective_id,
-              user_id: me.id,
-            })),
-            me.id,
-          ),
+        const fromServer = objectiveDonesToSkipMap(
+          (stateQuery.data.objective_dones || []).map((row) => ({
+            task_id: row.task_id,
+            objective_id: row.objective_id,
+            user_id: me.id,
+          })),
+          me.id,
         );
+        const local = readRaidPrepObjectiveDoneWithLegacy(
+          objDoneScope,
+          objDoneLegacy,
+        );
+        const merged = mergeRaidPrepSkipMaps(local, fromServer);
+        if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
       }
     }
     persistReadyRef.current = true;
@@ -292,6 +336,8 @@ export function TarkovRaidPrepPanel() {
     gameMode,
     mapId,
     me,
+    objDoneLegacy,
+    objDoneScope,
     prepQuery.isSuccess,
     replaceObjDone,
     selected,
@@ -338,6 +384,7 @@ export function TarkovRaidPrepPanel() {
       if (settled.nextIds.join(",") !== selected.join(",")) {
         applySelected(settled.nextIds);
       }
+      setProgressTick((n) => n + 1);
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
     return () =>
@@ -356,12 +403,8 @@ export function TarkovRaidPrepPanel() {
   }, [applySelected, doneTaskIds, logsQuery.data, selected]);
 
   const rows = useMemo(
-    () =>
-      hideCompletedRaidPrepRows(
-        filterRaidPrepRows(catalogRich, { trader, q }),
-        doneTaskIds,
-      ),
-    [catalogRich, trader, q, doneTaskIds],
+    () => filterRaidPrepRows(catalogRich, { q }),
+    [catalogRich, q],
   );
 
   const selectedTasks = useMemo(
@@ -379,9 +422,33 @@ export function TarkovRaidPrepPanel() {
         : undefined,
     [me, myName, objDone],
   );
-  const { picked, rest } = useMemo(
-    () => partitionRaidPrepRows(rows, selectedTasks),
-    [rows, selectedTasks],
+  const selectedIdSet = useMemo(() => new Set(selected), [selected]);
+  const statusGroups = useMemo(() => {
+    const grouped = groupRaidPrepRowsByProgress(
+      rows,
+      doneTaskIds,
+      startedTaskIds,
+    );
+    return {
+      active: pinSelectedRaidPrepRows(grouped.active, selectedIdSet),
+      todo: pinSelectedRaidPrepRows(grouped.todo, selectedIdSet),
+      done: pinSelectedRaidPrepRows(grouped.done, selectedIdSet),
+    };
+  }, [doneTaskIds, rows, selectedIdSet, startedTaskIds]);
+  const taskStatusOf = (taskId: string) =>
+    raidPrepTaskProgressStatus(taskId, doneTaskIds, startedTaskIds);
+  const changeTaskStatus = useCallback(
+    (taskId: string, status: RaidPrepTaskProgressStatus) => {
+      if (raidPrepTaskProgressStatus(taskId, doneTaskIds, startedTaskIds) === status) {
+        return;
+      }
+      const next = commitTaskStatus(gameMode, taskId, status);
+      queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], {
+        task_ids: next.done,
+      });
+      void writeTarkovTaskDones(next.done, { replace: true }).catch(() => {});
+    },
+    [doneTaskIds, gameMode, queryClient, startedTaskIds],
   );
   const participantsByTask = useMemo(() => {
     const name = (me?.display_name || me?.username || "").trim() || "?";
@@ -455,6 +522,12 @@ export function TarkovRaidPrepPanel() {
     (id: string) => {
       patchParams((params) => {
         const current = parseCsvParam(params.get("sel"));
+        if (
+          !current.includes(id) &&
+          raidPrepTaskProgressStatus(id, doneTaskIds, startedTaskIds) === "done"
+        ) {
+          return;
+        }
         const next = current.includes(id)
           ? current.filter((item) => item !== id)
           : [...current, id].slice(0, RAID_PREP_MAX_SELECTED);
@@ -463,7 +536,7 @@ export function TarkovRaidPrepPanel() {
         else params.delete("sel");
       });
     },
-    [patchParams],
+    [doneTaskIds, patchParams, startedTaskIds],
   );
 
   const syncFromTaskProgress = () => {
@@ -488,7 +561,7 @@ export function TarkovRaidPrepPanel() {
 
   const locateTask = useCallback(
     async (row: (typeof rows)[number]) => {
-      let points = resolveRaidPrepLocatePoints(
+      let points = resolveRaidPrepLocateTargets(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
         raidPrepSkippedIds(objDone, row.id),
@@ -497,7 +570,7 @@ export function TarkovRaidPrepPanel() {
         try {
           const rich = await geometry.ensure(row.id);
           points = rich
-            ? resolveRaidPrepLocatePoints(
+            ? resolveRaidPrepLocateTargets(
                 rich,
                 mapId,
                 raidPrepSkippedIds(objDone, row.id),
@@ -533,7 +606,6 @@ export function TarkovRaidPrepPanel() {
     openGuide(taskId);
   }, [openGuide]);
 
-  const traders = prepQuery.data?.traders ?? [];
 
   if (!mapId) {
     return (
@@ -638,6 +710,7 @@ export function TarkovRaidPrepPanel() {
                         canToggleKeyOwn={Boolean(me)}
                         onToggleKeyOwn={me ? toggleKeyOwn : undefined}
                         skippedByTask={objDone}
+                        doneTaskIds={doneTaskIds}
                         objectiveDones={objectiveDones}
                         currentUserId={me?.id}
                         currentUser={
@@ -660,6 +733,7 @@ export function TarkovRaidPrepPanel() {
                         onActiveIdChange={setGuideTaskId}
                         participantsByTask={participantsByTask}
                         skippedByTask={objDone}
+                        doneTaskIds={doneTaskIds}
                         onToggleObjective={toggleObjDone}
                       />
                     </div>
@@ -678,14 +752,6 @@ export function TarkovRaidPrepPanel() {
           <TarkovRaidPrepFilters
             keyword={keyword}
             onKeyword={setKeyword}
-            traders={traders}
-            trader={trader}
-            onTrader={(slug) =>
-              patchParams((params) => {
-                if (slug) params.set("trader", slug);
-                else params.delete("trader");
-              })
-            }
             leading={
               <div className={styles.dockLeadActions}>
                 <button
@@ -714,137 +780,44 @@ export function TarkovRaidPrepPanel() {
               </div>
             }
           />
-          <div className={styles.sideHead}>
-            <div className={styles.scopeBar} role="tablist" aria-label="任务范围">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={listScope === "all"}
-                className={`${styles.scopeBtn} ${
-                  listScope === "all" ? styles.scopeBtnOn : ""
-                }`}
-                onClick={() => setListScope("all")}
-              >
-                全部 {picked.length + rest.length}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={listScope === "picked"}
-                className={`${styles.scopeBtn} ${
-                  listScope === "picked" ? styles.scopeBtnOn : ""
-                }`}
-                onClick={() => setListScope("picked")}
-              >
-                我的已选 {picked.length}
-              </button>
-            </div>
-          </div>
           <div
-            ref={setTaskListEl}
             className={styles.taskList}
             onClick={() => setHighlightTaskId("")}
           >
-            {prepQuery.isLoading && !prepQuery.data && !picked.length ? (
+            {prepQuery.isLoading && !prepQuery.data && !rows.length ? (
               <div className={styles.empty}>
                 <Spin />
               </div>
-            ) : listScope === "picked" ? (
-              picked.length ? (
-                picked.map((row, index) => (
+            ) : (
+              <TarkovRaidPrepTaskGroups
+                groups={statusGroups}
+                empty={<div className={styles.empty}>当前搜索下无任务</div>}
+                renderRow={(row) => (
                   <TarkovRaidPrepTaskCard
                     key={row.id}
                     row={row}
                     mapSlug={mapId}
                     compact
-                    checked
-                    highlighted
+                    checked={selectedIdSet.has(row.id)}
+                    highlighted={selectedIdSet.has(row.id)}
+                    status={taskStatusOf(row.id)}
+                    done={taskStatusOf(row.id) === "done"}
                     active={highlightTaskId === row.id}
-                    color={colorByTask.get(row.id) || colorForTaskIndex(index)}
+                    color={
+                      selectedIdSet.has(row.id)
+                        ? colorByTask.get(row.id) || colorForTaskIndex(0)
+                        : undefined
+                    }
                     skipped={raidPrepSkippedIds(objDone, row.id)}
                     onToggleObjective={toggleObjDone}
                     onToggle={toggleSelected}
                     onNeedDetail={geometry.ensure}
                     onLocate={locateTask}
                     onTitle={openGuide}
+                    onSetStatus={changeTaskStatus}
                   />
-                ))
-              ) : (
-                <div className={styles.empty}>还没勾选任务</div>
-              )
-            ) : (
-              <>
-                <div ref={setRestHeadEl}>
-                  {selected.length > 0 &&
-                  prepQuery.isLoading &&
-                  !picked.length ? (
-                    <div className={styles.pickedBlock}>
-                      <p className={styles.pickedLabel}>我的已选 {selected.length}</p>
-                      <div className={styles.empty}>
-                        <Spin />
-                      </div>
-                    </div>
-                  ) : picked.length ? (
-                    <div className={styles.pickedBlock}>
-                      <p className={styles.pickedLabel}>我的已选 {picked.length}</p>
-                      {picked.map((row, index) => (
-                        <TarkovRaidPrepTaskCard
-                          key={row.id}
-                          row={row}
-                          mapSlug={mapId}
-                          compact
-                          checked
-                          highlighted
-                          active={highlightTaskId === row.id}
-                          color={colorByTask.get(row.id) || colorForTaskIndex(index)}
-                          skipped={raidPrepSkippedIds(objDone, row.id)}
-                          onToggleObjective={toggleObjDone}
-                          onToggle={toggleSelected}
-                          onNeedDetail={geometry.ensure}
-                          onLocate={locateTask}
-                          onTitle={openGuide}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                  {rest.length && picked.length ? (
-                    <p className={styles.restLabel}>筛选结果</p>
-                  ) : null}
-                </div>
-                {rest.length ? (
-                  <TarkovRaidPrepRestList
-                    items={rest}
-                    scrollParent={taskListEl}
-                    head={restHeadEl}
-                    renderRow={(row) => (
-                      <TarkovRaidPrepTaskCard
-                        key={row.id}
-                        row={row}
-                        mapSlug={mapId}
-                        checked={false}
-                        highlighted={false}
-                        active={highlightTaskId === row.id}
-                        skipped={raidPrepSkippedIds(objDone, row.id)}
-                        onToggleObjective={toggleObjDone}
-                        onToggle={toggleSelected}
-                        onNeedDetail={geometry.ensure}
-                        onLocate={locateTask}
-                        onTitle={openGuide}
-                      />
-                    )}
-                  />
-                ) : prepQuery.isLoading && !prepQuery.data ? (
-                  <div className={styles.empty}>
-                    <Spin />
-                  </div>
-                ) : (
-                  <div className={styles.empty}>
-                    {picked.length || selected.length
-                      ? "当前筛选下无其他任务"
-                      : "当前筛选下无任务"}
-                  </div>
                 )}
-              </>
+              />
             )}
           </div>
         </aside>

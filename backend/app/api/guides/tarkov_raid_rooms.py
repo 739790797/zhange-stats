@@ -37,6 +37,7 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
     payload = {"event": event, "snapshot": snapshot}
     if extra:
         payload.update(extra)
+    payload["online_user_ids"] = list(hub.online_user_ids(public_id))
     hub.publish(public_id, payload)
 
 
@@ -72,7 +73,14 @@ def set_tarkov_raid_room_map(
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
     try:
-        data = rooms_svc.set_room_map(db, public_id, user, body.map)
+        data = rooms_svc.set_room_map(
+            db,
+            public_id,
+            user,
+            body.map,
+            online_user_ids=hub.online_user_ids(public_id),
+            log_phases=hub.log_phases(public_id),
+        )
     except rooms_svc.RaidRoomError as exc:
         db.rollback()
         _raise(exc)

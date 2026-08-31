@@ -17,6 +17,36 @@ export const MAP_SLUG_EQUIV_GROUPS: readonly (readonly string[])[] = [
 
 export const RAID_PREP_MAX_SELECTED = 40;
 
+export const RAID_PREP_LIST_SCOPES = [
+  "all",
+  "picked",
+  "active",
+  "todo",
+  "done",
+] as const;
+
+export type RaidPrepListScope = (typeof RAID_PREP_LIST_SCOPES)[number];
+
+export type RaidPrepTaskProgressStatus = "active" | "todo" | "done";
+
+export const RAID_PREP_LIST_SCOPE_LABELS: Record<RaidPrepListScope, string> = {
+  all: "全部",
+  picked: "已选",
+  active: "进行中",
+  todo: "未完成",
+  done: "已完成",
+};
+
+/** 与个人中心任务管理下拉一致：未完成 / 进行中 / 已完成。 */
+export const RAID_PREP_STATUS_SELECT_OPTIONS: readonly {
+  value: RaidPrepTaskProgressStatus;
+  label: string;
+}[] = [
+  { value: "todo", label: RAID_PREP_LIST_SCOPE_LABELS.todo },
+  { value: "active", label: RAID_PREP_LIST_SCOPE_LABELS.active },
+  { value: "done", label: RAID_PREP_LIST_SCOPE_LABELS.done },
+];
+
 /** 原文写明「任意」且候选不少于这么多种时，收成一条，文案用目标描述。 */
 export const RAID_PREP_ANY_OF_MIN = 4;
 
@@ -921,6 +951,53 @@ function bandMatchesFloor(
   );
 }
 
+function extentBoundsOk(
+  extent: RaidPrepFloorExtent,
+  at?: RaidPrepFloorAt | null,
+): boolean {
+  if (!extent.bounds?.length) return true;
+  if (!at || !isFiniteNumber(at.x) || !isFiniteNumber(at.z)) return false;
+  return extent.bounds.some((box) => pointInFloorBounds(at, box));
+}
+
+function spanOverlapLen(a: RaidPrepHeightSpan, b: RaidPrepHeightSpan): number {
+  return Math.max(0, Math.min(a.max, b.max) - Math.max(a.min, b.min));
+}
+
+function extentContainsSpan(
+  extent: RaidPrepFloorExtent,
+  span: RaidPrepHeightSpan,
+): boolean {
+  return extent.min <= span.min && span.max <= extent.max;
+}
+
+/** 整段高度都落在该层内（触发盒探出一层不算）。 */
+function bandContainsSpan(
+  band: RaidPrepFloorBand,
+  span: RaidPrepHeightSpan,
+  at?: RaidPrepFloorAt | null,
+): boolean {
+  return bandExtents(band).some(
+    (extent) => extentContainsSpan(extent, span) && extentBoundsOk(extent, at),
+  );
+}
+
+function bandOverlapLen(
+  band: RaidPrepFloorBand,
+  span: RaidPrepHeightSpan,
+  at?: RaidPrepFloorAt | null,
+): number | null {
+  let best = 0;
+  let hit = false;
+  for (const extent of bandExtents(band)) {
+    if (!extentBoundsOk(extent, at)) continue;
+    if (!spansOverlap(span, { min: extent.min, max: extent.max })) continue;
+    hit = true;
+    best = Math.max(best, spanOverlapLen(span, extent));
+  }
+  return hit ? best : null;
+}
+
 function bandNearestDist(
   band: RaidPrepFloorBand,
   mid: number,
@@ -951,7 +1028,13 @@ export function overlayVisibleOnFloor(
   if (!bands.length) return true;
   if (!floorName) {
     if (!span) return true;
-    if (overlayFloorNames(span, bands, at).length) return false;
+    if (
+      bands.some(
+        (band) => band.name && bandContainsSpan(band, span, at),
+      )
+    ) {
+      return false;
+    }
     const ground = bands.find((band) => !band.name);
     if (!ground) return true;
     return bandMatchesFloor(ground, span, at);
@@ -985,11 +1068,28 @@ export function overlayFloorForSpan(
 ): string {
   if (!bands.length) return "";
   if (!span) return "";
-  const named = overlayFloorNames(span, bands, at);
-  if (named.length) return named[0]!;
-  const ground = bands.find((band) => !band.name);
-  if (ground && bandMatchesFloor(ground, span, at)) return "";
   const mid = (span.min + span.max) / 2;
+  const containedNamed = bands.filter(
+    (band) => band.name && bandContainsSpan(band, span, at),
+  );
+  const pool = containedNamed.length
+    ? containedNamed
+    : bands.filter((band) => bandOverlapLen(band, span, at) != null);
+  if (pool.length) {
+    let best = pool[0]!;
+    let bestOverlap = bandOverlapLen(best, span, at) ?? 0;
+    let bestDist = bandNearestDist(best, mid, at) ?? Number.POSITIVE_INFINITY;
+    for (const band of pool.slice(1)) {
+      const overlap = bandOverlapLen(band, span, at) ?? 0;
+      const dist = bandNearestDist(band, mid, at) ?? Number.POSITIVE_INFINITY;
+      if (overlap < bestOverlap) continue;
+      if (overlap === bestOverlap && dist >= bestDist) continue;
+      best = band;
+      bestOverlap = overlap;
+      bestDist = dist;
+    }
+    return best.name;
+  }
   let best = "";
   let bestDist = Number.POSITIVE_INFINITY;
   for (const band of bands) {
@@ -1098,6 +1198,50 @@ export function normalizeRaidPrepMapId(raw: string): string {
       if (optionKeys.has(key)) return option.id;
     }
   }
+  return "";
+}
+
+/** 匹配成功 / 倒计时 / 开战：足以认定「正在进这张图」。 */
+export const RAID_PREP_AUTO_MAP_KINDS = [
+  "match_found",
+  "raid_starting",
+  "raid_started",
+] as const;
+
+export function isRaidPrepAutoMapKind(kind: string | null | undefined): boolean {
+  const key = (kind || "").trim();
+  return (RAID_PREP_AUTO_MAP_KINDS as readonly string[]).includes(key);
+}
+
+export function raidPrepMapsEquivalent(a: string, b: string): boolean {
+  const left = normalizeRaidPrepMapId(a) || (a || "").trim();
+  const right = normalizeRaidPrepMapId(b) || (b || "").trim();
+  if (!left || !right) return false;
+  const keys = mapSlugKeys(left);
+  for (const key of mapSlugKeys(right)) {
+    if (keys.has(key)) return true;
+  }
+  return false;
+}
+
+/**
+ * 日志要切到哪张图；空字符串表示不切。
+ * 开战类相位：当前图不同就切。
+ * 未选图时：可用上一场日志图垫上（单人 / 房主空房）。
+ * 房间开战切图另走「同一 shortId」共识，不单独用这条。
+ */
+export function raidPrepAutoSwitchMapId(opts: {
+  currentMapId: string;
+  logMapId: string;
+  phaseKind?: string | null;
+  fillEmpty?: boolean;
+}): string {
+  const next = normalizeRaidPrepMapId(opts.logMapId);
+  if (!next) return "";
+  const current = normalizeRaidPrepMapId(opts.currentMapId);
+  if (current && raidPrepMapsEquivalent(next, current)) return "";
+  if (isRaidPrepAutoMapKind(opts.phaseKind)) return next;
+  if (opts.fillEmpty && !current) return next;
   return "";
 }
 
@@ -1229,6 +1373,121 @@ export function hideCompletedRaidPrepRows<T extends { id: string }>(
   const done = new Set(trimIdList(doneIds));
   if (!done.size) return [...rows];
   return rows.filter((row) => !done.has(row.id));
+}
+
+function asIdSet(
+  ids: ReadonlySet<string> | readonly string[] | null | undefined,
+): Set<string> {
+  if (ids instanceof Set) return ids;
+  return new Set(trimIdList(ids));
+}
+
+/** 个人中心任务进度：已完成 > 进行中 > 未完成。 */
+export function raidPrepTaskProgressStatus(
+  taskId: string,
+  doneIds?: ReadonlySet<string> | readonly string[] | null,
+  startedIds?: ReadonlySet<string> | readonly string[] | null,
+): RaidPrepTaskProgressStatus {
+  const id = String(taskId || "").trim();
+  if (id && asIdSet(doneIds).has(id)) return "done";
+  if (id && asIdSet(startedIds).has(id)) return "active";
+  return "todo";
+}
+
+export function raidPrepTaskProgressLabel(
+  status: RaidPrepTaskProgressStatus,
+): string {
+  if (status === "done") return RAID_PREP_LIST_SCOPE_LABELS.done;
+  if (status === "active") return RAID_PREP_LIST_SCOPE_LABELS.active;
+  return RAID_PREP_LIST_SCOPE_LABELS.todo;
+}
+
+const RAID_PREP_PROGRESS_SORT: Record<RaidPrepTaskProgressStatus, number> = {
+  active: 0,
+  todo: 1,
+  done: 2,
+};
+
+/** 筛选结果：进行中 → 未完成 → 已完成，同状态保持原相对顺序。 */
+export function sortRaidPrepRowsByProgress<T extends { id: string }>(
+  rows: readonly T[],
+  doneIds?: ReadonlySet<string> | readonly string[] | null,
+  startedIds?: ReadonlySet<string> | readonly string[] | null,
+): T[] {
+  return [...rows].sort(
+    (a, b) =>
+      RAID_PREP_PROGRESS_SORT[
+        raidPrepTaskProgressStatus(a.id, doneIds, startedIds)
+      ] -
+      RAID_PREP_PROGRESS_SORT[
+        raidPrepTaskProgressStatus(b.id, doneIds, startedIds)
+      ],
+  );
+}
+
+export const RAID_PREP_PROGRESS_STATUSES: readonly RaidPrepTaskProgressStatus[] =
+  ["active", "todo", "done"];
+
+/** 按进行中 → 未完成 → 已完成分段；组内可再置顶已选。 */
+export function groupRaidPrepRowsByProgress<T extends { id: string }>(
+  rows: readonly T[],
+  doneIds?: ReadonlySet<string> | readonly string[] | null,
+  startedIds?: ReadonlySet<string> | readonly string[] | null,
+): Record<RaidPrepTaskProgressStatus, T[]> {
+  const groups: Record<RaidPrepTaskProgressStatus, T[]> = {
+    active: [],
+    todo: [],
+    done: [],
+  };
+  for (const row of rows) {
+    groups[raidPrepTaskProgressStatus(row.id, doneIds, startedIds)].push(row);
+  }
+  return groups;
+}
+
+export function filterRaidPrepRowsByScope<T extends { id: string }>(
+  rows: readonly T[],
+  scope: RaidPrepListScope,
+  opts: {
+    selectedIds?: ReadonlySet<string> | readonly string[] | null;
+    doneIds?: ReadonlySet<string> | readonly string[] | null;
+    startedIds?: ReadonlySet<string> | readonly string[] | null;
+  } = {},
+): T[] {
+  if (scope === "all") return [...rows];
+  if (scope === "picked") {
+    const selected = asIdSet(opts.selectedIds);
+    return rows.filter((row) => selected.has(row.id));
+  }
+  return rows.filter(
+    (row) =>
+      raidPrepTaskProgressStatus(row.id, opts.doneIds, opts.startedIds) ===
+      scope,
+  );
+}
+
+export function countRaidPrepRowsByScope<T extends { id: string }>(
+  rows: readonly T[],
+  opts: {
+    selectedIds?: ReadonlySet<string> | readonly string[] | null;
+    doneIds?: ReadonlySet<string> | readonly string[] | null;
+    startedIds?: ReadonlySet<string> | readonly string[] | null;
+  } = {},
+): Record<RaidPrepListScope, number> {
+  const selected = asIdSet(opts.selectedIds);
+  const counts: Record<RaidPrepListScope, number> = {
+    all: rows.length,
+    picked: 0,
+    active: 0,
+    todo: 0,
+    done: 0,
+  };
+  for (const row of rows) {
+    if (selected.has(row.id)) counts.picked += 1;
+    counts[raidPrepTaskProgressStatus(row.id, opts.doneIds, opts.startedIds)] +=
+      1;
+  }
+  return counts;
 }
 
 export function mergeRaidPrepNeededItems(
@@ -1487,6 +1746,17 @@ export function raidPrepSkippedIds(
   taskId: string,
 ): ReadonlySet<string> {
   return skippedByTask?.get(taskId) || EMPTY_SKIP;
+}
+
+/** 个人进度已完成时，当前用户视角把步骤视为全勾，不写共享勾选。 */
+export function raidPrepObjectiveCheckedForViewer(
+  objectiveId: string,
+  skipped?: ReadonlySet<string> | null,
+  taskDone?: boolean,
+): boolean {
+  if (taskDone) return true;
+  const id = String(objectiveId || "").trim();
+  return Boolean(id && skipped?.has(id));
 }
 
 export function raidPrepRequiredObjectiveIds(
@@ -1844,10 +2114,55 @@ export function serializeRaidPrepObjectiveDone(
   return out;
 }
 
+export function mergeRaidPrepSkipMaps(
+  ...maps: Array<RaidPrepSkipMap | null | undefined>
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const skipped of maps) {
+    if (!skipped) continue;
+    for (const [taskId, ids] of skipped) {
+      const key = String(taskId || "").trim();
+      if (!key || !ids?.size) continue;
+      const bucket = new Set(out.get(key) || []);
+      for (const id of ids) {
+        const objectiveId = String(id || "").trim();
+        if (objectiveId) bucket.add(objectiveId);
+      }
+      if (bucket.size) out.set(key, bucket);
+    }
+  }
+  return out;
+}
+
+export function raidPrepSkipMapsEqual(
+  left: RaidPrepSkipMap | null | undefined,
+  right: RaidPrepSkipMap | null | undefined,
+): boolean {
+  const a = serializeRaidPrepObjectiveDone(left || new Map());
+  const b = serializeRaidPrepObjectiveDone(right || new Map());
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const leftIds = [...(a[key] || [])].sort().join("\0");
+    const rightIds = [...(b[key] || [])].sort().join("\0");
+    if (leftIds !== rightIds) return false;
+  }
+  return true;
+}
+
 export function readRaidPrepObjectiveDone(scope: string): Map<string, Set<string>> {
   const key = (scope || "").trim();
   if (!key) return new Map();
   return parseRaidPrepObjectiveDone(readObjectiveDoneStore()[key]);
+}
+
+export function readRaidPrepObjectiveDoneWithLegacy(
+  scope: string,
+  legacyScopes: readonly string[] = [],
+): Map<string, Set<string>> {
+  return mergeRaidPrepSkipMaps(
+    readRaidPrepObjectiveDone(scope),
+    ...legacyScopes.map((item) => readRaidPrepObjectiveDone(item)),
+  );
 }
 
 export function writeRaidPrepObjectiveDone(
@@ -1863,20 +2178,48 @@ export function writeRaidPrepObjectiveDone(
   writeObjectiveDoneStore(all);
 }
 
+/** 个人步骤进度：账号 + 模式 + 地图。 */
 export function raidPrepObjectiveDoneScope(
-  kind: "solo" | "room",
-  id: string,
+  mapId: string,
+  gameMode = "pvp",
+  userId?: number | null,
 ): string {
-  const key = (id || "").trim();
-  if (!key) return "";
-  return kind === "room" ? `room:${key}` : `solo:${key}`;
+  const map = (mapId || "").trim();
+  if (!map) return "";
+  const mode = (gameMode || "pvp").trim() || "pvp";
+  const user =
+    userId != null && Number.isFinite(userId) ? String(userId) : "guest";
+  return `user:${user}:${mode}:${map}`;
 }
 
-export function useRaidPrepObjectiveDone(scope: string) {
-  const [done, setDone] = useState(() => readRaidPrepObjectiveDone(scope));
+export function raidPrepObjectiveDoneLegacyScopes(
+  mapId: string,
+  roomId?: string | null,
+): string[] {
+  const out: string[] = [];
+  const map = (mapId || "").trim();
+  if (map) out.push(`solo:${map}`);
+  const room = (roomId || "").trim();
+  if (room) out.push(`room:${room}`);
+  return out;
+}
+
+export function useRaidPrepObjectiveDone(
+  scope: string,
+  legacyScopes: readonly string[] = [],
+) {
+  const legacyKey = legacyScopes.filter(Boolean).join("\0");
+  const [done, setDone] = useState(() =>
+    readRaidPrepObjectiveDoneWithLegacy(scope, legacyScopes),
+  );
   useEffect(() => {
-    setDone(readRaidPrepObjectiveDone(scope));
-  }, [scope]);
+    const next = readRaidPrepObjectiveDoneWithLegacy(
+      scope,
+      legacyKey ? legacyKey.split("\0") : [],
+    );
+    setDone(next);
+    if (scope) writeRaidPrepObjectiveDone(scope, next);
+  }, [legacyKey, scope]);
   const toggle = useCallback((taskId: string, objectiveId: string) => {
     setDone((current) => {
       const next = toggleRaidPrepObjectiveDone(current, taskId, objectiveId);
@@ -2223,6 +2566,38 @@ export function collectRaidPrepTaskObjectives(
   return out;
 }
 
+/** 右侧任务列表气泡：贴在侧栏左缘外侧，整块夹在视口内。 */
+export function placeRaidPrepListHint(opts: {
+  viewW: number;
+  viewH: number;
+  boxW: number;
+  boxH: number;
+  /** 侧栏左缘；气泡右缘落在这左侧 */
+  edgeRight: number;
+  triggerTop: number;
+  pad?: number;
+  gap?: number;
+}): { left: number; top: number; maxWidth: number; maxHeight: number } {
+  const pad = opts.pad ?? 8;
+  const gap = opts.gap ?? 8;
+  const viewW = Math.max(opts.viewW, pad * 2);
+  const viewH = Math.max(opts.viewH, pad * 2);
+  const leftRoom = opts.edgeRight - gap - pad;
+  const maxWidth = Math.max(
+    160,
+    Math.min(viewW - pad * 2, leftRoom >= 160 ? leftRoom : viewW - pad * 2),
+  );
+  const maxHeight = Math.max(80, viewH - pad * 2);
+  const bw = Math.min(Math.max(opts.boxW, 1), maxWidth);
+  const bh = Math.min(Math.max(opts.boxH, 1), maxHeight);
+  const left = Math.min(
+    Math.max(opts.edgeRight - gap - bw, pad),
+    viewW - pad - bw,
+  );
+  const top = Math.min(Math.max(opts.triggerTop, pad), viewH - pad - bh);
+  return { left, top, maxWidth, maxHeight };
+}
+
 /** 准备总结任务名悬停：当前图适用的目标描述（无描述则用类型名）。 */
 export function collectRaidPrepTaskObjectiveLines(
   task: RaidPrepTaskLike,
@@ -2485,39 +2860,56 @@ function zoneAnchorPoint(zone: ZoneLike): RaidPrepPoint | null {
   return point;
 }
 
+export type RaidPrepLocateTarget = RaidPrepPoint & { objectiveId: string };
+
 /** 任务在当前地图的定位点：非 optional 在前，可选在后。 */
+export function resolveRaidPrepLocateTargets(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+  skipped?: ReadonlySet<string>,
+): RaidPrepLocateTarget[] {
+  const keys = mapSlugKeys(mapSlug);
+  const required: RaidPrepLocateTarget[] = [];
+  const optional: RaidPrepLocateTarget[] = [];
+  const seen = new Set<string>();
+  const done = skipped || EMPTY_SKIP;
+  const pushPoint = (
+    bucket: RaidPrepLocateTarget[],
+    point: RaidPrepPoint,
+    objectiveId: string,
+  ) => {
+    const key = raidPrepPointKey(point);
+    if (seen.has(key)) return;
+    seen.add(key);
+    bucket.push({ ...point, objectiveId });
+  };
+  (task.objectives || []).forEach((obj, index) => {
+    const objectiveId = raidPrepObjectiveKey(obj, index);
+    if (done.has(objectiveId)) return;
+    const bucket = obj.optional ? optional : required;
+    for (const zone of obj.zones || []) {
+      if (!locationHitsMap(zone, keys)) continue;
+      const point = zoneAnchorPoint(zone);
+      if (point) pushPoint(bucket, point, objectiveId);
+    }
+    for (const loc of obj.possible_locations || []) {
+      if (!locationHitsMap(loc, keys)) continue;
+      for (const point of validPoints(loc.positions)) {
+        pushPoint(bucket, point, objectiveId);
+      }
+    }
+  });
+  return [...required, ...optional];
+}
+
 export function resolveRaidPrepLocatePoints(
   task: RaidPrepTaskLike,
   mapSlug: string,
   skipped?: ReadonlySet<string>,
 ): RaidPrepPoint[] {
-  const keys = mapSlugKeys(mapSlug);
-  const required: RaidPrepPoint[] = [];
-  const optional: RaidPrepPoint[] = [];
-  const seen = new Set<string>();
-  const done = skipped || EMPTY_SKIP;
-  const pushPoint = (bucket: RaidPrepPoint[], point: RaidPrepPoint) => {
-    const key = raidPrepPointKey(point);
-    if (seen.has(key)) return;
-    seen.add(key);
-    bucket.push(point);
-  };
-  (task.objectives || []).forEach((obj, index) => {
-    if (done.has(raidPrepObjectiveKey(obj, index))) return;
-    const bucket = obj.optional ? optional : required;
-    for (const zone of obj.zones || []) {
-      if (!locationHitsMap(zone, keys)) continue;
-      const point = zoneAnchorPoint(zone);
-      if (point) pushPoint(bucket, point);
-    }
-    for (const loc of obj.possible_locations || []) {
-      if (!locationHitsMap(loc, keys)) continue;
-      for (const point of validPoints(loc.positions)) {
-        pushPoint(bucket, point);
-      }
-    }
-  });
-  return [...required, ...optional];
+  return resolveRaidPrepLocateTargets(task, mapSlug, skipped).map(
+    ({ objectiveId: _objectiveId, ...point }) => point,
+  );
 }
 
 /** 任务在当前地图的首个定位点：优先非 optional 目标的首个 zone / 刷新点。 */
@@ -2526,6 +2918,47 @@ export function resolveRaidPrepLocatePoint(
   mapSlug: string,
 ): RaidPrepPoint | null {
   return resolveRaidPrepLocatePoints(task, mapSlug)[0] ?? null;
+}
+
+/**
+ * 还有能画在地图上、且未勾完的点时才显示定位。
+ * 几何还没灌进来时，目录标记有点且本图还有未勾步骤，先留着按钮。
+ */
+export function raidPrepTaskCanLocate(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+  skipped?: ReadonlySet<string> | null,
+  opts?: { taskDone?: boolean; hasMapMarkers?: boolean },
+): boolean {
+  if (opts?.taskDone) return false;
+  const done = skipped || undefined;
+  if (resolveRaidPrepLocateTargets(task, mapSlug, done).length) return true;
+  if (resolveRaidPrepLocateTargets(task, mapSlug).length) return false;
+  if (!opts?.hasMapMarkers) return false;
+  const steps = collectRaidPrepTaskObjectives(task, mapSlug);
+  if (!steps.length) return true;
+  const have = skipped || EMPTY_SKIP;
+  return steps.some((step) => !have.has(step.id));
+}
+
+function raidPrepPointXZKey(point: RaidPrepPoint): string {
+  return `${Math.round(point.x)}:${Math.round(point.z)}`;
+}
+
+/** 定位点对应的地图 overlay：按米级 xz 对齐，忽略高度差。 */
+export function matchRaidPrepOverlayAtPoint(
+  overlays: readonly TarkovRaidPrepOverlay[],
+  taskId: string,
+  point: RaidPrepPoint,
+): TarkovRaidPrepOverlay | undefined {
+  const tid = String(taskId || "").trim();
+  const key = raidPrepPointXZKey(point);
+  return overlays.find((row) => {
+    if (row.taskId !== tid) return false;
+    return [...row.points, ...row.outline].some(
+      (hit) => raidPrepPointXZKey(hit) === key,
+    );
+  });
 }
 
 function overlayLabelSeeds(row: TarkovRaidPrepOverlay): RaidPrepPoint[] {
@@ -2754,7 +3187,7 @@ export function raidPrepVirtualWindow(opts: {
 }
 
 export const RAID_PREP_REST_VIRTUAL_MIN = 24;
-export const RAID_PREP_REST_ROW_PX = 56;
+export const RAID_PREP_REST_ROW_PX = 40;
 
 export function missingRaidPrepGeometryIds(
   cached: Readonly<Record<string, { id?: string }>> | null | undefined,

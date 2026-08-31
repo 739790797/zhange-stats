@@ -569,6 +569,7 @@ function SummaryList({
   keyBring,
   keyOwn,
   skippedByTask,
+  doneTaskIds,
   onToggleObjective,
   onTitle,
   viewerId,
@@ -581,10 +582,12 @@ function SummaryList({
   keyBring?: KeyBringControls;
   keyOwn?: KeyOwnControls;
   skippedByTask?: RaidPrepSkipMap;
+  doneTaskIds?: ReadonlySet<string> | readonly string[] | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   onTitle?: (taskId: string) => void;
   viewerId?: number | null;
 }) {
+  const doneIdSet = doneTaskIds instanceof Set ? doneTaskIds : new Set(doneTaskIds || []);
   const bringKit = collectRaidPrepBringKit(
     rows,
     raidPrepTaskIdsForParticipant(participantsByTask, viewerId),
@@ -733,9 +736,13 @@ function SummaryList({
                         }`}
                       >
                         <TarkovRaidPrepObjectiveHint
+                          taskName={row.taskName}
+                          traderSlug={row.traderSlug}
+                          traderName={row.traderName}
                           objectives={row.objectives || []}
                           otherMapGroups={row.otherMapGroups}
                           skipped={raidPrepSkippedIds(skippedByTask, row.taskId)}
+                          taskDone={doneIdSet.has(row.taskId)}
                           onToggle={
                             onToggleObjective
                               ? (objectiveId) =>
@@ -841,6 +848,7 @@ export function TarkovRaidPrepSummary({
   canToggleKeyOwn = false,
   onToggleKeyOwn,
   skippedByTask,
+  doneTaskIds,
   objectiveDones,
   currentUser,
   onToggleObjective,
@@ -857,6 +865,7 @@ export function TarkovRaidPrepSummary({
   canToggleKeyOwn?: boolean;
   onToggleKeyOwn?: (itemId: string) => void;
   skippedByTask?: RaidPrepSkipMap;
+  doneTaskIds?: ReadonlySet<string> | readonly string[] | null;
   objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
   currentUser?: { userId: number; name: string } | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
@@ -958,6 +967,7 @@ export function TarkovRaidPrepSummary({
             keyBring={keyBring}
             keyOwn={keyOwn}
             skippedByTask={skippedByTask}
+            doneTaskIds={doneTaskIds}
             onToggleObjective={onToggleObjective}
             onTitle={
               onTitle

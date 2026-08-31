@@ -24,9 +24,15 @@ import {
   raidPrepSummaryHasBringTypes,
   raidPrepSummaryHasShootTypes,
   collectRaidPrepTaskObjectiveLines,
+  placeRaidPrepListHint,
   collectRaidPrepTaskObjectives,
+  matchRaidPrepOverlayAtPoint,
   formatRaidPrepKeyNeedLine,
   parseRaidPrepObjectiveDone,
+  mergeRaidPrepSkipMaps,
+  raidPrepObjectiveDoneScope,
+  raidPrepObjectiveDoneLegacyScopes,
+  raidPrepSkipMapsEqual,
   serializeRaidPrepObjectiveDone,
   toggleRaidPrepObjectiveDone,
   filterRaidPrepRows,
@@ -37,6 +43,8 @@ import {
   locationHitsMap,
   neededKeyNamesForMap,
   normalizeRaidPrepMapId,
+  raidPrepAutoSwitchMapId,
+  raidPrepMapsEquivalent,
   objectiveAppliesToMap,
   objectiveZoneNames,
   overlayFloorNames,
@@ -49,6 +57,13 @@ import {
   raidPrepIdsFromTaskProgress,
   describeRaidPrepTaskProgressSync,
   hideCompletedRaidPrepRows,
+  raidPrepTaskProgressStatus,
+  raidPrepTaskProgressLabel,
+  raidPrepObjectiveCheckedForViewer,
+  sortRaidPrepRowsByProgress,
+  groupRaidPrepRowsByProgress,
+  filterRaidPrepRowsByScope,
+  countRaidPrepRowsByScope,
   mergeRaidPrepNeededItems,
   raidPrepKeyIsMissing,
   raidPrepTaskKeysUnavailable,
@@ -67,6 +82,7 @@ import {
   raidPrepPersonKey,
   raidPrepQuestOverlayVisible,
   resolveRaidPrepLocatePoints,
+  resolveRaidPrepLocateTargets,
   selectedTasksFromCatalog,
   serializeSelectedIds,
   sortRaidPrepSummaryByParticipants,
@@ -75,6 +91,7 @@ import {
   collectRaidPrepOtherMapGroups,
   formatRaidPrepOtherMapsLead,
   raidPrepMapObjectivesComplete,
+  raidPrepTaskCanLocate,
   formatRaidPrepOverlayPointTitle,
   formatRaidPrepParticipantLine,
   objectiveDonesToSkipMap,
@@ -103,6 +120,56 @@ describe("raid prep map keys", () => {
     expect(normalizeRaidPrepMapId("bigmap")).toBe("customs");
     expect([...mapSlugKeys("customs")].sort()).toEqual(["bigmap", "customs"]);
     expect(normalizeRaidPrepMapId("nope")).toBe("");
+  });
+
+  it("auto-switches only on live raid phases or empty current map", () => {
+    expect(raidPrepMapsEquivalent("streets-of-tarkov", "streets")).toBe(true);
+    expect(raidPrepMapsEquivalent("factory", "night-factory")).toBe(false);
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "raid_started",
+      }),
+    ).toBe("customs");
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "customs",
+        logMapId: "bigmap",
+        phaseKind: "raid_started",
+      }),
+    ).toBe("");
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "raid_exited",
+        fillEmpty: true,
+      }),
+    ).toBe("");
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "",
+        logMapId: "night-factory",
+        phaseKind: "raid_exited",
+        fillEmpty: true,
+      }),
+    ).toBe("night-factory");
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "",
+        logMapId: "customs",
+        phaseKind: "raid_exited",
+        fillEmpty: false,
+      }),
+    ).toBe("");
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "map_loading",
+      }),
+    ).toBe("");
   });
 
   it("inserts night factory after factory", () => {
@@ -397,6 +464,52 @@ describe("buildRaidPrepOverlays", () => {
     ).toBe("探路（可选）");
   });
 
+  it("places a task-list hint left of the sidebar and keeps it in the viewport", () => {
+    const box = placeRaidPrepListHint({
+      viewW: 1200,
+      viewH: 800,
+      boxW: 320,
+      boxH: 180,
+      edgeRight: 900,
+      triggerTop: 120,
+    });
+    expect(box.left + 320).toBeLessThanOrEqual(900 - 8);
+    expect(box.left).toBeGreaterThanOrEqual(8);
+    expect(box.top).toBeGreaterThanOrEqual(8);
+    expect(box.top + 180).toBeLessThanOrEqual(800 - 8);
+    expect(box.maxWidth).toBeLessThanOrEqual(1200 - 16);
+    expect(box.maxHeight).toBeLessThanOrEqual(800 - 16);
+  });
+
+  it("shifts a tall task-list hint up so it does not leave the viewport", () => {
+    const box = placeRaidPrepListHint({
+      viewW: 800,
+      viewH: 600,
+      boxW: 240,
+      boxH: 420,
+      edgeRight: 620,
+      triggerTop: 480,
+    });
+    expect(box.top).toBeGreaterThanOrEqual(8);
+    expect(box.top + 420).toBeLessThanOrEqual(600 - 8);
+    expect(box.left + 240).toBeLessThanOrEqual(620 - 8);
+  });
+
+  it("clamps a huge task-list hint so it never creates overflow", () => {
+    const box = placeRaidPrepListHint({
+      viewW: 400,
+      viewH: 300,
+      boxW: 900,
+      boxH: 800,
+      edgeRight: 80,
+      triggerTop: 20,
+    });
+    expect(box.left).toBeGreaterThanOrEqual(8);
+    expect(box.top).toBeGreaterThanOrEqual(8);
+    expect(box.left + box.maxWidth).toBeLessThanOrEqual(400);
+    expect(box.top + box.maxHeight).toBeLessThanOrEqual(300);
+  });
+
   it("highlights the hovered location among all map steps", () => {
     const task: RaidPrepTaskLike = {
       id: "anesthesia",
@@ -438,6 +551,9 @@ describe("buildRaidPrepOverlays", () => {
     expect(overlays[1]!.steps.filter((step) => step.active).map((step) => step.text)).toEqual([
       "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
     ]);
+    expect(matchRaidPrepOverlayAtPoint(overlays, "anesthesia", { x: 80, z: 90 })?.title).toBe(
+      "麻醉（第2处）",
+    );
   });
 
   it("leaves a single-point task unnumbered", () => {
@@ -673,6 +789,47 @@ describe("buildRaidPrepOverlays", () => {
     expect(resolveRaidPrepLocatePoints(mixed, "customs", new Set(["o-key"]))).toEqual(
       [{ x: 40, z: 40 }],
     );
+    expect(raidPrepTaskCanLocate(mixed, "customs")).toBe(true);
+    expect(raidPrepTaskCanLocate(mixed, "customs", new Set(["o-key"]))).toBe(
+      true,
+    );
+    expect(
+      raidPrepTaskCanLocate(mixed, "customs", new Set(["o-key", "o-free"])),
+    ).toBe(false);
+    expect(
+      raidPrepTaskCanLocate(mixed, "customs", undefined, { taskDone: true }),
+    ).toBe(false);
+    expect(raidPrepTaskCanLocate(mixed, "woods")).toBe(false);
+  });
+
+  it("keeps locate before geometry hydrates, hides after this-map steps are done", () => {
+    const stub: RaidPrepTaskLike = {
+      id: "t-stub",
+      name: "Stub",
+      objectives: [
+        {
+          id: "o1",
+          type: "visit",
+          description: "去检查",
+          maps: [{ slug: "customs", name: "海关" }],
+        },
+      ],
+    };
+    expect(
+      raidPrepTaskCanLocate(stub, "customs", undefined, {
+        hasMapMarkers: true,
+      }),
+    ).toBe(true);
+    expect(
+      raidPrepTaskCanLocate(stub, "customs", new Set(["o1"]), {
+        hasMapMarkers: true,
+      }),
+    ).toBe(false);
+    expect(
+      raidPrepTaskCanLocate(stub, "customs", undefined, {
+        hasMapMarkers: false,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -1491,6 +1648,22 @@ describe("raid prep needed items", () => {
         parseRaidPrepObjectiveDone({ t1: ["o-key", ""], t2: [] }),
       ),
     ).toEqual({ t1: ["o-key"] });
+    expect(raidPrepObjectiveDoneScope("streets", "pve", 7)).toBe(
+      "user:7:pve:streets",
+    );
+    expect(raidPrepObjectiveDoneLegacyScopes("streets", "ab12")).toEqual([
+      "solo:streets",
+      "room:ab12",
+    ]);
+    const merged = mergeRaidPrepSkipMaps(
+      new Map([["t1", new Set(["a"])]]),
+      new Map([["t1", new Set(["b"])], ["t2", new Set(["c"])]]),
+    );
+    expect([...merged.get("t1")!].sort()).toEqual(["a", "b"]);
+    expect([...merged.get("t2")!]).toEqual(["c"]);
+    expect(
+      raidPrepSkipMapsEqual(merged, mergeRaidPrepSkipMaps(merged)),
+    ).toBe(true);
   });
 
   it("sorts summary rows by participant count descending", () => {
@@ -2069,6 +2242,32 @@ describe("overlay floors", () => {
       "Underground",
     );
   });
+
+  it("keeps a tall streets courtyard playground on ground", () => {
+    const layer = findInteractiveMap("streets-of-tarkov");
+    const bands = mapLayerFloorBands(layer);
+    const playground = { min: 2.28, max: 11.58 };
+    const at = { x: 215.64, z: 360.7 };
+    expect(overlayFloorForSpan(playground, bands, at)).toBe("");
+    expect(overlayFloorForPoint(8.23, bands, at)).toBe("");
+    expect(overlayVisibleOnFloor(playground, "", bands, at)).toBe(true);
+    expect(overlayVisibleOnFloor(playground, "2nd Floor", bands, at)).toBe(
+      true,
+    );
+  });
+
+  it("does not promote a ground zone just because the trigger box clips 2nd", () => {
+    const bands = mapLayerFloorBands({
+      heightRange: [-6, 10],
+      layers: [{ name: "2nd Floor", extents: [{ height: [10, 15] }] }],
+    });
+    const span = { min: 2, max: 11.5 };
+    expect(overlayFloorForSpan(span, bands)).toBe("");
+    expect(overlayVisibleOnFloor(span, "", bands)).toBe(true);
+    expect(overlayVisibleOnFloor(span, "2nd Floor", bands)).toBe(true);
+    expect(overlayFloorForSpan({ min: 11, max: 14 }, bands)).toBe("2nd Floor");
+    expect(overlayVisibleOnFloor({ min: 11, max: 14 }, "", bands)).toBe(false);
+  });
 });
 
 describe("colorForTaskIndex", () => {
@@ -2101,6 +2300,10 @@ describe("resolveRaidPrepLocatePoints", () => {
     expect(resolveRaidPrepLocatePoints(task, "customs")).toEqual([
       { x: 9, z: 8 },
       { x: 1, z: 1 },
+    ]);
+    expect(resolveRaidPrepLocateTargets(task, "customs")).toEqual([
+      { x: 9, z: 8, objectiveId: "o-main" },
+      { x: 1, z: 1, objectiveId: "o-opt" },
     ]);
   });
 
@@ -2230,6 +2433,67 @@ describe("raid prep packing and settle", () => {
         ["b", ""],
       ),
     ).toEqual([{ id: "a" }, { id: "c" }]);
+  });
+
+  it("reads task progress status and filters list scopes", () => {
+    expect(raidPrepTaskProgressStatus("a", ["a"], ["a"])).toBe("done");
+    expect(raidPrepTaskProgressStatus("b", ["a"], ["b"])).toBe("active");
+    expect(raidPrepTaskProgressStatus("c", ["a"], ["b"])).toBe("todo");
+    expect(raidPrepTaskProgressLabel("active")).toBe("进行中");
+    expect(raidPrepTaskProgressLabel("todo")).toBe("未完成");
+    expect(raidPrepTaskProgressLabel("done")).toBe("已完成");
+    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(), true)).toBe(true);
+    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(["s1"]), false)).toBe(
+      true,
+    );
+    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(), false)).toBe(
+      false,
+    );
+    const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(
+      filterRaidPrepRowsByScope(rows, "all", {
+        doneIds: ["a"],
+        startedIds: ["b"],
+      }).map((row) => row.id),
+    ).toEqual(["a", "b", "c"]);
+    expect(
+      filterRaidPrepRowsByScope(rows, "picked", { selectedIds: ["b"] }).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["b"]);
+    expect(
+      filterRaidPrepRowsByScope(rows, "active", {
+        doneIds: ["a"],
+        startedIds: ["b"],
+      }).map((row) => row.id),
+    ).toEqual(["b"]);
+    expect(
+      filterRaidPrepRowsByScope(rows, "todo", {
+        doneIds: ["a"],
+        startedIds: ["b"],
+      }).map((row) => row.id),
+    ).toEqual(["c"]);
+    expect(
+      filterRaidPrepRowsByScope(rows, "done", {
+        doneIds: ["a"],
+        startedIds: ["b"],
+      }).map((row) => row.id),
+    ).toEqual(["a"]);
+    expect(
+      countRaidPrepRowsByScope(rows, {
+        selectedIds: ["a", "c"],
+        doneIds: ["a"],
+        startedIds: ["b"],
+      }),
+    ).toEqual({ all: 3, picked: 2, active: 1, todo: 1, done: 1 });
+    expect(
+      sortRaidPrepRowsByProgress(rows, ["a"], ["b"]).map((row) => row.id),
+    ).toEqual(["b", "c", "a"]);
+    expect(groupRaidPrepRowsByProgress(rows, ["a"], ["b"])).toEqual({
+      active: [{ id: "b" }],
+      todo: [{ id: "c" }],
+      done: [{ id: "a" }],
+    });
   });
 
   it("merges the same needed item across tasks", () => {

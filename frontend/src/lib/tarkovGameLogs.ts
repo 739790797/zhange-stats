@@ -176,7 +176,12 @@ export function isApplicationLogFileName(name: string): boolean {
 
 export function isNotificationsLogFileName(name: string): boolean {
   const n = (name || "").toLowerCase();
-  return n.endsWith("notifications.log") || n.endsWith("notifications_000.log");
+  return (
+    n.endsWith("notifications.log") ||
+    n.endsWith("notifications_000.log") ||
+    n.endsWith("push-notifications.log") ||
+    n.endsWith("push-notifications_000.log")
+  );
 }
 
 export function isReadableTarkovLogFileName(name: string): boolean {
@@ -662,6 +667,8 @@ export function buildRaidsFromEvents(
 ): TarkovLogRaid[] {
   const raids: TarkovLogRaid[] = [];
   let current: TarkovLogRaid | null = null;
+  /** UserMatchOver / 取消匹配之后，回菜单的 GameStarted 不算新一局。 */
+  let awaitNewMatch = false;
 
   const flush = () => {
     if (!current) return;
@@ -677,6 +684,7 @@ export function buildRaidsFromEvents(
   for (const event of events) {
     if (event.kind === "session_mode") continue;
     if (event.kind === "match_found") {
+      awaitNewMatch = false;
       if (
         current?.raidId &&
         event.raidId &&
@@ -700,16 +708,19 @@ export function buildRaidsFromEvents(
         current.aborted = true;
         applyRaidFields(current, event);
         flush();
+        awaitNewMatch = true;
       }
       continue;
     }
     if (event.kind === "raid_started") {
+      if (awaitNewMatch && !current) continue;
       if (!current) current = emptyRaid();
       current.startedAt = event.at;
       applyRaidFields(current, event);
       continue;
     }
     if (event.kind === "raid_starting" || event.kind === "map_loading" || event.kind === "matching") {
+      if (awaitNewMatch && !current) continue;
       if (!current) current = emptyRaid();
       applyRaidFields(current, event);
       continue;
@@ -726,6 +737,7 @@ export function buildRaidsFromEvents(
       current.endedAt = event.at;
       applyRaidFields(current, event);
       flush();
+      awaitNewMatch = true;
     }
   }
   flush();
@@ -900,6 +912,10 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
       events.push({ kind: "raid_started", at });
       continue;
     }
+    if (line.includes("PrepareSelectedProfileLocally")) {
+      events.push({ kind: "raid_exited", at });
+      continue;
+    }
     if (
       line.includes("Network game matching aborted") ||
       line.includes("Network game matching cancelled")
@@ -1071,13 +1087,28 @@ function lastRaidFacingEvent(
   return null;
 }
 
+/** 回菜单空壳：登录/战后重载档案，没有 shortId 和地图。 */
+function isPostRaidShell(raid: TarkovLogRaid): boolean {
+  return !raid.raidId && !raid.location && !raid.aborted;
+}
+
+function latestMeaningfulRaid(
+  raids: readonly TarkovLogRaid[],
+): TarkovLogRaid | null {
+  for (let i = raids.length - 1; i >= 0; i -= 1) {
+    const raid = raids[i];
+    if (raid && !isPostRaidShell(raid)) return raid;
+  }
+  return raids[raids.length - 1] || null;
+}
+
 /** 最近一场战局对应的房间同步相位：开战 / 结束优先于匹配中。 */
 export function logPhaseFromParsed(
   parsed: TarkovLogParseResult | null | undefined,
 ): TarkovLogPhasePayload | null {
   if (!parsed) return null;
   const raids = parsed.raids || [];
-  const raid = raids[raids.length - 1];
+  const raid = latestMeaningfulRaid(raids);
   if (raid) {
     let kind: TarkovLogEventKind = "matching";
     if (raid.endedAt) kind = "raid_exited";

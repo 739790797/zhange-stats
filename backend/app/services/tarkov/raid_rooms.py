@@ -438,6 +438,42 @@ LOG_PHASE_RAID_ID_MAX = 16
 LOG_PHASE_MAP_LABEL_MAX = 32
 
 
+LIVE_RAID_PHASE_KINDS = frozenset({"match_found", "raid_starting", "raid_started"})
+
+
+def normalize_raid_id(raw: Any) -> str:
+    return str(raw or "").strip().upper()[:LOG_PHASE_RAID_ID_MAX]
+
+
+def shared_raid_map_slug(
+    user_id: int,
+    seated_ids: set[int],
+    phases: list[dict[str, Any]] | None,
+) -> str:
+    """自己与另一名在座成员同一 shortId 时，返回该局地图。"""
+    rows = phases or []
+    mine = next((row for row in rows if int(row.get("user_id") or 0) == user_id), None)
+    raid = normalize_raid_id((mine or {}).get("raid_id"))
+    if not raid or str((mine or {}).get("kind") or "") not in LIVE_RAID_PHASE_KINDS:
+        return ""
+    peer = next(
+        (
+            row
+            for row in rows
+            if int(row.get("user_id") or 0) != user_id
+            and int(row.get("user_id") or 0) in seated_ids
+            and str(row.get("kind") or "") in LIVE_RAID_PHASE_KINDS
+            and normalize_raid_id(row.get("raid_id")) == raid
+        ),
+        None,
+    )
+    if peer is None:
+        return ""
+    return normalize_room_map_slug(
+        str((mine or {}).get("map_id") or peer.get("map_id") or ""),
+    )
+
+
 def parse_log_phase(payload: dict[str, Any]) -> dict[str, Any] | None:
     """校验本机日志相位广播。无效 kind 返回 None。"""
     kind = str(payload.get("kind") or "").strip()
@@ -590,6 +626,40 @@ def _room_alive(db: Session, room: TarkovRaidRoom) -> bool:
 def _assign_host(room: TarkovRaidRoom, user: User) -> None:
     room.host_user_id = user.id
     room.host_display_name = _display_name(user)
+
+
+def _seated_members(db: Session, room_id: int) -> list[TarkovRaidRoomMember]:
+    return (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.room_id == room_id,
+            TarkovRaidRoomMember.left_at.is_(None),
+        )
+        .order_by(
+            TarkovRaidRoomMember.joined_at.asc(),
+            TarkovRaidRoomMember.user_id.asc(),
+        )
+        .all()
+    )
+
+
+def acting_host_user_id(
+    host_user_id: int | None,
+    seated: list[TarkovRaidRoomMember],
+    online_user_ids: set[int] | None,
+) -> int:
+    """房主在线则仍是房主；房主离线（未交权）则最早入座的在线成员代行换图。"""
+    host_id = int(host_user_id) if host_user_id else 0
+    seated_ids = {int(row.user_id) for row in seated}
+    if online_user_ids is None:
+        return host_id if host_id in seated_ids else host_id
+    if host_id and host_id in seated_ids and host_id in online_user_ids:
+        return host_id
+    for row in seated:
+        uid = int(row.user_id)
+        if uid in online_user_ids:
+            return uid
+    return 0
 
 
 def _transfer_or_clear(db: Session, room: TarkovRaidRoom) -> None:
@@ -787,6 +857,7 @@ def serialize_room(
                 "display_name": names.get(row.user_id) or row.display_name,
                 "is_host": row.user_id == room.host_user_id,
                 "online": row.user_id in online,
+                "joined_at": _iso(row.joined_at),
             }
             for row in occupants
         ],
@@ -888,6 +959,7 @@ def serialize_lobby_item(
                 "display_name": row.display_name,
                 "is_host": row.user_id == room.host_user_id,
                 "online": row.user_id in online,
+                "joined_at": _iso(row.joined_at),
             }
             for row in occupants
         ],
@@ -1135,10 +1207,22 @@ def publish_occupant_key_owns(db: Session, user: User) -> None:
     for public_id in occupant_public_ids(db, user.id):
         try:
             room = _get_room(db, public_id)
-            snap = serialize_room(db, room, viewer=user)
+            snap = serialize_room(
+                db,
+                room,
+                viewer=user,
+                online_user_ids=hub.online_user_ids(public_id),
+            )
         except RaidRoomError:
             continue
-        hub.publish(public_id, {"event": "key_own_change", "snapshot": snap})
+        hub.publish(
+            public_id,
+            {
+                "event": "key_own_change",
+                "snapshot": snap,
+                "online_user_ids": list(hub.online_user_ids(public_id)),
+            },
+        )
 
 
 def get_room(
@@ -1296,16 +1380,25 @@ def set_room_map(
     map_slug: str,
     *,
     now: datetime | None = None,
+    online_user_ids: set[int] | None = None,
+    log_phases: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    if room.host_user_id != user.id:
-        raise RaidRoomError("只有房主可以换图", 403)
     slug = normalize_room_map_slug(map_slug)
     if not slug:
         raise RaidRoomError("地图无效")
     if slug == (room.map_slug or ""):
         return serialize_room(db, room, viewer=user)
+    seated = _seated_members(db, room.id)
+    actor = acting_host_user_id(room.host_user_id, seated, online_user_ids)
+    seated_ids = {int(row.user_id) for row in seated}
+    shared = shared_raid_map_slug(user.id, seated_ids, log_phases)
+    if actor != user.id and shared != slug:
+        raise RaidRoomError(
+            "只有房主可以换图；房主离线时由最早入座的在线成员代切；同一战局成员可切到该局地图",
+            403,
+        )
     _wipe_board(db, room.id)
     room.map_slug = slug
     db.flush()

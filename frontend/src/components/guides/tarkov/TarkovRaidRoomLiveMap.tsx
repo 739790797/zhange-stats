@@ -3,8 +3,10 @@ import {
   TarkovMapViewer,
   type TarkovMapFocusRequest,
 } from "@/components/guides/tarkov/TarkovMapViewer";
-import type { TarkovRaidPrepOverlay } from "@/lib/tarkovRaidPrep";
-import { colorForUserId } from "@/lib/tarkovRaidPrep";
+import {
+  colorForUserId,
+  type TarkovRaidPrepOverlay,
+} from "@/lib/tarkovRaidPrep";
 import {
   useTarkovLastLogMapId,
   useTarkovScreenshotFix,

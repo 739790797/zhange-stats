@@ -74,6 +74,11 @@ describe("session folder names", () => {
       ),
     ).toBe(true);
     expect(isNotificationsLogFileName("notifications.log")).toBe(true);
+    expect(
+      isNotificationsLogFileName(
+        "2026.08.31_19-08-07_1.1.0.1.46911 push-notifications_000.log",
+      ),
+    ).toBe(true);
     expect(isReadableTarkovLogFileName("output.log")).toBe(false);
   });
 });
@@ -386,6 +391,106 @@ describe("parseTarkovLogText", () => {
         ),
       ),
     ).toMatchObject({ kind: "raid_started", raidId: "PQXKR6" });
+  });
+
+  it("closes a raid from PrepareSelectedProfileLocally after GameStarted", () => {
+    const parsed = parseTarkovLogText(
+      [
+        "2026-09-01 00:15:02.474|1.1.0.1.46911|Debug|application|TRACE-NetworkGameCreate profileStatus: 'Profileid: 6a747cbf7637ff24e00a67cd, Status: Busy, RaidMode: Online, Location: TarkovStreets, GameMode: deathmatch, shortId: 28B9YK'",
+        "2026-09-01 00:15:58.467|1.1.0.1.46911|Info|application|GameStarted:121.03(9.69) real:136.76(12.03) diff:15.72",
+        "2026-09-01 00:23:39.306|1.1.0.1.46911|Info|application|PrepareSelectedProfileLocally ProfileId:6a747cbf7637ff24e00a67cc AccountId:14901032",
+        "2026-09-01 00:23:46.686|1.1.0.1.46911|Info|application|CompleteSelectedProfile ProfileId:6a747cbf7637ff24e00a67cc AccountId:14901032",
+      ].join("\n"),
+    );
+    expect(parsed.raids).toHaveLength(1);
+    expect(parsed.raids[0]).toMatchObject({
+      raidId: "28B9YK",
+      endedAt: "2026-09-01 00:23:39.306",
+      mapId: "streets",
+    });
+    expect(logPhaseFromParsed(parsed)).toMatchObject({
+      kind: "raid_exited",
+      raidId: "28B9YK",
+      mapId: "streets",
+    });
+  });
+
+  it("keeps raid_exited after post-raid hideout GameStarted", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [
+          MATCH_LINE,
+          "2023-12-29 19:03:40.000|x|Info|application|GameStarted",
+          "2023-12-29 19:42:00.000|x|Info|application|LocationLoaded:1.00 real:1.00",
+          "2023-12-29 19:42:01.000|x|Info|application|GameStarted",
+        ].join("\n"),
+      },
+      {
+        name: "notifications.log",
+        text: [
+          "2023-12-29 19:41:00.000|x|Info|notifications|Got notification | UserMatchOver",
+          '{ "location": "Shoreline", "shortId": "PQXKR6" }',
+        ].join("\n"),
+      },
+    ]);
+    expect(parsed.raids).toHaveLength(1);
+    expect(logPhaseFromParsed(parsed)).toMatchObject({
+      kind: "raid_exited",
+      raidId: "PQXKR6",
+      mapId: "shoreline",
+    });
+    expect(
+      logPhaseFromParsed({
+        events: [],
+        raids: [
+          {
+            raidId: "PQXKR6",
+            location: "Shoreline",
+            mapId: "shoreline",
+            mapLabel: "海岸线",
+            raidMode: "online",
+            startedAt: "2023-12-29 19:03:40.000",
+            endedAt: "2023-12-29 19:41:00.000",
+          },
+          {
+            raidId: "",
+            location: "",
+            mapId: "",
+            mapLabel: "未知地图",
+            raidMode: "unknown",
+            startedAt: "2023-12-29 19:42:01.000",
+          },
+        ],
+      }),
+    ).toMatchObject({ kind: "raid_exited", raidId: "PQXKR6" });
+  });
+
+  it("opens a new raid after exit only on match_found", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [
+          MATCH_LINE,
+          "2023-12-29 19:03:40.000|x|Info|application|GameStarted",
+          "2023-12-29 19:42:01.000|x|Info|application|GameStarted",
+          NIGHT_FACTORY_LINE.replace("2026-08-30 20:11:02.100", "2023-12-29 20:00:00.000"),
+          "2023-12-29 20:00:10.000|x|Info|application|GameStarted",
+        ].join("\n"),
+      },
+      {
+        name: "notifications.log",
+        text: [
+          "2023-12-29 19:41:00.000|x|Info|notifications|Got notification | UserMatchOver",
+          '{ "location": "Shoreline", "shortId": "PQXKR6" }',
+        ].join("\n"),
+      },
+    ]);
+    expect(parsed.raids.map((raid) => raid.raidId)).toEqual(["PQXKR6", "AB12CD"]);
+    expect(logPhaseFromParsed(parsed)).toMatchObject({
+      kind: "raid_started",
+      raidId: "AB12CD",
+    });
   });
 
   it("marks cancelled matching and night factory", () => {

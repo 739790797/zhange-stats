@@ -114,9 +114,23 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         code = CLOSE_NOT_FOUND if exc.status_code == 404 else CLOSE_FORBIDDEN
         await client.close(code=code)
         return
+    if not snapshot.get("is_member"):
+        await client.close(code=CLOSE_FORBIDDEN)
+        return
 
     online = await hub.join(public_id, client, user.id)
     _touch_ws_member(public_id, user)
+    try:
+        snapshot = _snapshot(public_id, user)
+    except rooms_svc.RaidRoomError as exc:
+        online = await hub.leave(public_id, client)
+        hub.publish(
+            public_id,
+            {"event": "presence", "online_user_ids": list(online)},
+        )
+        code = CLOSE_NOT_FOUND if exc.status_code == 404 else CLOSE_FORBIDDEN
+        await client.close(code=code)
+        return
     await client.send_json(
         {
             "event": "snapshot",

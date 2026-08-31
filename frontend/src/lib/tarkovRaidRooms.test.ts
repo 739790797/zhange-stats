@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tarkovRaidRoomHref, tarkovRaidRoomShareUrl } from "./tarkovHomeNav";
 import {
   applyRoomWsEvent,
+  keepRaidRoomPresence,
   raidRoomLiveSig,
   claimedTaskIds,
   claimTaskIdsForUser,
@@ -21,9 +22,14 @@ import {
   mergeBoardMarks,
   parseRaidRoomPublicId,
   parseRaidRoomLogPhases,
+  overlayRaidRoomLocalPhase,
+  raidRoomActingHostUserId,
+  raidRoomCanAutoSwitchMap,
+  raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
   formatRaidRoomLiveStatus,
-  formatRaidRoomMemberWsLine,
+  formatRaidRoomMemberChipLine,
+  raidRoomMemberRegionLabel,
   RAID_ROOM_SLOT_IDS,
   mergeRaidLobbySeats,
   raidRoomSlotIdsForMode,
@@ -99,11 +105,98 @@ describe("raid room helpers", () => {
         [{ userId: 2, kind: "raid_exited", mapId: "", mapLabel: "", raidId: "", at: "" }],
       ),
     ).toBe("preparing");
-    expect(formatRaidRoomLiveStatus("in_raid")).toBe("已在战局中");
-    expect(formatRaidRoomMemberWsLine({ online: true })).toBe("WS在线 · 无日志");
+    expect(raidRoomActingHostUserId(1, [
+      { user_id: 1, online: true, joined_at: "2026-09-01T00:00:00" },
+      { user_id: 2, online: true, joined_at: "2026-09-01T00:01:00" },
+    ])).toBe(1);
+    expect(raidRoomActingHostUserId(1, [
+      { user_id: 1, online: false, joined_at: "2026-09-01T00:00:00" },
+      { user_id: 2, online: true, joined_at: "2026-09-01T00:02:00" },
+      { user_id: 3, online: true, joined_at: "2026-09-01T00:01:00" },
+    ])).toBe(3);
+    expect(raidRoomCanAutoSwitchMap(3, 1, [
+      { user_id: 1, online: false, joined_at: "2026-09-01T00:00:00" },
+      { user_id: 3, online: true, joined_at: "2026-09-01T00:01:00" },
+    ])).toBe(true);
+    expect(raidRoomCanAutoSwitchMap(2, 1, [
+      { user_id: 1, online: false, joined_at: "2026-09-01T00:00:00" },
+      { user_id: 2, online: true, joined_at: "2026-09-01T00:02:00" },
+      { user_id: 3, online: true, joined_at: "2026-09-01T00:01:00" },
+    ])).toBe(false);
+    expect(raidRoomCanAutoSwitchMap(2, 1, [
+      { user_id: 1, online: true, joined_at: "2026-09-01T00:00:00" },
+      { user_id: 2, online: true, joined_at: "2026-09-01T00:01:00" },
+    ])).toBe(false);
     expect(
-      formatRaidRoomMemberWsLine({ online: false, phaseKind: "raid_started" }),
-    ).toBe("WS离线 · 开战");
+      raidRoomSharedRaidMapId({
+        myUserId: 2,
+        myRaidId: "pqxkr6",
+        myMapId: "customs",
+        myKind: "raid_started",
+        currentMapId: "woods",
+        occupantIds: [1, 2],
+        phases: [
+          { userId: 1, raidId: "PQXKR6", mapId: "customs", kind: "raid_started" },
+          { userId: 2, raidId: "PQXKR6", mapId: "customs", kind: "raid_started" },
+        ],
+      }),
+    ).toBe("customs");
+    expect(
+      raidRoomSharedRaidMapId({
+        myUserId: 2,
+        myRaidId: "PQXKR6",
+        myMapId: "customs",
+        myKind: "raid_started",
+        currentMapId: "woods",
+        occupantIds: [1, 2],
+        phases: [
+          { userId: 1, raidId: "AB12CD", mapId: "woods", kind: "raid_started" },
+        ],
+      }),
+    ).toBe("");
+    expect(
+      raidRoomSharedRaidMapId({
+        myUserId: 2,
+        myRaidId: "PQXKR6",
+        myMapId: "customs",
+        myKind: "raid_exited",
+        currentMapId: "woods",
+        occupantIds: [1, 2],
+        phases: [
+          { userId: 1, raidId: "PQXKR6", mapId: "customs", kind: "raid_started" },
+        ],
+      }),
+    ).toBe("");
+    expect(formatRaidRoomLiveStatus("in_raid")).toBe("已在战局中");
+    expect(
+      formatRaidRoomMemberChipLine({
+        name: "BaiYi",
+        isHost: true,
+        online: true,
+        kind: "raid_started",
+        mapLabel: "塔科夫街区",
+      }),
+    ).toBe("⭐BaiYi 在线 塔科夫街区");
+    expect(
+      formatRaidRoomMemberChipLine({
+        name: "BaiYi",
+        isHost: true,
+        online: true,
+        kind: "raid_exited",
+        mapLabel: "塔科夫街区",
+      }),
+    ).toBe("⭐BaiYi 在线 大厅");
+    expect(raidRoomMemberRegionLabel({ kind: "matching_aborted" })).toBe("大厅");
+    expect(raidRoomMemberRegionLabel({ kind: "match_found", mapId: "streets" })).toBe(
+      "塔科夫街区",
+    );
+    expect(
+      formatRaidRoomMemberChipLine({
+        name: "Teammate",
+        isHost: false,
+        online: false,
+      }),
+    ).toBe("Teammate 离线");
     expect(
       parseRaidRoomLogPhases([
         { user_id: 3, kind: "raid_started", map_id: "customs", raid_id: "AB12" },
@@ -118,6 +211,48 @@ describe("raid room helpers", () => {
         at: "",
       },
     ]);
+    expect(
+      overlayRaidRoomLocalPhase(
+        [
+          {
+            userId: 1,
+            kind: "raid_started",
+            mapId: "customs",
+            mapLabel: "海关",
+            raidId: "AB12",
+            at: "1",
+          },
+          {
+            userId: 2,
+            kind: "raid_started",
+            mapId: "customs",
+            mapLabel: "海关",
+            raidId: "AB12",
+            at: "1",
+          },
+        ],
+        2,
+        {
+          kind: "raid_exited",
+          mapId: "customs",
+          mapLabel: "海关",
+          raidId: "AB12",
+          at: "2",
+        },
+      ).map((row) => ({ userId: row.userId, kind: row.kind })),
+    ).toEqual([
+      { userId: 1, kind: "raid_started" },
+      { userId: 2, kind: "raid_exited" },
+    ]);
+    expect(
+      overlayRaidRoomLocalPhase([], 0, {
+        kind: "raid_exited",
+        mapId: "",
+        mapLabel: "",
+        raidId: "",
+        at: "",
+      }),
+    ).toEqual([]);
     expect(
       mergeRaidLobbySeats(
         [
@@ -343,6 +478,45 @@ describe("raid room helpers", () => {
     expect(raidRoomLiveSig(same)).toBe(
       raidRoomLiveSig({ ...room, claims: [{ user_id: 1, task_id: "t1", display_name: "甲" }] }),
     );
+    const kept = keepRaidRoomPresence(
+      {
+        ...room,
+        members: [
+          { user_id: 1, display_name: "甲", online: false },
+          { user_id: 2, display_name: "乙", online: false },
+        ],
+      },
+      {
+        ...room,
+        members: [
+          { user_id: 1, display_name: "甲", online: true },
+          { user_id: 2, display_name: "乙", online: true },
+        ],
+      },
+    );
+    expect(kept.members?.map((row) => row.online)).toEqual([true, true]);
+    expect(keepRaidRoomPresence(room, null).members?.map((row) => row.online)).toEqual([
+      false,
+      false,
+    ]);
+    const staleSnap = applyRoomWsEvent(
+      {
+        ...room,
+        members: [
+          { user_id: 1, display_name: "甲", online: true },
+          { user_id: 2, display_name: "乙", online: true },
+        ],
+      },
+      {
+        event: "snapshot",
+        snapshot: {
+          ...room,
+          claims: [{ user_id: 1, task_id: "t2", display_name: "甲" }],
+        },
+      },
+      1,
+    );
+    expect(staleSnap?.members?.map((row) => row.online)).toEqual([true, true]);
   });
 
   it("simplifies freehand strokes and reads mark points", () => {
