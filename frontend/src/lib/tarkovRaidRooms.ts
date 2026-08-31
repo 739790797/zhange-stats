@@ -746,6 +746,25 @@ export type TarkovMapPlayerMark = {
   self?: boolean;
 };
 
+/** 定位点旁的名字：自己和队友都展示。 */
+export function playerFixMarkerCaption(
+  name: string | null | undefined,
+): string {
+  return (name || "").trim();
+}
+
+/** 本地定位优先；有本地点时丢掉同用户的远端点，避免叠两个。 */
+export function collectPlayerFixMarks(
+  remote: readonly TarkovMapPlayerMark[],
+  local: TarkovMapPlayerMark | null | undefined,
+): TarkovMapPlayerMark[] {
+  if (!local) return [...remote];
+  const uid = local.userId;
+  const rest =
+    uid > 0 ? remote.filter((row) => row.userId !== uid) : [...remote];
+  return [...rest, { ...local, self: true }];
+}
+
 function finiteCoord(raw: unknown): number | null {
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;

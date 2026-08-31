@@ -2,7 +2,9 @@ import { Popover } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   formatRaidPrepKeyNeedLine,
+  formatRaidPrepOtherMapsLead,
   type RaidPrepObjectiveHint,
+  type RaidPrepOtherMapGroup,
 } from "@/lib/tarkovRaidPrep";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -10,6 +12,7 @@ export type TarkovRaidPrepObjectiveProgressProps = {
   objectives: RaidPrepObjectiveHint[];
   skipped?: ReadonlySet<string>;
   onToggle?: (objectiveId: string) => void;
+  otherMapGroups?: readonly RaidPrepOtherMapGroup[];
 };
 
 type HintProps = TarkovRaidPrepObjectiveProgressProps & {
@@ -64,8 +67,10 @@ export function TarkovRaidPrepObjectiveProgress({
   objectives,
   skipped,
   onToggle,
+  otherMapGroups,
 }: TarkovRaidPrepObjectiveProgressProps) {
   const doneIds = skipped || new Set<string>();
+  const otherLead = formatRaidPrepOtherMapsLead(otherMapGroups);
   return (
     <div
       className={styles.taskObjHint}
@@ -73,7 +78,7 @@ export function TarkovRaidPrepObjectiveProgress({
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className={styles.taskObjHintLead}>
-        勾选表示你已做完：只对你划掉，地图点位不会因此隐藏。
+        勾选表示你已做完：只对你划掉并隐藏该点位；本图步骤全部勾完后会划去任务名。不影响其他人。
       </div>
       {objectives.length ? (
         objectives.map((obj) => {
@@ -102,6 +107,21 @@ export function TarkovRaidPrepObjectiveProgress({
       ) : (
         <div className={styles.taskObjLine}>无目标数据</div>
       )}
+      {otherMapGroups?.length ? (
+        <div className={styles.taskObjOtherMaps}>
+          <div className={styles.taskObjOtherMapsLead}>{otherLead}</div>
+          {otherMapGroups.map((group) => (
+            <div key={group.mapSlug || group.mapLabel} className={styles.taskObjOtherMap}>
+              <div className={styles.taskObjOtherMapLabel}>{group.mapLabel}</div>
+              {group.lines.map((line) => (
+                <div key={line} className={styles.taskObjOtherMapLine}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -110,6 +130,7 @@ export function TarkovRaidPrepObjectiveHint({
   objectives,
   skipped,
   onToggle,
+  otherMapGroups,
   taskId,
   onNeedDetail,
   children,
@@ -168,6 +189,7 @@ export function TarkovRaidPrepObjectiveHint({
           objectives={objectives}
           skipped={skipped}
           onToggle={onToggle}
+          otherMapGroups={otherMapGroups}
         />
       }
       trigger={trigger}

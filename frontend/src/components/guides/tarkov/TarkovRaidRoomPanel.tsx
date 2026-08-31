@@ -43,6 +43,7 @@ import {
   buildRaidPrepOverlays,
   colorForTaskIndex,
   colorForUserId,
+  filterRaidPrepOverlaysForViewer,
   filterRaidPrepRows,
   hideCompletedRaidPrepRows,
   hydrateRaidPrepCatalogRows,
@@ -573,8 +574,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const overlayTasksRef = useRef(overlayTasks);
   overlayTasksRef.current = overlayTasks;
   const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId),
-    [overlayTasks, mapId],
+    () =>
+      filterRaidPrepOverlaysForViewer(
+        buildRaidPrepOverlays(overlayTasks, mapId),
+        objDone,
+      ),
+    [overlayTasks, mapId, objDone],
   );
 
   const markQueueRef = useRef(Promise.resolve());
@@ -853,12 +858,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       let points = resolveRaidPrepLocatePoints(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
+        raidPrepSkippedIds(objDone, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
           const rich = await geometry.ensure(row.id);
           points = rich
-            ? resolveRaidPrepLocatePoints(rich, mapId)
+            ? resolveRaidPrepLocatePoints(
+                rich,
+                mapId,
+                raidPrepSkippedIds(objDone, row.id),
+              )
             : [];
         } catch {
           return;
@@ -877,7 +887,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [geometry, mapId, overlayTasks],
+    [geometry, mapId, objDone, overlayTasks],
   );
 
   const openGuide = useCallback((taskId: string) => {
@@ -1288,6 +1298,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   boardMarks={boardMarks}
                   suppressLocalFix={hideLocalFix}
                   authorUserId={me?.id || 0}
+                  authorDisplayName={
+                    (me?.display_name || me?.username || "").trim() ||
+                    (me ? `用户${me.id}` : "")
+                  }
                   drawMode={canEdit ? tool : "pan"}
                   canEdit={canEdit}
                   members={members}

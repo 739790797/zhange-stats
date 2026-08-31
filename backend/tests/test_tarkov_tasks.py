@@ -724,7 +724,7 @@ def test_collect_raid_prep_includes_zone_only_task():
     assert rows[1]["has_map_markers"] is False
 
 
-def test_crop_raid_prep_detail_drops_other_map_zones():
+def test_crop_raid_prep_detail_keeps_other_map_stubs():
     detail = tasks.project_task_detail(
         {
             "id": "multi",
@@ -767,9 +767,15 @@ def test_crop_raid_prep_detail_drops_other_map_zones():
     )
     assert detail is not None
     cropped = tasks.crop_raid_prep_detail_for_map(detail, "streets")
-    assert len(cropped["objectives"]) == 1
-    zones = cropped["objectives"][0]["zones"]
-    assert [z["id"] for z in zones] == ["zs"]
+    assert [o["id"] for o in cropped["objectives"]] == ["o1", "o2"]
+    assert cropped["objective_count"] == 1
+    o1 = cropped["objectives"][0]
+    assert [z["id"] for z in o1["zones"]] == ["zs"]
+    assert {m.get("slug") for m in o1["maps"]} >= {"streets", "customs"}
+    o2 = cropped["objectives"][1]
+    assert o2["zones"] == []
+    assert o2["possible_locations"] == []
+    assert any((m.get("slug") == "customs") for m in o2["maps"])
 
 
 def test_strip_raid_prep_geometry_keeps_items():

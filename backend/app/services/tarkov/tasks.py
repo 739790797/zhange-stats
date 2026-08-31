@@ -1256,15 +1256,49 @@ def canonical_raid_map_slug(map_slug: str) -> str:
     return (map_slug or "").strip().lower()
 
 
+def _named_map_from_location(row: dict[str, Any]) -> dict[str, Any] | None:
+    ident = str(row.get("id") or row.get("map_id") or "").strip()
+    slug = str(row.get("slug") or row.get("map_slug") or "").strip()
+    name = str(row.get("name") or row.get("map_name") or "").strip()
+    if not ident and not slug and not name:
+        return None
+    types = row.get("types")
+    return {
+        "id": ident,
+        "slug": slug,
+        "name": name,
+        "icon_link": str(row.get("icon_link") or ""),
+        "types": [str(t) for t in types if t is not None and str(t).strip()]
+        if isinstance(types, list)
+        else [],
+    }
+
+
+def _unique_map_refs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        item = _named_map_from_location(row)
+        if item is None:
+            continue
+        key = (item["slug"] or item["id"] or item["name"]).lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
 def crop_raid_prep_detail_for_map(
     detail: dict[str, Any],
     map_slug: str,
 ) -> dict[str, Any]:
-    """按所选图裁剪 objectives / zones / needed_keys，缩小响应体。"""
+    """按所选图裁剪 zones / needed_keys。其他图目标保留为无几何 stub，供跨图提示。"""
     keys, ids = map_match_keys(map_slug)
     if not keys and not ids:
         return detail
-    objectives_out: list[dict[str, Any]] = []
+    this_map: list[dict[str, Any]] = []
+    stubs: list[dict[str, Any]] = []
     for obj in detail.get("objectives") or []:
         if not isinstance(obj, dict):
             continue
@@ -1277,17 +1311,28 @@ def crop_raid_prep_detail_for_map(
         zones = [z for z in raw_zones if _map_ref_hits(z, keys, ids)]
         locs = [loc for loc in raw_locs if _map_ref_hits(loc, keys, ids)]
         has_any_map_ref = bool(raw_maps or raw_zones or raw_locs)
+        map_refs = _unique_map_refs([*raw_maps, *raw_zones, *raw_locs])
         if has_any_map_ref and not (maps or zones or locs):
+            if not map_refs:
+                continue
+            stubs.append(
+                {
+                    **obj,
+                    "maps": map_refs,
+                    "zones": [],
+                    "possible_locations": [],
+                }
+            )
             continue
-        objectives_out.append(
+        this_map.append(
             {
                 **obj,
-                "maps": maps if maps else ([] if has_any_map_ref else raw_maps),
+                "maps": map_refs if map_refs else ([] if has_any_map_ref else raw_maps),
                 "zones": zones,
                 "possible_locations": locs,
             }
         )
-    needed = _needed_keys_from_objectives(objectives_out)
+    needed = _needed_keys_from_objectives(this_map)
     needed = [
         row
         for row in needed
@@ -1303,16 +1348,16 @@ def crop_raid_prep_detail_for_map(
     ]
     type_list: list[str] = []
     seen_types: set[str] = set()
-    for obj in objectives_out:
+    for obj in this_map:
         t = str(obj.get("type") or "").strip()
         if t and t not in seen_types:
             seen_types.add(t)
             type_list.append(t)
     return {
         **detail,
-        "objectives": objectives_out,
+        "objectives": this_map + stubs,
         "needed_keys": needed,
-        "objective_count": len(objectives_out),
+        "objective_count": len(this_map),
         "objective_types": type_list
         if type_list
         else list(detail.get("objective_types") or []),

@@ -39,6 +39,7 @@ type Props = {
   boardMarks: RaidRoomMarkLike[];
   suppressLocalFix: boolean;
   authorUserId: number;
+  authorDisplayName?: string;
   drawMode: TarkovMapDrawMode;
   canEdit: boolean;
   members: readonly MemberLike[];
@@ -117,6 +118,7 @@ export function TarkovRaidRoomLiveMap({
   boardMarks,
   suppressLocalFix,
   authorUserId,
+  authorDisplayName = "",
   drawMode,
   canEdit,
   members,
@@ -148,6 +150,12 @@ export function TarkovRaidRoomLiveMap({
     return () => window.clearInterval(timer);
   }, []);
 
+  const selfName = useMemo(() => {
+    const fromProp = (authorDisplayName || "").trim();
+    if (fromProp) return fromProp;
+    const fromMembers = members.find((row) => row.user_id === authorUserId);
+    return (fromMembers?.display_name || "").trim();
+  }, [authorDisplayName, authorUserId, members]);
   const remotePlayerMarks = useMemo<TarkovMapPlayerMark[]>(() => {
     const names = new Map<number, string>();
     for (const row of members) {
@@ -158,14 +166,17 @@ export function TarkovRaidRoomLiveMap({
       .map((row) => ({
         key: `u:${row.userId}:${row.fileName || row.at}`,
         userId: row.userId,
-        name: names.get(row.userId) || "",
+        name:
+          (row.userId === authorUserId ? selfName : "") ||
+          names.get(row.userId) ||
+          "",
         color: colorForUserId(row.userId),
         x: row.x,
         y: row.y,
         z: row.z,
         yaw: row.yaw,
       }));
-  }, [fixes, mapId, members]);
+  }, [authorUserId, fixes, mapId, members, selfName]);
 
   const onDraftStroke = useCallback(
     (draft: { floor: string; points: StrokePoint[] } | null) => {
@@ -205,6 +216,7 @@ export function TarkovRaidRoomLiveMap({
         suppressLocalFix={suppressLocalFix}
         drawColor={colorForUserId(authorUserId)}
         authorUserId={authorUserId}
+        authorDisplayName={selfName}
         drawMode={drawMode}
         onStroke={onStroke}
         onPin={onPin}

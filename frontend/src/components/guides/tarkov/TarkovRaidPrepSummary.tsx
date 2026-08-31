@@ -727,9 +727,14 @@ function SummaryList({
                           title={row.traderName || row.traderSlug}
                         />
                       ) : null}
-                      <span className={styles.summaryTaskName}>
+                      <span
+                        className={`${styles.summaryTaskName}${
+                          row.mapComplete ? ` ${styles.summaryTaskNameDone}` : ""
+                        }`}
+                      >
                         <TarkovRaidPrepObjectiveHint
                           objectives={row.objectives || []}
+                          otherMapGroups={row.otherMapGroups}
                           skipped={raidPrepSkippedIds(skippedByTask, row.taskId)}
                           onToggle={
                             onToggleObjective

@@ -20,6 +20,7 @@ import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
   colorForTaskIndex,
+  filterRaidPrepOverlaysForViewer,
   filterRaidPrepRows,
   hideCompletedRaidPrepRows,
   hydrateRaidPrepCatalogRows,
@@ -402,8 +403,12 @@ export function TarkovRaidPrepPanel() {
     [keyBringIds, me, myName],
   );
   const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId),
-    [overlayTasks, mapId],
+    () =>
+      filterRaidPrepOverlaysForViewer(
+        buildRaidPrepOverlays(overlayTasks, mapId),
+        objDone,
+      ),
+    [overlayTasks, mapId, objDone],
   );
   const hideLocalFix = Boolean(
     lastLogMapId && !playerFixMatchesRoomMap(lastLogMapId, mapId),
@@ -486,12 +491,17 @@ export function TarkovRaidPrepPanel() {
       let points = resolveRaidPrepLocatePoints(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
+        raidPrepSkippedIds(objDone, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
           const rich = await geometry.ensure(row.id);
           points = rich
-            ? resolveRaidPrepLocatePoints(rich, mapId)
+            ? resolveRaidPrepLocatePoints(
+                rich,
+                mapId,
+                raidPrepSkippedIds(objDone, row.id),
+              )
             : [];
         } catch {
           return;
@@ -510,7 +520,7 @@ export function TarkovRaidPrepPanel() {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [geometry, mapId, overlayTasks],
+    [geometry, mapId, objDone, overlayTasks],
   );
 
   const openGuide = useCallback((taskId: string) => {
@@ -610,6 +620,7 @@ export function TarkovRaidPrepPanel() {
                   focusRequest={focusRequest}
                   highlightTaskId={highlightTaskId}
                   authorUserId={me?.id || 0}
+                  authorDisplayName={myName}
                   suppressLocalFix={hideLocalFix}
                   fill
                   onQuestLabelClick={onQuestLabelClick}

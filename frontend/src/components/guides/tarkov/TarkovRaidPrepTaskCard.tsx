@@ -2,9 +2,11 @@ import { EnvironmentOutlined } from "@ant-design/icons";
 import { memo, useMemo } from "react";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
 import {
+  collectRaidPrepOtherMapGroups,
   collectRaidPrepTaskObjectives,
   colorForTaskId,
   displayRaidPrepTaskName,
+  raidPrepMapObjectivesComplete,
 } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
@@ -56,6 +58,12 @@ function TarkovRaidPrepTaskCardInner({
     () => collectRaidPrepTaskObjectives(row, mapSlug),
     [row, mapSlug],
   );
+  const otherMapGroups = useMemo(
+    () => collectRaidPrepOtherMapGroups(row, mapSlug),
+    [row, mapSlug],
+  );
+  const mapDone =
+    isDone || raidPrepMapObjectivesComplete(row, mapSlug, skipped);
   const meta = compact
     ? []
     : [
@@ -83,8 +91,8 @@ function TarkovRaidPrepTaskCardInner({
       className={`${styles.taskRow} ${highlighted ? styles.taskRowOn : ""} ${
         disabled ? styles.taskRowDisabled : ""
       } ${active ? styles.taskRowActive : ""} ${isDone ? styles.taskRowDone : ""} ${
-        compact ? styles.taskRowCompact : ""
-      }`}
+        mapDone ? styles.taskRowMapDone : ""
+      } ${compact ? styles.taskRowCompact : ""}`}
       data-raid-prep-task={row.id}
     >
       <label
@@ -117,6 +125,7 @@ function TarkovRaidPrepTaskCardInner({
           <TarkovRaidPrepObjectiveHint
             taskId={row.id}
             objectives={objectives}
+            otherMapGroups={otherMapGroups}
             skipped={skipped}
             onNeedDetail={onNeedDetail}
             onToggle={

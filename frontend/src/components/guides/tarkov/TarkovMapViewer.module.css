@@ -721,6 +721,7 @@
 .playerIcon {
   background: none;
   border: 0;
+  overflow: visible !important;
 }
 
 .playerMark {
@@ -728,6 +729,7 @@
   display: block;
   width: 32px;
   height: 32px;
+  overflow: visible;
   color: #c8932a;
 }
 

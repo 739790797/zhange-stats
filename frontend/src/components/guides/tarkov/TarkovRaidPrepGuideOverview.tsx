@@ -6,10 +6,12 @@ import {
   resolveRaidPrepGuideId,
 } from "@/lib/eftarkovGuide";
 import {
+  collectRaidPrepOtherMapGroups,
   collectRaidPrepTaskObjectives,
   colorForTaskId,
   colorForUserId,
   displayRaidPrepTaskName,
+  raidPrepMapObjectivesComplete,
   raidPrepSkippedIds,
   type RaidPrepSkipMap,
   type RaidPrepTaskLike,
@@ -99,6 +101,10 @@ export function TarkovRaidPrepGuideOverview({
     () => (activeTask ? collectRaidPrepTaskObjectives(activeTask, mapId) : []),
     [activeTask, mapId],
   );
+  const activeOtherMaps = useMemo(
+    () => (activeTask ? collectRaidPrepOtherMapGroups(activeTask, mapId) : []),
+    [activeTask, mapId],
+  );
   const activeSkipped = useMemo(
     () => (guideId ? raidPrepSkippedIds(skippedByTask, guideId) : undefined),
     [guideId, skippedByTask],
@@ -152,6 +158,7 @@ export function TarkovRaidPrepGuideOverview({
                   <div className={styles.guideProgressBody}>
                     <TarkovRaidPrepObjectiveProgress
                       objectives={activeObjectives}
+                      otherMapGroups={activeOtherMaps}
                       skipped={activeSkipped}
                       onToggle={
                         onToggleObjective && guideId
@@ -171,6 +178,11 @@ export function TarkovRaidPrepGuideOverview({
                 {tasks.map((row) => {
                   const on = row.id === guideId;
                   const label = displayRaidPrepTaskName(row);
+                  const mapDone = raidPrepMapObjectivesComplete(
+                    row,
+                    mapId,
+                    raidPrepSkippedIds(skippedByTask, row.id),
+                  );
                   return (
                     <button
                       key={row.id}
@@ -200,7 +212,13 @@ export function TarkovRaidPrepGuideOverview({
                             title={row.trader_name || row.trader_slug}
                           />
                         ) : null}
-                        <span className={styles.guideSideTaskName}>{label}</span>
+                        <span
+                          className={`${styles.guideSideTaskName}${
+                            mapDone ? ` ${styles.guideSideTaskNameDone}` : ""
+                          }`}
+                        >
+                          {label}
+                        </span>
                       </div>
                     </button>
                   );

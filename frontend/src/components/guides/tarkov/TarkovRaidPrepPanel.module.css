@@ -673,6 +673,13 @@
   opacity: 0.55;
 }
 
+.taskRowMapDone .taskName,
+.taskRowMapDone .taskName:hover {
+  color: #9a9788;
+  text-decoration: line-through;
+  text-decoration-color: #5a5a4a;
+}
+
 .taskRowDisabled {
   cursor: default;
 }
@@ -834,6 +841,39 @@
 
 .taskObjLineDone > span:first-child {
   text-decoration: line-through;
+}
+
+.taskObjOtherMaps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3d30;
+}
+
+.taskObjOtherMapsLead {
+  color: var(--hb-orange, #c8932a);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.taskObjOtherMap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.taskObjOtherMapLabel {
+  color: #eee9d6;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.taskObjOtherMapLine {
+  color: #9a9788;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .taskObjKeys {
@@ -1209,8 +1249,18 @@
   font-weight: 600;
 }
 
+.guideSideTaskNameDone {
+  color: #9a9788;
+  text-decoration: line-through;
+  text-decoration-color: #5a5a4a;
+}
+
 .guideSideRowOn .guideSideTaskName {
   color: var(--hb-orange, #c8932a);
+}
+
+.guideSideRowOn .guideSideTaskNameDone {
+  color: #c4a574;
 }
 
 .guideMain {
@@ -1904,9 +1954,21 @@
   cursor: pointer;
 }
 
+.summaryTaskNameDone,
+.summaryTaskNameDone .summaryTaskNameText {
+  color: #9a9788;
+  text-decoration: line-through;
+  text-decoration-color: #5a5a4a;
+}
+
 .summaryTaskName:hover,
 .summaryTaskName:hover .summaryTaskNameText {
   color: var(--hb-orange, #c8932a);
+}
+
+.summaryTaskNameDone:hover,
+.summaryTaskNameDone:hover .summaryTaskNameText {
+  color: #c4a574;
 }
 
 .summaryObjHint {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findInteractiveMap } from "@/lib/tarkovMapImages";
 import {
   buildRaidPrepOverlays,
+  filterRaidPrepOverlaysForViewer,
   raidPrepObjectiveStepText,
   collectRaidPrepOverlaySteps,
   resolveRaidPrepLocatePoint,
@@ -71,6 +72,9 @@ import {
   sortRaidPrepSummaryByParticipants,
   displayRaidPrepTaskName,
   collectRaidPrepCompletedUsers,
+  collectRaidPrepOtherMapGroups,
+  formatRaidPrepOtherMapsLead,
+  raidPrepMapObjectivesComplete,
   formatRaidPrepOverlayPointTitle,
   formatRaidPrepParticipantLine,
   objectiveDonesToSkipMap,
@@ -612,7 +616,7 @@ describe("buildRaidPrepOverlays", () => {
     });
   });
 
-  it("keeps skipped objectives on the map and drops them from remaining keys", () => {
+  it("hides skipped objectives on the viewer's map and drops them from remaining keys", () => {
     const mixed: RaidPrepTaskLike = {
       id: "t-storage",
       name: "备储专家",
@@ -644,6 +648,20 @@ describe("buildRaidPrepOverlays", () => {
       "检查兵营东楼黑",
       "检查兵营南楼白",
     ]);
+    expect(overlays.map((row) => row.objectiveId)).toEqual(["o-key", "o-free"]);
+    expect(
+      filterRaidPrepOverlaysForViewer(
+        overlays,
+        new Map([["t-storage", new Set(["o-key"])]]),
+      ).map((row) => row.subtitle),
+    ).toEqual(["检查兵营南楼白"]);
+    expect(
+      filterRaidPrepOverlaysForViewer(
+        overlays,
+        new Map([["t-storage", new Set(["o-free"])]]),
+      ).map((row) => row.subtitle),
+    ).toEqual(["检查兵营东楼黑"]);
+    expect(filterRaidPrepOverlaysForViewer(overlays, new Map())).toHaveLength(2);
     expect(collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-key"]))).toEqual(
       [],
     );
@@ -1492,6 +1510,90 @@ describe("raid prep needed items", () => {
   });
 });
 
+describe("multi-map raid prep progress", () => {
+  const meme: RaidPrepTaskLike = {
+    id: "meme",
+    name: "这是什么梗？",
+    objectives: [
+      {
+        id: "s1",
+        type: "mark",
+        description: "在塔科夫街区被铁丝网缠绕的尸体处安装Wi-Fi摄像头",
+        maps: [{ slug: "streets", name: "塔科夫街区" }],
+      },
+      {
+        id: "s2",
+        type: "mark",
+        description: "在塔科夫街区的烧伤女孩病房处安装Wi-Fi摄像头",
+        maps: [{ slug: "streets", name: "塔科夫街区" }],
+      },
+      {
+        id: "c1",
+        type: "mark",
+        description: "在海关的旧加油站安装Wi-Fi摄像头",
+        maps: [{ slug: "customs", name: "海关" }],
+      },
+      {
+        id: "w1",
+        type: "mark",
+        description: "在森林的木屋处安装Wi-Fi摄像头",
+        maps: [{ slug: "woods", name: "森林" }],
+      },
+    ],
+  };
+
+  it("only lists this-map steps for checkboxes", () => {
+    expect(
+      collectRaidPrepTaskObjectives(meme, "streets").map((row) => row.id),
+    ).toEqual(["s1", "s2"]);
+    expect(
+      collectRaidPrepTaskObjectives(meme, "customs").map((row) => row.id),
+    ).toEqual(["c1"]);
+  });
+
+  it("treats this-map steps complete without requiring other maps", () => {
+    expect(raidPrepMapObjectivesComplete(meme, "streets")).toBe(false);
+    expect(
+      raidPrepMapObjectivesComplete(meme, "streets", new Set(["s1"])),
+    ).toBe(false);
+    expect(
+      raidPrepMapObjectivesComplete(meme, "streets", new Set(["s1", "s2"])),
+    ).toBe(true);
+    expect(
+      raidPrepMapObjectivesComplete(meme, "customs", new Set(["s1", "s2"])),
+    ).toBe(false);
+    expect(
+      raidPrepMapObjectivesComplete(meme, "customs", new Set(["c1"])),
+    ).toBe(true);
+    expect(raidPrepMapObjectivesComplete(meme, "streets", new Set())).toBe(
+      false,
+    );
+    expect(
+      raidPrepMapObjectivesComplete({ id: "empty" }, "streets", new Set(["x"])),
+    ).toBe(false);
+  });
+
+  it("groups remaining maps for the prep popup", () => {
+    const groups = collectRaidPrepOtherMapGroups(meme, "streets");
+    expect(formatRaidPrepOtherMapsLead(groups)).toBe(
+      "此任务还需在海关、森林完成",
+    );
+    expect(groups.map((row) => row.mapLabel)).toEqual(["海关", "森林"]);
+    expect(groups[0]?.lines).toEqual(["在海关的旧加油站安装Wi-Fi摄像头"]);
+    expect(groups[1]?.lines).toEqual(["在森林的木屋处安装Wi-Fi摄像头"]);
+    const summary = buildRaidPrepSummary(
+      [meme],
+      "streets",
+      new Map([["meme", new Set(["s1", "s2"])]]),
+    );
+    expect(summary[0]?.mapComplete).toBe(true);
+    expect(summary[0]?.otherMapGroups.map((row) => row.mapLabel)).toEqual([
+      "海关",
+      "森林",
+    ]);
+  });
+});
+
 describe("clusterRaidPrepOverlayLabels", () => {
   const pink = "#f0a3c2";
   const blue = "#6cb6ff";
@@ -1514,6 +1616,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
       keyNames: [],
       showNoKey: false,
       optional: false,
+      objectiveId: "",
       outline: [],
       points,
       ...rest,
@@ -1600,6 +1703,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
         keyNames: [],
         showNoKey: false,
         optional: false,
+        objectiveId: "o-visit",
         outline: [
           { x: 0, z: 0 },
           { x: 40, z: 0 },

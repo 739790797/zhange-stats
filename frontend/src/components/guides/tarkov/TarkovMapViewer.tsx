@@ -39,6 +39,8 @@ import {
 import { traderIconUrl, traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import {
   RAID_ROOM_OTHER_FLOOR_OPACITY,
+  collectPlayerFixMarks,
+  playerFixMarkerCaption,
   type TarkovMapPlayerMark,
   isMapDrawTool,
   isTypingTarget,
@@ -117,6 +119,7 @@ type Props = {
   suppressLocalFix?: boolean;
   drawColor?: string;
   authorUserId?: number;
+  authorDisplayName?: string;
   drawMode?: TarkovMapDrawMode;
   onStroke?: (stroke: { floor: string; points: StrokePoint[] }) => void;
   onPin?: (mark: { floor: string; x: number; z: number }) => void;
@@ -725,7 +728,7 @@ function playerFixMarkerHtml(
   const floor = overlayFloorForPoint(mark.y, floorBands, mark);
   const current = !floor || !currentFloor || floor === currentFloor;
   const color = escapeHtml(mark.color);
-  const name = mark.self ? "" : escapeHtml(mark.name);
+  const name = escapeHtml(playerFixMarkerCaption(mark.name));
   const pip =
     yaw == null
       ? `<span class="${styles.playerDot}"></span>`
@@ -1079,6 +1082,7 @@ export function TarkovMapViewer({
   suppressLocalFix = false,
   drawColor = "#c8932a",
   authorUserId = 0,
+  authorDisplayName = "",
   drawMode = "pan",
   onStroke,
   onPin,
@@ -1874,20 +1878,20 @@ export function TarkovMapViewer({
     const map = runtime?.map;
     const fix = suppressLocalFix ? null : shotWatch.fix;
     if (!ready || !runtime || !map) return;
-    const marks: TarkovMapPlayerMark[] = [...remotePlayerFixes];
-    if (fix) {
-      marks.push({
-        key: `self:${fix.fileName}`,
-        userId: authorUserId,
-        name: "",
-        color: authorUserId ? colorForUserId(authorUserId) : "#c8932a",
-        x: fix.x,
-        y: fix.y,
-        z: fix.z,
-        yaw: fix.yaw,
-        self: true,
-      });
-    }
+    const local = fix
+      ? {
+          key: `self:${fix.fileName}`,
+          userId: authorUserId,
+          name: playerFixMarkerCaption(authorDisplayName),
+          color: authorUserId ? colorForUserId(authorUserId) : "#c8932a",
+          x: fix.x,
+          y: fix.y,
+          z: fix.z,
+          yaw: fix.yaw,
+          self: true as const,
+        }
+      : null;
+    const marks = collectPlayerFixMarks(remotePlayerFixes, local);
     if (!marks.length) {
       runtime.player.clearLayers();
       runtime.playerLayers.clear();
@@ -1923,6 +1927,7 @@ export function TarkovMapViewer({
     remotePlayerFixes,
     suppressLocalFix,
     authorUserId,
+    authorDisplayName,
     ready,
     floor,
     floorBands,

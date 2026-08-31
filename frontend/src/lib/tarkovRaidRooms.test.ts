@@ -46,6 +46,8 @@ import {
   sortRaidRoomMapOverlap,
   parsePlayerFixEvent,
   playerFixMatchesRoomMap,
+  playerFixMarkerCaption,
+  collectPlayerFixMarks,
   pruneStalePlayerFixes,
   upsertPlayerFix,
 } from "./tarkovRaidRooms";
@@ -483,6 +485,36 @@ describe("raid room helpers", () => {
     expect(playerFixMatchesRoomMap("streets-of-tarkov", "streets")).toBe(true);
     expect(playerFixMatchesRoomMap("woods", "customs")).toBe(false);
     expect(playerFixMatchesRoomMap("customs", "")).toBe(false);
+    expect(playerFixMarkerCaption("  BaiYi  ")).toBe("BaiYi");
+    expect(playerFixMarkerCaption("")).toBe("");
+    const local: Parameters<typeof collectPlayerFixMarks>[1] = {
+      key: "self",
+      userId: 12,
+      name: "BaiYi",
+      color: "#c8932a",
+      x: 1,
+      y: 0,
+      z: 2,
+      yaw: 0,
+    };
+    const remoteSelf = {
+      ...local,
+      key: "u:12",
+      name: "BaiYi",
+    };
+    const teammate = {
+      ...local,
+      key: "u:3",
+      userId: 3,
+      name: "甲",
+    };
+    const collected = collectPlayerFixMarks([remoteSelf, teammate], local);
+    expect(collected.map((row) => row.key)).toEqual(["u:3", "self"]);
+    expect(collected.find((row) => row.self)?.name).toBe("BaiYi");
+    expect(collected.find((row) => row.userId === 3)?.name).toBe("甲");
+    expect(collectPlayerFixMarks([teammate], null).map((row) => row.key)).toEqual([
+      "u:3",
+    ]);
     const first = parsed!;
     const second = { ...first, userId: 12, x: 10, at: 2000 };
     const other = { ...first, userId: 3, at: 2000 };

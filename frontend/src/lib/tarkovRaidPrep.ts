@@ -337,6 +337,8 @@ export type TarkovRaidPrepOverlay = {
   showNoKey: boolean;
   /** 来自目标 optional；可选目标在地图上单独标出。 */
   optional: boolean;
+  /** 该点对应的目标 id；个人勾选后只对自己隐藏。 */
+  objectiveId: string;
   outline: RaidPrepPoint[];
   points: RaidPrepPoint[];
   height: RaidPrepHeightSpan | null;
@@ -452,6 +454,13 @@ export type RaidPrepObjectiveHint = {
   keyNames: string[];
 };
 
+/** 跨地图任务：当前图以外的目标，按地图分组提示。 */
+export type RaidPrepOtherMapGroup = {
+  mapSlug: string;
+  mapLabel: string;
+  lines: string[];
+};
+
 export type RaidPrepTaskSummary = {
   taskId: string;
   taskName: string;
@@ -468,6 +477,10 @@ export type RaidPrepTaskSummary = {
   objectiveLines: string[];
   /** 当前地图全部目标（含已勾掉），供勾选进度。 */
   objectives: RaidPrepObjectiveHint[];
+  /** 当前用户已勾完本图必做步骤。 */
+  mapComplete: boolean;
+  /** 其他地图仍要做的步骤（只提示，不在本图勾选）。 */
+  otherMapGroups: RaidPrepOtherMapGroup[];
 };
 
 /** 任务 id → 已勾掉（本局不用再做）的目标 id。 */
@@ -1490,6 +1503,132 @@ export function raidPrepRequiredObjectiveIds(
   return required.length ? required : optional;
 }
 
+/** 本图必做步骤（无必做则看可选）是否都已勾完。无本图目标不算完成。 */
+export function raidPrepMapObjectivesComplete(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+  skipped?: ReadonlySet<string> | null,
+): boolean {
+  const needed = raidPrepRequiredObjectiveIds(task, mapSlug);
+  if (!needed.length) return false;
+  const have = skipped || EMPTY_SKIP;
+  return needed.every((id) => have.has(id));
+}
+
+type RaidPrepMapRefLite = { slug: string; name: string };
+
+function objectiveMapRefs(obj: RaidPrepObjectiveLike): RaidPrepMapRefLite[] {
+  const out: RaidPrepMapRefLite[] = [];
+  const seen = new Set<string>();
+  const add = (slug: string, name: string) => {
+    const s = (slug || "").trim();
+    const n = (name || "").trim();
+    const key = (s || n).toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ slug: s, name: n });
+  };
+  for (const map of obj.maps || []) {
+    add(map.slug || "", map.name || "");
+  }
+  for (const zone of obj.zones || []) {
+    add(zone.map_slug || "", zone.map_name || "");
+  }
+  for (const loc of obj.possible_locations || []) {
+    add(loc.map_slug || "", loc.map_name || "");
+  }
+  return out;
+}
+
+function raidPrepMapRefLabel(ref: RaidPrepMapRefLite): string {
+  const readable = tarkovReadableName(ref.name, ref.slug);
+  if (readable) return readable;
+  const canon = ref.slug ? normalizeRaidPrepMapId(ref.slug) : "";
+  if (canon) {
+    const opt = raidPrepMapOptions().find((item) => item.id === canon);
+    if (opt) return opt.label;
+  }
+  return (ref.name || ref.slug).trim();
+}
+
+function raidPrepOtherMapGroupKey(slug: string, label: string): string {
+  return (normalizeRaidPrepMapId(slug) || slug || label).trim().toLowerCase();
+}
+
+/** 当前图以外的目标，按地图分组；本图目标若还标了别的图，只出地图名。 */
+export function collectRaidPrepOtherMapGroups(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+): RaidPrepOtherMapGroup[] {
+  const currentKeys = mapSlugKeys(mapSlug);
+  if (!currentKeys.size) return [];
+  const byKey = new Map<string, RaidPrepOtherMapGroup>();
+  const ensure = (slug: string, label: string): RaidPrepOtherMapGroup | null => {
+    const text = (label || "").trim();
+    if (!text) return null;
+    const key = raidPrepOtherMapGroupKey(slug, text);
+    if (!key) return null;
+    const canonKeys = slug ? mapSlugKeys(slug) : new Set<string>();
+    for (const item of currentKeys) {
+      if (canonKeys.has(item)) return null;
+    }
+    let group = byKey.get(key);
+    if (!group) {
+      group = { mapSlug: slug, mapLabel: text, lines: [] };
+      byKey.set(key, group);
+    }
+    return group;
+  };
+
+  (task.objectives || []).forEach((obj) => {
+    const refs = objectiveMapRefs(obj);
+    if (objectiveAppliesToMap(obj, mapSlug)) {
+      for (const ref of refs) {
+        if (!ref.slug || currentKeys.has(ref.slug.toLowerCase())) continue;
+        if (mapSlugKeys(ref.slug).size && [...mapSlugKeys(ref.slug)].some((k) => currentKeys.has(k))) {
+          continue;
+        }
+        ensure(ref.slug, raidPrepMapRefLabel(ref));
+      }
+      return;
+    }
+    const other = refs.filter((ref) => {
+      if (!ref.slug) return true;
+      const keys = mapSlugKeys(ref.slug);
+      for (const item of currentKeys) {
+        if (keys.has(item)) return false;
+      }
+      return true;
+    });
+    const primary = other[0] || refs[0];
+    const label = primary ? raidPrepMapRefLabel(primary) : "其他地图";
+    const slug = primary?.slug || "";
+    const group = ensure(slug, label || "其他地图");
+    const text = raidPrepObjectiveStepText(obj);
+    if (group && text && !group.lines.includes(text)) group.lines.push(text);
+  });
+
+  const order = new Map(
+    raidPrepMapOptions().map((item, index) => [item.id, index] as const),
+  );
+  return [...byKey.values()].sort((a, b) => {
+    const ia = order.get(normalizeRaidPrepMapId(a.mapSlug) || a.mapSlug) ?? 999;
+    const ib = order.get(normalizeRaidPrepMapId(b.mapSlug) || b.mapSlug) ?? 999;
+    if (ia !== ib) return ia - ib;
+    return a.mapLabel.localeCompare(b.mapLabel, "zh");
+  });
+}
+
+export function formatRaidPrepOtherMapsLead(
+  groups: readonly RaidPrepOtherMapGroup[] | null | undefined,
+): string {
+  const labels = (groups || [])
+    .map((row) => row.mapLabel.trim())
+    .filter(Boolean);
+  if (!labels.length) return "";
+  return `此任务还需在${labels.join("、")}完成`;
+}
+
 /** 当前地图上该任务的全部目标（含可选），整任务完成时用来回填个人勾选。 */
 export function raidPrepMapObjectiveIds(
   task: RaidPrepTaskLike,
@@ -2124,6 +2263,8 @@ export function buildRaidPrepSummary(
       types: collectRaidPrepTaskTypes(task, mapSlug, skipped),
       objectiveLines: collectRaidPrepTaskObjectiveLines(task, mapSlug),
       objectives,
+      mapComplete: raidPrepMapObjectivesComplete(task, mapSlug, skipped),
+      otherMapGroups: collectRaidPrepOtherMapGroups(task, mapSlug),
     };
   });
 }
@@ -2176,7 +2317,22 @@ function distinguishTaskOverlays(
   return overlays;
 }
 
-/** 地图任务点：只按本图几何生成，不因勾选或缺钥匙藏点；全员同一套。 */
+/** 当前用户已勾掉的步骤：只从自己的地图上拿掉对应点，不影响别人。 */
+export function filterRaidPrepOverlaysForViewer(
+  overlays: readonly TarkovRaidPrepOverlay[],
+  skippedByTask?: RaidPrepSkipMap,
+): TarkovRaidPrepOverlay[] {
+  if (!skippedByTask?.size) return [...overlays];
+  return overlays.filter((row) => {
+    const done = skippedByTask.get(row.taskId);
+    if (!done?.size) return true;
+    const id = (row.objectiveId || "").trim();
+    if (!id) return true;
+    return !done.has(id);
+  });
+}
+
+/** 地图任务点：按本图几何生成；缺钥匙不藏点。个人勾选由 filterRaidPrepOverlaysForViewer 处理。 */
 export function buildRaidPrepOverlays(
   tasks: RaidPrepTaskLike[],
   mapSlug: string,
@@ -2236,6 +2392,7 @@ export function buildRaidPrepOverlays(
           keyNames,
           showNoKey: false,
           optional,
+          objectiveId: objId,
           outline: polygon,
           points,
           height: zoneHeightSpan(zone) || pointsHeightSpan(points),
@@ -2259,6 +2416,7 @@ export function buildRaidPrepOverlays(
           keyNames,
           showNoKey: false,
           optional,
+          objectiveId: objId,
           outline: [],
           points: positions,
           height: pointsHeightSpan(positions),
