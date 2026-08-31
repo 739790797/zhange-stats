@@ -43,7 +43,6 @@ import {
 import {
   describeTaskMap,
   factionTaskSuffix,
-  groupTasksByLoyaltyLevel,
   groupTasksByTrader,
   loadTaskDoneIds,
   loadTaskStartedIds,
@@ -54,7 +53,6 @@ import {
   setTaskStatus,
   summarizeTaskProgress,
   takeLocalTaskDonesForMigrate,
-  tarkovLoyaltyLevelLabel,
   type TaskProgressSummary,
   type TaskStatusKind,
   type TraderTaskGroup,
@@ -778,18 +776,11 @@ function TraderGroup({
   const title = labels.chinese
     ? `${labels.english} · ${labels.chinese}`
     : group.traderName || "未知商人";
-  const loyaltyGroups = groupTasksByLoyaltyLevel(
+  const rows = sortTasksForBoard(
     group.items as TarkovTaskListItem[],
+    done,
+    started,
   );
-  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(() => new Set());
-  const toggleLoyalty = (level: number) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(level)) next.delete(level);
-      else next.add(level);
-      return next;
-    });
-  };
   return (
     <section className={styles.group}>
       <h3 className={styles.traderHead}>
@@ -840,46 +831,18 @@ function TraderGroup({
             ))}
           </tr>
         </thead>
-        {loyaltyGroups.map((bucket) => {
-          const rows = sortTasksForBoard(
-            bucket.items as TarkovTaskListItem[],
-            done,
-            started,
-          );
-          const open = !collapsed.has(bucket.level);
-          return (
-            <tbody key={bucket.level}>
-              <tr className={styles.loyaltyRow}>
-                <th colSpan={3 + typeColumns.length} scope="colgroup">
-                  <button
-                    type="button"
-                    className={styles.loyaltyToggle}
-                    aria-expanded={open}
-                    onClick={() => toggleLoyalty(bucket.level)}
-                  >
-                    <span className={styles.loyaltyCaret} aria-hidden>
-                      {open ? "▾" : "▸"}
-                    </span>
-                    {tarkovLoyaltyLevelLabel(bucket.level)}
-                    <span className={styles.loyaltyMeta}>{rows.length}</span>
-                  </button>
-                </th>
-              </tr>
-              {open
-                ? rows.map((item) => (
-                    <TaskRow
-                      key={item.id}
-                      task={item}
-                      complete={done.has(item.id)}
-                      active={started.has(item.id)}
-                      typeColumns={typeColumns}
-                      onSetStatus={onSetStatus}
-                    />
-                  ))
-                : null}
-            </tbody>
-          );
-        })}
+        <tbody>
+          {rows.map((item) => (
+            <TaskRow
+              key={item.id}
+              task={item}
+              complete={done.has(item.id)}
+              active={started.has(item.id)}
+              typeColumns={typeColumns}
+              onSetStatus={onSetStatus}
+            />
+          ))}
+        </tbody>
       </table>
       </div>
     </section>

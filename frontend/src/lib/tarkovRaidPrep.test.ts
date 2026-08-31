@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findInteractiveMap } from "@/lib/tarkovMapImages";
 import {
   buildRaidPrepOverlays,
   raidPrepObjectiveStepText,
@@ -13,7 +14,9 @@ import {
   colorForTaskIndex,
   collectRaidPrepTaskItems,
   collectRaidPrepTaskKeys,
+  collectRaidPrepBringKit,
   collectRaidPrepSummaryTypeColumns,
+  raidPrepTaskIdsForParticipant,
   collectRaidPrepTaskShootSlots,
   raidPrepObjectiveCount,
   expandRaidPrepSummaryItemLines,
@@ -48,6 +51,7 @@ import {
   mergeRaidPrepNeededItems,
   raidPrepKeyIsMissing,
   raidPrepTaskKeysUnavailable,
+  RAID_PREP_UNAVAILABLE_KEY_HINT,
   collectUnavailableRaidPrepTaskIds,
   mergeRaidPrepAvailableKeyIds,
   settleRaidPrepSelection,
@@ -55,6 +59,9 @@ import {
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
   collectRaidPrepQuestFilterPeople,
+  defaultQuestPersonOffKeys,
+  nextQuestPeopleParentSelection,
+  nextQuestPersonSelection,
   raidPrepParticipants,
   raidPrepPersonKey,
   raidPrepQuestOverlayVisible,
@@ -157,6 +164,48 @@ describe("raid prep participant line", () => {
     expect(raidPrepQuestOverlayVisible([], onlyJia)).toBe(true);
     expect(raidPrepQuestOverlayVisible(people, new Set())).toBe(false);
     expect(raidPrepQuestOverlayVisible(people, null)).toBe(true);
+  });
+
+  it("selects only the clicked person after the parent was turned off", () => {
+    const keys = ["id:1", "id:2", "id:3"];
+    expect(nextQuestPeopleParentSelection(keys, true)).toEqual({
+      showQuests: false,
+      offKeys: keys,
+    });
+    expect(nextQuestPeopleParentSelection(keys, false)).toEqual({
+      showQuests: true,
+      offKeys: [],
+    });
+    expect(
+      nextQuestPersonSelection(keys, new Set(), false, "id:2"),
+    ).toEqual({
+      showQuests: true,
+      offKeys: ["id:1", "id:3"],
+    });
+    expect(
+      nextQuestPersonSelection(keys, new Set(keys), true, "id:2"),
+    ).toEqual({
+      showQuests: true,
+      offKeys: ["id:1", "id:3"],
+    });
+    expect(
+      nextQuestPersonSelection(keys, new Set(["id:2"]), true, "id:2"),
+    ).toEqual({
+      showQuests: true,
+      offKeys: [],
+    });
+  });
+
+  it("defaults the quest filter to only the current user", () => {
+    const people = [
+      { name: "甲", userId: 1 },
+      { name: "乙", userId: 2 },
+      { name: "丙", userId: 3 },
+    ];
+    expect(defaultQuestPersonOffKeys(people, 2)).toEqual(["id:1", "id:3"]);
+    expect(defaultQuestPersonOffKeys(people, 0)).toBeNull();
+    expect(defaultQuestPersonOffKeys(people.slice(0, 1), 1)).toBeNull();
+    expect(defaultQuestPersonOffKeys(people, 9)).toBeNull();
   });
 });
 
@@ -1147,6 +1196,55 @@ describe("raid prep needed items", () => {
       "giveItem",
     ]);
     expect(raidPrepSummaryHasBringTypes(rows)).toBe(true);
+    const kit = collectRaidPrepBringKit(rows);
+    expect(kit.map((item) => item.name)).toEqual([
+      "WIFI 摄像头",
+      "MS2000",
+      "信号弹",
+    ]);
+  });
+
+  it("merges the current user's plant/mark/use kit across tasks", () => {
+    const rows = buildRaidPrepSummary(
+      [
+        {
+          id: "t-a",
+          name: "A",
+          objectives: [
+            { type: "plantItem", items: [{ id: "cam", name: "摄像头" }] },
+            { type: "mark", items: [{ id: "ms", name: "MS2000" }] },
+          ],
+        },
+        {
+          id: "t-b",
+          name: "B",
+          objectives: [
+            { type: "useItem", items: [{ id: "cam", name: "摄像头" }] },
+            { type: "findItem", items: [{ id: "bolt", name: "螺栓" }] },
+          ],
+        },
+      ],
+      "customs",
+    );
+    const byTask = new Map([
+      ["t-a", [{ name: "甲", userId: 1 }]],
+      ["t-b", [{ name: "乙", userId: 2 }, { name: "甲", userId: 1 }]],
+    ]);
+    expect(raidPrepTaskIdsForParticipant(byTask, 1)).toEqual(
+      new Set(["t-a", "t-b"]),
+    );
+    expect(raidPrepTaskIdsForParticipant(byTask, 2)).toEqual(new Set(["t-b"]));
+    expect(raidPrepTaskIdsForParticipant(byTask, 0)).toBeNull();
+    expect(raidPrepTaskIdsForParticipant(byTask, 9)).toEqual(new Set());
+    expect(collectRaidPrepBringKit(rows, new Set())).toEqual([]);
+    const mine = collectRaidPrepBringKit(rows, new Set(["t-a", "t-b"]));
+    expect(mine.map((item) => `${item.name}×${item.count}`)).toEqual([
+      "摄像头×2",
+      "MS2000×1",
+    ]);
+    expect(
+      collectRaidPrepBringKit(rows, new Set(["t-b"])).map((item) => item.name),
+    ).toEqual(["摄像头"]);
   });
 
   it("treats a mark-only task as having the merged bring column", () => {
@@ -1768,6 +1866,105 @@ describe("overlay floors", () => {
     expect(overlayFloorForPoint(15, bands)).toBe("2nd");
     expect(overlayFloorForPoint(0, bands)).toBe("");
   });
+
+  it("does not treat shoreline outdoor lows as underground", () => {
+    const bands = mapLayerFloorBands({
+      heightRange: [-1000, -1],
+      layers: [
+        { name: "2nd Floor", extents: [{ height: [-1, 2] }] },
+        { name: "3rd Floor", extents: [{ height: [2, 1000] }] },
+        {
+          name: "Underground",
+          extents: [
+            {
+              height: [-1000, -5],
+              bounds: [
+                [
+                  [-137, -68],
+                  [-237, -104],
+                  "west wing",
+                ],
+                [
+                  [-234, -134],
+                  [-268, -163],
+                  "admin",
+                ],
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const road = { x: -355, z: 188 };
+    const westWing = { x: -180, z: -80 };
+    expect(overlayFloorForPoint(-6, bands, road)).toBe("");
+    expect(overlayFloorForPoint(-6, bands)).toBe("");
+    expect(overlayFloorForPoint(-6, bands, westWing)).toBe("Underground");
+    expect(overlayVisibleOnFloor({ min: -6, max: -6 }, "", bands, road)).toBe(
+      true,
+    );
+    expect(
+      overlayVisibleOnFloor({ min: -6, max: -6 }, "Underground", bands, road),
+    ).toBe(false);
+    expect(
+      overlayVisibleOnFloor({ min: -6, max: -6 }, "", bands, westWing),
+    ).toBe(false);
+    expect(
+      overlayVisibleOnFloor(
+        { min: -6, max: -6 },
+        "Underground",
+        bands,
+        westWing,
+      ),
+    ).toBe(true);
+  });
+
+  it("matches a later bounded extent, not only the first", () => {
+    const bands = mapLayerFloorBands({
+      heightRange: [-1000, 2],
+      layers: [
+        {
+          name: "2nd Floor",
+          extents: [
+            {
+              height: [2.7, 6.5],
+              bounds: [[[10, 10], [20, 20], "dorms"]],
+            },
+            {
+              height: [14, 15],
+              bounds: [[[400, -40], [450, -90], "sniper"]],
+            },
+          ],
+        },
+      ],
+    });
+    expect(overlayFloorForPoint(14.5, bands, { x: 420, z: -60 })).toBe(
+      "2nd Floor",
+    );
+    expect(overlayFloorForPoint(4, bands, { x: 420, z: -60 })).toBe("");
+    expect(overlayFloorForPoint(4, bands, { x: 15, z: 15 })).toBe("2nd Floor");
+    expect(
+      overlayVisibleOnFloor(
+        { min: 14.5, max: 14.5 },
+        "2nd Floor",
+        bands,
+        { x: 15, z: 15 },
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps shoreline maps.json outdoor points on ground", () => {
+    const layer = findInteractiveMap("shoreline");
+    const bands = mapLayerFloorBands(layer);
+    const underground = bands.find((band) => band.name === "Underground");
+    expect(underground?.extents?.some((extent) => extent.bounds?.length)).toBe(
+      true,
+    );
+    expect(overlayFloorForPoint(-6, bands, { x: -355, z: 188 })).toBe("");
+    expect(overlayFloorForPoint(-6, bands, { x: -180, z: -80 })).toBe(
+      "Underground",
+    );
+  });
 });
 
 describe("colorForTaskIndex", () => {
@@ -1993,6 +2190,7 @@ describe("raid prep packing and settle", () => {
       raidPrepTaskKeysUnavailable([key("k1"), key("k2")], new Set(["k2"])),
     ).toBe(false);
     expect(raidPrepTaskKeysUnavailable([key("k1")], new Set(["k1"]))).toBe(false);
+    expect(RAID_PREP_UNAVAILABLE_KEY_HINT).not.toMatch(/隐藏|做不了/);
     expect(
       raidPrepTaskKeysUnavailable(
         [{ ...key("any"), anyOf: [key("a"), key("b")] }],
@@ -2004,7 +2202,7 @@ describe("raid prep packing and settle", () => {
     );
   });
 
-  it("omits tasks whose required keys nobody owns or brings", () => {
+  it("lists tasks whose required keys nobody owns, without hiding overlays", () => {
     const task: RaidPrepTaskLike = {
       id: "wet-2",
       name: "带血的水",

@@ -1565,7 +1565,7 @@
 }
 
 .summaryModal {
-  max-width: none;
+  max-width: calc(100vw - 32px);
   top: 0;
   padding-bottom: 0;
 }
@@ -1577,6 +1577,8 @@
 .summaryModalContent {
   display: flex;
   flex-direction: column;
+  width: max-content;
+  max-width: 100%;
   max-height: calc(100vh - 24px);
   min-height: 0;
   overflow: hidden;
@@ -1586,18 +1588,57 @@
   flex: none;
 }
 
+.summaryBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: 100%;
+}
+
+.summaryKit {
+  flex: none;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #2a2a2a;
+  background: #16180f;
+}
+
+.summaryKitLabel {
+  flex: none;
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.summaryKitList {
+  flex: 1 1 220px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.summaryKitEmpty {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .summaryModalLead {
   flex: none;
   margin: 0 0 10px;
   color: var(--hb-muted, #b0ae9a);
   font-size: 13px;
-}
-
-.summaryMissing {
-  margin: 0 0 10px;
-  color: #e0a090;
-  font-size: 13px;
-  line-height: 1.45;
 }
 
 .summaryModalBody {
@@ -1606,6 +1647,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  width: max-content;
+  max-width: 100%;
 }
 
 .summaryList {
@@ -1619,7 +1662,8 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  min-width: 0;
+  width: max-content;
+  max-width: 100%;
   border: 1px solid #2a2a2a;
   background: #14160f;
 }
@@ -1650,6 +1694,8 @@
 /* 总结弹窗格子一律左对齐、垂直居中；新列不要改成 top / center。 */
 .summaryTable th,
 .summaryTable td {
+  width: auto;
+  max-width: none;
   padding: 8px 12px;
   white-space: nowrap;
   text-align: left;
@@ -1663,8 +1709,8 @@
 }
 
 .summaryTable td.summaryShootCol {
-  white-space: normal;
-  max-width: 320px;
+  white-space: nowrap;
+  max-width: none;
 }
 
 .summaryShootSlot {
@@ -1672,7 +1718,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  max-width: 320px;
+  max-width: none;
 }
 
 .summaryShootItems {
@@ -1685,7 +1731,7 @@
   color: #eee9d6;
   font-size: 12px;
   line-height: 1.45;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .summaryShootCount {
@@ -1816,30 +1862,6 @@
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-}
-
-.summaryTable tbody tr.summaryTaskUnavailable td,
-.summaryTable tbody tr.summaryTaskUnavailable td :not(.summaryKeyWhy):not(.needOwnToggle) {
-  color: #6a685c !important;
-}
-
-.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskName,
-.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskName:hover,
-.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskName:hover .summaryTaskNameText,
-.summaryTable tbody tr.summaryTaskUnavailable .needChip:hover .needName {
-  color: #6a685c !important;
-}
-
-.summaryTable tbody tr.summaryTaskUnavailable .summaryTaskNameText,
-.summaryTable tbody tr.summaryTaskUnavailable .summaryPersonName,
-.summaryTable tbody tr.summaryTaskUnavailable .needName,
-.summaryTable tbody tr.summaryTaskUnavailable .needMeta,
-.summaryTable tbody tr.summaryTaskUnavailable .needOwnBy,
-.summaryTable tbody tr.summaryTaskUnavailable .needBringBy,
-.summaryTable tbody tr.summaryTaskUnavailable .summaryShootText,
-.summaryTable tbody tr.summaryTaskUnavailable .summaryNone {
-  text-decoration: line-through;
-  text-decoration-color: #4e4c42;
 }
 
 .summaryKeyWhy {
@@ -2060,11 +2082,6 @@
 .needChipCluster:has(.needChipBrought) .needOwnToggle {
   border-color: rgba(122, 168, 90, 0.72);
   background: #161c12;
-}
-
-.summaryTable tbody tr.summaryTaskUnavailable .needOwnToggle {
-  color: var(--hb-orange, #c8932a) !important;
-  text-decoration: none !important;
 }
 
 .needCollapsed .needChipWrap {

@@ -53,11 +53,6 @@ export type TraderTaskGroup = {
   items: TaskListItem[];
 };
 
-export type LoyaltyTaskGroup = {
-  level: number;
-  items: TaskListItem[];
-};
-
 export type TarkovTaskDonesState = {
   v: 1;
   pvp?: string[];
@@ -91,30 +86,6 @@ function asClockMap(
     ...(pvp ? { pvp } : {}),
     ...(pve ? { pve } : {}),
   };
-}
-
-export function taskLoyaltyLevel(task: Pick<TaskListItem, "min_trader_level">): number {
-  const n = Number(task.min_trader_level || 0);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
-}
-
-export function tarkovLoyaltyLevelLabel(level: number): string {
-  return `信任度等级 ${level}`;
-}
-
-export function groupTasksByLoyaltyLevel(
-  items: TaskListItem[],
-): LoyaltyTaskGroup[] {
-  const byLevel = new Map<number, TaskListItem[]>();
-  for (const item of items) {
-    const level = taskLoyaltyLevel(item);
-    const list = byLevel.get(level) || [];
-    list.push(item);
-    byLevel.set(level, list);
-  }
-  return [...byLevel.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([level, rows]) => ({ level, items: rows }));
 }
 
 function taskMatchesQuery(task: TaskListItem, q: string): boolean {

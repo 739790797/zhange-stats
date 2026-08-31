@@ -5,7 +5,6 @@ import {
   setTaskStatus,
   collectTaskMapChips,
   describeTaskMap,
-  groupTasksByLoyaltyLevel,
   groupTasksByTrader,
   loadTaskCursorAt,
   loadTaskDoneIds,
@@ -20,9 +19,7 @@ import {
   saveTaskSyncMark,
   summarizeTaskProgress,
   takeLocalTaskDonesForMigrate,
-  tarkovLoyaltyLevelLabel,
   taskHitsMap,
-  taskLoyaltyLevel,
 } from "./tarkovTaskTree";
 import type { TaskListItem } from "./tarkovTaskTree";
 
@@ -157,28 +154,6 @@ describe("task map chips", () => {
       label: "海关",
     });
     expect(describeTaskMap({})).toBeNull();
-  });
-});
-
-describe("groupTasksByLoyaltyLevel", () => {
-  it("groups by loyalty level like the in-game trader board", () => {
-    const items = [
-      task("ll3", "高等", { min_trader_level: 3 }),
-      task("ll1a", "入门甲", { min_trader_level: 1 }),
-      task("missing", "无字段"),
-      task("ll1b", "入门乙", { min_trader_level: 0 }),
-    ];
-    expect(taskLoyaltyLevel({ min_trader_level: 0 })).toBe(1);
-    expect(tarkovLoyaltyLevelLabel(2)).toBe("信任度等级 2");
-    expect(
-      groupTasksByLoyaltyLevel(items).map((row) => ({
-        level: row.level,
-        ids: row.items.map((item) => item.id),
-      })),
-    ).toEqual([
-      { level: 1, ids: ["ll1a", "missing", "ll1b"] },
-      { level: 3, ids: ["ll3"] },
-    ]);
   });
 });
 

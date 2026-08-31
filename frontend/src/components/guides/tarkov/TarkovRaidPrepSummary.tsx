@@ -7,11 +7,12 @@ import {
   itemTypeHrefFromTypes,
 } from "@/lib/tarkovItemTypes";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
-import { tarkovKeyPackHref } from "@/lib/tarkovHomeNav";
 import {
   buildRaidPrepSummary,
+  collectRaidPrepBringKit,
   collectRaidPrepCompletedUsers,
   collectRaidPrepSummaryTypeColumns,
+  raidPrepTaskIdsForParticipant,
   colorForTaskId,
   colorForUserId,
   expandRaidPrepSummaryItemLines,
@@ -20,7 +21,6 @@ import {
   RAID_PREP_SUMMARY_BRING_GROUP_LABEL,
   RAID_PREP_SUMMARY_BRING_TYPES,
   RAID_PREP_SUMMARY_SHOOT_TYPE,
-  mergeRaidPrepNeededItems,
   raidPrepKeyIsMissing,
   raidPrepSkippedIds,
   raidPrepTaskKeysUnavailable,
@@ -135,17 +135,27 @@ function NeededItemChip({
   item,
   onPeek,
   nativeTitle = true,
+  hideName = false,
   keyBring,
   keyOwn,
 }: {
   item: RaidPrepNeededItem;
   onPeek: (item: RaidPrepNeededItem) => void;
   nativeTitle?: boolean;
+  hideName?: boolean;
   keyBring?: KeyBringControls;
   keyOwn?: KeyOwnControls;
 }) {
   if (item.anyOf?.length) {
-    return <AnyOfChip item={item} onPeek={onPeek} keyBring={keyBring} keyOwn={keyOwn} />;
+    return (
+      <AnyOfChip
+        item={item}
+        onPeek={onPeek}
+        hideName={hideName}
+        keyBring={keyBring}
+        keyOwn={keyOwn}
+      />
+    );
   }
   const thumb = inventoryThumbUrl(item.icon_link, item.id);
   const count = item.kind === "key" ? "" : item.count > 1 ? `×${item.count}` : "";
@@ -290,11 +300,13 @@ function NeededItemChip({
 function AnyOfChip({
   item,
   onPeek,
+  hideName = false,
   keyBring,
   keyOwn,
 }: {
   item: RaidPrepNeededItem;
   onPeek: (item: RaidPrepNeededItem) => void;
+  hideName?: boolean;
   keyBring?: KeyBringControls;
   keyOwn?: KeyOwnControls;
 }) {
@@ -321,11 +333,14 @@ function AnyOfChip({
         ))}
       </span>
       <span className={styles.needBody}>
-        <span className={styles.needName}>
-          {label}
-          {qty}
-        </span>
+        {hideName ? null : (
+          <span className={styles.needName}>
+            {label}
+            {qty}
+          </span>
+        )}
         <span className={styles.needMeta}>
+          {hideName && qty ? `${qty.trim()} · ` : ""}
           {options.length} 种
           {extra.length ? ` · ${extra.join(" · ")}` : ""}
         </span>
@@ -556,7 +571,7 @@ function SummaryList({
   skippedByTask,
   onToggleObjective,
   onTitle,
-  mapId,
+  viewerId,
 }: {
   rows: RaidPrepTaskSummary[];
   typeColumns: string[];
@@ -568,8 +583,12 @@ function SummaryList({
   skippedByTask?: RaidPrepSkipMap;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   onTitle?: (taskId: string) => void;
-  mapId?: string;
+  viewerId?: number | null;
 }) {
+  const bringKit = collectRaidPrepBringKit(
+    rows,
+    raidPrepTaskIdsForParticipant(participantsByTask, viewerId),
+  );
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
   }
@@ -580,15 +599,6 @@ function SummaryList({
   const showBringTypes = raidPrepSummaryHasBringTypes(rows, typeColumns);
   const showShootTypes = raidPrepSummaryHasShootTypes(rows);
   const bringSpan = 1 + (showBringTypes ? 1 : 0);
-  const missingKeys = mergeRaidPrepNeededItems(
-    rows.flatMap((row) => row.keys || []),
-  ).filter(
-    (item) =>
-      raidPrepKeyIsMissing(
-        keyOwn?.byItem.get(item.id)?.names,
-        keyBring?.byItem.get(item.id)?.names,
-      ),
-  );
   const availableKeyIds = new Set<string>();
   if (keyOwn) {
     for (const [id, group] of keyOwn.byItem) {
@@ -601,27 +611,28 @@ function SummaryList({
     }
   }
   return (
-    <div className={styles.summaryScroll}>
-      {missingKeys.length ? (
-        <p className={styles.summaryMissing}>
-          缺钥匙{" "}
-          {missingKeys.map((item, index) => {
-            const name =
-              tarkovReadableName(item.name, item.id) || "未知钥匙";
-            return (
-              <span key={item.id}>
-                {index ? "、" : ""}
-                <Link
-                  className={styles.wiki}
-                  to={tarkovKeyPackHref({ q: name, map: mapId })}
-                >
-                  {name}
-                </Link>
-              </span>
-            );
-          })}
-        </p>
-      ) : null}
+    <div className={styles.summaryBody}>
+      <div className={styles.summaryKit}>
+        <span className={styles.summaryKitLabel}>你要准备的东西：</span>
+        {bringKit.length ? (
+          <div className={styles.summaryKitList}>
+            {bringKit.map((item) => (
+              <NeededItemChip
+                key={neededItemKey(item)}
+                item={item}
+                onPeek={onPeek}
+                nativeTitle={false}
+                hideName={Boolean(item.anyOf?.length)}
+              />
+            ))}
+          </div>
+        ) : (
+          <span className={styles.summaryKitEmpty}>
+            没有要带进战局的藏匿 / 标记 / 使用物
+          </span>
+        )}
+      </div>
+      <div className={styles.summaryScroll}>
       <table className={styles.summaryTable}>
         <thead>
           <tr>
@@ -687,12 +698,11 @@ function SummaryList({
             return grid.lines.map((line, index) => (
               <tr
                 key={`${row.taskId}-${index}`}
-                className={[
-                  index < grid.lines.length - 1 ? styles.summaryTaskCont : "",
-                  unavailable ? styles.summaryTaskUnavailable : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ") || undefined}
+                className={
+                  index < grid.lines.length - 1
+                    ? styles.summaryTaskCont
+                    : undefined
+                }
               >
                 <td>
                   {index === 0 ? (
@@ -809,6 +819,7 @@ function SummaryList({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -919,7 +930,7 @@ export function TarkovRaidPrepSummary({
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
-        width="min(1760px, calc(100vw - 32px))"
+        width="fit-content"
         centered
         className={styles.summaryModal}
         classNames={{
@@ -951,7 +962,7 @@ export function TarkovRaidPrepSummary({
                   }
                 : undefined
             }
-            mapId={mapId}
+            viewerId={viewerId}
           />
         </SummaryRenderError>
       </Modal>

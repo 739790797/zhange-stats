@@ -11,13 +11,17 @@ import type {
 } from "@/api/guidesApi";
 import { getBounds, getCRS, getScaledBounds, pos } from "@/lib/tarkovMapCrs";
 import { tarkovBossMapLabel, tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
+import { resolveMapPlaceLabels } from "@/lib/tarkovMapPlaceLabels";
 import {
   clusterRaidPrepOverlayLabels,
   collectRaidPrepQuestFilterPeople,
   colorForTaskId,
   colorForUserId,
+  defaultQuestPersonOffKeys,
   formatRaidPrepOverlayKeyLabel,
   mapLayerFloorBands,
+  nextQuestPeopleParentSelection,
+  nextQuestPersonSelection,
   overlayFloorForPoint,
   overlayFloorForSpan,
   overlayVisibleOnFloor,
@@ -58,6 +62,7 @@ import {
   findRasterMap,
   floorLabel,
   svgFallbackUrl,
+  type TarkovDevLabel,
   type TarkovDevMapLayer,
 } from "@/lib/tarkovMapImages";
 import {
@@ -390,14 +395,14 @@ function setSvgBakedTextHidden(
   else root.removeAttribute("data-hide-baked-text");
 }
 
-function addLabelMarkers(group: L.LayerGroup, layer: TarkovDevMapLayer) {
+function addLabelMarkers(group: L.LayerGroup, labels: TarkovDevLabel[]) {
   group.clearLayers();
-  const mapKey = layer.normalizedName || layer.key;
-  for (const label of layer.labels || []) {
+  for (const label of labels) {
     if (!label.position || label.position.length < 2) continue;
     const size = Math.max(11, Math.round((label.size || 80) / 7));
     const rotation = label.rotation || 0;
-    const text = tarkovMapLabel(label.text, mapKey);
+    const text = (label.text || "").trim();
+    if (!text) continue;
     const marker = L.marker(pos({ x: label.position[0], z: label.position[1] }), {
       icon: L.divIcon({
         className: styles.labelIcon,
@@ -423,6 +428,7 @@ type QuestBubbleRow = {
   optional?: boolean;
   kind?: "zone" | "spawn";
   height?: RaidPrepHeightSpan | null;
+  at?: RaidPrepPoint;
   participants?: readonly RaidPrepMapParticipant[];
 };
 
@@ -531,6 +537,7 @@ function overlayByLabelItem(
 type QuestClickHandler = (
   taskId: string,
   height?: RaidPrepHeightSpan | null,
+  at?: RaidPrepPoint,
 ) => boolean | void;
 
 function bindQuestBubble(
@@ -548,10 +555,16 @@ function bindQuestBubble(
   const taskId = (row.taskId || "").trim();
   if (!onClick || !taskId) return;
   layer.on("click", (event) => {
-    const handled = onClick(taskId, row.height);
+    const handled = onClick(taskId, row.height, row.at);
     if (handled === false) return;
     L.DomEvent.stopPropagation(event);
   });
+}
+
+function overlayFloorAt(
+  row: { points?: RaidPrepPoint[]; outline?: RaidPrepPoint[] } | null | undefined,
+): RaidPrepPoint | undefined {
+  return row?.points?.[0] || row?.outline?.[0];
 }
 
 function questBubbleFromOverlay(
@@ -570,6 +583,7 @@ function questBubbleFromOverlay(
     optional: row.optional,
     kind: row.kind,
     height: row.height,
+    at: overlayFloorAt(row),
     participants: raidPrepParticipants(namesByTask?.get(row.taskId)),
   };
 }
@@ -585,7 +599,12 @@ function addQuestOverlays(
   group.clearLayers();
   for (const row of overlays) {
     const bubble = questBubbleFromOverlay(row, namesByTask);
-    const onFloor = overlayVisibleOnFloor(row.height, floor, floorBands);
+    const onFloor = overlayVisibleOnFloor(
+      row.height,
+      floor,
+      floorBands,
+      overlayFloorAt(row),
+    );
     const fade = onFloor ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY;
     if (row.outline.length >= 3) {
       const polygon = L.polygon(
@@ -655,7 +674,13 @@ function addQuestLabels(
       const source = byItem.get(
         `${item.taskId}\0${item.optional ? "1" : "0"}\0${item.title}`,
       );
-      const offFloor = !overlayVisibleOnFloor(item.height, floor, floorBands);
+      const at = overlayFloorAt(source) || { x: label.x, z: label.z };
+      const offFloor = !overlayVisibleOnFloor(
+        item.height,
+        floor,
+        floorBands,
+        at,
+      );
       const marker = L.marker(pos({ x: label.x, z: label.z }), {
         icon: L.divIcon({
           className: styles.questIcon,
@@ -680,6 +705,7 @@ function addQuestLabels(
           showNoKey: item.showNoKey,
           optional: item.optional,
           height: item.height,
+          at,
           participants: raidPrepParticipants(namesByTask?.get(item.taskId)),
         },
         onLabelClick,
@@ -696,7 +722,7 @@ function playerFixMarkerHtml(
   floorBands: ReturnType<typeof mapLayerFloorBands>,
 ): { html: string; name: string } {
   const yaw = mark.yaw == null ? null : mark.yaw + mapRotation;
-  const floor = overlayFloorForPoint(mark.y, floorBands);
+  const floor = overlayFloorForPoint(mark.y, floorBands, mark);
   const current = !floor || !currentFloor || floor === currentFloor;
   const color = escapeHtml(mark.color);
   const name = mark.self ? "" : escapeHtml(mark.name);
@@ -1070,6 +1096,10 @@ export function TarkovMapViewer({
     () => findInteractiveMap(slug, parentSlug),
     [slug, parentSlug],
   );
+  const placeLabels = useMemo(
+    () => (interactive ? resolveMapPlaceLabels(interactive) : []),
+    [interactive],
+  );
   const raster = useMemo(
     () => findRasterMap(slug, parentSlug),
     [slug, parentSlug],
@@ -1100,6 +1130,7 @@ export function TarkovMapViewer({
   const [questPersonOff, setQuestPersonOff] = useState<Set<string>>(
     () => new Set(),
   );
+  const questPersonSeededRef = useRef(false);
   const commitStrokeRef = useRef<
     (stroke: { floor: string; points: StrokePoint[] }) => void
   >(() => {});
@@ -1146,6 +1177,13 @@ export function TarkovMapViewer({
     () => collectRaidPrepQuestFilterPeople(questParticipantsByTask),
     [questParticipantsByTask],
   );
+  useEffect(() => {
+    if (questPersonSeededRef.current) return;
+    const off = defaultQuestPersonOffKeys(questPeople, authorUserId);
+    if (off == null) return;
+    questPersonSeededRef.current = true;
+    setQuestPersonOff(new Set(off));
+  }, [questPeople, authorUserId]);
   const questTree = questOverlays.length > 0 && questPeople.length >= 2;
   const selectedQuestKeys = useMemo(() => {
     if (!questTree) return null;
@@ -1596,9 +1634,9 @@ export function TarkovMapViewer({
     };
   }, [style, floor, interactive, floors, ready]);
 
-  const handleQuestClick = useCallback<QuestClickHandler>((taskId, height) => {
+  const handleQuestClick = useCallback<QuestClickHandler>((taskId, height, at) => {
     if (isMapDrawTool(drawModeRef.current)) return false;
-    const nextFloor = overlayFloorForSpan(height, floorBandsRef.current);
+    const nextFloor = overlayFloorForSpan(height, floorBandsRef.current, at);
     if (nextFloor !== floorRef.current) {
       const mapKey = interactiveKeyRef.current;
       if (mapKey) {
@@ -1631,11 +1669,11 @@ export function TarkovMapViewer({
         interactive.normalizedName || interactive.key,
       );
     } else runtime.bosses.clearLayers();
-    if (showLabels) addLabelMarkers(runtime.labels, interactive);
+    if (showLabels) addLabelMarkers(runtime.labels, placeLabels);
     else runtime.labels.clearLayers();
     setSvgBakedTextHidden(
       runtime.svgRoot,
-      showLabels && Boolean(interactive.labels?.length),
+      showLabels && placeLabels.length > 0,
     );
   }, [
     extracts,
@@ -1645,6 +1683,7 @@ export function TarkovMapViewer({
     spawnKinds,
     showLabels,
     interactive,
+    placeLabels,
     ready,
   ]);
 
@@ -1793,17 +1832,35 @@ export function TarkovMapViewer({
 
   useEffect(() => {
     if (!ready) return undefined;
-    const handle = window.setTimeout(() => {
-      runtimeRef.current?.map.invalidateSize();
-    }, 60);
-    return () => window.clearTimeout(handle);
+    const wrap = wrapElRef.current;
+    if (!wrap) return undefined;
+    let timer = 0;
+    const refresh = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const map = runtimeRef.current?.map;
+        if (!map) return;
+        if (wrap.clientWidth < 2 || wrap.clientHeight < 2) return;
+        map.invalidateSize({ animate: false });
+      }, 80);
+    };
+    refresh();
+    const ro =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refresh);
+    ro?.observe(wrap);
+    window.addEventListener("resize", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      ro?.disconnect();
+      window.removeEventListener("resize", refresh);
+    };
   }, [ready, fill]);
 
   useEffect(() => {
     const map = runtimeRef.current?.map;
     if (!ready || !map || !focusRequest) return;
     const mapKey = interactive?.key || "";
-    const nextFloor = overlayFloorForPoint(focusRequest.y, floorBands);
+    const nextFloor = overlayFloorForPoint(focusRequest.y, floorBands, focusRequest);
     if (mapKey && nextFloor !== floorRef.current) {
       updatePrefs((prev) => withMapFloor(prev, mapKey, nextFloor));
     }
@@ -1850,7 +1907,7 @@ export function TarkovMapViewer({
     const hadFix = Boolean(playerFixSigRef.current);
     playerFixSigRef.current = sig;
     const mapKey = interactive?.key || "";
-    const nextFloor = overlayFloorForPoint(fix.y, floorBands);
+    const nextFloor = overlayFloorForPoint(fix.y, floorBands, fix);
     if (mapKey && nextFloor !== floorRef.current) {
       updatePrefs((prev) => withMapFloor(prev, mapKey, nextFloor));
     }
@@ -2150,7 +2207,7 @@ export function TarkovMapViewer({
                     ))}
                   </div>
                 ) : null}
-                {interactive.labels?.length ? (
+                {placeLabels.length ? (
                   <label className={styles.filterRow}>
                     <input
                       className={styles.filterCheck}
@@ -2173,12 +2230,14 @@ export function TarkovMapViewer({
                           type="checkbox"
                           checked={questsParentOn}
                           onChange={() => {
-                            if (questsParentOn) {
-                              updatePrefs({ showQuests: false });
-                              return;
-                            }
-                            updatePrefs({ showQuests: true });
-                            setQuestPersonOff(new Set());
+                            const next = nextQuestPeopleParentSelection(
+                              questPeople.map((person) =>
+                                raidPrepPersonKey(person),
+                              ),
+                              questsParentOn,
+                            );
+                            updatePrefs({ showQuests: next.showQuests });
+                            setQuestPersonOff(new Set(next.offKeys));
                           }}
                         />
                         <span>任务</span>
@@ -2196,15 +2255,16 @@ export function TarkovMapViewer({
                               type="checkbox"
                               checked={on}
                               onChange={() => {
-                                setQuestPersonOff((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(key)) next.delete(key);
-                                  else next.add(key);
-                                  return next;
-                                });
-                                if (!showQuests) {
-                                  updatePrefs({ showQuests: true });
-                                }
+                                const next = nextQuestPersonSelection(
+                                  questPeople.map((person) =>
+                                    raidPrepPersonKey(person),
+                                  ),
+                                  questPersonOff,
+                                  showQuests,
+                                  key,
+                                );
+                                updatePrefs({ showQuests: next.showQuests });
+                                setQuestPersonOff(new Set(next.offKeys));
                               }}
                             />
                             <span

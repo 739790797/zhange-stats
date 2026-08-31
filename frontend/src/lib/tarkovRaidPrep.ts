@@ -70,6 +70,60 @@ export function orderRaidPrepSummaryTypeColumns(
   return [...bring, ...rest];
 }
 
+/** 参与人在哪些任务上；找不到自己时返回 null（按全部任务算）。 */
+export function raidPrepTaskIdsForParticipant(
+  participantsByTask:
+    | ReadonlyMap<string, readonly { userId?: number | null }[]>
+    | null
+    | undefined,
+  userId: number | null | undefined,
+): Set<string> | null {
+  if (userId == null || !Number.isFinite(userId) || userId <= 0) return null;
+  if (!participantsByTask?.size) return null;
+  const ids = new Set<string>();
+  for (const [taskId, people] of participantsByTask) {
+    if ((people || []).some((person) => person.userId === userId)) {
+      ids.add(taskId);
+    }
+  }
+  return ids;
+}
+
+/** 藏匿 / 标记 / 使用：同物品跨任务、跨类型合成一件。 */
+export function collectRaidPrepBringKit(
+  rows: readonly RaidPrepTaskSummary[],
+  taskIds?: ReadonlySet<string> | null,
+): RaidPrepNeededItem[] {
+  const items: RaidPrepNeededItem[] = [];
+  for (const row of rows) {
+    if (taskIds && !taskIds.has(row.taskId)) continue;
+    const byType = row.itemsByType || {};
+    for (const type of RAID_PREP_SUMMARY_BRING_TYPES) {
+      for (const item of byType[type] || []) items.push(item);
+    }
+  }
+  const merged = new Map<string, RaidPrepNeededItem>();
+  const leftover: RaidPrepNeededItem[] = [];
+  for (const item of items) {
+    if (item.anyOf?.length) {
+      leftover.push(item);
+      continue;
+    }
+    const key = [
+      item.id,
+      item.found_in_raid ? "fir" : "stash",
+      item.optional ? "opt" : "req",
+    ].join("|");
+    const prev = merged.get(key);
+    if (!prev) {
+      merged.set(key, { ...item });
+      continue;
+    }
+    prev.count = raidPrepObjectiveCount(prev) + raidPrepObjectiveCount(item);
+  }
+  return [...merged.values(), ...leftover];
+}
+
 /** 勾选任务里有藏匿、标记或使用时，总结表合成一列。 */
 export function raidPrepSummaryHasBringTypes(
   rows: readonly RaidPrepTaskSummary[],
@@ -236,10 +290,29 @@ export type RaidPrepHeightSpan = {
   max: number;
 };
 
+export type RaidPrepFloorAt = {
+  x: number;
+  z: number;
+};
+
+export type RaidPrepFloorBounds = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+export type RaidPrepFloorExtent = {
+  min: number;
+  max: number;
+  bounds?: RaidPrepFloorBounds[];
+};
+
 export type RaidPrepFloorBand = {
   name: string;
   min: number;
   max: number;
+  extents?: RaidPrepFloorExtent[];
 };
 
 export type RaidPrepOverlayStep = {
@@ -517,6 +590,56 @@ export function collectRaidPrepQuestFilterPeople(
   return raidPrepParticipants(flat);
 }
 
+/** 父级「任务」：全开则全关并记下所有人；未全开则全开。 */
+export function nextQuestPeopleParentSelection(
+  personKeys: readonly string[],
+  parentOn: boolean,
+): { showQuests: boolean; offKeys: string[] } {
+  if (parentOn) {
+    return { showQuests: false, offKeys: [...personKeys] };
+  }
+  return { showQuests: true, offKeys: [] };
+}
+
+/**
+ * 点一个人。父级关着时只开这个人（避免 off 集合还是空的、勾一下变成反选）。
+ * 已开则按当前 off 切换。
+ */
+export function nextQuestPersonSelection(
+  personKeys: readonly string[],
+  offKeys: ReadonlySet<string>,
+  showQuests: boolean,
+  toggledKey: string,
+): { showQuests: true; offKeys: string[] } {
+  if (!showQuests) {
+    return {
+      showQuests: true,
+      offKeys: personKeys.filter((key) => key && key !== toggledKey),
+    };
+  }
+  const next = new Set(offKeys);
+  if (next.has(toggledKey)) next.delete(toggledKey);
+  else next.add(toggledKey);
+  return { showQuests: true, offKeys: [...next] };
+}
+
+/** 默认只勾自己；人不够或找不到自己时不改。 */
+export function defaultQuestPersonOffKeys(
+  people: readonly RaidPrepMapParticipant[],
+  selfUserId: number | null | undefined,
+): string[] | null {
+  if (people.length < 2) return null;
+  if (selfUserId == null || !Number.isFinite(selfUserId) || selfUserId <= 0) {
+    return null;
+  }
+  const self = people.find((person) => person.userId === selfUserId);
+  if (!self) return null;
+  const selfKey = raidPrepPersonKey(self);
+  return people
+    .map((person) => raidPrepPersonKey(person))
+    .filter((key) => key !== selfKey);
+}
+
 /** `selectedKeys` 为 null 表示不过滤；空集合表示全关。无参与者的点位在有人选中时仍显示。 */
 export function raidPrepQuestOverlayVisible(
   people: readonly RaidPrepMapParticipant[],
@@ -704,34 +827,138 @@ export function pointsHeightSpan(
   return { min: Math.min(...ys), max: Math.max(...ys) };
 }
 
-/** 无高度的点只在地面层；有高度则与楼层 extents 相交才显示。 */
+function parseFloorExtentHeight(
+  height: number[] | null | undefined,
+): { min: number; max: number } | null {
+  if (!height || height.length < 2) return null;
+  if (!Number.isFinite(height[0]) || !Number.isFinite(height[1])) return null;
+  return {
+    min: Math.min(height[0]!, height[1]!),
+    max: Math.max(height[0]!, height[1]!),
+  };
+}
+
+function parseFloorExtentBounds(raw: unknown): RaidPrepFloorBounds[] | undefined {
+  if (!Array.isArray(raw) || !raw.length) return undefined;
+  const out: RaidPrepFloorBounds[] = [];
+  for (const item of raw) {
+    if (!Array.isArray(item) || item.length < 2) continue;
+    const a = item[0];
+    const b = item[1];
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length < 2 || b.length < 2) {
+      continue;
+    }
+    const x1 = Number(a[0]);
+    const z1 = Number(a[1]);
+    const x2 = Number(b[0]);
+    const z2 = Number(b[1]);
+    if (
+      !Number.isFinite(x1) ||
+      !Number.isFinite(z1) ||
+      !Number.isFinite(x2) ||
+      !Number.isFinite(z2)
+    ) {
+      continue;
+    }
+    out.push({
+      minX: Math.min(x1, x2),
+      maxX: Math.max(x1, x2),
+      minZ: Math.min(z1, z2),
+      maxZ: Math.max(z1, z2),
+    });
+  }
+  return out.length ? out : undefined;
+}
+
+function bandExtents(band: RaidPrepFloorBand): RaidPrepFloorExtent[] {
+  if (band.extents?.length) return band.extents;
+  return [{ min: band.min, max: band.max }];
+}
+
+function pointInFloorBounds(
+  at: RaidPrepFloorAt,
+  bounds: RaidPrepFloorBounds,
+): boolean {
+  return (
+    at.x >= bounds.minX &&
+    at.x <= bounds.maxX &&
+    at.z >= bounds.minZ &&
+    at.z <= bounds.maxZ
+  );
+}
+
+function extentMatchesFloor(
+  extent: RaidPrepFloorExtent,
+  span: RaidPrepHeightSpan,
+  at?: RaidPrepFloorAt | null,
+): boolean {
+  if (!spansOverlap(span, { min: extent.min, max: extent.max })) return false;
+  if (!extent.bounds?.length) return true;
+  if (!at || !isFiniteNumber(at.x) || !isFiniteNumber(at.z)) return false;
+  return extent.bounds.some((box) => pointInFloorBounds(at, box));
+}
+
+function bandMatchesFloor(
+  band: RaidPrepFloorBand,
+  span: RaidPrepHeightSpan,
+  at?: RaidPrepFloorAt | null,
+): boolean {
+  return bandExtents(band).some((extent) =>
+    extentMatchesFloor(extent, span, at),
+  );
+}
+
+function bandNearestDist(
+  band: RaidPrepFloorBand,
+  mid: number,
+  at?: RaidPrepFloorAt | null,
+): number | null {
+  let best = Number.POSITIVE_INFINITY;
+  let hit = false;
+  for (const extent of bandExtents(band)) {
+    if (extent.bounds?.length) {
+      if (!at || !isFiniteNumber(at.x) || !isFiniteNumber(at.z)) continue;
+      if (!extent.bounds.some((box) => pointInFloorBounds(at, box))) continue;
+    }
+    const clamped = Math.min(extent.max, Math.max(extent.min, mid));
+    const dist = Math.abs(mid - clamped);
+    if (dist < best) best = dist;
+    hit = true;
+  }
+  return hit ? best : null;
+}
+
+/** 无高度的点只在地面层；有高度则与楼层 extents 相交才显示。带 bounds 的层要落在框内。 */
 export function overlayVisibleOnFloor(
   span: RaidPrepHeightSpan | null | undefined,
   floorName: string,
   bands: readonly RaidPrepFloorBand[],
+  at?: RaidPrepFloorAt | null,
 ): boolean {
   if (!bands.length) return true;
   if (!floorName) {
     if (!span) return true;
+    if (overlayFloorNames(span, bands, at).length) return false;
     const ground = bands.find((band) => !band.name);
     if (!ground) return true;
-    return spansOverlap(span, ground);
+    return bandMatchesFloor(ground, span, at);
   }
   if (!span) return false;
   const named = bands.find((band) => band.name === floorName);
   if (!named) return true;
-  return spansOverlap(span, named);
+  return bandMatchesFloor(named, span, at);
 }
 
 export function overlayFloorNames(
   span: RaidPrepHeightSpan | null | undefined,
   bands: readonly RaidPrepFloorBand[],
+  at?: RaidPrepFloorAt | null,
 ): string[] {
   if (!span) return [];
   const names: string[] = [];
   for (const band of bands) {
     if (!band.name) continue;
-    if (!spansOverlap(span, band)) continue;
+    if (!bandMatchesFloor(band, span, at)) continue;
     names.push(band.name);
   }
   return names;
@@ -741,23 +968,22 @@ export function overlayFloorNames(
 export function overlayFloorForSpan(
   span: RaidPrepHeightSpan | null | undefined,
   bands: readonly RaidPrepFloorBand[],
+  at?: RaidPrepFloorAt | null,
 ): string {
   if (!bands.length) return "";
   if (!span) return "";
-  const named = overlayFloorNames(span, bands);
+  const named = overlayFloorNames(span, bands, at);
   if (named.length) return named[0]!;
   const ground = bands.find((band) => !band.name);
-  if (ground && spansOverlap(span, ground)) return "";
+  if (ground && bandMatchesFloor(ground, span, at)) return "";
   const mid = (span.min + span.max) / 2;
   let best = "";
   let bestDist = Number.POSITIVE_INFINITY;
   for (const band of bands) {
-    const clamped = Math.min(band.max, Math.max(band.min, mid));
-    const dist = Math.abs(mid - clamped);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = band.name;
-    }
+    const dist = bandNearestDist(band, mid, at);
+    if (dist == null || dist >= bestDist) continue;
+    bestDist = dist;
+    best = band.name;
   }
   return best;
 }
@@ -765,9 +991,10 @@ export function overlayFloorForSpan(
 export function overlayFloorForPoint(
   y: number | null | undefined,
   bands: readonly RaidPrepFloorBand[],
+  at?: RaidPrepFloorAt | null,
 ): string {
   if (!isFiniteNumber(y)) return "";
-  return overlayFloorForSpan({ min: y, max: y }, bands);
+  return overlayFloorForSpan({ min: y, max: y }, bands, at);
 }
 
 export function mapLayerFloorBands(
@@ -776,7 +1003,10 @@ export function mapLayerFloorBands(
         heightRange?: number[] | null;
         layers?: Array<{
           name?: string;
-          extents?: Array<{ height?: number[] }> | null;
+          extents?: Array<{
+            height?: number[];
+            bounds?: unknown;
+          }> | null;
         }> | null;
       }
     | null
@@ -791,21 +1021,31 @@ export function mapLayerFloorBands(
     Number.isFinite(range[0]) &&
     Number.isFinite(range[1])
   ) {
+    const min = Math.min(range[0]!, range[1]!);
+    const max = Math.max(range[0]!, range[1]!);
     bands.push({
       name: "",
-      min: Math.min(range[0]!, range[1]!),
-      max: Math.max(range[0]!, range[1]!),
+      min,
+      max,
+      extents: [{ min, max }],
     });
   }
   for (const floor of layer.layers || []) {
-    const height = floor.extents?.[0]?.height;
     const name = (floor.name || "").trim();
-    if (!name || !height || height.length < 2) continue;
-    if (!Number.isFinite(height[0]) || !Number.isFinite(height[1])) continue;
+    if (!name) continue;
+    const extents: RaidPrepFloorExtent[] = [];
+    for (const raw of floor.extents || []) {
+      const height = parseFloorExtentHeight(raw.height);
+      if (!height) continue;
+      const bounds = parseFloorExtentBounds(raw.bounds);
+      extents.push(bounds ? { ...height, bounds } : height);
+    }
+    if (!extents.length) continue;
     bands.push({
       name,
-      min: Math.min(height[0]!, height[1]!),
-      max: Math.max(height[0]!, height[1]!),
+      min: Math.min(...extents.map((item) => item.min)),
+      max: Math.max(...extents.map((item) => item.max)),
+      extents,
     });
   }
   return bands;
@@ -1013,7 +1253,7 @@ export function raidPrepKeyIsMissing(
 }
 
 export const RAID_PREP_UNAVAILABLE_KEY_HINT =
-  "所需钥匙还没人拥有，这局做不了，已从地图上隐藏。";
+  "所需钥匙还没人点「我有」，仅作提醒。语音里说有也行，地图上仍会标出。";
 
 export function mergeRaidPrepAvailableKeyIds(
   ...lists: Array<readonly { item_id?: string | null }[] | null | undefined>

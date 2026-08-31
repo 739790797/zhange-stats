@@ -22,13 +22,16 @@ describe("tarkovMapLabel", () => {
     expect(tarkovMapLabel("Resort", "shoreline")).toBe("疗养院");
     expect(tarkovMapLabel("West Wing", "shoreline")).toBe("西楼");
     expect(tarkovMapLabel("East Wing", "shoreline")).toBe("东楼");
-    expect(tarkovMapLabel("Admin", "shoreline")).toBe("北楼");
+    expect(tarkovMapLabel("Admin", "shoreline")).toBe("行政楼");
     expect(tarkovMapLabel("Power Station", "shoreline")).toBe("变电站");
-    expect(tarkovMapLabel("Cottages", "shoreline")).toBe("豪宅");
+    expect(tarkovMapLabel("Cottages", "shoreline")).toBe("别墅区");
+    expect(tarkovMapLabel("Construction", "shoreline")).toBe("蓝铁皮");
+    expect(tarkovMapLabel("Radio Tower", "shoreline")).toBe("红白电塔");
     expect(tarkovMapLabel("Scav Island", "shoreline")).toBe("灯塔");
     // shared English stays map-specific elsewhere
     expect(tarkovMapLabel("Power Station", "interchange")).toBe("发电站");
     expect(tarkovMapLabel("Cottages", "lighthouse")).toBe("别墅");
+    expect(tarkovMapLabel("Construction", "customs")).toBe("工地");
   });
 
   it("keeps unknown labels as-is", () => {

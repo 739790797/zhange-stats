@@ -1,4 +1,4 @@
-/** 地图「地名」层：tarkov.dev maps.json 的 label.text 是英文/俄文，站点 zh 文案也不覆盖这些点。 */
+/** 地图「地名」层：无自定义表时把 tarkov.dev label.text 译成中文；海岸线等图走独立点表。 */
 
 /**
  * 按地图覆盖：同一英文 label 在不同图上社区叫法不同（如 Power Station）。
@@ -9,23 +9,24 @@ const TARKOV_MAP_LABEL_ZH_BY_MAP: Record<string, Record<string, string>> = {
     Resort: "疗养院",
     "West Wing": "西楼",
     "East Wing": "东楼",
-    Admin: "北楼",
+    Admin: "行政楼",
     "Power Station": "变电站",
-    Cottages: "豪宅",
+    Cottages: "别墅区",
     "Scav Island": "灯塔",
     Swamp: "沼泽",
-    Village: "村庄",
-    "Weather Station": "气象站",
-    "Radio Tower": "无线电塔",
+    Village: "村落",
+    "Weather Station": "雷达站",
+    "Radio Tower": "红白电塔",
     "Gas Station": "加油站",
     Pier: "码头",
     "Tank Bridge": "坦克桥",
     Cabins: "小屋",
     "Bus Stop": "公交站",
-    Construction: "工地",
+    Construction: "蓝铁皮",
     Bunker: "地堡",
     Crane: "吊车",
-    "Scav Farm": "Scav 农场",
+    "Scav Farm": "农场",
+    Parking: "停车场",
   },
 };
 
@@ -308,7 +309,7 @@ const TARKOV_MAP_LABEL_ZH: Record<string, string> = {
   "Scav Farm": "Scav 农场",
   "West Wing": "西楼",
   "East Wing": "东楼",
-  Admin: "北楼",
+  Admin: "行政楼",
   Sawmill: "锯木厂",
   "Scav Town": "Scav 镇",
   "Old Sawmill": "旧锯木厂",

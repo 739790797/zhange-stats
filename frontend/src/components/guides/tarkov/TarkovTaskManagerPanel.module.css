@@ -292,14 +292,6 @@ a.syncHint:hover {
   gap: 14px;
 }
 
-.loyaltyMeta {
-  margin-left: 8px;
-  color: var(--hb-muted, #8a8c78);
-  font-size: 12px;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-
 .traderHead {
   display: flex;
   flex-wrap: wrap;
@@ -361,45 +353,6 @@ a.syncHint:hover {
   letter-spacing: 0.04em;
   text-align: left;
   white-space: nowrap;
-}
-
-.loyaltyRow th {
-  padding: 0;
-  border-bottom: 1px solid #2a2a2a;
-  background: #1a1b14;
-  color: var(--hb-orange, #c8932a);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-align: left;
-}
-
-.loyaltyToggle {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  width: 100%;
-  margin: 0;
-  padding: 10px 10px 6px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-align: left;
-  cursor: pointer;
-}
-
-.loyaltyToggle:hover {
-  background: #22241a;
-}
-
-.loyaltyCaret {
-  display: inline-block;
-  width: 1em;
-  color: var(--hb-muted, #8a8c78);
-  font-weight: 400;
 }
 
 .row td {
