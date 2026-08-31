@@ -264,7 +264,7 @@ export function overlayRaidRoomLocalPhase(
     | undefined,
 ): RaidRoomLogPhase[] {
   const uid = Number(userId);
-  if (!Number.isFinite(uid) || uid <= 0 || !(local?.kind || "").trim()) {
+  if (!local || !Number.isFinite(uid) || uid <= 0 || !String(local.kind || "").trim()) {
     return [...phases];
   }
   const mine: RaidRoomLogPhase = {

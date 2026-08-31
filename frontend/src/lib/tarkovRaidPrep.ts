@@ -1378,8 +1378,9 @@ export function hideCompletedRaidPrepRows<T extends { id: string }>(
 function asIdSet(
   ids: ReadonlySet<string> | readonly string[] | null | undefined,
 ): Set<string> {
-  if (ids instanceof Set) return ids;
-  return new Set(trimIdList(ids));
+  if (!ids) return new Set();
+  if (Array.isArray(ids)) return new Set(trimIdList(ids));
+  return new Set(ids);
 }
 
 /** 个人中心任务进度：已完成 > 进行中 > 未完成。 */
