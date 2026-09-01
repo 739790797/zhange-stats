@@ -67,7 +67,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `tarkov_raid_room_key_brings` | 房间钥匙「我带了」声明；复合主键 `(room_id, item_id, user_id)`。同一把钥匙可多人署名（备份），准备总结里展示谁带了。ON DELETE CASCADE |
 | `tarkov_raid_room_objective_dones` | 房间目标「我做完了」署名；复合主键 `(room_id, task_id, objective_id, user_id)`。删除线只对勾选者本人；准备总结是公共内容，最后一列列出已完成用户。ON DELETE CASCADE |
 | `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
-| `tarkov_map_places` | 管理员维护的全站地图地名（`kind`=`point`/`box`）。`map_key` 为互动图 `normalizedName`（夜厂等变体归父图）。点用 `x/z`；框另存对角 `x2/z2`。`label_x`/`label_z` 为框的文字落点（空则用框中心）；点的文字就是 `x/z`。`floor` 空则各层都显示。索引 `(map_key, sort_order)`。迁移种入海岸线社区点 |
+| `tarkov_map_places` | 管理员维护的全站地图地名（`kind`=`point`/`box`）。`map_key` 为互动图 `normalizedName`（夜厂等变体归父图）。点用 `x/z`；框另存对角 `x2/z2`。`label_x`/`label_z` 为框的文字落点（空则用框中心）；点的文字就是 `x/z`。`floor` 空则各层都显示。索引 `(map_key, sort_order)`。迁移种入海岸线社区点、街区手标 |
 | `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组键值预设（按 tool_id 存用户选定的配置 `directories`，以及 `pins`：`file` 为服内绝对路径且须在这些目录内，加上 key/value；旧整文件草稿忽略）；`mod_inventory_json` 为当前服 jar 库存（打开页对账指纹，增量拆包认亲；与开服剧本 `mods_json` 不是同一份）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON 性能采样热数据（约 10 秒一条：TPS/MSPT，以及可选实体总数 / 已加载区块）。只保留约 48 小时，供 30 分钟 / 1 小时折线看尖峰 |
 | `minecraft_perf_rollups` | 性能留档：`grain`=`1m`/`1h`/`1d` + `bucket_at` 唯一。分钟桶约留 30 天（12h/24h 折线）；小时/日桶永久（30d / 全部）。每桶含 avg/min/max（实体与区块为 avg/max）。由采集任务刷新当前桶，`job_runs_prune` 回填并删过期原始点 |

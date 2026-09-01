@@ -160,3 +160,16 @@ def test_shoreline_seed_matches_community_overlay() -> None:
     assert "蓝铁皮" in names
     assert len(names) == len(set(names))
     assert len(svc.SHORELINE_SEED) == 22
+
+
+def test_streets_seed_matches_dev_overlay() -> None:
+    names = [row["name"] for row in svc.STREETS_OF_TARKOV_SEED]
+    assert "红衣主教公寓" in names
+    assert "Klimov Mall 交易中心" in names
+    assert any("滨海大道" in name for name in names)
+    assert any("大康科迪亚" in name for name in names)
+    assert len(svc.STREETS_OF_TARKOV_SEED) == 47
+    rows = svc.place_seed_rows("streets-of-tarkov", svc.STREETS_OF_TARKOV_SEED, now=None)
+    assert rows[0]["map_key"] == "streets-of-tarkov"
+    assert rows[0]["sort_order"] == 1
+    assert rows[-1]["sort_order"] == 47
