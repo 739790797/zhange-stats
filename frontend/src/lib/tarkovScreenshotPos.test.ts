@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   gameForwardXZ,
   gameYawToCssDeg,
-  headingArrowPoints,
   normalizeHeadingDeg,
   parseTarkovScreenshotName,
   quaternionToYawDeg,
@@ -91,11 +90,5 @@ describe("screenDeltaToCssDeg", () => {
   it("maps screen down to 180 and right to 90", () => {
     expect(normalizeHeadingDeg(screenDeltaToCssDeg(0, 1))).toBeCloseTo(180, 5);
     expect(normalizeHeadingDeg(screenDeltaToCssDeg(1, 0))).toBeCloseTo(90, 5);
-  });
-});
-
-describe("headingArrowPoints", () => {
-  it("puts the tip above center when css is 0", () => {
-    expect(headingArrowPoints(0)).toMatch(/^16\.0,3\.0 /);
   });
 });

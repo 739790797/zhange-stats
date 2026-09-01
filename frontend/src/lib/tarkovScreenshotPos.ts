@@ -69,29 +69,6 @@ export function screenshotYawToMapDeg(
   return gameYawToCssDeg(yaw, coordinateRotation);
 }
 
-/** 尖头多边形，尖端就是朝向；不依赖 CSS `rotate`。 */
-export function headingArrowPoints(
-  cssDeg: number,
-  cx = 16,
-  cy = 16,
-  len = 13,
-  half = 6,
-): string {
-  const rad = (cssDeg * Math.PI) / 180;
-  const ux = Math.sin(rad);
-  const uy = -Math.cos(rad);
-  const px = -uy;
-  const py = ux;
-  const tipX = cx + ux * len;
-  const tipY = cy + uy * len;
-  const leftX = cx - ux * 5 + px * half;
-  const leftY = cy - uy * 5 + py * half;
-  const rightX = cx - ux * 5 - px * half;
-  const rightY = cy - uy * 5 - py * half;
-  const fmt = (n: number) => n.toFixed(1);
-  return `${fmt(tipX)},${fmt(tipY)} ${fmt(leftX)},${fmt(leftY)} ${fmt(rightX)},${fmt(rightY)}`;
-}
-
 /**
  * `2025-03-30[21-04]_175.30, 1.37, 150.68_-0.01, 0.98, -0.14, -0.10_9.53 (0).png`
  * 菜单/大厅截图通常只有时间，没有坐标。

@@ -120,7 +120,6 @@ import {
 import {
   gameForwardXZ,
   gameYawToCssDeg,
-  headingArrowPoints,
   screenDeltaToCssDeg,
 } from "@/lib/tarkovScreenshotPos";
 import { useTarkovScreenshotPosition } from "@/lib/useTarkovScreenshotPosition";
@@ -847,7 +846,7 @@ function playerFixMarkerHtml(
   const pip =
     yaw == null
       ? `<span class="${styles.playerDot}"></span>`
-      : `<svg class="${styles.playerArrowSvg}" viewBox="0 0 32 32" aria-hidden="true"><polygon points="${headingArrowPoints(yaw)}"/></svg>`;
+      : `<span class="${styles.playerArrow}" style="transform:rotate(${yaw}deg)"></span>`;
   const label = name
     ? `<span class="${styles.playerName}">${name}</span>`
     : "";
