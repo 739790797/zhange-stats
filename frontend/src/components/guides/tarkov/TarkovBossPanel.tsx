@@ -17,21 +17,21 @@ import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { normalizeBossKind, TARKOV_BOSS_KIND_LABELS } from "@/lib/tarkovBossKinds";
+import { resolveBossSpawnGroups, spawnGroupComboNumbers } from "@/lib/tarkovBossSpawnGroups";
 import { formatMoney } from "@/lib/tarkovItemFormat";
-import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalogStyles from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovBossPanel.module.css";
+import {
+  TarkovBossEscortChips,
+  TarkovBossLocationChips,
+  TarkovBossMapChips,
+} from "./TarkovBossSpawnChips";
 
 type Props = {
   slug: string;
 };
-
-function formatChance(chance: number | undefined): string {
-  if (chance == null || !Number.isFinite(chance)) return "—";
-  return `${Math.round(chance * 100)}%`;
-}
 
 export function TarkovBossPanel({ slug }: Props) {
   const gameMode = useTarkovGameMode();
@@ -65,6 +65,9 @@ export function TarkovBossPanel({ slug }: Props) {
 
   const detail = detailQuery.data;
   if (!detail) return null;
+
+  const spawnGroups = resolveBossSpawnGroups(detail);
+  const comboNumbers = spawnGroupComboNumbers(spawnGroups);
 
   const lootColumns: ColumnsType<TarkovBossLoot> = [
     {
@@ -119,37 +122,6 @@ export function TarkovBossPanel({ slug }: Props) {
     },
   ];
 
-  const spawnColumns = [
-    { title: "地图", dataIndex: "map", key: "map" },
-    {
-      title: "刷新点",
-      key: "name",
-      render: (_: unknown, row: { name?: string }) =>
-        tarkovMapLabel(row.name || "") || "—",
-    },
-    {
-      title: "概率",
-      key: "chance",
-      render: (_: unknown, row: { chance?: number }) => formatChance(row.chance),
-    },
-  ];
-
-  const escortColumns = [
-    { title: "地图", dataIndex: "map", key: "map" },
-    {
-      title: "名称",
-      key: "name",
-      render: (_: unknown, row: { name?: string; nickname?: string }) =>
-        row.nickname ? `${row.name}（${row.nickname}）` : row.name,
-    },
-    { title: "数量", dataIndex: "count", key: "count" },
-    {
-      title: "概率",
-      key: "chance",
-      render: (_: unknown, row: { chance?: number }) => formatChance(row.chance),
-    },
-  ];
-
   return (
     <div className={styles.stack}>
       <section className={styles.hero}>
@@ -159,9 +131,6 @@ export function TarkovBossPanel({ slug }: Props) {
               {TARKOV_BOSS_KIND_LABELS[normalizeBossKind(detail.kind)]}
             </span>
             <h2 className={styles.name}>{detail.name}</h2>
-            {detail.nickname ? (
-              <span className={styles.nickname}>{detail.nickname}</span>
-            ) : null}
             {detail.wiki_link ? (
               <a
                 className={styles.wiki}
@@ -250,35 +219,42 @@ export function TarkovBossPanel({ slug }: Props) {
         />
       </section>
 
-      {detail.spawn_locations?.length ? (
+      {spawnGroups.length ? (
         <section className={styles.section}>
-          <div className={styles.lootHead}>刷新点</div>
-          <Table
-            className={tableStyles.table}
-            rowKey={(row, index) =>
-              `${row.map_slug}-${row.name}-${index ?? 0}`
-            }
-            columns={spawnColumns}
-            dataSource={detail.spawn_locations}
-            pagination={false}
-            size="small"
-          />
-        </section>
-      ) : null}
-
-      {detail.escorts?.length ? (
-        <section className={styles.section}>
-          <div className={styles.lootHead}>保镖</div>
-          <Table
-            className={tableStyles.table}
-            rowKey={(row, index) =>
-              `${row.map_slug}-${row.slug}-${row.count}-${index ?? 0}`
-            }
-            columns={escortColumns}
-            dataSource={detail.escorts}
-            pagination={false}
-            size="small"
-          />
+          <div className={styles.lootHead}>刷新</div>
+          <div className={styles.spawnGroups}>
+            {spawnGroups.map((group, index) => (
+              <article
+                key={group.maps.map((row) => row.slug || row.name).join("|") + index}
+                className={styles.spawnGroup}
+              >
+                {comboNumbers[index] ? (
+                  <div className={styles.spawnCombo}>组合{comboNumbers[index]}</div>
+                ) : null}
+                <div className={styles.spawnMaps}>
+                  <TarkovBossMapChips group={group} />
+                </div>
+                {group.landLabel ? (
+                  <div className={styles.spawnRow}>
+                    <div className={styles.spawnRowLabel}>落地</div>
+                    <div className={styles.landValue}>{group.landLabel}</div>
+                  </div>
+                ) : null}
+                {group.locations.length ? (
+                  <div className={styles.spawnRow}>
+                    <div className={styles.spawnRowLabel}>区域</div>
+                    <TarkovBossLocationChips group={group} />
+                  </div>
+                ) : null}
+                {group.escorts.length ? (
+                  <div className={styles.spawnRow}>
+                    <div className={styles.spawnRowLabel}>随从</div>
+                    <TarkovBossEscortChips group={group} />
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
         </section>
       ) : null}
     </div>

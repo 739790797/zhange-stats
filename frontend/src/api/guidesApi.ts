@@ -569,6 +569,18 @@ export async function removeTarkovRaidRoomMember(
   return data;
 }
 
+export async function transferTarkovRaidRoomHost(
+  publicId: string,
+  userId: number,
+) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/host`,
+    { user_id: userId },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
 export async function claimTarkovRaidRoomTask(
   publicId: string,
   taskId: string,
@@ -706,4 +718,18 @@ export async function clearTarkovRaidRoomMarks(publicId: string) {
 export function tarkovRaidRoomWsUrl(publicId: string) {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.host}/api/guides/tarkov/raid-rooms/${encodeURIComponent(publicId)}/ws`;
+}
+
+export type TarkovGoonTracker = components["schemas"]["TarkovGoonTrackerOut"];
+
+export async function fetchTarkovGoons() {
+  const { data } = await client.get<TarkovGoonTracker>("/guides/tarkov/goons", {
+    timeout: 20_000,
+  });
+  return data;
+}
+
+export function tarkovGoonsWsUrl() {
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/api/guides/tarkov/goons/ws`;
 }

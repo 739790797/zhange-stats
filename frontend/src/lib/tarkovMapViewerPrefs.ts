@@ -13,6 +13,31 @@ import {
 
 const STORAGE_KEY = "zhange.guides.tarkov.mapViewer.v1";
 
+export type TarkovMapOverlayMode = "all" | "boss-spawns";
+
+export function overlayFlagsForMode(
+  prefs: TarkovMapViewerPrefs,
+  overlayMode: TarkovMapOverlayMode = "all",
+): Pick<
+  TarkovMapViewerPrefs,
+  "extractKinds" | "spawnKinds" | "showLabels" | "showQuests"
+> {
+  if (overlayMode === "boss-spawns") {
+    return {
+      extractKinds: defaultExtractKindFlags(false),
+      spawnKinds: { pmc: false, scav: false, boss: true },
+      showLabels: false,
+      showQuests: false,
+    };
+  }
+  return {
+    extractKinds: prefs.extractKinds,
+    spawnKinds: prefs.spawnKinds,
+    showLabels: prefs.showLabels,
+    showQuests: prefs.showQuests,
+  };
+}
+
 export type TarkovMapViewerStyle = "svg" | "tile";
 
 export type TarkovMapViewerPrefs = {

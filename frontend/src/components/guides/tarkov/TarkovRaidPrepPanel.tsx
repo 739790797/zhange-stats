@@ -75,6 +75,10 @@ import {
 } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
+import {
+  TarkovGoonRoomNotice,
+  TarkovGoonSightingHint,
+} from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
 import { TarkovRaidPrepOcrModal } from "@/components/guides/tarkov/TarkovRaidPrepOcrModal";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
@@ -610,7 +614,7 @@ export function TarkovRaidPrepPanel() {
   if (!mapId) {
     return (
       <div className={styles.stagePick}>
-        <h1 className={styles.srOnly}>战局准备</h1>
+        <h1 className={styles.srOnly}>联机大厅</h1>
         <TarkovRaidPrepEntryModal
           open={entryOpen}
           onClose={() => {
@@ -625,9 +629,12 @@ export function TarkovRaidPrepPanel() {
   return (
     <div className={styles.stage} data-dock={dockOpen ? "open" : "closed"}>
       <div className={styles.topBar}>
-        <h1 className={styles.srOnly}>战局准备</h1>
+        <h1 className={styles.srOnly}>联机大厅</h1>
         <div className={styles.roomId}>
-          <p className={styles.roomTitle}>战局准备 · {mapLabel}</p>
+          <p className={styles.roomTitle}>
+            联机大厅 · {mapLabel}
+            <TarkovGoonSightingHint mapId={mapId} variant="inline" />
+          </p>
         </div>
         <div className={styles.topActions}>
           <button
@@ -656,6 +663,7 @@ export function TarkovRaidPrepPanel() {
 
       <div className={styles.workspace}>
         <div className={styles.mapPane}>
+          <TarkovGoonRoomNotice mapId={mapId} />
           <button
             type="button"
             className={styles.dockEdge}

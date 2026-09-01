@@ -3,6 +3,7 @@ import { defaultExtractKindFlags } from "./tarkovMapExtracts";
 import { defaultSpawnKindFlags } from "./tarkovMapSpawns";
 import {
   DEFAULT_TARKOV_MAP_VIEWER_PREFS,
+  overlayFlagsForMode,
   parseTarkovMapViewerPrefs,
   resolveMapFloor,
   resolveMapStyle,
@@ -140,6 +141,17 @@ describe("withSpawnKind", () => {
       pmc: true,
       scav: true,
       boss: false,
+    });
+  });
+});
+
+describe("overlayFlagsForMode", () => {
+  it("keeps only boss markers in spawn overlay mode", () => {
+    expect(overlayFlagsForMode(emptyDefaults, "boss-spawns")).toEqual({
+      extractKinds: defaultExtractKindFlags(false),
+      spawnKinds: { pmc: false, scav: false, boss: true },
+      showLabels: false,
+      showQuests: false,
     });
   });
 });

@@ -784,6 +784,57 @@ def test_remove_member_host_only() -> None:
     assert still["member_count"] == 2
 
 
+def test_host_can_transfer_host() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    snap = rooms.transfer_host(db, "1", host, guest.id, now=now)
+    assert snap["host_user_id"] == guest.id
+    assert snap["host_display_name"] == "乙"
+    assert snap["is_host"] is False
+    assert snap["is_member"] is True
+    guest_view = rooms.get_room(db, "1", guest, now=now)
+    assert guest_view["is_host"] is True
+    assert guest_view["host_user_id"] == guest.id
+
+
+def test_transfer_host_host_only() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    outsider = _user(db, "out", "丙")
+    now = now_naive()
+    _seat(db, host, now=now)
+    rooms.join_room(db, "1", guest, now=now)
+    try:
+        rooms.transfer_host(db, "1", guest, host.id, now=now)
+        guest_ok = True
+    except rooms.RaidRoomError as exc:
+        guest_ok = False
+        assert exc.status_code == 403
+    assert not guest_ok
+    try:
+        rooms.transfer_host(db, "1", host, host.id, now=now)
+        self_ok = True
+    except rooms.RaidRoomError as exc:
+        self_ok = False
+        assert exc.status_code == 400
+    assert not self_ok
+    try:
+        rooms.transfer_host(db, "1", host, outsider.id, now=now)
+        out_ok = True
+    except rooms.RaidRoomError as exc:
+        out_ok = False
+        assert exc.status_code == 404
+    assert not out_ok
+    still = rooms.get_room(db, "1", host, now=now)
+    assert still["host_user_id"] == host.id
+    assert still["member_count"] == 2
+
+
 def test_room_password_gates_join_and_clears_when_empty() -> None:
     db = _session()
     host = _user(db, "host", "甲")
@@ -1003,7 +1054,11 @@ def test_active_started_ids_drops_done() -> None:
 
 def test_build_raid_room_map_overlap_ranks_coverage() -> None:
     catalogs = {
-        "customs": {"t1": "A", "t2": "B", "t3": "C"},
+        "customs": {
+            "t1": {"name": "A", "trader_slug": "prapor"},
+            "t2": "B",
+            "t3": "C",
+        },
         "woods": {"t1": "A", "t9": "Z"},
     }
     occupants = [
@@ -1026,6 +1081,10 @@ def test_build_raid_room_map_overlap_ranks_coverage() -> None:
     assert rows[0]["map_slug"] == "customs"
     shared = [t for t in customs["tasks"] if t["id"] == "t1"][0]
     assert shared["user_ids"] == [1, 2]
+    assert shared["trader_slug"] == "prapor"
+    named = [t for t in customs["tasks"] if t["id"] == "t2"][0]
+    assert named["name"] == "B"
+    assert named["trader_slug"] == ""
 
 
 def test_set_member_task_progress_marks_uploaded() -> None:

@@ -916,6 +916,7 @@ def test_collect_raid_prep_task_index_buckets_maps():
     slugs = tasks.raid_prep_room_map_slugs()
     assert "streets" in slugs
     assert "night-factory" in slugs
-    assert index["streets"]["on-map"] == "On streets"
+    assert index["streets"]["on-map"]["name"] == "On streets"
+    assert index["streets"]["on-map"]["trader_slug"] == "prapor"
     assert "on-map" not in index["customs"]
-    assert index["customs"]["other"] == "On customs"
+    assert index["customs"]["other"]["name"] == "On customs"

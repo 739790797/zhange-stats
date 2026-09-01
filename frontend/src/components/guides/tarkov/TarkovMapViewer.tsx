@@ -76,12 +76,14 @@ import {
 } from "@/lib/tarkovMapImages";
 import {
   loadTarkovMapViewerPrefs,
+  overlayFlagsForMode,
   resolveMapFloor,
   resolveMapStyle,
   saveTarkovMapViewerPrefs,
   withExtractKind,
   withMapFloor,
   withSpawnKind,
+  type TarkovMapOverlayMode,
   type TarkovMapViewerPrefs,
 } from "@/lib/tarkovMapViewerPrefs";
 import {
@@ -145,6 +147,8 @@ type Props = {
   /** 任务 id → 参与者，供地图悬浮窗展示 */
   questParticipantsByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>;
   highlightTaskId?: string;
+  overlayMode?: TarkovMapOverlayMode;
+  layerChrome?: "full" | "floors";
   /** 外部请求将地图平移到指定游戏坐标（seq 递增可重复定位同一点） */
   focusRequest?: TarkovMapFocusRequest | null;
   topRight?: ReactNode;
@@ -1100,6 +1104,8 @@ export function TarkovMapViewer({
   onQuestLabelClick,
   questParticipantsByTask,
   highlightTaskId = "",
+  overlayMode = "all",
+  layerChrome = "full",
   focusRequest,
   topRight,
 }: Props) {
@@ -1246,7 +1252,9 @@ export function TarkovMapViewer({
   );
   const highlightTaskIdRef = useRef(highlightTaskId);
   highlightTaskIdRef.current = highlightTaskId;
-  const { extractKinds, spawnKinds, showLabels, showQuests } = prefs;
+  const overlay = overlayFlagsForMode(prefs, overlayMode);
+  const { extractKinds, spawnKinds, showLabels, showQuests } = overlay;
+  const showPointLayers = layerChrome !== "floors";
   const extractKindOptions = TARKOV_EXTRACT_KINDS;
   const extractsParentOn = allPresentExtractKindsOn(
     extractKinds,
@@ -1876,8 +1884,16 @@ export function TarkovMapViewer({
       updatePrefs((prev) => withMapFloor(prev, mapKey, nextFloor));
     }
     const latLng = L.latLng(pos(focusRequest));
-    const zoom = Math.max(map.getZoom(), map.getMinZoom() + 1);
-    map.flyTo(latLng, zoom, { animate: true, duration: 0.35 });
+    const fly = () => {
+      const current = runtimeRef.current?.map;
+      if (!current) return;
+      current.invalidateSize({ animate: false });
+      const zoom = Math.max(current.getZoom(), current.getMinZoom() + 1);
+      current.flyTo(latLng, zoom, { animate: true, duration: 0.35 });
+    };
+    fly();
+    const timer = window.setTimeout(fly, 180);
+    return () => window.clearTimeout(timer);
   }, [focusRequest, ready, floorBands, interactive?.key, updatePrefs]);
 
   useEffect(() => {
@@ -2026,6 +2042,7 @@ export function TarkovMapViewer({
       ref={wrapElRef}
       className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${spaceHeld ? styles.wrapSpace : ""} ${className}`.trim()}
       onPointerDown={() => {
+        if (suppressLocalFix) return;
         if (shotResumeOnceRef.current) return;
         if (shotWatch.perm !== "prompt" || !shotWatch.hasStored) return;
         shotResumeOnceRef.current = true;
@@ -2082,7 +2099,7 @@ export function TarkovMapViewer({
                   <input
                     className={styles.filterRadio}
                     type="radio"
-                    name={`tarkov-map-floor-${interactive?.key || "map"}`}
+                    name={`tarkov-map-floor-${interactive?.key || "map"}-${overlayMode}`}
                     checked={!floor}
                     onChange={() =>
                       updatePrefs((prev) =>
@@ -2097,7 +2114,7 @@ export function TarkovMapViewer({
                     <input
                       className={styles.filterRadio}
                       type="radio"
-                      name={`tarkov-map-floor-${interactive?.key || "map"}`}
+                      name={`tarkov-map-floor-${interactive?.key || "map"}-${overlayMode}`}
                       checked={floor === item.name}
                       onChange={() =>
                         updatePrefs((prev) =>
@@ -2111,7 +2128,7 @@ export function TarkovMapViewer({
               </div>
             </>
           ) : null}
-          {interactive ? (
+          {showPointLayers && interactive ? (
             <>
               {canSvg || canTile || floors.length ? (
                 <span className={styles.filterSplit} aria-hidden="true" />

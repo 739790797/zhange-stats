@@ -205,17 +205,12 @@ export function TarkovRaidSeatBoard({
               </span>
               <span className={styles.tags}>
                 {occupants.map((row) => (
-                  <span
-                    key={row.user_id}
-                    className={styles.tag}
-                    data-host={row.is_host ? "true" : "false"}
-                  >
+                  <span key={row.user_id} className={styles.tag}>
                     <span
                       className={styles.tagDot}
                       style={{ background: colorForUserId(row.user_id) }}
                     />
                     {row.display_name}
-                    {row.is_host ? " · 房主" : ""}
                   </span>
                 ))}
               </span>

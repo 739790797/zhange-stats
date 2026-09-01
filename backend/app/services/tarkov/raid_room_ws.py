@@ -1,4 +1,4 @@
-"""战局准备房间 WebSocket：首包 JWT 鉴权，之后只推送。"""
+"""联机大厅房间 WebSocket：首包 JWT 鉴权，之后只推送。"""
 
 from __future__ import annotations
 

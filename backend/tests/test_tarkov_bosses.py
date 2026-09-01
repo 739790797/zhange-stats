@@ -174,7 +174,7 @@ def test_parse_killa_maps_health_and_behavior():
     by_slug = {r["slug"]: r for r in rows}
     killa = by_slug["killa"]
     assert killa["name"] == "Killa"
-    assert killa["nickname"] == ""
+    assert "nickname" not in killa
     assert killa["behavior_zh"] == "巡逻，重装甲"
     assert killa["health_total"] == 890
     assert killa["health"][0]["name"] == "胸腔"
@@ -185,16 +185,144 @@ def test_parse_killa_maps_health_and_behavior():
     assert killa["description"].startswith("塔科夫的终极猛男")
 
 
-def test_parse_goons_escorts_and_nicknames():
+def test_parse_goons_escorts():
     rows = bosses.parse_boss_rows(_envelope())
     knight = next(r for r in rows if r["slug"] == "knight")
-    assert knight["nickname"] == "骑士"
+    assert "nickname" not in knight
     slugs = {e["slug"] for e in knight["escorts"]}
     assert slugs == {"big-pipe", "birdeye"}
-    nick = {e["slug"]: e["nickname"] for e in knight["escorts"]}
-    assert nick["big-pipe"] == "大管"
-    assert nick["birdeye"] == "鸟眼"
+    assert all("nickname" not in e for e in knight["escorts"])
     assert knight["escorts_label"] == "×2"
+    by_id = {r["id"]: r for r in rows}
+    pipe = by_id["followerBigPipe"]
+    bird = by_id["followerBirdEye"]
+    assert pipe["parent_ids"] == ["bossKnight"]
+    assert bird["parent_ids"] == ["bossKnight"]
+    assert "海关" in pipe["maps_label"]
+    assert "海关" in bird["maps_label"]
+    assert by_id["bossKnight"]["parent_ids"] == []
+
+
+def test_land_label_covers_raid_overflow():
+    assert bosses.land_label(-1) == "开局"
+    assert bosses.land_label(-1, random=True) == "开局"
+    assert bosses.land_label(900) == "15分钟"
+    assert bosses.land_label(5790, raid_duration=50) == "与战局时间无关"
+    assert bosses.land_label(9999) == "与战局时间无关"
+    assert bosses.land_label(-1, trigger="Switch") == "触发后落地"
+
+
+def test_spawn_groups_merge_maps_and_split_on_land():
+    payload = {
+        "maps": {
+            "customs": {
+                "id": "customs",
+                "normalizedName": "customs",
+                "name": "Customs",
+                "raidDuration": 45,
+                "bosses": [
+                    {
+                        "mob": "bossKnight",
+                        "spawnChance": 0.2,
+                        "spawnTime": -1,
+                        "spawnTimeRandom": True,
+                        "spawnLocations": [
+                            {
+                                "name": "Dorms",
+                                "chance": 1,
+                                "positions": [{"x": 10, "y": 2, "z": 30}],
+                            }
+                        ],
+                        "escorts": [
+                            {
+                                "mob": "followerBigPipe",
+                                "amount": [{"chance": 1, "count": 1}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "woods": {
+                "id": "woods",
+                "normalizedName": "woods",
+                "name": "Woods",
+                "raidDuration": 40,
+                "bosses": [
+                    {
+                        "mob": "bossKnight",
+                        "spawnChance": 0.2,
+                        "spawnTime": -1,
+                        "spawnTimeRandom": True,
+                        "spawnLocations": [{"name": "Sawmill", "chance": 1}],
+                        "escorts": [
+                            {
+                                "mob": "followerBigPipe",
+                                "amount": [{"chance": 1, "count": 1}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "icebreaker": {
+                "id": "icebreaker",
+                "normalizedName": "icebreaker",
+                "name": "Icebreaker",
+                "raidDuration": 40,
+                "bosses": [
+                    {
+                        "mob": "bossKnight",
+                        "spawnChance": 1,
+                        "spawnTime": 9999,
+                        "spawnTimeRandom": False,
+                        "spawnLocations": [{"name": "Deck", "chance": 1}],
+                        "escorts": [
+                            {
+                                "mob": "ExUsec",
+                                "amount": [{"chance": 1, "count": 2}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "mobs": {
+            "bossKnight": {
+                "id": "bossKnight",
+                "name": "bossKnight",
+                "normalizedName": "knight",
+                "health": [],
+            },
+            "followerBigPipe": {
+                "id": "followerBigPipe",
+                "name": "followerBigPipe",
+                "normalizedName": "big-pipe",
+                "health": [],
+            },
+            "ExUsec": {
+                "id": "ExUsec",
+                "name": "ExUsec",
+                "normalizedName": "rogue",
+                "health": [],
+            },
+        },
+        "locale": {
+            "customs Name": "海关",
+            "woods Name": "森林",
+            "icebreaker Name": "破冰船",
+            "bossKnight Name": "Knight",
+            "followerBigPipe Name": "Big Pipe",
+            "ExUsec Name": "游荡者",
+        },
+    }
+    knight = next(r for r in bosses.parse_boss_rows(payload) if r["slug"] == "knight")
+    groups = knight["spawn_groups"]
+    assert [g["land_label"] for g in groups] == ["开局", "与战局时间无关"]
+    assert [m["name"] for m in groups[0]["maps"]] == ["海关", "森林"]
+    assert groups[0]["shared_spawn_chance"] == "20%"
+    assert groups[0]["locations"][0]["positions"] == [{"x": 10.0, "y": 2.0, "z": 30.0}]
+    assert groups[0]["escorts"][0]["slug"] == "big-pipe"
+    assert groups[1]["escorts"][0]["count"] == 2
+    assert groups[1]["shared_spawn_chance"] == "100%"
 
 
 def test_aliases():

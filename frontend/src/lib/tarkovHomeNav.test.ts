@@ -88,6 +88,9 @@ describe("filterHomeSearch", () => {
     expect(filterHomeSearch("战局", index).some((h) => h.id === "raid-prep")).toBe(
       true,
     );
+    expect(
+      filterHomeSearch("联机大厅", index).some((h) => h.id === "raid-prep"),
+    ).toBe(true);
   });
 
   it("finds task tree inside 个人中心", () => {
@@ -182,7 +185,6 @@ describe("TARKOV_BOSSES", () => {
       map: "海关",
       spawn: "45%",
       guards: "×4",
-      nickname: "沙拉",
       status: "ready",
     });
     expect(byId.killa).toMatchObject({ map: "立交桥", spawn: "45%", guards: "—" });
@@ -190,7 +192,6 @@ describe("TARKOV_BOSSES", () => {
       map: "储备站",
       spawn: "30%",
       guards: "×6",
-      nickname: "火车头",
     });
     expect(byId.shturman).toMatchObject({
       map: "森林",
@@ -202,7 +203,6 @@ describe("TARKOV_BOSSES", () => {
       map: "工厂",
       spawn: "30%",
       guards: "—",
-      nickname: "锤哥",
     });
     expect(byId.kaban).toMatchObject({ map: "塔科夫街区", spawn: "45%", guards: "×6" });
     expect(byId.kollontay).toMatchObject({
@@ -215,7 +215,6 @@ describe("TARKOV_BOSSES", () => {
       map: "游荡",
       spawn: "15%",
       guards: "×2",
-      nickname: "三兄弟",
     });
     expect(byId.cultists).toMatchObject({
       map: "海关/森林",
@@ -423,23 +422,18 @@ describe("TARKOV_HOME_TRADERS", () => {
 });
 
 describe("TARKOV_TOOLS", () => {
-  it("puts 个人中心 first and keeps ammo after raid prep left the rail", () => {
+  it("keeps ammo first after raid prep and 个人中心 left the rail", () => {
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("raid-prep");
+    expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("me");
     expect(TARKOV_RAID_PREP_NAV).toMatchObject({
       id: "raid-prep",
-      label: "战局准备",
+      label: "联机大厅",
       href: "/guides/tarkov/raid-prep",
       status: "ready",
     });
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("key-packs");
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("game-logs");
     expect(TARKOV_TOOLS[0]).toMatchObject({
-      id: "me",
-      label: "个人中心",
-      href: "/guides/tarkov/me?tab=tasks",
-      status: "ready",
-    });
-    expect(TARKOV_TOOLS[1]).toMatchObject({
       id: "ammo-chart",
       label: "弹药图表筛选器",
       href: `${ITEMS_BASE_PATH}/ammo`,
@@ -487,7 +481,7 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/items")).toBe("物品");
     expect(tarkovPageTitle("/guides/tarkov/items/meds")).toBe("医疗物品");
     expect(tarkovPageTitle("/guides/tarkov/tasks/abc")).toBe("任务");
-    expect(tarkovPageTitle("/guides/tarkov/raid-prep")).toBe("战局准备");
+    expect(tarkovPageTitle("/guides/tarkov/raid-prep")).toBe("联机大厅");
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
     expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
     expect(tarkovPageTitle("/guides/tarkov/barters")).toBe("商人交易利润");

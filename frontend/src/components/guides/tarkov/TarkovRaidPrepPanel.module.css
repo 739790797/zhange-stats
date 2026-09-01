@@ -34,6 +34,13 @@
   cursor: pointer;
 }
 
+.pickName {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
 .topBar {
   position: relative;
   z-index: 8;
@@ -128,7 +135,9 @@
 .manageList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #14160f;
 }
 
 .manageRow {
@@ -136,7 +145,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 0;
+  padding: 10px 12px;
   border-bottom: 1px solid #2a2a2a;
 }
 
@@ -147,42 +156,201 @@
 .manageName {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   color: #eee9d6;
   font-size: 13px;
 }
 
+.manageNameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manageHostTag {
+  flex: none;
+  color: var(--hb-orange, #c8932a);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .manageHostMark {
+  flex: none;
+  padding: 0 7px;
+  height: 20px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.manageRowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: none;
+}
+
+.manageModalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manageModalClose {
+  flex: none;
+  margin: 0 -6px 0 0;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: none;
+  color: var(--hb-muted, #b0ae9a);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.manageModalClose:hover {
+  color: #eee9d6;
+}
+
+.manageModalContent {
+  padding: 0;
+  background: #1a1b14;
+  border: 1px solid var(--hb-border, #3a3d30);
+  border-radius: 0;
+  color: #eee9d6;
+  box-shadow: none;
+}
+
+.manageModalContent :global(.ant-modal-header) {
+  margin: 0;
+  padding: 12px 16px;
+  background: #1a1b14;
+  border-bottom: 1px solid var(--hb-border, #3a3d30);
+}
+
+.manageModalContent :global(.ant-modal-title) {
+  width: 100%;
+  padding-inline-end: 0;
+  color: #eee9d6;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.manageModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px 18px 20px;
+}
+
+.manageSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.manageSectionTitle {
+  margin: 0;
   color: var(--hb-muted, #b0ae9a);
   font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .manageFooter {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #2a2a2a;
-}
-
-.managePassword {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #2a2a2a;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--hb-border, #3a3d30);
 }
 
 .managePasswordHint {
   margin: 0;
   color: var(--hb-muted, #b0ae9a);
   font-size: 12px;
+  line-height: 1.55;
+}
+
+.managePasswordRow {
+  display: flex;
+}
+
+.managePasswordRow :global(.ant-input-affix-wrapper) {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  background: #14160f;
+  border: 1px solid var(--hb-border, #3a3d30);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.managePasswordRow :global(.ant-input-affix-wrapper:hover),
+.managePasswordRow :global(.ant-input-affix-wrapper-focused) {
+  background: #14160f;
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  box-shadow: none;
+}
+
+.managePasswordRow :global(.ant-input) {
+  background: transparent;
+  color: #eee9d6;
+}
+
+.managePasswordRow :global(.ant-input::placeholder) {
+  color: #6b6a58;
+}
+
+.managePasswordRow :global(.ant-input-password-icon) {
+  color: var(--hb-muted, #b0ae9a);
 }
 
 .managePasswordActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+}
+
+.managePasswordActions .dockChip {
+  height: 32px;
+  padding: 0 14px;
+}
+
+.manageTextBtn {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hb-muted, #b0ae9a);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.manageTextBtn:hover {
+  color: var(--hb-orange, #c8932a);
+}
+
+.manageTextBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.manageDanger:hover,
+.manageDanger:focus-visible {
+  color: #e24a4a;
+  border-color: rgba(226, 74, 74, 0.55);
 }
 
 .joinGate {
@@ -304,37 +472,6 @@
   position: relative;
 }
 
-.stage[data-pick="true"] {
-  overflow: auto;
-}
-
-.stage[data-pick="true"] .workspace {
-  display: flex;
-  justify-content: center;
-  overflow: visible;
-  flex: none;
-}
-
-.stage[data-pick="true"] .mapPane,
-.stage[data-pick="true"] .mapFill,
-.stage[data-pick="true"] .mapFill > * {
-  flex: none;
-  min-height: auto;
-  overflow: visible;
-}
-
-.stage[data-pick="true"] .mapPane {
-  width: min(100%, 680px);
-}
-
-.stage[data-pick="true"] .mapPickPane {
-  overflow: visible;
-  padding: 4px 0 24px;
-}
-
-.stage[data-pick="true"] .dock,
-.stage[data-pick="true"] .dockToggle,
-.stage[data-pick="true"] .dockEdge,
 .stage[data-pick="true"] .drawDock {
   display: none;
 }
@@ -1453,6 +1590,13 @@
   cursor: not-allowed;
 }
 
+.dockHint {
+  margin: 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .dockLeadActions {
   display: flex;
   flex-direction: column;
@@ -1718,6 +1862,11 @@
 .entryMapOn {
   border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
   box-shadow: inset 0 0 0 1px var(--hb-orange-dim, rgba(200, 147, 42, 0.35));
+}
+
+.entryMapGoon {
+  border-color: rgba(226, 74, 74, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(226, 74, 74, 0.35);
 }
 
 .summaryModal {

@@ -388,21 +388,43 @@ class TarkovBossMapOut(BaseModel):
     spawn_chance: str = ""
 
 
+class TarkovBossSpawnPointOut(BaseModel):
+    x: float
+    y: float = 0
+    z: float
+
+
 class TarkovBossSpawnLocationOut(BaseModel):
     map: str = ""
     map_slug: str = ""
     name: str = ""
     chance: float = 0
+    positions: list[TarkovBossSpawnPointOut] = Field(default_factory=list)
 
 
 class TarkovBossEscortOut(BaseModel):
     slug: str = ""
     name: str = ""
-    nickname: str = ""
     count: int = 0
     chance: float = 0
     map: str = ""
     map_slug: str = ""
+
+
+class TarkovBossSpawnGroupMapOut(BaseModel):
+    id: str = ""
+    slug: str = ""
+    name: str = ""
+    spawn_chance: str = ""
+
+
+class TarkovBossSpawnGroupOut(BaseModel):
+    maps: list[TarkovBossSpawnGroupMapOut] = Field(default_factory=list)
+    shared_spawn_chance: str = ""
+    land_label: str = ""
+    locations: list[TarkovBossSpawnLocationOut] = Field(default_factory=list)
+    escorts: list[TarkovBossEscortOut] = Field(default_factory=list)
+    show_location_chance: bool = False
 
 
 class TarkovBossLootOut(BaseModel):
@@ -422,7 +444,6 @@ class TarkovBossListItemOut(BaseModel):
     id: str
     slug: str
     name: str
-    nickname: str = ""
     kind: str = Field(
         default="boss",
         description="boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
@@ -437,6 +458,14 @@ class TarkovBossListItemOut(BaseModel):
     portrait_link: str = ""
     poster_link: str = ""
     wiki_link: str = ""
+    parent_ids: list[str] = Field(
+        default_factory=list,
+        description="护卫所属父级 mob id（如 bossGluhar）；具名 BOSS 为空",
+    )
+    spawn_groups: list[TarkovBossSpawnGroupOut] = Field(
+        default_factory=list,
+        description="同一套刷法（随从+落地）合并多图；地点横向、随从只写一次",
+    )
 
 
 class TarkovBossCatalogOut(BaseModel):
@@ -808,6 +837,10 @@ class TarkovRaidRoomGameModeIn(BaseModel):
     game_mode: str = Field(min_length=1, max_length=16)
 
 
+class TarkovRaidRoomHostIn(BaseModel):
+    user_id: int = Field(ge=1)
+
+
 class TarkovRaidRoomClaimIn(BaseModel):
     task_id: str = Field(min_length=1, max_length=64)
 
@@ -824,6 +857,7 @@ class TarkovRaidRoomTaskProgressIn(BaseModel):
 class TarkovRaidRoomOverlapTaskOut(BaseModel):
     id: str
     name: str = ""
+    trader_slug: str = ""
     user_ids: list[int] = Field(default_factory=list)
 
 
@@ -1036,3 +1070,16 @@ class TarkovUserRaidPrepStateOut(BaseModel):
     )
     key_brings: list[str] = Field(default_factory=list)
     updated_at: str | None = None
+
+
+class TarkovGoonTrackerOut(BaseModel):
+    """社区上报的三狗最近出现地图（PVP / PVE 分开）。"""
+
+    game_mode: str = "pvp"
+    map_slug: str = ""
+    map_name: str = ""
+    map_english: str = ""
+    seen_at: str | None = None
+    report_id: str = ""
+    source: str = "tarkov-stammtisch"
+    source_url: str = ""

@@ -93,7 +93,7 @@ _parsed_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
 # cache_key:canon_map → (map_name, rows)；与 _parsed_cache 同锁、同次 sync 清空
 _raid_prep_cache: dict[str, tuple[str, list[dict[str, Any]]]] = {}
 # cache_key → map_slug → {task_id: name}
-_raid_prep_index_cache: dict[str, dict[str, dict[str, str]]] = {}
+_raid_prep_index_cache: dict[str, dict[str, dict[str, dict[str, str]]]] = {}
 
 
 class TarkovTasksError(Exception):
@@ -1403,7 +1403,7 @@ def collect_raid_prep_rows(
     payload: dict[str, Any],
     map_slug: str,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """按地图收战局准备任务；纯投影，不读库。目标已按图裁剪。"""
+    """按地图收联机大厅任务；纯投影，不读库。目标已按图裁剪。"""
     keys, ids = map_match_keys(map_slug)
     locale = _locale_map(payload)
     quest_items = _quest_items_map(payload)
@@ -1462,7 +1462,7 @@ def collect_raid_prep_rows(
 
 
 def raid_prep_room_map_slugs() -> list[str]:
-    """战局准备房间用的短 id（lab / night-factory），去重保序。"""
+    """联机大厅房间用的短 id（lab / night-factory），去重保序。"""
     out: list[str] = []
     seen: set[str] = set()
     for _mid, (slug, _name) in MAP_BY_ID.items():
@@ -1480,10 +1480,10 @@ def raid_prep_room_map_slugs() -> list[str]:
 
 def collect_raid_prep_task_index(
     payload: dict[str, Any],
-) -> dict[str, dict[str, str]]:
-    """一次扫描：地图短 id → {task_id: name}。不含区轮廓。"""
+) -> dict[str, dict[str, dict[str, str]]]:
+    """一次扫描：地图短 id → {task_id: {name, trader_slug}}。不含区轮廓。"""
     slugs = raid_prep_room_map_slugs()
-    out: dict[str, dict[str, str]] = {slug: {} for slug in slugs}
+    out: dict[str, dict[str, dict[str, str]]] = {slug: {} for slug in slugs}
     locale = _locale_map(payload)
     quest_items = _quest_items_map(payload)
     for raw in _tasks_map(payload).values():
@@ -1500,16 +1500,18 @@ def collect_raid_prep_task_index(
         if not tid:
             continue
         name = str(detail.get("name") or "").strip() or tid
+        trader_slug = str(detail.get("trader_slug") or "").strip()
+        meta = {"name": name, "trader_slug": trader_slug}
         for slug in slugs:
             if task_hits_map(detail, slug):
-                out[slug][tid] = name
+                out[slug][tid] = meta
     return out
 
 
-def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, str]]:
+def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, dict[str, str]]]:
     """按当前 game_mode 读任务 raw 建瘦索引；无 raw 时各图空字典。"""
     slugs = raid_prep_room_map_slugs()
-    empty = {slug: {} for slug in slugs}
+    empty: dict[str, dict[str, dict[str, str]]] = {slug: {} for slug in slugs}
     if get_tasks_raw(db) is None:
         return empty
     row = get_tasks_raw(db)
@@ -1535,7 +1537,7 @@ def load_raid_prep_rows(
     *,
     ensure: bool = True,
 ) -> tuple[str, str, list[dict[str, Any]], str | None, str | None, dict[str, Any]]:
-    """带按图缓存的战局准备投影；返回 source, map_name, rows, synced_at, note, payload。"""
+    """带按图缓存的联机大厅投影；返回 source, map_name, rows, synced_at, note, payload。"""
     if ensure:
         ensure_tasks(db)
     elif get_tasks_raw(db) is None:
@@ -1561,7 +1563,7 @@ def load_raid_prep_rows(
 
 
 def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
-    """本地图战局准备任务 id 集合。
+    """本地图联机大厅任务 id 集合。
 
     无本地任务 raw 时返回 None（调用方跳过校验，避免 claim 路径打上游）。
     """
@@ -1583,7 +1585,7 @@ def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
 def raid_prep_task_belongs_to_map(
     db: Session, map_slug: str, task_id: str
 ) -> bool | None:
-    """任务是否出现在本地图战局准备目录。
+    """任务是否出现在本地图联机大厅目录。
 
     房间没有 game_mode，认领时 ContextVar 也可能和列表请求不一致，
     因此 PVP / PVE 两份 raw 都认。两边都没有可用目录时返回 None，

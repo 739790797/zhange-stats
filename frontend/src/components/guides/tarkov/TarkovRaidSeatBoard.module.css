@@ -119,10 +119,6 @@
   white-space: nowrap;
 }
 
-.tag[data-host="true"] {
-  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
-}
-
 .tagDot {
   flex: none;
   width: 8px;

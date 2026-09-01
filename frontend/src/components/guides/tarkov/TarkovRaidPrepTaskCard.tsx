@@ -25,6 +25,8 @@ type Props = {
   floors?: string[];
   names?: string[];
   disabled?: boolean;
+  /** 仅禁止勾进房间，不影响状态下拉。 */
+  claimDisabled?: boolean;
   done?: boolean;
   status?: RaidPrepTaskProgressStatus;
   mapSlug?: string;
@@ -48,6 +50,7 @@ function TarkovRaidPrepTaskCardInner({
   floors,
   names,
   disabled,
+  claimDisabled,
   done,
   status,
   mapSlug = "",
@@ -111,10 +114,10 @@ function TarkovRaidPrepTaskCardInner({
           className={styles.check}
           type="checkbox"
           checked={checked}
-          disabled={disabled || (isDone && !checked)}
+          disabled={disabled || claimDisabled || (isDone && !checked)}
           aria-label={`选择 ${title}`}
           onChange={() => {
-            if (disabled || (isDone && !checked)) return;
+            if (disabled || claimDisabled || (isDone && !checked)) return;
             onToggle(row.id);
           }}
         />

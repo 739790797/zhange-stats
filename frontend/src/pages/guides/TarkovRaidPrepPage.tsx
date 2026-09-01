@@ -3,7 +3,7 @@ import { TarkovItemsPageShell } from "@/components/guides/tarkov/TarkovItemsPage
 
 export default function TarkovRaidPrepPage() {
   return (
-    <TarkovItemsPageShell title="战局准备" crumbs={[]} hideHead fill>
+    <TarkovItemsPageShell title="联机大厅" crumbs={[]} hideHead fill>
       <TarkovRaidPrepPanel />
     </TarkovItemsPageShell>
   );

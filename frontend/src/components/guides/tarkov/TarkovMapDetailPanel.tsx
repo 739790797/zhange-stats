@@ -128,7 +128,7 @@ export function TarkovMapDetailPanel({ slug }: Props) {
                 normalizeRaidPrepMapId(detail.slug) || detail.slug,
               )}
             >
-              战局准备
+              联机大厅
             </Link>
             {detail.wiki_link ? (
               <a

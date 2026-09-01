@@ -1,4 +1,4 @@
-"""战局准备房间 REST + WebSocket。"""
+"""联机大厅房间 REST + WebSocket。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from app.api.guides.schemas import (
     TarkovRaidRoomDetailOut,
     TarkovRaidRoomObjectiveDonesIn,
     TarkovRaidRoomGameModeIn,
+    TarkovRaidRoomHostIn,
     TarkovRaidRoomJoinIn,
     TarkovRaidRoomLobbyOut,
     TarkovRaidRoomMapIn,
@@ -264,6 +265,29 @@ def remove_tarkov_raid_room_member(
         raise
     db.commit()
     _publish(public_id, "member_leave", data, extra={"user_id": user_id})
+    return TarkovRaidRoomDetailOut.model_validate(data)
+
+
+@router.post(
+    "/raid-rooms/{public_id}/host",
+    response_model=TarkovRaidRoomDetailOut,
+    dependencies=[_FEATURE],
+)
+def transfer_tarkov_raid_room_host(
+    public_id: str,
+    body: TarkovRaidRoomHostIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomDetailOut:
+    """房主把房主转让给在座成员。"""
+    try:
+        data = rooms_svc.transfer_host(db, public_id, user, body.user_id)
+    except rooms_svc.RaidRoomError as exc:
+        db.rollback()
+        _raise(exc)
+        raise
+    db.commit()
+    _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 

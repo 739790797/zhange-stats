@@ -10,6 +10,9 @@ import {
   type RaidRoomMapOverlapLike,
   type RaidRoomMemberProgressLike,
 } from "@/lib/tarkovRaidRooms";
+import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
+import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
 import styles from "./TarkovRaidRoomOverlapBoard.module.css";
 
 type MemberLike = {
@@ -25,6 +28,8 @@ type Props = {
   isHost: boolean;
   picking?: boolean;
   currentMapSlug?: string;
+  previewMapSlug?: string;
+  onPreviewMap?: (mapSlug: string) => void;
   onPickMap?: (mapSlug: string) => void;
 };
 
@@ -55,7 +60,7 @@ function CountTip({
   uploaded,
   children,
 }: {
-  tasks: { id: string; name: string }[];
+  tasks: { id: string; name: string; trader_slug?: string }[];
   uploaded: boolean;
   children: ReactNode;
 }) {
@@ -65,7 +70,18 @@ function CountTip({
       ? (
           <ul className={styles.tipList}>
             {tasks.map((task) => (
-              <li key={task.id}>{task.name || task.id}</li>
+              <li key={task.id} className={styles.tipTask}>
+                {task.trader_slug ? (
+                  <TarkovTraderThumb
+                    slug={task.trader_slug}
+                    size={18}
+                    title={task.trader_slug}
+                  />
+                ) : (
+                  <span className={styles.tipTraderSlot} aria-hidden />
+                )}
+                <span>{task.name || task.id}</span>
+              </li>
             ))}
           </ul>
         )
@@ -76,7 +92,7 @@ function CountTip({
       mouseEnterDelay={0.08}
       mouseLeaveDelay={0.08}
       placement="top"
-      zIndex={1200}
+      zIndex={2100}
       overlayClassName={styles.tip}
       getPopupContainer={() => document.body}
     >
@@ -93,6 +109,8 @@ export function TarkovRaidRoomOverlapBoard({
   isHost,
   picking = false,
   currentMapSlug = "",
+  previewMapSlug = "",
+  onPreviewMap,
   onPickMap,
 }: Props) {
   const labelById = useMemo(() => {
@@ -128,6 +146,8 @@ export function TarkovRaidRoomOverlapBoard({
       }),
     [members, progress],
   );
+  const { status: goonStatus } = useTarkovGoonTracker();
+  const goonMapSlug = goonStatus?.map_slug || "";
 
   return (
     <div className={styles.board}>
@@ -179,12 +199,28 @@ export function TarkovRaidRoomOverlapBoard({
                     currentMapSlug && row.map_slug === currentMapSlug
                       ? ` ${styles.rowCurrent}`
                       : ""
+                  }${
+                    previewMapSlug && row.map_slug === previewMapSlug
+                      ? ` ${styles.rowPreview}`
+                      : ""
+                  }${
+                    goonMapSlug && row.map_slug === goonMapSlug
+                      ? ` ${styles.rowGoon}`
+                      : ""
                   }`}
+                  onClick={
+                    onPreviewMap
+                      ? () => onPreviewMap(row.map_slug)
+                      : undefined
+                  }
                 >
                   <th scope="row">
                     <div className={styles.mapCell}>
                       <OverlapThumb slug={row.map_slug} />
-                      <span className={styles.mapName}>{label}</span>
+                      <span className={styles.mapText}>
+                        <span className={styles.mapName}>{label}</span>
+                        <TarkovGoonSightingHint mapId={row.map_slug} />
+                      </span>
                     </div>
                   </th>
                   {members.map((member) => {
@@ -197,6 +233,7 @@ export function TarkovRaidRoomOverlapBoard({
                     ).map((task) => ({
                       id: task.id,
                       name: task.name || task.id,
+                      trader_slug: task.trader_slug || "",
                     }));
                     return (
                       <td key={member.user_id} className={styles.userCol}>
@@ -224,7 +261,10 @@ export function TarkovRaidRoomOverlapBoard({
                         type="button"
                         className={styles.pickBtn}
                         disabled={picking}
-                        onClick={() => onPickMap(row.map_slug)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onPickMap(row.map_slug);
+                        }}
                       >
                         {currentMapSlug && row.map_slug === currentMapSlug
                           ? "继续这张图"

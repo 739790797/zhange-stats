@@ -2654,6 +2654,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-rooms/{public_id}/host": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Tarkov Raid Room Host
+         * @description 房主把房主转让给在座成员。
+         */
+        post: operations["transfer_tarkov_raid_room_host_api_guides_tarkov_raid_rooms__public_id__host_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-rooms/{public_id}/task-progress": {
         parameters: {
             query?: never;
@@ -2838,6 +2858,26 @@ export interface paths {
         put?: never;
         /** Clear Tarkov Raid Room Marks */
         post: operations["clear_tarkov_raid_room_marks_api_guides_tarkov_raid_rooms__public_id__marks_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/goons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Goons
+         * @description 当前模式三狗最近出现的地图；数据来自 Stammtisch 聚合。
+         */
+        get: operations["guides_tarkov_goons_api_guides_tarkov_goons_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3093,7 +3133,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Prep
-         * @description 战局准备：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。
+         * @description 联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。
          */
         get: operations["guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get"];
         put?: never;
@@ -3113,7 +3153,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Prep State Get
-         * @description 单人战局准备：当前模式/地图的勾选、目标完成和钥匙声明。
+         * @description 联机大厅单人准备：当前模式/地图的勾选、目标完成和钥匙声明。
          */
         get: operations["guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get"];
         /** Guides Tarkov Raid Prep State Put */
@@ -3234,7 +3274,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Boss Catalog
-         * @description BOSS 目录：头像 / 英文名 / 中文昵称 / 出生地图。
+         * @description BOSS 目录：头像 / 英文名 / 出生地图。
          */
         get: operations["guides_tarkov_boss_catalog_api_guides_tarkov_bosses_get"];
         put?: never;
@@ -3538,7 +3578,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Logs List
-         * @description 最近导入的战局摘要，可供战局准备战后结算。
+         * @description 最近导入的战局摘要，可供联机大厅战后结算。
          */
         get: operations["guides_tarkov_raid_logs_list_api_guides_tarkov_raid_logs_get"];
         put?: never;
@@ -9256,11 +9296,6 @@ export interface components {
             /** Name */
             name: string;
             /**
-             * Nickname
-             * @default
-             */
-            nickname: string;
-            /**
              * Kind
              * @description boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵
              * @default boss
@@ -9317,6 +9352,16 @@ export interface components {
              */
             wiki_link: string;
             /**
+             * Parent Ids
+             * @description 护卫所属父级 mob id（如 bossGluhar）；具名 BOSS 为空
+             */
+            parent_ids?: string[];
+            /**
+             * Spawn Groups
+             * @description 同一套刷法（随从+落地）合并多图；地点横向、随从只写一次
+             */
+            spawn_groups?: components["schemas"]["TarkovBossSpawnGroupOut"][];
+            /**
              * Description
              * @default
              */
@@ -9355,11 +9400,6 @@ export interface components {
              * @default
              */
             name: string;
-            /**
-             * Nickname
-             * @default
-             */
-            nickname: string;
             /**
              * Count
              * @default 0
@@ -9402,11 +9442,6 @@ export interface components {
             /** Name */
             name: string;
             /**
-             * Nickname
-             * @default
-             */
-            nickname: string;
-            /**
              * Kind
              * @description boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵
              * @default boss
@@ -9462,6 +9497,16 @@ export interface components {
              * @default
              */
             wiki_link: string;
+            /**
+             * Parent Ids
+             * @description 护卫所属父级 mob id（如 bossGluhar）；具名 BOSS 为空
+             */
+            parent_ids?: string[];
+            /**
+             * Spawn Groups
+             * @description 同一套刷法（随从+落地）合并多图；地点横向、随从只写一次
+             */
+            spawn_groups?: components["schemas"]["TarkovBossSpawnGroupOut"][];
         };
         /** TarkovBossLootOut */
         TarkovBossLootOut: {
@@ -9521,6 +9566,53 @@ export interface components {
              */
             spawn_chance: string;
         };
+        /** TarkovBossSpawnGroupMapOut */
+        TarkovBossSpawnGroupMapOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Spawn Chance
+             * @default
+             */
+            spawn_chance: string;
+        };
+        /** TarkovBossSpawnGroupOut */
+        TarkovBossSpawnGroupOut: {
+            /** Maps */
+            maps?: components["schemas"]["TarkovBossSpawnGroupMapOut"][];
+            /**
+             * Shared Spawn Chance
+             * @default
+             */
+            shared_spawn_chance: string;
+            /**
+             * Land Label
+             * @default
+             */
+            land_label: string;
+            /** Locations */
+            locations?: components["schemas"]["TarkovBossSpawnLocationOut"][];
+            /** Escorts */
+            escorts?: components["schemas"]["TarkovBossEscortOut"][];
+            /**
+             * Show Location Chance
+             * @default false
+             */
+            show_location_chance: boolean;
+        };
         /** TarkovBossSpawnLocationOut */
         TarkovBossSpawnLocationOut: {
             /**
@@ -9543,6 +9635,20 @@ export interface components {
              * @default 0
              */
             chance: number;
+            /** Positions */
+            positions?: components["schemas"]["TarkovBossSpawnPointOut"][];
+        };
+        /** TarkovBossSpawnPointOut */
+        TarkovBossSpawnPointOut: {
+            /** X */
+            x: number;
+            /**
+             * Y
+             * @default 0
+             */
+            y: number;
+            /** Z */
+            z: number;
         };
         /** TarkovBossesSyncOut */
         TarkovBossesSyncOut: {
@@ -9715,6 +9821,49 @@ export interface components {
              * @default ok
              */
             message: string;
+        };
+        /**
+         * TarkovGoonTrackerOut
+         * @description 社区上报的三狗最近出现地图（PVP / PVE 分开）。
+         */
+        TarkovGoonTrackerOut: {
+            /**
+             * Game Mode
+             * @default pvp
+             */
+            game_mode: string;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug: string;
+            /**
+             * Map Name
+             * @default
+             */
+            map_name: string;
+            /**
+             * Map English
+             * @default
+             */
+            map_english: string;
+            /** Seen At */
+            seen_at?: string | null;
+            /**
+             * Report Id
+             * @default
+             */
+            report_id: string;
+            /**
+             * Source
+             * @default tarkov-stammtisch
+             */
+            source: string;
+            /**
+             * Source Url
+             * @default
+             */
+            source_url: string;
         };
         /** TarkovGuideItemRefOut */
         TarkovGuideItemRefOut: {
@@ -10962,6 +11111,11 @@ export interface components {
             /** Game Mode */
             game_mode: string;
         };
+        /** TarkovRaidRoomHostIn */
+        TarkovRaidRoomHostIn: {
+            /** User Id */
+            user_id: number;
+        };
         /** TarkovRaidRoomJoinIn */
         TarkovRaidRoomJoinIn: {
             /** Game Mode */
@@ -11221,6 +11375,11 @@ export interface components {
              * @default
              */
             name: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
             /** User Ids */
             user_ids?: number[];
         };
@@ -17779,6 +17938,44 @@ export interface operations {
             };
         };
     };
+    transfer_tarkov_raid_room_host_api_guides_tarkov_raid_rooms__public_id__host_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomHostIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     put_tarkov_raid_room_task_progress_api_guides_tarkov_raid_rooms__public_id__task_progress_put: {
         parameters: {
             query?: {
@@ -18267,6 +18464,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_goons_api_guides_tarkov_goons_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovGoonTrackerOut"];
                 };
             };
             /** @description Validation Error */

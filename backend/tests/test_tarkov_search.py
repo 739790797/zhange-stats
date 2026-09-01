@@ -48,6 +48,21 @@ def test_pick_hits_matches_task_locale_name():
     assert picked[0]["id"] == "t1"
 
 
+def test_boss_search_alias_matches_community_name():
+    rows = search._boss_search_rows(
+        [{"slug": "reshala", "name": "Reshala", "maps_label": "海关"}]
+    )
+    assert rows[0]["search_alias"] == "沙拉"
+    picked, total = search.pick_hits(
+        rows,
+        "沙拉",
+        ("name", "search_alias", "slug", "id", "maps_label"),
+        limit=10,
+    )
+    assert total == 1
+    assert picked[0]["slug"] == "reshala"
+
+
 def test_search_site_blank_query_skips_db():
     out = search.search_site(None, "  ")  # type: ignore[arg-type]
     assert out["q"] == ""

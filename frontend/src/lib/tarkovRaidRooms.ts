@@ -373,6 +373,7 @@ export type RaidRoomOverlapCellLike = {
 export type RaidRoomOverlapTaskLike = {
   id: string;
   name?: string;
+  trader_slug?: string;
   user_ids?: number[];
 };
 
@@ -449,6 +450,31 @@ export function sortRaidRoomMapOverlap(
     if (total) return total;
     return (order.get(left.map_slug) ?? 99) - (order.get(right.map_slug) ?? 99);
   });
+}
+
+/** 选图页右侧任务栏默认预览哪张图：三狗图 → 重叠表前列 → 当前图 → 目录第一张。 */
+export function raidRoomPickDockMapId(opts: {
+  goonMapSlug?: string | null;
+  overlapSlugs?: readonly string[];
+  mapOptionIds?: readonly string[];
+  currentMapId?: string | null;
+}): string {
+  const allowed = new Set(
+    (opts.mapOptionIds || []).map((id) => String(id || "").trim()).filter(Boolean),
+  );
+  const pick = (raw: string | null | undefined) => {
+    const id = String(raw || "").trim();
+    if (!id) return "";
+    if (allowed.size && !allowed.has(id)) return "";
+    return id;
+  };
+  const goon = pick(opts.goonMapSlug);
+  if (goon) return goon;
+  for (const slug of opts.overlapSlugs || []) {
+    const id = pick(slug);
+    if (id) return id;
+  }
+  return pick(opts.currentMapId) || String(opts.mapOptionIds?.[0] || "").trim();
 }
 
 export type RaidRoomClaimGroup = {

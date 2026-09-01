@@ -1,4 +1,4 @@
-"""塔科夫战局准备房间：固定席位、并集勾选、自由涂鸦画板。"""
+"""塔科夫联机大厅房间：固定席位、并集勾选、自由涂鸦画板。"""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ class RaidRoomError(Exception):
 
 
 def normalize_room_map_slug(raw: str) -> str:
-    """与战局准备页短 id 对齐（streets / lab / night-factory 等）。"""
+    """与联机大厅页短 id 对齐（streets / lab / night-factory 等）。"""
     key = (raw or "").strip().lower()
     if not key:
         return ""
@@ -253,9 +253,19 @@ def active_started_ids(
     return [tid for tid in _task_id_list(started_ids, cap=MAX_STARTED_TASKS) if tid not in done]
 
 
+def catalog_task_meta(raw: Any, tid: str) -> tuple[str, str]:
+    """目录项：旧格式是任务名，新格式是 {name, trader_slug}。"""
+    if isinstance(raw, dict):
+        name = str(raw.get("name") or "").strip() or tid
+        trader = str(raw.get("trader_slug") or "").strip()
+        return name, trader
+    text = str(raw or "").strip()
+    return (text or tid), ""
+
+
 def build_raid_room_map_overlap(
     occupants: list[dict[str, Any]],
-    catalogs: dict[str, dict[str, str]],
+    catalogs: dict[str, dict[str, Any]],
     map_order: list[str],
 ) -> list[dict[str, Any]]:
     """按图汇总各人进行中任务数。occupants: user_id / uploaded / started_ids。"""
@@ -290,16 +300,22 @@ def build_raid_room_map_overlap(
                     task_users.setdefault(tid, []).append(uid)
         ranked = sorted(
             task_users.items(),
-            key=lambda item: (names.get(item[0], ""), item[0]),
+            key=lambda item: (
+                catalog_task_meta(names.get(item[0]), item[0])[0],
+                item[0],
+            ),
         )
-        tasks_out = [
-            {
-                "id": tid,
-                "name": names.get(tid, tid),
-                "user_ids": uids,
-            }
-            for tid, uids in ranked[:OVERLAP_TASK_CAP]
-        ]
+        tasks_out = []
+        for tid, uids in ranked[:OVERLAP_TASK_CAP]:
+            name, trader_slug = catalog_task_meta(names.get(tid), tid)
+            tasks_out.append(
+                {
+                    "id": tid,
+                    "name": name,
+                    "trader_slug": trader_slug,
+                    "user_ids": uids,
+                }
+            )
         rows.append(
             {
                 "map_slug": slug,
@@ -1369,6 +1385,30 @@ def remove_member(
         raise RaidRoomError("该成员不在房间内", 404)
     db.delete(row)
     _drop_member_contrib(db, room.id, uid)
+    db.flush()
+    return serialize_room(db, room, viewer=host)
+
+
+def transfer_host(
+    db: Session,
+    public_id: str,
+    host: User,
+    target_user_id: int,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    del now
+    room = _get_room(db, public_id)
+    if room.host_user_id != host.id:
+        raise RaidRoomError("只有房主可以转让房主", 403)
+    uid = int(target_user_id)
+    if uid == host.id:
+        raise RaidRoomError("不能转让给自己", 400)
+    row = _member(db, room.id, uid)
+    if row is None or row.left_at is not None:
+        raise RaidRoomError("该成员不在房间内", 404)
+    room.host_user_id = row.user_id
+    room.host_display_name = row.display_name
     db.flush()
     return serialize_room(db, room, viewer=host)
 

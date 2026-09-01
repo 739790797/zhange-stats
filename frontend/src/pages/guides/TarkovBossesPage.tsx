@@ -8,7 +8,6 @@ export default function TarkovBossesPage() {
       crumbs={[]}
       sectionLabel="BOSS"
       code="DATABASE_SEC_BOSSES"
-      subtitle="按 Boss / Elite / Soldier 分组"
     >
       <TarkovBossesHubPanel />
     </TarkovItemsPageShell>

@@ -15,6 +15,8 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import { useAuthStore } from "@/stores/authStore";
 import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
+import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
+import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
 import mapStyles from "./TarkovMapsPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -63,31 +65,37 @@ function MapThumb({
 export function MapPickGrid({
   options,
   selectedId,
+  goonMapSlug,
   onPick,
 }: {
   options: RaidPrepMapOption[];
   selectedId?: string;
+  goonMapSlug?: string;
   onPick: (id: string) => void;
 }) {
   return (
     <div className={`${mapStyles.grid} ${styles.entryMapGrid}`}>
       {options.map((option) => {
         const on = option.id === selectedId;
+        const goon = Boolean(goonMapSlug && option.id === goonMapSlug);
         return (
           <button
             key={option.id}
             type="button"
             className={`${mapStyles.card} ${styles.pickCard} ${
               on ? styles.entryMapOn : ""
-            }`}
+            } ${goon ? styles.entryMapGoon : ""}`}
             onClick={() => onPick(option.id)}
           >
             <div className={mapStyles.thumbWrap}>
               <MapThumb slug={option.id} icon={option.icon} />
             </div>
             <div className={mapStyles.body}>
-              <div className={mapStyles.name}>{option.label}</div>
+              <div className={`${mapStyles.name} ${styles.pickName}`}>
+                {option.label}
+              </div>
               <div className={mapStyles.english}>{option.english}</div>
+              {goon ? <TarkovGoonSightingHint mapId={option.id} /> : null}
             </div>
           </button>
         );
@@ -99,7 +107,7 @@ export function MapPickGrid({
 function modalTitle(step: RaidPrepEntryStep): string {
   if (step === "solo") return "选择地图";
   if (step === "join") return "选择房间";
-  return "战局准备";
+  return "联机大厅";
 }
 
 export function TarkovRaidPrepEntryModal({
@@ -116,6 +124,7 @@ export function TarkovRaidPrepEntryModal({
   const [joinText, setJoinText] = useState("");
   const [joinError, setJoinError] = useState("");
   const mapOptions = useMemo(() => raidPrepMapOptions(), []);
+  const { status: goonStatus } = useTarkovGoonTracker();
 
   useEffect(() => {
     if (!open) return;
@@ -199,6 +208,7 @@ export function TarkovRaidPrepEntryModal({
         <MapPickGrid
           options={mapOptions}
           selectedId={currentMapId || undefined}
+          goonMapSlug={goonStatus?.map_slug || undefined}
           onPick={pickSolo}
         />
       ) : null}

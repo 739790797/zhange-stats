@@ -27,6 +27,7 @@ import {
   setTarkovRaidRoomMap,
   setTarkovRaidRoomPassword,
   tarkovRaidRoomWsUrl,
+  transferTarkovRaidRoomHost,
   removeTarkovKeyOwn,
   unbringTarkovRaidRoomKey,
   unclaimTarkovRaidRoomTask,
@@ -35,10 +36,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode, useTarkovGameModeControls, parseTarkovGameMode } from "@/lib/tarkovGameMode";
-import {
-  TARKOV_RAID_PREP_PATH,
-  tarkovRaidRoomShareUrl,
-} from "@/lib/tarkovHomeNav";
+import { TARKOV_RAID_PREP_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
@@ -95,6 +93,7 @@ import {
   overlayRaidRoomLocalPhase,
   normalizeRaidRoomRaidId,
   raidRoomCanAutoSwitchMap,
+  raidRoomPickDockMapId,
   raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
   patchRaidRoomKeyOwns,
@@ -121,6 +120,11 @@ import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrep
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
 import { TarkovRaidRoomOverlapBoard } from "@/components/guides/tarkov/TarkovRaidRoomOverlapBoard";
+import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
+import {
+  TarkovGoonRoomNotice,
+  TarkovGoonSightingHint,
+} from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { useAuthStore } from "@/stores/authStore";
 import catalogCss from "./TarkovItemCatalogPanel.module.css";
@@ -160,12 +164,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [ocrOpen, setOcrOpen] = useState(false);
   const [highlightTaskId, setHighlightTaskId] = useState("");
   const [dockOpen, setDockOpen] = useTarkovRaidDockOpen();
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [mapPickView, setMapPickView] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [previewMapId, setPreviewMapId] = useState("");
   const [pickingMap, setPickingMap] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [joinPassword, setJoinPassword] = useState("");
   const [passwordDraft, setPasswordDraft] = useState("");
+  const [managePassLocked, setManagePassLocked] = useState(true);
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
@@ -216,6 +221,32 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const mapId = room?.map_slug || "";
   const mapIdRef = useRef(mapId);
   mapIdRef.current = mapId;
+  const showOverlap = !mapId;
+  const mapOptions = useMemo(() => raidPrepMapOptions(), []);
+  const { status: goonStatus } = useTarkovGoonTracker();
+  const overlapSlugs = useMemo(
+    () => (room?.map_overlap || []).map((row) => row.map_slug).filter(Boolean),
+    [room?.map_overlap],
+  );
+  const defaultDockMapId = useMemo(
+    () =>
+      raidRoomPickDockMapId({
+        goonMapSlug: goonStatus?.map_slug,
+        overlapSlugs,
+        mapOptionIds: mapOptions.map((item) => item.id),
+        currentMapId: mapId,
+      }),
+    [goonStatus?.map_slug, mapId, mapOptions, overlapSlugs],
+  );
+  const dockMapId = showOverlap ? previewMapId || defaultDockMapId : mapId;
+  const canClaimOnDock = Boolean(canEdit && mapId && dockMapId === mapId);
+  useEffect(() => {
+    if (!showOverlap) return;
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(min-width: 981px)").matches) {
+      setDockOpen(true);
+    }
+  }, [setDockOpen, showOverlap]);
   const canEditRef = useRef(canEdit);
   canEditRef.current = canEdit;
   const roomObjDonesRef = useRef(room?.objective_dones);
@@ -403,9 +434,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   }, [keyword]);
 
   const prepQuery = useQuery({
-    queryKey: ["guides-tarkov-raid-prep", gameMode, mapId],
-    queryFn: () => fetchTarkovRaidPrep({ map: mapId }),
-    enabled: Boolean(mapId),
+    queryKey: ["guides-tarkov-raid-prep", gameMode, dockMapId],
+    queryFn: () => fetchTarkovRaidPrep({ map: dockMapId }),
+    enabled: Boolean(dockMapId),
     staleTime: 5 * 60_000,
     retry: 1,
   });
@@ -529,6 +560,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       removeTarkovRaidRoomMember(publicId, userId),
     onSuccess: (next) => applyRoom(next),
     onError: (exc) => setError(apiError(exc, "移除失败")),
+  });
+  const transferMut = useMutation({
+    mutationFn: (userId: number) =>
+      transferTarkovRaidRoomHost(publicId, userId),
+    onSuccess: (next) => {
+      applyRoom(next);
+      if (!next.is_host) setManageOpen(false);
+    },
+    onError: (exc) => setError(apiError(exc, "转让房主失败")),
   });
   const leaveMut = useMutation({
     mutationFn: () => leaveTarkovRaidRoom(publicId),
@@ -745,8 +785,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     });
     return map;
   }, [groups]);
-  const mapOptions = useMemo(() => raidPrepMapOptions(), []);
   const currentMap = mapOptions.find((item) => item.id === mapId);
+  const dockMapLabel =
+    mapOptions.find((item) => item.id === dockMapId)?.label || dockMapId;
   const mapLabel = currentMap?.label || mapId;
   const title = (room?.title || "").trim() || `${publicId}号房`;
   const members =
@@ -783,17 +824,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   );
 
   const askChangeMap = () => {
-    Modal.confirm({
-      title: "回到任务统计？",
-      content:
-        "将回到开房时的地图任务统计。点一张图才会换图，并清空当前点位、勾选、钥匙和完成进度。",
-      okText: "回到统计",
-      cancelText: "取消",
-      onOk: () => {
-        setMapPickView(true);
-        setDockOpen(false);
-      },
-    });
+    setPreviewMapId(mapId);
+    setStatsOpen(true);
   };
 
   const echoedRaidId =
@@ -819,7 +851,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const pickMapAndSeed = (nextMap: string, fromLog = false) => {
     if (!nextMap || pickingMap) return;
     if (nextMap === mapId) {
-      setMapPickView(false);
+      setStatsOpen(false);
       return;
     }
     const apply = async () => {
@@ -827,7 +859,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       try {
         const mapped = await run(() => setTarkovRaidRoomMap(publicId, nextMap));
         if (!mapped) return;
-        setMapPickView(false);
+        setStatsOpen(false);
         const seeded = await run(() =>
           seedTarkovRaidRoomClaimsFromProgress(publicId),
         );
@@ -845,6 +877,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         setPickingMap(false);
       }
     };
+    if (mapId && !fromLog) {
+      Modal.confirm({
+        title: "切换到该地图？",
+        content: "换图会清空当前点位、勾选、钥匙和完成进度。",
+        okText: "换图",
+        cancelText: "取消",
+        zIndex: 1100,
+        onOk: () => apply(),
+      });
+      return;
+    }
     void apply();
   };
 
@@ -881,7 +924,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   const toggleClaim = useCallback(
     (taskId: string) => {
-      if (!canEdit) return;
+      if (!canClaimOnDock) return;
       if (myClaims.has(taskId)) {
         void run(() => unclaimTarkovRaidRoomTask(publicId, taskId));
         return;
@@ -899,11 +942,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       }
       void run(() => claimTarkovRaidRoomTask(publicId, taskId));
     },
-    [canEdit, doneTaskIds, groups, myClaims, publicId, run, startedTaskIds],
+    [canClaimOnDock, doneTaskIds, groups, myClaims, publicId, run, startedTaskIds],
   );
 
   useEffect(() => {
-    if (!canEdit || !mapId || !room?.is_member || !prepQuery.isSuccess) return;
+    if (!canEdit || !mapId || dockMapId !== mapId || !room?.is_member || !prepQuery.isSuccess) return;
     const key = `${publicId}:${mapId}:${gameMode}`;
     if (autoClaimKeyRef.current === key) return;
     autoClaimKeyRef.current = key;
@@ -919,6 +962,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   }, [
     canEdit,
     catalog,
+    dockMapId,
     gameMode,
     groups,
     mapId,
@@ -930,7 +974,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   ]);
 
   const syncFromTaskProgress = () => {
-    if (!canEdit) return;
+    if (!canClaimOnDock) return;
     const plan = planRaidPrepTaskProgressSync({
       catalogIds: catalog.map((row) => row.id),
       selectedIds: myClaimIds,
@@ -1248,8 +1292,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   }
   if (!room) return null;
 
-  const showOverlap = !mapId || mapPickView;
-
   return (
     <div
       className={styles.stage}
@@ -1276,7 +1318,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         <div className={styles.roomId}>
           <h1 className={styles.roomTitle}>{title}</h1>
           <div className={styles.roomMeta}>
-            {mapLabel || "未选地图"} · {room.member_count}/{room.max_members}
+            {mapLabel || "未选地图"}
+            {mapId ? (
+              <TarkovGoonSightingHint mapId={mapId} variant="inline" />
+            ) : null}
+            {" · "}
+            {room.member_count}/{room.max_members}
             {room.has_password ? " · 有密码" : ""}
             {" · "}
             <span
@@ -1329,59 +1376,23 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           })}
         </div>
         <div className={styles.topActions}>
-          {mapId && !mapPickView ? (
-            <button
-              type="button"
-              className={styles.dockToggle}
-              aria-expanded={dockOpen}
-              aria-controls="tarkov-raid-dock"
-              onClick={() => setDockOpen((open) => !open)}
-            >
-              {dockOpen ? "收起任务" : "任务列表"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className={styles.dockChip}
-            onClick={() => {
-              const url = tarkovRaidRoomShareUrl(
-                publicId,
-                window.location.origin,
-              );
-              void navigator.clipboard.writeText(url).then(
-                () => {
-                  setCopiedLink(true);
-                  window.setTimeout(() => setCopiedLink(false), 1600);
-                },
-                () => setCopiedLink(false),
-              );
-            }}
-          >
-            {copiedLink ? "已复制" : "复制链接"}
-          </button>
-          {canSwitchMap && mapId && !mapPickView ? (
+          {room.is_member && mapId ? (
             <button
               type="button"
               className={styles.dockChip}
               onClick={askChangeMap}
             >
-              更换地图
-            </button>
-          ) : null}
-          {canSwitchMap && mapPickView && mapId ? (
-            <button
-              type="button"
-              className={styles.dockChip}
-              onClick={() => setMapPickView(false)}
-            >
-              取消换图
+              各图任务
             </button>
           ) : null}
           {room.is_host ? (
             <button
               type="button"
               className={styles.dockChip}
-              onClick={() => setManageOpen(true)}
+              onClick={() => {
+                setManagePassLocked(true);
+                setManageOpen(true);
+              }}
             >
               房间管理
             </button>
@@ -1432,7 +1443,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
       <div className={styles.workspace}>
         <div className={styles.mapPane}>
-          {mapId && !mapPickView ? (
+          {mapId ? <TarkovGoonRoomNotice mapId={mapId} /> : null}
+          {room.is_member ? (
             <button
               type="button"
               className={styles.dockEdge}
@@ -1509,11 +1521,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             {showOverlap ? (
               room.is_member ? (
                 <div className={styles.mapPickPane}>
-                  {mapPickView && mapId ? (
-                    <p className={styles.mapPickHint}>
-                      点一张图才会换图并清空进度；点当前地图或「取消换图」则返回。
-                    </p>
-                  ) : null}
                   <TarkovRaidRoomOverlapBoard
                     rows={room.map_overlap || []}
                     members={members}
@@ -1522,6 +1529,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     isHost={canSwitchMap}
                     picking={pickingMap}
                     currentMapSlug={mapId || undefined}
+                    previewMapSlug={dockMapId || undefined}
+                    onPreviewMap={setPreviewMapId}
                     onPickMap={canSwitchMap ? pickMapAndSeed : undefined}
                   />
                 </div>
@@ -1607,7 +1616,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             )}
           </div>
         </div>
-        {mapId && !mapPickView ? (
+        {room.is_member ? (
         <aside
           id="tarkov-raid-dock"
           className={styles.dock}
@@ -1618,7 +1627,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             onKeyword={setKeyword}
             leading={
               <div className={styles.dockLeadActions}>
-                {canEdit ? (
+                {showOverlap ? (
+                  <p className={styles.dockHint}>
+                    {dockMapLabel
+                      ? `预览${dockMapLabel}任务`
+                      : "点左侧地图预览任务"}
+                    {canClaimOnDock
+                      ? "；可勾进本房"
+                      : "。选好地图后可勾进房间"}
+                  </p>
+                ) : null}
+                {canClaimOnDock ? (
                   <>
                     <button
                       type="button"
@@ -1657,7 +1676,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   <TarkovRaidPrepTaskCard
                     key={row.id}
                     row={row}
-                    mapSlug={mapId}
+                    mapSlug={dockMapId}
                     compact
                     checked={myClaims.has(row.id)}
                     highlighted={myClaims.has(row.id)}
@@ -1670,11 +1689,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         : undefined
                     }
                     disabled={!canEdit}
+                    claimDisabled={!canClaimOnDock}
                     skipped={raidPrepSkippedIds(objDone, row.id)}
                     onToggleObjective={toggleObjDone}
                     onToggle={toggleClaim}
-                    onNeedDetail={geometry.ensure}
-                    onLocate={locateTask}
+                    onNeedDetail={showOverlap ? undefined : geometry.ensure}
+                    onLocate={showOverlap ? undefined : locateTask}
                     onTitle={openGuide}
                     onSetStatus={changeTaskStatus}
                   />
@@ -1698,72 +1718,166 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         }}
       />
       <Modal
-        title="房间管理"
+        title="各图任务"
+        open={statsOpen}
+        onCancel={() => setStatsOpen(false)}
+        footer={null}
+        width={960}
+        destroyOnClose
+        classNames={{ body: styles.entryModalBody }}
+      >
+        {canSwitchMap ? (
+          <p className={styles.mapPickHint}>
+            数字是各人进行中的本图任务。点「选这张图」才会换图，并清空当前点位、勾选、钥匙和完成进度。
+          </p>
+        ) : (
+          <p className={styles.mapPickHint}>
+            数字是各人进行中的本图任务。
+          </p>
+        )}
+        <TarkovRaidRoomOverlapBoard
+          rows={room.map_overlap || []}
+          members={members}
+          progress={room.task_progress || []}
+          mapOptions={mapOptions}
+          isHost={canSwitchMap}
+          picking={pickingMap}
+          currentMapSlug={mapId || undefined}
+          previewMapSlug={previewMapId || mapId || undefined}
+          onPreviewMap={setPreviewMapId}
+          onPickMap={canSwitchMap ? pickMapAndSeed : undefined}
+        />
+      </Modal>
+      <Modal
+        title={
+          <div className={styles.manageModalHead}>
+            <span>房间管理</span>
+            <button
+              type="button"
+              className={styles.manageModalClose}
+              aria-label="关闭"
+              onClick={() => setManageOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+        }
         open={manageOpen}
         onCancel={() => setManageOpen(false)}
         footer={null}
-        width={420}
+        width={460}
         destroyOnClose
+        closable={false}
+        className={styles.manageModal}
+        classNames={{
+          content: styles.manageModalContent,
+          body: styles.manageModalBody,
+        }}
+        styles={{
+          body: { paddingTop: 24 },
+        }}
       >
-        <div className={styles.manageList}>
-          {members.map((row) => (
-            <div key={row.user_id} className={styles.manageRow}>
-              <span className={styles.manageName}>
-                <span
-                  className={styles.memberDot}
-                  style={{ background: colorForUserId(row.user_id) }}
-                />
-                {row.display_name}
-                {row.is_host ? " · 房主" : ""}
-              </span>
-              {!row.is_host ? (
-                <button
-                  type="button"
-                  className={styles.dockChip}
-                  disabled={kickMut.isPending}
-                  onClick={() => {
-                    Modal.confirm({
-                      title: `移除 ${row.display_name}？`,
-                      content: "会请出房间，并去掉此人的任务勾选、钥匙声明和完成进度。",
-                      okText: "移除",
-                      cancelText: "取消",
-                      onOk: () => kickMut.mutateAsync(row.user_id),
-                    });
-                  }}
-                >
-                  移除
-                </button>
-              ) : (
-                <span className={styles.manageHostMark}>自己</span>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className={styles.managePassword}>
+        <section className={styles.manageSection}>
+          <h2 className={styles.manageSectionTitle}>成员</h2>
+          <div className={styles.manageList}>
+            {members.map((row) => (
+              <div key={row.user_id} className={styles.manageRow}>
+                <span className={styles.manageName}>
+                  <span
+                    className={styles.memberDot}
+                    style={{ background: colorForUserId(row.user_id) }}
+                  />
+                  <span className={styles.manageNameText}>{row.display_name}</span>
+                  {row.is_host ? (
+                    <span className={styles.manageHostTag}>房主</span>
+                  ) : null}
+                </span>
+                {!row.is_host ? (
+                  <div className={styles.manageRowActions}>
+                    <button
+                      type="button"
+                      className={styles.dockChip}
+                      disabled={transferMut.isPending}
+                      onClick={() => {
+                        Modal.confirm({
+                          title: `将房主转让给 ${row.display_name}？`,
+                          content: "对方将成为房主，你可以继续留在房间。",
+                          okText: "转让",
+                          cancelText: "取消",
+                          onOk: () => transferMut.mutateAsync(row.user_id),
+                        });
+                      }}
+                    >
+                      转让房主
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.dockChip}
+                      disabled={kickMut.isPending}
+                      onClick={() => {
+                        Modal.confirm({
+                          title: `移除 ${row.display_name}？`,
+                          content: "会请出房间，并去掉此人的任务勾选、钥匙声明和完成进度。",
+                          okText: "移除",
+                          cancelText: "取消",
+                          onOk: () => kickMut.mutateAsync(row.user_id),
+                        });
+                      }}
+                    >
+                      移除
+                    </button>
+                  </div>
+                ) : (
+                  <span className={styles.manageHostMark}>自己</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+        <form
+          className={styles.manageSection}
+          autoComplete="off"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const next = passwordDraft.trim();
+            if (!next || passwordMut.isPending) return;
+            passwordMut.mutate(next);
+          }}
+        >
+          <h2 className={styles.manageSectionTitle}>房间密码</h2>
           <p className={styles.managePasswordHint}>
             {room.has_password
               ? "已设密码，未入座的人需要输入才能加入"
               : "未设密码，大厅点一下即可加入"}
           </p>
-          <Input.Password
-            value={passwordDraft}
-            onChange={(event) => setPasswordDraft(event.target.value)}
-            placeholder={room.has_password ? "输入新密码" : "设置密码"}
-            maxLength={32}
-          />
+          <div className={styles.managePasswordRow}>
+            <Input.Password
+              value={passwordDraft}
+              onChange={(event) => setPasswordDraft(event.target.value)}
+              placeholder={room.has_password ? "输入新密码" : "输入密码"}
+              maxLength={32}
+              name="tarkov-raid-room-pass"
+              autoComplete="new-password"
+              autoCorrect="off"
+              spellCheck={false}
+              readOnly={managePassLocked}
+              onFocus={() => setManagePassLocked(false)}
+              data-1p-ignore="true"
+              data-lpignore="true"
+            />
+          </div>
           <div className={styles.managePasswordActions}>
             <button
-              type="button"
+              type="submit"
               className={styles.dockChip}
               disabled={passwordMut.isPending || !passwordDraft.trim()}
-              onClick={() => passwordMut.mutate(passwordDraft.trim())}
             >
               {room.has_password ? "修改密码" : "设置密码"}
             </button>
             {room.has_password ? (
               <button
                 type="button"
-                className={styles.dockChip}
+                className={styles.manageTextBtn}
                 disabled={passwordMut.isPending}
                 onClick={() => passwordMut.mutate("")}
               >
@@ -1771,11 +1885,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               </button>
             ) : null}
           </div>
-        </div>
+        </form>
         <div className={styles.manageFooter}>
           <button
             type="button"
-            className={styles.dockChip}
+            className={`${styles.dockChip} ${styles.manageDanger}`}
             disabled={resetMut.isPending}
             onClick={() => {
               Modal.confirm({

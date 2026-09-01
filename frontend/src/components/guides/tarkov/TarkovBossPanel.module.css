@@ -46,11 +46,6 @@
   line-height: 1.15;
 }
 
-.nickname {
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 18px;
-}
-
 .wiki {
   margin-left: auto;
   color: var(--hb-muted, #b0ae9a);
@@ -180,10 +175,23 @@
   text-transform: none;
 }
 
-.itemCell {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+.followerCell {
+  opacity: 0.92;
+}
+
+.treeTable :global(.ant-table-row-expand-icon) {
+  background: transparent;
+  border-color: #5a5c4e;
+  color: #c8c4b0;
+}
+
+.treeTable :global(.ant-table-row-expand-icon:hover) {
+  color: var(--hb-orange, #c8932a);
+  border-color: var(--hb-orange, #c8932a);
+}
+
+.treeTable :global(.ant-table-row-level-1 > td) {
+  color: #d0ccb8;
 }
 
 .traderCell {
@@ -200,8 +208,11 @@
   background: #101010;
 }
 
-.money {
-  font-variant-numeric: tabular-nums;
+.itemCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .section {
@@ -246,6 +257,108 @@
 .mapChance {
   color: var(--hb-orange, #c8932a);
   font-variant-numeric: tabular-nums;
+}
+
+.mapChipLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mapChipLink:hover .mapChip,
+.mapChipLink:hover .escortChip {
+  color: var(--hb-orange, #c8932a);
+}
+
+.spawnGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.spawnGroup {
+  padding: 12px 14px 14px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1b14;
+}
+
+.spawnCombo {
+  color: var(--hb-orange, #c8932a);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.spawnMaps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+}
+
+.spawnRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px 14px;
+  margin-top: 10px;
+}
+
+.spawnRowLabel {
+  flex: none;
+  width: 36px;
+  color: #8a8c78;
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.spawnRowBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.schemeList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schemeLine {
+  color: #eee9d6;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.locChip,
+.escortChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid #3a3d30;
+  color: #d8d4b8;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.escortChip {
+  color: #eee9d6;
+}
+
+.landValue {
+  color: #eee9d6;
+  font-size: 13px;
+}
+
+.hubNameCell {
+  vertical-align: top;
+}
+
+.hubTable :global(.ant-table-cell) {
+  vertical-align: top;
+}
+
+.hubTable :global(.ant-table-cell).hubMergeCell {
+  vertical-align: middle;
 }
 
 @media (max-width: 860px) {

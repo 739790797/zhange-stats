@@ -1,4 +1,4 @@
-"""战局准备房间 WebSocket 广播（进程内；当前单 app 副本）。"""
+"""联机大厅房间 WebSocket 广播（进程内；当前单 app 副本）。"""
 
 from __future__ import annotations
 

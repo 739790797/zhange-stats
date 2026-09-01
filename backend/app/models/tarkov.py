@@ -165,7 +165,7 @@ class TarkovGun(Base):
 
 
 class TarkovRaidRoom(Base):
-    """战局准备席位房：PVP / PVE 各 5 张公开桌；房主可设密码；换图或清空不留档。"""
+    """联机大厅席位房：PVP / PVE 各 5 张公开桌；房主可设密码；换图或清空不留档。"""
 
     __tablename__ = "tarkov_raid_rooms"
     __table_args__ = (Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),)
@@ -330,7 +330,7 @@ class TarkovUserRaidLog(Base):
 
 
 class TarkovUserRaidPrep(Base):
-    """单人战局准备：按账号 / 模式 / 地图保存勾选、目标完成和钥匙声明。"""
+    """联机大厅单人准备：按账号 / 模式 / 地图保存勾选、目标完成和钥匙声明。"""
 
     __tablename__ = "tarkov_user_raid_preps"
 

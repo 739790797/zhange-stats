@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -147,9 +148,15 @@ async def lifespan(_: FastAPI):
         scheduler.running,
         (cfg.STATIC_DIR or "").strip() or "(unset)",
     )
+    from app.services.tarkov import goon_tracker as goon_tracker_svc
+    from app.services.tarkov.goon_tracker_hub import hub as goon_hub
+
+    goon_hub.bind_loop(asyncio.get_running_loop())
+    goon_tracker_svc.start_poller()
     yield
 
     logger.info("shutdown begin")
+    goon_tracker_svc.stop_poller()
     close_http_client()
     if scheduler.running:
         logger.info("shutdown: stopping scheduler")

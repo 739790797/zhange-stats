@@ -246,7 +246,7 @@ export function setTaskStatus(
   return { done: [...done], started: [...started] };
 }
 
-/** 写下拉状态到本机进度，并通知战局准备 / 个人中心刷新。 */
+/** 写下拉状态到本机进度，并通知联机大厅 / 个人中心刷新。 */
 export function commitTaskStatus(
   mode: TarkovGameMode,
   taskId: string,

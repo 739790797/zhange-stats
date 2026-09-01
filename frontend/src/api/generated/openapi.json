@@ -8015,6 +8015,77 @@
         }
       }
     },
+    "/api/guides/tarkov/raid-rooms/{public_id}/host": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Transfer Tarkov Raid Room Host",
+        "description": "房主把房主转让给在座成员。",
+        "operationId": "transfer_tarkov_raid_room_host_api_guides_tarkov_raid_rooms__public_id__host_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomHostIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/raid-rooms/{public_id}/task-progress": {
       "put": {
         "tags": [
@@ -8970,6 +9041,58 @@
         }
       }
     },
+    "/api/guides/tarkov/goons": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Goons",
+        "description": "当前模式三狗最近出现的地图；数据来自 Stammtisch 聚合。",
+        "operationId": "guides_tarkov_goons_api_guides_tarkov_goons_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovGoonTrackerOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/sync": {
       "post": {
         "tags": [
@@ -9793,7 +9916,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Prep",
-        "description": "战局准备：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。",
+        "description": "联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。",
         "operationId": "guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get",
         "security": [
           {
@@ -9933,7 +10056,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Prep State Get",
-        "description": "单人战局准备：当前模式/地图的勾选、目标完成和钥匙声明。",
+        "description": "联机大厅单人准备：当前模式/地图的勾选、目标完成和钥匙声明。",
         "operationId": "guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get",
         "security": [
           {
@@ -10400,7 +10523,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Boss Catalog",
-        "description": "BOSS 目录：头像 / 英文名 / 中文昵称 / 出生地图。",
+        "description": "BOSS 目录：头像 / 英文名 / 出生地图。",
         "operationId": "guides_tarkov_boss_catalog_api_guides_tarkov_bosses_get",
         "security": [
           {
@@ -11690,7 +11813,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Logs List",
-        "description": "最近导入的战局摘要，可供战局准备战后结算。",
+        "description": "最近导入的战局摘要，可供联机大厅战后结算。",
         "operationId": "guides_tarkov_raid_logs_list_api_guides_tarkov_raid_logs_get",
         "security": [
           {
@@ -24511,11 +24634,6 @@
             "type": "string",
             "title": "Name"
           },
-          "nickname": {
-            "type": "string",
-            "title": "Nickname",
-            "default": ""
-          },
           "kind": {
             "type": "string",
             "title": "Kind",
@@ -24571,6 +24689,22 @@
             "type": "string",
             "title": "Wiki Link",
             "default": ""
+          },
+          "parent_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parent Ids",
+            "description": "护卫所属父级 mob id（如 bossGluhar）；具名 BOSS 为空"
+          },
+          "spawn_groups": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossSpawnGroupOut"
+            },
+            "type": "array",
+            "title": "Spawn Groups",
+            "description": "同一套刷法（随从+落地）合并多图；地点横向、随从只写一次"
           },
           "description": {
             "type": "string",
@@ -24671,11 +24805,6 @@
             "title": "Name",
             "default": ""
           },
-          "nickname": {
-            "type": "string",
-            "title": "Nickname",
-            "default": ""
-          },
           "count": {
             "type": "integer",
             "title": "Count",
@@ -24737,11 +24866,6 @@
             "type": "string",
             "title": "Name"
           },
-          "nickname": {
-            "type": "string",
-            "title": "Nickname",
-            "default": ""
-          },
           "kind": {
             "type": "string",
             "title": "Kind",
@@ -24797,6 +24921,22 @@
             "type": "string",
             "title": "Wiki Link",
             "default": ""
+          },
+          "parent_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parent Ids",
+            "description": "护卫所属父级 mob id（如 bossGluhar）；具名 BOSS 为空"
+          },
+          "spawn_groups": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossSpawnGroupOut"
+            },
+            "type": "array",
+            "title": "Spawn Groups",
+            "description": "同一套刷法（随从+落地）合并多图；地点横向、随从只写一次"
           }
         },
         "type": "object",
@@ -24907,6 +25047,74 @@
         ],
         "title": "TarkovBossMapOut"
       },
+      "TarkovBossSpawnGroupMapOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "spawn_chance": {
+            "type": "string",
+            "title": "Spawn Chance",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovBossSpawnGroupMapOut"
+      },
+      "TarkovBossSpawnGroupOut": {
+        "properties": {
+          "maps": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossSpawnGroupMapOut"
+            },
+            "type": "array",
+            "title": "Maps"
+          },
+          "shared_spawn_chance": {
+            "type": "string",
+            "title": "Shared Spawn Chance",
+            "default": ""
+          },
+          "land_label": {
+            "type": "string",
+            "title": "Land Label",
+            "default": ""
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossSpawnLocationOut"
+            },
+            "type": "array",
+            "title": "Locations"
+          },
+          "escorts": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossEscortOut"
+            },
+            "type": "array",
+            "title": "Escorts"
+          },
+          "show_location_chance": {
+            "type": "boolean",
+            "title": "Show Location Chance",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TarkovBossSpawnGroupOut"
+      },
       "TarkovBossSpawnLocationOut": {
         "properties": {
           "map": {
@@ -24928,10 +25136,40 @@
             "type": "number",
             "title": "Chance",
             "default": 0
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossSpawnPointOut"
+            },
+            "type": "array",
+            "title": "Positions"
           }
         },
         "type": "object",
         "title": "TarkovBossSpawnLocationOut"
+      },
+      "TarkovBossSpawnPointOut": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "default": 0
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "z"
+        ],
+        "title": "TarkovBossSpawnPointOut"
       },
       "TarkovBossesSyncOut": {
         "properties": {
@@ -25357,6 +25595,59 @@
           "failed_count"
         ],
         "title": "TarkovFullSyncOut"
+      },
+      "TarkovGoonTrackerOut": {
+        "properties": {
+          "game_mode": {
+            "type": "string",
+            "title": "Game Mode",
+            "default": "pvp"
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
+          },
+          "map_name": {
+            "type": "string",
+            "title": "Map Name",
+            "default": ""
+          },
+          "map_english": {
+            "type": "string",
+            "title": "Map English",
+            "default": ""
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At"
+          },
+          "report_id": {
+            "type": "string",
+            "title": "Report Id",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "tarkov-stammtisch"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovGoonTrackerOut",
+        "description": "社区上报的三狗最近出现地图（PVP / PVE 分开）。"
       },
       "TarkovGuideItemRefOut": {
         "properties": {
@@ -27604,6 +27895,20 @@
         ],
         "title": "TarkovRaidRoomGameModeIn"
       },
+      "TarkovRaidRoomHostIn": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "TarkovRaidRoomHostIn"
+      },
       "TarkovRaidRoomJoinIn": {
         "properties": {
           "game_mode": {
@@ -28177,6 +28482,11 @@
           "name": {
             "type": "string",
             "title": "Name",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
             "default": ""
           },
           "user_ids": {

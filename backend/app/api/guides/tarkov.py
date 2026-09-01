@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.guides import tarkov_raid_rooms
+from app.api.guides import tarkov_goons, tarkov_raid_rooms
 from app.api.guides.schemas import (
     TarkovAmmoCatalogOut,
     TarkovAmmoDetailOut,
@@ -97,6 +97,7 @@ router.dependencies.append(Depends(tarkov_game_mode))
 # include 会把当时的父级 deps 拍进子路由；先 include 再 append 的话
 # GET /raid-rooms 吃不到 game_mode，大厅永远按 PVP 五桌返回。
 router.include_router(tarkov_raid_rooms.router)
+router.include_router(tarkov_goons.router)
 
 
 def _parse_str_list(raw: str | None) -> list[str]:
@@ -488,7 +489,7 @@ def guides_tarkov_raid_prep(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """战局准备：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。"""
+    """联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。"""
     type_list = _parse_csv_ids(types)
     id_list = _parse_csv_ids(ids)[:40]
     try:
@@ -519,7 +520,7 @@ def guides_tarkov_raid_prep_state_get(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """单人战局准备：当前模式/地图的勾选、目标完成和钥匙声明。"""
+    """联机大厅单人准备：当前模式/地图的勾选、目标完成和钥匙声明。"""
     try:
         data = raid_prep_state_svc.get_state(db, user, map_slug)
     except raid_prep_state_svc.TarkovRaidPrepStateError as exc:
@@ -688,7 +689,7 @@ def guides_tarkov_boss_catalog(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """BOSS 目录：头像 / 英文名 / 中文昵称 / 出生地图。"""
+    """BOSS 目录：头像 / 英文名 / 出生地图。"""
     _ = user
     try:
         result = bosses_svc.list_bosses(db)
@@ -1084,7 +1085,7 @@ def guides_tarkov_raid_logs_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """最近导入的战局摘要，可供战局准备战后结算。"""
+    """最近导入的战局摘要，可供联机大厅战后结算。"""
     data = raid_logs_svc.list_raids(
         db, user, map_id=map_id or "", limit=limit
     )

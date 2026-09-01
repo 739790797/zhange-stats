@@ -1,0 +1,69 @@
+.hint {
+  display: block;
+  margin-top: 2px;
+  color: #e24a4a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.hintInline {
+  display: inline;
+  margin-left: 8px;
+  color: #e24a4a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.hintTile {
+  display: block;
+  color: #e24a4a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roomNoticeSlot {
+  position: absolute;
+  z-index: 515;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100% - 280px));
+  pointer-events: none;
+}
+
+.roomNotice {
+  padding: 7px 14px;
+  border: 1px solid rgba(226, 74, 74, 0.75);
+  background: rgba(18, 10, 10, 0.9);
+  color: #e24a4a;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 980px) {
+  .roomNoticeSlot {
+    top: 8px;
+    left: 12px;
+    right: 12px;
+    transform: none;
+    max-width: none;
+  }
+
+  .roomNotice {
+    white-space: normal;
+  }
+}

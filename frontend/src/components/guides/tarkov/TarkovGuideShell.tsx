@@ -4,9 +4,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
 import {
-  groupBossesByKind,
-  TARKOV_BOSS_KIND_LABELS,
-  TARKOV_BOSS_KINDS,
+  groupBossCatalogTree,
+  TARKOV_BOSS_HUB_SECTION_LABELS,
 } from "@/lib/tarkovBossKinds";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
@@ -24,6 +23,7 @@ import {
   TarkovLiveWatchProvider,
   useTarkovLiveWatch,
 } from "@/lib/tarkovLiveWatchContext";
+import { TarkovGoonTrackerProvider } from "@/lib/tarkovGoonTrackerLive";
 import {
   formatLiveWatchLogLine,
   formatLiveWatchShotLine,
@@ -238,19 +238,25 @@ export function TarkovGuideShell({ children }: Props) {
   const navItems = useMemo(() => {
     const bosses = bossesQuery.data?.items;
     if (!bosses?.length) return TARKOV_TOP_NAV;
-    const grouped = groupBossesByKind(bosses);
+    const grouped = groupBossCatalogTree(bosses);
     return TARKOV_TOP_NAV.map((item) => {
       if (item.id !== "bosses") return item;
+      const sections: Array<{
+        id: "boss" | "other";
+        rows: typeof grouped.bosses;
+      }> = [
+        { id: "boss", rows: grouped.bosses },
+        { id: "other", rows: grouped.others },
+      ];
       return {
         ...item,
-        groups: TARKOV_BOSS_KINDS.flatMap((kind) => {
-          const items = grouped[kind];
-          if (!items.length) return [];
+        groups: sections.flatMap((section) => {
+          if (!section.rows.length) return [];
           return [
             {
-              id: kind,
-              label: TARKOV_BOSS_KIND_LABELS[kind],
-              items: items.map((boss) => ({
+              id: section.id,
+              label: TARKOV_BOSS_HUB_SECTION_LABELS[section.id],
+              items: section.rows.map((boss) => ({
                 id: boss.id || boss.slug,
                 label: boss.name,
                 href: tarkovBossHref(boss.slug),
@@ -266,6 +272,7 @@ export function TarkovGuideShell({ children }: Props) {
   return (
     <TarkovThemed>
     <TarkovLiveWatchProvider>
+    <TarkovGoonTrackerProvider>
     <div className={styles.shell}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
@@ -376,6 +383,7 @@ export function TarkovGuideShell({ children }: Props) {
       </header>
       <div className={styles.body}>{children}</div>
     </div>
+    </TarkovGoonTrackerProvider>
     </TarkovLiveWatchProvider>
     </TarkovThemed>
   );

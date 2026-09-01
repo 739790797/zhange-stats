@@ -2,24 +2,16 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import {
-  fetchTarkovBosses,
-  fetchTarkovSiteSearch,
-  type TarkovBossListItem,
-} from "@/api/guidesApi";
+import { fetchTarkovSiteSearch } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
-import { filterCatalogBosses } from "@/lib/tarkovBossKinds";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
-  TARKOV_HOME_BOSSES,
   TARKOV_HOME_ITEM_GROUPS,
   TARKOV_HOME_TRADERS,
   TARKOV_MAPS,
-  bossPortraitUrl,
   buildHomeSearchIndex,
   buildSiteSearchSections,
-  tarkovBossHref,
   traderPortraitUrl,
   type TarkovMapCard,
   type TarkovSiteSearchRow,
@@ -27,6 +19,9 @@ import {
 import { TarkovHomeToolRail } from "@/components/guides/tarkov/TarkovHomeToolRail";
 import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
+import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
+import { sameGoonMap } from "@/lib/tarkovGoonTracker";
+import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
 import styles from "./TarkovHomeView.module.css";
 
 function SearchIcon() {
@@ -65,94 +60,24 @@ function SectionHead({
   );
 }
 
-function spawnAccent(label: string): string {
-  const nums = [...label.matchAll(/(\d+)/g)].map((m) => Number(m[1]));
-  const n = nums.length ? Math.max(...nums) : 0;
-  if (n >= 40) return "#c8932a";
-  if (n >= 15) return "#7ab648";
-  return "#d44a4a";
-}
-
-type HomeBossRow = {
-  id: string;
-  href: string;
-  name: string;
-  nickname?: string;
-  map: string;
-  spawn: string;
-  guards: string;
-  accent: string;
-  portrait: string;
-};
-
-function homeBossesFromApi(items: TarkovBossListItem[]): HomeBossRow[] {
-  return filterCatalogBosses(items).map((item) => ({
-    id: item.id || item.slug,
-    href: tarkovBossHref(item.slug),
-    name: item.name,
-    nickname: item.nickname || "",
-    map: item.maps_label || "—",
-    spawn: item.spawn_short || item.spawn_label || "—",
-    guards: item.escorts_label || "—",
-    accent: spawnAccent(item.spawn_short || item.spawn_label || ""),
-    portrait: item.portrait_link || "",
-  }));
-}
-
-function homeBossesFallback(): HomeBossRow[] {
-  return TARKOV_HOME_BOSSES.map((row) => ({
-    id: row.id,
-    href: row.href,
-    name: row.label,
-    nickname: row.nickname,
-    map: row.map,
-    spawn: row.spawn,
-    guards: row.guards,
-    accent: row.accent,
-    portrait: bossPortraitUrl(row.id),
-  }));
-}
-
-function BossName({ row }: { row: HomeBossRow }) {
-  const [broken, setBroken] = useState(false);
-  const src = row.portrait;
-  return (
-    <span className={styles.bossName}>
-      {src && !broken ? (
-        <img
-          className={styles.bossAvatar}
-          src={src}
-          alt=""
-          width={56}
-          height={56}
-          loading="lazy"
-          decoding="async"
-          onError={() => setBroken(true)}
-        />
-      ) : (
-        <span
-          className={styles.bossTick}
-          style={{ background: row.accent }}
-          aria-hidden
-        />
-      )}
-      {row.name}
-    </span>
-  );
-}
-
 function HomeTile({
   href,
   icon,
   label,
   soon,
+  goon,
+  extra,
 }: {
   href: string;
   icon: string;
   label: string;
   soon?: boolean;
+  goon?: boolean;
+  extra?: ReactNode;
 }) {
-  const className = `${styles.mapCard} ${soon ? styles.mapSoon : ""}`;
+  const className = `${styles.mapCard} ${soon ? styles.mapSoon : ""} ${
+    goon ? styles.mapGoon : ""
+  }`.trim();
   const body = (
     <>
       <svg
@@ -164,16 +89,21 @@ function HomeTile({
       >
         <path d={icon} fill="currentColor" />
       </svg>
-      <span className={styles.mapName}>
-        {label}
-        {soon ? <span className={styles.mapSoonMark}>即将推出</span> : null}
+      <span className={styles.mapText}>
+        <span className={styles.mapName}>{label}</span>
+        {extra}
       </span>
     </>
   );
 
   if (soon) {
     return (
-      <span className={className} aria-disabled="true">
+      <span
+        className={className}
+        aria-disabled="true"
+        aria-label={`${label}，即将推出`}
+        title="即将推出"
+      >
         {body}
       </span>
     );
@@ -187,12 +117,21 @@ function HomeTile({
 }
 
 function MapCard({ item }: { item: TarkovMapCard }) {
+  const soon = item.status === "soon" || Boolean(item.comingSoon);
+  const { status } = useTarkovGoonTracker();
+  const goon = !soon && sameGoonMap(item.id, status?.map_slug);
   return (
     <HomeTile
       href={item.href}
       icon={item.icon}
       label={item.label}
-      soon={item.status === "soon" || Boolean(item.comingSoon)}
+      soon={soon}
+      goon={goon}
+      extra={
+        soon ? undefined : (
+          <TarkovGoonSightingHint mapId={item.id} variant="tile" />
+        )
+      }
     />
   );
 }
@@ -248,12 +187,6 @@ export function TarkovHomeView() {
   const [draft, setDraft] = useState(committed);
   const index = useMemo(() => buildHomeSearchIndex(), []);
   const searching = committed.length > 0;
-  const bossesQuery = useQuery({
-    queryKey: ["guides-tarkov-bosses", gameMode],
-    queryFn: fetchTarkovBosses,
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
   const searchQuery = useQuery({
     queryKey: ["guides-tarkov-search", gameMode, committed],
     queryFn: () => fetchTarkovSiteSearch(committed),
@@ -261,11 +194,6 @@ export function TarkovHomeView() {
     staleTime: 60_000,
     retry: 1,
   });
-  const bossRows = useMemo(() => {
-    const items = bossesQuery.data?.items;
-    if (items?.length) return homeBossesFromApi(items);
-    return homeBossesFallback();
-  }, [bossesQuery.data]);
   const sections = useMemo(
     () => buildSiteSearchSections(committed, searchQuery.data, index),
     [committed, searchQuery.data, index],
@@ -344,8 +272,8 @@ export function TarkovHomeView() {
             <>
               <section>
                 <SectionHead
-                  title="战局准备"
-                  en="Raid Prep"
+                  title="联机大厅"
+                  en="Lobby"
                   extra={
                     <button
                       type="button"
@@ -416,37 +344,6 @@ export function TarkovHomeView() {
                       />
                       <div className={styles.traderEnglish}>{item.english}</div>
                       <div className={styles.traderChinese}>{item.chinese}</div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <SectionHead title="BOSS" extra="出生率 / 保镖数" />
-                <div className={styles.bossTable}>
-                  <div className={styles.bossHead}>
-                    <span>名称</span>
-                    <span>昵称</span>
-                    <span>地图</span>
-                    <span>出生率</span>
-                    <span>保镖</span>
-                  </div>
-                  {bossRows.map((row) => (
-                    <Link
-                      key={row.id}
-                      to={row.href}
-                      className={styles.bossRow}
-                    >
-                      <BossName row={row} />
-                      <span className={styles.bossNick}>{row.nickname || ""}</span>
-                      <span className={styles.bossMap}>{row.map}</span>
-                      <span
-                        className={styles.bossSpawn}
-                        style={{ color: row.accent }}
-                      >
-                        {row.spawn}
-                      </span>
-                      <span className={styles.bossGuards}>{row.guards}</span>
                     </Link>
                   ))}
                 </div>

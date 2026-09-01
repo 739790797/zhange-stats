@@ -42,6 +42,16 @@ SLUG_ALIASES = {
     "usec": "vs-rf-sniper",
 }
 
+# 社区俗称只用于站内搜索，不进公开 schema / 页面。
+NICKNAMES: dict[str, str] = {
+    "reshala": "沙拉",
+    "tagilla": "锤哥",
+    "glukhar": "火车头",
+    "knight": "骑士",
+    "big-pipe": "大管",
+    "birdeye": "鸟眼",
+}
+
 # json dump 里 vsRF / vsRFSniper / Sentry 共用 normalizedName=af，中文还可能撞名「俄军」。
 # 不可再标成 BEAR/USEC：PvE 另有 pmcBEAR / pmcUSEC。
 MOB_DISPLAY_NAMES: dict[str, str] = {
@@ -96,15 +106,6 @@ ELITE_SLUGS = frozenset(
         "bloodhound",
     }
 )
-
-NICKNAMES: dict[str, str] = {
-    "reshala": "沙拉",
-    "tagilla": "锤哥",
-    "glukhar": "火车头",
-    "knight": "骑士",
-    "big-pipe": "大管",
-    "birdeye": "鸟眼",
-}
 
 BEHAVIOR_ZH: dict[str, str] = {
     "Patrol": "巡逻",
@@ -398,6 +399,14 @@ def _slim_positions(raw: Any) -> list[dict[str, float]]:
     return [point] if point else out
 
 
+def _location_positions(loc: dict[str, Any]) -> list[dict[str, float]]:
+    out = _slim_positions(loc.get("positions"))
+    if out:
+        return out
+    point = map_xyz(loc)
+    return [point] if point else []
+
+
 def resolve_boss_slug(slug: str) -> str:
     key = (slug or "").strip().lower()
     return SLUG_ALIASES.get(key, key)
@@ -631,6 +640,13 @@ def slim_maps_payload(
                 {
                     "mob": mob_id,
                     "spawnChance": _as_float(spawn.get("spawnChance"), 0) or 0,
+                    "spawnTime": _as_int(spawn.get("spawnTime"), -1),
+                    "spawnTimeRandom": bool(spawn.get("spawnTimeRandom")),
+                    "spawnTrigger": (
+                        str(spawn.get("spawnTrigger")).strip()
+                        if spawn.get("spawnTrigger") not in (None, "")
+                        else ""
+                    ),
                     "spawnLocations": _slim_locations(
                         spawn.get("spawnLocations"), locale
                     ),
@@ -778,6 +794,20 @@ def classify_boss_kind(mob_id: str, slug: str = "") -> str:
     return BOSS_KIND_BOSS
 
 
+def _spawn_mob_ids(spawn: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    mob_id = str(spawn.get("mob") or "").strip()
+    if mob_id:
+        ids.append(mob_id)
+    for esc in spawn.get("escorts") or []:
+        if not isinstance(esc, dict):
+            continue
+        esc_id = str(esc.get("mob") or "").strip()
+        if esc_id:
+            ids.append(esc_id)
+    return ids
+
+
 def _spawn_mobs(
     maps: dict[str, dict[str, Any]],
     mobs: dict[str, dict[str, Any]],
@@ -789,13 +819,42 @@ def _spawn_mobs(
         for spawn in map_raw.get("bosses") or []:
             if not isinstance(spawn, dict):
                 continue
-            mob_id = str(spawn.get("mob") or "").strip()
-            if not mob_id or mob_id in out:
-                continue
-            raw = mobs.get(mob_id)
-            if isinstance(raw, dict):
-                out[mob_id] = raw
+            for mob_id in _spawn_mob_ids(spawn):
+                if mob_id in out:
+                    continue
+                raw = mobs.get(mob_id)
+                if isinstance(raw, dict):
+                    out[mob_id] = raw
     return out
+
+
+def _ensure_map_entry(
+    row: dict[str, Any],
+    *,
+    map_id: str,
+    map_slug: str,
+    map_name: str,
+    raid_duration: int = 0,
+) -> dict[str, Any]:
+    map_entry = next(
+        (m for m in row["maps"] if m.get("id") == map_id or m.get("slug") == map_slug),
+        None,
+    )
+    if map_entry is None:
+        map_entry = {
+            "id": map_id,
+            "slug": map_slug,
+            "name": map_name,
+            "raid_duration": raid_duration,
+            "spawns": [],
+            "waves": [],
+            "escorts": [],
+        }
+        row["maps"].append(map_entry)
+    elif raid_duration and not map_entry.get("raid_duration"):
+        map_entry["raid_duration"] = raid_duration
+    map_entry.setdefault("waves", [])
+    return map_entry
 
 
 def assign_boss_slugs(mobs_by_id: dict[str, dict[str, Any]]) -> dict[str, str]:
@@ -851,6 +910,205 @@ def _escorts_label(escorts: list[dict[str, Any]]) -> str:
     return f"×{lo}–{hi}"
 
 
+def land_label(
+    spawn_time: int | None,
+    *,
+    random: bool = False,
+    trigger: str = "",
+    raid_duration: int = 0,
+) -> str:
+    """落地文案：开局 / N分钟 / 触发 / 9999 或超局时则与战局时间无关。
+
+    spawnTimeRandom 不单独成文案：社区按开局落地，不按局内随机时间。
+    """
+    trig = str(trigger or "").strip()
+    if random:
+        return "开局"
+    time = -1 if spawn_time is None else int(spawn_time)
+    raid_sec = max(int(raid_duration or 0), 0) * 60
+    if time >= 9999 or (raid_sec > 0 and time > raid_sec):
+        return "与战局时间无关"
+    if trig:
+        return "触发后落地"
+    if time <= -1:
+        return "开局"
+    if time >= 60:
+        mins = int(round(time / 60))
+        return f"{mins}分钟"
+    return f"{time}秒"
+
+
+def _location_chance(
+    spawn_chance: float,
+    loc: dict[str, Any],
+    locations: list[Any],
+) -> float:
+    loc_chance = float(loc.get("chance") or 0)
+    multi = len(locations) > 1
+    if loc_chance >= 0.999:
+        chance = spawn_chance
+    elif multi and loc_chance == 1:
+        chance = spawn_chance
+    else:
+        chance = loc_chance
+    if chance == 0:
+        chance = spawn_chance
+    return chance
+
+
+def _escort_recipe_key(escorts: list[dict[str, Any]]) -> tuple[tuple[str, int, float], ...]:
+    return tuple(
+        sorted(
+            (
+                str(e.get("slug") or ""),
+                int(e.get("count") or 0),
+                round(float(e.get("chance") or 0), 4),
+            )
+            for e in escorts
+        )
+    )
+
+
+def _wave_escorts(
+    spawn: dict[str, Any],
+    mobs: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+    *,
+    map_name: str,
+    map_slug: str,
+) -> list[dict[str, Any]]:
+    escorts: list[dict[str, Any]] = []
+    for esc in spawn.get("escorts") or []:
+        if not isinstance(esc, dict):
+            continue
+        esc_mob_id = str(esc.get("mob") or "").strip()
+        esc_mob = mobs.get(esc_mob_id) if isinstance(mobs.get(esc_mob_id), dict) else {}
+        esc_slug = str((esc_mob or {}).get("normalizedName") or "").strip()
+        esc_name = (
+            _mob_name(esc_mob_id, esc_mob, locale) if esc_mob else esc_mob_id
+        )
+        for amt in esc.get("amount") or [{"chance": 1, "count": 1}]:
+            if not isinstance(amt, dict):
+                continue
+            escorts.append(
+                {
+                    "slug": esc_slug,
+                    "name": esc_name,
+                    "count": int(amt.get("count") or 0),
+                    "chance": float(amt.get("chance") or 0),
+                    "map": map_name,
+                    "map_slug": map_slug,
+                }
+            )
+    return escorts
+
+
+def _build_spawn_groups(row: dict[str, Any]) -> list[dict[str, Any]]:
+    buckets: dict[tuple[Any, ...], dict[str, Any]] = {}
+    order: list[tuple[Any, ...]] = []
+    for m in row.get("maps") or []:
+        raid = int(m.get("raid_duration") or 0)
+        waves = list(m.get("waves") or [])
+        if not waves:
+            for spawn in m.get("spawns") or []:
+                waves.append(
+                    {
+                        "chance": float(spawn.get("chance") or 0),
+                        "locations": spawn.get("locations") or [],
+                        "escorts": m.get("escorts") or [],
+                        "spawn_time": -1,
+                        "spawn_time_random": False,
+                        "trigger": "",
+                    }
+                )
+        for wave in waves:
+            spawn_chance = float(wave.get("chance") or 0)
+            land = land_label(
+                _as_int(wave.get("spawn_time"), -1),
+                random=bool(wave.get("spawn_time_random")),
+                trigger=str(wave.get("trigger") or ""),
+                raid_duration=raid,
+            )
+            escorts = [
+                {
+                    "slug": str(e.get("slug") or ""),
+                    "name": str(e.get("name") or ""),
+                    "count": int(e.get("count") or 0),
+                    "chance": float(e.get("chance") or 0),
+                }
+                for e in (wave.get("escorts") or [])
+                if isinstance(e, dict)
+            ]
+            key = (_escort_recipe_key(escorts), land)
+            bucket = buckets.get(key)
+            if bucket is None:
+                bucket = {
+                    "maps": [],
+                    "land_label": land,
+                    "locations": [],
+                    "escorts": escorts,
+                    "chances": [],
+                }
+                buckets[key] = bucket
+                order.append(key)
+            chance_text = _spawn_percent([spawn_chance])
+            map_id = str(m.get("id") or "")
+            map_slug = str(m.get("slug") or "")
+            if not any(
+                item.get("id") == map_id or item.get("slug") == map_slug
+                for item in bucket["maps"]
+            ):
+                bucket["maps"].append(
+                    {
+                        "id": map_id,
+                        "slug": map_slug,
+                        "name": str(m.get("name") or map_slug),
+                        "spawn_chance": chance_text,
+                    }
+                )
+                bucket["chances"].append(chance_text)
+            locs = wave.get("locations") or []
+            for loc in locs:
+                if not isinstance(loc, dict):
+                    continue
+                name = str(loc.get("name") or "").strip()
+                if not name:
+                    continue
+                bucket["locations"].append(
+                    {
+                        "map": m.get("name") or "",
+                        "map_slug": map_slug,
+                        "name": name,
+                        "chance": _location_chance(spawn_chance, loc, locs),
+                        "positions": _location_positions(loc),
+                    }
+                )
+    groups: list[dict[str, Any]] = []
+    for key in order:
+        bucket = buckets[key]
+        chances = [c for c in bucket["chances"] if c]
+        shared = (
+            chances[0]
+            if chances and len(chances) == len(bucket["maps"]) and all(c == chances[0] for c in chances)
+            else ""
+        )
+        loc_keys = {
+            round(float(loc.get("chance") or 0) * 1000)
+            for loc in bucket["locations"]
+        }
+        groups.append(
+            {
+                "maps": bucket["maps"],
+                "shared_spawn_chance": shared,
+                "land_label": bucket["land_label"],
+                "locations": bucket["locations"],
+                "escorts": bucket["escorts"],
+                "show_location_chance": len(loc_keys) > 1,
+            }
+        )
+    return groups
+
+
 def _finish_boss_row(row: dict[str, Any]) -> dict[str, Any]:
     spawn_bits: list[str] = []
     map_names: list[str] = []
@@ -868,25 +1126,19 @@ def _finish_boss_row(row: dict[str, Any]) -> dict[str, Any]:
         for spawn in m.get("spawns") or []:
             spawn_chance = float(spawn.get("chance") or 0)
             locs = spawn.get("locations") or []
-            multi = len(locs) > 1
             for loc in locs:
                 if not isinstance(loc, dict):
                     continue
-                loc_chance = float(loc.get("chance") or 0)
-                if loc_chance >= 0.999:
-                    chance = spawn_chance
-                elif multi and loc_chance == 1:
-                    chance = spawn_chance
-                else:
-                    chance = loc_chance
-                if chance == 0:
-                    chance = spawn_chance
+                name = str(loc.get("name") or "").strip()
+                if not name:
+                    continue
                 locations.append(
                     {
                         "map": m.get("name"),
                         "map_slug": m.get("slug"),
-                        "name": loc.get("name") or "",
-                        "chance": chance,
+                        "name": name,
+                        "chance": _location_chance(spawn_chance, loc, locs),
+                        "positions": _location_positions(loc),
                     }
                 )
     row["maps_label"] = "、".join([n for n in map_names if n])
@@ -895,6 +1147,7 @@ def _finish_boss_row(row: dict[str, Any]) -> dict[str, Any]:
     row["escorts"] = escorts
     row["escorts_label"] = _escorts_label(escorts)
     row["spawn_locations"] = locations
+    row["spawn_groups"] = _build_spawn_groups(row)
     return row
 
 
@@ -928,14 +1181,12 @@ def _project_mob(
         raw.get("health") if isinstance(raw.get("health"), list) else [],
         locale,
     )
-    nick_key = slug if slug in NICKNAMES else norm
     return {
         "id": str(raw.get("id") or mob_id),
         "slug": slug,
         "kind": classify_boss_kind(str(raw.get("id") or mob_id), slug),
         "normalized_name": norm,
         "name": _mob_name(str(raw.get("id") or mob_id), raw, locale),
-        "nickname": NICKNAMES.get(nick_key, ""),
         "behavior": behavior,
         "behavior_zh": _behavior_zh(behavior),
         "description": str(i18n.get("description") or "").strip(),
@@ -948,6 +1199,7 @@ def _project_mob(
         "maps": [],
         "item_ids": list(raw.get("items") or []),
         "equipment": list(raw.get("equipment") or []),
+        "parent_ids": [],
     }
 
 
@@ -969,6 +1221,7 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
         map_slug = str(map_raw.get("normalizedName") or "").strip()
         map_name = _map_zh(map_raw, locale)
         map_id = str(map_raw.get("id") or "").strip()
+        raid_duration = _as_int(map_raw.get("raidDuration"), 0) or 0
         for spawn in map_raw.get("bosses") or []:
             if not isinstance(spawn, dict):
                 continue
@@ -976,53 +1229,63 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
             row = by_id.get(mob_id)
             if row is None:
                 continue
-            map_entry = next(
-                (m for m in row["maps"] if m.get("id") == map_id or m.get("slug") == map_slug),
-                None,
+            map_entry = _ensure_map_entry(
+                row,
+                map_id=map_id,
+                map_slug=map_slug,
+                map_name=map_name,
+                raid_duration=int(raid_duration),
             )
-            if map_entry is None:
-                map_entry = {
-                    "id": map_id,
-                    "slug": map_slug,
-                    "name": map_name,
-                    "spawns": [],
-                    "escorts": [],
-                }
-                row["maps"].append(map_entry)
+            spawn_chance = _as_float(spawn.get("spawnChance"), 0) or 0
+            escorts = _wave_escorts(
+                spawn,
+                mobs,
+                locale,
+                map_name=map_name,
+                map_slug=map_slug,
+            )
+            locations = spawn.get("spawnLocations") or []
+            spawn_time = _as_int(spawn.get("spawnTime"), -1)
+            if spawn_time is None:
+                spawn_time = -1
             map_entry["spawns"].append(
                 {
-                    "chance": _as_float(spawn.get("spawnChance"), 0) or 0,
-                    "locations": spawn.get("spawnLocations") or [],
+                    "chance": spawn_chance,
+                    "locations": locations,
+                }
+            )
+            map_entry["waves"].append(
+                {
+                    "chance": spawn_chance,
+                    "locations": locations,
+                    "escorts": escorts,
+                    "spawn_time": spawn_time,
+                    "spawn_time_random": bool(spawn.get("spawnTimeRandom")),
+                    "trigger": str(spawn.get("spawnTrigger") or "").strip(),
                 }
             )
             if not map_entry["escorts"]:
-                escorts: list[dict[str, Any]] = []
-                for esc in spawn.get("escorts") or []:
-                    if not isinstance(esc, dict):
-                        continue
-                    esc_mob_id = str(esc.get("mob") or "").strip()
-                    esc_mob = mobs.get(esc_mob_id) if isinstance(mobs.get(esc_mob_id), dict) else {}
-                    esc_slug = str((esc_mob or {}).get("normalizedName") or "").strip()
-                    esc_name = (
-                        _mob_name(esc_mob_id, esc_mob, locale)
-                        if esc_mob
-                        else esc_mob_id
-                    )
-                    for amt in esc.get("amount") or [{"chance": 1, "count": 1}]:
-                        if not isinstance(amt, dict):
-                            continue
-                        escorts.append(
-                            {
-                                "slug": esc_slug,
-                                "name": esc_name,
-                                "nickname": NICKNAMES.get(esc_slug, ""),
-                                "count": int(amt.get("count") or 0),
-                                "chance": float(amt.get("chance") or 0),
-                                "map": map_name,
-                                "map_slug": map_slug,
-                            }
-                        )
                 map_entry["escorts"] = escorts
+            for esc in spawn.get("escorts") or []:
+                if not isinstance(esc, dict):
+                    continue
+                esc_mob_id = str(esc.get("mob") or "").strip()
+                esc_row = by_id.get(esc_mob_id)
+                if esc_row is None:
+                    continue
+                parents = esc_row.setdefault("parent_ids", [])
+                if mob_id and mob_id not in parents:
+                    parents.append(mob_id)
+                esc_map = _ensure_map_entry(
+                    esc_row,
+                    map_id=map_id,
+                    map_slug=map_slug,
+                    map_name=map_name,
+                    raid_duration=int(raid_duration),
+                )
+                esc_map["spawns"].append(
+                    {"chance": spawn_chance, "locations": []}
+                )
 
     rows: list[dict[str, Any]] = []
     for row in by_id.values():
@@ -1311,7 +1574,6 @@ def _public_summary(row: dict[str, Any]) -> dict[str, Any]:
         "id": row.get("id") or "",
         "slug": row.get("slug") or "",
         "name": row.get("name") or "",
-        "nickname": row.get("nickname") or "",
         "kind": row.get("kind") or BOSS_KIND_BOSS,
         "behavior": row.get("behavior") or "",
         "behavior_zh": row.get("behavior_zh") or "",
@@ -1323,6 +1585,8 @@ def _public_summary(row: dict[str, Any]) -> dict[str, Any]:
         "portrait_link": row.get("portrait_link") or "",
         "poster_link": row.get("poster_link") or "",
         "wiki_link": row.get("wiki_link") or "",
+        "parent_ids": list(row.get("parent_ids") or []),
+        "spawn_groups": list(row.get("spawn_groups") or []),
     }
 
 

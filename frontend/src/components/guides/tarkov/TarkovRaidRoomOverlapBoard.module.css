@@ -45,11 +45,11 @@
 .table td:first-child {
   text-align: left;
   white-space: normal;
-  padding-left: 0;
+  padding-left: 10px;
 }
 
 .table thead th:first-child {
-  min-width: 7.5em;
+  min-width: 14em;
 }
 
 .table thead th.userCol {
@@ -83,16 +83,32 @@
   border-radius: 50%;
 }
 
+.row {
+  cursor: pointer;
+}
+
 .row:hover {
   background: rgba(200, 147, 42, 0.06);
+}
+
+.rowPreview {
+  background: rgba(200, 147, 42, 0.1);
+}
+
+.rowPreview .mapName {
+  color: var(--hb-orange, #c8932a);
 }
 
 .rowCurrent {
   background: rgba(200, 147, 42, 0.12);
 }
 
-.rowCurrent:hover {
-  background: rgba(200, 147, 42, 0.16);
+.rowGoon {
+  box-shadow: inset 3px 0 0 #e24a4a;
+}
+
+.rowGoon .mapName {
+  color: #eee9d6;
 }
 
 .mapCell {
@@ -105,6 +121,14 @@
   color: var(--hb-text, #eee9d6);
   font-weight: 600;
   line-height: 1.25;
+}
+
+.mapText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
 }
 
 .thumb {
@@ -178,7 +202,7 @@
 }
 
 .tip :global(.ant-tooltip-inner) {
-  max-width: 280px;
+  max-width: 320px;
   padding: 8px 10px;
   background: #1a1b14;
   color: var(--hb-text, #eee9d6);
@@ -190,7 +214,16 @@
   list-style: none;
 }
 
-.tipList li {
+.tipTask {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.tipTraderSlot {
+  flex: none;
+  width: 18px;
+  height: 18px;
 }

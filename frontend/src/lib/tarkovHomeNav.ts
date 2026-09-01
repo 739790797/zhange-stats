@@ -78,7 +78,6 @@ export type TarkovBossRow = TarkovHomeLink & {
   spawn: string;
   guards: string;
   accent: string;
-  nickname?: string;
 };
 
 export const TARKOV_HOME_PATH = "/guides/tarkov";
@@ -417,7 +416,6 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
     spawn: "45%",
     guards: "×4",
     accent: GOLD,
-    nickname: "沙拉",
   },
   {
     id: "killa",
@@ -439,7 +437,6 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
     spawn: "30%",
     guards: "×6",
     accent: GOLD,
-    nickname: "火车头",
   },
   {
     id: "shturman",
@@ -471,7 +468,6 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
     spawn: "30%",
     guards: "—",
     accent: RED,
-    nickname: "锤哥",
   },
   {
     id: "kaban",
@@ -515,7 +511,6 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
     spawn: "15%",
     guards: "×2",
     accent: GREEN,
-    nickname: "三兄弟",
   },
   {
     id: "cultists",
@@ -568,7 +563,7 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   },
 ];
 
-/** 塔科夫个人中心：任务 / 钥匙 / 日志路径。 */
+/** 塔科夫个人中心：任务 / 钥匙 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
 export const TARKOV_ME_NAV: TarkovHomeLink = {
   id: "me",
   label: "个人中心",
@@ -597,19 +592,18 @@ export const TARKOV_ME_NAV: TarkovHomeLink = {
   ],
 };
 
-/** 首页战局准备入口（搜索仍收录；工具栏不再重复）。 */
+/** 首页联机大厅入口（搜索仍收录；工具栏不再重复）。 */
 export const TARKOV_RAID_PREP_NAV: TarkovHomeLink = {
   id: "raid-prep",
-  label: "战局准备",
+  label: "联机大厅",
   href: TARKOV_RAID_PREP_PATH,
   status: "ready",
   icon: "⌖",
-  keywords: ["raid", "prep", "战局", "准备", "任务点位", "房间"],
+  keywords: ["raid", "prep", "lobby", "战局", "准备", "联机", "大厅", "任务点位", "房间"],
 };
 
 /** 首页右侧工具栏。 */
 export const TARKOV_TOOLS: TarkovHomeLink[] = [
-  TARKOV_ME_NAV,
   {
     id: "ammo-chart",
     label: "弹药图表筛选器",
@@ -826,7 +820,7 @@ export function buildHomeSearchIndex(): TarkovSearchHit[] {
       hits.push({ ...item, group });
     }
   };
-  push("工具", [TARKOV_RAID_PREP_NAV, ...TARKOV_TOOLS]);
+  push("工具", [TARKOV_RAID_PREP_NAV, TARKOV_ME_NAV, ...TARKOV_TOOLS]);
   push("地图", TARKOV_MAPS);
   push("商人", TARKOV_TRADERS);
   push("BOSS", TARKOV_BOSSES);
@@ -1002,7 +996,7 @@ export function tarkovPageTitle(pathname: string): string {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === "/guides/tarkov") return "逃离塔科夫";
   if (path.startsWith("/guides/tarkov/tasks")) return "任务";
-  if (path.startsWith("/guides/tarkov/raid-prep")) return "战局准备";
+  if (path.startsWith("/guides/tarkov/raid-prep")) return "联机大厅";
   if (path.startsWith("/guides/tarkov/traders")) return "商人";
   if (path.startsWith("/guides/tarkov/bosses")) return "BOSS";
   if (path.startsWith("/guides/tarkov/maps")) return "地图";

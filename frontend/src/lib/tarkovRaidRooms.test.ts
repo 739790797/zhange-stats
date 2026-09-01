@@ -50,6 +50,7 @@ import {
   raidRoomOverlapPeopleLabel,
   raidRoomOverlapTasksForUser,
   sortRaidRoomMapOverlap,
+  raidRoomPickDockMapId,
   parsePlayerFixEvent,
   playerFixMatchesRoomMap,
   playerFixMarkerCaption,
@@ -756,5 +757,18 @@ describe("raid room helpers", () => {
       ["factory", "customs", "woods"],
     );
     expect(ranked.map((row) => row.map_slug)).toEqual(["customs", "factory", "woods"]);
+    expect(
+      raidRoomPickDockMapId({
+        goonMapSlug: "woods",
+        overlapSlugs: ["customs", "factory"],
+        mapOptionIds: ["factory", "customs", "woods"],
+      }),
+    ).toBe("woods");
+    expect(
+      raidRoomPickDockMapId({
+        overlapSlugs: ["customs", "factory"],
+        mapOptionIds: ["factory", "customs", "woods"],
+      }),
+    ).toBe("customs");
   });
 });

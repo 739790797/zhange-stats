@@ -137,10 +137,19 @@ def _trader_hit(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _boss_search_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        alias = bosses_svc.NICKNAMES.get(str(row.get("slug") or ""), "")
+        if alias:
+            out.append({**row, "search_alias": alias})
+        else:
+            out.append(row)
+    return out
+
+
 def _boss_hit(row: dict[str, Any]) -> dict[str, Any]:
-    extra = str(row.get("nickname") or "").strip() or str(
-        row.get("maps_label") or ""
-    ).strip()
+    extra = str(row.get("maps_label") or "").strip()
     return {
         "id": str(row.get("id") or ""),
         "name": str(row.get("name") or ""),
@@ -186,7 +195,7 @@ def _boss_rows(db: Session) -> list[dict[str, Any]]:
     if bosses_svc.get_maps_raw(db) is None:
         return []
     try:
-        return list(bosses_svc.list_bosses(db).get("items") or [])
+        return _boss_search_rows(list(bosses_svc.list_bosses(db).get("items") or []))
     except TarkovBossesError as exc:
         logger.warning("site search bosses skipped: %s", exc)
         return []
@@ -218,7 +227,7 @@ def search_site(db: Session, q: str, *, limit: int = SEARCH_LIMIT) -> dict[str, 
     bosses, boss_count = pick_hits(
         _boss_rows(db),
         needle,
-        ("name", "nickname", "slug", "id", "maps_label"),
+        ("name", "search_alias", "slug", "id", "maps_label"),
         limit=limit,
     )
     return {
