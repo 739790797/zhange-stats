@@ -14,7 +14,8 @@
   flex: 1;
 }
 
-.wrapDraw .map {
+.wrapDraw .map,
+.wrapPlaceEdit .map {
   cursor: crosshair;
   touch-action: none;
   user-select: none;
@@ -25,7 +26,8 @@
 }
 
 .wrapSpace .map,
-.wrapSpace.wrapDraw .map {
+.wrapSpace.wrapDraw .map,
+.wrapSpace.wrapPlaceEdit .map {
   cursor: grab;
 }
 
@@ -356,6 +358,10 @@
   border: 0;
 }
 
+.labelIcon {
+  overflow: visible !important;
+}
+
 .spawnIcon {
   background: transparent !important;
   border: 0 !important;
@@ -676,17 +682,46 @@
 }
 
 .labelText {
-  display: block;
-  width: 160px;
-  color: #c8932a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: var(--hb-orange, #c8932a);
   font-size: 13px;
   font-weight: 800;
+  line-height: 1.2;
   font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
   text-align: center;
   text-shadow:
     0 0 3px #000,
     0 1px 0 #000;
   pointer-events: none;
+}
+
+.labelLine {
+  display: block;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.labelIconOn {
+  outline: 1px solid var(--hb-orange, #c8932a);
+  outline-offset: 2px;
+}
+
+.wrapPlaceSelect .labelIcon {
+  cursor: grab;
+}
+
+.wrapPlaceSelect .labelIcon:global(.leaflet-drag-target),
+.wrapPlaceSelect .labelIcon:active {
+  cursor: grabbing;
+}
+
+.placeBox {
+  cursor: pointer;
 }
 
 .credit {

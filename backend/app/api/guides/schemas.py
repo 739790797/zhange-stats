@@ -589,6 +589,57 @@ class TarkovMapVariantOut(BaseModel):
     players: str = ""
 
 
+class TarkovMapPlaceOut(BaseModel):
+    id: int
+    map_key: str
+    kind: str
+    name: str
+    x: float
+    z: float
+    x2: float | None = None
+    z2: float | None = None
+    label_x: float | None = None
+    label_z: float | None = None
+    size: int = 80
+    floor: str = ""
+    sort_order: int = 0
+
+
+class TarkovMapPlaceIn(BaseModel):
+    kind: str = "point"
+    name: str = Field(min_length=1, max_length=64)
+    x: float
+    z: float
+    x2: float | None = None
+    z2: float | None = None
+    label_x: float | None = None
+    label_z: float | None = None
+    size: int | None = None
+    floor: str = ""
+
+
+class TarkovMapPlacePatchIn(BaseModel):
+    kind: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    x: float | None = None
+    z: float | None = None
+    x2: float | None = None
+    z2: float | None = None
+    label_x: float | None = None
+    label_z: float | None = None
+    size: int | None = None
+    floor: str | None = None
+
+
+class TarkovMapPlaceImportIn(BaseModel):
+    items: list[TarkovMapPlaceIn] = Field(default_factory=list, max_length=200)
+
+
+class TarkovMapPlacesOut(BaseModel):
+    map_key: str
+    items: list[TarkovMapPlaceOut] = Field(default_factory=list)
+
+
 class TarkovMapDetailOut(TarkovMapListItemOut):
     description: str = ""
     wiki_link: str = ""
@@ -596,6 +647,7 @@ class TarkovMapDetailOut(TarkovMapListItemOut):
     bosses: list[TarkovMapBossOut] = Field(default_factory=list)
     spawns: list[TarkovMapSpawnOut] = Field(default_factory=list)
     variants: list[TarkovMapVariantOut] = Field(default_factory=list)
+    places: list[TarkovMapPlaceOut] = Field(default_factory=list)
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None

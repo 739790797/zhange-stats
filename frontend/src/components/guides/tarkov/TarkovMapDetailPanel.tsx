@@ -1,13 +1,15 @@
 import { Alert, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchTarkovMapDetail,
   type TarkovMapBoss,
+  type TarkovMapDetail,
   type TarkovMapExtract,
 } from "@/api/guidesApi";
+import { useTarkovMapPlaceEditor } from "@/components/guides/tarkov/TarkovMapPlaceEditor";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
@@ -64,6 +66,26 @@ export function TarkovMapDetailPanel({ slug }: Props) {
 
   const detail = detailQuery.data;
   if (!detail) return null;
+
+  return (
+    <TarkovMapDetailReady slug={slug} detail={detail} />
+  );
+}
+
+function TarkovMapDetailReady({
+  slug,
+  detail,
+}: {
+  slug: string;
+  detail: TarkovMapDetail;
+}) {
+  const [floor, setFloor] = useState("");
+  const editor = useTarkovMapPlaceEditor({
+    slug,
+    parentSlug: detail.parent_slug || undefined,
+    places: detail.places || [],
+    floor,
+  });
 
   const extractColumns: ColumnsType<TarkovMapExtract> = [
     {
@@ -186,6 +208,7 @@ export function TarkovMapDetailPanel({ slug }: Props) {
         </div>
       </section>
 
+      {editor.bar}
       <Suspense fallback={<PanelFallback tip="加载地图…" />}>
         <TarkovMapViewer
           slug={slug}
@@ -193,8 +216,12 @@ export function TarkovMapDetailPanel({ slug }: Props) {
           extracts={detail.extracts}
           bosses={detail.bosses}
           spawns={detail.spawns}
+          places={detail.places}
+          placeEdit={editor.placeEdit}
+          onFloorChange={setFloor}
         />
       </Suspense>
+      {editor.modal}
 
       {detail.variants?.length ? (
         <div>

@@ -1566,6 +1566,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   extracts={mapQuery.data?.extracts}
                   bosses={mapQuery.data?.bosses}
                   spawns={mapQuery.data?.spawns}
+                  places={mapQuery.data?.places}
                   questOverlays={overlays}
                   focusRequest={focusRequest}
                   highlightTaskId={highlightTaskId}

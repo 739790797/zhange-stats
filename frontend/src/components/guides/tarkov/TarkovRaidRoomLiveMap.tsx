@@ -20,7 +20,12 @@ import {
   type TarkovMapPlayerMark,
 } from "@/lib/tarkovRaidRooms";
 import type { RaidPrepMapParticipant } from "@/lib/tarkovRaidPrep";
-import type { TarkovMapBoss, TarkovMapExtract, TarkovMapSpawn } from "@/api/guidesApi";
+import type {
+  TarkovMapBoss,
+  TarkovMapExtract,
+  TarkovMapPlace,
+  TarkovMapSpawn,
+} from "@/api/guidesApi";
 import { type ReactNode, type RefObject } from "react";
 
 type MemberLike = {
@@ -35,6 +40,7 @@ type Props = {
   extracts?: TarkovMapExtract[];
   bosses?: TarkovMapBoss[];
   spawns?: TarkovMapSpawn[];
+  places?: TarkovMapPlace[];
   questOverlays: TarkovRaidPrepOverlay[];
   focusRequest: TarkovMapFocusRequest | null;
   highlightTaskId: string;
@@ -114,6 +120,7 @@ export function TarkovRaidRoomLiveMap({
   extracts,
   bosses,
   spawns,
+  places,
   questOverlays,
   focusRequest,
   highlightTaskId,
@@ -209,6 +216,7 @@ export function TarkovRaidRoomLiveMap({
         extracts={extracts}
         bosses={bosses}
         spawns={spawns}
+        places={places}
         questOverlays={questOverlays}
         focusRequest={focusRequest}
         highlightTaskId={highlightTaskId}

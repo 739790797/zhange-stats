@@ -448,3 +448,36 @@ class TarkovRaidRoomMark(Base):
         nullable=False,
         server_default=func.now(),
     )
+
+
+class TarkovMapPlace(Base):
+    """管理员维护的全站地图地名（点 / 框），按互动图 normalizedName 共用。"""
+
+    __tablename__ = "tarkov_map_places"
+    __table_args__ = (
+        Index("ix_tarkov_map_places_map_key", "map_key", "sort_order"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    map_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(8), nullable=False, default="point")
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    x: Mapped[float] = mapped_column(Float, nullable=False)
+    z: Mapped[float] = mapped_column(Float, nullable=False)
+    x2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    z2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    label_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    label_z: Mapped[float | None] = mapped_column(Float, nullable=True)
+    size: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
+    floor: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

@@ -28,6 +28,18 @@ export function quaternionToYawDeg(
 }
 
 /**
+ * 截图朝向 → 地图箭头 CSS 角度。`rotate(0)` 朝上、顺时针为正。
+ * `coordinateRotation` 跟 CRS 一致；再加 180°：Y 轴翻转后箭头默认朝上会和战局相反。
+ * 90°/270° 图因此也和 tarkov.dev 的补角一致。
+ */
+export function screenshotYawToMapDeg(
+  yaw: number,
+  coordinateRotation = 0,
+): number {
+  return yaw + (coordinateRotation || 0) + 180;
+}
+
+/**
  * `2025-03-30[21-04]_175.30, 1.37, 150.68_-0.01, 0.98, -0.14, -0.10_9.53 (0).png`
  * 菜单/大厅截图通常只有时间，没有坐标。
  */

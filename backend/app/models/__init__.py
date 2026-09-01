@@ -50,6 +50,7 @@ from app.models.tarkov import (
     TarkovRaidRoomKeyBring,
     TarkovRaidRoomObjectiveDone,
     TarkovRaidRoomMark,
+    TarkovMapPlace,
 )
 from app.models.user import User
 
@@ -108,6 +109,7 @@ __all__ = [
     "TarkovRaidRoomKeyBring",
     "TarkovRaidRoomObjectiveDone",
     "TarkovRaidRoomMark",
+    "TarkovMapPlace",
     "MinecraftServerProfile",
     "MinecraftPerfSample",
     "MinecraftPerfRollup",

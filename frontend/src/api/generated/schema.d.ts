@@ -3345,6 +3345,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/maps/{map_slug}/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Map Places
+         * @description 某图自定义地名（变体与父图共用）。
+         */
+        get: operations["guides_tarkov_map_places_api_guides_tarkov_maps__map_slug__places_get"];
+        put?: never;
+        /**
+         * Guides Tarkov Map Place Create
+         * @description 管理员：新增一个点或框。
+         */
+        post: operations["guides_tarkov_map_place_create_api_guides_tarkov_maps__map_slug__places_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/maps/{map_slug}/places/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Map Places Import
+         * @description 管理员：把当前画面地名一次写入（仅空图）。
+         */
+        post: operations["guides_tarkov_map_places_import_api_guides_tarkov_maps__map_slug__places_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/maps/{map_slug}/places/{place_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Guides Tarkov Map Place Delete
+         * @description 管理员：删除一个地点。
+         */
+        delete: operations["guides_tarkov_map_place_delete_api_guides_tarkov_maps__map_slug__places__place_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Guides Tarkov Map Place Update
+         * @description 管理员：改名、移位或改框。
+         */
+        patch: operations["guides_tarkov_map_place_update_api_guides_tarkov_maps__map_slug__places__place_id__patch"];
+        trace?: never;
+    };
     "/api/guides/tarkov/guides/sync": {
         parameters: {
             query?: never;
@@ -10591,6 +10659,8 @@ export interface components {
             spawns?: components["schemas"]["TarkovMapSpawnOut"][];
             /** Variants */
             variants?: components["schemas"]["TarkovMapVariantOut"][];
+            /** Places */
+            places?: components["schemas"]["TarkovMapPlaceOut"][];
             /** Source */
             source?: string | null;
             /** Synced At */
@@ -10670,6 +10740,108 @@ export interface components {
              * @default 0
              */
             max_player_level: number;
+        };
+        /** TarkovMapPlaceImportIn */
+        TarkovMapPlaceImportIn: {
+            /** Items */
+            items?: components["schemas"]["TarkovMapPlaceIn"][];
+        };
+        /** TarkovMapPlaceIn */
+        TarkovMapPlaceIn: {
+            /**
+             * Kind
+             * @default point
+             */
+            kind: string;
+            /** Name */
+            name: string;
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
+            /** X2 */
+            x2?: number | null;
+            /** Z2 */
+            z2?: number | null;
+            /** Label X */
+            label_x?: number | null;
+            /** Label Z */
+            label_z?: number | null;
+            /** Size */
+            size?: number | null;
+            /**
+             * Floor
+             * @default
+             */
+            floor: string;
+        };
+        /** TarkovMapPlaceOut */
+        TarkovMapPlaceOut: {
+            /** Id */
+            id: number;
+            /** Map Key */
+            map_key: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
+            /** X2 */
+            x2?: number | null;
+            /** Z2 */
+            z2?: number | null;
+            /** Label X */
+            label_x?: number | null;
+            /** Label Z */
+            label_z?: number | null;
+            /**
+             * Size
+             * @default 80
+             */
+            size: number;
+            /**
+             * Floor
+             * @default
+             */
+            floor: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** TarkovMapPlacePatchIn */
+        TarkovMapPlacePatchIn: {
+            /** Kind */
+            kind?: string | null;
+            /** Name */
+            name?: string | null;
+            /** X */
+            x?: number | null;
+            /** Z */
+            z?: number | null;
+            /** X2 */
+            x2?: number | null;
+            /** Z2 */
+            z2?: number | null;
+            /** Label X */
+            label_x?: number | null;
+            /** Label Z */
+            label_z?: number | null;
+            /** Size */
+            size?: number | null;
+            /** Floor */
+            floor?: string | null;
+        };
+        /** TarkovMapPlacesOut */
+        TarkovMapPlacesOut: {
+            /** Map Key */
+            map_key: string;
+            /** Items */
+            items?: components["schemas"]["TarkovMapPlaceOut"][];
         };
         /** TarkovMapPointOut */
         TarkovMapPointOut: {
@@ -19308,6 +19480,190 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovMapDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_places_api_guides_tarkov_maps__map_slug__places_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                map_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapPlacesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_place_create_api_guides_tarkov_maps__map_slug__places_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                map_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovMapPlaceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapPlaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_places_import_api_guides_tarkov_maps__map_slug__places_import_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                map_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovMapPlaceImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapPlacesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_place_delete_api_guides_tarkov_maps__map_slug__places__place_id__delete: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                map_slug: string;
+                place_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapPlacesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_place_update_api_guides_tarkov_maps__map_slug__places__place_id__patch: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                map_slug: string;
+                place_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovMapPlacePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapPlaceOut"];
                 };
             };
             /** @description Validation Error */

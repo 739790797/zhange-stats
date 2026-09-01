@@ -209,6 +209,10 @@ export type TarkovMapDetail = components["schemas"]["TarkovMapDetailOut"];
 export type TarkovMapExtract = components["schemas"]["TarkovMapExtractOut"];
 export type TarkovMapBoss = components["schemas"]["TarkovMapBossOut"];
 export type TarkovMapSpawn = components["schemas"]["TarkovMapSpawnOut"];
+export type TarkovMapPlace = components["schemas"]["TarkovMapPlaceOut"];
+export type TarkovMapPlaceIn = components["schemas"]["TarkovMapPlaceIn"];
+export type TarkovMapPlacePatch = components["schemas"]["TarkovMapPlacePatchIn"];
+export type TarkovMapPlaces = components["schemas"]["TarkovMapPlacesOut"];
 export type TarkovHideoutCatalog = components["schemas"]["TarkovHideoutCatalogOut"];
 export type TarkovHideoutStation = components["schemas"]["TarkovHideoutStationOut"];
 export type TarkovHideoutLevel = components["schemas"]["TarkovHideoutLevelOut"];
@@ -236,6 +240,56 @@ export async function fetchTarkovMapDetail(slug: string) {
   const { data } = await client.get<TarkovMapDetail>(
     `/guides/tarkov/maps/${encodeURIComponent(slug)}`,
     { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovMapPlaces(slug: string) {
+  const { data } = await client.get<TarkovMapPlaces>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}/places`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function createTarkovMapPlace(slug: string, body: TarkovMapPlaceIn) {
+  const { data } = await client.post<TarkovMapPlace>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}/places`,
+    body,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function importTarkovMapPlaces(
+  slug: string,
+  items: TarkovMapPlaceIn[],
+) {
+  const { data } = await client.post<TarkovMapPlaces>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}/places/import`,
+    { items },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function patchTarkovMapPlace(
+  slug: string,
+  placeId: number,
+  body: TarkovMapPlacePatch,
+) {
+  const { data } = await client.patch<TarkovMapPlace>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}/places/${placeId}`,
+    body,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function deleteTarkovMapPlace(slug: string, placeId: number) {
+  const { data } = await client.delete<TarkovMapPlaces>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}/places/${placeId}`,
+    { timeout: 30_000 },
   );
   return data;
 }

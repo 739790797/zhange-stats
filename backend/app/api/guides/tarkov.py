@@ -30,6 +30,11 @@ from app.api.guides.schemas import (
     TarkovSiteSearchOut,
     TarkovMapCatalogOut,
     TarkovMapDetailOut,
+    TarkovMapPlaceIn,
+    TarkovMapPlaceImportIn,
+    TarkovMapPlaceOut,
+    TarkovMapPlacePatchIn,
+    TarkovMapPlacesOut,
     TarkovHideoutCatalogOut,
     TarkovHideoutDetailOut,
     TarkovBarterCatalogOut,
@@ -64,6 +69,7 @@ from app.services.tarkov import task_dones as task_dones_svc
 from app.services.tarkov import raid_logs as raid_logs_svc
 from app.services.tarkov import raid_prep_state as raid_prep_state_svc
 from app.services.tarkov import maps as maps_svc
+from app.services.tarkov import places as places_svc
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import search as search_svc
@@ -764,7 +770,128 @@ def guides_tarkov_map_detail(
         if msg.startswith("未找到地图") or "slug 无效" in msg:
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
+    try:
+        detail["places"] = places_svc.list_places(db, map_slug)
+    except places_svc.TarkovMapPlacesError as exc:
+        raise _places_error(exc) from exc
     return TarkovMapDetailOut.model_validate(detail)
+
+
+def _places_error(exc: places_svc.TarkovMapPlacesError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/maps/{map_slug}/places",
+    response_model=TarkovMapPlacesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_places(
+    map_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """某图自定义地名（变体与父图共用）。"""
+    _ = user
+    try:
+        key = places_svc.place_map_key(map_slug)
+        items = places_svc.list_places(db, map_slug)
+    except places_svc.TarkovMapPlacesError as exc:
+        raise _places_error(exc) from exc
+    return TarkovMapPlacesOut(map_key=key, items=items)
+
+
+@router.post(
+    "/maps/{map_slug}/places",
+    response_model=TarkovMapPlaceOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_place_create(
+    map_slug: str,
+    body: TarkovMapPlaceIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：新增一个点或框。"""
+    try:
+        row = places_svc.create_place(db, map_slug, body.model_dump())
+    except places_svc.TarkovMapPlacesError as exc:
+        raise _places_error(exc) from exc
+    db.commit()
+    return TarkovMapPlaceOut.model_validate(row)
+
+
+@router.post(
+    "/maps/{map_slug}/places/import",
+    response_model=TarkovMapPlacesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_places_import(
+    map_slug: str,
+    body: TarkovMapPlaceImportIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：把当前画面地名一次写入（仅空图）。"""
+    try:
+        key = places_svc.place_map_key(map_slug)
+        items = places_svc.import_places(
+            db,
+            map_slug,
+            [item.model_dump() for item in body.items],
+        )
+    except places_svc.TarkovMapPlacesError as exc:
+        raise _places_error(exc) from exc
+    db.commit()
+    return TarkovMapPlacesOut(map_key=key, items=items)
+
+
+@router.patch(
+    "/maps/{map_slug}/places/{place_id}",
+    response_model=TarkovMapPlaceOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_place_update(
+    map_slug: str,
+    place_id: int,
+    body: TarkovMapPlacePatchIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：改名、移位或改框。"""
+    try:
+        row = places_svc.update_place(
+            db,
+            map_slug,
+            place_id,
+            body.model_dump(exclude_unset=True),
+        )
+    except places_svc.TarkovMapPlacesError as exc:
+        raise _places_error(exc) from exc
+    db.commit()
+    return TarkovMapPlaceOut.model_validate(row)
+
+
+@router.delete(
+    "/maps/{map_slug}/places/{place_id}",
+    response_model=TarkovMapPlacesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_place_delete(
+    map_slug: str,
+    place_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """管理员：删除一个地点。"""
+    try:
+        places_svc.delete_place(db, map_slug, place_id)
+        key = places_svc.place_map_key(map_slug)
+        items = places_svc.list_places(db, map_slug)
+    except places_svc.TarkovMapPlacesError as exc:
+        raise _places_error(exc) from exc
+    db.commit()
+    return TarkovMapPlacesOut(map_key=key, items=items)
 
 
 @router.post(

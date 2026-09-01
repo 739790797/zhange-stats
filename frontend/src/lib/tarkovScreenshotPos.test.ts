@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseTarkovScreenshotName,
   quaternionToYawDeg,
+  screenshotYawToMapDeg,
 } from "./tarkovScreenshotPos";
 
 describe("parseTarkovScreenshotName", () => {
@@ -43,5 +44,17 @@ describe("parseTarkovScreenshotName", () => {
 describe("quaternionToYawDeg", () => {
   it("maps identity to about 0", () => {
     expect(quaternionToYawDeg(0, 0, 0, 1)).toBeCloseTo(0, 5);
+  });
+});
+
+describe("screenshotYawToMapDeg", () => {
+  it("adds 180 so an up-pointing CSS arrow matches raid heading", () => {
+    expect(screenshotYawToMapDeg(0, 180)).toBe(360);
+    expect(screenshotYawToMapDeg(-12.4, 180)).toBeCloseTo(347.6, 5);
+  });
+
+  it("matches tarkov.dev extra flip on 90 and 270 maps", () => {
+    expect(screenshotYawToMapDeg(0, 90)).toBe(270);
+    expect(screenshotYawToMapDeg(0, 270)).toBe(450);
   });
 });
