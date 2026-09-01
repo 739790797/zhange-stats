@@ -777,7 +777,8 @@
 }
 
 .playerDot,
-.playerArrow {
+.playerArrow,
+.playerArrowSvg {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -801,6 +802,20 @@
   border-bottom: 16px solid currentColor;
   filter: drop-shadow(0 0 2px #000);
   transform-origin: 6px 10px;
+}
+
+.playerArrowSvg {
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  overflow: visible;
+  filter: drop-shadow(0 0 2px #000);
+}
+
+.playerArrowSvg polygon {
+  fill: currentColor;
+  stroke: #111;
+  stroke-width: 1;
 }
 
 .playerName {

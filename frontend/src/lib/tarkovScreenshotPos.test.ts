@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  gameForwardXZ,
+  gameYawToCssDeg,
+  headingArrowPoints,
+  normalizeHeadingDeg,
   parseTarkovScreenshotName,
   quaternionToYawDeg,
+  screenDeltaToCssDeg,
   screenshotYawToMapDeg,
 } from "./tarkovScreenshotPos";
 
@@ -45,16 +50,52 @@ describe("quaternionToYawDeg", () => {
   it("maps identity to about 0", () => {
     expect(quaternionToYawDeg(0, 0, 0, 1)).toBeCloseTo(0, 5);
   });
+
+  it("matches TarkovMonitor euler Y for a 180 turn", () => {
+    expect(normalizeHeadingDeg(quaternionToYawDeg(0, 1, 0, 0))).toBeCloseTo(
+      180,
+      5,
+    );
+  });
 });
 
-describe("screenshotYawToMapDeg", () => {
-  it("adds 180 so an up-pointing CSS arrow matches raid heading", () => {
-    expect(screenshotYawToMapDeg(0, 180)).toBe(360);
-    expect(screenshotYawToMapDeg(-12.4, 180)).toBeCloseTo(347.6, 5);
+describe("gameForwardXZ", () => {
+  it("faces +Z at yaw 0 and +X at yaw 90", () => {
+    expect(gameForwardXZ(0).z).toBeCloseTo(1, 5);
+    expect(gameForwardXZ(0).x).toBeCloseTo(0, 5);
+    expect(gameForwardXZ(90).x).toBeCloseTo(1, 5);
+    expect(gameForwardXZ(90).z).toBeCloseTo(0, 5);
+  });
+});
+
+describe("gameYawToCssDeg", () => {
+  it("points down on 180 maps when facing +Z", () => {
+    expect(normalizeHeadingDeg(gameYawToCssDeg(0, 180))).toBeCloseTo(180, 5);
+    expect(gameYawToCssDeg(-12.4, 180)).toBeCloseTo(167.6, 5);
   });
 
-  it("matches tarkov.dev extra flip on 90 and 270 maps", () => {
-    expect(screenshotYawToMapDeg(0, 90)).toBe(270);
-    expect(screenshotYawToMapDeg(0, 270)).toBe(450);
+  it("treats interchange the same as other 180 maps", () => {
+    expect(normalizeHeadingDeg(screenshotYawToMapDeg(0, 180))).toBeCloseTo(
+      180,
+      5,
+    );
+  });
+
+  it("includes the 90/270 map flip that tarkov.dev adds", () => {
+    expect(normalizeHeadingDeg(gameYawToCssDeg(0, 90))).toBeCloseTo(270, 5);
+    expect(normalizeHeadingDeg(gameYawToCssDeg(0, 270))).toBeCloseTo(90, 5);
+  });
+});
+
+describe("screenDeltaToCssDeg", () => {
+  it("maps screen down to 180 and right to 90", () => {
+    expect(normalizeHeadingDeg(screenDeltaToCssDeg(0, 1))).toBeCloseTo(180, 5);
+    expect(normalizeHeadingDeg(screenDeltaToCssDeg(1, 0))).toBeCloseTo(90, 5);
+  });
+});
+
+describe("headingArrowPoints", () => {
+  it("puts the tip above center when css is 0", () => {
+    expect(headingArrowPoints(0)).toMatch(/^16\.0,3\.0 /);
   });
 });

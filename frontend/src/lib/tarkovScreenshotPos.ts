@@ -15,28 +15,81 @@ function parseNumberList(part: string): number[] {
   return matches.map((raw) => Number(raw)).filter((value) => Number.isFinite(value));
 }
 
-/** Unity 四元数在 XZ 平面上的朝向（度，0 约等于 +Z）。 */
+/**
+ * Unity 四元数 → 水平朝向（度）。
+ * 与 TarkovMonitor `QuarternionsToYaw` / Unity euler Y 一致：0 约等于 +Z。
+ */
 export function quaternionToYawDeg(
   x: number,
   y: number,
   z: number,
   w: number,
 ): number {
-  const fx = 2 * (x * z + w * y);
-  const fz = 1 - 2 * (x * x + y * y);
-  return (Math.atan2(fx, fz) * 180) / Math.PI;
+  const siny = 2 * (w * y + x * z);
+  const cosy = 1 - 2 * (y * y + z * z);
+  return (Math.atan2(siny, cosy) * 180) / Math.PI;
+}
+
+export function normalizeHeadingDeg(deg: number): number {
+  return ((deg % 360) + 360) % 360;
+}
+
+/** Unity 水平朝向：0 = +Z，正角转向 +X。 */
+export function gameForwardXZ(yawDeg: number): { x: number; z: number } {
+  const rad = (yawDeg * Math.PI) / 180;
+  return { x: Math.sin(rad), z: Math.cos(rad) };
 }
 
 /**
- * 截图朝向 → 地图箭头 CSS 角度。`rotate(0)` 朝上、顺时针为正。
- * `coordinateRotation` 跟 CRS 一致；再加 180°：Y 轴翻转后箭头默认朝上会和战局相反。
- * 90°/270° 图因此也和 tarkov.dev 的补角一致。
+ * 截图朝向经 CRS 投影后的屏幕角。
+ * 0 朝上、顺时针为正。scaleY 与 `getCRS` 一样取负。
+ */
+export function gameYawToCssDeg(yaw: number, coordinateRotation = 0): number {
+  const { x: gx, z: gz } = gameForwardXZ(yaw);
+  const rot = ((coordinateRotation || 0) * Math.PI) / 180;
+  const cos = Math.cos(rot);
+  const sin = Math.sin(rot);
+  const newLat = gx * sin + gz * cos;
+  const newLng = gx * cos - gz * sin;
+  return (Math.atan2(newLng, newLat) * 180) / Math.PI;
+}
+
+/** 屏幕两点 → 箭头角（Leaflet 层坐标：+x 右、+y 下）。 */
+export function screenDeltaToCssDeg(dx: number, dy: number): number {
+  return (Math.atan2(dx, -dy) * 180) / Math.PI;
+}
+
+/**
+ * 截图朝向 → 地图箭头角度。与 tarkov.dev 一致，不按图再翻。
  */
 export function screenshotYawToMapDeg(
   yaw: number,
   coordinateRotation = 0,
 ): number {
-  return yaw + (coordinateRotation || 0) + 180;
+  return gameYawToCssDeg(yaw, coordinateRotation);
+}
+
+/** 尖头多边形，尖端就是朝向；不依赖 CSS `rotate`。 */
+export function headingArrowPoints(
+  cssDeg: number,
+  cx = 16,
+  cy = 16,
+  len = 13,
+  half = 6,
+): string {
+  const rad = (cssDeg * Math.PI) / 180;
+  const ux = Math.sin(rad);
+  const uy = -Math.cos(rad);
+  const px = -uy;
+  const py = ux;
+  const tipX = cx + ux * len;
+  const tipY = cy + uy * len;
+  const leftX = cx - ux * 5 + px * half;
+  const leftY = cy - uy * 5 + py * half;
+  const rightX = cx - ux * 5 - px * half;
+  const rightY = cy - uy * 5 - py * half;
+  const fmt = (n: number) => n.toFixed(1);
+  return `${fmt(tipX)},${fmt(tipY)} ${fmt(leftX)},${fmt(leftY)} ${fmt(rightX)},${fmt(rightY)}`;
 }
 
 /**

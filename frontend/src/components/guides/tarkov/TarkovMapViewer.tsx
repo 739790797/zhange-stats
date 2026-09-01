@@ -117,7 +117,12 @@ import {
   withSpawnKindsForPresent,
   type TarkovSpawnKind,
 } from "@/lib/tarkovMapSpawns";
-import { screenshotYawToMapDeg } from "@/lib/tarkovScreenshotPos";
+import {
+  gameForwardXZ,
+  gameYawToCssDeg,
+  headingArrowPoints,
+  screenDeltaToCssDeg,
+} from "@/lib/tarkovScreenshotPos";
 import { useTarkovScreenshotPosition } from "@/lib/useTarkovScreenshotPosition";
 import styles from "./TarkovMapViewer.module.css";
 
@@ -808,14 +813,33 @@ function addQuestLabels(
   }
 }
 
+function playerHeadingCssDeg(
+  mark: TarkovMapPlayerMark,
+  map: L.Map | undefined,
+  mapRotation: number,
+): number | null {
+  if (mark.yaw == null) return null;
+  if (map) {
+    const step = gameForwardXZ(mark.yaw);
+    const from = map.latLngToLayerPoint(L.latLng(pos({ x: mark.x, z: mark.z })));
+    const to = map.latLngToLayerPoint(
+      L.latLng(pos({ x: mark.x + step.x, z: mark.z + step.z })),
+    );
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    if (dx !== 0 || dy !== 0) return screenDeltaToCssDeg(dx, dy);
+  }
+  return gameYawToCssDeg(mark.yaw, mapRotation);
+}
+
 function playerFixMarkerHtml(
   mark: TarkovMapPlayerMark,
+  map: L.Map | undefined,
   mapRotation: number,
   currentFloor: string,
   floorBands: ReturnType<typeof mapLayerFloorBands>,
 ): { html: string; name: string } {
-  const yaw =
-    mark.yaw == null ? null : screenshotYawToMapDeg(mark.yaw, mapRotation);
+  const yaw = playerHeadingCssDeg(mark, map, mapRotation);
   const floor = overlayFloorForPoint(mark.y, floorBands, mark);
   const current = !floor || !currentFloor || floor === currentFloor;
   const color = escapeHtml(mark.color);
@@ -823,7 +847,7 @@ function playerFixMarkerHtml(
   const pip =
     yaw == null
       ? `<span class="${styles.playerDot}"></span>`
-      : `<span class="${styles.playerArrow}" style="transform:rotate(${yaw}deg)"></span>`;
+      : `<svg class="${styles.playerArrowSvg}" viewBox="0 0 32 32" aria-hidden="true"><polygon points="${headingArrowPoints(yaw)}"/></svg>`;
   const label = name
     ? `<span class="${styles.playerName}">${name}</span>`
     : "";
@@ -850,6 +874,7 @@ function syncPlayerFixMarkers(
   for (const mark of marks) {
     const { html, name } = playerFixMarkerHtml(
       mark,
+      runtime.map,
       mapRotation,
       currentFloor,
       floorBands,
@@ -2073,6 +2098,9 @@ export function TarkovMapViewer({
     floorBands,
     interactive?.coordinateRotation,
     interactive?.key,
+    interactive?.normalizedName,
+    slug,
+    parentSlug,
     updatePrefs,
   ]);
 
