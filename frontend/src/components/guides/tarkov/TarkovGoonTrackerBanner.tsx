@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { goonSightingHint, sameGoonMap } from "@/lib/tarkovGoonTracker";
-import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
+import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import styles from "./TarkovGoonTrackerBanner.module.css";
 
 function useMinuteTick(active: boolean) {

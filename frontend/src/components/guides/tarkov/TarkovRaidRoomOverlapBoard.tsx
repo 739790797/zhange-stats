@@ -12,7 +12,7 @@ import {
 } from "@/lib/tarkovRaidRooms";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
-import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
+import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import styles from "./TarkovRaidRoomOverlapBoard.module.css";
 
 type MemberLike = {

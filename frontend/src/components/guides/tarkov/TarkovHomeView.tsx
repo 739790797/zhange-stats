@@ -21,7 +21,7 @@ import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidP
 import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
 import { sameGoonMap } from "@/lib/tarkovGoonTracker";
-import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
+import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import styles from "./TarkovHomeView.module.css";
 
 function SearchIcon() {

@@ -16,7 +16,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { tarkovMapHref } from "@/lib/tarkovHomeNav";
+import { tarkovMapHref, TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
@@ -58,7 +58,7 @@ import { logMapLabel } from "@/lib/tarkovGameLogs";
 import {
   useTarkovLastLogMapId,
   useTarkovLastLogPhase,
-} from "@/lib/tarkovLiveWatchContext";
+} from "@/lib/useTarkovLiveWatch";
 import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
 import {
@@ -69,10 +69,7 @@ import {
 import { PanelFallback } from "@/components/RouteFallback";
 import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
 import { TarkovRaidPrepTaskGroups } from "@/components/guides/tarkov/TarkovRaidPrepTaskGroups";
-import {
-  TarkovRaidPrepEntryModal,
-  raidPrepEntryFallbackPath,
-} from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
+import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
 import {
@@ -155,7 +152,10 @@ export function TarkovRaidPrepPanel() {
   });
   const doneTaskIds = taskDonesQuery.data?.task_ids ?? loadTaskDoneIds(gameMode);
   const startedTaskIds = useMemo(
-    () => loadTaskStartedIds(gameMode),
+    () => {
+      void progressTick;
+      return loadTaskStartedIds(gameMode);
+    },
     [gameMode, progressTick],
   );
   const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
@@ -206,7 +206,7 @@ export function TarkovRaidPrepPanel() {
     [setSearchParams],
   );
 
-  const setMap = (id: string) => {
+  const setMap = useCallback((id: string) => {
     patchParams((params) => {
       if (id) params.set("map", id);
       else params.delete("map");
@@ -216,7 +216,7 @@ export function TarkovRaidPrepPanel() {
     });
     setKeyword("");
     locateIndexRef.current = {};
-  };
+  }, [patchParams]);
 
   const autoMapId = raidPrepAutoSwitchMapId({
     currentMapId: mapId,
@@ -231,7 +231,7 @@ export function TarkovRaidPrepPanel() {
     autoMapSigRef.current = sig;
     setMap(autoMapId);
     message.info(`已按游戏日志切换到${logMapLabel(autoMapId)}`);
-  }, [autoMapId, lastLogPhase?.kind, lastLogPhase?.raidId]);
+  }, [autoMapId, lastLogPhase?.kind, lastLogPhase?.raidId, setMap]);
 
   /** 目录不含区轮廓；筛选在前端。 */
   const prepQuery = useQuery({
@@ -619,7 +619,7 @@ export function TarkovRaidPrepPanel() {
           open={entryOpen}
           onClose={() => {
             setEntryOpen(false);
-            navigate(raidPrepEntryFallbackPath());
+            navigate(TARKOV_HOME_PATH);
           }}
         />
       </div>

@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -60,9 +58,17 @@ import {
   type LogPollCursor,
 } from "@/lib/tarkovLiveWatch";
 import {
-  parseTarkovScreenshotName,
-  type TarkovScreenshotPos,
-} from "@/lib/tarkovScreenshotPos";
+  TarkovLiveFixContext,
+  TarkovLiveLogMapContext,
+  TarkovLiveLogPhaseContext,
+  TarkovLiveShotMetaContext,
+  TarkovLiveWatchContext,
+  type LiveWatchPerm,
+  type TarkovLiveShotMeta,
+  type TarkovLiveWatchValue,
+  type TarkovScreenshotFix,
+} from "@/lib/tarkovLiveWatchContexts";
+import { parseTarkovScreenshotName } from "@/lib/tarkovScreenshotPos";
 import { nowBeijingStamp } from "@/lib/time";
 import {
   loadTaskDoneIds,
@@ -70,78 +76,6 @@ import {
   saveTaskProgress,
   saveTaskSyncMark,
 } from "@/lib/tarkovTaskTree";
-
-export type TarkovScreenshotFix = TarkovScreenshotPos & {
-  fileName: string;
-  lastModified: number;
-};
-
-export type LiveWatchPerm = "unknown" | "none" | "prompt" | "granted";
-
-type TarkovLiveWatchValue = {
-  supported: boolean;
-  visible: boolean;
-  shotPerm: LiveWatchPerm;
-  logPerm: LiveWatchPerm;
-  hasStoredShots: boolean;
-  hasStoredLogs: boolean;
-  shotLabel: string;
-  logLabel: string;
-  lastShotAt: number | string | null;
-  lastLogAt: number | string | null;
-  lastShotName: string;
-  lastLogMapId: string;
-  fix: TarkovScreenshotFix | null;
-  shotBusy: boolean;
-  enableShots: () => Promise<void>;
-  resume: () => Promise<void>;
-};
-
-const EMPTY: TarkovLiveWatchValue = {
-  supported: false,
-  visible: false,
-  shotPerm: "none",
-  logPerm: "none",
-  hasStoredShots: false,
-  hasStoredLogs: false,
-  shotLabel: "",
-  logLabel: "",
-  lastShotAt: null,
-  lastLogAt: null,
-  lastShotName: "",
-  lastLogMapId: "",
-  fix: null,
-  shotBusy: false,
-  enableShots: async () => undefined,
-  resume: async () => undefined,
-};
-
-type TarkovLiveShotMeta = {
-  supported: boolean;
-  perm: LiveWatchPerm;
-  hasStored: boolean;
-  storedLabel: string;
-  busy: boolean;
-  enable: () => Promise<void>;
-};
-
-const EMPTY_SHOT_META: TarkovLiveShotMeta = {
-  supported: false,
-  perm: "none",
-  hasStored: false,
-  storedLabel: "",
-  busy: false,
-  enable: async () => undefined,
-};
-
-const TarkovLiveWatchContext = createContext<TarkovLiveWatchValue>(EMPTY);
-const TarkovLiveFixContext = createContext<TarkovScreenshotFix | null>(null);
-const TarkovLiveLogMapContext = createContext("");
-const TarkovLiveLogPhaseContext = createContext<TarkovLogPhasePayload | null>(
-  null,
-);
-const TarkovLiveShotMetaContext =
-  createContext<TarkovLiveShotMeta>(EMPTY_SHOT_META);
 
 export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const supported = isFileSystemAccessSupported();
@@ -676,24 +610,4 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       </TarkovLiveShotMetaContext.Provider>
     </TarkovLiveWatchContext.Provider>
   );
-}
-
-export function useTarkovLiveWatch(): TarkovLiveWatchValue {
-  return useContext(TarkovLiveWatchContext);
-}
-
-export function useTarkovScreenshotFix(): TarkovScreenshotFix | null {
-  return useContext(TarkovLiveFixContext);
-}
-
-export function useTarkovLastLogMapId(): string {
-  return useContext(TarkovLiveLogMapContext);
-}
-
-export function useTarkovLastLogPhase(): TarkovLogPhasePayload | null {
-  return useContext(TarkovLiveLogPhaseContext);
-}
-
-export function useTarkovLiveShotMeta(): TarkovLiveShotMeta {
-  return useContext(TarkovLiveShotMetaContext);
 }

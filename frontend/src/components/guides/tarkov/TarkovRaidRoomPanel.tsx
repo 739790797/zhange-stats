@@ -70,7 +70,7 @@ import {
   TARKOV_TASK_PROGRESS_EVENT,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
-import { useTarkovLastLogMapId, useTarkovLastLogPhase } from "@/lib/tarkovLiveWatchContext";
+import { useTarkovLastLogMapId, useTarkovLastLogPhase } from "@/lib/useTarkovLiveWatch";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
 import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
@@ -120,7 +120,7 @@ import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrep
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
 import { TarkovRaidRoomOverlapBoard } from "@/components/guides/tarkov/TarkovRaidRoomOverlapBoard";
-import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
+import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import {
   TarkovGoonRoomNotice,
   TarkovGoonSightingHint,
@@ -393,7 +393,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [token, publicId, room?.is_member, roomQuery.data?.is_member]);
+  }, [token, publicId, room?.is_member, roomQuery.data?.is_member, navigate]);
 
   useEffect(() => {
     lastLogPhaseSigRef.current = "";
@@ -453,7 +453,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
   const doneTaskIds = taskDonesQuery.data?.task_ids ?? loadTaskDoneIds(gameMode);
   const startedTaskIds = useMemo(
-    () => loadTaskStartedIds(gameMode),
+    () => {
+      void progressTick;
+      return loadTaskStartedIds(gameMode);
+    },
     [gameMode, progressTick],
   );
 
@@ -848,7 +851,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       })
     : "";
 
-  const pickMapAndSeed = (nextMap: string, fromLog = false) => {
+  const pickMapAndSeed = useCallback((nextMap: string, fromLog = false) => {
     if (!nextMap || pickingMap) return;
     if (nextMap === mapId) {
       setStatsOpen(false);
@@ -889,7 +892,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       return;
     }
     void apply();
-  };
+  }, [mapId, pickingMap, publicId, run, sharedAutoMapId]);
 
   const autoMapId =
     sharedAutoMapId ||
@@ -917,6 +920,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     canSwitchMap,
     lastLogPhase?.kind,
     lastLogPhase?.raidId,
+    pickMapAndSeed,
     pickingMap,
     publicId,
     sharedAutoMapId,

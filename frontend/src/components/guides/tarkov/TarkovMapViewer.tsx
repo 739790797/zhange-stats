@@ -1704,6 +1704,7 @@ export function TarkovMapViewer({
     interactive,
     placeLabels,
     ready,
+    extractKindOptions,
   ]);
 
   useEffect(() => {

@@ -10,7 +10,7 @@ import {
 import {
   useTarkovLastLogMapId,
   useTarkovScreenshotFix,
-} from "@/lib/tarkovLiveWatchContext";
+} from "@/lib/useTarkovLiveWatch";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
 import {
   playerFixMatchesRoomMap,

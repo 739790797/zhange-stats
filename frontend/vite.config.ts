@@ -79,6 +79,8 @@ export default defineConfig({
     },
   },
   build: {
+    // @ant-design/plots / G2 压缩后约 1.4MB，单独成块；阈值略抬高以免误报。
+    chunkSizeWarningLimit: 1600,
     rolldownOptions: {
       output: {
         codeSplitting: {
@@ -86,6 +88,10 @@ export default defineConfig({
             {
               name: "leaflet",
               test: /node_modules[\\/]leaflet/,
+            },
+            {
+              name: "antd-plots",
+              test: /node_modules[\\/](?:@ant-design[\\/]plots|@antv[\\/])/,
             },
           ],
         },

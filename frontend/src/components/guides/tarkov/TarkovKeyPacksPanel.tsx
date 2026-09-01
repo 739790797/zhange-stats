@@ -53,6 +53,7 @@ import styles from "./TarkovKeyPacksPanel.module.css";
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
+const EMPTY_PACK_KEYS: TarkovKeyPackKey[] = [];
 
 const FILTERS: Array<{ id: TarkovKeyOwnedFilter; label: string }> = [
   { id: "owned", label: "已拥有" },
@@ -238,7 +239,7 @@ export function TarkovKeyPacksPanel() {
   const active = allMaps
     ? null
     : packs.find((row) => row.slug === activeSlug) || null;
-  const activeKeys = allMaps ? allKeys : active?.keys || [];
+  const activeKeys = allMaps ? allKeys : active?.keys || EMPTY_PACK_KEYS;
 
   useEffect(() => {
     if (!q || !packs.length || allMaps) return;

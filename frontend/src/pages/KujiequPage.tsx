@@ -31,7 +31,7 @@ type TabKey = "checkin" | "exchange" | "ww";
 
 export default function KujiequPage() {
   // 角色树挂在页面级：绑定成功后会卸载 BindPanel，弹窗不能跟它一起卸掉
-  const rolePicker = useRoleMembershipPicker("kujiequ");
+  const { openPicker, modal: rolePickerModal } = useRoleMembershipPicker("kujiequ");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -71,7 +71,7 @@ export default function KujiequPage() {
             triggerCheckin={triggerKujiequCheckin}
             updateRolePref={updateKujiequRolePref}
             platformIcon="kujiequ"
-            onSelectRoles={() => rolePicker.openPicker()}
+            onSelectRoles={() => openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               if (
@@ -115,7 +115,7 @@ export default function KujiequPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange, showWw, statusQuery.data, rolePicker.openPicker]);
+  }, [showCheckin, showExchange, showWw, statusQuery.data, openPicker]);
 
   return (
     <PlatformFeatureTabsPage
@@ -128,11 +128,11 @@ export default function KujiequPage() {
           title="绑定库街区账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
-            window.setTimeout(() => rolePicker.openPicker(), 0);
+            window.setTimeout(() => openPicker(), 0);
           }}
         />
       }
-      rolePickerModal={rolePicker.modal}
+      rolePickerModal={rolePickerModal}
       featuresReady={featuresReady}
       tabItems={tabItems}
       emptyFeaturesMessage="库街区子功能均未启用"

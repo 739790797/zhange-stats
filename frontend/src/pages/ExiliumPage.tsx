@@ -23,7 +23,7 @@ type TabKey = "checkin" | "exchange";
 
 export default function ExiliumPage() {
   // 角色树挂在页面级：绑定成功后会卸载 BindPanel，弹窗不能跟它一起卸掉
-  const rolePicker = useRoleMembershipPicker("exilium");
+  const { openPicker, modal: rolePickerModal } = useRoleMembershipPicker("exilium");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -55,7 +55,7 @@ export default function ExiliumPage() {
             updateRolePref={updateExiliumRolePref}
             platformIcon="exilium"
             showPhoneMask
-            onSelectRoles={() => rolePicker.openPicker()}
+            onSelectRoles={() => openPicker()}
           />
         ),
       });
@@ -68,7 +68,7 @@ export default function ExiliumPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange, rolePicker.openPicker]);
+  }, [showCheckin, showExchange, openPicker]);
 
   return (
     <PlatformFeatureTabsPage
@@ -82,11 +82,11 @@ export default function ExiliumPage() {
           title="绑定追放账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
-            window.setTimeout(() => rolePicker.openPicker(), 0);
+            window.setTimeout(() => openPicker(), 0);
           }}
         />
       }
-      rolePickerModal={rolePicker.modal}
+      rolePickerModal={rolePickerModal}
       featuresReady={featuresReady}
       tabItems={tabItems}
       emptyFeaturesMessage="追放子功能均未启用"

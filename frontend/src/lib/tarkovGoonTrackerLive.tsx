@@ -1,35 +1,20 @@
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  fetchTarkovGoons,
   tarkovGoonsWsUrl,
   type TarkovGoonTracker,
 } from "@/api/guidesApi";
-import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useAuthStore } from "@/stores/authStore";
+import {
+  TarkovGoonTrackerLiveContext,
+  goonsQueryKey,
+} from "@/lib/tarkovGoonTrackerLiveShared";
 
 type WsBundle = {
   event?: string;
   pvp?: TarkovGoonTracker;
   pve?: TarkovGoonTracker;
 };
-
-type LiveValue = {
-  live: boolean;
-};
-
-const TarkovGoonTrackerLiveContext = createContext<LiveValue>({ live: false });
-
-function goonsQueryKey(mode: string) {
-  return ["guides-tarkov-goons", mode] as const;
-}
 
 function applyBundle(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -115,23 +100,4 @@ export function TarkovGoonTrackerProvider({ children }: { children: ReactNode })
       {children}
     </TarkovGoonTrackerLiveContext.Provider>
   );
-}
-
-export function useTarkovGoonTracker() {
-  const gameMode = useTarkovGameMode();
-  const { live } = useContext(TarkovGoonTrackerLiveContext);
-  const query = useQuery({
-    queryKey: goonsQueryKey(gameMode),
-    queryFn: fetchTarkovGoons,
-    staleTime: live ? Infinity : 8_000,
-    refetchInterval: live ? false : 8_000,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
-  return {
-    status: query.data,
-    live,
-    isLoading: query.isLoading && !query.data,
-    isError: query.isError,
-  };
 }

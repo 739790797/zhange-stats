@@ -21,8 +21,8 @@ import { TarkovMeHeaderLink } from "@/components/guides/tarkov/TarkovMeHeaderLin
 import { TarkovRaidRoomHeaderLink } from "@/components/guides/tarkov/TarkovRaidRoomHeaderLink";
 import {
   TarkovLiveWatchProvider,
-  useTarkovLiveWatch,
 } from "@/lib/tarkovLiveWatchContext";
+import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 import { TarkovGoonTrackerProvider } from "@/lib/tarkovGoonTrackerLive";
 import {
   formatLiveWatchLogLine,

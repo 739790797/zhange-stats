@@ -48,6 +48,8 @@ const WORLD_LABEL: Record<string, string> = {
 };
 
 const TOOLTIP_CHILD_CAP = 12;
+const EMPTY_TYPES: EntityType[] = [];
+const EMPTY_CATEGORIES: EntityCategory[] = [];
 
 function categoryLabel(key: string) {
   return CATEGORY_LABEL[key] || key;
@@ -197,8 +199,8 @@ export function MinecraftEntitiesCard({
 }: {
   entities?: Entities | null;
 }) {
-  const categories = entities?.categories || [];
-  const types = entities?.types || [];
+  const categories = entities?.categories || EMPTY_CATEGORIES;
+  const types = entities?.types || EMPTY_TYPES;
   const worlds = entities?.worlds || [];
   const total = entities?.total || 0;
   const hasData = Boolean(entities?.ok && total > 0);

@@ -5,9 +5,13 @@ import {
   fetchMinecraftModToolVersions,
   installMinecraftModTool,
   type MinecraftModTool,
+  type MinecraftModToolVersions,
 } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
 import { loaderLabel } from "./minecraftUi";
+
+type ToolVersion = NonNullable<MinecraftModToolVersions["versions"]>[number];
+const EMPTY_VERSIONS: ToolVersion[] = [];
 
 export function MinecraftModToolInstallModal({
   tool,
@@ -31,7 +35,7 @@ export function MinecraftModToolInstallModal({
     enabled: open,
   });
 
-  const versions = versionsQuery.data?.versions || [];
+  const versions = versionsQuery.data?.versions || EMPTY_VERSIONS;
   const loader = versionsQuery.data?.loader || catalog?.loader || "";
   const mcVersion = versionsQuery.data?.mc_version || catalog?.mc_version || "";
   const installed = catalog?.installed_version || "";

@@ -276,7 +276,7 @@ export function isLikelyLocationOrStatusLine(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
   if (/^进行中!?$/i.test(t)) return true;
-  if (/^[\d.%@/\\\[\]TtFf]+$/i.test(t)) return true;
+  if (/^[\d.%@/\\[\]TtFf]+$/i.test(t)) return true;
   if (
     /^(任意地点|中心区|工厂|灯塔|海关|海岸线|储备站|街区|海找玉|海央线)$/.test(
       t,

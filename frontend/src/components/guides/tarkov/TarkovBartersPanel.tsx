@@ -12,10 +12,10 @@ import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TARKOV_TRADERS, tarkovTaskHref, traderIconUrl } from "@/lib/tarkovHomeNav";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
+import { guideItemFleaCost } from "@/lib/tarkovGuideItemCost";
 import {
   TarkovGuideItemCell,
   TarkovGuideItemStack,
-  guideItemFleaCost,
 } from "@/components/guides/tarkov/TarkovGuideItemCell";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovGuideTrade.module.css";

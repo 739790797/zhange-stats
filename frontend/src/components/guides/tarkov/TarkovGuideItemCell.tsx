@@ -5,31 +5,9 @@ import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import catalog from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovGuideItemCell.module.css";
+import type { TarkovGuideItemRef } from "@/lib/tarkovGuideItemCost";
 
-export type TarkovGuideItemRef = {
-  id: string;
-  name?: string;
-  short_name?: string;
-  icon_link?: string;
-  types?: string[] | null;
-  count?: number;
-  found_in_raid?: boolean;
-  flea_price?: number | null;
-  badge?: string;
-};
-
-export function guideItemFleaCost(
-  items: TarkovGuideItemRef[] | undefined,
-): number | null {
-  if (!items?.length) return 0;
-  let sum = 0;
-  for (const item of items) {
-    const price = item.flea_price;
-    if (price == null || !Number.isFinite(price) || price <= 0) return null;
-    sum += price * Number(item.count || 1);
-  }
-  return sum;
-}
+export type { TarkovGuideItemRef };
 
 export function TarkovGuideItemCell({
   item,

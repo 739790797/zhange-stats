@@ -31,7 +31,7 @@ type TabKey = "checkin" | "arknights" | "endfield";
 
 export default function SklandPage() {
   // 角色树挂在页面级：绑定成功后会卸载 BindPanel，弹窗不能跟它一起卸掉
-  const rolePicker = useRoleMembershipPicker("skland");
+  const { openPicker, modal: rolePickerModal } = useRoleMembershipPicker("skland");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -72,7 +72,7 @@ export default function SklandPage() {
               triggerCheckin={triggerSklandCheckin}
               updateRolePref={updateSklandRolePref}
               platformIcon="skland"
-              onSelectRoles={() => rolePicker.openPicker()}
+              onSelectRoles={() => openPicker()}
               renderResultExtra={(row) => {
                 if (!row.role_uid) return null;
                 if (row.game_code === "arknights") {
@@ -126,7 +126,7 @@ export default function SklandPage() {
       });
     }
     return items;
-  }, [showArknights, showCheckin, showEndfield, statusQuery.data, rolePicker.openPicker]);
+  }, [showArknights, showCheckin, showEndfield, statusQuery.data, openPicker]);
 
   return (
     <PlatformFeatureTabsPage
@@ -139,11 +139,11 @@ export default function SklandPage() {
           title="绑定森空岛账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
-            window.setTimeout(() => rolePicker.openPicker(), 0);
+            window.setTimeout(() => openPicker(), 0);
           }}
         />
       }
-      rolePickerModal={rolePicker.modal}
+      rolePickerModal={rolePickerModal}
       featuresReady={featuresReady}
       tabItems={tabItems}
       emptyFeaturesMessage="森空岛子功能均未启用"

@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext } from "react";
 
 export type TarkovGameMode = "pvp" | "pve";
 
@@ -45,7 +37,7 @@ export function saveTarkovGameMode(mode: TarkovGameMode) {
   }
 }
 
-function applyRuntimeMode(mode: TarkovGameMode): TarkovGameMode {
+export function applyRuntimeMode(mode: TarkovGameMode): TarkovGameMode {
   runtimeMode = parseTarkovGameMode(mode);
   hydrated = true;
   return runtimeMode;
@@ -77,52 +69,15 @@ if (typeof window !== "undefined") {
   getTarkovGameMode();
 }
 
-type TarkovGameModeContextValue = {
+export type TarkovGameModeContextValue = {
   mode: TarkovGameMode;
   setMode: (mode: TarkovGameMode) => void;
 };
 
-const TarkovGameModeContext = createContext<TarkovGameModeContextValue>({
+export const TarkovGameModeContext = createContext<TarkovGameModeContextValue>({
   mode: "pvp",
   setMode: () => undefined,
 });
-
-export function TarkovGameModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<TarkovGameMode>(() =>
-    getTarkovGameMode(),
-  );
-  const setMode = useCallback((next: TarkovGameMode) => {
-    setModeState(persistTarkovGameMode(next));
-  }, []);
-
-  useEffect(() => {
-    const syncFromStorage = () => {
-      const loaded = loadTarkovGameMode();
-      applyRuntimeMode(loaded);
-      setModeState(loaded);
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== TARKOV_GAME_MODE_STORAGE_KEY) return;
-      syncFromStorage();
-    };
-    const onPageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) syncFromStorage();
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("pageshow", onPageShow);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("pageshow", onPageShow);
-    };
-  }, []);
-
-  const value = useMemo(() => ({ mode, setMode }), [mode, setMode]);
-  return (
-    <TarkovGameModeContext.Provider value={value}>
-      {children}
-    </TarkovGameModeContext.Provider>
-  );
-}
 
 export function useTarkovGameMode(): TarkovGameMode {
   return useContext(TarkovGameModeContext).mode;

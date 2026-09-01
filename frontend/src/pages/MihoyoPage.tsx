@@ -24,7 +24,7 @@ const MihoyoExchangePanel = lazy(() =>
 type TabKey = "checkin" | "exchange";
 
 export default function MihoyoPage() {
-  const rolePicker = useRoleMembershipPicker("mihoyo");
+  const { openPicker, modal: rolePickerModal } = useRoleMembershipPicker("mihoyo");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -56,7 +56,7 @@ export default function MihoyoPage() {
             updateRolePref={updateMihoyoRolePref}
             platformIcon="mihoyo"
             showPhoneMask
-            onSelectRoles={() => rolePicker.openPicker()}
+            onSelectRoles={() => openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               if (
@@ -87,7 +87,7 @@ export default function MihoyoPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange, rolePicker.openPicker]);
+  }, [showCheckin, showExchange, openPicker]);
 
   return (
     <PlatformFeatureTabsPage
@@ -101,11 +101,11 @@ export default function MihoyoPage() {
           title="绑定米游社账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
-            window.setTimeout(() => rolePicker.openPicker(), 0);
+            window.setTimeout(() => openPicker(), 0);
           }}
         />
       }
-      rolePickerModal={rolePicker.modal}
+      rolePickerModal={rolePickerModal}
       featuresReady={featuresReady}
       tabItems={tabItems}
       emptyFeaturesMessage="米游社子功能均未启用"

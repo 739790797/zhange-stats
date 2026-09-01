@@ -2,7 +2,6 @@ import { Alert, Modal } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  TARKOV_HOME_PATH,
   TARKOV_RAID_PREP_PATH,
   tarkovRaidRoomHref,
 } from "@/lib/tarkovHomeNav";
@@ -16,7 +15,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
-import { useTarkovGoonTracker } from "@/lib/tarkovGoonTrackerLive";
+import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import mapStyles from "./TarkovMapsPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -253,9 +252,4 @@ export function TarkovRaidPrepEntryModal({
       ) : null}
     </Modal>
   );
-}
-
-/** 关闭入口弹窗时回到塔科夫首页。 */
-export function raidPrepEntryFallbackPath(): string {
-  return TARKOV_HOME_PATH;
 }

@@ -8,7 +8,7 @@ import { PlatformRoute } from "@/components/PlatformRoute";
 import { RouteFallback } from "@/components/RouteFallback";
 import { SetupGate } from "@/components/SetupGate";
 import { antdLocale } from "@/locales/zhCN";
-import { TarkovGameModeProvider } from "@/lib/tarkovGameMode";
+import { TarkovGameModeProvider } from "@/lib/tarkovGameModeProvider";
 import { antdAppTheme } from "@/theme/antdApp";
 
 const AppLayout = lazy(() =>

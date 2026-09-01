@@ -31,7 +31,7 @@ type TabKey = "checkin" | "exchange" | "exastris";
 
 export default function TaygedoPage() {
   // 角色树挂在页面级：绑定成功后会卸载 BindPanel，弹窗不能跟它一起卸掉
-  const rolePicker = useRoleMembershipPicker("taygedo");
+  const { openPicker, modal: rolePickerModal } = useRoleMembershipPicker("taygedo");
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -72,7 +72,7 @@ export default function TaygedoPage() {
             triggerCheckin={triggerTaygedoCheckin}
             updateRolePref={updateTaygedoRolePref}
             platformIcon="taygedo"
-            onSelectRoles={() => rolePicker.openPicker()}
+            onSelectRoles={() => openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               const roleUid = row.role_uid;
@@ -117,7 +117,7 @@ export default function TaygedoPage() {
       });
     }
     return items;
-  }, [showCheckin, showExchange, showExastris, statusQuery.data, rolePicker.openPicker]);
+  }, [showCheckin, showExchange, showExastris, statusQuery.data, openPicker]);
 
   return (
     <PlatformFeatureTabsPage
@@ -130,11 +130,11 @@ export default function TaygedoPage() {
           title="绑定塔吉多账号"
           openRolePickerOnBind={false}
           onSuccess={() => {
-            window.setTimeout(() => rolePicker.openPicker(), 0);
+            window.setTimeout(() => openPicker(), 0);
           }}
         />
       }
-      rolePickerModal={rolePicker.modal}
+      rolePickerModal={rolePickerModal}
       featuresReady={featuresReady}
       tabItems={tabItems}
       emptyFeaturesMessage="塔吉多子功能均未启用"

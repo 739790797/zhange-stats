@@ -16,16 +16,16 @@ import {
   tarkovTraderHref,
 } from "@/lib/tarkovHomeNav";
 import { formatDurationSeconds, formatMoney } from "@/lib/tarkovItemFormat";
-import {
-  TarkovGuideItemStack,
-  guideItemFleaCost,
-} from "@/components/guides/tarkov/TarkovGuideItemCell";
+import { guideItemFleaCost } from "@/lib/tarkovGuideItemCost";
+import { TarkovGuideItemStack } from "@/components/guides/tarkov/TarkovGuideItemCell";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovGuideTrade.module.css";
 
 type Props = {
   stationSlug?: string;
 };
+
+const EMPTY_STATIONS: TarkovHideoutStation[] = [];
 
 function levelCost(level: TarkovHideoutLevel): number | null {
   return guideItemFleaCost(level.item_requirements);
@@ -44,7 +44,7 @@ export function TarkovHideoutPanel({ stationSlug }: Props) {
     retry: 1,
   });
 
-  const stations = catalogQuery.data?.items ?? [];
+  const stations = catalogQuery.data?.items ?? EMPTY_STATIONS;
   const visible = useMemo(() => {
     if (selected === "all") return stations;
     return stations.filter(
