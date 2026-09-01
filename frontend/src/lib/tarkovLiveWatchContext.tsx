@@ -54,7 +54,6 @@ import {
   notifyTarkovTaskProgress,
   planLogSessionReads,
   planRaidLogImport,
-  sameIdLists,
   type LogPollCursor,
 } from "@/lib/tarkovLiveWatch";
 import {
@@ -75,9 +74,13 @@ import {
   loadTaskStartedIds,
   saveTaskProgress,
   saveTaskSyncMark,
+  taskProgressQueryData,
+  unionTaskProgress,
 } from "@/lib/tarkovTaskTree";
+import { useTarkovTaskAccountSync } from "@/lib/useTarkovTaskAccountSync";
 
 export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
+  useTarkovTaskAccountSync();
   const supported = isFileSystemAccessSupported();
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
@@ -139,9 +142,20 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       const mode = gameModeRef.current;
       const prevDone = loadTaskDoneIds(mode);
       const prevStarted = loadTaskStartedIds(mode);
+      const cached = queryClient.getQueryData<{
+        task_ids?: string[];
+        started_ids?: string[];
+      }>(["guides-tarkov-task-dones", mode]);
+      const base = unionTaskProgress(
+        { done: prevDone, started: prevStarted },
+        {
+          done: cached?.task_ids,
+          started: cached?.started_ids,
+        },
+      );
       const next = nextLiveQuestProgress(
-        prevDone,
-        prevStarted,
+        base.done,
+        base.started,
         sessions,
         mode,
         knownIdsRef.current,
@@ -153,17 +167,23 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       }
       notifyTarkovTaskProgress({
         mode,
-        done: next.changed ? next.done : prevDone,
-        started: next.changed ? next.started : prevStarted,
+        done: next.changed ? next.done : base.done,
+        started: next.changed ? next.started : base.started,
         syncedAt,
         changed: next.changed,
-        completedIds: next.changed ? addedIdList(prevDone, next.done) : [],
+        completedIds: next.changed ? addedIdList(base.done, next.done) : [],
+        source: "log",
       });
-      if (!next.changed || sameIdLists(prevDone, next.done)) return;
-      queryClient.setQueryData(["guides-tarkov-task-dones", mode], {
-        task_ids: next.done,
-      });
-      void writeTarkovTaskDones(next.done, { replace: true }).catch(() => {
+      if (!next.changed) return;
+      if (cached) {
+        queryClient.setQueryData(
+          ["guides-tarkov-task-dones", mode],
+          taskProgressQueryData(next.done, next.started),
+        );
+      }
+      void writeTarkovTaskDones(next.done, {
+        startedIds: next.started,
+      }).catch(() => {
         /* 未登录或网络失败时本机进度仍已写上 */
       });
     },
@@ -399,6 +419,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           newest.folder,
           fingerprint,
           logCursorRef.current,
+          sessions.map((row) => row.folder),
         );
         logCursorRef.current = { folder: newest.folder, fingerprint };
         if (plan.skip) return;
@@ -409,7 +430,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           const parsed = parseTarkovLogBundle(read.files);
           parsedSessions.push({ parsed, read });
         }
-        const newestRead = parsedSessions[parsedSessions.length - 1];
+        const newestRead =
+          parsedSessions.find((row) => row.read.folder === newest.folder) ||
+          parsedSessions[parsedSessions.length - 1];
         if (newestRead) {
           const stamp = logStampFromParsed(
             newestRead.parsed,

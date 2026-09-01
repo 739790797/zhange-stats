@@ -22,6 +22,8 @@ export type TarkovTaskProgressDetail = {
   changed?: boolean;
   /** 相对上一轮新完成的整任务 id；小步骤日志里没有。 */
   completedIds?: string[];
+  /** user 手改；log 日志回放；hydrate 账号对账。日志不得挡住账号增量合并。 */
+  source?: "user" | "log" | "hydrate";
 };
 
 export type LogPollCursor = {
@@ -85,9 +87,23 @@ export function planLogSessionReads(
   newestFolder: string | null,
   newestFingerprint: string,
   prev: LogPollCursor | null,
+  allFolders: readonly string[] = [],
 ): { skip: boolean; folders: string[] } {
   if (!newestFolder) return { skip: true, folders: [] };
-  if (!prev) return { skip: false, folders: [newestFolder] };
+  if (!prev) {
+    const seen = new Set<string>();
+    const folders: string[] = [];
+    for (const folder of allFolders) {
+      const ident = folder.trim();
+      if (!ident || seen.has(ident)) continue;
+      seen.add(ident);
+      folders.push(ident);
+    }
+    return {
+      skip: false,
+      folders: folders.length ? folders : [newestFolder],
+    };
+  }
   if (prev.folder === newestFolder && prev.fingerprint === newestFingerprint) {
     return { skip: true, folders: [] };
   }

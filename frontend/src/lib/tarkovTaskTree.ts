@@ -1,7 +1,7 @@
-/** 个人中心任务勾选：按商人分组、本机/账号完成态。 */
+/** 个人中心任务勾选：按商人分组；完成/进行中本机缓存 + 账号进度账。 */
 
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
-import { notifyTarkovTaskProgress } from "@/lib/tarkovLiveWatch";
+import { notifyTarkovTaskProgress, sameIdLists } from "@/lib/tarkovLiveWatch";
 import { TARKOV_MAPS } from "@/lib/tarkovHomeNav";
 import { laterBeijingClock } from "@/lib/time";
 import {
@@ -60,15 +60,34 @@ export type TarkovTaskDonesState = {
   pve?: string[];
   started?: { pvp?: string[]; pve?: string[] };
   migrated?: { pvp?: boolean; pve?: boolean };
+  startedMigrated?: { pvp?: boolean; pve?: boolean };
   syncedAt?: { pvp?: string; pve?: string };
   cursorAt?: { pvp?: string; pve?: string };
 };
 
+export type AccountTaskProgress = {
+  task_ids?: string[];
+  started_ids?: string[];
+};
+
+export type AccountTaskHydratePlan = {
+  done: string[];
+  started: string[];
+  upload: boolean;
+};
+
 function asIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (id): id is string => typeof id === "string" && id.trim().length > 0,
-  );
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") continue;
+    const ident = raw.trim();
+    if (!ident || seen.has(ident)) continue;
+    seen.add(ident);
+    out.push(ident);
+  }
+  return out;
 }
 
 function asClock(value: unknown): string {
@@ -264,6 +283,7 @@ export function commitTaskStatus(
     done: next.done,
     started: next.started,
     changed: true,
+    source: "user",
   });
   return next;
 }
@@ -395,6 +415,7 @@ function readState(): TarkovTaskDonesState {
           pve: asIdList(parsed.started?.pve),
         },
         migrated: parsed.migrated,
+        startedMigrated: parsed.startedMigrated,
         syncedAt: asClockMap(parsed.syncedAt),
         cursorAt: asClockMap(parsed.cursorAt),
       };
@@ -437,6 +458,7 @@ export function saveTaskProgress(
   doneIds: string[],
   startedIds: string[],
   migrated = false,
+  startedMigrated = false,
 ): void {
   const state = readState();
   state[mode] = asIdList(doneIds);
@@ -444,7 +466,70 @@ export function saveTaskProgress(
   if (migrated) {
     state.migrated = { ...state.migrated, [mode]: true };
   }
+  if (startedMigrated) {
+    state.startedMigrated = { ...state.startedMigrated, [mode]: true };
+  }
   writeState(state);
+}
+
+export function taskProgressQueryData(
+  doneIds: readonly string[],
+  startedIds: readonly string[],
+): { task_ids: string[]; started_ids: string[] } {
+  const done = asIdList(doneIds);
+  const doneSet = new Set(done);
+  return {
+    task_ids: done,
+    started_ids: asIdList(startedIds).filter((id) => !doneSet.has(id)),
+  };
+}
+
+export function unionTaskProgress(
+  left: { done?: readonly string[]; started?: readonly string[] },
+  right: { done?: readonly string[]; started?: readonly string[] },
+): { done: string[]; started: string[] } {
+  const done = asIdList([...(left.done || []), ...(right.done || [])]);
+  const doneSet = new Set(done);
+  const started = asIdList([
+    ...(left.started || []),
+    ...(right.started || []),
+  ]).filter((id) => !doneSet.has(id));
+  return { done, started };
+}
+
+export function planAccountTaskHydrate(input: {
+  serverDone: readonly string[];
+  serverStarted: readonly string[];
+  localDone?: readonly string[] | null;
+  localStarted?: readonly string[] | null;
+}): AccountTaskHydratePlan {
+  const merged = unionTaskProgress(
+    { done: input.serverDone, started: input.serverStarted },
+    { done: input.localDone || [], started: input.localStarted || [] },
+  );
+  const server = taskProgressQueryData(input.serverDone, input.serverStarted);
+  return {
+    ...merged,
+    upload:
+      !sameIdLists(merged.done, server.task_ids) ||
+      !sameIdLists(merged.started, server.started_ids),
+  };
+}
+
+export function resolveAccountTaskProgress(
+  data: AccountTaskProgress | null | undefined,
+  mode: TarkovGameMode,
+): { done: string[]; started: string[] } {
+  if (!data) {
+    return { done: loadTaskDoneIds(mode), started: loadTaskStartedIds(mode) };
+  }
+  const plan = planAccountTaskHydrate({
+    serverDone: data.task_ids || [],
+    serverStarted: data.started_ids || [],
+    localDone: loadTaskDoneIds(mode),
+    localStarted: loadTaskStartedIds(mode),
+  });
+  return { done: plan.done, started: plan.started };
 }
 
 export function loadTaskSyncAt(mode: TarkovGameMode): string {
@@ -491,8 +576,31 @@ export function takeLocalTaskDonesForMigrate(
   }
 }
 
+export function takeLocalTaskStartedForMigrate(
+  mode: TarkovGameMode,
+): string[] | null {
+  try {
+    const raw = localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TarkovTaskDonesState> | string[];
+    if (Array.isArray(parsed) || !parsed || parsed.v !== 1) return null;
+    if (parsed.startedMigrated?.[mode]) return null;
+    const ids = parseTaskStartedState(raw, mode);
+    return ids.length ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
 export function markTaskDonesMigrated(mode: TarkovGameMode, ids: string[]): void {
   saveTaskDoneIds(mode, ids, true);
+}
+
+export function markTaskStartedMigrated(
+  mode: TarkovGameMode,
+  ids: string[],
+): void {
+  saveTaskProgress(mode, loadTaskDoneIds(mode), ids, false, true);
 }
 
 export function factionTaskSuffix(value: string | undefined): string {

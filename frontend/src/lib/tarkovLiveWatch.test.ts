@@ -43,6 +43,10 @@ describe("planLogSessionReads", () => {
       skip: false,
       folders: ["a"],
     });
+    expect(planLogSessionReads("a", "f1", null, ["a", "b", "c"])).toEqual({
+      skip: false,
+      folders: ["a", "b", "c"],
+    });
     expect(
       planLogSessionReads("a", "f1", { folder: "a", fingerprint: "f1" }),
     ).toEqual({ skip: true, folders: [] });
@@ -51,6 +55,12 @@ describe("planLogSessionReads", () => {
     ).toEqual({ skip: false, folders: ["a"] });
     expect(
       planLogSessionReads("b", "f2", { folder: "a", fingerprint: "f1" }),
+    ).toEqual({ skip: false, folders: ["a", "b"] });
+    expect(
+      planLogSessionReads("b", "f2", { folder: "a", fingerprint: "f1" }, [
+        "b",
+        "c",
+      ]),
     ).toEqual({ skip: false, folders: ["a", "b"] });
   });
 });
@@ -196,6 +206,37 @@ describe("nextLiveQuestProgress", () => {
       done: ["keep"],
       started: [],
       changed: false,
+    });
+  });
+
+  it("updates only the logged raid task and leaves the rest of the ledger", () => {
+    expect(
+      nextLiveQuestProgress(
+        ["old-done"],
+        ["old-start"],
+        [
+          {
+            parsed: {
+              events: [],
+              raids: [],
+              sessionMode: "regular",
+              quests: [
+                {
+                  kind: "completed",
+                  taskId: "raid-only",
+                  at: "2026-09-01 16:00:00",
+                },
+              ],
+            },
+          },
+        ],
+        "pvp",
+      ),
+    ).toMatchObject({
+      done: ["old-done", "raid-only"],
+      started: ["old-start"],
+      changed: true,
+      eventCount: 1,
     });
   });
 });

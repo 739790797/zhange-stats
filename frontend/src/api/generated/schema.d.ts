@@ -3536,12 +3536,12 @@ export interface paths {
         };
         /**
          * Guides Tarkov Task Dones List
-         * @description 当前模式已勾选完成的任务。
+         * @description 当前模式的账号进度账：已完成与进行中。
          */
         get: operations["guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get"];
         /**
          * Guides Tarkov Task Dones Write
-         * @description 合并或整表替换当前模式的已完成集合。
+         * @description 合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。
          */
         put: operations["guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put"];
         post?: never;
@@ -11586,6 +11586,8 @@ export interface components {
         TarkovTaskDonesIn: {
             /** Task Ids */
             task_ids?: string[];
+            /** Started Ids */
+            started_ids?: string[] | null;
             /**
              * Replace
              * @default false
@@ -11596,6 +11598,8 @@ export interface components {
         TarkovTaskDonesOut: {
             /** Task Ids */
             task_ids?: string[];
+            /** Started Ids */
+            started_ids?: string[];
         };
         /** TarkovTaskFinishRewardsOut */
         TarkovTaskFinishRewardsOut: {

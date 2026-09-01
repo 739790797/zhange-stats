@@ -268,6 +268,25 @@ class TarkovUserTaskDone(Base):
     )
 
 
+class TarkovUserTaskStarted(Base):
+    """用户任务进行中：按 PVP/PVE 分开，与完成集合一起构成账号进度账。"""
+
+    __tablename__ = "tarkov_user_task_starteds"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class TarkovUserKeyOwn(Base):
     """用户仓库钥匙拥有：账号级，钥匙分类速查勾选，准备总结展示谁有。"""
 

@@ -11523,7 +11523,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones List",
-        "description": "当前模式已勾选完成的任务。",
+        "description": "当前模式的账号进度账：已完成与进行中。",
         "operationId": "guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get",
         "security": [
           {
@@ -11573,7 +11573,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Write",
-        "description": "合并或整表替换当前模式的已完成集合。",
+        "description": "合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。",
         "operationId": "guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put",
         "security": [
           {
@@ -28883,6 +28883,21 @@
             "maxItems": 800,
             "title": "Task Ids"
           },
+          "started_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 800
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started Ids"
+          },
           "replace": {
             "type": "boolean",
             "title": "Replace",
@@ -28900,6 +28915,13 @@
             },
             "type": "array",
             "title": "Task Ids"
+          },
+          "started_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Started Ids"
           }
         },
         "type": "object",

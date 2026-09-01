@@ -47,12 +47,13 @@ import {
   loadTaskDoneIds,
   loadTaskStartedIds,
   loadTaskSyncAt,
+  resolveAccountTaskProgress,
   resolveTaskStatus,
   saveTaskProgress,
   saveTaskSyncMark,
   setTaskStatus,
   summarizeTaskProgress,
-  takeLocalTaskDonesForMigrate,
+  taskProgressQueryData,
   type TaskProgressSummary,
   type TaskStatusKind,
   type TraderTaskGroup,
@@ -233,7 +234,7 @@ export function TarkovTaskManagerPanel() {
   const q = (searchParams.get("q") || "").trim();
   const [keyword, setKeyword] = useState(q);
   const qRef = useRef(q);
-  const migratedRef = useRef("");
+  const hydratedModeRef = useRef("");
   const touchedRef = useRef(false);
   const [doneIds, setDoneIds] = useState<string[]>(() => loadTaskDoneIds(gameMode));
   const [startedIds, setStartedIds] = useState<string[]>(() =>
@@ -254,21 +255,33 @@ export function TarkovTaskManagerPanel() {
     setDoneIds(loadTaskDoneIds(gameMode));
     setStartedIds(loadTaskStartedIds(gameMode));
     setLastSyncAt(loadTaskSyncAt(gameMode));
-    migratedRef.current = "";
+    hydratedModeRef.current = "";
     touchedRef.current = false;
   }, [gameMode]);
 
   const applyProgress = useCallback(
-    (nextDone: string[], nextStarted: string[], migrated = true) => {
+    (
+      nextDone: string[],
+      nextStarted: string[],
+      migrated = true,
+      startedMigrated = false,
+    ) => {
       const cleanedStarted = nextStarted.filter((id) => !nextDone.includes(id));
       doneIdsRef.current = nextDone;
       startedIdsRef.current = cleanedStarted;
       setDoneIds(nextDone);
       setStartedIds(cleanedStarted);
-      saveTaskProgress(gameMode, nextDone, cleanedStarted, migrated);
-      queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], {
-        task_ids: nextDone,
-      });
+      saveTaskProgress(
+        gameMode,
+        nextDone,
+        cleanedStarted,
+        migrated,
+        startedMigrated,
+      );
+      queryClient.setQueryData(
+        ["guides-tarkov-task-dones", gameMode],
+        taskProgressQueryData(nextDone, cleanedStarted),
+      );
     },
     [gameMode, queryClient],
   );
@@ -286,9 +299,14 @@ export function TarkovTaskManagerPanel() {
     return () => window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
   }, [applyProgress, gameMode]);
 
-  const applyDones = useCallback(
-    (ids: string[]) => {
-      applyProgress(ids, startedIdsRef.current);
+  const applyServerProgress = useCallback(
+    (data: { task_ids?: string[]; started_ids?: string[] }) => {
+      applyProgress(
+        data.task_ids || [],
+        data.started_ids || [],
+        true,
+        true,
+      );
     },
     [applyProgress],
   );
@@ -301,34 +319,26 @@ export function TarkovTaskManagerPanel() {
   });
 
   const writeMut = useMutation({
-    mutationFn: (ids: string[]) =>
-      writeTarkovTaskDones(ids, { replace: true }),
-    onSuccess: (data) => applyDones(data.task_ids || []),
+    mutationFn: (payload: { done: string[]; started: string[] }) =>
+      writeTarkovTaskDones(payload.done, {
+        startedIds: payload.started,
+      }),
+    onSuccess: (data) => applyServerProgress(data),
     onError: async (error) => {
       if (requestStatus(error) === 401) return;
       const result = await donesQuery.refetch();
-      if (result.data?.task_ids) applyDones(result.data.task_ids);
+      if (result.data) applyServerProgress(result.data);
     },
   });
 
-  const mergeMut = useMutation({
-    mutationFn: (ids: string[]) => writeTarkovTaskDones(ids),
-    onSuccess: (data) => applyDones(data.task_ids || []),
-  });
-
   useEffect(() => {
-    const server = donesQuery.data?.task_ids;
-    if (!donesQuery.isSuccess || server == null) return;
-    if (migratedRef.current === gameMode) return;
-    migratedRef.current = gameMode;
+    if (!donesQuery.isSuccess || donesQuery.data == null) return;
+    if (hydratedModeRef.current === gameMode) return;
+    hydratedModeRef.current = gameMode;
     if (touchedRef.current) return;
-    const local = takeLocalTaskDonesForMigrate(gameMode);
-    if (local?.length && !server.length) {
-      mergeMut.mutate(local);
-      return;
-    }
-    applyDones(server);
-  }, [applyDones, donesQuery.data, donesQuery.isSuccess, gameMode, mergeMut]);
+    const next = resolveAccountTaskProgress(donesQuery.data, gameMode);
+    applyProgress(next.done, next.started, false);
+  }, [applyProgress, donesQuery.data, donesQuery.isSuccess, gameMode]);
 
   useEffect(() => {
     setKeyword(q);
@@ -436,7 +446,14 @@ export function TarkovTaskManagerPanel() {
     );
     touchedRef.current = true;
     applyProgress(next.done, next.started);
-    writeMut.mutate(next.done);
+    notifyTarkovTaskProgress({
+      mode: gameMode,
+      done: next.done,
+      started: next.started,
+      changed: true,
+      source: "user",
+    });
+    writeMut.mutate({ done: next.done, started: next.started });
   };
 
   const ensureLogsDir = async (): Promise<ReadableDir | null> => {
@@ -469,6 +486,7 @@ export function TarkovTaskManagerPanel() {
       started: startedIdsRef.current,
       syncedAt: marked.syncedAt,
       changed: false,
+      source: "user",
     });
     return marked;
   };
@@ -479,9 +497,12 @@ export function TarkovTaskManagerPanel() {
     touchedRef.current = true;
     applyProgress(doneIdsRef.current, startedIdsRef.current);
     stampSync();
-    writeMut.mutate(doneIdsRef.current, {
-      onSettled: () => setSaving(false),
-    });
+    writeMut.mutate(
+      { done: doneIdsRef.current, started: startedIdsRef.current },
+      {
+        onSettled: () => setSaving(false),
+      },
+    );
     message.success("已保存进度");
   };
 
@@ -520,7 +541,7 @@ export function TarkovTaskManagerPanel() {
       );
       touchedRef.current = true;
       applyProgress(merged.done, merged.started);
-      writeMut.mutate(merged.done);
+      writeMut.mutate({ done: merged.done, started: merged.started });
       stampSync();
       message.success(
         formatQuestSyncDeltaLine(

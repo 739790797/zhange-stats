@@ -75,3 +75,88 @@ def test_replace_rewrites_the_mode_set() -> None:
     ids = dones.replace_dones(db, user, ["b", "c", ""], game_mode="pvp")
     assert ids == ["b", "c"]
     assert dones.list_task_ids(db, user.id, game_mode="pve") == ["keep-pve"]
+
+
+def test_merge_progress_keeps_account_rows() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    dones.write_progress(
+        db,
+        user,
+        ["old-done", "shared"],
+        ["old-start"],
+        replace=True,
+        game_mode="pvp",
+    )
+    done, started = dones.write_progress(
+        db,
+        user,
+        ["raid-done"],
+        ["raid-start"],
+        replace=False,
+        game_mode="pvp",
+    )
+    assert done == ["old-done", "shared", "raid-done"]
+    assert started == ["old-start", "raid-start"]
+
+
+def test_started_is_account_ledger_and_done_wins() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    dones.merge_starteds(db, user, ["s1", "s2", "done-later"], game_mode="pvp")
+    dones.merge_starteds(db, user, ["pve-s"], game_mode="pve")
+    assert dones.list_started_ids(db, user.id, game_mode="pvp") == [
+        "done-later",
+        "s1",
+        "s2",
+    ]
+    dones.add_done(db, user, "done-later", game_mode="pvp")
+    done, started = dones.list_progress(db, user.id, game_mode="pvp")
+    assert done == ["done-later"]
+    assert started == ["s1", "s2"]
+    assert dones.list_started_ids(db, user.id, game_mode="pve") == ["pve-s"]
+
+
+def test_write_progress_replace_and_merge_started() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    done, started = dones.write_progress(
+        db,
+        user,
+        ["d1"],
+        ["s1", "d1"],
+        replace=True,
+        game_mode="pvp",
+    )
+    assert done == ["d1"]
+    assert started == ["s1"]
+    done, started = dones.write_progress(
+        db,
+        user,
+        ["d2"],
+        ["s2"],
+        replace=False,
+        game_mode="pvp",
+    )
+    assert done == ["d1", "d2"]
+    assert started == ["s1", "s2"]
+    done, started = dones.write_progress(
+        db,
+        user,
+        ["d2"],
+        None,
+        replace=True,
+        game_mode="pvp",
+    )
+    assert done == ["d2"]
+    assert started == ["s1", "s2"]
+    done, started = dones.write_progress(
+        db,
+        user,
+        ["d2"],
+        [],
+        replace=True,
+        game_mode="pvp",
+    )
+    assert done == ["d2"]
+    assert started == []

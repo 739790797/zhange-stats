@@ -933,10 +933,12 @@ class TarkovKeyOwnsIn(BaseModel):
 
 class TarkovTaskDonesOut(BaseModel):
     task_ids: list[str] = Field(default_factory=list)
+    started_ids: list[str] = Field(default_factory=list)
 
 
 class TarkovTaskDonesIn(BaseModel):
     task_ids: list[str] = Field(default_factory=list, max_length=800)
+    started_ids: list[str] | None = Field(default=None, max_length=800)
     replace: bool = False
 
 

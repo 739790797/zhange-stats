@@ -10,15 +10,15 @@ import {
   loadTaskDoneIds,
   loadTaskStartedIds,
   loadTaskSyncAt,
-  markTaskDonesMigrated,
   parseTaskDonesState,
+  planAccountTaskHydrate,
+  resolveAccountTaskProgress,
   resolveTaskMapId,
   resolveTaskStatus,
   saveTaskDoneIds,
   saveTaskProgress,
   saveTaskSyncMark,
   summarizeTaskProgress,
-  takeLocalTaskDonesForMigrate,
   taskHitsMap,
 } from "./tarkovTaskTree";
 import type { TaskListItem } from "./tarkovTaskTree";
@@ -199,11 +199,50 @@ describe("task dones storage", () => {
     expect(loadTaskStartedIds("pvp")).toEqual(["s"]);
   });
 
-  it("migrates once per mode", () => {
-    saveTaskDoneIds("pvp", ["a"]);
-    expect(takeLocalTaskDonesForMigrate("pvp")).toEqual(["a"]);
-    markTaskDonesMigrated("pvp", ["a"]);
-    expect(takeLocalTaskDonesForMigrate("pvp")).toBeNull();
-    expect(takeLocalTaskDonesForMigrate("pve")).toBeNull();
+  it("hydrates by union so a new PC cannot wipe the account", () => {
+    saveTaskProgress("pvp", ["local-done"], ["local-start"]);
+    expect(
+      planAccountTaskHydrate({
+        serverDone: [],
+        serverStarted: [],
+        localDone: ["local-done"],
+        localStarted: ["local-start"],
+      }),
+    ).toEqual({
+      done: ["local-done"],
+      started: ["local-start"],
+      upload: true,
+    });
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["account-done", "shared"],
+        serverStarted: ["account-start"],
+        localDone: ["shared", "raid-done"],
+        localStarted: ["raid-start"],
+      }),
+    ).toEqual({
+      done: ["account-done", "shared", "raid-done"],
+      started: ["account-start", "raid-start"],
+      upload: true,
+    });
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["account-done"],
+        serverStarted: ["account-start"],
+        localDone: [],
+        localStarted: [],
+      }),
+    ).toEqual({
+      done: ["account-done"],
+      started: ["account-start"],
+      upload: false,
+    });
+    saveTaskProgress("pvp", [], []);
+    expect(
+      resolveAccountTaskProgress(
+        { task_ids: ["remote"], started_ids: ["live"] },
+        "pvp",
+      ),
+    ).toEqual({ done: ["remote"], started: ["live"] });
   });
 });

@@ -986,6 +986,11 @@ def _task_dones_error(exc: task_dones_svc.TarkovTaskDonesError) -> HTTPException
     return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
+def _task_progress_out(db: Session, user: User) -> TarkovTaskDonesOut:
+    done, started = task_dones_svc.list_progress(db, user.id)
+    return TarkovTaskDonesOut(task_ids=done, started_ids=started)
+
+
 @router.get(
     "/task-dones",
     response_model=TarkovTaskDonesOut,
@@ -995,8 +1000,8 @@ def guides_tarkov_task_dones_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """当前模式已勾选完成的任务。"""
-    return TarkovTaskDonesOut(task_ids=task_dones_svc.list_task_ids(db, user.id))
+    """当前模式的账号进度账：已完成与进行中。"""
+    return _task_progress_out(db, user)
 
 
 @router.put(
@@ -1009,13 +1014,16 @@ def guides_tarkov_task_dones_write(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """合并或整表替换当前模式的已完成集合。"""
-    if body.replace:
-        ids = task_dones_svc.replace_dones(db, user, body.task_ids)
-    else:
-        ids = task_dones_svc.merge_dones(db, user, body.task_ids)
+    """合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。"""
+    done, started = task_dones_svc.write_progress(
+        db,
+        user,
+        body.task_ids,
+        body.started_ids,
+        replace=body.replace,
+    )
     db.commit()
-    return TarkovTaskDonesOut(task_ids=ids)
+    return TarkovTaskDonesOut(task_ids=done, started_ids=started)
 
 
 @router.put(
@@ -1029,11 +1037,11 @@ def guides_tarkov_task_dones_add(
     user: User = Depends(get_current_user),
 ):
     try:
-        ids, _added = task_dones_svc.add_done(db, user, task_id)
+        task_dones_svc.add_done(db, user, task_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
         raise _task_dones_error(exc) from exc
     db.commit()
-    return TarkovTaskDonesOut(task_ids=ids)
+    return _task_progress_out(db, user)
 
 
 @router.delete(
@@ -1047,11 +1055,11 @@ def guides_tarkov_task_dones_remove(
     user: User = Depends(get_current_user),
 ):
     try:
-        ids, _removed = task_dones_svc.remove_done(db, user, task_id)
+        task_dones_svc.remove_done(db, user, task_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
         raise _task_dones_error(exc) from exc
     db.commit()
-    return TarkovTaskDonesOut(task_ids=ids)
+    return _task_progress_out(db, user)
 
 
 @router.post(

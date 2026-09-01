@@ -368,13 +368,20 @@ export async function fetchTarkovTaskDones() {
   return data;
 }
 
+/** 默认 merge：只补账号里没有的完成/进行中，不会整表清空。replace 仅测试或显式快照。 */
 export async function writeTarkovTaskDones(
   taskIds: string[],
-  opts?: { replace?: boolean },
+  opts?: { replace?: boolean; startedIds?: string[] },
 ) {
   const { data } = await client.put<TarkovTaskDones>(
     "/guides/tarkov/task-dones",
-    { task_ids: taskIds, replace: Boolean(opts?.replace) },
+    {
+      task_ids: taskIds,
+      replace: Boolean(opts?.replace),
+      ...(opts?.startedIds !== undefined
+        ? { started_ids: opts.startedIds }
+        : {}),
+    },
     { timeout: 30_000 },
   );
   return data;

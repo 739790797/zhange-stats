@@ -80,6 +80,8 @@ import {
   commitTaskStatus,
   loadTaskDoneIds,
   loadTaskStartedIds,
+  resolveAccountTaskProgress,
+  taskProgressQueryData,
 } from "@/lib/tarkovTaskTree";
 import {
   applyRoomWsEvent,
@@ -451,14 +453,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     enabled: Boolean(mapId && me),
     staleTime: 30_000,
   });
-  const doneTaskIds = taskDonesQuery.data?.task_ids ?? loadTaskDoneIds(gameMode);
-  const startedTaskIds = useMemo(
-    () => {
-      void progressTick;
-      return loadTaskStartedIds(gameMode);
-    },
-    [gameMode, progressTick],
-  );
+  const doneTaskIds = useMemo(() => {
+    void progressTick;
+    return resolveAccountTaskProgress(taskDonesQuery.data, gameMode).done;
+  }, [gameMode, progressTick, taskDonesQuery.data]);
+  const startedTaskIds = useMemo(() => {
+    void progressTick;
+    return resolveAccountTaskProgress(taskDonesQuery.data, gameMode).started;
+  }, [gameMode, progressTick, taskDonesQuery.data]);
 
   const mapQuery = useQuery({
     queryKey: ["guides-tarkov-map", gameMode, mapId],
@@ -665,10 +667,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         return;
       }
       const next = commitTaskStatus(gameMode, taskId, status);
-      queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], {
-        task_ids: next.done,
-      });
-      void writeTarkovTaskDones(next.done, { replace: true }).catch(() => {});
+      queryClient.setQueryData(
+        ["guides-tarkov-task-dones", gameMode],
+        taskProgressQueryData(next.done, next.started),
+      );
+      void writeTarkovTaskDones(next.done, {
+        startedIds: next.started,
+      }).catch(() => {});
     },
     [doneTaskIds, gameMode, queryClient, startedTaskIds],
   );
