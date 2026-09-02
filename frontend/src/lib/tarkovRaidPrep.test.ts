@@ -88,6 +88,7 @@ import {
   sortRaidPrepSummaryByParticipants,
   displayRaidPrepTaskName,
   collectRaidPrepCompletedUsers,
+  collectRaidPrepPartyKeySkipMap,
   collectRaidPrepOtherMapGroups,
   formatRaidPrepOtherMapsLead,
   raidPrepMapObjectivesComplete,
@@ -1563,6 +1564,178 @@ describe("raid prep needed items", () => {
     ]);
     expect(rows[0].itemsByType.giveItem?.[0]?.count).toBe(2);
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
+    expect(rows[0].hasMapKeys).toBe(true);
+  });
+
+  it("keeps party keys when the viewer finished but a teammate has not", () => {
+    const wealth: RaidPrepTaskLike = {
+      id: "wealth",
+      name: "财不外露",
+      objectives: [
+        { id: "o-find", type: "visit", description: "找到不动产管理处" },
+        {
+          id: "o-key",
+          type: "visit",
+          description: "进入办公室",
+          required_keys: [
+            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
+          ],
+        },
+        { id: "o-upload", type: "visit", description: "上传找到的信息" },
+      ],
+    };
+    const viewerSkip = new Map([
+      ["wealth", new Set(["o-find", "o-key", "o-upload"])],
+    ]);
+    const people = new Map([
+      ["wealth", [{ userId: 1, name: "我" }, { userId: 2, name: "队友" }]],
+    ]);
+    const keySkipped = collectRaidPrepPartyKeySkipMap(
+      [wealth],
+      "streets",
+      people,
+      [
+        { task_id: "wealth", objective_id: "o-find", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-upload", user_id: 1 },
+      ],
+      viewerSkip,
+    );
+    expect(keySkipped.get("wealth")?.size ?? 0).toBe(0);
+    const rows = buildRaidPrepSummary(
+      [wealth],
+      "streets",
+      viewerSkip,
+      keySkipped,
+    );
+    expect(rows[0].keys.map((item) => item.name)).toEqual([
+      "不动产管理处办公室钥匙",
+    ]);
+    expect(rows[0].hasMapKeys).toBe(true);
+  });
+
+  it("hides party keys only after every participant finished the key step", () => {
+    const wealth: RaidPrepTaskLike = {
+      id: "wealth",
+      name: "财不外露",
+      objectives: [
+        {
+          id: "o-key",
+          type: "visit",
+          description: "进入办公室",
+          required_keys: [
+            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
+          ],
+        },
+        { id: "o-upload", type: "visit", description: "上传找到的信息" },
+      ],
+    };
+    const people = new Map([
+      ["wealth", [{ userId: 1 }, { userId: 2 }]],
+    ]);
+    const keySkipped = collectRaidPrepPartyKeySkipMap(
+      [wealth],
+      "streets",
+      people,
+      [
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-upload", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
+        { task_id: "wealth", objective_id: "o-upload", user_id: 2 },
+      ],
+    );
+    expect([...keySkipped.get("wealth")!].sort()).toEqual([
+      "o-key",
+      "o-upload",
+    ]);
+    const rows = buildRaidPrepSummary(
+      [wealth],
+      "streets",
+      new Map([["wealth", new Set(["o-key", "o-upload"])]]),
+      keySkipped,
+    );
+    expect(rows[0].keys).toEqual([]);
+    expect(rows[0].hasMapKeys).toBe(true);
+  });
+
+  it("drops a key after every participant finished that key step", () => {
+    const wealth: RaidPrepTaskLike = {
+      id: "wealth",
+      name: "财不外露",
+      objectives: [
+        {
+          id: "o-key",
+          type: "visit",
+          description: "进入办公室",
+          required_keys: [
+            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
+          ],
+        },
+        { id: "o-upload", type: "visit", description: "上传找到的信息" },
+      ],
+    };
+    const keySkipped = collectRaidPrepPartyKeySkipMap(
+      [wealth],
+      "streets",
+      new Map([["wealth", [{ userId: 1 }, { userId: 2 }]]]),
+      [
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
+      ],
+    );
+    expect([...keySkipped.get("wealth")!]).toEqual(["o-key"]);
+    const rows = buildRaidPrepSummary([wealth], "streets", undefined, keySkipped);
+    expect(rows[0].keys).toEqual([]);
+    expect(rows[0].hasMapKeys).toBe(true);
+  });
+
+  it("falls back to viewer skip when a task has no participants", () => {
+    const wealth: RaidPrepTaskLike = {
+      id: "wealth",
+      name: "财不外露",
+      objectives: [
+        {
+          id: "o-key",
+          type: "visit",
+          description: "进入办公室",
+          required_keys: [
+            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
+          ],
+        },
+      ],
+    };
+    const viewerSkip = new Map([["wealth", new Set(["o-key"])]]);
+    const keySkipped = collectRaidPrepPartyKeySkipMap(
+      [wealth],
+      "streets",
+      undefined,
+      [],
+      viewerSkip,
+    );
+    expect([...keySkipped.get("wealth")!]).toEqual(["o-key"]);
+    const rows = buildRaidPrepSummary(
+      [wealth],
+      "streets",
+      viewerSkip,
+      keySkipped,
+    );
+    expect(rows[0].keys).toEqual([]);
+    expect(rows[0].hasMapKeys).toBe(true);
+  });
+
+  it("marks hasMapKeys false when the task has no keys on this map", () => {
+    const rows = buildRaidPrepSummary(
+      [
+        {
+          id: "visit-only",
+          name: "探路",
+          objectives: [{ id: "o1", type: "visit", description: "去看看" }],
+        },
+      ],
+      "customs",
+    );
+    expect(rows[0].keys).toEqual([]);
+    expect(rows[0].hasMapKeys).toBe(false);
   });
 
   it("lists users who finished every required map objective", () => {

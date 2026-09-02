@@ -507,6 +507,8 @@ export type RaidPrepTaskSummary = {
   objectiveLines: string[];
   /** 当前地图全部目标（含已勾掉），供勾选进度。 */
   objectives: RaidPrepObjectiveHint[];
+  /** 本图任务本身有钥匙（与个人/房间勾选无关）。 */
+  hasMapKeys: boolean;
   /** 当前用户已勾完本图必做步骤。 */
   mapComplete: boolean;
   /** 其他地图仍要做的步骤（只提示，不在本图勾选）。 */
@@ -1925,6 +1927,49 @@ function addObjectiveDoneToSkipMap(
   bucket.add(objId);
 }
 
+/**
+ * 房间钥匙列 skip：某步骤仅当所有带 userId 的参与人都勾完才可隐藏。
+ * 没有参与人 / 对不上 userId 时回退 fallback（个人 skip）。
+ */
+export function collectRaidPrepPartyKeySkipMap(
+  tasks: readonly RaidPrepTaskLike[],
+  mapSlug: string,
+  participantsByTask?: ReadonlyMap<
+    string,
+    readonly { userId?: number | null }[]
+  >,
+  objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null,
+  fallback?: RaidPrepSkipMap,
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const task of tasks) {
+    const people = (participantsByTask?.get(task.id) || [])
+      .map((person) => person.userId)
+      .filter(
+        (id): id is number =>
+          id != null && Number.isFinite(id) && id > 0,
+      );
+    if (!people.length) {
+      const fb = fallback?.get(task.id);
+      if (fb?.size) out.set(task.id, new Set(fb));
+      continue;
+    }
+    const skip = new Set<string>();
+    for (const { obj, index } of mapObjectives(task, mapSlug)) {
+      const objId = raidPrepObjectiveKey(obj, index);
+      if (
+        people.every((userId) =>
+          userMarkedObjective(objectiveDones, task.id, objId, userId),
+        )
+      ) {
+        skip.add(objId);
+      }
+    }
+    if (skip.size) out.set(task.id, skip);
+  }
+  return out;
+}
+
 export function objectiveDonesToSkipMap(
   dones: readonly RaidPrepObjectiveDoneLike[] | null | undefined,
   userId: number | null | undefined,
@@ -2618,14 +2663,18 @@ export function buildRaidPrepSummary(
   tasks: RaidPrepTaskLike[],
   mapSlug: string,
   skippedByTask?: RaidPrepSkipMap,
+  keySkippedByTask?: RaidPrepSkipMap,
 ): RaidPrepTaskSummary[] {
   return tasks.map((task) => {
     const skipped = raidPrepSkippedIds(skippedByTask, task.id);
+    const keySkipped = keySkippedByTask
+      ? raidPrepSkippedIds(keySkippedByTask, task.id)
+      : skipped;
     const items = mergeRaidPrepNeededItems(
       collectRaidPrepTaskItems(task, mapSlug, skipped),
     );
     const keys = mergeRaidPrepNeededItems(
-      collectRaidPrepTaskKeys(task, mapSlug, skipped),
+      collectRaidPrepTaskKeys(task, mapSlug, keySkipped),
     );
     const objectives = collectRaidPrepTaskObjectives(task, mapSlug);
     return {
@@ -2635,6 +2684,7 @@ export function buildRaidPrepSummary(
       traderName: (task.trader_name || "").trim(),
       itemsByType: groupRaidPrepItemsByType(items),
       keys,
+      hasMapKeys: collectRaidPrepTaskKeys(task, mapSlug).length > 0,
       shootSlots: collectRaidPrepTaskShootSlots(task, mapSlug, skipped),
       types: collectRaidPrepTaskTypes(task, mapSlug, skipped),
       objectiveLines: collectRaidPrepTaskObjectiveLines(task, mapSlug),

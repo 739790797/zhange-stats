@@ -11,6 +11,7 @@ import {
   buildRaidPrepSummary,
   collectRaidPrepBringKit,
   collectRaidPrepCompletedUsers,
+  collectRaidPrepPartyKeySkipMap,
   collectRaidPrepSummaryTypeColumns,
   raidPrepTaskIdsForParticipant,
   colorForTaskId,
@@ -693,7 +694,6 @@ function SummaryList({
               showBringTypes,
               showShootTypes,
             );
-            const noKeys = !(row.keys || []).length;
             const unavailable = raidPrepTaskKeysUnavailable(
               row.keys,
               availableKeyIds,
@@ -797,7 +797,7 @@ function SummaryList({
                   onPeek={onPeek}
                   keyBring={keyBring}
                   keyOwn={keyOwn}
-                  empty={index === 0 && noKeys ? "无所需钥匙" : "—"}
+                  empty={index === 0 && !row.hasMapKeys ? "无所需钥匙" : "—"}
                   className={bringColClass(0, bringSpan)}
                 />
                 {showBringTypes ? (
@@ -875,9 +875,34 @@ export function TarkovRaidPrepSummary({
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
   const rows = useMemo(() => {
     if (!open) return [];
-    const built = buildRaidPrepSummary(tasks, mapId, skippedByTask);
+    const dones =
+      objectiveDones ??
+      (currentUser
+        ? skipMapToObjectiveDones(skippedByTask, currentUser)
+        : []);
+    const keySkipped = collectRaidPrepPartyKeySkipMap(
+      tasks,
+      mapId,
+      participantsByTask,
+      dones,
+      skippedByTask,
+    );
+    const built = buildRaidPrepSummary(
+      tasks,
+      mapId,
+      skippedByTask,
+      keySkipped,
+    );
     return sortRaidPrepSummaryByParticipants(built, participantsByTask);
-  }, [open, tasks, mapId, participantsByTask, skippedByTask]);
+  }, [
+    open,
+    tasks,
+    mapId,
+    participantsByTask,
+    skippedByTask,
+    objectiveDones,
+    currentUser,
+  ]);
   const completedByTask = useMemo(() => {
     if (!open) return new Map();
     const dones =
