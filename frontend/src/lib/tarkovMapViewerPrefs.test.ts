@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultExtractKindFlags } from "./tarkovMapExtracts";
+import { defaultTarkovMapKindFlags } from "./tarkovMapMarkers";
 import { defaultSpawnKindFlags } from "./tarkovMapSpawns";
 import {
   DEFAULT_TARKOV_MAP_VIEWER_PREFS,
@@ -8,6 +9,8 @@ import {
   resolveMapFloor,
   resolveMapStyle,
   withExtractKind,
+  withHazardKind,
+  withLootContainerKind,
   withMapFloor,
   withSpawnKind,
 } from "./tarkovMapViewerPrefs";
@@ -17,6 +20,8 @@ const emptyDefaults = {
   floorsByMap: {},
   extractKinds: defaultExtractKindFlags(true),
   spawnKinds: defaultSpawnKindFlags(true),
+  hazardKinds: defaultTarkovMapKindFlags(),
+  lootContainerKinds: defaultTarkovMapKindFlags(),
 };
 
 describe("parseTarkovMapViewerPrefs", () => {
@@ -56,7 +61,33 @@ describe("parseTarkovMapViewerPrefs", () => {
       spawnKinds: { pmc: false, scav: true, boss: false },
       showLabels: false,
       showQuests: false,
+      showLocks: true,
+      showHazards: true,
+      showSwitches: true,
+      showStationary: true,
+      showBtrStops: true,
+      showLootContainers: false,
+      hazardKinds: {},
+      lootContainerKinds: {},
     });
+  });
+
+  it("defaults locks on and loot containers off when old storage omits them", () => {
+    const parsed = parseTarkovMapViewerPrefs(
+      JSON.stringify({
+        style: "svg",
+        showLabels: true,
+        showQuests: true,
+      }),
+    );
+    expect(parsed.showLocks).toBe(true);
+    expect(parsed.showHazards).toBe(true);
+    expect(parsed.showSwitches).toBe(true);
+    expect(parsed.showStationary).toBe(true);
+    expect(parsed.showBtrStops).toBe(true);
+    expect(parsed.showLootContainers).toBe(false);
+    expect(parsed.hazardKinds).toEqual({});
+    expect(parsed.lootContainerKinds).toEqual({});
   });
 
   it("migrates legacy showExtracts boolean into extractKinds", () => {
@@ -145,6 +176,27 @@ describe("withSpawnKind", () => {
   });
 });
 
+describe("withHazardKind", () => {
+  it("turns on a hazard kind and the parent", () => {
+    const off = { ...emptyDefaults, showHazards: false };
+    expect(withHazardKind(off, "minefield", true)).toEqual({
+      ...off,
+      showHazards: true,
+      hazardKinds: { minefield: true },
+    });
+  });
+});
+
+describe("withLootContainerKind", () => {
+  it("turns on one container kind without enabling others", () => {
+    expect(withLootContainerKind(emptyDefaults, "jacket", true)).toEqual({
+      ...emptyDefaults,
+      showLootContainers: true,
+      lootContainerKinds: { jacket: true },
+    });
+  });
+});
+
 describe("overlayFlagsForMode", () => {
   it("keeps only boss markers in spawn overlay mode", () => {
     expect(overlayFlagsForMode(emptyDefaults, "boss-spawns")).toEqual({
@@ -152,6 +204,14 @@ describe("overlayFlagsForMode", () => {
       spawnKinds: { pmc: false, scav: false, boss: true },
       showLabels: false,
       showQuests: false,
+      showLocks: false,
+      showHazards: false,
+      showSwitches: false,
+      showStationary: false,
+      showBtrStops: false,
+      showLootContainers: false,
+      hazardKinds: {},
+      lootContainerKinds: {},
     });
   });
 });

@@ -560,6 +560,81 @@ class TarkovMapSpawnOut(BaseModel):
     z: float
 
 
+class TarkovMapLockOut(BaseModel):
+    id: str = ""
+    lock_type: str = ""
+    needs_power: bool = False
+    key_id: str = ""
+    key_name: str = ""
+    key_short_name: str = ""
+    key_icon: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovMapHazardOut(BaseModel):
+    id: str = ""
+    hazard_type: str = ""
+    name: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovMapSwitchActivateOut(BaseModel):
+    operation: str = ""
+    name: str = ""
+    kind: str = ""
+
+
+class TarkovMapSwitchOut(BaseModel):
+    id: str = ""
+    name: str = ""
+    switch_type: str = ""
+    activated_by: str = ""
+    activates: list[TarkovMapSwitchActivateOut] = Field(default_factory=list)
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovMapStationaryWeaponOut(BaseModel):
+    id: str = ""
+    name: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovMapBtrStopOut(BaseModel):
+    id: str = ""
+    name: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+
+
+class TarkovMapLootContainerOut(BaseModel):
+    id: str = ""
+    container_id: str = ""
+    name: str = ""
+    normalized_name: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
 class TarkovMapListItemOut(BaseModel):
     id: str
     slug: str
@@ -646,6 +721,14 @@ class TarkovMapDetailOut(TarkovMapListItemOut):
     extracts: list[TarkovMapExtractOut] = Field(default_factory=list)
     bosses: list[TarkovMapBossOut] = Field(default_factory=list)
     spawns: list[TarkovMapSpawnOut] = Field(default_factory=list)
+    locks: list[TarkovMapLockOut] = Field(default_factory=list)
+    hazards: list[TarkovMapHazardOut] = Field(default_factory=list)
+    switches: list[TarkovMapSwitchOut] = Field(default_factory=list)
+    stationary_weapons: list[TarkovMapStationaryWeaponOut] = Field(
+        default_factory=list
+    )
+    btr_stops: list[TarkovMapBtrStopOut] = Field(default_factory=list)
+    loot_containers: list[TarkovMapLootContainerOut] = Field(default_factory=list)
     variants: list[TarkovMapVariantOut] = Field(default_factory=list)
     places: list[TarkovMapPlaceOut] = Field(default_factory=list)
     source: str | None = None

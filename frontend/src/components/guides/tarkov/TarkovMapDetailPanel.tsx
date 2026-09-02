@@ -216,6 +216,12 @@ function TarkovMapDetailReady({
           extracts={detail.extracts}
           bosses={detail.bosses}
           spawns={detail.spawns}
+          locks={detail.locks}
+          hazards={detail.hazards}
+          switches={detail.switches}
+          stationaryWeapons={detail.stationary_weapons}
+          btrStops={detail.btr_stops}
+          lootContainers={detail.loot_containers}
           places={detail.places}
           placeEdit={editor.placeEdit}
           onFloorChange={setFloor}

@@ -24,9 +24,15 @@ import {
 import type { RaidPrepMapParticipant } from "@/lib/tarkovRaidPrep";
 import type {
   TarkovMapBoss,
+  TarkovMapBtrStop,
   TarkovMapExtract,
+  TarkovMapHazard,
+  TarkovMapLock,
+  TarkovMapLootContainer,
   TarkovMapPlace,
   TarkovMapSpawn,
+  TarkovMapStationaryWeapon,
+  TarkovMapSwitch,
 } from "@/api/guidesApi";
 import { type ReactNode, type RefObject } from "react";
 
@@ -42,6 +48,12 @@ type Props = {
   extracts?: TarkovMapExtract[];
   bosses?: TarkovMapBoss[];
   spawns?: TarkovMapSpawn[];
+  locks?: TarkovMapLock[];
+  hazards?: TarkovMapHazard[];
+  switches?: TarkovMapSwitch[];
+  stationaryWeapons?: TarkovMapStationaryWeapon[];
+  btrStops?: TarkovMapBtrStop[];
+  lootContainers?: TarkovMapLootContainer[];
   places?: TarkovMapPlace[];
   questOverlays: TarkovRaidPrepOverlay[];
   questObjectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
@@ -124,6 +136,12 @@ export function TarkovRaidRoomLiveMap({
   extracts,
   bosses,
   spawns,
+  locks,
+  hazards,
+  switches,
+  stationaryWeapons,
+  btrStops,
+  lootContainers,
   places,
   questOverlays,
   questObjectiveDones,
@@ -222,6 +240,12 @@ export function TarkovRaidRoomLiveMap({
         extracts={extracts}
         bosses={bosses}
         spawns={spawns}
+        locks={locks}
+        hazards={hazards}
+        switches={switches}
+        stationaryWeapons={stationaryWeapons}
+        btrStops={btrStops}
+        lootContainers={lootContainers}
         places={places}
         questOverlays={questOverlays}
         questObjectiveDones={questObjectiveDones}

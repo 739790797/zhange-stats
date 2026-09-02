@@ -209,6 +209,14 @@ export type TarkovMapDetail = components["schemas"]["TarkovMapDetailOut"];
 export type TarkovMapExtract = components["schemas"]["TarkovMapExtractOut"];
 export type TarkovMapBoss = components["schemas"]["TarkovMapBossOut"];
 export type TarkovMapSpawn = components["schemas"]["TarkovMapSpawnOut"];
+export type TarkovMapLock = components["schemas"]["TarkovMapLockOut"];
+export type TarkovMapHazard = components["schemas"]["TarkovMapHazardOut"];
+export type TarkovMapSwitch = components["schemas"]["TarkovMapSwitchOut"];
+export type TarkovMapStationaryWeapon =
+  components["schemas"]["TarkovMapStationaryWeaponOut"];
+export type TarkovMapBtrStop = components["schemas"]["TarkovMapBtrStopOut"];
+export type TarkovMapLootContainer =
+  components["schemas"]["TarkovMapLootContainerOut"];
 export type TarkovMapPlace = components["schemas"]["TarkovMapPlaceOut"];
 export type TarkovMapPlaceIn = components["schemas"]["TarkovMapPlaceIn"];
 export type TarkovMapPlacePatch = components["schemas"]["TarkovMapPlacePatchIn"];

@@ -27,15 +27,27 @@
 
 .wrapSpace .map,
 .wrapSpace.wrapDraw .map,
-.wrapSpace.wrapPlaceEdit .map {
+.wrapSpace.wrapPlaceEdit .map,
+.wrapSpace :global(.leaflet-container.tarkov-canvas-hit) {
   cursor: grab;
 }
 
 .wrapDraw .leaflet-marker-pane,
 .wrapDraw .leaflet-overlay-pane,
 .wrapDraw .leaflet-tooltip-pane,
-.wrapDraw .leaflet-popup-pane {
+.wrapDraw .leaflet-popup-pane,
+.wrapDraw :global(.leaflet-iconCanvas-pane),
+.wrapPlaceEdit :global(.leaflet-iconCanvas-pane) {
   pointer-events: none;
+}
+
+.wrap :global(.leaflet-container.tarkov-canvas-hit) {
+  cursor: pointer;
+}
+
+/* 缩放过程藏画布，结束再按 24px 重画；拖拽时画布跟着 pane 走 */
+.wrap.isZooming :global(.leaflet-iconCanvas-pane) {
+  visibility: hidden !important;
 }
 
 /* 拖动/缩放时隐藏重文字 DivIcon，避免跟不上；点位在 overlay SVG 里仍可见 */
@@ -106,6 +118,13 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.filterGroupTitle {
+  padding: 1px 0 2px;
+  color: inherit;
+  font-weight: 600;
+  user-select: none;
 }
 
 .filterSubgroup {
@@ -504,6 +523,29 @@
 .wrap :global(.leaflet-tooltip).spawnTooltip div {
   color: #c8c4a8;
   margin-top: 2px;
+}
+
+.lockTip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lockTipIcon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
+.lockTipText {
+  min-width: 0;
+}
+
+.lockTipText strong {
+  display: block;
 }
 
 .wrap :global(.leaflet-tooltip.leaflet-tooltip-top).questTooltip::before,

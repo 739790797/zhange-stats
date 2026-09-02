@@ -81,6 +81,49 @@ query MapMarkers($lang: LanguageCode, $gameMode: GameMode) {
       sides
       position { x y z }
     }
+    locks {
+      lockType
+      needsPower
+      key { id name shortName iconLink }
+      position { x y z }
+      top
+      bottom
+    }
+    hazards {
+      hazardType
+      name
+      position { x y z }
+      top
+      bottom
+    }
+    switches {
+      id
+      name
+      switchType
+      position { x y z }
+      activatedBy { id name }
+    }
+    stationaryWeapons {
+      stationaryWeapon { id name shortName }
+      position { x y z }
+    }
+    btrStops {
+      name
+      x
+      y
+      z
+    }
+    lootContainers {
+      lootContainer { id name normalizedName }
+      position { x y z }
+    }
+    artillery {
+      zones {
+        position { x y z }
+        top
+        bottom
+      }
+    }
   }
 }
 """.strip()
@@ -89,7 +132,7 @@ query MapMarkers($lang: LanguageCode, $gameMode: GameMode) {
 SPAWN_KINDS = ("pmc", "scav")
 
 _MARKER_TTL_SEC = 3600
-_MARKER_CACHE_VER = "spawns-v1"
+_MARKER_CACHE_VER = "markers-v3"
 _marker_cache: dict[str, dict[str, Any]] = {}
 
 
@@ -336,6 +379,633 @@ def _parse_map_spawns(rows: list[Any] | None) -> list[dict[str, Any]]:
     return out
 
 
+def _opt_float(raw: Any) -> float | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _has_xz(row: dict[str, Any] | None) -> bool:
+    if not isinstance(row, dict):
+        return False
+    return row.get("x") is not None and row.get("z") is not None
+
+
+def _is_hex_item_id(raw: str) -> bool:
+    key = (raw or "").strip()
+    return len(key) >= 20 and all(ch in "0123456789abcdef" for ch in key.lower())
+
+
+def _is_blank_item_label(raw: str) -> bool:
+    key = (raw or "").strip()
+    if not key or _is_hex_item_id(key):
+        return True
+    for suffix in (" Name", " ShortName", " Description"):
+        if key.endswith(suffix):
+            return _is_hex_item_id(key[: -len(suffix)].strip())
+    return False
+
+
+def _is_locale_key(raw: str) -> bool:
+    text = (raw or "").strip()
+    if not text:
+        return False
+    if "/" in text:
+        return True
+    return text.endswith((" Name", " ShortName", " Description"))
+
+
+def _needs_display_name(raw: str) -> bool:
+    return _is_blank_item_label(raw) or _is_locale_key(raw)
+
+
+def _resolved_item_name(locale: dict[str, Any], *candidates: str) -> str:
+    for raw in candidates:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        loc = _locale_lookup(locale, text) if locale else ""
+        if loc and not _needs_display_name(loc):
+            return loc
+        if _needs_display_name(text):
+            continue
+        return text
+    return ""
+
+
+def _layer_needs_fill(rows: list[Any] | None) -> bool:
+    if not isinstance(rows, list) or not rows:
+        return True
+    return any(isinstance(row, dict) and not _has_xz(row) for row in rows)
+
+
+def _containers_need_names(rows: list[Any] | None) -> bool:
+    if not isinstance(rows, list) or not rows:
+        return False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        kind = str(row.get("normalized_name") or "").strip()
+        name = str(row.get("name") or "").strip()
+        if not kind or _is_blank_item_label(kind) or _needs_display_name(name):
+            return True
+    return False
+
+
+def _locks_need_key_names(rows: list[Any] | None) -> bool:
+    if not isinstance(rows, list) or not rows:
+        return False
+    return any(
+        isinstance(row, dict)
+        and str(row.get("key_id") or "").strip()
+        and _is_blank_item_label(str(row.get("key_name") or ""))
+        for row in rows
+    )
+
+
+def enrich_lock_keys(
+    locks: list[Any],
+    items_by_id: dict[str, dict[str, Any]],
+) -> None:
+    """用物品目录补门锁钥匙中文名 / 图标。"""
+    for row in locks:
+        if not isinstance(row, dict):
+            continue
+        key_id = str(row.get("key_id") or "").strip()
+        if not key_id:
+            continue
+        item = items_by_id.get(key_id)
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        short_name = str(item.get("short_name") or "").strip()
+        icon = str(item.get("icon_link") or "").strip()
+        if name:
+            row["key_name"] = name
+        if short_name:
+            row["key_short_name"] = short_name
+        if icon:
+            row["key_icon"] = icon
+
+
+def _enrich_map_lock_keys(db: Session, locks: list[Any]) -> None:
+    ids = {
+        str(row.get("key_id") or "").strip()
+        for row in locks
+        if isinstance(row, dict)
+    }
+    ids.discard("")
+    if not ids:
+        return
+    try:
+        from app.services.tarkov.catalog import peek_catalog_items
+
+        rows = peek_catalog_items(db)
+    except Exception:  # noqa: BLE001
+        logger.warning("map lock keys: items catalog unavailable", exc_info=True)
+        return
+    by_id = {
+        str(item.get("id") or "").strip(): item
+        for item in rows
+        if isinstance(item, dict) and item.get("id")
+    }
+    enrich_lock_keys(locks, by_id)
+
+
+def _copy_point(dst: dict[str, Any], src: dict[str, Any] | None) -> bool:
+    if not isinstance(src, dict):
+        return False
+    changed = False
+    if _has_xz(src):
+        dst["x"] = src["x"]
+        dst["y"] = src.get("y") if src.get("y") is not None else 0
+        dst["z"] = src["z"]
+        changed = True
+    elif _fill_point_from_src(dst, src):
+        changed = True
+    for key in ("top", "bottom"):
+        if dst.get(key) is not None:
+            continue
+        value = _opt_float(src.get(key))
+        if value is not None:
+            dst[key] = value
+            changed = True
+    return changed
+
+
+def _attach_point(item: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
+    point = map_xyz(raw)
+    if point:
+        item["x"] = point["x"]
+        item["y"] = point["y"]
+        item["z"] = point["z"]
+    top = _opt_float(raw.get("top"))
+    bottom = _opt_float(raw.get("bottom"))
+    if top is not None:
+        item["top"] = top
+    if bottom is not None:
+        item["bottom"] = bottom
+    return item
+
+
+def _item_ref(raw: Any) -> dict[str, str]:
+    if isinstance(raw, str):
+        ident = raw.strip()
+        return {"id": ident, "name": "", "short_name": "", "icon_link": ""} if ident else {}
+    if not isinstance(raw, dict):
+        return {}
+    ident = str(raw.get("id") or raw.get("_id") or "").strip()
+    if not ident:
+        return {}
+    return {
+        "id": ident,
+        "name": str(raw.get("name") or ""),
+        "short_name": str(raw.get("shortName") or raw.get("short_name") or ""),
+        "icon_link": str(raw.get("iconLink") or raw.get("icon_link") or ""),
+    }
+
+
+def _localized(locale: dict[str, Any], *candidates: str) -> str:
+    for raw in candidates:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        loc = _locale_lookup(locale, text) if locale else ""
+        if loc:
+            return loc
+        return text
+    return ""
+
+
+_HAZARD_TYPE_LABELS = {
+    "minefield": "雷区",
+    "sniper": "狙击",
+    "mortar": "迫击炮",
+}
+
+
+def _hazard_label(
+    *,
+    hazard_type: str,
+    name: str,
+    locale: dict[str, Any],
+) -> str:
+    loc = _localized(locale, name)
+    if loc:
+        return loc
+    return _HAZARD_TYPE_LABELS.get(hazard_type, name or hazard_type or "危险区")
+
+
+def _marker_id(prefix: str, *parts: Any) -> str:
+    bits = [str(part).strip() for part in parts if part is not None and str(part).strip()]
+    return f"{prefix}:{':'.join(bits)}" if bits else prefix
+
+
+def _parse_map_locks(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        key = _item_ref(row.get("key"))
+        lock_type = str(row.get("lockType") or row.get("lock_type") or "").strip()
+        ident = str(row.get("id") or "").strip() or _marker_id(
+            "lock",
+            key.get("id"),
+            lock_type,
+            index,
+        )
+        key_id = key.get("id") or ""
+        key_name = _resolved_item_name(
+            lang,
+            key.get("name"),
+            f"{key_id} Name" if key_id else "",
+        )
+        item = _attach_point(
+            {
+                "id": ident,
+                "lock_type": lock_type,
+                "needs_power": bool(row.get("needsPower") or row.get("needs_power")),
+                "key_id": key_id,
+                "key_name": key_name,
+                "key_short_name": key.get("short_name") or "",
+                "key_icon": key.get("icon_link") or "",
+            },
+            row,
+        )
+        out.append(item)
+    return out
+
+
+def _parse_map_hazards(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+    *,
+    default_type: str = "",
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        hazard_type = str(
+            row.get("hazardType") or row.get("hazard_type") or default_type or ""
+        ).strip()
+        name = _hazard_label(
+            hazard_type=hazard_type,
+            name=str(row.get("name") or ""),
+            locale=lang,
+        )
+        ident = str(row.get("id") or "").strip() or _marker_id(
+            "hazard",
+            hazard_type,
+            name,
+            index,
+        )
+        out.append(
+            _attach_point(
+                {
+                    "id": ident,
+                    "hazard_type": hazard_type or default_type,
+                    "name": name,
+                },
+                row,
+            )
+        )
+    return out
+
+
+def _parse_artillery_zones(
+    artillery: Any,
+    locale: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    if isinstance(artillery, dict):
+        zones = artillery.get("zones")
+    elif isinstance(artillery, list):
+        zones = artillery
+    else:
+        zones = None
+    return _parse_map_hazards(zones, locale, default_type="mortar")
+
+
+def _parse_map_hazards_with_artillery(
+    raw: dict[str, Any],
+    locale: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    hazards = _parse_map_hazards(raw.get("hazards"), locale)
+    seen = {
+        (row.get("hazard_type"), row.get("x"), row.get("z"))
+        for row in hazards
+        if _has_xz(row)
+    }
+    for row in _parse_artillery_zones(raw.get("artillery"), locale):
+        key = (row.get("hazard_type"), row.get("x"), row.get("z"))
+        if _has_xz(row) and key in seen:
+            continue
+        hazards.append(row)
+        if _has_xz(row):
+            seen.add(key)
+    return hazards
+
+
+def _switch_target(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+    name = str(raw.get("name") or raw.get("id") or "").strip()
+    typename = str(raw.get("__typename") or raw.get("typename") or "").strip()
+    if raw.get("faction") is not None or typename.endswith("Extract"):
+        kind = "extract"
+    else:
+        kind = "switch"
+    return {"name": name, "kind": kind}
+
+
+def _parse_map_switches(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        ident = str(row.get("id") or "").strip() or _marker_id(
+            "switch",
+            row.get("name"),
+            index,
+        )
+        activated = row.get("activatedBy") or row.get("activated_by")
+        activated_by = ""
+        if isinstance(activated, dict):
+            activated_by = _localized(
+                lang,
+                activated.get("name"),
+                activated.get("id"),
+            )
+        elif isinstance(activated, str):
+            activated_by = _localized(lang, activated)
+        activates: list[dict[str, str]] = []
+        for op in row.get("activates") or []:
+            if not isinstance(op, dict):
+                continue
+            target = _switch_target(op.get("target") or op)
+            name = _localized(lang, target.get("name") or op.get("name"))
+            if not name:
+                continue
+            activates.append(
+                {
+                    "operation": str(op.get("operation") or "").strip(),
+                    "name": name,
+                    "kind": target.get("kind") or "switch",
+                }
+            )
+        out.append(
+            _attach_point(
+                {
+                    "id": ident,
+                    "name": _localized(lang, row.get("name"), ident),
+                    "switch_type": str(
+                        row.get("switchType") or row.get("switch_type") or ""
+                    ).strip(),
+                    "activated_by": activated_by,
+                    "activates": activates,
+                },
+                row,
+            )
+        )
+    return out
+
+
+def _parse_map_stationary_weapons(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+    catalog: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    weapons = catalog or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        weapon = _resolve_catalog_ref(
+            row.get("stationaryWeapon") or row.get("stationary_weapon"),
+            weapons,
+        )
+        weapon_id = str(weapon.get("id") or row.get("id") or "").strip()
+        name = _resolved_item_name(
+            lang,
+            weapon.get("name"),
+            f"{weapon_id} Name" if weapon_id else "",
+            weapon.get("shortName") or weapon.get("short_name"),
+            f"{weapon_id} ShortName" if weapon_id else "",
+            row.get("name"),
+        ) or "固定武器"
+        ident = weapon_id or _marker_id("stationary", name, index)
+        out.append(_attach_point({"id": ident, "name": name}, row))
+    return out
+
+
+def _parse_map_btr_stops(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        name = _resolved_item_name(lang, row.get("name")) or "BTR"
+        ident = str(row.get("id") or "").strip() or _marker_id("btr", name, index)
+        item = {"id": ident, "name": name}
+        point = map_xyz(row)
+        if point:
+            item["x"] = point["x"]
+            item["y"] = point["y"]
+            item["z"] = point["z"]
+        out.append(item)
+    return out
+
+
+def _payload_id_catalog(payload: dict[str, Any], *keys: str) -> dict[str, dict[str, Any]]:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict):
+        return {}
+    blob = None
+    for key in keys:
+        blob = data.get(key)
+        if blob is not None:
+            break
+    out: dict[str, dict[str, Any]] = {}
+    if isinstance(blob, dict):
+        rows = blob.values()
+    elif isinstance(blob, list):
+        rows = blob
+    else:
+        return {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        ident = str(row.get("id") or row.get("_id") or "").strip()
+        if ident:
+            out[ident] = row
+    return out
+
+
+def _loot_containers_blob(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return _payload_id_catalog(payload, "lootContainers", "loot_containers")
+
+
+def _stationary_weapons_blob(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return _payload_id_catalog(payload, "stationaryWeapons", "stationary_weapons")
+
+
+def _resolve_catalog_ref(
+    raw: Any,
+    catalog: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any]:
+    ident = ""
+    extra: dict[str, Any] = {}
+    if isinstance(raw, str):
+        ident = raw.strip()
+    elif isinstance(raw, dict):
+        extra = raw
+        ident = str(raw.get("id") or raw.get("_id") or "").strip()
+    hit = catalog.get(ident) if catalog and ident else None
+    if isinstance(hit, dict):
+        merged = {**hit, **{key: value for key, value in extra.items() if value not in (None, "")}}
+        if ident and not merged.get("id"):
+            merged["id"] = ident
+        return merged
+    if extra:
+        return extra
+    return {"id": ident} if ident else {}
+
+
+def _parse_map_loot_containers(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+    catalog: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    boxes = catalog or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        box = _resolve_catalog_ref(
+            row.get("lootContainer") or row.get("loot_container") or row.get("id"),
+            boxes,
+        )
+        container_id = str(box.get("id") or "").strip()
+        normalized = str(
+            box.get("normalizedName") or box.get("normalized_name") or ""
+        ).strip()
+        if _is_blank_item_label(normalized):
+            normalized = ""
+        name = _resolved_item_name(
+            lang,
+            box.get("name"),
+            f"{container_id} Name" if container_id else "",
+            normalized,
+        )
+        ident = str(row.get("id") or "").strip() or _marker_id(
+            "container",
+            container_id or normalized,
+            index,
+        )
+        out.append(
+            _attach_point(
+                {
+                    "id": ident,
+                    "container_id": container_id,
+                    "name": name or normalized or "容器",
+                    "normalized_name": normalized,
+                },
+                row,
+            )
+        )
+    return out
+
+
+def _row_needs_marker_meta(row: dict[str, Any]) -> bool:
+    if "key_id" in row or "key_name" in row:
+        return _is_blank_item_label(str(row.get("key_name") or "")) or not str(
+            row.get("key_icon") or ""
+        ).strip()
+    kind = str(row.get("normalized_name") or "").strip()
+    name = str(row.get("name") or "").strip()
+    return (not kind or _is_blank_item_label(kind)) or _needs_display_name(name)
+
+
+def _copy_marker_meta(dst: dict[str, Any], src: dict[str, Any]) -> None:
+    for key in (
+        "name",
+        "key_name",
+        "key_short_name",
+        "key_icon",
+        "activated_by",
+        "normalized_name",
+        "container_id",
+    ):
+        current = str(dst.get(key) or "")
+        incoming = src.get(key)
+        if incoming and _needs_display_name(current):
+            dst[key] = incoming
+
+
+def _merge_marker_layer(
+    existing: list[Any],
+    incoming: list[dict[str, Any]],
+    id_keys: tuple[str, ...],
+    *,
+    fill_meta: bool = False,
+) -> list[dict[str, Any]]:
+    current = [row for row in existing if isinstance(row, dict)]
+    if not incoming:
+        return current
+    if not current:
+        return incoming
+    used: set[int] = set()
+
+    def match_key(row: dict[str, Any]) -> tuple[str, ...]:
+        return tuple(str(row.get(key) or "") for key in id_keys)
+
+    for row in current:
+        needs_point = not _has_xz(row)
+        needs_meta = fill_meta and _row_needs_marker_meta(row)
+        if not needs_point and not needs_meta:
+            continue
+        want = match_key(row)
+        src = None
+        if any(want):
+            for index, item in enumerate(incoming):
+                if index in used:
+                    continue
+                if match_key(item) == want:
+                    src = item
+                    used.add(index)
+                    break
+        if src is None:
+            for index, item in enumerate(incoming):
+                if index in used or not _has_xz(item):
+                    continue
+                src = item
+                used.add(index)
+                break
+        if src:
+            _copy_point(row, src)
+            _copy_marker_meta(row, src)
+    if not any(_has_xz(row) for row in current) and any(_has_xz(row) for row in incoming):
+        return incoming
+    return current
+
+
 def _extracts_have_coords(extracts: list[dict[str, Any]]) -> bool:
     return any(
         row.get("x") is not None and row.get("z") is not None
@@ -447,12 +1117,46 @@ def _apply_graphql_markers(
     need_spawns = not (
         isinstance(row.get("spawns"), list) and len(row.get("spawns") or []) > 0
     )
+    need_locks = _layer_needs_fill(
+        row.get("locks") if isinstance(row.get("locks"), list) else []
+    ) or _locks_need_key_names(
+        row.get("locks") if isinstance(row.get("locks"), list) else []
+    )
+    need_hazards = _layer_needs_fill(
+        row.get("hazards") if isinstance(row.get("hazards"), list) else []
+    )
+    need_switches = _layer_needs_fill(
+        row.get("switches") if isinstance(row.get("switches"), list) else []
+    )
+    need_stationary = _layer_needs_fill(
+        row.get("stationary_weapons")
+        if isinstance(row.get("stationary_weapons"), list)
+        else []
+    )
+    need_btr = _layer_needs_fill(
+        row.get("btr_stops") if isinstance(row.get("btr_stops"), list) else []
+    )
+    need_containers = _layer_needs_fill(
+        row.get("loot_containers")
+        if isinstance(row.get("loot_containers"), list)
+        else []
+    ) or _containers_need_names(
+        row.get("loot_containers")
+        if isinstance(row.get("loot_containers"), list)
+        else []
+    )
     if (
         not need_coords
         and not need_transits
         and not need_transit_coords
         and not need_boss_coords
         and not need_spawns
+        and not need_locks
+        and not need_hazards
+        and not need_switches
+        and not need_stationary
+        and not need_btr
+        and not need_containers
     ):
         return
     try:
@@ -529,12 +1233,82 @@ def _apply_graphql_markers(
     if need_spawns:
         gql_spawns = extra.get("spawns") if isinstance(extra.get("spawns"), list) else []
         row["spawns"] = _parse_map_spawns(gql_spawns)
+    if need_locks:
+        gql_locks = extra.get("locks") if isinstance(extra.get("locks"), list) else []
+        row["locks"] = _merge_marker_layer(
+            row.get("locks") if isinstance(row.get("locks"), list) else [],
+            _parse_map_locks(gql_locks, locale or {}),
+            ("key_id", "lock_type"),
+            fill_meta=True,
+        )
+    if need_hazards:
+        gql_hazards = extra.get("hazards") if isinstance(extra.get("hazards"), list) else []
+        incoming = _parse_map_hazards(gql_hazards, locale or {})
+        incoming.extend(_parse_artillery_zones(extra.get("artillery"), locale or {}))
+        row["hazards"] = _merge_marker_layer(
+            row.get("hazards") if isinstance(row.get("hazards"), list) else [],
+            incoming,
+            ("hazard_type", "name"),
+        )
+    if need_switches:
+        gql_switches = extra.get("switches") if isinstance(extra.get("switches"), list) else []
+        row["switches"] = _merge_marker_layer(
+            row.get("switches") if isinstance(row.get("switches"), list) else [],
+            _parse_map_switches(gql_switches, locale or {}),
+            ("id", "name"),
+        )
+    if need_stationary:
+        gql_stationary = (
+            extra.get("stationaryWeapons")
+            if isinstance(extra.get("stationaryWeapons"), list)
+            else extra.get("stationary_weapons")
+            if isinstance(extra.get("stationary_weapons"), list)
+            else []
+        )
+        row["stationary_weapons"] = _merge_marker_layer(
+            row.get("stationary_weapons")
+            if isinstance(row.get("stationary_weapons"), list)
+            else [],
+            _parse_map_stationary_weapons(gql_stationary, locale or {}),
+            ("id", "name"),
+        )
+    if need_btr:
+        gql_btr = (
+            extra.get("btrStops")
+            if isinstance(extra.get("btrStops"), list)
+            else extra.get("btr_stops")
+            if isinstance(extra.get("btr_stops"), list)
+            else []
+        )
+        row["btr_stops"] = _merge_marker_layer(
+            row.get("btr_stops") if isinstance(row.get("btr_stops"), list) else [],
+            _parse_map_btr_stops(gql_btr, locale or {}),
+            ("name",),
+        )
+    if need_containers:
+        gql_boxes = (
+            extra.get("lootContainers")
+            if isinstance(extra.get("lootContainers"), list)
+            else extra.get("loot_containers")
+            if isinstance(extra.get("loot_containers"), list)
+            else []
+        )
+        row["loot_containers"] = _merge_marker_layer(
+            row.get("loot_containers")
+            if isinstance(row.get("loot_containers"), list)
+            else [],
+            _parse_map_loot_containers(gql_boxes, locale or {}),
+            ("container_id", "normalized_name"),
+            fill_meta=True,
+        )
 
 
 def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     maps = _maps_blob(payload)
     mobs = _mobs_blob(payload)
+    container_catalog = _loot_containers_blob(payload)
+    weapon_catalog = _stationary_weapons_blob(payload)
     slugs = assign_boss_slugs(_spawn_mobs(maps, mobs))
     rows: list[dict[str, Any]] = []
     for key, raw in maps.items():
@@ -567,6 +1341,23 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "extracts": _extracts(raw, locale),
                 "bosses": _map_bosses(raw, mobs, locale, slugs),
                 "spawns": _parse_map_spawns(raw.get("spawns")),
+                "locks": _parse_map_locks(raw.get("locks"), locale),
+                "hazards": _parse_map_hazards_with_artillery(raw, locale),
+                "switches": _parse_map_switches(raw.get("switches"), locale),
+                "stationary_weapons": _parse_map_stationary_weapons(
+                    raw.get("stationaryWeapons") or raw.get("stationary_weapons"),
+                    locale,
+                    weapon_catalog,
+                ),
+                "btr_stops": _parse_map_btr_stops(
+                    raw.get("btrStops") or raw.get("btr_stops"),
+                    locale,
+                ),
+                "loot_containers": _parse_map_loot_containers(
+                    raw.get("lootContainers") or raw.get("loot_containers"),
+                    locale,
+                    container_catalog,
+                ),
             }
         )
     rows.sort(key=lambda r: (str(r.get("name") or ""), str(r.get("slug") or "")))
@@ -647,6 +1438,8 @@ def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
     ]
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     _apply_graphql_markers(row, locale)
+    locks = row.get("locks") if isinstance(row.get("locks"), list) else []
+    _enrich_map_lock_keys(db, locks)
     return {
         **row,
         "variants": variants,

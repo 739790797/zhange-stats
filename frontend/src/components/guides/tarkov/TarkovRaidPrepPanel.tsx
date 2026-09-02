@@ -701,6 +701,12 @@ export function TarkovRaidPrepPanel() {
                   extracts={mapQuery.data?.extracts}
                   bosses={mapQuery.data?.bosses}
                   spawns={mapQuery.data?.spawns}
+                  locks={mapQuery.data?.locks}
+                  hazards={mapQuery.data?.hazards}
+                  switches={mapQuery.data?.switches}
+                  stationaryWeapons={mapQuery.data?.stationary_weapons}
+                  btrStops={mapQuery.data?.btr_stops}
+                  lootContainers={mapQuery.data?.loot_containers}
                   places={mapQuery.data?.places}
                   questOverlays={overlays}
                   focusRequest={focusRequest}

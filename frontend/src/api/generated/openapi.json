@@ -10688,7 +10688,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Map Detail",
-        "description": "地图详情：撤离点/BOSS 坐标与底图信息；前端 Leaflet 查看器使用。",
+        "description": "地图详情：撤离点/BOSS/门锁等坐标与底图信息；前端 Leaflet 查看器使用。",
         "operationId": "guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get",
         "security": [
           {
@@ -27223,6 +27223,55 @@
         "type": "object",
         "title": "TarkovMapBossOut"
       },
+      "TarkovMapBtrStopOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapBtrStopOut"
+      },
       "TarkovMapCatalogOut": {
         "properties": {
           "items": {
@@ -27359,6 +27408,48 @@
             "type": "array",
             "title": "Spawns"
           },
+          "locks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapLockOut"
+            },
+            "type": "array",
+            "title": "Locks"
+          },
+          "hazards": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapHazardOut"
+            },
+            "type": "array",
+            "title": "Hazards"
+          },
+          "switches": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapSwitchOut"
+            },
+            "type": "array",
+            "title": "Switches"
+          },
+          "stationary_weapons": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapStationaryWeaponOut"
+            },
+            "type": "array",
+            "title": "Stationary Weapons"
+          },
+          "btr_stops": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapBtrStopOut"
+            },
+            "type": "array",
+            "title": "Btr Stops"
+          },
+          "loot_containers": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapLootContainerOut"
+            },
+            "type": "array",
+            "title": "Loot Containers"
+          },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/TarkovMapVariantOut"
@@ -27469,6 +27560,82 @@
         "type": "object",
         "title": "TarkovMapExtractOut"
       },
+      "TarkovMapHazardOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "hazard_type": {
+            "type": "string",
+            "title": "Hazard Type",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapHazardOut"
+      },
       "TarkovMapListItemOut": {
         "properties": {
           "id": {
@@ -27531,6 +27698,183 @@
           "name"
         ],
         "title": "TarkovMapListItemOut"
+      },
+      "TarkovMapLockOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "lock_type": {
+            "type": "string",
+            "title": "Lock Type",
+            "default": ""
+          },
+          "needs_power": {
+            "type": "boolean",
+            "title": "Needs Power",
+            "default": false
+          },
+          "key_id": {
+            "type": "string",
+            "title": "Key Id",
+            "default": ""
+          },
+          "key_name": {
+            "type": "string",
+            "title": "Key Name",
+            "default": ""
+          },
+          "key_short_name": {
+            "type": "string",
+            "title": "Key Short Name",
+            "default": ""
+          },
+          "key_icon": {
+            "type": "string",
+            "title": "Key Icon",
+            "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapLockOut"
+      },
+      "TarkovMapLootContainerOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "container_id": {
+            "type": "string",
+            "title": "Container Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "normalized_name": {
+            "type": "string",
+            "title": "Normalized Name",
+            "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapLootContainerOut"
       },
       "TarkovMapPlaceImportIn": {
         "properties": {
@@ -27927,6 +28271,186 @@
         ],
         "title": "TarkovMapSpawnOut",
         "description": "PMC / Scav 出生点；Boss 仍走 bosses.locations。"
+      },
+      "TarkovMapStationaryWeaponOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapStationaryWeaponOut"
+      },
+      "TarkovMapSwitchActivateOut": {
+        "properties": {
+          "operation": {
+            "type": "string",
+            "title": "Operation",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapSwitchActivateOut"
+      },
+      "TarkovMapSwitchOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "switch_type": {
+            "type": "string",
+            "title": "Switch Type",
+            "default": ""
+          },
+          "activated_by": {
+            "type": "string",
+            "title": "Activated By",
+            "default": ""
+          },
+          "activates": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapSwitchActivateOut"
+            },
+            "type": "array",
+            "title": "Activates"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapSwitchOut"
       },
       "TarkovMapVariantOut": {
         "properties": {

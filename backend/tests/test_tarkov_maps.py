@@ -11,6 +11,7 @@ from app.services.tarkov.maps import (
     _marker_cache,
     _marker_cache_key,
     classify_map_spawn,
+    enrich_lock_keys,
     parse_map_rows,
     resolve_map_slug,
 )
@@ -364,3 +365,314 @@ def test_apply_graphql_markers_fills_spawns_when_extracts_complete() -> None:
     assert pmc["x"] == 11
     assert pmc["z"] == 22
     assert pmc["zone_name"] == "ZoneA"
+
+
+def test_parse_map_rows_projects_lock_and_hazard_coords() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "needsPower": True,
+            "key": {
+                "id": "dorm-114",
+                "name": "Dorm 114 Key",
+                "shortName": "Dorm 114",
+                "iconLink": "https://assets.tarkov.dev/dorm-114-icon.webp",
+            },
+            "position": {"x": 12.5, "y": 1, "z": -8},
+            "top": 4,
+            "bottom": 0,
+        }
+    ]
+    payload["maps"]["factory"]["hazards"] = [
+        {
+            "hazardType": "minefield",
+            "name": "Minefield",
+            "position": {"x": 3, "y": 0, "z": 4},
+        }
+    ]
+    payload["maps"]["factory"]["artillery"] = {
+        "zones": [{"position": {"x": 9, "y": 2, "z": 7}, "top": 6, "bottom": 1}]
+    }
+    payload["maps"]["factory"]["lootLoose"] = [
+        {"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 1}}
+    ]
+    payload["locale"]["Minefield"] = "雷区"
+    payload["locale"]["Dorm 114 Key"] = "宿舍 114"
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    lock = factory["locks"][0]
+    assert lock["key_id"] == "dorm-114"
+    assert lock["key_name"] == "宿舍 114"
+    assert lock["key_icon"] == "https://assets.tarkov.dev/dorm-114-icon.webp"
+    assert lock["needs_power"] is True
+    assert lock["lock_type"] == "door"
+    assert lock["x"] == 12.5
+    assert lock["z"] == -8
+    assert lock["top"] == 4
+    assert lock["bottom"] == 0
+    hazards = factory["hazards"]
+    assert {row["hazard_type"] for row in hazards} == {"minefield", "mortar"}
+    mine = next(row for row in hazards if row["hazard_type"] == "minefield")
+    assert mine["name"] == "雷区"
+    assert mine["x"] == 3
+    assert mine["z"] == 4
+    mortar = next(row for row in hazards if row["hazard_type"] == "mortar")
+    assert mortar["name"] == "迫击炮"
+    assert mortar["x"] == 9
+    assert "loot_loose" not in factory
+    assert "lootLoose" not in factory
+
+
+def test_parse_map_rows_lock_key_id_without_locale_stays_empty() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": "5448ba0b4bdc2d02308b456c",
+            "position": {"x": 1, "y": 0, "z": 2},
+        }
+    ]
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    lock = factory["locks"][0]
+    assert lock["key_id"] == "5448ba0b4bdc2d02308b456c"
+    assert lock["key_name"] == ""
+    assert lock["key_icon"] == ""
+
+
+def test_parse_map_rows_lock_key_locale_id_name() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": "5448ba0b4bdc2d02308b456c",
+            "position": {"x": 1, "y": 0, "z": 2},
+        }
+    ]
+    payload["locale"]["5448ba0b4bdc2d02308b456c Name"] = "工厂钥匙"
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    assert factory["locks"][0]["key_name"] == "工厂钥匙"
+
+
+def test_parse_map_rows_resolves_stationary_weapon_catalog() -> None:
+    payload = _payload()
+    payload["stationaryWeapons"] = {
+        "5d52cc5ba4b9367408500062": {
+            "id": "5d52cc5ba4b9367408500062",
+            "name": "5d52cc5ba4b9367408500062 Name",
+            "shortName": "5d52cc5ba4b9367408500062 ShortName",
+            "normalizedName": "ags-30-30x29mm-automatic-grenade-launcher",
+        }
+    }
+    payload["maps"]["factory"]["stationaryWeapons"] = [
+        {
+            "stationaryWeapon": "5d52cc5ba4b9367408500062",
+            "position": {"x": 1, "y": 2, "z": 3},
+        }
+    ]
+    payload["locale"]["5d52cc5ba4b9367408500062 Name"] = "AGS 30x29毫米自动榴弹发射器"
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    gun = factory["stationary_weapons"][0]
+    assert gun["id"] == "5d52cc5ba4b9367408500062"
+    assert gun["name"] == "AGS 30x29毫米自动榴弹发射器"
+    assert gun["x"] == 1
+    assert gun["z"] == 3
+
+
+def test_parse_map_rows_resolves_btr_stop_locale() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["btrStops"] = [
+        {
+            "name": "Trading/Dialog/PlayerTaxi/TarkovStreets/p3/Name",
+            "x": 4,
+            "y": 0,
+            "z": 5,
+        }
+    ]
+    payload["locale"]["Trading/Dialog/PlayerTaxi/TarkovStreets/p3/Name"] = "市中心"
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    stop = factory["btr_stops"][0]
+    assert stop["name"] == "市中心"
+    assert stop["x"] == 4
+    assert stop["z"] == 5
+
+
+def test_parse_map_rows_btr_untranslated_key_falls_back() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["btrStops"] = [
+        {"name": "Trading/Dialog/PlayerTaxi/Unknown/p9/Name", "x": 1, "y": 0, "z": 2}
+    ]
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    assert factory["btr_stops"][0]["name"] == "BTR"
+
+
+def test_parse_map_rows_resolves_loot_container_catalog() -> None:
+    payload = _payload()
+    payload["lootContainers"] = {
+        "578f87a3245977356274f2cb": {
+            "id": "578f87a3245977356274f2cb",
+            "name": "578f87a3245977356274f2cb Name",
+            "normalizedName": "duffle-bag",
+        }
+    }
+    payload["maps"]["factory"]["lootContainers"] = [
+        {
+            "lootContainer": "578f87a3245977356274f2cb",
+            "position": {"x": 1, "y": 0, "z": 2},
+        }
+    ]
+    payload["maps"]["factory"]["lootLoose"] = [
+        {"items": [{"id": "rouble"}], "position": {"x": 9, "y": 0, "z": 8}}
+    ]
+    payload["locale"]["578f87a3245977356274f2cb Name"] = "旅行袋"
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    box = factory["loot_containers"][0]
+    assert box["container_id"] == "578f87a3245977356274f2cb"
+    assert box["normalized_name"] == "duffle-bag"
+    assert box["name"] == "旅行袋"
+    assert box["x"] == 1
+    assert box["z"] == 2
+    assert "loot_loose" not in factory
+    assert "lootLoose" not in factory
+
+
+def test_apply_graphql_markers_fills_lock_coords_when_dump_lacks_them() -> None:
+    factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
+    factory["locks"] = [
+        {
+            "id": "lock:dorm-114:door:0",
+            "lock_type": "door",
+            "needs_power": False,
+            "key_id": "dorm-114",
+            "key_name": "宿舍 114",
+            "key_short_name": "Dorm 114",
+        }
+    ]
+    factory["extracts"] = [
+        {"id": "e1", "name": "Gate 3", "faction": "PMC", "x": 1, "z": 2}
+    ]
+    _marker_cache[_marker_cache_key("pvp")] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "locks": [
+                    {
+                        "lockType": "door",
+                        "needsPower": False,
+                        "key": {"id": "dorm-114", "name": "Dorm 114 Key"},
+                        "position": {"x": 21, "y": 0, "z": 22},
+                    }
+                ],
+            }
+        },
+    }
+    _apply_graphql_markers(factory, {"Dorm 114 Key": "宿舍 114"})
+    lock = factory["locks"][0]
+    assert lock["x"] == 21
+    assert lock["z"] == 22
+    assert lock["key_id"] == "dorm-114"
+
+
+def test_apply_graphql_markers_replaces_empty_locks_from_graphql() -> None:
+    factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
+    for row in factory["extracts"]:
+        row["x"] = 1
+        row["z"] = 2
+    assert factory["locks"] == []
+    _marker_cache[_marker_cache_key("pvp")] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "locks": [
+                    {
+                        "lockType": "door",
+                        "key": {"id": "pump", "name": "Pumping Station"},
+                        "position": {"x": 5, "y": 0, "z": 6},
+                    }
+                ],
+                "lootLoose": [
+                    {"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 2}}
+                ],
+            }
+        },
+    }
+    _apply_graphql_markers(factory, {})
+    assert len(factory["locks"]) == 1
+    assert factory["locks"][0]["key_id"] == "pump"
+    assert factory["locks"][0]["x"] == 5
+    assert factory["locks"][0]["z"] == 6
+    assert "loot_loose" not in factory
+    assert "lootLoose" not in factory
+
+
+def test_apply_graphql_markers_fills_lock_key_names() -> None:
+    factory = {
+        "id": "factory",
+        "slug": "factory",
+        "extracts": [{"id": "e1", "name": "Gate 3", "faction": "PMC", "x": 1, "z": 2}],
+        "bosses": [],
+        "locks": [
+            {
+                "id": "lock:factory-key:door:0",
+                "lock_type": "door",
+                "needs_power": False,
+                "key_id": "5448ba0b4bdc2d02308b456c",
+                "key_name": "",
+                "key_short_name": "",
+                "key_icon": "",
+                "x": -19,
+                "z": -48,
+            }
+        ],
+    }
+    _marker_cache[_marker_cache_key("pvp")] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "locks": [
+                    {
+                        "lockType": "door",
+                        "key": {
+                            "id": "5448ba0b4bdc2d02308b456c",
+                            "name": "工厂钥匙",
+                            "shortName": "工厂",
+                            "iconLink": "https://assets.tarkov.dev/factory-icon.webp",
+                        },
+                        "position": {"x": -19, "y": 1, "z": -48},
+                    }
+                ],
+            }
+        },
+    }
+    _apply_graphql_markers(factory, {})
+    lock = factory["locks"][0]
+    assert lock["key_name"] == "工厂钥匙"
+    assert lock["key_short_name"] == "工厂"
+    assert lock["key_icon"] == "https://assets.tarkov.dev/factory-icon.webp"
+    assert lock["x"] == -19
+
+
+def test_enrich_lock_keys_from_item_catalog() -> None:
+    locks = [
+        {
+            "key_id": "5448ba0b4bdc2d02308b456c",
+            "key_name": "",
+            "key_short_name": "",
+            "key_icon": "",
+        }
+    ]
+    enrich_lock_keys(
+        locks,
+        {
+            "5448ba0b4bdc2d02308b456c": {
+                "id": "5448ba0b4bdc2d02308b456c",
+                "name": "工厂钥匙",
+                "short_name": "工厂",
+                "icon_link": "https://assets.tarkov.dev/factory-icon.webp",
+            }
+        },
+    )
+    assert locks[0]["key_name"] == "工厂钥匙"
+    assert locks[0]["key_icon"] == "https://assets.tarkov.dev/factory-icon.webp"

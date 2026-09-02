@@ -3334,7 +3334,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Map Detail
-         * @description 地图详情：撤离点/BOSS 坐标与底图信息；前端 Leaflet 查看器使用。
+         * @description 地图详情：撤离点/BOSS/门锁等坐标与底图信息；前端 Leaflet 查看器使用。
          */
         get: operations["guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get"];
         put?: never;
@@ -10577,6 +10577,25 @@ export interface components {
             /** Locations */
             locations?: components["schemas"]["TarkovMapBossLocationOut"][];
         };
+        /** TarkovMapBtrStopOut */
+        TarkovMapBtrStopOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+        };
         /** TarkovMapCatalogOut */
         TarkovMapCatalogOut: {
             /** Items */
@@ -10657,6 +10676,18 @@ export interface components {
             bosses?: components["schemas"]["TarkovMapBossOut"][];
             /** Spawns */
             spawns?: components["schemas"]["TarkovMapSpawnOut"][];
+            /** Locks */
+            locks?: components["schemas"]["TarkovMapLockOut"][];
+            /** Hazards */
+            hazards?: components["schemas"]["TarkovMapHazardOut"][];
+            /** Switches */
+            switches?: components["schemas"]["TarkovMapSwitchOut"][];
+            /** Stationary Weapons */
+            stationary_weapons?: components["schemas"]["TarkovMapStationaryWeaponOut"][];
+            /** Btr Stops */
+            btr_stops?: components["schemas"]["TarkovMapBtrStopOut"][];
+            /** Loot Containers */
+            loot_containers?: components["schemas"]["TarkovMapLootContainerOut"][];
             /** Variants */
             variants?: components["schemas"]["TarkovMapVariantOut"][];
             /** Places */
@@ -10691,6 +10722,34 @@ export interface components {
             y?: number | null;
             /** Z */
             z?: number | null;
+        };
+        /** TarkovMapHazardOut */
+        TarkovMapHazardOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Hazard Type
+             * @default
+             */
+            hazard_type: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovMapListItemOut */
         TarkovMapListItemOut: {
@@ -10740,6 +10799,87 @@ export interface components {
              * @default 0
              */
             max_player_level: number;
+        };
+        /** TarkovMapLockOut */
+        TarkovMapLockOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Lock Type
+             * @default
+             */
+            lock_type: string;
+            /**
+             * Needs Power
+             * @default false
+             */
+            needs_power: boolean;
+            /**
+             * Key Id
+             * @default
+             */
+            key_id: string;
+            /**
+             * Key Name
+             * @default
+             */
+            key_name: string;
+            /**
+             * Key Short Name
+             * @default
+             */
+            key_short_name: string;
+            /**
+             * Key Icon
+             * @default
+             */
+            key_icon: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
+        };
+        /** TarkovMapLootContainerOut */
+        TarkovMapLootContainerOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Container Id
+             * @default
+             */
+            container_id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Normalized Name
+             * @default
+             */
+            normalized_name: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovMapPlaceImportIn */
         TarkovMapPlaceImportIn: {
@@ -10879,6 +11019,82 @@ export interface components {
             y: number;
             /** Z */
             z: number;
+        };
+        /** TarkovMapStationaryWeaponOut */
+        TarkovMapStationaryWeaponOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
+        };
+        /** TarkovMapSwitchActivateOut */
+        TarkovMapSwitchActivateOut: {
+            /**
+             * Operation
+             * @default
+             */
+            operation: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+        };
+        /** TarkovMapSwitchOut */
+        TarkovMapSwitchOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Switch Type
+             * @default
+             */
+            switch_type: string;
+            /**
+             * Activated By
+             * @default
+             */
+            activated_by: string;
+            /** Activates */
+            activates?: components["schemas"]["TarkovMapSwitchActivateOut"][];
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovMapVariantOut */
         TarkovMapVariantOut: {

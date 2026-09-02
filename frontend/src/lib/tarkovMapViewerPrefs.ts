@@ -5,6 +5,11 @@ import {
   type TarkovExtractKindFlags,
 } from "./tarkovMapExtracts";
 import {
+  defaultTarkovMapKindFlags,
+  parseKindFlags,
+  type TarkovMapKindFlags,
+} from "./tarkovMapMarkers";
+import {
   defaultSpawnKindFlags,
   TARKOV_SPAWN_KINDS,
   type TarkovSpawnKind,
@@ -20,7 +25,18 @@ export function overlayFlagsForMode(
   overlayMode: TarkovMapOverlayMode = "all",
 ): Pick<
   TarkovMapViewerPrefs,
-  "extractKinds" | "spawnKinds" | "showLabels" | "showQuests"
+  | "extractKinds"
+  | "spawnKinds"
+  | "showLabels"
+  | "showQuests"
+  | "showLocks"
+  | "showHazards"
+  | "showSwitches"
+  | "showStationary"
+  | "showBtrStops"
+  | "showLootContainers"
+  | "hazardKinds"
+  | "lootContainerKinds"
 > {
   if (overlayMode === "boss-spawns") {
     return {
@@ -28,6 +44,14 @@ export function overlayFlagsForMode(
       spawnKinds: { pmc: false, scav: false, boss: true },
       showLabels: false,
       showQuests: false,
+      showLocks: false,
+      showHazards: false,
+      showSwitches: false,
+      showStationary: false,
+      showBtrStops: false,
+      showLootContainers: false,
+      hazardKinds: prefs.hazardKinds,
+      lootContainerKinds: prefs.lootContainerKinds,
     };
   }
   return {
@@ -35,6 +59,14 @@ export function overlayFlagsForMode(
     spawnKinds: prefs.spawnKinds,
     showLabels: prefs.showLabels,
     showQuests: prefs.showQuests,
+    showLocks: prefs.showLocks,
+    showHazards: prefs.showHazards,
+    showSwitches: prefs.showSwitches,
+    showStationary: prefs.showStationary,
+    showBtrStops: prefs.showBtrStops,
+    showLootContainers: prefs.showLootContainers,
+    hazardKinds: prefs.hazardKinds,
+    lootContainerKinds: prefs.lootContainerKinds,
   };
 }
 
@@ -49,6 +81,14 @@ export type TarkovMapViewerPrefs = {
   spawnKinds: TarkovSpawnKindFlags;
   showLabels: boolean;
   showQuests: boolean;
+  showLocks: boolean;
+  showHazards: boolean;
+  showSwitches: boolean;
+  showStationary: boolean;
+  showBtrStops: boolean;
+  showLootContainers: boolean;
+  hazardKinds: TarkovMapKindFlags;
+  lootContainerKinds: TarkovMapKindFlags;
 };
 
 export const DEFAULT_TARKOV_MAP_VIEWER_PREFS: TarkovMapViewerPrefs = {
@@ -58,6 +98,14 @@ export const DEFAULT_TARKOV_MAP_VIEWER_PREFS: TarkovMapViewerPrefs = {
   spawnKinds: defaultSpawnKindFlags(true),
   showLabels: true,
   showQuests: true,
+  showLocks: true,
+  showHazards: true,
+  showSwitches: true,
+  showStationary: true,
+  showBtrStops: true,
+  showLootContainers: false,
+  hazardKinds: defaultTarkovMapKindFlags(),
+  lootContainerKinds: defaultTarkovMapKindFlags(),
 };
 
 function asStyle(value: unknown): TarkovMapViewerStyle | null {
@@ -118,6 +166,8 @@ function emptyPrefs(): TarkovMapViewerPrefs {
     floorsByMap: {},
     extractKinds: defaultExtractKindFlags(true),
     spawnKinds: defaultSpawnKindFlags(true),
+    hazardKinds: defaultTarkovMapKindFlags(),
+    lootContainerKinds: defaultTarkovMapKindFlags(),
   };
 }
 
@@ -149,6 +199,32 @@ export function parseTarkovMapViewerPrefs(
         parsed.showQuests,
         DEFAULT_TARKOV_MAP_VIEWER_PREFS.showQuests,
       ),
+      showLocks: asBool(
+        parsed.showLocks,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLocks,
+      ),
+      showHazards: asBool(
+        parsed.showHazards,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showHazards,
+      ),
+      showSwitches: asBool(
+        parsed.showSwitches,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showSwitches,
+      ),
+      showStationary: asBool(
+        parsed.showStationary,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showStationary,
+      ),
+      showBtrStops: asBool(
+        parsed.showBtrStops,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showBtrStops,
+      ),
+      showLootContainers: asBool(
+        parsed.showLootContainers,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLootContainers,
+      ),
+      hazardKinds: parseKindFlags(parsed.hazardKinds),
+      lootContainerKinds: parseKindFlags(parsed.lootContainerKinds),
     };
   } catch {
     return emptyPrefs();
@@ -222,5 +298,29 @@ export function withSpawnKind(
   return {
     ...prefs,
     spawnKinds: { ...prefs.spawnKinds, [kind]: on },
+  };
+}
+
+export function withHazardKind(
+  prefs: TarkovMapViewerPrefs,
+  kind: string,
+  on: boolean,
+): TarkovMapViewerPrefs {
+  return {
+    ...prefs,
+    showHazards: on ? true : prefs.showHazards,
+    hazardKinds: { ...prefs.hazardKinds, [kind]: on },
+  };
+}
+
+export function withLootContainerKind(
+  prefs: TarkovMapViewerPrefs,
+  kind: string,
+  on: boolean,
+): TarkovMapViewerPrefs {
+  return {
+    ...prefs,
+    showLootContainers: on ? true : prefs.showLootContainers,
+    lootContainerKinds: { ...prefs.lootContainerKinds, [kind]: on },
   };
 }
