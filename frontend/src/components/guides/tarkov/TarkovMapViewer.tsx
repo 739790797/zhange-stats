@@ -35,6 +35,7 @@ import {
   colorForTaskId,
   colorForUserId,
   defaultQuestPersonOffKeys,
+  filterRaidPrepOverlaysForSelection,
   formatRaidPrepOverlayKeyLabel,
   mapLayerFloorBands,
   nextQuestPeopleParentSelection,
@@ -45,9 +46,10 @@ import {
   RAID_PREP_LABEL_CLUSTER_PX,
   raidPrepParticipants,
   raidPrepPersonKey,
-  raidPrepQuestOverlayVisible,
   type RaidPrepHeightSpan,
   type RaidPrepMapParticipant,
+  type RaidPrepObjectiveDoneLike,
+  type RaidPrepSkipMap,
   type RaidPrepOverlayLabelItem,
   type RaidPrepOverlayStep,
   type RaidPrepPoint,
@@ -160,6 +162,10 @@ type Props = {
   onQuestLabelClick?: (taskId: string) => void;
   /** 任务 id → 参与者，供地图悬浮窗展示 */
   questParticipantsByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>;
+  /** 全员步骤完成；与筛选表勾中的人一起决定还显示哪些点 */
+  questObjectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+  /** 无人树时回退：当前用户已勾掉的步骤 */
+  questSkippedByTask?: RaidPrepSkipMap;
   highlightTaskId?: string;
   overlayMode?: TarkovMapOverlayMode;
   layerChrome?: "full" | "floors";
@@ -1207,6 +1213,8 @@ export function TarkovMapViewer({
   onFloorChange,
   onQuestLabelClick,
   questParticipantsByTask,
+  questObjectiveDones,
+  questSkippedByTask,
   highlightTaskId = "",
   overlayMode = "all",
   layerChrome = "full",
@@ -1324,13 +1332,19 @@ export function TarkovMapViewer({
   }, [questTree, questPeople, questPersonOff]);
   const displayedQuestOverlays = useMemo(
     () =>
-      questOverlays.filter((row) =>
-        raidPrepQuestOverlayVisible(
-          raidPrepParticipants(questParticipantsByTask?.get(row.taskId)),
-          selectedQuestKeys,
-        ),
-      ),
-    [questOverlays, questParticipantsByTask, selectedQuestKeys],
+      filterRaidPrepOverlaysForSelection(questOverlays, {
+        selectedKeys: selectedQuestKeys,
+        participantsByTask: questParticipantsByTask,
+        objectiveDones: questObjectiveDones,
+        skippedByTask: questSkippedByTask,
+      }),
+    [
+      questOverlays,
+      questParticipantsByTask,
+      questObjectiveDones,
+      questSkippedByTask,
+      selectedQuestKeys,
+    ],
   );
   const displayedParticipantsByTask = useMemo(() => {
     if (!questParticipantsByTask || !selectedQuestKeys) {

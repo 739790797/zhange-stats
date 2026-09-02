@@ -42,7 +42,6 @@ import {
   buildRaidPrepOverlays,
   colorForTaskIndex,
   colorForUserId,
-  filterRaidPrepOverlaysForViewer,
   filterRaidPrepRows,
   groupRaidPrepRowsByProgress,
   hydrateRaidPrepCatalogRows,
@@ -680,12 +679,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const overlayTasksRef = useRef(overlayTasks);
   overlayTasksRef.current = overlayTasks;
   const overlays = useMemo(
-    () =>
-      filterRaidPrepOverlaysForViewer(
-        buildRaidPrepOverlays(overlayTasks, mapId),
-        objDone,
-      ),
-    [overlayTasks, mapId, objDone],
+    () => buildRaidPrepOverlays(overlayTasks, mapId),
+    [overlayTasks, mapId],
   );
   const markQueueRef = useRef(Promise.resolve());
   const flushCompletedTaskMarks = useCallback(
@@ -1568,6 +1563,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   spawns={mapQuery.data?.spawns}
                   places={mapQuery.data?.places}
                   questOverlays={overlays}
+                  questObjectiveDones={viewerObjectiveDones}
+                  questSkippedByTask={objDone}
                   focusRequest={focusRequest}
                   highlightTaskId={highlightTaskId}
                   boardMarks={boardMarks}

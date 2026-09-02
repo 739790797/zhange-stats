@@ -2505,13 +2505,17 @@ function shootObjectiveText(obj: RaidPrepObjectiveLike): string {
   return obj.optional ? `${text}（可选）` : text;
 }
 
-/** 地图/总结步骤原文：有描述就不用 type 标签。 */
+/** 地图/总结步骤原文：有描述就不用 type 标签。击杀类带上要求数量。 */
 export function raidPrepObjectiveStepText(obj: RaidPrepObjectiveLike): string {
   const description = tarkovReadableName(obj.description, obj.id);
   const typeLabel = tarkovObjectiveTypeLabel(obj.type || "");
   const text = description || typeLabel;
   if (!text) return "";
-  return obj.optional ? `${text}（可选）` : text;
+  const count = isRaidPrepSummaryShootType(obj.type || "")
+    ? raidPrepObjectiveCount(obj)
+    : 0;
+  const withCount = count > 1 ? `${text} ×${count}` : text;
+  return obj.optional ? `${withCount}（可选）` : withCount;
 }
 
 export function collectRaidPrepOverlaySteps(
@@ -2755,6 +2759,49 @@ export function filterRaidPrepOverlaysForViewer(
     const id = (row.objectiveId || "").trim();
     if (!id) return true;
     return !done.has(id);
+  });
+}
+
+/**
+ * 勾上谁，就按谁还没做完来留点。
+ * selectedKeys 为 null（无人树）时回退个人 skip。
+ */
+export function filterRaidPrepOverlaysForSelection(
+  overlays: readonly TarkovRaidPrepOverlay[],
+  opts: {
+    selectedKeys?: ReadonlySet<string> | null;
+    participantsByTask?: ReadonlyMap<
+      string,
+      readonly { name?: string | null; userId?: number | null }[]
+    >;
+    objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+    skippedByTask?: RaidPrepSkipMap;
+  },
+): TarkovRaidPrepOverlay[] {
+  const selectedKeys = opts.selectedKeys ?? null;
+  if (selectedKeys == null) {
+    return filterRaidPrepOverlaysForViewer(overlays, opts.skippedByTask);
+  }
+  return overlays.filter((row) => {
+    const people = raidPrepParticipants(
+      opts.participantsByTask?.get(row.taskId),
+    );
+    if (!raidPrepQuestOverlayVisible(people, selectedKeys)) return false;
+    const id = (row.objectiveId || "").trim();
+    if (!id) return true;
+    if (!people.length) return true;
+    const selectedPeople = people.filter((person) =>
+      selectedKeys.has(raidPrepPersonKey(person)),
+    );
+    return selectedPeople.some((person) => {
+      if (person.userId == null) return true;
+      return !userMarkedObjective(
+        opts.objectiveDones,
+        row.taskId,
+        id,
+        person.userId,
+      );
+    });
   });
 }
 

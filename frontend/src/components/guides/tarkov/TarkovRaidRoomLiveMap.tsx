@@ -5,6 +5,8 @@ import {
 } from "@/components/guides/tarkov/TarkovMapViewer";
 import {
   colorForUserId,
+  type RaidPrepObjectiveDoneLike,
+  type RaidPrepSkipMap,
   type TarkovRaidPrepOverlay,
 } from "@/lib/tarkovRaidPrep";
 import {
@@ -42,6 +44,8 @@ type Props = {
   spawns?: TarkovMapSpawn[];
   places?: TarkovMapPlace[];
   questOverlays: TarkovRaidPrepOverlay[];
+  questObjectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+  questSkippedByTask?: RaidPrepSkipMap;
   focusRequest: TarkovMapFocusRequest | null;
   highlightTaskId: string;
   boardMarks: RaidRoomMarkLike[];
@@ -122,6 +126,8 @@ export function TarkovRaidRoomLiveMap({
   spawns,
   places,
   questOverlays,
+  questObjectiveDones,
+  questSkippedByTask,
   focusRequest,
   highlightTaskId,
   boardMarks,
@@ -218,6 +224,8 @@ export function TarkovRaidRoomLiveMap({
         spawns={spawns}
         places={places}
         questOverlays={questOverlays}
+        questObjectiveDones={questObjectiveDones}
+        questSkippedByTask={questSkippedByTask}
         focusRequest={focusRequest}
         highlightTaskId={highlightTaskId}
         boardMarks={boardMarks}

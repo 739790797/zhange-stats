@@ -3,6 +3,7 @@ import { findInteractiveMap } from "@/lib/tarkovMapImages";
 import {
   buildRaidPrepOverlays,
   filterRaidPrepOverlaysForViewer,
+  filterRaidPrepOverlaysForSelection,
   raidPrepObjectiveStepText,
   collectRaidPrepOverlaySteps,
   resolveRaidPrepLocatePoint,
@@ -463,6 +464,30 @@ describe("buildRaidPrepOverlays", () => {
         optional: true,
       }),
     ).toBe("探路（可选）");
+    expect(
+      raidPrepObjectiveStepText({
+        type: "shoot",
+        description: "在塔科夫街区使用 12 号霰弹枪爆头击杀任意敌对目标",
+        count: 15,
+      }),
+    ).toBe(
+      "在塔科夫街区使用 12 号霰弹枪爆头击杀任意敌对目标 ×15",
+    );
+    expect(
+      raidPrepObjectiveStepText({
+        type: "shoot",
+        description: "找到并消灭Kollontay",
+        count: 1,
+      }),
+    ).toBe("找到并消灭Kollontay");
+    expect(
+      raidPrepObjectiveStepText({
+        type: "shoot",
+        description: "击杀 Scav",
+        count: 10,
+        optional: true,
+      }),
+    ).toBe("击杀 Scav ×10（可选）");
   });
 
   it("places a task-list hint left of the sidebar and keeps it in the viewport", () => {
@@ -831,6 +856,75 @@ describe("buildRaidPrepOverlays", () => {
         hasMapMarkers: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("filterRaidPrepOverlaysForSelection", () => {
+  const wealth: RaidPrepTaskLike = {
+    id: "wealth",
+    name: "财不外露",
+    objectives: [
+      {
+        id: "o-key",
+        type: "visit",
+        description: "进入办公室",
+        zones: [{ id: "z-office", map_slug: "streets", x: 1, z: 1 }],
+      },
+    ],
+  };
+  const people = new Map([
+    ["wealth", [{ name: "我", userId: 1 }, { name: "队友", userId: 2 }]],
+  ]);
+
+  it("keeps a point when a selected teammate has not finished it", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const shown = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: new Set(["id:2"]),
+      participantsByTask: people,
+      objectiveDones: [
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+      ],
+      skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
+    });
+    expect(shown.map((row) => row.objectiveId)).toEqual(["o-key"]);
+  });
+
+  it("hides a point when only the viewer is selected and they finished it", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const shown = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: new Set(["id:1"]),
+      participantsByTask: people,
+      objectiveDones: [
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+      ],
+    });
+    expect(shown).toEqual([]);
+  });
+
+  it("hides a point after every selected person finished it", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const shown = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: new Set(["id:1", "id:2"]),
+      participantsByTask: people,
+      objectiveDones: [
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
+      ],
+    });
+    expect(shown).toEqual([]);
+  });
+
+  it("falls back to viewer skip when selectedKeys is null", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const hidden = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: null,
+      skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
+    });
+    expect(hidden).toEqual([]);
+    const all = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: null,
+    });
+    expect(all).toHaveLength(overlays.length);
   });
 });
 
