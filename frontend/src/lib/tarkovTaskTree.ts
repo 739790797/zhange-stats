@@ -54,6 +54,11 @@ export type TraderTaskGroup = {
   items: TaskListItem[];
 };
 
+export type TaskObjectivePair = {
+  task_id: string;
+  objective_id: string;
+};
+
 export type TarkovTaskDonesState = {
   v: 1;
   pvp?: string[];
@@ -63,16 +68,19 @@ export type TarkovTaskDonesState = {
   startedMigrated?: { pvp?: boolean; pve?: boolean };
   syncedAt?: { pvp?: string; pve?: string };
   cursorAt?: { pvp?: string; pve?: string };
+  objectives?: { pvp?: TaskObjectivePair[]; pve?: TaskObjectivePair[] };
 };
 
 export type AccountTaskProgress = {
   task_ids?: string[];
   started_ids?: string[];
+  objective_dones?: TaskObjectivePair[];
 };
 
 export type AccountTaskHydratePlan = {
   done: string[];
   started: string[];
+  objectives: TaskObjectivePair[];
   upload: boolean;
 };
 
@@ -88,6 +96,84 @@ function asIdList(value: unknown): string[] {
     out.push(ident);
   }
   return out;
+}
+
+export function asObjectivePairs(value: unknown): TaskObjectivePair[] {
+  const seen = new Set<string>();
+  const out: TaskObjectivePair[] = [];
+  const push = (taskId: string, objectiveId: string) => {
+    const task = taskId.trim();
+    const objective = objectiveId.trim();
+    if (!task || !objective) return;
+    const key = `${task}\0${objective}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ task_id: task, objective_id: objective });
+  };
+  if (Array.isArray(value)) {
+    for (const raw of value) {
+      if (!raw || typeof raw !== "object") continue;
+      const row = raw as { task_id?: unknown; objective_id?: unknown };
+      push(String(row.task_id ?? ""), String(row.objective_id ?? ""));
+    }
+    return out;
+  }
+  if (!value || typeof value !== "object") return out;
+  for (const [taskId, ids] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(ids)) continue;
+    for (const id of ids) push(taskId, String(id ?? ""));
+  }
+  return out;
+}
+
+export function sameObjectiveLists(
+  left: readonly TaskObjectivePair[],
+  right: readonly TaskObjectivePair[],
+): boolean {
+  if (left.length !== right.length) return false;
+  const keys = (rows: readonly TaskObjectivePair[]) =>
+    [...rows]
+      .map((row) => `${row.task_id}\0${row.objective_id}`)
+      .sort();
+  const a = keys(left);
+  const b = keys(right);
+  return a.every((key, index) => key === b[index]);
+}
+
+export function unionObjectivePairs(
+  left: readonly TaskObjectivePair[],
+  right: readonly TaskObjectivePair[],
+): TaskObjectivePair[] {
+  return asObjectivePairs([...left, ...right]);
+}
+
+export function setTaskObjective(
+  pairs: readonly TaskObjectivePair[],
+  taskId: string,
+  objectiveId: string,
+  checked: boolean,
+): TaskObjectivePair[] {
+  const task = taskId.trim();
+  const objective = objectiveId.trim();
+  if (!task || !objective) return asObjectivePairs(pairs);
+  const next = asObjectivePairs(pairs).filter(
+    (row) => !(row.task_id === task && row.objective_id === objective),
+  );
+  if (checked) next.push({ task_id: task, objective_id: objective });
+  return next;
+}
+
+export function mergeObjectivesForTask(
+  pairs: readonly TaskObjectivePair[],
+  taskId: string,
+  objectiveIds: readonly string[],
+): TaskObjectivePair[] {
+  const task = taskId.trim();
+  if (!task) return asObjectivePairs(pairs);
+  return unionObjectivePairs(
+    pairs,
+    objectiveIds.map((id) => ({ task_id: task, objective_id: id })),
+  );
 }
 
 function asClock(value: unknown): string {
@@ -270,18 +356,49 @@ export function commitTaskStatus(
   mode: TarkovGameMode,
   taskId: string,
   status: TaskStatusKind,
-): { done: string[]; started: string[] } {
+  fillObjectiveIds?: readonly string[],
+): { done: string[]; started: string[]; objectives: TaskObjectivePair[] } {
   const next = setTaskStatus(
     loadTaskDoneIds(mode),
     loadTaskStartedIds(mode),
     taskId,
     status,
   );
-  saveTaskProgress(mode, next.done, next.started);
+  let objectives = loadTaskObjectivePairs(mode);
+  if (status === "done" && fillObjectiveIds?.length) {
+    objectives = mergeObjectivesForTask(objectives, taskId, fillObjectiveIds);
+  }
+  saveTaskProgress(mode, next.done, next.started, false, false, objectives);
   notifyTarkovTaskProgress({
     mode,
     done: next.done,
     started: next.started,
+    objectives,
+    changed: true,
+    source: "user",
+    completedIds: status === "done" ? [taskId.trim()].filter(Boolean) : [],
+  });
+  return { ...next, objectives };
+}
+
+export function commitTaskObjective(
+  mode: TarkovGameMode,
+  taskId: string,
+  objectiveId: string,
+  checked: boolean,
+): TaskObjectivePair[] {
+  const next = setTaskObjective(
+    loadTaskObjectivePairs(mode),
+    taskId,
+    objectiveId,
+    checked,
+  );
+  saveTaskObjectivePairs(mode, next);
+  notifyTarkovTaskProgress({
+    mode,
+    done: loadTaskDoneIds(mode),
+    started: loadTaskStartedIds(mode),
+    objectives: next,
     changed: true,
     source: "user",
   });
@@ -418,6 +535,10 @@ function readState(): TarkovTaskDonesState {
         startedMigrated: parsed.startedMigrated,
         syncedAt: asClockMap(parsed.syncedAt),
         cursorAt: asClockMap(parsed.cursorAt),
+        objectives: {
+          pvp: asObjectivePairs(parsed.objectives?.pvp),
+          pve: asObjectivePairs(parsed.objectives?.pve),
+        },
       };
     }
   } catch {
@@ -453,12 +574,29 @@ export function saveTaskStartedIds(mode: TarkovGameMode, ids: string[]): void {
   writeState(state);
 }
 
+export function loadTaskObjectivePairs(mode: TarkovGameMode): TaskObjectivePair[] {
+  return asObjectivePairs(readState().objectives?.[mode]);
+}
+
+export function saveTaskObjectivePairs(
+  mode: TarkovGameMode,
+  pairs: readonly TaskObjectivePair[],
+): void {
+  const state = readState();
+  state.objectives = {
+    ...state.objectives,
+    [mode]: asObjectivePairs(pairs),
+  };
+  writeState(state);
+}
+
 export function saveTaskProgress(
   mode: TarkovGameMode,
   doneIds: string[],
   startedIds: string[],
   migrated = false,
   startedMigrated = false,
+  objectives?: readonly TaskObjectivePair[],
 ): void {
   const state = readState();
   state[mode] = asIdList(doneIds);
@@ -469,18 +607,30 @@ export function saveTaskProgress(
   if (startedMigrated) {
     state.startedMigrated = { ...state.startedMigrated, [mode]: true };
   }
+  if (objectives !== undefined) {
+    state.objectives = {
+      ...state.objectives,
+      [mode]: asObjectivePairs(objectives),
+    };
+  }
   writeState(state);
 }
 
 export function taskProgressQueryData(
   doneIds: readonly string[],
   startedIds: readonly string[],
-): { task_ids: string[]; started_ids: string[] } {
+  objectives?: readonly TaskObjectivePair[],
+): {
+  task_ids: string[];
+  started_ids: string[];
+  objective_dones: TaskObjectivePair[];
+} {
   const done = asIdList(doneIds);
   const doneSet = new Set(done);
   return {
     task_ids: done,
     started_ids: asIdList(startedIds).filter((id) => !doneSet.has(id)),
+    objective_dones: asObjectivePairs(objectives),
   };
 }
 
@@ -526,36 +676,58 @@ export function unionTaskProgress(
 export function planAccountTaskHydrate(input: {
   serverDone: readonly string[];
   serverStarted: readonly string[];
+  serverObjectives?: readonly TaskObjectivePair[] | null;
   localDone?: readonly string[] | null;
   localStarted?: readonly string[] | null;
+  localObjectives?: readonly TaskObjectivePair[] | null;
 }): AccountTaskHydratePlan {
   const merged = unionTaskProgress(
     { done: input.serverDone, started: input.serverStarted },
     { done: input.localDone || [], started: input.localStarted || [] },
   );
-  const server = taskProgressQueryData(input.serverDone, input.serverStarted);
+  const objectives = unionObjectivePairs(
+    asObjectivePairs(input.serverObjectives),
+    asObjectivePairs(input.localObjectives),
+  );
+  const server = taskProgressQueryData(
+    input.serverDone,
+    input.serverStarted,
+    input.serverObjectives || [],
+  );
   return {
     ...merged,
+    objectives,
     upload:
       !sameIdLists(merged.done, server.task_ids) ||
-      !sameIdLists(merged.started, server.started_ids),
+      !sameIdLists(merged.started, server.started_ids) ||
+      !sameObjectiveLists(objectives, server.objective_dones),
   };
 }
 
 export function resolveAccountTaskProgress(
   data: AccountTaskProgress | null | undefined,
   mode: TarkovGameMode,
-): { done: string[]; started: string[] } {
+): { done: string[]; started: string[]; objectives: TaskObjectivePair[] } {
   if (!data) {
-    return { done: loadTaskDoneIds(mode), started: loadTaskStartedIds(mode) };
+    return {
+      done: loadTaskDoneIds(mode),
+      started: loadTaskStartedIds(mode),
+      objectives: loadTaskObjectivePairs(mode),
+    };
   }
   const plan = planAccountTaskHydrate({
     serverDone: data.task_ids || [],
     serverStarted: data.started_ids || [],
+    serverObjectives: data.objective_dones || [],
     localDone: loadTaskDoneIds(mode),
     localStarted: loadTaskStartedIds(mode),
+    localObjectives: loadTaskObjectivePairs(mode),
   });
-  return { done: plan.done, started: plan.started };
+  return {
+    done: plan.done,
+    started: plan.started,
+    objectives: plan.objectives,
+  };
 }
 
 export function loadTaskSyncAt(mode: TarkovGameMode): string {

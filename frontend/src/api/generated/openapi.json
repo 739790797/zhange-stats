@@ -11872,7 +11872,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones List",
-        "description": "当前模式的账号进度账：已完成与进行中。",
+        "description": "当前模式的账号进度账：已完成、进行中与小步骤勾选。",
         "operationId": "guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get",
         "security": [
           {
@@ -11922,7 +11922,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Write",
-        "description": "合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。",
+        "description": "合并或整表替换当前模式的完成 / 进行中 / 小步骤。省略 started_ids 或 objective_dones 则不改对应集合。",
         "operationId": "guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put",
         "security": [
           {
@@ -12056,6 +12056,142 @@
             "schema": {
               "type": "string",
               "title": "Task Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/task-dones/{task_id}/objectives/{objective_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Objective Add",
+        "operationId": "guides_tarkov_task_objective_add_api_guides_tarkov_task_dones__task_id__objectives__objective_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "objective_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Objective Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Objective Remove",
+        "operationId": "guides_tarkov_task_objective_remove_api_guides_tarkov_task_dones__task_id__objectives__objective_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "objective_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Objective Id"
             }
           },
           {
@@ -30450,6 +30586,21 @@
             ],
             "title": "Started Ids"
           },
+          "objective_dones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TarkovTaskObjectiveDonePair"
+                },
+                "type": "array",
+                "maxItems": 8000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Dones"
+          },
           "replace": {
             "type": "boolean",
             "title": "Replace",
@@ -30474,6 +30625,13 @@
             },
             "type": "array",
             "title": "Started Ids"
+          },
+          "objective_dones": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskObjectiveDonePair"
+            },
+            "type": "array",
+            "title": "Objective Dones"
           }
         },
         "type": "object",
@@ -30872,6 +31030,28 @@
         },
         "type": "object",
         "title": "TarkovTaskNumberCompareOut"
+      },
+      "TarkovTaskObjectiveDonePair": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Task Id"
+          },
+          "objective_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Objective Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "objective_id"
+        ],
+        "title": "TarkovTaskObjectiveDonePair"
       },
       "TarkovTaskObjectiveOut": {
         "properties": {

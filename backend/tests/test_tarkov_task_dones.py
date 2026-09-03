@@ -177,3 +177,148 @@ def test_filter_visible_progress_hides_unknown_keeps_order() -> None:
     )
     assert raw_done == ["gone"]
     assert raw_started == ["gone-start"]
+
+
+def test_objective_dones_merge_replace_and_toggle() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    dones.merge_objective_dones(
+        db,
+        user,
+        [
+            {"task_id": "t1", "objective_id": "o1"},
+            {"task_id": "t1", "objective_id": "o1"},
+            {"task_id": "", "objective_id": "x"},
+            {"task_id": "t1", "objective_id": "o2"},
+        ],
+        game_mode="pvp",
+    )
+    dones.merge_objective_dones(
+        db,
+        user,
+        [{"task_id": "t9", "objective_id": "pve-o"}],
+        game_mode="pve",
+    )
+    assert dones.list_objective_dones(db, user.id, game_mode="pvp") == [
+        {"task_id": "t1", "objective_id": "o1"},
+        {"task_id": "t1", "objective_id": "o2"},
+    ]
+    assert dones.list_objective_dones(db, user.id, game_mode="pve") == [
+        {"task_id": "t9", "objective_id": "pve-o"},
+    ]
+    rows, added = dones.add_objective(db, user, "t1", "o3", game_mode="pvp")
+    assert added is True
+    assert len(rows) == 3
+    _, added_again = dones.add_objective(db, user, "t1", "o3", game_mode="pvp")
+    assert added_again is False
+    left, removed = dones.remove_objective(db, user, "t1", "o1", game_mode="pvp")
+    assert removed is True
+    assert left == [
+        {"task_id": "t1", "objective_id": "o2"},
+        {"task_id": "t1", "objective_id": "o3"},
+    ]
+    dones.replace_objective_dones(
+        db,
+        user,
+        [{"task_id": "t2", "objective_id": "x"}],
+        game_mode="pvp",
+    )
+    assert dones.list_objective_dones(db, user.id, game_mode="pvp") == [
+        {"task_id": "t2", "objective_id": "x"},
+    ]
+    assert dones.list_objective_dones(db, user.id, game_mode="pve") == [
+        {"task_id": "t9", "objective_id": "pve-o"},
+    ]
+
+
+def test_completing_task_fills_catalog_objectives(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+
+    def fake_catalog(_db, task_ids):
+        return {
+            ident: [f"{ident}-a", f"{ident}-b"]
+            for ident in task_ids
+            if ident
+        }
+
+    monkeypatch.setattr(
+        "app.services.tarkov.tasks.catalog_objective_ids",
+        fake_catalog,
+    )
+    dones.add_done(db, user, "quest-1", game_mode="pvp")
+    assert dones.list_objective_dones(db, user.id, game_mode="pvp") == [
+        {"task_id": "quest-1", "objective_id": "quest-1-a"},
+        {"task_id": "quest-1", "objective_id": "quest-1-b"},
+    ]
+    dones.merge_objective_dones(
+        db,
+        user,
+        [{"task_id": "quest-2", "objective_id": "manual"}],
+        game_mode="pvp",
+    )
+    dones.write_progress(
+        db,
+        user,
+        ["quest-2"],
+        None,
+        replace=False,
+        game_mode="pvp",
+        objective_dones=None,
+    )
+    pairs = {
+        (row["task_id"], row["objective_id"])
+        for row in dones.list_objective_dones(db, user.id, game_mode="pvp")
+    }
+    assert ("quest-1", "quest-1-a") in pairs
+    assert ("quest-2", "manual") in pairs
+    assert ("quest-2", "quest-2-a") in pairs
+    assert ("quest-2", "quest-2-b") in pairs
+    dones.write_progress(
+        db,
+        user,
+        ["quest-2"],
+        None,
+        replace=False,
+        game_mode="pvp",
+        objective_dones=[{"task_id": "keep", "objective_id": "step"}],
+    )
+    later = {
+        (row["task_id"], row["objective_id"])
+        for row in dones.list_objective_dones(db, user.id, game_mode="pvp")
+    }
+    assert ("keep", "step") in later
+    assert ("quest-2", "manual") in later
+
+
+def test_write_progress_omitting_objectives_keeps_rows() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    dones.merge_objective_dones(
+        db,
+        user,
+        [{"task_id": "t1", "objective_id": "o1"}],
+        game_mode="pvp",
+    )
+    dones.write_progress(
+        db,
+        user,
+        ["t1"],
+        ["s1"],
+        replace=True,
+        game_mode="pvp",
+        objective_dones=None,
+    )
+    assert dones.list_objective_dones(db, user.id, game_mode="pvp") == [
+        {"task_id": "t1", "objective_id": "o1"},
+    ]
+    dones.write_progress(
+        db,
+        user,
+        ["t1"],
+        ["s1"],
+        replace=True,
+        game_mode="pvp",
+        objective_dones=[],
+    )
+    assert dones.list_objective_dones(db, user.id, game_mode="pvp") == []

@@ -46,6 +46,24 @@ def test_apply_overlay_none_is_identity() -> None:
     assert apply_overlay("tasks", payload, None) is payload
 
 
+def test_load_overlay_missing_table_is_none(monkeypatch) -> None:
+    monkeypatch.setattr(
+        upstream_svc,
+        "load_raw",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("1146 overlay")),
+    )
+    assert overlay_svc.load_overlay(object()) is None
+
+
+def test_overlay_cache_token_missing_table_is_empty(monkeypatch) -> None:
+    monkeypatch.setattr(
+        upstream_svc,
+        "load_raw_row",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("1146 overlay")),
+    )
+    assert overlay_svc.overlay_cache_token(object()) == ""
+
+
 def test_apply_overlay_unknown_resource_is_identity() -> None:
     payload = {"maps": {"m1": {"id": "m1"}}}
     overlay = {"tasks": {"t1": {"disabled": True}}}

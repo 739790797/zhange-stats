@@ -34,6 +34,8 @@ import {
   raidPrepObjectiveDoneScope,
   raidPrepObjectiveDoneLegacyScopes,
   raidPrepSkipMapsEqual,
+  raidPrepSkipMapForViewer,
+  planRaidPrepObjectiveToggle,
   serializeRaidPrepObjectiveDone,
   toggleRaidPrepObjectiveDone,
   filterRaidPrepRows,
@@ -76,6 +78,7 @@ import {
   pinSelectedRaidPrepRows,
   raidPrepMapOptions,
   collectRaidPrepQuestFilterPeople,
+  collectRaidPrepQuestFilterPeopleOrSelf,
   defaultQuestPersonOffKeys,
   nextQuestPeopleParentSelection,
   nextQuestPersonSelection,
@@ -101,9 +104,11 @@ import {
   raidPrepMapObjectivesComplete,
   raidPrepTaskCanLocate,
   formatRaidPrepOverlayPointTitle,
+  raidPrepQuestPointMenuActions,
   formatRaidPrepParticipantLine,
   objectiveDonesToSkipMap,
   raidPrepMapObjectiveIds,
+  raidPrepAllObjectiveIds,
   roomObjectiveMarksForCompletedTasks,
   skipMapToObjectiveDones,
   raidPrepParticipantNames,
@@ -243,6 +248,27 @@ describe("raid prep participant line", () => {
     expect(raidPrepQuestOverlayVisible([], onlyJia)).toBe(true);
     expect(raidPrepQuestOverlayVisible(people, new Set())).toBe(false);
     expect(raidPrepQuestOverlayVisible(people, null)).toBe(true);
+  });
+
+  it("falls back to the current user for the solo quest filter tree", () => {
+    const byTask = new Map([
+      ["t1", [{ name: "甲", userId: 1 }]],
+    ]);
+    expect(
+      collectRaidPrepQuestFilterPeopleOrSelf(byTask, {
+        name: "乙",
+        userId: 2,
+      }),
+    ).toEqual([{ name: "甲", userId: 1 }]);
+    expect(
+      collectRaidPrepQuestFilterPeopleOrSelf(undefined, {
+        name: "乙",
+        userId: 2,
+      }),
+    ).toEqual([{ name: "乙", userId: 2 }]);
+    expect(collectRaidPrepQuestFilterPeopleOrSelf(new Map(), {})).toEqual([
+      { name: "我" },
+    ]);
   });
 
   it("selects only the clicked person after the parent was turned off", () => {
@@ -1257,6 +1283,25 @@ describe("readable item names", () => {
     expect(formatRaidPrepOverlayPointTitle("湿活-2", 3, 4)).toBe("湿活-2（第4处）");
   });
 
+  it("opens a step menu only when the point can be completed", () => {
+    expect(
+      raidPrepQuestPointMenuActions({ canOpenGuide: true, canComplete: false }),
+    ).toEqual(["guide"]);
+    expect(
+      raidPrepQuestPointMenuActions({
+        canOpenGuide: true,
+        canComplete: true,
+      }),
+    ).toEqual(["guide"]);
+    expect(
+      raidPrepQuestPointMenuActions({
+        canOpenGuide: true,
+        canComplete: true,
+        objectiveId: "obj-1",
+      }),
+    ).toEqual(["guide", "complete"]);
+  });
+
   it("skips unresolved key ids on the task card", () => {
     const task: RaidPrepTaskLike = {
       id: "t-keys",
@@ -2102,6 +2147,11 @@ describe("raid prep needed items", () => {
       "o-2",
       "o-opt",
     ]);
+    expect(raidPrepAllObjectiveIds(tasks[0]!)).toEqual([
+      "o-1",
+      "o-2",
+      "o-opt",
+    ]);
     expect(
       roomObjectiveMarksForCompletedTasks(
         ["wet-2", "other"],
@@ -2152,6 +2202,21 @@ describe("raid prep needed items", () => {
     expect(
       raidPrepSkipMapsEqual(merged, mergeRaidPrepSkipMaps(merged)),
     ).toBe(true);
+    expect(
+      [...(raidPrepSkipMapForViewer(
+        new Map([["meme", new Set(["s1"])]]),
+        [{ task_id: "meme", objective_id: "c1" }],
+      ).get("meme") || [])].sort(),
+    ).toEqual(["c1", "s1"]);
+    expect(
+      planRaidPrepObjectiveToggle({ localHas: false, viewHas: true }),
+    ).toEqual({ nextChecked: false, toggleLocal: false });
+    expect(
+      planRaidPrepObjectiveToggle({ localHas: true, viewHas: true }),
+    ).toEqual({ nextChecked: false, toggleLocal: true });
+    expect(
+      planRaidPrepObjectiveToggle({ localHas: false, viewHas: false }),
+    ).toEqual({ nextChecked: true, toggleLocal: true });
   });
 
   it("sorts summary rows by participant count descending", () => {
@@ -2441,8 +2506,21 @@ describe("multi-map raid prep progress", () => {
     );
     expect(splitRaidPrepOtherMapGroups(groups).allowed).toEqual([]);
     expect(groups.map((row) => row.mapLabel)).toEqual(["海关", "森林"]);
-    expect(groups[0]?.lines).toEqual(["在海关的旧加油站安装Wi-Fi摄像头"]);
-    expect(groups[1]?.lines).toEqual(["在森林的木屋处安装Wi-Fi摄像头"]);
+    expect(groups[0]?.lines).toEqual([
+      { id: "c1", text: "在海关的旧加油站安装Wi-Fi摄像头" },
+    ]);
+    expect(groups[1]?.lines).toEqual([
+      { id: "w1", text: "在森林的木屋处安装Wi-Fi摄像头" },
+    ]);
+    expect(
+      formatRaidPrepOtherMapsLead(groups, new Set(["c1"])),
+    ).toBe("此任务还需在森林完成");
+    expect(
+      formatRaidPrepOtherMapsLead(groups, new Set(["c1", "w1"])),
+    ).toBe("其他地图步骤已勾完");
+    expect(formatRaidPrepOtherMapsLead(groups, new Set(), true)).toBe(
+      "其他地图步骤已勾完",
+    );
     const summary = buildRaidPrepSummary(
       [meme],
       "streets",
@@ -2490,7 +2568,7 @@ describe("multi-map raid prep progress", () => {
         {
           mapSlug: "woods",
           mapLabel: "森林",
-          lines: ["在森林安装摄像头"],
+          lines: [{ id: "w1", text: "在森林安装摄像头" }],
         },
       ]),
     ).toBe("此任务也可在储备站完成，还需在森林完成");

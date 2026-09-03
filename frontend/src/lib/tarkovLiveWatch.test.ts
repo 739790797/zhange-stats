@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   addedIdList,
+  formatLiveLogBackfillHint,
+  formatLogSyncActionLabel,
   formatLiveWatchLogLine,
   formatLiveWatchShotLine,
   formatPollClock,
@@ -22,6 +24,35 @@ describe("formatPollClock", () => {
       "最近截图：2026-08-30 21:04:33",
     );
     expect(formatLiveWatchLogLine(null)).toBe("最近日志：—");
+  });
+});
+
+describe("formatLogSyncActionLabel", () => {
+  it("matches the personal-center sync-log button", () => {
+    expect(formatLogSyncActionLabel(false)).toBe("同步日志");
+    expect(formatLogSyncActionLabel(true)).toBe("正在同步日志…");
+    expect(formatLogSyncActionLabel(true, { done: 2, total: 9 })).toBe(
+      "正在读取 2 / 9",
+    );
+  });
+});
+
+describe("formatLiveLogBackfillHint", () => {
+  it("explains empty folders and counts sessions", () => {
+    expect(
+      formatLiveLogBackfillHint(0, "backfill", {
+        done: 0,
+        started: 0,
+        unfinished: 0,
+      }),
+    ).toBe("这个目录里没有启动记录。");
+    expect(
+      formatLiveLogBackfillHint(3, "backfill", {
+        done: 2,
+        started: 1,
+        unfinished: -3,
+      }),
+    ).toBe("已从日志回填 已完成 +2，进行中 +1，未完成 -3（3 次启动）");
   });
 });
 
@@ -285,6 +316,12 @@ describe("planRaidLogImport", () => {
     const first = planRaidLogImport(new Set(), [endedSession]);
     expect(first.rows).toEqual([]);
     expect([...first.nextKeys]).toEqual(["log_new|PQXKR6"]);
+  });
+
+  it("uploads all ended raids when force-backfilling old logs", () => {
+    const forced = planRaidLogImport(new Set(), [endedSession], { force: true });
+    expect(forced.rows).toHaveLength(1);
+    expect(forced.rows[0]?.raid_id).toBe("PQXKR6");
   });
 
   it("uploads when a new UserMatchOver appears", () => {

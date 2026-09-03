@@ -505,6 +505,55 @@ def unique_objective_types(objectives: list[Any]) -> list[str]:
     return out
 
 
+OBJECTIVE_ID_MAX = 64
+
+
+def objective_key(obj: dict[str, Any], index: int) -> str:
+    """与前端 raidPrepObjectiveKey 对齐：有 id 用 id，否则 i:{index}。"""
+    ident = str(obj.get("id") or "").strip()
+    return ident or f"i:{index}"
+
+
+def objective_ids_from_raw(raw: dict[str, Any]) -> list[str]:
+    """任务 raw 里全部小步骤 id（含可选、跨图）。"""
+    objectives = raw.get("objectives") if isinstance(raw.get("objectives"), list) else []
+    out: list[str] = []
+    seen: set[str] = set()
+    for index, obj in enumerate(objectives):
+        if not isinstance(obj, dict):
+            continue
+        ident = objective_key(obj, index)
+        if not ident or len(ident) > OBJECTIVE_ID_MAX or ident in seen:
+            continue
+        seen.add(ident)
+        out.append(ident)
+    return out
+
+
+def catalog_objective_ids(
+    db: Session,
+    task_ids: list[str] | set[str],
+) -> dict[str, list[str]]:
+    """读库内任务 raw，不回源。缺目录或未命中则跳过。"""
+    wanted = [str(ident).strip() for ident in task_ids if str(ident).strip()]
+    if not wanted:
+        return {}
+    try:
+        _source, payload, _synced, _note = _load_payload(db)
+    except TarkovTasksError:
+        return {}
+    tasks = _tasks_map(payload)
+    out: dict[str, list[str]] = {}
+    for ident in wanted:
+        raw = tasks.get(ident)
+        if not isinstance(raw, dict):
+            continue
+        ids = objective_ids_from_raw(raw)
+        if ids:
+            out[ident] = ids
+    return out
+
+
 def _resolve_obj_description(
     obj: dict[str, Any],
     locale: dict[str, Any],

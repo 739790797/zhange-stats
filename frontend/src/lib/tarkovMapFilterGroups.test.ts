@@ -3,9 +3,12 @@ import {
   filterGroupAllOn,
   filterGroupAnyOn,
   filterGroupPartial,
+  isFilterGroupCollapsed,
+  parseFilterGroupsCollapsed,
   TARKOV_MAP_FILTER_GROUP_LABELS,
   TARKOV_MAP_FILTER_GROUP_ORDER,
   TARKOV_MAP_FILTER_ITEM_LABELS,
+  toggleFilterGroupCollapsed,
   withFilterGroupOn,
 } from "./tarkovMapFilterGroups";
 
@@ -18,8 +21,9 @@ describe("tarkov map filter groups", () => {
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.lootable).toBe("可搜刮物品");
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.tasks).toBe("任务");
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.hazards).toBe("危险区");
-    expect(TARKOV_MAP_FILTER_GROUP_LABELS.landmarks).toBe("地标");
+    expect(TARKOV_MAP_FILTER_GROUP_LABELS.landmarks).toBe("地名");
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose).toBe("散落物");
+    expect(TARKOV_MAP_FILTER_GROUP_LABELS.screenshot).toBe("截图定位");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.locks).toBe("锁");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.stationary).toBe("固定机枪");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.switches).toBe("开关");
@@ -28,19 +32,39 @@ describe("tarkov map filter groups", () => {
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.lootLoose).toBe("散落物");
   });
 
-  it("keeps tarkov.dev sidebar group order", () => {
+  it("keeps sidebar group order after levels", () => {
     expect(TARKOV_MAP_FILTER_GROUP_ORDER).toEqual([
       "style",
       "levels",
+      "landmarks",
       "extracts",
       "spawns",
       "usable",
-      "lootable",
-      "tasks",
       "hazards",
-      "landmarks",
+      "lootable",
       "lootLoose",
+      "tasks",
+      "screenshot",
     ]);
+  });
+
+  it("defaults filter groups expanded and only stores collapsed keys", () => {
+    expect(isFilterGroupCollapsed({}, "extracts")).toBe(false);
+    expect(isFilterGroupCollapsed({ extracts: true }, "extracts")).toBe(true);
+    expect(toggleFilterGroupCollapsed({}, "lootable")).toEqual({
+      lootable: true,
+    });
+    expect(toggleFilterGroupCollapsed({ lootable: true }, "lootable")).toEqual(
+      {},
+    );
+    expect(
+      parseFilterGroupsCollapsed({
+        lootable: true,
+        extracts: false,
+        nope: true,
+      }),
+    ).toEqual({ lootable: true });
+    expect(parseFilterGroupsCollapsed(null)).toEqual({});
   });
 
   it("toggles a usable/landmarks parent without dropping missing children", () => {

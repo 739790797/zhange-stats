@@ -1,4 +1,8 @@
 import {
+  parseFilterGroupsCollapsed,
+  type TarkovMapFilterGroupId,
+} from "./tarkovMapFilterGroups";
+import {
   defaultExtractKindFlags,
   TARKOV_EXTRACT_KINDS,
   type TarkovExtractKind,
@@ -80,6 +84,10 @@ export type TarkovMapViewerStyle = "svg" | "tile";
 
 export type TarkovMapViewerPrefs = {
   style: TarkovMapViewerStyle;
+  /** 左上角图层筛选面板是否展开。 */
+  filterPanelOpen: boolean;
+  /** 有子项的大类是否收起；缺省展开。 */
+  filterGroupsCollapsed: Partial<Record<TarkovMapFilterGroupId, boolean>>;
   floorsByMap: Record<string, string>;
   /** 按阵营分类的撤离点显隐；对齐 tarkov.dev Extracts 子图层。 */
   extractKinds: TarkovExtractKindFlags;
@@ -101,6 +109,8 @@ export type TarkovMapViewerPrefs = {
 
 export const DEFAULT_TARKOV_MAP_VIEWER_PREFS: TarkovMapViewerPrefs = {
   style: "svg",
+  filterPanelOpen: true,
+  filterGroupsCollapsed: {},
   floorsByMap: {},
   extractKinds: defaultExtractKindFlags(true),
   spawnKinds: defaultSpawnKindFlags(true),
@@ -173,6 +183,7 @@ function parseSpawnKinds(
 function emptyPrefs(): TarkovMapViewerPrefs {
   return {
     ...DEFAULT_TARKOV_MAP_VIEWER_PREFS,
+    filterGroupsCollapsed: {},
     floorsByMap: {},
     extractKinds: defaultExtractKindFlags(true),
     spawnKinds: defaultSpawnKindFlags(true),
@@ -196,6 +207,13 @@ export function parseTarkovMapViewerPrefs(
     }
     return {
       style: asStyle(parsed.style) ?? DEFAULT_TARKOV_MAP_VIEWER_PREFS.style,
+      filterPanelOpen: asBool(
+        parsed.filterPanelOpen,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.filterPanelOpen,
+      ),
+      filterGroupsCollapsed: parseFilterGroupsCollapsed(
+        parsed.filterGroupsCollapsed,
+      ),
       floorsByMap: parseFloorsByMap(parsed.floorsByMap),
       extractKinds: parseExtractKinds(
         parsed.extractKinds,

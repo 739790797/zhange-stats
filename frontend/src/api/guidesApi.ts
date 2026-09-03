@@ -431,10 +431,14 @@ export async function fetchTarkovTaskDones() {
   return data;
 }
 
-/** 默认 merge：只补账号里没有的完成/进行中，不会整表清空。replace 仅测试或显式快照。 */
+/** 默认 merge：只补账号里没有的完成/进行中/小步骤，不会整表清空。replace 仅测试或显式快照。 */
 export async function writeTarkovTaskDones(
   taskIds: string[],
-  opts?: { replace?: boolean; startedIds?: string[] },
+  opts?: {
+    replace?: boolean;
+    startedIds?: string[];
+    objectiveDones?: Array<{ task_id: string; objective_id: string }>;
+  },
 ) {
   const { data } = await client.put<TarkovTaskDones>(
     "/guides/tarkov/task-dones",
@@ -444,7 +448,33 @@ export async function writeTarkovTaskDones(
       ...(opts?.startedIds !== undefined
         ? { started_ids: opts.startedIds }
         : {}),
+      ...(opts?.objectiveDones !== undefined
+        ? { objective_dones: opts.objectiveDones }
+        : {}),
     },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function addTarkovTaskObjectiveDone(
+  taskId: string,
+  objectiveId: string,
+) {
+  const { data } = await client.put<TarkovTaskDones>(
+    `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}/objectives/${encodeURIComponent(objectiveId)}`,
+    {},
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function removeTarkovTaskObjectiveDone(
+  taskId: string,
+  objectiveId: string,
+) {
+  const { data } = await client.delete<TarkovTaskDones>(
+    `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}/objectives/${encodeURIComponent(objectiveId)}`,
     { timeout: 30_000 },
   );
   return data;

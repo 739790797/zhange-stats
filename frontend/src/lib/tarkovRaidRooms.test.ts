@@ -53,6 +53,7 @@ import {
   raidRoomPickDockMapId,
   parsePlayerFixEvent,
   playerFixMatchesRoomMap,
+  shouldSuppressLocalPlayerFix,
   playerFixMarkerCaption,
   collectPlayerFixMarks,
   pruneStalePlayerFixes,
@@ -660,6 +661,33 @@ describe("raid room helpers", () => {
     expect(playerFixMatchesRoomMap("streets-of-tarkov", "streets")).toBe(true);
     expect(playerFixMatchesRoomMap("woods", "customs")).toBe(false);
     expect(playerFixMatchesRoomMap("customs", "")).toBe(false);
+    expect(
+      shouldSuppressLocalPlayerFix({
+        viewMapId: "customs",
+        logMapId: "woods",
+        phaseKind: "raid_exited",
+      }),
+    ).toBe(false);
+    expect(
+      shouldSuppressLocalPlayerFix({
+        viewMapId: "customs",
+        logMapId: "woods",
+        phaseKind: "raid_started",
+      }),
+    ).toBe(true);
+    expect(
+      shouldSuppressLocalPlayerFix({
+        viewMapId: "customs",
+        logMapId: "bigmap",
+        phaseKind: "raid_started",
+      }),
+    ).toBe(false);
+    expect(
+      shouldSuppressLocalPlayerFix({
+        viewMapId: "customs",
+        logMapId: "woods",
+      }),
+    ).toBe(false);
     expect(playerFixMarkerCaption("  BaiYi  ")).toBe("BaiYi");
     expect(playerFixMarkerCaption("")).toBe("");
     const local: Parameters<typeof collectPlayerFixMarks>[1] = {

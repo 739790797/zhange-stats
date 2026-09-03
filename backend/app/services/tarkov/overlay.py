@@ -301,12 +301,21 @@ def persist_overlay(
 
 
 def load_overlay(db: Session) -> dict[str, Any] | None:
-    payload = upstream_svc.load_raw(db, OVERLAY_RESOURCE)
+    """缺表/查库失败时当没有 overlay，避免物品 handbook 填充整条失败。"""
+    try:
+        payload = upstream_svc.load_raw(db, OVERLAY_RESOURCE)
+    except Exception as exc:
+        logger.warning("tarkov overlay raw unavailable: %s", exc)
+        return None
     return payload if isinstance(payload, dict) and payload else None
 
 
 def overlay_cache_token(db: Session) -> str:
-    row = upstream_svc.load_raw_row(db, OVERLAY_RESOURCE)
+    try:
+        row = upstream_svc.load_raw_row(db, OVERLAY_RESOURCE)
+    except Exception as exc:
+        logger.warning("tarkov overlay cache token unavailable: %s", exc)
+        return ""
     if row is None or not row.synced_at:
         return ""
     return row.synced_at.isoformat()

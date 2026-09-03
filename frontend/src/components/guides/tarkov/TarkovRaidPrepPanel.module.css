@@ -1072,6 +1072,15 @@
   color: var(--hb-orange, #c8932a);
 }
 
+.taskObjSeqGroupHere {
+  margin: 0 -6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(212, 180, 74, 0.75);
+  border-radius: 3px;
+  background: rgba(212, 180, 74, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(212, 180, 74, 0.12);
+}
+
 .taskObjOtherMaps {
   display: flex;
   flex-direction: column;
@@ -1113,6 +1122,22 @@
   color: #9a9788;
   font-size: 12px;
   line-height: 1.45;
+  white-space: normal;
+}
+
+.taskObjOtherMap .taskObjCheck {
+  color: #9a9788;
+}
+
+.taskObjOtherMap .taskObjLine,
+.taskObjOtherMap .taskObjOtherMapLine,
+.taskObjOtherMap .taskObjLineDone {
+  color: #9a9788;
+  font-size: 12px;
+}
+
+.taskObjOtherMap .taskObjCheck input:not(:disabled) {
+  cursor: pointer;
 }
 
 .taskObjStep {
@@ -1198,7 +1223,7 @@
 
 .taskObjFloat {
   position: fixed;
-  z-index: 1200;
+  z-index: 2200;
   box-sizing: border-box;
   width: max-content;
   padding: 12px;
@@ -1224,6 +1249,7 @@
 .taskObjFloat .taskObjTitle,
 .taskObjFloat .taskObjLine,
 .taskObjFloat .taskObjLineDone,
+.taskObjFloat .taskObjCheck,
 .taskObjFloat .taskObjOtherMapLine,
 .taskObjFloat .taskObjFailText {
   max-width: 100%;

@@ -53,6 +53,8 @@ describe("parseTarkovMapViewerPrefs", () => {
       ),
     ).toEqual({
       style: "tile",
+      filterPanelOpen: true,
+      filterGroupsCollapsed: {},
       floorsByMap: { customs: "2nd Floor", factory: "" },
       extractKinds: {
         pmc: true,
@@ -74,6 +76,28 @@ describe("parseTarkovMapViewerPrefs", () => {
       lootContainerKinds: {},
       lootLooseKinds: {},
     });
+  });
+
+  it("defaults the filter panel open and keeps an explicit collapse", () => {
+    expect(parseTarkovMapViewerPrefs(JSON.stringify({ style: "svg" })).filterPanelOpen).toBe(
+      true,
+    );
+    expect(
+      parseTarkovMapViewerPrefs(
+        JSON.stringify({ filterPanelOpen: false }),
+      ).filterPanelOpen,
+    ).toBe(false);
+    expect(
+      parseTarkovMapViewerPrefs(JSON.stringify({ style: "svg" }))
+        .filterGroupsCollapsed,
+    ).toEqual({});
+    expect(
+      parseTarkovMapViewerPrefs(
+        JSON.stringify({
+          filterGroupsCollapsed: { lootable: true, nope: true },
+        }),
+      ).filterGroupsCollapsed,
+    ).toEqual({ lootable: true });
   });
 
   it("defaults locks on and loot containers off when old storage omits them", () => {

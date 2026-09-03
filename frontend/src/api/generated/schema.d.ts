@@ -3604,12 +3604,12 @@ export interface paths {
         };
         /**
          * Guides Tarkov Task Dones List
-         * @description 当前模式的账号进度账：已完成与进行中。
+         * @description 当前模式的账号进度账：已完成、进行中与小步骤勾选。
          */
         get: operations["guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get"];
         /**
          * Guides Tarkov Task Dones Write
-         * @description 合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。
+         * @description 合并或整表替换当前模式的完成 / 进行中 / 小步骤。省略 started_ids 或 objective_dones 则不改对应集合。
          */
         put: operations["guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put"];
         post?: never;
@@ -3632,6 +3632,24 @@ export interface paths {
         post?: never;
         /** Guides Tarkov Task Dones Remove */
         delete: operations["guides_tarkov_task_dones_remove_api_guides_tarkov_task_dones__task_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/task-dones/{task_id}/objectives/{objective_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Guides Tarkov Task Objective Add */
+        put: operations["guides_tarkov_task_objective_add_api_guides_tarkov_task_dones__task_id__objectives__objective_id__put"];
+        post?: never;
+        /** Guides Tarkov Task Objective Remove */
+        delete: operations["guides_tarkov_task_objective_remove_api_guides_tarkov_task_dones__task_id__objectives__objective_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -12109,6 +12127,8 @@ export interface components {
             task_ids?: string[];
             /** Started Ids */
             started_ids?: string[] | null;
+            /** Objective Dones */
+            objective_dones?: components["schemas"]["TarkovTaskObjectiveDonePair"][] | null;
             /**
              * Replace
              * @default false
@@ -12121,6 +12141,8 @@ export interface components {
             task_ids?: string[];
             /** Started Ids */
             started_ids?: string[];
+            /** Objective Dones */
+            objective_dones?: components["schemas"]["TarkovTaskObjectiveDonePair"][];
         };
         /** TarkovTaskFailConditionOut */
         TarkovTaskFailConditionOut: {
@@ -12358,6 +12380,13 @@ export interface components {
             compare_method: string;
             /** Value */
             value?: number | null;
+        };
+        /** TarkovTaskObjectiveDonePair */
+        TarkovTaskObjectiveDonePair: {
+            /** Task Id */
+            task_id: string;
+            /** Objective Id */
+            objective_id: string;
         };
         /** TarkovTaskObjectiveOut */
         TarkovTaskObjectiveOut: {
@@ -20771,6 +20800,76 @@ export interface operations {
             header?: never;
             path: {
                 task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_task_objective_add_api_guides_tarkov_task_dones__task_id__objectives__objective_id__put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                task_id: string;
+                objective_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_task_objective_remove_api_guides_tarkov_task_dones__task_id__objectives__objective_id__delete: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                task_id: string;
+                objective_id: string;
             };
             cookie?: never;
         };

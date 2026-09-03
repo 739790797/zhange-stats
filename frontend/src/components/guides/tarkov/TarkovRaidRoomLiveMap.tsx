@@ -11,11 +11,13 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import {
   useTarkovLastLogMapId,
+  useTarkovLastLogPhase,
   useTarkovScreenshotFix,
 } from "@/lib/useTarkovLiveWatch";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
 import {
   playerFixMatchesRoomMap,
+  shouldSuppressLocalPlayerFix,
   type RaidRoomKeyBringLike,
   type RaidRoomMarkLike,
   type StrokePoint,
@@ -83,6 +85,7 @@ type Props = {
   }) => void;
   onEraseMark: (markId: number) => void;
   onQuestLabelClick: (taskId: string) => void;
+  onQuestCompleteObjective?: (taskId: string, objectiveId: string) => void;
   questParticipantsByTask: ReadonlyMap<
     string,
     readonly RaidPrepMapParticipant[]
@@ -105,6 +108,7 @@ function RaidRoomFixRelay({
 }) {
   const fix = useTarkovScreenshotFix();
   const lastLogMapId = useTarkovLastLogMapId();
+  const lastLogPhase = useTarkovLastLogPhase();
   const lastSentRef = useRef("");
 
   useEffect(() => {
@@ -114,7 +118,15 @@ function RaidRoomFixRelay({
   useEffect(() => {
     const ws = wsRef.current;
     if (!canEdit || !fix || !ws || ws.readyState !== WebSocket.OPEN) return;
-    if (lastLogMapId && !playerFixMatchesRoomMap(lastLogMapId, mapId)) return;
+    if (
+      shouldSuppressLocalPlayerFix({
+        viewMapId: mapId,
+        logMapId: lastLogPhase?.mapId || lastLogMapId,
+        phaseKind: lastLogPhase?.kind,
+      })
+    ) {
+      return;
+    }
     const sig = `${fix.fileName}:${fix.lastModified}:${mapId}:${wsGen}`;
     if (lastSentRef.current === sig) return;
     lastSentRef.current = sig;
@@ -125,11 +137,11 @@ function RaidRoomFixRelay({
         y: fix.y,
         z: fix.z,
         yaw: fix.yaw,
-        map_id: lastLogMapId || mapId,
+        map_id: mapId,
         file_name: fix.fileName,
       }),
     );
-  }, [canEdit, fix, lastLogMapId, mapId, wsGen, wsRef]);
+  }, [canEdit, fix, lastLogMapId, lastLogPhase, mapId, wsGen, wsRef]);
 
   return null;
 }
@@ -168,6 +180,7 @@ export function TarkovRaidRoomLiveMap({
   onLine,
   onEraseMark,
   onQuestLabelClick,
+  onQuestCompleteObjective,
   questParticipantsByTask,
   topRight,
   lockKeyOwns,
@@ -276,6 +289,7 @@ export function TarkovRaidRoomLiveMap({
         onEraseMark={onEraseMark}
         fill
         onQuestLabelClick={onQuestLabelClick}
+        onQuestCompleteObjective={onQuestCompleteObjective}
         questParticipantsByTask={questParticipantsByTask}
         topRight={topRight}
         lockKeyMode="party"

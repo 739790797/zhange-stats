@@ -1022,6 +1022,21 @@ export function playerFixMatchesRoomMap(
   return false;
 }
 
+/**
+ * 仅当日志表明「正在另一张图的战局里」才隐藏本机截图定位。
+ * 上一场残留的 lastLogMapId 不能挡住单人准备页定位。
+ */
+export function shouldSuppressLocalPlayerFix(opts: {
+  viewMapId: string;
+  logMapId?: string | null;
+  phaseKind?: string | null;
+}): boolean {
+  if (!isRaidPrepAutoMapKind(opts.phaseKind)) return false;
+  const logMap = String(opts.logMapId || "").trim();
+  if (!logMap) return false;
+  return !playerFixMatchesRoomMap(logMap, opts.viewMapId);
+}
+
 export function playerFixIsFresh(
   at: number,
   now = Date.now(),

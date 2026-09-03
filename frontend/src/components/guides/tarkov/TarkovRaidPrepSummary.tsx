@@ -1,5 +1,6 @@
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
-import { Modal, Popover, Tooltip } from "antd";
+import { ConfigProvider, Modal, Popover, Tooltip } from "antd";
+import { useTarkovMapOverlayContainer } from "@/lib/tarkovMapFullscreen";
 import { Link } from "react-router-dom";
 import {
   itemDetailHref,
@@ -273,7 +274,7 @@ function NeededItemChip({
           overlayInnerStyle={{ whiteSpace: "pre-line" }}
           mouseEnterDelay={0.12}
           placement="topLeft"
-          zIndex={1200}
+          zIndex={2200}
         >
           {chip}
         </Tooltip>
@@ -289,7 +290,7 @@ function NeededItemChip({
         mouseEnterDelay={0.12}
         mouseLeaveDelay={0.08}
         placement="topLeft"
-        zIndex={1200}
+        zIndex={2200}
       >
         {chip}
       </Tooltip>
@@ -776,7 +777,7 @@ function SummaryList({
                             title={RAID_PREP_UNAVAILABLE_KEY_HINT}
                             mouseEnterDelay={0.12}
                             placement="top"
-                            zIndex={1200}
+                            zIndex={2200}
                           >
                             <button
                               type="button"
@@ -875,6 +876,8 @@ export function TarkovRaidPrepSummary({
 }) {
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
+  const overlayRoot = useTarkovMapOverlayContainer();
+  const popupContainer = () => overlayRoot || document.body;
   const rows = useMemo(() => {
     if (!open) return [];
     const dones =
@@ -952,7 +955,7 @@ export function TarkovRaidPrepSummary({
     };
   }, [keyOwns, viewerId, canToggleKeyOwn, onToggleKeyOwn]);
   return (
-    <>
+    <ConfigProvider getPopupContainer={popupContainer}>
       <button
         type="button"
         className={styles.summary}
@@ -967,12 +970,15 @@ export function TarkovRaidPrepSummary({
         <span className={styles.summaryAction}>查看</span>
       </button>
       <Modal
+        key={overlayRoot ? "fs" : "page"}
         title="准备内容总结"
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
         width="fit-content"
         centered
+        zIndex={2100}
+        getContainer={() => overlayRoot || document.body}
         className={styles.summaryModal}
         classNames={{
           body: styles.summaryModalBody,
@@ -1009,6 +1015,7 @@ export function TarkovRaidPrepSummary({
         </SummaryRenderError>
       </Modal>
       <Modal
+        key={overlayRoot ? "fs-peek" : "page-peek"}
         title={
           peek
             ? tarkovReadableName(peek.name, peek.id) ||
@@ -1017,6 +1024,8 @@ export function TarkovRaidPrepSummary({
         }
         open={Boolean(peek)}
         onCancel={() => setPeek(null)}
+        zIndex={2110}
+        getContainer={() => overlayRoot || document.body}
         footer={
           peek ? (
             <Link className={styles.needChip} to={neededItemHref(peek)}>
@@ -1038,6 +1047,6 @@ export function TarkovRaidPrepSummary({
           </p>
         ) : null}
       </Modal>
-    </>
+    </ConfigProvider>
   );
 }

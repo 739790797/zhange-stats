@@ -12,8 +12,10 @@ import {
 } from "@/lib/tarkovLiveWatch";
 import {
   loadTaskDoneIds,
+  loadTaskObjectivePairs,
   loadTaskStartedIds,
   planAccountTaskHydrate,
+  sameObjectiveLists,
   saveTaskProgress,
   taskProgressQueryData,
 } from "@/lib/tarkovTaskTree";
@@ -61,30 +63,36 @@ export function useTarkovTaskAccountSync() {
     const plan = planAccountTaskHydrate({
       serverDone: query.data.task_ids || [],
       serverStarted: query.data.started_ids || [],
+      serverObjectives: query.data.objective_dones || [],
       localDone: loadTaskDoneIds(gameMode),
       localStarted: loadTaskStartedIds(gameMode),
+      localObjectives: loadTaskObjectivePairs(gameMode),
     });
     const prevDone = loadTaskDoneIds(gameMode);
     const prevStarted = loadTaskStartedIds(gameMode);
+    const prevObjectives = loadTaskObjectivePairs(gameMode);
     const changed =
       !sameIdLists(prevDone, plan.done) ||
-      !sameIdLists(prevStarted, plan.started);
+      !sameIdLists(prevStarted, plan.started) ||
+      !sameObjectiveLists(prevObjectives, plan.objectives);
     saveTaskProgress(
       gameMode,
       plan.done,
       plan.started,
       !plan.upload,
       !plan.upload,
+      plan.objectives,
     );
     queryClient.setQueryData(
       ["guides-tarkov-task-dones", gameMode],
-      taskProgressQueryData(plan.done, plan.started),
+      taskProgressQueryData(plan.done, plan.started, plan.objectives),
     );
     if (changed) {
       notifyTarkovTaskProgress({
         mode: gameMode,
         done: plan.done,
         started: plan.started,
+        objectives: plan.objectives,
         changed: true,
         source: "hydrate",
       });
@@ -93,14 +101,16 @@ export function useTarkovTaskAccountSync() {
     if (!plan.upload) return;
     void writeTarkovTaskDones(plan.done, {
       startedIds: plan.started,
+      objectiveDones: plan.objectives,
     })
       .then((data) => {
         const done = data.task_ids || plan.done;
         const started = data.started_ids || plan.started;
-        saveTaskProgress(gameMode, done, started, true, true);
+        const objectives = data.objective_dones || plan.objectives;
+        saveTaskProgress(gameMode, done, started, true, true, objectives);
         queryClient.setQueryData(
           ["guides-tarkov-task-dones", gameMode],
-          taskProgressQueryData(done, started),
+          taskProgressQueryData(done, started, objectives),
         );
       })
       .catch(() => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal } from "antd";
+import { ConfigProvider, Modal } from "antd";
+import { useTarkovMapOverlayContainer } from "@/lib/tarkovMapFullscreen";
 import {
   EFTARKOV_GUIDE_ORIGIN,
   eftarkovTaskGuideUrl,
@@ -98,6 +99,8 @@ export function TarkovRaidPrepGuideOverview({
   const setOpen = onOpenChange ?? setOpenInner;
   const activeId = activeIdProp ?? activeIdInner;
   const setActiveId = onActiveIdChange ?? setActiveIdInner;
+  const overlayRoot = useTarkovMapOverlayContainer();
+  const popupContainer = () => overlayRoot || document.body;
   const selectedIds = useMemo(() => tasks.map((row) => row.id), [tasks]);
   const guideId = resolveRaidPrepGuideId(selectedIds, activeId);
   const activeUrl = guideId ? eftarkovTaskGuideUrl(guideId) : null;
@@ -133,7 +136,7 @@ export function TarkovRaidPrepGuideOverview({
   }, [activeId, selectedIds, setActiveId]);
 
   return (
-    <>
+    <ConfigProvider getPopupContainer={popupContainer}>
       <button
         type="button"
         className={styles.summary}
@@ -145,12 +148,15 @@ export function TarkovRaidPrepGuideOverview({
         <span className={styles.summaryAction}>查看</span>
       </button>
       <Modal
+        key={overlayRoot ? "fs" : "page"}
         title="任务攻略总览"
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
         width="calc(100vw - 24px)"
         centered
+        zIndex={2100}
+        getContainer={() => overlayRoot || document.body}
         className={styles.guideModal}
         classNames={{
           body: styles.guideModalBody,
@@ -292,6 +298,6 @@ export function TarkovRaidPrepGuideOverview({
           </div>
         )}
       </Modal>
-    </>
+    </ConfigProvider>
   );
 }

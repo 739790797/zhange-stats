@@ -8,7 +8,11 @@ import {
   type TarkovLogParseResult,
   type TarkovRaidLogImportRow,
 } from "@/lib/tarkovGameLogs";
-import { mergeQuestProgressFromLogs } from "@/lib/tarkovTaskLogSync";
+import {
+  formatQuestSyncDeltaLine,
+  mergeQuestProgressFromLogs,
+  type QuestProgressDelta,
+} from "@/lib/tarkovTaskLogSync";
 import { formatBeijing } from "@/lib/time";
 
 export const TARKOV_LIVE_DIRS_EVENT = "zhange-tarkov-live-dirs";
@@ -20,8 +24,10 @@ export type TarkovTaskProgressDetail = {
   started: string[];
   syncedAt?: string;
   changed?: boolean;
-  /** 相对上一轮新完成的整任务 id；小步骤日志里没有。 */
+  /** 相对上一轮新完成的整任务 id；小步骤仍靠账号进度账 / 手勾，日志事件只有整任务。 */
   completedIds?: string[];
+  /** 账号小步骤勾选；省略则监听方不要清空本地步骤。 */
+  objectives?: Array<{ task_id: string; objective_id: string }>;
   /** user 手改；log 日志回放；hydrate 账号对账。日志不得挡住账号增量合并。 */
   source?: "user" | "log" | "hydrate";
 };
@@ -160,12 +166,43 @@ export function logStampFromParsed(
 export function planRaidLogImport(
   prevEndedKeys: ReadonlySet<string>,
   sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
+  opts?: { force?: boolean },
 ): { nextKeys: Set<string>; rows: TarkovRaidLogImportRow[] } {
   const all = toRaidLogImportRows(sessions);
   const ended = all.filter((row) => Boolean(row.ended_at));
   const nextKeys = new Set(ended.map((row) => raidLogEndedKey(row)));
+  if (opts?.force) return { nextKeys, rows: all };
   const hasFresh =
     prevEndedKeys.size > 0 &&
     ended.some((row) => !prevEndedKeys.has(raidLogEndedKey(row)));
   return { nextKeys, rows: hasFresh ? all : [] };
+}
+
+export type LiveLogSyncResult = {
+  ok: boolean;
+  hint: string;
+};
+
+export type LogSyncScan = { done: number; total: number };
+
+/** 个人中心 / 准备页「同步日志」按钮文案。 */
+export function formatLogSyncActionLabel(
+  busy: boolean,
+  scan?: LogSyncScan | null,
+): string {
+  if (!busy) return "同步日志";
+  if (scan && scan.total > 0) {
+    return `正在读取 ${scan.done} / ${scan.total}`;
+  }
+  return "正在同步日志…";
+}
+
+/** 手动回填旧日志后的提示；没有启动记录时单独说明。 */
+export function formatLiveLogBackfillHint(
+  sessionCount: number,
+  kind: "incremental" | "backfill",
+  delta: QuestProgressDelta,
+): string {
+  if (sessionCount <= 0) return "这个目录里没有启动记录。";
+  return `${formatQuestSyncDeltaLine(kind, delta)}（${sessionCount} 次启动）`;
 }

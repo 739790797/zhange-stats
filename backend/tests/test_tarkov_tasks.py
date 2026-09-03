@@ -359,6 +359,21 @@ def test_project_fail_conditions_resolves_conflict_tasks_and_extract():
     assert stripped["fail_conditions"][0]["tasks"][0]["name"] == "好奇心"
 
 
+def test_objective_ids_from_raw_uses_id_or_index():
+    assert tasks.objective_ids_from_raw(
+        {
+            "objectives": [
+                {"id": "o1", "type": "visit"},
+                {"id": "  ", "type": "plantItem"},
+                "skip",
+                {"id": "o1", "type": "dup"},
+            ]
+        }
+    ) == ["o1", "i:1"]
+    assert tasks.objective_ids_from_raw({"objectives": []}) == []
+    assert tasks.objective_ids_from_raw({}) == []
+
+
 def test_required_keys_or_groups_and_fallback_needed_keys():
     raw = {
         "id": "t4",

@@ -8,17 +8,20 @@ import {
   groupTasksByTrader,
   loadTaskCursorAt,
   loadTaskDoneIds,
+  loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
   parseTaskDonesState,
   planAccountTaskHydrate,
   keepCatalogTaskProgress,
+  mergeObjectivesForTask,
   resolveAccountTaskProgress,
   resolveTaskMapId,
   resolveTaskStatus,
   saveTaskDoneIds,
   saveTaskProgress,
   saveTaskSyncMark,
+  setTaskObjective,
   summarizeTaskProgress,
   taskHitsMap,
 } from "./tarkovTaskTree";
@@ -225,6 +228,7 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["local-done"],
       started: ["local-start"],
+      objectives: [],
       upload: true,
     });
     expect(
@@ -237,6 +241,7 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["account-done", "shared", "raid-done"],
       started: ["account-start", "raid-start"],
+      objectives: [],
       upload: true,
     });
     expect(
@@ -249,6 +254,7 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["account-done"],
       started: ["account-start"],
+      objectives: [],
       upload: false,
     });
     saveTaskProgress("pvp", [], []);
@@ -257,6 +263,51 @@ describe("task dones storage", () => {
         { task_ids: ["remote"], started_ids: ["live"] },
         "pvp",
       ),
-    ).toEqual({ done: ["remote"], started: ["live"] });
+    ).toEqual({ done: ["remote"], started: ["live"], objectives: [] });
+  });
+
+  it("unions objective pairs and keeps pvp/pve apart", () => {
+    saveTaskProgress(
+      "pvp",
+      ["t1"],
+      [],
+      false,
+      false,
+      [{ task_id: "t1", objective_id: "cam-a" }],
+    );
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["t1"],
+        serverStarted: [],
+        serverObjectives: [{ task_id: "t1", objective_id: "cam-b" }],
+        localDone: ["t1"],
+        localStarted: [],
+        localObjectives: [{ task_id: "t1", objective_id: "cam-a" }],
+      }),
+    ).toEqual({
+      done: ["t1"],
+      started: [],
+      objectives: [
+        { task_id: "t1", objective_id: "cam-b" },
+        { task_id: "t1", objective_id: "cam-a" },
+      ],
+      upload: true,
+    });
+    expect(loadTaskObjectivePairs("pvp")).toEqual([
+      { task_id: "t1", objective_id: "cam-a" },
+    ]);
+    expect(loadTaskObjectivePairs("pve")).toEqual([]);
+    expect(
+      setTaskObjective(
+        [{ task_id: "t1", objective_id: "cam-a" }],
+        "t1",
+        "cam-a",
+        false,
+      ),
+    ).toEqual([]);
+    expect(mergeObjectivesForTask([], "t1", ["a", "b", "a"])).toEqual([
+      { task_id: "t1", objective_id: "a" },
+      { task_id: "t1", objective_id: "b" },
+    ]);
   });
 });

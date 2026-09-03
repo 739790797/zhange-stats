@@ -11,6 +11,8 @@ import {
   fetchTarkovRaidPrepState,
   fetchTarkovTaskDones,
   writeTarkovTaskDones,
+  addTarkovTaskObjectiveDone,
+  removeTarkovTaskObjectiveDone,
   putTarkovRaidPrepState,
   removeTarkovKeyOwn,
 } from "@/api/guidesApi";
@@ -37,8 +39,12 @@ import {
   raidPrepObjectiveDoneLegacyScopes,
   mergeRaidPrepSkipMaps,
   raidPrepSkipMapsEqual,
+  raidPrepSkipMapForViewer,
+  planRaidPrepObjectiveToggle,
   readRaidPrepObjectiveDoneWithLegacy,
+  raidPrepAllObjectiveIds,
   raidPrepSkippedIds,
+  objectivePairsToSkipMap,
   resolveRaidPrepLocateTargets,
   selectedTasksFromCatalog,
   serializeSelectedIds,
@@ -50,19 +56,22 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import { mergeRaidPrepOcrSelection } from "@/lib/tarkovRaidPrepOcr";
 import { applyTarkovKeyOwnsCache } from "@/lib/tarkovKeyPacks";
-import { keyOwnsForUser, playerFixMatchesRoomMap } from "@/lib/tarkovRaidRooms";
+import { keyOwnsForUser, shouldSuppressLocalPlayerFix } from "@/lib/tarkovRaidRooms";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
+  formatLogSyncActionLabel,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
 import { logMapLabel } from "@/lib/tarkovGameLogs";
 import {
   useTarkovLastLogMapId,
   useTarkovLastLogPhase,
+  useTarkovLiveWatch,
 } from "@/lib/useTarkovLiveWatch";
 import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
 import {
+  commitTaskObjective,
   commitTaskStatus,
   loadTaskDoneIds,
   loadTaskStartedIds,
@@ -119,13 +128,14 @@ export function TarkovRaidPrepPanel() {
     () => raidPrepObjectiveDoneLegacyScopes(mapId),
     [mapId],
   );
-  const [objDone, toggleObjDone, replaceObjDone] = useRaidPrepObjectiveDone(
+  const [objDone, toggleObjDoneLocal, replaceObjDone] = useRaidPrepObjectiveDone(
     objDoneScope,
     objDoneLegacy,
   );
   const [keyBringIds, setKeyBringIds] = useState<string[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
   const lastLogPhase = useTarkovLastLogPhase();
+  const live = useTarkovLiveWatch();
   const autoMapSigRef = useRef("");
   const [progressTick, setProgressTick] = useState(0);
   const hydratedKeyRef = useRef("");
@@ -161,6 +171,52 @@ export function TarkovRaidPrepPanel() {
     void progressTick;
     return resolveAccountTaskProgress(taskDonesQuery.data, gameMode).started;
   }, [gameMode, progressTick, taskDonesQuery.data]);
+  const objDoneView = useMemo(() => {
+    void progressTick;
+    return raidPrepSkipMapForViewer(
+      objDone,
+      resolveAccountTaskProgress(taskDonesQuery.data, gameMode).objectives,
+    );
+  }, [gameMode, objDone, progressTick, taskDonesQuery.data]);
+  const toggleObjDone = useCallback(
+    (taskId: string, objectiveId: string) => {
+      const plan = planRaidPrepObjectiveToggle({
+        localHas: raidPrepSkippedIds(objDone, taskId).has(objectiveId),
+        viewHas: raidPrepSkippedIds(objDoneView, taskId).has(objectiveId),
+      });
+      if (plan.toggleLocal) toggleObjDoneLocal(taskId, objectiveId);
+      const pairs = commitTaskObjective(
+        gameMode,
+        taskId,
+        objectiveId,
+        plan.nextChecked,
+      );
+      queryClient.setQueryData(
+        ["guides-tarkov-task-dones", gameMode],
+        taskProgressQueryData(
+          loadTaskDoneIds(gameMode),
+          loadTaskStartedIds(gameMode),
+          pairs,
+        ),
+      );
+      void (plan.nextChecked
+        ? addTarkovTaskObjectiveDone(taskId, objectiveId)
+        : removeTarkovTaskObjectiveDone(taskId, objectiveId)
+      )
+        .then((data) => {
+          queryClient.setQueryData(
+            ["guides-tarkov-task-dones", gameMode],
+            taskProgressQueryData(
+              data.task_ids || loadTaskDoneIds(gameMode),
+              data.started_ids || loadTaskStartedIds(gameMode),
+              data.objective_dones || pairs,
+            ),
+          );
+        })
+        .catch(() => {});
+    },
+    [gameMode, objDone, objDoneView, queryClient, toggleObjDoneLocal],
+  );
   const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
   const keyOwns = useMemo(
     () =>
@@ -317,23 +373,27 @@ export function TarkovRaidPrepPanel() {
     if (next.join(",") !== selected.join(",")) applySelected(next);
     if (stateQuery.data) {
       setKeyBringIds(stateQuery.data.key_brings || []);
-      if (me) {
-        const fromServer = objectiveDonesToSkipMap(
-          (stateQuery.data.objective_dones || []).map((row) => ({
-            task_id: row.task_id,
-            objective_id: row.objective_id,
-            user_id: me.id,
-          })),
-          me.id,
-        );
-        const local = readRaidPrepObjectiveDoneWithLegacy(
-          objDoneScope,
-          objDoneLegacy,
-        );
-        const merged = mergeRaidPrepSkipMaps(local, fromServer);
-        if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
-      }
     }
+    const fromServer =
+      me && stateQuery.data
+        ? objectiveDonesToSkipMap(
+            (stateQuery.data.objective_dones || []).map((row) => ({
+              task_id: row.task_id,
+              objective_id: row.objective_id,
+              user_id: me.id,
+            })),
+            me.id,
+          )
+        : undefined;
+    const fromAccount = objectivePairsToSkipMap(
+      resolveAccountTaskProgress(taskDonesQuery.data, gameMode).objectives,
+    );
+    const local = readRaidPrepObjectiveDoneWithLegacy(
+      objDoneScope,
+      objDoneLegacy,
+    );
+    const merged = mergeRaidPrepSkipMaps(local, fromServer, fromAccount);
+    if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
     persistReadyRef.current = true;
     setPersistTick((n) => n + 1);
   }, [
@@ -351,6 +411,7 @@ export function TarkovRaidPrepPanel() {
     stateQuery.data,
     stateQuery.dataUpdatedAt,
     stateQuery.isLoading,
+    taskDonesQuery.data,
     taskDonesQuery.dataUpdatedAt,
   ]);
 
@@ -391,12 +452,23 @@ export function TarkovRaidPrepPanel() {
       if (settled.nextIds.join(",") !== selected.join(",")) {
         applySelected(settled.nextIds);
       }
+      if (detail.objectives?.length) {
+        const local = readRaidPrepObjectiveDoneWithLegacy(
+          objDoneScope,
+          objDoneLegacy,
+        );
+        const merged = mergeRaidPrepSkipMaps(
+          local,
+          objectivePairsToSkipMap(detail.objectives),
+        );
+        if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
+      }
       setProgressTick((n) => n + 1);
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
     return () =>
       window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
-  }, [applySelected, catalog, gameMode, selected]);
+  }, [applySelected, catalog, gameMode, objDoneLegacy, objDoneScope, replaceObjDone, selected]);
 
   useEffect(() => {
     const latest = logsQuery.data?.items?.[0];
@@ -426,12 +498,12 @@ export function TarkovRaidPrepPanel() {
   const objectiveDones = useMemo(
     () =>
       me
-        ? skipMapToObjectiveDones(objDone, {
+        ? skipMapToObjectiveDones(objDoneView, {
             userId: me.id,
             name: myName,
           })
         : undefined,
-    [me, myName, objDone],
+    [me, myName, objDoneView],
   );
   const selectedIdSet = useMemo(() => new Set(selected), [selected]);
   const statusGroups = useMemo(() => {
@@ -453,16 +525,61 @@ export function TarkovRaidPrepPanel() {
       if (raidPrepTaskProgressStatus(taskId, doneTaskIds, startedTaskIds) === status) {
         return;
       }
-      const next = commitTaskStatus(gameMode, taskId, status);
+      const task = catalogRich.find((row) => row.id === taskId);
+      const fillIds =
+        status === "done" && task ? raidPrepAllObjectiveIds(task) : undefined;
+      const next = commitTaskStatus(gameMode, taskId, status, fillIds);
+      if (fillIds?.length) {
+        const local = readRaidPrepObjectiveDoneWithLegacy(
+          objDoneScope,
+          objDoneLegacy,
+        );
+        const merged = mergeRaidPrepSkipMaps(
+          local,
+          objectivePairsToSkipMap(next.objectives),
+        );
+        if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
+      }
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(next.done, next.started),
+        taskProgressQueryData(next.done, next.started, next.objectives),
       );
       void writeTarkovTaskDones(next.done, {
         startedIds: next.started,
-      }).catch(() => {});
+        objectiveDones: next.objectives,
+      })
+        .then((data) => {
+          const objectives = data.objective_dones || next.objectives;
+          queryClient.setQueryData(
+            ["guides-tarkov-task-dones", gameMode],
+            taskProgressQueryData(
+              data.task_ids || next.done,
+              data.started_ids || next.started,
+              objectives,
+            ),
+          );
+          const local = readRaidPrepObjectiveDoneWithLegacy(
+            objDoneScope,
+            objDoneLegacy,
+          );
+          const merged = mergeRaidPrepSkipMaps(
+            local,
+            objectivePairsToSkipMap(objectives),
+          );
+          if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
+        })
+        .catch(() => {});
     },
-    [doneTaskIds, gameMode, queryClient, startedTaskIds],
+    [
+      catalogRich,
+      doneTaskIds,
+      gameMode,
+      objDoneLegacy,
+      objDoneScope,
+      queryClient,
+      replaceObjDone,
+      startedTaskIds,
+    ],
   );
   const participantsByTask = useMemo(() => {
     const name = (me?.display_name || me?.username || "").trim() || "?";
@@ -487,13 +604,15 @@ export function TarkovRaidPrepPanel() {
     () =>
       filterRaidPrepOverlaysForViewer(
         buildRaidPrepOverlays(overlayTasks, mapId),
-        objDone,
+        objDoneView,
       ),
-    [overlayTasks, mapId, objDone],
+    [overlayTasks, mapId, objDoneView],
   );
-  const hideLocalFix = Boolean(
-    lastLogMapId && !playerFixMatchesRoomMap(lastLogMapId, mapId),
-  );
+  const hideLocalFix = shouldSuppressLocalPlayerFix({
+    viewMapId: mapId,
+    logMapId: lastLogPhase?.mapId || lastLogMapId,
+    phaseKind: lastLogPhase?.kind,
+  });
   const toggleKeyBring = (itemId: string) => {
     setKeyBringIds((current) =>
       current.includes(itemId)
@@ -553,24 +672,12 @@ export function TarkovRaidPrepPanel() {
     [doneTaskIds, patchParams, startedTaskIds],
   );
 
-  const syncFromTaskProgress = () => {
-    const plan = planRaidPrepTaskProgressSync({
-      catalogIds: catalog.map((row) => row.id),
-      selectedIds: selected,
-      startedIds: loadTaskStartedIds(gameMode),
-      doneIds: loadTaskDoneIds(gameMode),
+  const syncLogs = () => {
+    void live.syncLogs().then((result) => {
+      if (!result.hint) return;
+      if (result.ok) message.success(result.hint);
+      else message.error(result.hint);
     });
-    if (plan.addedIds.length) {
-      patchParams((params) => {
-        const serialized = serializeSelectedIds(plan.nextIds);
-        if (serialized) params.set("sel", serialized);
-        else params.delete("sel");
-      });
-      setDockOpen(true);
-      message.success(plan.hint);
-      return;
-    }
-    message.info(plan.hint);
   };
 
   const locateTask = useCallback(
@@ -578,7 +685,7 @@ export function TarkovRaidPrepPanel() {
       let points = resolveRaidPrepLocateTargets(
         overlayTasks.find((item) => item.id === row.id) || row,
         mapId,
-        raidPrepSkippedIds(objDone, row.id),
+        raidPrepSkippedIds(objDoneView, row.id),
       );
       if (!points.length && row.has_map_markers) {
         try {
@@ -587,7 +694,7 @@ export function TarkovRaidPrepPanel() {
             ? resolveRaidPrepLocateTargets(
                 rich,
                 mapId,
-                raidPrepSkippedIds(objDone, row.id),
+                raidPrepSkippedIds(objDoneView, row.id),
               )
             : [];
         } catch {
@@ -607,7 +714,7 @@ export function TarkovRaidPrepPanel() {
           ?.scrollIntoView({ block: "nearest" });
       }, 0);
     },
-    [geometry, mapId, objDone, overlayTasks],
+    [geometry, mapId, objDoneView, overlayTasks],
   );
 
   const openGuide = useCallback((taskId: string) => {
@@ -722,6 +829,7 @@ export function TarkovRaidPrepPanel() {
                   suppressLocalFix={hideLocalFix}
                   fill
                   onQuestLabelClick={onQuestLabelClick}
+                  onQuestCompleteObjective={toggleObjDone}
                   questParticipantsByTask={participantsByTask}
                   lockKeyMode="solo"
                   lockKeyOwns={keyOwns}
@@ -738,7 +846,7 @@ export function TarkovRaidPrepPanel() {
                         onToggleKeyBring={me ? toggleKeyBring : undefined}
                         canToggleKeyOwn={Boolean(me)}
                         onToggleKeyOwn={me ? toggleKeyOwn : undefined}
-                        skippedByTask={objDone}
+                        skippedByTask={objDoneView}
                         doneTaskIds={doneTaskIds}
                         objectiveDones={objectiveDones}
                         currentUserId={me?.id}
@@ -761,7 +869,7 @@ export function TarkovRaidPrepPanel() {
                         activeId={guideTaskId}
                         onActiveIdChange={setGuideTaskId}
                         participantsByTask={participantsByTask}
-                        skippedByTask={objDone}
+                        skippedByTask={objDoneView}
                         doneTaskIds={doneTaskIds}
                         onToggleObjective={toggleObjDone}
                       />
@@ -800,11 +908,11 @@ export function TarkovRaidPrepPanel() {
                 <button
                   type="button"
                   className={styles.changeMapBtn}
-                  disabled={!catalog.length}
-                  title="按个人中心进行中的任务，勾选本图相关项"
-                  onClick={syncFromTaskProgress}
+                  disabled={live.logSyncBusy}
+                  title="读取本机全部启动日志并回填任务进度。轮询只跟最新一场，旧日志要点这里。"
+                  onClick={syncLogs}
                 >
-                  从任务进度同步
+                  {formatLogSyncActionLabel(live.logSyncBusy, live.logSyncScan)}
                 </button>
               </div>
             }
@@ -837,7 +945,7 @@ export function TarkovRaidPrepPanel() {
                         ? colorByTask.get(row.id) || colorForTaskIndex(0)
                         : undefined
                     }
-                    skipped={raidPrepSkippedIds(objDone, row.id)}
+                    skipped={raidPrepSkippedIds(objDoneView, row.id)}
                     onToggleObjective={toggleObjDone}
                     onToggle={toggleSelected}
                     onNeedDetail={geometry.ensure}

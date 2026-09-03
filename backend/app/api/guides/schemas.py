@@ -1222,14 +1222,23 @@ class TarkovKeyOwnsIn(BaseModel):
     item_ids: list[str] = Field(default_factory=list, max_length=400)
 
 
+class TarkovTaskObjectiveDonePair(BaseModel):
+    task_id: str = Field(min_length=1, max_length=64)
+    objective_id: str = Field(min_length=1, max_length=64)
+
+
 class TarkovTaskDonesOut(BaseModel):
     task_ids: list[str] = Field(default_factory=list)
     started_ids: list[str] = Field(default_factory=list)
+    objective_dones: list[TarkovTaskObjectiveDonePair] = Field(default_factory=list)
 
 
 class TarkovTaskDonesIn(BaseModel):
     task_ids: list[str] = Field(default_factory=list, max_length=800)
     started_ids: list[str] | None = Field(default=None, max_length=800)
+    objective_dones: list[TarkovTaskObjectiveDonePair] | None = Field(
+        default=None, max_length=8000
+    )
     replace: bool = False
 
 

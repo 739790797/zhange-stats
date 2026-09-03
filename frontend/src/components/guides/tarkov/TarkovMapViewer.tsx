@@ -5,10 +5,19 @@ import {
   useMemo,
   useRef,
   useState,
+  Children,
   type ReactNode,
   type Ref,
 } from "react";
+import { FullscreenExitOutlined, FullscreenOutlined } from "@ant-design/icons";
 import { Spin } from "antd";
+import {
+  TarkovMapFullscreenRootContext,
+  exitMapFullscreen,
+  mapFullscreenElement,
+  mapFullscreenEnabled,
+  requestMapFullscreen,
+} from "@/lib/tarkovMapFullscreen";
 import { useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -50,7 +59,7 @@ import {
 } from "@/lib/tarkovMapPlaceLabels";
 import {
   clusterRaidPrepOverlayLabels,
-  collectRaidPrepQuestFilterPeople,
+  collectRaidPrepQuestFilterPeopleOrSelf,
   colorForTaskId,
   colorForUserId,
   defaultQuestPersonOffKeys,
@@ -63,8 +72,11 @@ import {
   overlayFloorForSpan,
   overlayVisibleOnFloor,
   RAID_PREP_LABEL_CLUSTER_PX,
+  RAID_PREP_QUEST_POINT_ACTION_LABELS,
+  RAID_PREP_QUEST_POINT_MENU_HINT,
   raidPrepParticipants,
   raidPrepPersonKey,
+  raidPrepQuestPointMenuActions,
   type RaidPrepHeightSpan,
   type RaidPrepMapParticipant,
   type RaidPrepObjectiveDoneLike,
@@ -72,6 +84,7 @@ import {
   type RaidPrepOverlayLabelItem,
   type RaidPrepOverlayStep,
   type RaidPrepPoint,
+  type RaidPrepQuestPointAction,
   type TarkovRaidPrepOverlay,
 } from "@/lib/tarkovRaidPrep";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
@@ -142,9 +155,12 @@ import {
 import {
   filterGroupAllOn,
   filterGroupPartial,
+  isFilterGroupCollapsed,
   TARKOV_MAP_FILTER_GROUP_LABELS,
   TARKOV_MAP_FILTER_ITEM_LABELS,
+  toggleFilterGroupCollapsed,
   withFilterGroupOn,
+  type TarkovMapFilterGroupId,
 } from "@/lib/tarkovMapFilterGroups";
 import {
   allPresentSpawnKindsOn,
@@ -241,6 +257,8 @@ type Props = {
   onFloorChange?: (floor: string) => void;
   /** 点击任务点位或名称：打开该任务攻略 */
   onQuestLabelClick?: (taskId: string) => void;
+  /** 点击步骤点菜单「已完成该步骤」 */
+  onQuestCompleteObjective?: (taskId: string, objectiveId: string) => void;
   /** 任务 id → 参与者，供地图悬浮窗展示 */
   questParticipantsByTask?: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>;
   /** 全员步骤完成；与筛选表勾中的人一起决定还显示哪些点 */
@@ -344,6 +362,54 @@ function FilterCheckRow({
       ) : null}
       <span>{label}</span>
     </label>
+  );
+}
+
+function FilterCollapsibleGroup({
+  groupId,
+  label,
+  collapsed,
+  onToggle,
+  header,
+  children,
+}: {
+  groupId: TarkovMapFilterGroupId;
+  label: string;
+  collapsed: boolean;
+  onToggle: (groupId: TarkovMapFilterGroupId) => void;
+  header: ReactNode;
+  children: ReactNode;
+}) {
+  const open = !collapsed;
+  const childrenId = `tarkov-map-filter-${groupId}`;
+  const hasChildren = Children.count(children) > 0;
+  return (
+    <div className={styles.filterSubgroup}>
+      <div className={styles.filterParent}>
+        {header}
+        {hasChildren ? (
+          <button
+            type="button"
+            className={styles.filterExpand}
+            aria-expanded={open}
+            aria-controls={childrenId}
+            aria-label={open ? `收起${label}` : `展开${label}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggle(groupId);
+            }}
+          >
+            {open ? "−" : "+"}
+          </button>
+        ) : null}
+      </div>
+      {hasChildren && open ? (
+        <div id={childrenId} className={styles.filterChildren}>
+          {children}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -939,6 +1005,7 @@ function addPlaceBoxes(
 
 type QuestBubbleRow = {
   taskId?: string;
+  objectiveId?: string;
   title: string;
   subtitle: string;
   steps?: RaidPrepOverlayStep[];
@@ -993,7 +1060,10 @@ function overlayBubbleStepsHtml(row: QuestBubbleRow): string {
     .join("")}</span>`;
 }
 
-function overlayBubbleHtml(row: QuestBubbleRow): string {
+function overlayBubbleHtml(
+  row: QuestBubbleRow,
+  extras?: { hint?: string; actions?: readonly RaidPrepQuestPointAction[] },
+): string {
   const keys = (row.keyNames || [])
     .filter(Boolean)
     .map(
@@ -1004,7 +1074,18 @@ function overlayBubbleHtml(row: QuestBubbleRow): string {
   const keyRow = keys
     ? `<span class="${styles.questTipKeys}"><span class="${styles.questTipKeyLabel}">所需钥匙</span>${keys}</span>`
     : "";
-  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span>${overlayBubbleStepsHtml(row)}${keyRow}${questParticipantChipsHtml(row.participants)}</span>`;
+  const hint = extras?.hint
+    ? `<span class="${styles.questTipHint}">${escapeHtml(extras.hint)}</span>`
+    : "";
+  const actions = extras?.actions?.length
+    ? `<span class="${styles.questTipActions}">${extras.actions
+        .map(
+          (id) =>
+            `<button type="button" class="${styles.questTipAction}" data-quest-action="${escapeHtml(id)}">${escapeHtml(RAID_PREP_QUEST_POINT_ACTION_LABELS[id])}</button>`,
+        )
+        .join("")}</span>`
+    : "";
+  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span>${overlayBubbleStepsHtml(row)}${keyRow}${questParticipantChipsHtml(row.participants)}${hint}${actions}</span>`;
 }
 
 function traderSlugForIcon(slug: string): string {
@@ -1055,22 +1136,63 @@ function overlayByLabelItem(
   return map;
 }
 
-type QuestClickHandler = (
-  taskId: string,
-  height?: RaidPrepHeightSpan | null,
-  at?: RaidPrepPoint,
-) => boolean | void;
+type QuestClickTarget = {
+  row: QuestBubbleRow;
+  latlng: L.LatLng;
+  layer: L.Layer;
+};
+
+type QuestClickHandler = (target: QuestClickTarget) => boolean | void;
 
 function leafletLayerMap(layer: L.Layer): L.Map | undefined {
   return (layer as L.Layer & { _map?: L.Map })._map;
+}
+
+function bindQuestActionPopup(
+  map: L.Map,
+  latlng: L.LatLng,
+  html: string,
+  onAction: (action: RaidPrepQuestPointAction) => void,
+) {
+  const popup = L.popup({
+    className: `${styles.questPopup} ${TARKOV_MAP_TIP_QUEST}`,
+    closeButton: true,
+    autoPan: true,
+    maxWidth: 360,
+    offset: L.point(0, -8),
+  })
+    .setLatLng(latlng)
+    .setContent(html);
+  popup.openOn(map);
+  const root = popup.getElement();
+  if (!root) return;
+  L.DomEvent.disableClickPropagation(root);
+  L.DomEvent.disableScrollPropagation(root);
+  const onClick = (event: Event) => {
+    const btn = (event.target as HTMLElement | null)?.closest(
+      "[data-quest-action]",
+    );
+    if (!btn) return;
+    L.DomEvent.stop(event);
+    const action = btn.getAttribute("data-quest-action");
+    if (action !== "guide" && action !== "complete") return;
+    map.closePopup(popup);
+    onAction(action);
+  };
+  root.addEventListener("click", onClick);
+  popup.once("remove", () => root.removeEventListener("click", onClick));
 }
 
 function bindQuestBubble(
   layer: L.Layer,
   row: QuestBubbleRow,
   onClick?: QuestClickHandler,
+  menuHint = false,
 ) {
-  const html = overlayBubbleHtml(row);
+  const html = overlayBubbleHtml(
+    row,
+    menuHint ? { hint: RAID_PREP_QUEST_POINT_MENU_HINT } : undefined,
+  );
   layer.bindTooltip(html, {
     direction: "top",
     opacity: 1,
@@ -1101,8 +1223,12 @@ function bindQuestBubble(
   });
   const taskId = (row.taskId || "").trim();
   if (!onClick || !taskId) return;
-  layer.on("click", (event) => {
-    const handled = onClick(taskId, row.height, row.at);
+  layer.on("click", (event: L.LeafletMouseEvent) => {
+    const handled = onClick({
+      row,
+      latlng: event.latlng,
+      layer,
+    });
     if (handled === false) return;
     L.DomEvent.stopPropagation(event);
   });
@@ -1120,6 +1246,7 @@ function questBubbleFromOverlay(
 ): QuestBubbleRow {
   return {
     taskId: row.taskId,
+    objectiveId: row.objectiveId,
     title: row.title,
     subtitle: row.subtitle,
     steps: row.steps,
@@ -1142,6 +1269,7 @@ function addQuestOverlays(
   onClick: QuestClickHandler | undefined,
   floor: string,
   floorBands: ReturnType<typeof mapLayerFloorBands>,
+  menuHint = false,
 ) {
   group.clearLayers();
   for (const row of overlays) {
@@ -1166,7 +1294,7 @@ function addQuestOverlays(
           className: styles.questHit,
         },
       );
-      bindQuestBubble(polygon, bubble, onClick);
+      bindQuestBubble(polygon, bubble, onClick, menuHint);
       polygon.addTo(group);
     }
     for (const point of row.points) {
@@ -1180,7 +1308,7 @@ function addQuestOverlays(
         fillOpacity: (row.optional ? 0.55 : 0.92) * fade,
         className: styles.questHit,
       });
-      bindQuestBubble(marker, bubble, onClick);
+      bindQuestBubble(marker, bubble, onClick, menuHint);
       marker.addTo(group);
     }
   }
@@ -1206,6 +1334,7 @@ function addQuestLabels(
   namesByTask: ReadonlyMap<string, readonly RaidPrepMapParticipant[]> | undefined,
   floor: string,
   floorBands: ReturnType<typeof mapLayerFloorBands>,
+  menuHint = false,
 ) {
   group.clearLayers();
   /* 抽象图 SVG 异步加载期间 map 已创建但尚未 fitBounds，此时投影会白屏 */
@@ -1243,6 +1372,7 @@ function addQuestLabels(
         marker,
         {
           taskId: item.taskId,
+          objectiveId: source?.objectiveId,
           title: item.title,
           subtitle: source?.subtitle || item.subtitle,
           steps: source?.steps,
@@ -1256,6 +1386,7 @@ function addQuestLabels(
           participants: raidPrepParticipants(namesByTask?.get(item.taskId)),
         },
         onLabelClick,
+        menuHint,
       );
       marker.addTo(group);
     });
@@ -1677,6 +1808,7 @@ export function TarkovMapViewer({
   onEraseMark,
   onFloorChange,
   onQuestLabelClick,
+  onQuestCompleteObjective,
   questParticipantsByTask,
   questObjectiveDones,
   questSkippedByTask,
@@ -1713,6 +1845,7 @@ export function TarkovMapViewer({
   const onDraftStrokeRef = useRef(onDraftStroke);
   const onEraseMarkRef = useRef(onEraseMark);
   const onQuestLabelClickRef = useRef(onQuestLabelClick);
+  const onQuestCompleteObjectiveRef = useRef(onQuestCompleteObjective);
   const placeEditRef = useRef(placeEdit);
   const drawColorRef = useRef(drawColor);
   const authorUserIdRef = useRef(authorUserId);
@@ -1738,8 +1871,13 @@ export function TarkovMapViewer({
   const spaceHeldRef = useRef(false);
   const floorRef = useRef("");
   const styleRef = useRef("");
-  const coordsElRef = useRef<HTMLDivElement | null>(null);
   const wrapElRef = useRef<HTMLDivElement | null>(null);
+  const [overlayRoot, setOverlayRoot] = useState<HTMLElement | null>(null);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const setWrapEl = useCallback((el: HTMLDivElement | null) => {
+    wrapElRef.current = el;
+    setOverlayRoot(el);
+  }, []);
   const shotWatch = useTarkovScreenshotPosition();
   const playerFixSigRef = useRef("");
   const shotResumeOnceRef = useRef(false);
@@ -1765,6 +1903,7 @@ export function TarkovMapViewer({
   );
   const style = resolveMapStyle(prefs.style, canSvg, canTile);
   styleRef.current = style;
+  const filterPanelOpen = prefs.filterPanelOpen !== false;
   const floor = resolveMapFloor(
     prefs.floorsByMap[interactive?.key || ""],
     floorNames,
@@ -1781,8 +1920,12 @@ export function TarkovMapViewer({
     [placeLabels, floor, floorBands],
   );
   const questPeople = useMemo(
-    () => collectRaidPrepQuestFilterPeople(questParticipantsByTask),
-    [questParticipantsByTask],
+    () =>
+      collectRaidPrepQuestFilterPeopleOrSelf(questParticipantsByTask, {
+        name: authorDisplayName,
+        userId: authorUserId,
+      }),
+    [questParticipantsByTask, authorDisplayName, authorUserId],
   );
   useEffect(() => {
     if (questPersonSeededRef.current) return;
@@ -1791,7 +1934,7 @@ export function TarkovMapViewer({
     questPersonSeededRef.current = true;
     setQuestPersonOff(new Set(off));
   }, [questPeople, authorUserId]);
-  const questTree = questOverlays.length > 0 && questPeople.length >= 2;
+  const questTree = questOverlays.length > 0;
   const selectedQuestKeys = useMemo(() => {
     if (!questTree) return null;
     return new Set(
@@ -1843,8 +1986,8 @@ export function TarkovMapViewer({
             .join(",");
           return `${row.key}:${sig}`;
         })
-        .join("\0") + `\0${floor}`,
-    [displayedQuestOverlays, displayedParticipantsByTask, floor],
+        .join("\0") + `\0${floor}\0${onQuestCompleteObjective ? "complete" : ""}`,
+    [displayedQuestOverlays, displayedParticipantsByTask, floor, onQuestCompleteObjective],
   );
   const highlightTaskIdRef = useRef(highlightTaskId);
   highlightTaskIdRef.current = highlightTaskId;
@@ -1955,15 +2098,16 @@ export function TarkovMapViewer({
   const usableParentOn = filterGroupAllOn(usableItems);
   const usableParentPartial = filterGroupPartial(usableItems);
   const usableParentRef = useRef<HTMLInputElement>(null);
-  const landmarkItems = useMemo(() => {
-    const items: { key: "showLabels" | "showBtrStops"; on: boolean }[] = [];
-    if (btrStops.length) items.push({ key: "showBtrStops", on: showBtrStops });
-    if (placeLabels.length) items.push({ key: "showLabels", on: showLabels });
-    return items;
-  }, [placeLabels.length, btrStops.length, showLabels, showBtrStops]);
-  const landmarksParentOn = filterGroupAllOn(landmarkItems);
-  const landmarksParentPartial = filterGroupPartial(landmarkItems);
-  const landmarksParentRef = useRef<HTMLInputElement>(null);
+  const hasMapLayerFilters =
+    placeLabels.length > 0 ||
+    btrStops.length > 0 ||
+    extractKindOptions.length > 0 ||
+    spawnKindOptions.length > 0 ||
+    usableItems.length > 0 ||
+    hazardKindOptions.length > 0 ||
+    lootKindOptions.length > 0 ||
+    hasLootLoose;
+  const hasQuestFilters = questOverlays.length > 0;
   const questPeopleOnCount = questTree
     ? questPeople.filter(
         (person) => !questPersonOff.has(raidPrepPersonKey(person)),
@@ -1980,6 +2124,7 @@ export function TarkovMapViewer({
   onDraftStrokeRef.current = onDraftStroke;
   onEraseMarkRef.current = onEraseMark;
   onQuestLabelClickRef.current = onQuestLabelClick;
+  onQuestCompleteObjectiveRef.current = onQuestCompleteObjective;
   placeEditRef.current = placeEdit;
   const placeEditActive = Boolean(placeEdit);
   const placeEditMode = placeEdit?.mode;
@@ -2017,6 +2162,20 @@ export function TarkovMapViewer({
     [],
   );
   updatePrefsRef.current = updatePrefs;
+  const toggleGroupCollapsed = useCallback(
+    (key: TarkovMapFilterGroupId) => {
+      updatePrefs((prev) => ({
+        ...prev,
+        filterGroupsCollapsed: toggleFilterGroupCollapsed(
+          prev.filterGroupsCollapsed,
+          key,
+        ),
+      }));
+    },
+    [updatePrefs],
+  );
+  const groupCollapsed = (key: TarkovMapFilterGroupId) =>
+    isFilterGroupCollapsed(prefs.filterGroupsCollapsed, key);
 
   useEffect(() => {
     const el = extractsParentRef.current;
@@ -2072,11 +2231,6 @@ export function TarkovMapViewer({
     const el = usableParentRef.current;
     if (el) el.indeterminate = usableParentPartial;
   }, [usableParentPartial]);
-
-  useEffect(() => {
-    const el = landmarksParentRef.current;
-    if (el) el.indeterminate = landmarksParentPartial;
-  }, [landmarksParentPartial]);
 
   useEffect(() => {
     onFloorChange?.(floor);
@@ -2140,12 +2294,6 @@ export function TarkovMapViewer({
         svgPane.style.zIndex = "250";
         svgPane.style.pointerEvents = "none";
       }
-      map.on("mousemove", (event: L.LeafletMouseEvent) => {
-        const node = coordsElRef.current;
-        if (!node) return;
-        node.textContent = `x ${event.latlng.lng.toFixed(1)}  z ${event.latlng.lat.toFixed(1)}`;
-        node.hidden = false;
-      });
       const pointers = new Set<number>();
       let strokePoints: StrokePoint[] = [];
       let strokeFloor = "";
@@ -2420,9 +2568,13 @@ export function TarkovMapViewer({
     };
   }, [style, floor, interactive, floors, ready]);
 
-  const handleQuestClick = useCallback<QuestClickHandler>((taskId, height, at) => {
+  const handleQuestClick = useCallback<QuestClickHandler>((target) => {
     if (isMapDrawTool(drawModeRef.current)) return false;
-    const nextFloor = overlayFloorForSpan(height, floorBandsRef.current, at);
+    const nextFloor = overlayFloorForSpan(
+      target.row.height,
+      floorBandsRef.current,
+      target.row.at,
+    );
     if (nextFloor !== floorRef.current) {
       const mapKey = interactiveKeyRef.current;
       if (mapKey) {
@@ -2432,7 +2584,33 @@ export function TarkovMapViewer({
       }
       return true;
     }
-    onQuestLabelClickRef.current?.(taskId);
+    const taskId = (target.row.taskId || "").trim();
+    if (!taskId) return false;
+    const actions = raidPrepQuestPointMenuActions({
+      canOpenGuide: Boolean(onQuestLabelClickRef.current),
+      canComplete: Boolean(onQuestCompleteObjectiveRef.current),
+      objectiveId: target.row.objectiveId,
+    });
+    if (!actions.length) return false;
+    if (actions.length === 1 && actions[0] === "guide") {
+      onQuestLabelClickRef.current?.(taskId);
+      return true;
+    }
+    const map = leafletLayerMap(target.layer);
+    if (!map) return false;
+    target.layer.closeTooltip();
+    const objectiveId = (target.row.objectiveId || "").trim();
+    bindQuestActionPopup(
+      map,
+      target.latlng,
+      overlayBubbleHtml(target.row, { actions }),
+      (action) => {
+        if (action === "guide") onQuestLabelClickRef.current?.(taskId);
+        if (action === "complete" && objectiveId) {
+          onQuestCompleteObjectiveRef.current?.(taskId, objectiveId);
+        }
+      },
+    );
     return true;
   }, []);
 
@@ -2619,6 +2797,7 @@ export function TarkovMapViewer({
       handleQuestClick,
       floor,
       floorBands,
+      Boolean(onQuestCompleteObjective),
     );
   }, [
     overlaySig,
@@ -2629,6 +2808,7 @@ export function TarkovMapViewer({
     showQuests,
     ready,
     handleQuestClick,
+    onQuestCompleteObjective,
   ]);
 
   useEffect(() => {
@@ -2647,6 +2827,7 @@ export function TarkovMapViewer({
       displayedParticipantsByTask,
       floor,
       floorBands,
+      Boolean(onQuestCompleteObjective),
     );
     applyQuestLabelHighlight(map.getContainer(), highlightTaskIdRef.current);
     let zoomTimer = 0;
@@ -2661,6 +2842,7 @@ export function TarkovMapViewer({
           displayedParticipantsByTask,
           floor,
           floorBands,
+          Boolean(onQuestCompleteObjective),
         );
         applyQuestLabelHighlight(map.getContainer(), highlightTaskIdRef.current);
       }, QUEST_LABEL_ZOOM_MS);
@@ -2678,6 +2860,7 @@ export function TarkovMapViewer({
     showQuests,
     ready,
     handleQuestClick,
+    onQuestCompleteObjective,
   ]);
 
   useEffect(() => {
@@ -2764,10 +2947,18 @@ export function TarkovMapViewer({
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refresh);
     ro?.observe(wrap);
     window.addEventListener("resize", refresh);
+    const onFullscreen = () => {
+      setMapFullscreen(mapFullscreenElement() === wrap);
+      refresh();
+    };
+    document.addEventListener("fullscreenchange", onFullscreen);
+    document.addEventListener("webkitfullscreenchange", onFullscreen);
     return () => {
       window.clearTimeout(timer);
       ro?.disconnect();
       window.removeEventListener("resize", refresh);
+      document.removeEventListener("fullscreenchange", onFullscreen);
+      document.removeEventListener("webkitfullscreenchange", onFullscreen);
     };
   }, [ready, fill]);
 
@@ -3040,11 +3231,13 @@ export function TarkovMapViewer({
   }
 
   return (
+    <TarkovMapFullscreenRootContext.Provider
+      value={{ root: overlayRoot, fullscreen: mapFullscreen }}
+    >
     <div
-      ref={wrapElRef}
-      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld ? styles.wrapSpace : ""} ${className}`.trim()}
+      ref={setWrapEl}
+      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${className}`.trim()}
       onPointerDown={() => {
-        if (suppressLocalFix) return;
         if (shotResumeOnceRef.current) return;
         if (shotWatch.perm !== "prompt" || !shotWatch.hasStored) return;
         shotResumeOnceRef.current = true;
@@ -3062,7 +3255,32 @@ export function TarkovMapViewer({
         <div className={`${styles.status} ${styles.overlay}`}>{error}</div>
       ) : null}
       {canSvg || canTile || floors.length || interactive ? (
-        <div className={styles.filterPanel} aria-label="地图筛选">
+        <div
+          className={styles.filterPanel}
+          data-open={filterPanelOpen ? "true" : "false"}
+          aria-label="地图筛选"
+        >
+          <div className={styles.filterPanelHead}>
+            {filterPanelOpen ? (
+              <span className={styles.filterGroupTitle}>图层</span>
+            ) : null}
+            <button
+              type="button"
+              className={styles.filterPanelToggle}
+              aria-expanded={filterPanelOpen}
+              aria-controls="tarkov-map-filter-body"
+              onClick={() =>
+                updatePrefs({ filterPanelOpen: !filterPanelOpen })
+              }
+            >
+              {filterPanelOpen ? "收起" : "图层"}
+            </button>
+          </div>
+          <div
+            id="tarkov-map-filter-body"
+            className={styles.filterPanelBody}
+            hidden={!filterPanelOpen}
+          >
           {canSvg || canTile ? (
             <div className={styles.filterGroup} role="radiogroup" aria-label={TARKOV_MAP_FILTER_GROUP_LABELS.style}>
               {canTile ? (
@@ -3097,9 +3315,17 @@ export function TarkovMapViewer({
                 <span className={styles.filterSplit} aria-hidden="true" />
               ) : null}
               <div className={styles.filterGroup} role="radiogroup" aria-label={TARKOV_MAP_FILTER_GROUP_LABELS.levels}>
-                <span className={styles.filterGroupTitle}>
-                  {TARKOV_MAP_FILTER_GROUP_LABELS.levels}
-                </span>
+                <FilterCollapsibleGroup
+                  groupId="levels"
+                  label={TARKOV_MAP_FILTER_GROUP_LABELS.levels}
+                  collapsed={groupCollapsed("levels")}
+                  onToggle={toggleGroupCollapsed}
+                  header={
+                    <span className={styles.filterGroupTitle}>
+                      {TARKOV_MAP_FILTER_GROUP_LABELS.levels}
+                    </span>
+                  }
+                >
                 <label className={`${styles.filterRow} ${styles.filterRowChild}`}>
                   <input
                     className={styles.filterRadio}
@@ -3130,17 +3356,74 @@ export function TarkovMapViewer({
                     <span>{floorLabel(item.name)}</span>
                   </label>
                 ))}
+                </FilterCollapsibleGroup>
               </div>
             </>
           ) : null}
           {showPointLayers && interactive ? (
             <>
-              {canSvg || canTile || floors.length ? (
+              {(canSvg || canTile || floors.length) &&
+              (hasMapLayerFilters || hasQuestFilters || shotWatch.supported) ? (
                 <span className={styles.filterSplit} aria-hidden="true" />
               ) : null}
+              {hasMapLayerFilters ? (
               <div className={styles.filterGroup} aria-label="展示点位">
-                {extractKindOptions.length ? (
+                {placeLabels.length && btrStops.length ? (
+                  <FilterCollapsibleGroup
+                    groupId="landmarks"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.landmarks}
+                    collapsed={groupCollapsed("landmarks")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
+                      <FilterCheckRow
+                        checked={showLabels}
+                        label={TARKOV_MAP_FILTER_GROUP_LABELS.landmarks}
+                        onChange={() =>
+                          updatePrefs({ showLabels: !showLabels })
+                        }
+                      />
+                    }
+                  >
+                    <FilterCheckRow
+                      child
+                      checked={showBtrStops}
+                      icon={tarkovBtrIconUrl()}
+                      label={TARKOV_MAP_FILTER_ITEM_LABELS.btrStop}
+                      onChange={() =>
+                        updatePrefs({ showBtrStops: !showBtrStops })
+                      }
+                    />
+                  </FilterCollapsibleGroup>
+                ) : placeLabels.length || btrStops.length ? (
                   <div className={styles.filterSubgroup}>
+                    {placeLabels.length ? (
+                      <FilterCheckRow
+                        checked={showLabels}
+                        label={TARKOV_MAP_FILTER_GROUP_LABELS.landmarks}
+                        onChange={() =>
+                          updatePrefs({ showLabels: !showLabels })
+                        }
+                      />
+                    ) : null}
+                    {btrStops.length ? (
+                      <FilterCheckRow
+                        checked={showBtrStops}
+                        icon={tarkovBtrIconUrl()}
+                        label={TARKOV_MAP_FILTER_ITEM_LABELS.btrStop}
+                        onChange={() =>
+                          updatePrefs({ showBtrStops: !showBtrStops })
+                        }
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+                {extractKindOptions.length ? (
+                  <FilterCollapsibleGroup
+                    groupId="extracts"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.extracts}
+                    collapsed={groupCollapsed("extracts")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
                     <FilterCheckRow
                       inputRef={extractsParentRef}
                       checked={extractsParentOn}
@@ -3156,6 +3439,8 @@ export function TarkovMapViewer({
                         }))
                       }
                     />
+                    }
+                  >
                     {extractKindOptions.map((kind) => (
                       <FilterCheckRow
                         key={kind}
@@ -3174,10 +3459,15 @@ export function TarkovMapViewer({
                         }
                       />
                     ))}
-                  </div>
+                  </FilterCollapsibleGroup>
                 ) : null}
                 {spawnKindOptions.length ? (
-                  <div className={styles.filterSubgroup}>
+                  <FilterCollapsibleGroup
+                    groupId="spawns"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.spawns}
+                    collapsed={groupCollapsed("spawns")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
                     <FilterCheckRow
                       inputRef={spawnsParentRef}
                       checked={spawnsParentOn}
@@ -3193,6 +3483,8 @@ export function TarkovMapViewer({
                         }))
                       }
                     />
+                    }
+                  >
                     {spawnKindOptions.map((kind) => (
                       <FilterCheckRow
                         key={kind}
@@ -3211,10 +3503,15 @@ export function TarkovMapViewer({
                         }
                       />
                     ))}
-                  </div>
+                  </FilterCollapsibleGroup>
                 ) : null}
                 {usableItems.length ? (
-                  <div className={styles.filterSubgroup}>
+                  <FilterCollapsibleGroup
+                    groupId="usable"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.usable}
+                    collapsed={groupCollapsed("usable")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
                     <FilterCheckRow
                       inputRef={usableParentRef}
                       checked={usableParentOn}
@@ -3234,6 +3531,8 @@ export function TarkovMapViewer({
                         }))
                       }
                     />
+                    }
+                  >
                     {locks.length ? (
                       <FilterCheckRow
                         child
@@ -3267,10 +3566,70 @@ export function TarkovMapViewer({
                         }
                       />
                     ) : null}
-                  </div>
+                  </FilterCollapsibleGroup>
+                ) : null}
+                {hazardKindOptions.length ? (
+                  <FilterCollapsibleGroup
+                    groupId="hazards"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.hazards}
+                    collapsed={groupCollapsed("hazards")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
+                    <FilterCheckRow
+                      inputRef={hazardsParentRef}
+                      checked={hazardsParentOn}
+                      icon={tarkovHazardIconUrl("")}
+                      label={TARKOV_MAP_FILTER_GROUP_LABELS.hazards}
+                      onChange={() =>
+                        updatePrefs((prev) => ({
+                          ...prev,
+                          showHazards: !hazardsParentOn,
+                          hazardKinds: withKindsForPresent(
+                            prev.hazardKinds,
+                            hazardKindOptions,
+                            !hazardsParentOn,
+                          ),
+                        }))
+                      }
+                    />
+                    }
+                  >
+                    {hazardKindOptions.map((kind) => (
+                      <FilterCheckRow
+                        key={kind}
+                        child
+                        checked={
+                          showHazards && isHazardKindOn(hazardKinds, kind)
+                        }
+                        icon={tarkovHazardIconUrl(kind)}
+                        label={tarkovHazardKindLabel(
+                          kind,
+                          hazards.find((row) => row.hazard_type === kind)
+                            ?.name || "",
+                        )}
+                        onChange={() =>
+                          updatePrefs((prev) =>
+                            withHazardKind(
+                              prev,
+                              kind,
+                              !(
+                                prev.showHazards &&
+                                isHazardKindOn(prev.hazardKinds, kind)
+                              ),
+                            ),
+                          )
+                        }
+                      />
+                    ))}
+                  </FilterCollapsibleGroup>
                 ) : null}
                 {lootKindOptions.length ? (
-                  <div className={styles.filterSubgroup}>
+                  <FilterCollapsibleGroup
+                    groupId="lootable"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.lootable}
+                    collapsed={groupCollapsed("lootable")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
                     <FilterCheckRow
                       inputRef={lootParentRef}
                       checked={lootParentOn}
@@ -3291,6 +3650,8 @@ export function TarkovMapViewer({
                         })
                       }
                     />
+                    }
+                  >
                     {lootKindOptions.map((kind) => (
                       <FilterCheckRow
                         key={kind}
@@ -3318,11 +3679,79 @@ export function TarkovMapViewer({
                         }
                       />
                     ))}
-                  </div>
+                  </FilterCollapsibleGroup>
                 ) : null}
-                {questOverlays.length ? (
-                  questTree ? (
-                    <div className={styles.filterSubgroup}>
+                {hasLootLoose ? (
+                  <FilterCollapsibleGroup
+                    groupId="lootLoose"
+                    label={TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose}
+                    collapsed={groupCollapsed("lootLoose")}
+                    onToggle={toggleGroupCollapsed}
+                    header={
+                    <FilterCheckRow
+                      inputRef={looseParentRef}
+                      checked={looseParentOn}
+                      icon={tarkovLooseLootIconUrl()}
+                      label={TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose}
+                      onChange={() =>
+                        updatePrefs((prev) => {
+                          const on = !looseParentOn;
+                          return {
+                            ...prev,
+                            showLootLoose: on,
+                            lootLooseKinds: withKindsForPresent(
+                              prev.lootLooseKinds,
+                              looseKindOptions,
+                              on,
+                            ),
+                          };
+                        })
+                      }
+                    />
+                    }
+                  >
+                    {looseKindOptions.map((kind) => (
+                      <FilterCheckRow
+                        key={kind}
+                        child
+                        checked={
+                          showLootLoose && isLootLooseKindOn(lootLooseKinds, kind)
+                        }
+                        icon={tarkovLooseLootKindIconUrl(kind)}
+                        label={lootLooseKindLabel(kind)}
+                        onChange={() =>
+                          updatePrefs((prev) =>
+                            withLootLooseKind(
+                              prev,
+                              kind,
+                              !(
+                                prev.showLootLoose &&
+                                isLootLooseKindOn(prev.lootLooseKinds, kind)
+                              ),
+                            ),
+                          )
+                        }
+                      />
+                    ))}
+                  </FilterCollapsibleGroup>
+                ) : null}
+              </div>
+              ) : null}
+              {hasQuestFilters ? (
+                <>
+                  {hasMapLayerFilters ? (
+                    <span className={styles.filterSplit} aria-hidden="true" />
+                  ) : null}
+                  <div
+                    className={styles.filterGroup}
+                    aria-label={TARKOV_MAP_FILTER_GROUP_LABELS.tasks}
+                  >
+                    <FilterCollapsibleGroup
+                      groupId="tasks"
+                      label={TARKOV_MAP_FILTER_GROUP_LABELS.tasks}
+                      collapsed={groupCollapsed("tasks")}
+                      onToggle={toggleGroupCollapsed}
+                      header={
                       <FilterCheckRow
                         inputRef={questsParentRef}
                         checked={questsParentOn}
@@ -3338,6 +3767,8 @@ export function TarkovMapViewer({
                           setQuestPersonOff(new Set(next.offKeys));
                         }}
                       />
+                      }
+                    >
                       {questPeople.map((person) => {
                         const key = raidPrepPersonKey(person);
                         const on = showQuests && !questPersonOff.has(key);
@@ -3376,208 +3807,76 @@ export function TarkovMapViewer({
                           </label>
                         );
                       })}
-                    </div>
-                  ) : (
-                    <FilterCheckRow
-                      checked={showQuests}
-                      label={TARKOV_MAP_FILTER_GROUP_LABELS.tasks}
-                      onChange={() =>
-                        updatePrefs({ showQuests: !showQuests })
-                      }
-                    />
-                  )
-                ) : null}
-                {hazardKindOptions.length ? (
-                  <div className={styles.filterSubgroup}>
-                    <FilterCheckRow
-                      inputRef={hazardsParentRef}
-                      checked={hazardsParentOn}
-                      icon={tarkovHazardIconUrl("")}
-                      label={TARKOV_MAP_FILTER_GROUP_LABELS.hazards}
-                      onChange={() =>
-                        updatePrefs((prev) => ({
-                          ...prev,
-                          showHazards: !hazardsParentOn,
-                          hazardKinds: withKindsForPresent(
-                            prev.hazardKinds,
-                            hazardKindOptions,
-                            !hazardsParentOn,
-                          ),
-                        }))
-                      }
-                    />
-                    {hazardKindOptions.map((kind) => (
-                      <FilterCheckRow
-                        key={kind}
-                        child
-                        checked={
-                          showHazards && isHazardKindOn(hazardKinds, kind)
-                        }
-                        icon={tarkovHazardIconUrl(kind)}
-                        label={tarkovHazardKindLabel(
-                          kind,
-                          hazards.find((row) => row.hazard_type === kind)
-                            ?.name || "",
-                        )}
-                        onChange={() =>
-                          updatePrefs((prev) =>
-                            withHazardKind(
-                              prev,
-                              kind,
-                              !(
-                                prev.showHazards &&
-                                isHazardKindOn(prev.hazardKinds, kind)
-                              ),
-                            ),
-                          )
-                        }
-                      />
-                    ))}
+                    </FilterCollapsibleGroup>
                   </div>
-                ) : null}
-                {landmarkItems.length || shotWatch.supported ? (
-                  <div className={styles.filterSubgroup}>
-                    {landmarkItems.length ? (
-                      <FilterCheckRow
-                        inputRef={landmarksParentRef}
-                        checked={landmarksParentOn}
-                        label={TARKOV_MAP_FILTER_GROUP_LABELS.landmarks}
-                        onChange={() =>
-                          updatePrefs((prev) => ({
-                            ...prev,
-                            ...withFilterGroupOn(
-                              {
-                                showLabels: prev.showLabels,
-                                showBtrStops: prev.showBtrStops,
-                              },
-                              landmarkItems.map((item) => item.key),
-                              !landmarksParentOn,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : (
+                </>
+              ) : null}
+              {shotWatch.supported ? (
+                <>
+                  {hasMapLayerFilters || hasQuestFilters ? (
+                    <span className={styles.filterSplit} aria-hidden="true" />
+                  ) : null}
+                  <div
+                    className={styles.filterGroup}
+                    aria-label={TARKOV_MAP_FILTER_GROUP_LABELS.screenshot}
+                  >
+                    {shotWatch.perm === "granted" ? (
                       <span className={styles.filterRow}>
-                        <span>{TARKOV_MAP_FILTER_GROUP_LABELS.landmarks}</span>
-                      </span>
-                    )}
-                    {btrStops.length ? (
-                      <FilterCheckRow
-                        child
-                        checked={showBtrStops}
-                        icon={tarkovBtrIconUrl()}
-                        label={TARKOV_MAP_FILTER_ITEM_LABELS.btrStop}
-                        onChange={() =>
-                          updatePrefs({ showBtrStops: !showBtrStops })
-                        }
-                      />
-                    ) : null}
-                    {placeLabels.length ? (
-                      <FilterCheckRow
-                        child
-                        checked={showLabels}
-                        label={TARKOV_MAP_FILTER_ITEM_LABELS.placeNames}
-                        onChange={() =>
-                          updatePrefs({ showLabels: !showLabels })
-                        }
-                      />
-                    ) : null}
-                    {shotWatch.supported ? (
-                      shotWatch.perm === "granted" ? (
-                        <span
-                          className={`${styles.filterRow} ${styles.filterRowChild}`}
-                        >
-                          <span className={styles.playerStatus}>
-                            {shotWatch.fix
-                              ? "截图定位中"
-                              : shotWatch.lastFileName
-                                ? "截图无坐标，请在战局里用游戏截图键"
-                                : "战局里按游戏截图键定位"}
-                          </span>
+                        <span className={styles.playerStatus}>
+                          {shotWatch.fix
+                            ? "截图定位中"
+                            : shotWatch.lastFileName
+                              ? "截图无坐标，请在战局里用游戏截图键"
+                              : "战局里按游戏截图键定位"}
                         </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className={`${styles.playerEnable} ${styles.filterRowChild}`}
-                          disabled={
-                            shotWatch.busy || shotWatch.perm === "unknown"
-                          }
-                          onClick={() => void shotWatch.enable()}
-                        >
-                          {shotWatch.hasStored
-                            ? "继续读取截图目录"
-                            : "设定截图目录"}
-                        </button>
-                      )
-                    ) : null}
-                  </div>
-                ) : null}
-                {hasLootLoose ? (
-                  <div className={styles.filterSubgroup}>
-                    <FilterCheckRow
-                      inputRef={looseParentRef}
-                      checked={looseParentOn}
-                      icon={tarkovLooseLootIconUrl()}
-                      label={TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose}
-                      onChange={() =>
-                        updatePrefs((prev) => {
-                          const on = !looseParentOn;
-                          return {
-                            ...prev,
-                            showLootLoose: on,
-                            lootLooseKinds: withKindsForPresent(
-                              prev.lootLooseKinds,
-                              looseKindOptions,
-                              on,
-                            ),
-                          };
-                        })
-                      }
-                    />
-                    {looseKindOptions.map((kind) => (
-                      <FilterCheckRow
-                        key={kind}
-                        child
-                        checked={
-                          showLootLoose && isLootLooseKindOn(lootLooseKinds, kind)
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.playerEnable}
+                        disabled={
+                          shotWatch.busy || shotWatch.perm === "unknown"
                         }
-                        icon={tarkovLooseLootKindIconUrl(kind)}
-                        label={lootLooseKindLabel(kind)}
-                        onChange={() =>
-                          updatePrefs((prev) =>
-                            withLootLooseKind(
-                              prev,
-                              kind,
-                              !(
-                                prev.showLootLoose &&
-                                isLootLooseKindOn(prev.lootLooseKinds, kind)
-                              ),
-                            ),
-                          )
-                        }
-                      />
-                    ))}
+                        onClick={() => void shotWatch.enable()}
+                      >
+                        {shotWatch.hasStored
+                          ? "继续读取截图目录"
+                          : "设定截图目录"}
+                      </button>
+                    )}
                   </div>
-                ) : null}
-              </div>
+                </>
+              ) : null}
             </>
           ) : null}
+          </div>
         </div>
       ) : null}
-      <div className={styles.meta}>
-        <div className={styles.coords} ref={coordsElRef} hidden />
-        <a
-          className={`${styles.link} ${styles.credit}`}
-          href="https://github.com/the-hideout/tarkov-dev-svg-maps"
-          target="_blank"
-          rel="noreferrer"
-        >
-          底图 CC BY-NC-SA · tarkov.dev
-        </a>
-      </div>
+      {mapFullscreenEnabled() ? (
+        <div className={styles.meta}>
+          <button
+            type="button"
+            className={styles.fullScreen}
+            aria-pressed={mapFullscreen}
+            aria-label={mapFullscreen ? "退出全屏" : "全屏"}
+            title={mapFullscreen ? "退出全屏" : "全屏"}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const wrap = wrapElRef.current;
+              if (!wrap) return;
+              if (mapFullscreenElement() === wrap) void exitMapFullscreen();
+              else void requestMapFullscreen(wrap);
+            }}
+          >
+            {mapFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+          </button>
+        </div>
+      ) : null}
       {!interactive && raster ? (
         <div className={styles.note}>平面图，坐标标记仅互动图层可用。</div>
       ) : null}
     </div>
+    </TarkovMapFullscreenRootContext.Provider>
   );
 }

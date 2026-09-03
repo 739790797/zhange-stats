@@ -24,8 +24,12 @@ export type TarkovLiveWatchValue = {
   lastLogMapId: string;
   fix: TarkovScreenshotFix | null;
   shotBusy: boolean;
+  logSyncBusy: boolean;
+  logSyncScan: { done: number; total: number } | null;
   enableShots: () => Promise<void>;
   resume: () => Promise<void>;
+  /** 手动扫全部启动文件夹（含旧日志），回填任务进度并补传战局摘要。 */
+  syncLogs: () => Promise<{ ok: boolean; hint: string }>;
 };
 
 export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
@@ -43,8 +47,11 @@ export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
   lastLogMapId: "",
   fix: null,
   shotBusy: false,
+  logSyncBusy: false,
+  logSyncScan: null,
   enableShots: async () => undefined,
   resume: async () => undefined,
+  syncLogs: async () => ({ ok: false, hint: "" }),
 };
 
 export type TarkovLiveShotMeta = {

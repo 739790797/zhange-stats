@@ -532,13 +532,18 @@ export type RaidPrepObjectiveHint = {
 };
 
 /** 跨地图任务：当前图以外的目标，按地图分组提示。 */
+export type RaidPrepOtherMapLine = {
+  id: string;
+  text: string;
+};
+
 export type RaidPrepOtherMapGroup = {
   mapSlug: string;
   mapLabel: string;
-  lines: string[];
+  lines: RaidPrepOtherMapLine[];
 };
 
-/** 全部步骤按 dump 顺序排；本图可勾选，其它图只展示。 */
+/** 全部步骤按 dump 顺序排；本图可勾选，其它图同样可勾选但置灰。 */
 export type RaidPrepSequenceGroup = {
   mapSlug: string;
   mapLabel: string;
@@ -570,7 +575,7 @@ export type RaidPrepTaskSummary = {
   hasMapKeys: boolean;
   /** 当前用户已勾完本图必做步骤。 */
   mapComplete: boolean;
-  /** 其他地图仍要做的步骤（只提示，不在本图勾选）。 */
+  /** 其他地图的步骤（账号进度账跨图勾选，这里展示删除线）。 */
   otherMapGroups: RaidPrepOtherMapGroup[];
   /** 失败条件芯片（任务级，不按图裁剪）。 */
   failChips: RaidPrepFailChip[];
@@ -700,6 +705,29 @@ export function collectRaidPrepQuestFilterPeople(
     for (const person of people) flat.push(person);
   }
   return raidPrepParticipants(flat);
+}
+
+/** 侧栏任务树：有参与者用参与者；否则挂当前用户自己的名字（单人也走多人样式）。 */
+export function collectRaidPrepQuestFilterPeopleOrSelf(
+  byTask:
+    | ReadonlyMap<
+        string,
+        readonly { name?: string | null; userId?: number | null }[]
+      >
+    | null
+    | undefined,
+  self?: { name?: string | null; userId?: number | null },
+): RaidPrepMapParticipant[] {
+  const people = collectRaidPrepQuestFilterPeople(byTask);
+  if (people.length) return people;
+  const name = (self?.name || "").trim() || "我";
+  const userId =
+    typeof self?.userId === "number" &&
+    Number.isFinite(self.userId) &&
+    self.userId > 0
+      ? self.userId
+      : undefined;
+  return raidPrepParticipants([{ name, userId }]);
 }
 
 /** 父级「任务」：全开则全关并记下所有人；未全开则全开。 */
@@ -1965,7 +1993,7 @@ export function collectRaidPrepOtherMapGroups(
     return group;
   };
 
-  (task.objectives || []).forEach((obj) => {
+  (task.objectives || []).forEach((obj, index) => {
     const refs = objectiveMapRefs(obj);
     if (objectiveAppliesToMap(obj, mapSlug)) {
       for (const ref of refs) {
@@ -1990,7 +2018,10 @@ export function collectRaidPrepOtherMapGroups(
     const slug = primary?.slug || "";
     const group = ensure(slug, label || "其他地图");
     const text = raidPrepObjectiveStepText(obj);
-    if (group && text && !group.lines.includes(text)) group.lines.push(text);
+    const id = raidPrepObjectiveKey(obj, index);
+    if (group && text && !group.lines.some((line) => line.id === id || line.text === text)) {
+      group.lines.push({ id, text });
+    }
   });
 
   const order = new Map(
@@ -2005,7 +2036,9 @@ export function collectRaidPrepOtherMapGroups(
 }
 
 function otherMapGroupHasSteps(row: RaidPrepOtherMapGroup): boolean {
-  return (row.lines || []).some((line) => line.trim());
+  return (row.lines || []).some((line) =>
+    Boolean((line.id || line.text || "").trim()),
+  );
 }
 
 function otherMapGroupLabels(
@@ -2035,14 +2068,22 @@ export function splitRaidPrepOtherMapGroups(
 
 export function formatRaidPrepOtherMapsLead(
   groups: readonly RaidPrepOtherMapGroup[] | null | undefined,
+  skipped?: ReadonlySet<string> | null,
+  taskDone?: boolean,
 ): string {
   const { allowed, required } = splitRaidPrepOtherMapGroups(groups);
+  const remainingRequired = required.filter((group) => {
+    if (taskDone) return false;
+    return group.lines.some(
+      (line) => !raidPrepObjectiveCheckedForViewer(line.id, skipped, false),
+    );
+  });
   const parts: string[] = [];
   const allowedLabels = otherMapGroupLabels(allowed);
-  const requiredLabels = otherMapGroupLabels(required);
+  const requiredLabels = otherMapGroupLabels(remainingRequired);
   if (allowedLabels) parts.push(`也可在${allowedLabels}完成`);
   if (requiredLabels) parts.push(`还需在${requiredLabels}完成`);
-  if (!parts.length) return "";
+  if (!parts.length) return required.length ? "其他地图步骤已勾完" : "";
   return `此任务${parts.join("，")}`;
 }
 
@@ -2258,6 +2299,30 @@ export function raidPrepMapObjectiveIds(
   return mapObjectives(task, mapSlug).map(({ obj, index }) =>
     raidPrepObjectiveKey(obj, index),
   );
+}
+
+/** 任务全部小步骤（含其他图），整任务完成时写入账号进度账。 */
+export function raidPrepAllObjectiveIds(task: RaidPrepTaskLike): string[] {
+  return (task.objectives || []).map((obj, index) =>
+    raidPrepObjectiveKey(obj, index),
+  );
+}
+
+export function objectivePairsToSkipMap(
+  pairs:
+    | Array<{ task_id?: string; objective_id?: string }>
+    | null
+    | undefined,
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const row of pairs || []) {
+    addObjectiveDoneToSkipMap(out, {
+      task_id: String(row.task_id || ""),
+      objective_id: String(row.objective_id || ""),
+      user_id: 0,
+    });
+  }
+  return out;
 }
 
 function addObjectiveDoneToSkipMap(
@@ -2526,6 +2591,29 @@ export function mergeRaidPrepSkipMaps(
     }
   }
   return out;
+}
+
+/** 本图勾选 ∪ 账号进度账（含其他地图已划步骤），用于展示删除线。 */
+export function raidPrepSkipMapForViewer(
+  local: RaidPrepSkipMap | null | undefined,
+  accountPairs:
+    | Array<{ task_id?: string; objective_id?: string }>
+    | null
+    | undefined,
+): Map<string, Set<string>> {
+  return mergeRaidPrepSkipMaps(local, objectivePairsToSkipMap(accountPairs));
+}
+
+/** 勾选以展示态为准，避免账号已勾、本图 skip 没有时误加成勾选。 */
+export function planRaidPrepObjectiveToggle(input: {
+  localHas: boolean;
+  viewHas: boolean;
+}): { nextChecked: boolean; toggleLocal: boolean } {
+  const nextChecked = !input.viewHas;
+  return {
+    nextChecked,
+    toggleLocal: input.localHas !== nextChecked,
+  };
 }
 
 export function raidPrepSkipMapsEqual(
@@ -3192,6 +3280,35 @@ export function formatRaidPrepOverlayPointTitle(
   if (!name) return "";
   if (total <= 1) return name;
   return `${name}（第${index + 1}处）`;
+}
+
+export const RAID_PREP_QUEST_POINT_ACTIONS = ["guide", "complete"] as const;
+
+export type RaidPrepQuestPointAction =
+  (typeof RAID_PREP_QUEST_POINT_ACTIONS)[number];
+
+export const RAID_PREP_QUEST_POINT_ACTION_LABELS: Record<
+  RaidPrepQuestPointAction,
+  string
+> = {
+  guide: "查看攻略",
+  complete: "已完成该步骤",
+};
+
+export const RAID_PREP_QUEST_POINT_MENU_HINT = "点击后可查看攻略或标记完成";
+
+/** 地图步骤点点击菜单：有可勾步骤时出菜单，只有攻略则直接打开。 */
+export function raidPrepQuestPointMenuActions(opts: {
+  canOpenGuide?: boolean;
+  canComplete?: boolean;
+  objectiveId?: string;
+}): RaidPrepQuestPointAction[] {
+  const out: RaidPrepQuestPointAction[] = [];
+  if (opts.canOpenGuide) out.push("guide");
+  if (opts.canComplete && String(opts.objectiveId || "").trim()) {
+    out.push("complete");
+  }
+  return out;
 }
 
 function distinguishTaskOverlays(

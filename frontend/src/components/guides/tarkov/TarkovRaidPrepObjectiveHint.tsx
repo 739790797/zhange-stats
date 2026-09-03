@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTarkovMapOverlayContainer } from "@/lib/tarkovMapFullscreen";
 import {
   formatRaidPrepAltMapsLead,
   formatRaidPrepKeyNeedLine,
@@ -240,21 +241,10 @@ export function TarkovRaidPrepObjectiveProgress({
     if (!text) return null;
     return <div className={styles.taskObjOtherMapsLead}>{text}</div>;
   };
-  const renderOtherMapObjective = (
+  const renderObjective = (
     obj: RaidPrepObjectiveHint,
     sharedAlts: boolean,
-  ) => (
-    <div key={obj.id} className={styles.taskObjOtherMapLine}>
-      <ObjectiveStepBody
-        obj={obj}
-        sharedAlts={sharedAlts}
-        altLead={renderAltLead(obj.altMaps)}
-      />
-    </div>
-  );
-  const renderThisMapObjective = (
-    obj: RaidPrepObjectiveHint,
-    sharedAlts: boolean,
+    onThisMap: boolean,
   ) => {
     const mineDone = raidPrepObjectiveCheckedForViewer(
       obj.id,
@@ -262,6 +252,11 @@ export function TarkovRaidPrepObjectiveProgress({
       taskDone,
     );
     const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
+    const lineClass = mineDone
+      ? styles.taskObjLineDone
+      : onThisMap
+        ? styles.taskObjLine
+        : styles.taskObjOtherMapLine;
     return (
       <label key={obj.id} className={styles.taskObjCheck}>
         <input
@@ -273,7 +268,7 @@ export function TarkovRaidPrepObjectiveProgress({
             if (!taskDone) onToggle?.(obj.id);
           }}
         />
-        <span className={mineDone ? styles.taskObjLineDone : styles.taskObjLine}>
+        <span className={lineClass}>
           <ObjectiveStepBody
             obj={obj}
             sharedAlts={sharedAlts}
@@ -310,7 +305,13 @@ export function TarkovRaidPrepObjectiveProgress({
             return (
               <div
                 key={`${group.mapSlug}:${group.onThisMap}:${index}`}
-                className={styles.taskObjSeqGroup}
+                className={
+                  group.onThisMap
+                    ? `${styles.taskObjSeqGroup}${
+                        hasOtherMaps ? ` ${styles.taskObjSeqGroupHere}` : ""
+                      }`
+                    : `${styles.taskObjSeqGroup} ${styles.taskObjOtherMap}`
+                }
               >
                 {showHeader ? (
                   <div
@@ -323,13 +324,9 @@ export function TarkovRaidPrepObjectiveProgress({
                     {mapTitle}
                   </div>
                 ) : null}
-                {group.onThisMap
-                  ? group.objectives.map((obj) =>
-                      renderThisMapObjective(obj, sharedAlts),
-                    )
-                  : group.objectives.map((obj) =>
-                      renderOtherMapObjective(obj, sharedAlts),
-                    )}
+                {group.objectives.map((obj) =>
+                  renderObjective(obj, sharedAlts, group.onThisMap),
+                )}
               </div>
             );
           })}
@@ -379,6 +376,8 @@ export function TarkovRaidPrepObjectiveHint({
   const [shown, setShown] = useState(false);
   const [boxStyle, setBoxStyle] = useState<CSSProperties | null>(null);
   const preferLeft = placement === "left" || placement === "leftTop";
+  const overlayRoot = useTarkovMapOverlayContainer();
+  const portalRoot = overlayRoot || (typeof document !== "undefined" ? document.body : null);
 
   useEffect(() => {
     retainHintScrollListen();
@@ -509,7 +508,7 @@ export function TarkovRaidPrepObjectiveHint({
         }}
       >
         {children}
-        {renderFloat && typeof document !== "undefined"
+        {renderFloat && portalRoot
           ? createPortal(
               <div
                 ref={boxRef}
@@ -531,7 +530,7 @@ export function TarkovRaidPrepObjectiveHint({
                   taskDone={taskDone}
                 />
               </div>,
-              document.body,
+              portalRoot,
             )
           : null}
       </span>
@@ -574,7 +573,8 @@ export function TarkovRaidPrepObjectiveHint({
       mouseLeaveDelay={0.35}
       placement={placement}
       autoAdjustOverflow
-      zIndex={1200}
+      zIndex={2200}
+      getPopupContainer={() => overlayRoot || document.body}
       rootClassName={styles.taskObjTooltip}
     >
       {children}

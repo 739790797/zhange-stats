@@ -10,17 +10,6 @@ import {
 } from "@/api/guidesApi";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { apiError } from "@/lib/apiError";
-import {
-  isFileSystemAccessSupported,
-  isPickerAbort,
-  loadStoredLogsDir,
-  queryLogsDirPermission,
-  readLogsIndex,
-  readSessionLogs,
-  requestLogsDirPermission,
-  type ReadableDir,
-} from "@/lib/tarkovGameLogAccess";
-import { parseTarkovLogBundle, takeSessionStubs } from "@/lib/tarkovGameLogs";
 import { nowBeijingStamp } from "@/lib/time";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TARKOV_TRADERS, tarkovTaskHref } from "@/lib/tarkovHomeNav";
@@ -31,21 +20,19 @@ import {
 } from "@/lib/tarkovTaskObjective";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
+  formatLogSyncActionLabel,
   notifyTarkovTaskProgress,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
-import {
-  formatLastQuestSyncLine,
-  formatQuestSyncDeltaLine,
-  mergeQuestProgressFromLogs,
-  questProgressDelta,
-} from "@/lib/tarkovTaskLogSync";
+import { formatLastQuestSyncLine } from "@/lib/tarkovTaskLogSync";
+import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 import {
   describeTaskMap,
   factionTaskSuffix,
   groupTasksByTrader,
   keepCatalogTaskProgress,
   loadTaskDoneIds,
+  loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
   resolveAccountTaskProgress,
@@ -79,12 +66,6 @@ function traderFilterLabel(slug: string, apiName: string): {
 function requestStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   return (error as { response?: { status?: number } }).response?.status;
-}
-
-function friendlyError(error: unknown, fallback: string): string {
-  if (isPickerAbort(error)) return "";
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
 }
 
 function rankTask(
@@ -229,6 +210,7 @@ function MapGlyph({ icon }: { icon: string }) {
 
 export function TarkovTaskManagerPanel() {
   const gameMode = useTarkovGameMode();
+  const live = useTarkovLiveWatch();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
@@ -245,9 +227,7 @@ export function TarkovTaskManagerPanel() {
   const startedIdsRef = useRef(startedIds);
   doneIdsRef.current = doneIds;
   startedIdsRef.current = startedIds;
-  const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [scan, setScan] = useState<{ done: number; total: number } | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState(() => loadTaskSyncAt(gameMode));
 
   useEffect(() => {
@@ -264,6 +244,7 @@ export function TarkovTaskManagerPanel() {
       nextStarted: string[],
       migrated = true,
       startedMigrated = false,
+      objectives?: Array<{ task_id: string; objective_id: string }>,
     ) => {
       const cleanedStarted = nextStarted.filter((id) => !nextDone.includes(id));
       doneIdsRef.current = nextDone;
@@ -276,10 +257,15 @@ export function TarkovTaskManagerPanel() {
         cleanedStarted,
         migrated,
         startedMigrated,
+        objectives,
       );
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(nextDone, cleanedStarted),
+        taskProgressQueryData(
+          nextDone,
+          cleanedStarted,
+          objectives ?? loadTaskObjectivePairs(gameMode),
+        ),
       );
     },
     [gameMode, queryClient],
@@ -292,19 +278,24 @@ export function TarkovTaskManagerPanel() {
       if (detail.syncedAt) setLastSyncAt(detail.syncedAt);
       if (detail.changed === false) return;
       touchedRef.current = true;
-      applyProgress(detail.done, detail.started);
+      applyProgress(detail.done, detail.started, true, false, detail.objectives);
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
     return () => window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
   }, [applyProgress, gameMode]);
 
   const applyServerProgress = useCallback(
-    (data: { task_ids?: string[]; started_ids?: string[] }) => {
+    (data: {
+      task_ids?: string[];
+      started_ids?: string[];
+      objective_dones?: Array<{ task_id: string; objective_id: string }>;
+    }) => {
       applyProgress(
         data.task_ids || [],
         data.started_ids || [],
         true,
         true,
+        data.objective_dones,
       );
     },
     [applyProgress],
@@ -321,6 +312,7 @@ export function TarkovTaskManagerPanel() {
     mutationFn: (payload: { done: string[]; started: string[] }) =>
       writeTarkovTaskDones(payload.done, {
         startedIds: payload.started,
+        objectiveDones: loadTaskObjectivePairs(gameMode),
       }),
     onSuccess: (data) => applyServerProgress(data),
     onError: async (error) => {
@@ -336,7 +328,7 @@ export function TarkovTaskManagerPanel() {
     hydratedModeRef.current = gameMode;
     if (touchedRef.current) return;
     const next = resolveAccountTaskProgress(donesQuery.data, gameMode);
-    applyProgress(next.done, next.started, false);
+    applyProgress(next.done, next.started, false, false, next.objectives);
   }, [applyProgress, donesQuery.data, donesQuery.isSuccess, gameMode]);
 
   useEffect(() => {
@@ -472,26 +464,6 @@ export function TarkovTaskManagerPanel() {
     writeMut.mutate({ done: next.done, started: next.started });
   };
 
-  const ensureLogsDir = async (): Promise<ReadableDir | null> => {
-    if (!isFileSystemAccessSupported()) {
-      message.warning("当前浏览器不能读取本机目录，请用 Chrome 或 Edge。");
-      return null;
-    }
-    const stored = await loadStoredLogsDir();
-    if (!stored) {
-      message.info("先到「日志路径」绑定游戏日志目录。");
-      return null;
-    }
-    const current = await queryLogsDirPermission(stored);
-    const granted =
-      current === "granted" ? current : await requestLogsDirPermission(stored);
-    if (granted !== "granted") {
-      message.warning("浏览器没有批准读取该日志目录。");
-      return null;
-    }
-    return stored;
-  };
-
   const stampSync = () => {
     const syncedAt = nowBeijingStamp();
     const marked = saveTaskSyncMark(gameMode, syncedAt);
@@ -522,56 +494,13 @@ export function TarkovTaskManagerPanel() {
     message.success("已保存进度");
   };
 
-  const syncFromLogs = async () => {
-    if (syncing) return;
-    setSyncing(true);
-    setScan(null);
-    try {
-      const handle = await ensureLogsDir();
-      if (!handle) return;
-      const { sessions } = await readLogsIndex(handle);
-      const targets = takeSessionStubs(sessions, 0);
-      if (!targets.length) {
-        message.info("这个目录里没有启动记录。");
-        return;
-      }
-      setScan({ done: 0, total: targets.length });
-      const parsedSessions = [];
-      for (const [index, stub] of targets.entries()) {
-        const read = await readSessionLogs(handle, stub.folder);
-        parsedSessions.push({
-          folder: stub.folder,
-          parsed: parseTarkovLogBundle(read.files),
-        });
-        setScan({ done: index + 1, total: targets.length });
-      }
-      const prevDone = doneIdsRef.current;
-      const prevStarted = startedIdsRef.current;
-      const hadSync = Boolean(lastSyncAt);
-      const merged = mergeQuestProgressFromLogs(
-        prevDone,
-        prevStarted,
-        parsedSessions,
-        gameMode,
-        knownIds,
-      );
-      touchedRef.current = true;
-      applyProgress(merged.done, merged.started);
-      writeMut.mutate({ done: merged.done, started: merged.started });
-      stampSync();
-      message.success(
-        formatQuestSyncDeltaLine(
-          hadSync ? "incremental" : "backfill",
-          questProgressDelta(prevDone, prevStarted, merged.done, merged.started),
-        ),
-      );
-    } catch (error) {
-      const text = friendlyError(error, "") || apiError(error, "同步日志失败");
-      if (text) message.error(text);
-    } finally {
-      setScan(null);
-      setSyncing(false);
-    }
+  const syncFromLogs = () => {
+    if (live.logSyncBusy) return;
+    void live.syncLogs().then((result) => {
+      if (!result.hint) return;
+      if (result.ok) message.success(result.hint);
+      else message.error(result.hint);
+    });
   };
 
   if (catalogQuery.isLoading && !catalogQuery.data) {
@@ -689,18 +618,21 @@ export function TarkovTaskManagerPanel() {
                     <button
                       type="button"
                       className={styles.syncBtn}
-                      disabled={syncing}
-                      onClick={() => void syncFromLogs()}
+                      disabled={live.logSyncBusy}
+                      onClick={syncFromLogs}
                     >
-                      {syncing ? "正在同步…" : "同步日志"}
+                      {formatLogSyncActionLabel(
+                        live.logSyncBusy,
+                        live.logSyncScan,
+                      )}
                     </button>
                   </td>
                 </tr>
               </tbody>
             </table>
             <span className={styles.syncHint}>
-              {scan
-                ? `正在读取 ${scan.done} / ${scan.total}`
+              {live.logSyncScan
+                ? `正在读取 ${live.logSyncScan.done} / ${live.logSyncScan.total}`
                 : formatLastQuestSyncLine(lastSyncAt)}
             </span>
           </div>

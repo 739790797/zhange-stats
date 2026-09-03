@@ -14,6 +14,15 @@
   flex: 1;
 }
 
+.wrapFullscreen,
+.wrap:fullscreen,
+.wrap:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  border: 0;
+}
+
 .wrapDraw .map,
 .wrapPlaceEdit .map {
   cursor: crosshair;
@@ -108,10 +117,84 @@
   line-height: 1.35;
   pointer-events: auto;
   scrollbar-width: thin;
+  scrollbar-color: #5a5e4c #1a1b14;
+}
+
+.filterPanel::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.filterPanel::-webkit-scrollbar-track {
+  background: #1a1b14;
+}
+
+.filterPanel::-webkit-scrollbar-thumb {
+  background: #4a4e40;
+  border-radius: 4px;
+  border: 2px solid #1a1b14;
+}
+
+.filterPanel::-webkit-scrollbar-thumb:hover {
+  background: #6a6e58;
+}
+
+.filterPanel::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.filterPanel::-webkit-scrollbar-corner {
+  background: #1a1b14;
 }
 
 .wrapTopRight .filterPanel {
   max-width: min(240px, calc(100% - 360px));
+}
+
+.filterPanel[data-open="false"] {
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+  padding: 4px 6px;
+}
+
+.wrapTopRight .filterPanel[data-open="false"] {
+  max-width: none;
+}
+
+.filterPanelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.filterPanel[data-open="true"] .filterPanelHead {
+  margin-bottom: 6px;
+}
+
+.filterPanelToggle {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.filterPanelToggle:hover,
+.filterPanelToggle:focus-visible {
+  color: #eee9d6;
+}
+
+.filterPanelBody[hidden] {
+  display: none;
 }
 
 .filterGroup {
@@ -128,6 +211,50 @@
 }
 
 .filterSubgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filterParent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filterParent > .filterRow,
+.filterParent > .filterGroupTitle {
+  flex: 1;
+  min-width: 0;
+}
+
+.filterExpand {
+  flex: none;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.filterExpand:hover,
+.filterExpand:focus-visible {
+  color: #eee9d6;
+}
+
+.filterChildren {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -269,30 +396,24 @@
   pointer-events: auto;
 }
 
-.link {
+.fullScreen {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 9px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 1px solid #3a3d30;
   background: rgba(16, 16, 12, 0.88);
   color: #c8c4a8;
-  font-size: 12px;
-  line-height: 1.3;
-  text-decoration: none;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
 }
 
-.link:hover {
+.fullScreen:hover,
+.fullScreen:focus-visible {
   color: #e8c36a;
-}
-
-.coords {
-  padding: 4px 8px;
-  background: rgba(16, 16, 12, 0.88);
-  color: #b0ae9a;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .note {
@@ -499,6 +620,34 @@
 .wrap :global(.leaflet-popup-content) {
   margin: 10px 12px;
   min-width: 0;
+}
+
+.wrap :global(.leaflet-popup).questPopup .leaflet-popup-content-wrapper {
+  background: #22241a;
+  color: #eee9d6;
+  border: 1px solid #4a4d40;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+.wrap :global(.leaflet-popup).questPopup .leaflet-popup-content {
+  margin: 8px 10px;
+  min-width: 180px;
+}
+
+.wrap :global(.leaflet-popup).questPopup .leaflet-popup-tip {
+  background: #22241a;
+}
+
+.wrap :global(.leaflet-popup).questPopup .leaflet-popup-close-button {
+  top: 4px;
+  right: 4px;
+  color: #c8c4a8;
+  font-size: 16px;
+}
+
+.wrap :global(.leaflet-popup).questPopup .leaflet-popup-close-button:hover {
+  color: #eee9d6;
 }
 
 .wrap :global(.leaflet-tooltip).questTooltip {
@@ -845,6 +994,40 @@
   color: #9a9580;
 }
 
+.questTipHint {
+  color: #8a8470;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.questTipActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.questTipAction {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0 10px;
+  height: 32px;
+  border: 1px solid #3a3d30;
+  border-radius: 4px;
+  background: #1a1b14;
+  color: #c8932a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.questTipAction:hover {
+  border-color: rgba(200, 147, 42, 0.55);
+  background: #101010;
+}
+
 .questTipPeople {
   display: flex;
   flex-wrap: wrap;
@@ -938,10 +1121,6 @@
 
 .placeBox {
   cursor: pointer;
-}
-
-.credit {
-  font-size: 11px;
 }
 
 .playerEnable {

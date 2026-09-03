@@ -8,12 +8,17 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovUserTaskDone, TarkovUserTaskStarted
+from app.models.tarkov import (
+    TarkovUserTaskDone,
+    TarkovUserTaskObjectiveDone,
+    TarkovUserTaskStarted,
+)
 from app.models.user import User
 from app.services.tarkov.game_mode import current_game_mode, parse_game_mode
 
 TASK_ID_MAX = 64
 MERGE_MAX = 800
+OBJECTIVE_MERGE_MAX = 8000
 
 
 class TarkovTaskDonesError(Exception):
@@ -108,6 +113,42 @@ def filter_visible_progress(
     )
 
 
+def list_objective_dones(
+    db: Session,
+    user_id: int,
+    *,
+    game_mode: str | None = None,
+) -> list[dict[str, str]]:
+    mode = _mode(game_mode)
+    rows = (
+        db.query(TarkovUserTaskObjectiveDone)
+        .filter(
+            TarkovUserTaskObjectiveDone.user_id == user_id,
+            TarkovUserTaskObjectiveDone.game_mode == mode,
+        )
+        .order_by(
+            TarkovUserTaskObjectiveDone.created_at.asc(),
+            TarkovUserTaskObjectiveDone.task_id.asc(),
+            TarkovUserTaskObjectiveDone.objective_id.asc(),
+        )
+        .all()
+    )
+    return [
+        {"task_id": str(row.task_id), "objective_id": str(row.objective_id)}
+        for row in rows
+    ]
+
+
+def account_progress(
+    db: Session,
+    user_id: int,
+    *,
+    game_mode: str | None = None,
+) -> tuple[list[str], list[str], list[dict[str, str]]]:
+    done, started = list_progress(db, user_id, game_mode=game_mode)
+    return done, started, list_objective_dones(db, user_id, game_mode=game_mode)
+
+
 def _started_rows(
     db: Session,
     user_id: int,
@@ -169,6 +210,9 @@ def add_done(
         added = True
     _drop_started(db, user.id, mode, {ident})
     db.flush()
+    fill_objectives_for_done_tasks(
+        db, user, [ident], game_mode=mode, now=now or now_naive()
+    )
     return list_task_ids(db, user.id, game_mode=mode), added
 
 
@@ -242,6 +286,9 @@ def merge_dones(
     db.flush()
     _drop_started(db, user.id, mode, have)
     db.flush()
+    fill_objectives_for_done_tasks(
+        db, user, incoming, game_mode=mode, now=stamp
+    )
     return list_task_ids(db, user.id, game_mode=mode)
 
 
@@ -283,6 +330,9 @@ def replace_dones(
     db.flush()
     _drop_started(db, user.id, mode, wanted)
     db.flush()
+    fill_objectives_for_done_tasks(
+        db, user, incoming, game_mode=mode, now=stamp
+    )
     return list_task_ids(db, user.id, game_mode=mode)
 
 
@@ -350,6 +400,198 @@ def replace_starteds(
     return started
 
 
+def _incoming_objective_pairs(items: list[Any] | None) -> list[tuple[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    incoming: list[tuple[str, str]] = []
+    for raw in items or []:
+        if isinstance(raw, dict):
+            task_raw = raw.get("task_id")
+            obj_raw = raw.get("objective_id")
+        else:
+            continue
+        try:
+            task_id = normalize_task_id(str(task_raw) if task_raw is not None else "")
+            objective_id = normalize_task_id(
+                str(obj_raw) if obj_raw is not None else ""
+            )
+        except TarkovTaskDonesError:
+            continue
+        key = (task_id, objective_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        incoming.append(key)
+        if len(incoming) >= OBJECTIVE_MERGE_MAX:
+            break
+    return incoming
+
+
+def _objective_row(
+    db: Session,
+    user_id: int,
+    mode: str,
+    task_id: str,
+    objective_id: str,
+) -> TarkovUserTaskObjectiveDone | None:
+    return (
+        db.query(TarkovUserTaskObjectiveDone)
+        .filter(
+            TarkovUserTaskObjectiveDone.user_id == user_id,
+            TarkovUserTaskObjectiveDone.game_mode == mode,
+            TarkovUserTaskObjectiveDone.task_id == task_id,
+            TarkovUserTaskObjectiveDone.objective_id == objective_id,
+        )
+        .one_or_none()
+    )
+
+
+def merge_objective_dones(
+    db: Session,
+    user: User,
+    items: list[Any],
+    *,
+    game_mode: str | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, str]]:
+    mode = _mode(game_mode)
+    stamp = now or now_naive()
+    incoming = _incoming_objective_pairs(items)
+    have = {
+        (row["task_id"], row["objective_id"])
+        for row in list_objective_dones(db, user.id, game_mode=mode)
+    }
+    for task_id, objective_id in incoming:
+        if (task_id, objective_id) in have:
+            continue
+        db.add(
+            TarkovUserTaskObjectiveDone(
+                user_id=user.id,
+                game_mode=mode,
+                task_id=task_id,
+                objective_id=objective_id,
+                created_at=stamp,
+            )
+        )
+        have.add((task_id, objective_id))
+    db.flush()
+    return list_objective_dones(db, user.id, game_mode=mode)
+
+
+def replace_objective_dones(
+    db: Session,
+    user: User,
+    items: list[Any],
+    *,
+    game_mode: str | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, str]]:
+    mode = _mode(game_mode)
+    stamp = now or now_naive()
+    incoming = _incoming_objective_pairs(items)
+    wanted = set(incoming)
+    rows = (
+        db.query(TarkovUserTaskObjectiveDone)
+        .filter(
+            TarkovUserTaskObjectiveDone.user_id == user.id,
+            TarkovUserTaskObjectiveDone.game_mode == mode,
+        )
+        .all()
+    )
+    have = {(str(row.task_id), str(row.objective_id)) for row in rows}
+    for row in rows:
+        if (str(row.task_id), str(row.objective_id)) not in wanted:
+            db.delete(row)
+    for task_id, objective_id in incoming:
+        if (task_id, objective_id) in have:
+            continue
+        db.add(
+            TarkovUserTaskObjectiveDone(
+                user_id=user.id,
+                game_mode=mode,
+                task_id=task_id,
+                objective_id=objective_id,
+                created_at=stamp,
+            )
+        )
+    db.flush()
+    return list_objective_dones(db, user.id, game_mode=mode)
+
+
+def add_objective(
+    db: Session,
+    user: User,
+    task_id: str,
+    objective_id: str,
+    *,
+    game_mode: str | None = None,
+    now: datetime | None = None,
+) -> tuple[list[dict[str, str]], bool]:
+    ident = normalize_task_id(task_id)
+    oid = normalize_task_id(objective_id)
+    mode = _mode(game_mode)
+    existing = _objective_row(db, user.id, mode, ident, oid)
+    added = False
+    if existing is None:
+        db.add(
+            TarkovUserTaskObjectiveDone(
+                user_id=user.id,
+                game_mode=mode,
+                task_id=ident,
+                objective_id=oid,
+                created_at=now or now_naive(),
+            )
+        )
+        db.flush()
+        added = True
+    return list_objective_dones(db, user.id, game_mode=mode), added
+
+
+def remove_objective(
+    db: Session,
+    user: User,
+    task_id: str,
+    objective_id: str,
+    *,
+    game_mode: str | None = None,
+) -> tuple[list[dict[str, str]], bool]:
+    ident = normalize_task_id(task_id)
+    oid = normalize_task_id(objective_id)
+    mode = _mode(game_mode)
+    row = _objective_row(db, user.id, mode, ident, oid)
+    removed = False
+    if row is not None:
+        db.delete(row)
+        db.flush()
+        removed = True
+    return list_objective_dones(db, user.id, game_mode=mode), removed
+
+
+def fill_objectives_for_done_tasks(
+    db: Session,
+    user: User,
+    task_ids: list[str],
+    *,
+    game_mode: str | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, str]]:
+    from app.services.tarkov.tasks import catalog_objective_ids
+
+    wanted = [ident for ident in task_ids if ident]
+    if not wanted:
+        return list_objective_dones(db, user.id, game_mode=game_mode)
+    catalog = catalog_objective_ids(db, wanted)
+    pairs = [
+        {"task_id": task_id, "objective_id": oid}
+        for task_id, oids in catalog.items()
+        for oid in oids
+    ]
+    if not pairs:
+        return list_objective_dones(db, user.id, game_mode=game_mode)
+    return merge_objective_dones(
+        db, user, pairs, game_mode=game_mode, now=now
+    )
+
+
 def write_progress(
     db: Session,
     user: User,
@@ -359,13 +601,29 @@ def write_progress(
     replace: bool,
     game_mode: str | None = None,
     now: datetime | None = None,
+    objective_dones: list[Any] | None = None,
 ) -> tuple[list[str], list[str]]:
     if replace:
         replace_dones(db, user, task_ids, game_mode=game_mode, now=now)
         if started_ids is not None:
             replace_starteds(db, user, started_ids, game_mode=game_mode, now=now)
+        if objective_dones is not None:
+            replace_objective_dones(
+                db, user, objective_dones, game_mode=game_mode, now=now
+            )
     else:
         merge_dones(db, user, task_ids, game_mode=game_mode, now=now)
         if started_ids is not None:
             merge_starteds(db, user, started_ids, game_mode=game_mode, now=now)
+        if objective_dones is not None:
+            merge_objective_dones(
+                db, user, objective_dones, game_mode=game_mode, now=now
+            )
+    fill_objectives_for_done_tasks(
+        db,
+        user,
+        list_task_ids(db, user.id, game_mode=game_mode),
+        game_mode=game_mode,
+        now=now,
+    )
     return list_progress(db, user.id, game_mode=game_mode)

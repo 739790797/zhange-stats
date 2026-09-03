@@ -1114,13 +1114,20 @@ def _task_dones_error(exc: task_dones_svc.TarkovTaskDonesError) -> HTTPException
 
 
 def _task_progress_out(db: Session, user: User) -> TarkovTaskDonesOut:
-    done, started = task_dones_svc.list_progress(db, user.id)
+    done, started, objectives = task_dones_svc.account_progress(db, user.id)
+    catalog = tasks_svc.catalog_task_id_set(db)
     done, started = task_dones_svc.filter_visible_progress(
         done,
         started,
-        tasks_svc.catalog_task_id_set(db),
+        catalog,
     )
-    return TarkovTaskDonesOut(task_ids=done, started_ids=started)
+    if catalog is not None:
+        objectives = [item for item in objectives if item["task_id"] in catalog]
+    return TarkovTaskDonesOut(
+        task_ids=done,
+        started_ids=started,
+        objective_dones=objectives,
+    )
 
 
 @router.get(
@@ -1132,7 +1139,7 @@ def guides_tarkov_task_dones_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """当前模式的账号进度账：已完成与进行中。"""
+    """当前模式的账号进度账：已完成、进行中与小步骤勾选。"""
     return _task_progress_out(db, user)
 
 
@@ -1146,13 +1153,18 @@ def guides_tarkov_task_dones_write(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。"""
+    """合并或整表替换当前模式的完成 / 进行中 / 小步骤。省略 started_ids 或 objective_dones 则不改对应集合。"""
     task_dones_svc.write_progress(
         db,
         user,
         body.task_ids,
         body.started_ids,
         replace=body.replace,
+        objective_dones=(
+            [item.model_dump() for item in body.objective_dones]
+            if body.objective_dones is not None
+            else None
+        ),
     )
     db.commit()
     return _task_progress_out(db, user)
@@ -1188,6 +1200,44 @@ def guides_tarkov_task_dones_remove(
 ):
     try:
         task_dones_svc.remove_done(db, user, task_id)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return _task_progress_out(db, user)
+
+
+@router.put(
+    "/task-dones/{task_id}/objectives/{objective_id}",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_objective_add(
+    task_id: str,
+    objective_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        task_dones_svc.add_objective(db, user, task_id, objective_id)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return _task_progress_out(db, user)
+
+
+@router.delete(
+    "/task-dones/{task_id}/objectives/{objective_id}",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_objective_remove(
+    task_id: str,
+    objective_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        task_dones_svc.remove_objective(db, user, task_id, objective_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
         raise _task_dones_error(exc) from exc
     db.commit()
