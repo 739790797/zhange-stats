@@ -13,6 +13,9 @@ describe("tarkov map spawn styles", () => {
   it("uses tarkov.dev spawn icon paths and pmc bottom anchor", () => {
     expect(tarkovSpawnIconUrl("boss")).toBe("/tarkov/map-icons/spawn_boss.png");
     expect(tarkovSpawnIconUrl("pmc")).toBe("/tarkov/map-icons/spawn_pmc.png");
+    expect(tarkovSpawnIconUrl("sniper")).toBe(
+      "/tarkov/map-icons/spawn_sniper_scav.png",
+    );
     expect(tarkovSpawnIconAnchor("pmc")).toEqual([12, 24]);
     expect(tarkovSpawnIconAnchor("scav")).toEqual([12, 12]);
   });
@@ -26,6 +29,9 @@ describe("tarkov map spawn styles", () => {
     ).toEqual(["pmc", "scav", "boss"]);
     expect(spawnKindsPresent({ spawns: [], bosses: [] })).toEqual([]);
     expect(spawnKindsPresent({ spawns: [{ kind: "pmc" }] })).toEqual(["pmc"]);
+    expect(
+      spawnKindsPresent({ spawns: [{ kind: "sniper" }] }),
+    ).toEqual(["sniper"]);
   });
 
   it("toggles spawn kinds like tarkov.dev layer groups", () => {
@@ -41,6 +47,7 @@ describe("tarkov map spawn styles", () => {
     expect(withSpawnKindsForPresent(flags, present, false)).toEqual({
       pmc: false,
       scav: false,
+      sniper: true,
       boss: false,
     });
   });

@@ -91,7 +91,13 @@ import {
   collectRaidPrepCompletedUsers,
   collectRaidPrepPartyKeySkipMap,
   collectRaidPrepOtherMapGroups,
+  collectRaidPrepSequenceGroups,
+  collectRaidPrepFailChips,
+  formatRaidPrepAltMapsLead,
+  formatRaidPrepSequenceMapTitle,
   formatRaidPrepOtherMapsLead,
+  splitRaidPrepOtherMapGroups,
+  tarkovFailConditionTypeLabel,
   raidPrepMapObjectivesComplete,
   raidPrepTaskCanLocate,
   formatRaidPrepOverlayPointTitle,
@@ -447,6 +453,211 @@ describe("buildRaidPrepOverlays", () => {
       "需要宿舍114钥匙、RB-OB钥匙",
     );
     expect(formatRaidPrepKeyNeedLine([])).toBe("");
+  });
+
+  it("keeps original handover text and attaches item refs", () => {
+    const chem: RaidPrepTaskLike = {
+      id: "chemical-part-1",
+      objectives: [
+        {
+          id: "give-info",
+          type: "giveQuestItem",
+          description: "上交信息",
+          items: [
+            {
+              id: "folder",
+              name: "0013号保险文件夹",
+              icon_link: "https://assets.tarkov.dev/folder-icon.webp",
+            },
+          ],
+        },
+        {
+          id: "give-key",
+          type: "giveItem",
+          description: "上交物品",
+          items: [{ id: "k220", name: "宿舍220房间钥匙" }],
+        },
+        {
+          id: "named",
+          type: "giveItem",
+          description: "上交在战局中找到的警棍",
+          items: [{ id: "baton", name: "警棍" }],
+        },
+      ],
+    };
+    const rows = collectRaidPrepTaskObjectives(chem, "customs");
+    expect(rows.map((row) => row.text)).toEqual([
+      "上交信息",
+      "上交物品",
+      "上交在战局中找到的警棍",
+    ]);
+    expect(rows.map((row) => row.items)).toEqual([
+      [
+        {
+          id: "folder",
+          name: "0013号保险文件夹",
+          icon_link: "https://assets.tarkov.dev/folder-icon.webp",
+          count: 1,
+        },
+      ],
+      [
+        {
+          id: "k220",
+          name: "宿舍220房间钥匙",
+          icon_link: "",
+          count: 1,
+        },
+      ],
+      [{ id: "baton", name: "警棍", icon_link: "", count: 1 }],
+    ]);
+  });
+
+  it("still attaches the item under a named handover", () => {
+    const chem3: RaidPrepTaskLike = {
+      id: "chemical-part-3",
+      objectives: [
+        {
+          id: "give",
+          type: "giveItem",
+          description: "上交装有化学品的注射器",
+          items: [{ id: "syringe", name: "化学品注射器" }],
+        },
+      ],
+    };
+    const row = collectRaidPrepTaskObjectives(chem3, "factory")[0];
+    expect(row?.text).toBe("上交装有化学品的注射器");
+    expect(row?.items).toEqual([
+      { id: "syringe", name: "化学品注射器", icon_link: "", count: 1 },
+    ]);
+  });
+
+  it("does not hang chips on plant steps", () => {
+    const meme: RaidPrepTaskLike = {
+      id: "is-this-a-reference",
+      objectives: [
+        {
+          id: "cam",
+          type: "plantItem",
+          description: "在塔科夫街区被铁丝网缠绕的尸体处安装WI-FI摄像头",
+          items: [{ id: "wifi", name: "WIFI摄像头" }],
+        },
+      ],
+    };
+    const row = collectRaidPrepTaskObjectives(meme, "streets")[0];
+    expect(row?.text).toBe(
+      "在塔科夫街区被铁丝网缠绕的尸体处安装WI-FI摄像头",
+    );
+    expect(row?.items).toEqual([]);
+  });
+
+  it("does not expand any-of category handovers into item chips", () => {
+    const rows = collectRaidPrepTaskObjectives(
+      {
+        id: "debut",
+        objectives: [
+          {
+            id: "meds",
+            type: "giveItem",
+            description: "上交任意在战局中找到的医疗物品",
+            items: [
+              { id: "a", name: "绷带" },
+              { id: "b", name: "夹板" },
+              { id: "c", name: "止痛药" },
+              { id: "d", name: "AI-2" },
+            ],
+          },
+        ],
+      },
+      "customs",
+    );
+    expect(rows[0]?.text).toBe("上交任意在战局中找到的医疗物品");
+    expect(rows[0]?.items).toEqual([]);
+  });
+
+  it("still expands generic 上交物品 when the candidates are a short OR list", () => {
+    const rows = collectRaidPrepTaskObjectives(
+      {
+        id: "first-in-first-out",
+        objectives: [
+          {
+            id: "kits",
+            type: "giveItem",
+            description: "上交物品",
+            items: [
+              { id: "a", name: "车载急救包" },
+              { id: "b", name: "AI-2急救组合" },
+              { id: "c", name: "Salewa急救包" },
+              { id: "d", name: "IFAK单兵急救包" },
+            ],
+          },
+        ],
+      },
+      "customs",
+    );
+    expect(rows[0]?.items?.map((item) => item.name)).toEqual([
+      "车载急救包",
+      "AI-2急救组合",
+      "Salewa急救包",
+      "IFAK单兵急救包",
+    ]);
+  });
+
+  it("does not hang chips on gunsmith, sell-any, marker, plant, or named long lists", () => {
+    const rows = collectRaidPrepTaskObjectives(
+      {
+        id: "mixed",
+        objectives: [
+          {
+            id: "gun",
+            type: "buildWeapon",
+            description: "按照要求改装M4A1",
+            items: [{ id: "m4", name: "柯尔特 M4A1 5.56x45 卡宾枪" }],
+          },
+          {
+            id: "sell",
+            type: "sellItem",
+            description: "卖任何物品给Prapor",
+            items: [
+              { id: "a", name: "螺栓" },
+              { id: "b", name: "螺母" },
+              { id: "c", name: "垫圈" },
+              { id: "d", name: "钉子" },
+            ],
+          },
+          {
+            id: "mark",
+            type: "mark",
+            description: "使用MS2000指示器标记钓鱼桌",
+            items: [{ id: "ms", name: "MS2000指示器" }],
+          },
+          {
+            id: "plant",
+            type: "plantQuestItem",
+            description: "将该装置藏匿在森林的指定位置",
+            items: [{ id: "kosa", name: "KOSA 无人机电子干扰设备" }],
+          },
+          {
+            id: "drinks",
+            type: "giveItem",
+            description: "上交战局中找到的物品：饮料",
+            items: [
+              { id: "a", name: "苹果汁" },
+              { id: "b", name: "西柚汁" },
+              { id: "c", name: "Vita果汁" },
+              { id: "d", name: "纯净水" },
+            ],
+          },
+        ],
+      },
+      "customs",
+    );
+    expect(rows.map((row) => [row.text, row.items])).toEqual([
+      ["按照要求改装M4A1", []],
+      ["卖任何物品给Prapor", []],
+      ["使用MS2000指示器标记钓鱼桌", []],
+      ["将该装置藏匿在森林的指定位置", []],
+      ["上交战局中找到的物品：饮料", []],
+    ]);
   });
 
   it("uses the objective description without a type prefix", () => {
@@ -1024,6 +1235,12 @@ describe("readable item names", () => {
     expect(isGarbledTarkovName("????")).toBe(true);
     expect(isGarbledTarkovName("？？？？")).toBe(true);
     expect(tarkovReadableName("????", "abc")).toBe("");
+    expect(
+      tarkovReadableName(
+        "5780cfa52459777dfb276eb1 Name",
+        "5780cfa52459777dfb276eb1",
+      ),
+    ).toBe("");
     expect(tarkovReadableName("首秀", "abc")).toBe("首秀");
     expect(
       displayRaidPrepTaskName({
@@ -1637,12 +1854,16 @@ describe("raid prep needed items", () => {
         text: "检查兵营东楼黑",
         optional: false,
         keyNames: ["RB-OB钥匙"],
+        items: [],
+        objectiveType: "visit",
       },
       {
         id: "o-free",
         text: "检查兵营南楼白",
         optional: false,
         keyNames: [],
+        items: [],
+        objectiveType: "visit",
       },
     ]);
   });
@@ -2013,11 +2234,212 @@ describe("multi-map raid prep progress", () => {
     ).toBe(false);
   });
 
+  it("keeps dump objective order instead of putting this map first", () => {
+    const seq = collectRaidPrepSequenceGroups(meme, "customs");
+    expect(seq.map((row) => row.mapLabel)).toEqual([
+      "塔科夫街区",
+      "海关",
+      "森林",
+    ]);
+    expect(seq.map((row) => row.onThisMap)).toEqual([false, true, false]);
+    expect(seq[1]?.objectives.map((row) => row.id)).toEqual(["c1"]);
+    expect(seq[0]?.objectives.map((row) => row.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("keeps dump order when this-map step is last", () => {
+    const polikhim: RaidPrepTaskLike = {
+      id: "p",
+      objectives: [
+        {
+          id: "ex",
+          type: "extract",
+          description: "使用转移功能从海关转移到工厂",
+          maps: [{ slug: "customs", name: "海关" }],
+        },
+        {
+          id: "find",
+          type: "findQuestItem",
+          description: "在海关找到精密工具",
+          maps: [{ slug: "customs", name: "海关" }],
+        },
+        {
+          id: "plant",
+          type: "plantQuestItem",
+          description: "在工厂藏匿精密工具",
+          maps: [
+            { slug: "factory", name: "工厂" },
+            { slug: "night-factory", name: "夜间工厂" },
+          ],
+        },
+      ],
+    };
+    const seq = collectRaidPrepSequenceGroups(polikhim, "factory");
+    expect(seq.map((row) => row.mapLabel)).toEqual(["海关", "工厂"]);
+    expect(seq.map((row) => row.onThisMap)).toEqual([false, true]);
+    expect(seq[0]?.objectives.map((row) => row.id)).toEqual(["find", "ex"]);
+    expect(seq[1]?.objectives.map((row) => row.id)).toEqual(["plant"]);
+    expect(
+      collectRaidPrepSequenceGroups(polikhim, "customs")[0]?.objectives.map(
+        (row) => row.id,
+      ),
+    ).toEqual(["find", "ex"]);
+    expect(seq[0]?.altMaps).toEqual([]);
+    expect(seq[1]?.altMaps.map((row) => row.label)).toEqual(["夜间工厂"]);
+    expect(formatRaidPrepSequenceMapTitle(seq[1]!)).toBe("工厂/夜间工厂");
+    expect(formatRaidPrepSequenceMapTitle(seq[0]!)).toBe("海关");
+    expect(formatRaidPrepAltMapsLead(seq[1]?.altMaps, "step")).toBe(
+      "此步骤也可在夜间工厂完成",
+    );
+  });
+
+  it("does not pull a later same-map handover in front of an extract", () => {
+    const snatch: RaidPrepTaskLike = {
+      id: "snatch",
+      objectives: [
+        {
+          id: "ex",
+          type: "extract",
+          description: "撤离灯塔",
+          maps: [{ slug: "lighthouse", name: "灯塔" }],
+        },
+        {
+          id: "find",
+          type: "findQuestItem",
+          description: "在灯塔找到伪造的情报",
+          maps: [{ slug: "lighthouse", name: "灯塔" }],
+        },
+        {
+          id: "plant",
+          type: "plantQuestItem",
+          description: "在储备站调包",
+          maps: [{ slug: "reserve", name: "储备站" }],
+        },
+        {
+          id: "give",
+          type: "giveQuestItem",
+          description: "将原始情报带给Lightkeeper",
+          maps: [{ slug: "lighthouse", name: "灯塔" }],
+        },
+      ],
+    };
+    const seq = collectRaidPrepSequenceGroups(snatch, "lighthouse");
+    expect(seq.map((row) => row.objectives.map((item) => item.id))).toEqual([
+      ["find", "ex"],
+      ["plant"],
+      ["give"],
+    ]);
+  });
+
+  it("scopes factory/night alts to that map group, not the whole task", () => {
+    const task: RaidPrepTaskLike = {
+      id: "is-this-a-reference",
+      name: "这是什么梗？",
+      objectives: [
+        {
+          id: "s1",
+          type: "mark",
+          description: "在塔科夫街区安装摄像头",
+          maps: [{ slug: "streets", name: "塔科夫街区" }],
+        },
+        {
+          id: "c1",
+          type: "mark",
+          description: "在海关安装摄像头",
+          maps: [{ slug: "customs", name: "海关" }],
+        },
+        {
+          id: "f1",
+          type: "mark",
+          description: "在工厂办公室安装摄像头",
+          maps: [
+            { slug: "factory", name: "工厂" },
+            { slug: "night-factory", name: "夜间工厂" },
+          ],
+        },
+      ],
+    };
+    const onFactory = collectRaidPrepSequenceGroups(task, "factory");
+    expect(onFactory.map((row) => formatRaidPrepSequenceMapTitle(row))).toEqual([
+      "塔科夫街区",
+      "海关",
+      "工厂/夜间工厂",
+    ]);
+    expect(onFactory.map((row) => row.altMaps.map((item) => item.label))).toEqual([
+      [],
+      [],
+      ["夜间工厂"],
+    ]);
+    const onNight = collectRaidPrepSequenceGroups(task, "night-factory");
+    const nightLast = onNight[onNight.length - 1];
+    expect(nightLast?.onThisMap).toBe(true);
+    expect(nightLast?.mapLabel).toBe("夜间工厂");
+    expect(nightLast?.altMaps.map((item) => item.label)).toEqual(["工厂"]);
+    expect(formatRaidPrepSequenceMapTitle(nightLast!)).toBe("工厂/夜间工厂");
+    expect(onNight[0]?.altMaps).toEqual([]);
+  });
+
+  it("falls back to per-step alts when a group does not share them", () => {
+    const task: RaidPrepTaskLike = {
+      id: "mixed-alts",
+      objectives: [
+        {
+          id: "day",
+          type: "visit",
+          description: "只在白天工厂",
+          maps: [{ slug: "factory", name: "工厂" }],
+        },
+        {
+          id: "both",
+          type: "visit",
+          description: "日夜都能做",
+          maps: [
+            { slug: "factory", name: "工厂" },
+            { slug: "night-factory", name: "夜间工厂" },
+          ],
+        },
+      ],
+    };
+    const seq = collectRaidPrepSequenceGroups(task, "factory");
+    expect(seq).toHaveLength(1);
+    expect(seq[0]?.altMaps).toEqual([]);
+    expect(
+      seq[0]?.objectives.map((row) => row.altMaps?.map((item) => item.label) || []),
+    ).toEqual([[], ["夜间工厂"]]);
+  });
+
+  it("joins shared OR maps in dump order for the group title", () => {
+    const task: RaidPrepTaskLike = {
+      id: "shooter",
+      objectives: [
+        {
+          id: "c",
+          type: "shoot",
+          description: "在海关或灯塔使用栓动式步枪爆头击杀 PMC",
+          maps: [
+            { slug: "customs", name: "海关" },
+            { slug: "lighthouse", name: "灯塔" },
+          ],
+        },
+      ],
+    };
+    expect(
+      formatRaidPrepSequenceMapTitle(
+        collectRaidPrepSequenceGroups(task, "customs")[0]!,
+      ),
+    ).toBe("海关/灯塔");
+    expect(
+      formatRaidPrepSequenceMapTitle(
+        collectRaidPrepSequenceGroups(task, "lighthouse")[0]!,
+      ),
+    ).toBe("海关/灯塔");
+  });
+
   it("groups remaining maps for the prep popup", () => {
     const groups = collectRaidPrepOtherMapGroups(meme, "streets");
     expect(formatRaidPrepOtherMapsLead(groups)).toBe(
       "此任务还需在海关、森林完成",
     );
+    expect(splitRaidPrepOtherMapGroups(groups).allowed).toEqual([]);
     expect(groups.map((row) => row.mapLabel)).toEqual(["海关", "森林"]);
     expect(groups[0]?.lines).toEqual(["在海关的旧加油站安装Wi-Fi摄像头"]);
     expect(groups[1]?.lines).toEqual(["在森林的木屋处安装Wi-Fi摄像头"]);
@@ -2031,6 +2453,167 @@ describe("multi-map raid prep progress", () => {
       "海关",
       "森林",
     ]);
+  });
+
+  it("treats extra maps on the same step as also-allowed", () => {
+    const huntsman: RaidPrepTaskLike = {
+      id: "h",
+      name: "爱死者的使命",
+      objectives: [
+        {
+          id: "o1",
+          type: "shoot",
+          description:
+            "在灯塔、海关或储备站使用装有Valday PS-320 1/6x瞄准镜与消音器的AK-12击杀PMC行动员",
+          count: 10,
+          maps: [
+            { slug: "lighthouse", name: "灯塔" },
+            { slug: "customs", name: "海关" },
+            { slug: "reserve", name: "储备站" },
+          ],
+        },
+      ],
+    };
+    const groups = collectRaidPrepOtherMapGroups(huntsman, "customs");
+    expect(formatRaidPrepOtherMapsLead(groups)).toBe(
+      "此任务也可在储备站、灯塔完成",
+    );
+    expect(groups.map((row) => row.mapLabel)).toEqual(["储备站", "灯塔"]);
+    expect(groups.every((row) => row.lines.length === 0)).toBe(true);
+    expect(splitRaidPrepOtherMapGroups(groups).required).toEqual([]);
+  });
+
+  it("joins also-allowed and still-required maps in one lead", () => {
+    expect(
+      formatRaidPrepOtherMapsLead([
+        { mapSlug: "reserve", mapLabel: "储备站", lines: [] },
+        {
+          mapSlug: "woods",
+          mapLabel: "森林",
+          lines: ["在森林安装摄像头"],
+        },
+      ]),
+    ).toBe("此任务也可在储备站完成，还需在森林完成");
+  });
+});
+
+describe("collectRaidPrepFailChips", () => {
+  it("merges exclusive tasks and keeps other fail types", () => {
+    expect(
+      collectRaidPrepFailChips([
+        {
+          type: "taskStatus",
+          tasks: [
+            {
+              id: "curio",
+              name: "好奇心",
+              trader_slug: "prapor",
+              trader_name: "Prapor（俄商）",
+            },
+          ],
+        },
+        {
+          type: "taskStatus",
+          tasks: [
+            {
+              id: "big",
+              name: "大客户",
+              trader_slug: "skier",
+              trader_name: "Skier（走私客）",
+            },
+          ],
+        },
+        {
+          type: "extract",
+          id: "f-die",
+          description: "f-die",
+          exit_status: ["Killed", "Left", "MissingInAction"],
+        },
+        {
+          type: "useItem",
+          description: "任务进行期间不得使用任何医疗用品",
+        },
+      ]),
+    ).toEqual([
+      {
+        type: "taskStatus",
+        text: "完成该任务会使好奇心、大客户失败",
+        tasks: [
+          {
+            id: "curio",
+            name: "好奇心",
+            traderSlug: "prapor",
+            traderName: "Prapor（俄商）",
+          },
+          {
+            id: "big",
+            name: "大客户",
+            traderSlug: "skier",
+            traderName: "Skier（走私客）",
+          },
+        ],
+      },
+      {
+        type: "extract",
+        text: "不得以阵亡、离开、失踪状态离开战局",
+      },
+      {
+        type: "useItem",
+        text: "任务进行期间不得使用任何医疗用品",
+      },
+    ]);
+  });
+
+  it("uses trader standing fallback when locale is missing", () => {
+    expect(
+      collectRaidPrepFailChips([
+        {
+          type: "traderStanding",
+          trader: { id: "lk", name: "Lightkeeper（灯塔商人）" },
+        },
+      ]),
+    ).toEqual([
+      {
+        type: "traderStanding",
+        text: "Lightkeeper（灯塔商人）声望过低则失败",
+      },
+    ]);
+  });
+
+  it("prefers short extract text and skips arena/plant fails", () => {
+    expect(
+      collectRaidPrepFailChips([
+        {
+          type: "extract",
+          description: "任务进行过程中不得死亡，或以其它状态离开战局（阵亡、擅离、失踪、匆匆逃离均会导致失败）",
+          exit_status: ["Killed", "Left", "MissingInAction"],
+        },
+        {
+          type: "shoot",
+          description: "任务进行期间不得击杀海关的 Scav",
+        },
+        { type: "visit", description: "失败条件：在 5 场比赛中落败" },
+        { type: "plantItem", description: "673f5069fd98c4d6d89e7a4c" },
+      ]),
+    ).toEqual([
+      {
+        type: "extract",
+        text: "不得以阵亡、离开、失踪状态离开战局",
+      },
+      {
+        type: "shoot",
+        text: "任务进行期间不得击杀海关的 Scav",
+      },
+    ]);
+  });
+
+  it("labels fail chips as conflict / extract / ban / standing", () => {
+    expect(tarkovFailConditionTypeLabel("taskStatus")).toBe("任务冲突");
+    expect(tarkovFailConditionTypeLabel("extract")).toBe("撤离失败");
+    expect(tarkovFailConditionTypeLabel("useItem")).toBe("禁止使用");
+    expect(tarkovFailConditionTypeLabel("traderStanding")).toBe("商人声望");
+    expect(tarkovFailConditionTypeLabel("shoot")).toBe("禁止击杀");
+    expect(tarkovFailConditionTypeLabel("visit")).toBe("");
   });
 });
 

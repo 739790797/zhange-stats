@@ -9,13 +9,24 @@ export function eftarkovTaskGuideUrl(taskId: string): string | null {
   return `${EFTARKOV_GUIDE_ORIGIN}/news/id/${encodeURIComponent(id)}.html`;
 }
 
-/** 在已选任务中解析当前应展示攻略的任务 id */
+/** 点任务名打开攻略时保留该 id；未指定才回落到已勾选的第一条。 */
 export function resolveRaidPrepGuideId(
   selectedIds: readonly string[],
   guideParam: string,
 ): string {
-  if (!selectedIds.length) return "";
   const guide = guideParam.trim();
-  if (guide && selectedIds.includes(guide)) return guide;
-  return selectedIds[0];
+  if (guide) return guide;
+  return selectedIds[0] || "";
+}
+
+/** 点开的任务若尚未勾选，仍并进攻略侧栏，避免 iframe 被已选第一条顶掉。 */
+export function mergeRaidPrepGuideTasks<T extends { id: string }>(
+  selected: readonly T[],
+  catalog: readonly T[],
+  activeId: string,
+): T[] {
+  const id = activeId.trim();
+  if (!id || selected.some((row) => row.id === id)) return [...selected];
+  const extra = catalog.find((row) => row.id === id);
+  return extra ? [extra, ...selected] : [...selected];
 }

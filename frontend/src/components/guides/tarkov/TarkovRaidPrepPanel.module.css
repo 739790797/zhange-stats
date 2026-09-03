@@ -1048,8 +1048,28 @@
   white-space: normal;
 }
 
-.taskObjLineDone > span:first-child {
+.taskObjLineDone .taskObjStepText {
   text-decoration: line-through;
+}
+
+.taskObjSeq {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.taskObjSeqGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.taskObjSeqGroup > .taskObjOtherMapsLead {
+  margin-bottom: 4px;
+}
+
+.taskObjSeqMapHere {
+  color: var(--hb-orange, #c8932a);
 }
 
 .taskObjOtherMaps {
@@ -1059,6 +1079,12 @@
   margin-top: 4px;
   padding-top: 8px;
   border-top: 1px solid #3a3d30;
+}
+
+.taskObjOtherMapsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .taskObjOtherMapsLead {
@@ -1080,9 +1106,86 @@
 }
 
 .taskObjOtherMapLine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   color: #9a9788;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.taskObjStep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.taskObjItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #e8c36a;
+}
+
+.taskObjItemIcon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: none;
+  background: #5c5f50;
+  border: 1px solid #7a7d6c;
+}
+
+.taskObjFails {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3d30;
+}
+
+.taskObjFail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.taskObjFailChip {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid #8a3030;
+  color: #e07070;
+  background: rgba(224, 112, 112, 0.14);
+  font-size: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.taskObjFailText {
+  color: #c8b4b0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.taskObjFailMark {
+  color: #e07070;
+}
+
+.taskObjFailName {
+  white-space: nowrap;
+}
+
+.taskObjFailThumb {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 4px;
 }
 
 .taskObjKeys {
@@ -1121,7 +1224,8 @@
 .taskObjFloat .taskObjTitle,
 .taskObjFloat .taskObjLine,
 .taskObjFloat .taskObjLineDone,
-.taskObjFloat .taskObjOtherMapLine {
+.taskObjFloat .taskObjOtherMapLine,
+.taskObjFloat .taskObjFailText {
   max-width: 100%;
   overflow-wrap: anywhere;
 }

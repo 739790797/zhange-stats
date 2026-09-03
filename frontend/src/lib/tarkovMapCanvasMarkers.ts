@@ -5,6 +5,8 @@ export const ICON_CANVAS_PADDING = 0.45;
 export const ICON_CANVAS_Z_INDEX = "580";
 export const CANVAS_MARKER_EVENT = "_zhangeTarkovCanvasHit";
 
+export type TarkovCanvasMarkerBadge = "own" | "missing" | "teammate";
+
 export type TarkovCanvasMarker = {
   id: string;
   x: number;
@@ -15,6 +17,7 @@ export type TarkovCanvasMarker = {
   tooltipHtml: string;
   onClick?: () => void;
   zIndex?: number;
+  badge?: TarkovCanvasMarkerBadge;
 };
 
 export type TarkovCanvasIconHit = {

@@ -1,4 +1,4 @@
-"""塔科夫钥匙分包：api.tarkov.dev 门锁 / 入场钥按地图归包，目录补中文名。"""
+"""塔科夫钥匙分包：json.tarkov.dev maps 门锁 / 入场钥按地图归包，目录补中文名。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services.tarkov.ammo import TARKOV_GRAPHQL_URL
 from app.services.tarkov.bosses import MAP_ZH
 from app.services.tarkov.catalog import (
     KEYS_HANDBOOK_IDS,
@@ -17,7 +16,6 @@ from app.services.tarkov.catalog import (
     load_parsed_catalog,
 )
 from app.services.tarkov.game_mode import (
-    graphql_game_mode,
     json_resource_url,
     parse_game_mode,
 )
@@ -30,25 +28,13 @@ from app.services.tarkov.tasks import TRADER_BY_ID, TarkovTasksError, load_parse
 
 logger = logging.getLogger(__name__)
 
-_LOCKS_QUERY = """
-query MapLocks($lang: LanguageCode, $gameMode: GameMode) {
-  maps(lang: $lang, gameMode: $gameMode) {
-    name
-    normalizedName
-    accessKeys { id name shortName iconLink }
-    locks { lockType needsPower key { id name shortName iconLink } }
-  }
-}
-""".strip()
-
 _CACHE_TTL_SEC = 3600
 _CACHE_VER = "locks-v3"
 _lock_cache: dict[str, dict[str, Any]] = {}
 
-SOURCE_GRAPHQL = "api.tarkov.dev maps.locks"
 SOURCE_JSON = "json.tarkov.dev maps.locks"
 SOURCE_STALE = "stale cache"
-UNAVAILABLE_MSG = "钥匙分类暂时拉不到门锁数据（tarkov.dev 接口不可用）。请稍后再试。"
+UNAVAILABLE_MSG = "钥匙分类暂时拉不到门锁数据（json.tarkov.dev 不可用）。请稍后再试。"
 
 # 门锁 / 入场钥未收录时的第二优先：eftarkov.com 物品页面包屑（海岸线/海关/街区/储备站/破冰船钥匙）。
 # 不在运行时爬站。官方 locks / accessKeys 已绑定的 id 不会被覆盖。
@@ -682,16 +668,6 @@ def attach_key_usage(
     return grouped
 
 
-def parse_locks_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    if payload.get("errors"):
-        raise TarkovKeyPacksError(f"api.tarkov.dev 错误: {payload.get('errors')}")
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    rows = data.get("maps") if isinstance(data, dict) else None
-    if not isinstance(rows, list):
-        raise TarkovKeyPacksError("tarkov.dev maps 门锁响应无效")
-    return [row for row in rows if isinstance(row, dict)]
-
-
 def maps_have_lock_data(maps: list[Any]) -> bool:
     """BOSS 精简包只有出生点，没有 locks / accessKeys，不能当门锁源。"""
     for row in maps:
@@ -744,27 +720,6 @@ def _decode_json_object(raw: bytes, *, label: str) -> dict[str, Any]:
     return payload
 
 
-def _fetch_graphql_locks(*, lang: str) -> list[dict[str, Any]]:
-    body = json.dumps(
-        {
-            "query": _LOCKS_QUERY,
-            "variables": {"lang": lang, "gameMode": graphql_game_mode()},
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
-    raw = _http_request(
-        TARKOV_GRAPHQL_URL,
-        method="POST",
-        body=body,
-        headers={"Content-Type": "application/json"},
-        timeout=20,
-    )
-    maps = parse_locks_payload(_decode_json_object(raw, label="tarkov.dev maps 门锁"))
-    if not maps_have_lock_data(maps):
-        raise TarkovKeyPacksError("api.tarkov.dev maps 没有门锁")
-    return maps
-
-
 def _fetch_json_locks() -> list[dict[str, Any]]:
     raw = _http_request(json_resource_url("maps"), timeout=120)
     return parse_json_maps_locks(_decode_json_object(raw, label="json.tarkov.dev maps 门锁"))
@@ -786,7 +741,6 @@ def _locks_from_persisted(db: Session) -> list[dict[str, Any]] | None:
 
 def fetch_map_locks(
     *,
-    lang: str = "zh",
     db: Session | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
     now = time.time()
@@ -794,7 +748,7 @@ def fetch_map_locks(
     key = _cache_key(mode)
     entry = _lock_cache.get(key) or {}
     cached = entry.get("maps")
-    cached_source = str(entry.get("source") or SOURCE_GRAPHQL)
+    cached_source = str(entry.get("source") or SOURCE_JSON)
     if (
         isinstance(cached, list)
         and cached
@@ -810,14 +764,6 @@ def fetch_map_locks(
             return persisted, SOURCE_JSON
 
     errors: list[str] = []
-    try:
-        maps = _fetch_graphql_locks(lang=lang)
-        _lock_cache[key] = {"at": now, "maps": maps, "source": SOURCE_GRAPHQL}
-        return maps, SOURCE_GRAPHQL
-    except TarkovKeyPacksError as exc:
-        errors.append(f"graphql: {exc}")
-        logger.warning("key packs api.tarkov.dev locks failed: %s", exc)
-
     try:
         maps = _fetch_json_locks()
         _lock_cache[key] = {"at": now, "maps": maps, "source": SOURCE_JSON}
@@ -894,7 +840,7 @@ def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
 def _merge_note(catalog_note: str | None, source: str) -> str | None:
     extra = ""
     if source == SOURCE_JSON:
-        extra = "门锁来自 json.tarkov.dev（api.tarkov.dev 暂不可用）"
+        extra = "门锁来自 json.tarkov.dev"
     elif source == SOURCE_STALE:
         extra = "门锁为缓存（上游暂不可用）"
     if extra and catalog_note:
@@ -903,7 +849,7 @@ def _merge_note(catalog_note: str | None, source: str) -> str | None:
 
 
 def list_key_packs(db: Session) -> dict[str, Any]:
-    maps, source = fetch_map_locks(lang="zh", db=db)
+    maps, source = fetch_map_locks(db=db)
     catalog_rows, synced_at, note = _catalog_rows(db)
     grouped = group_key_packs(maps, catalog_rows)
     barters, crafts = _guides_for_sources(db)

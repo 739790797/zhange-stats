@@ -48,7 +48,7 @@ cd frontend && npm install && npm run dev
 
 - API：http://127.0.0.1:6130/docs · 前端：http://127.0.0.1:6131
 - 启动时自动 `alembic upgrade`；改表：`alembic revision --autogenerate -m "..."`（见 [`backend/alembic/README.md`](../backend/alembic/README.md)），并同步 [`database.md`](database.md)
-- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `var/data/`、`var/uploads/`；相对路径相对仓库根，不跟 `backend/` cwd）。上游 HTTP 走进程级 `httpx` 连接池；可选 `REDIS_URL` 与 `DB_POOL_SIZE` 见 `.env.example`
+- 环境变量说明见 `.env.example`。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；本地 Vite 与战鸽助手（Tauri `https://tauri.localhost`）走默认正则，可用 `CORS_ORIGINS` / `CORS_ORIGIN_REGEX` 覆盖。QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `var/data/`、`var/uploads/`；相对路径相对仓库根，不跟 `backend/` cwd）。上游 HTTP 走进程级 `httpx` 连接池；可选 `REDIS_URL` 与 `DB_POOL_SIZE` 见 `.env.example`
 - 平台可用性：管理员在 **管理 → 任务配置** 按平台 / 游戏 / 任务级联开关
 - **管理端一键更新仅面向 production / LXC**；Windows 开发机默认不可用（`APP_ENV=development`）
 

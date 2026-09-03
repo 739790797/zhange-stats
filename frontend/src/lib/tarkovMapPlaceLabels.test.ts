@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { findInteractiveMap } from "./tarkovMapImages";
+import rawMaps from "@/data/tarkov-dev-maps.json";
+import { findInteractiveMap, type TarkovDevMapGroup } from "./tarkovMapImages";
+import { mapLayerFloorBands } from "./tarkovRaidPrep";
 import {
   fallbackPlacesForImport,
   hasCustomMapPlaceLabels,
@@ -12,6 +14,7 @@ import {
   placeVisibleOnFloor,
   resolveMapPlaceLabels,
   translatePlaceByCenter,
+  type ResolvedMapPlace,
 } from "./tarkovMapPlaceLabels";
 
 function overlayTexts(slug: string): string[] {
@@ -154,9 +157,35 @@ describe("resolveMapPlaceLabels", () => {
   });
 
   it("hides floor-scoped places on other levels", () => {
-    expect(placeVisibleOnFloor("", "2nd Floor")).toBe(true);
-    expect(placeVisibleOnFloor("2nd Floor", "2nd Floor")).toBe(true);
-    expect(placeVisibleOnFloor("2nd Floor", "")).toBe(false);
+    const onAny = { floor: "", top: 0, bottom: 0, x: 0, z: 0, position: [0, 0, 0] };
+    const onSecond = { ...onAny, floor: "2nd Floor" };
+    expect(placeVisibleOnFloor(onAny, "2nd Floor")).toBe(true);
+    expect(placeVisibleOnFloor(onSecond, "2nd Floor")).toBe(true);
+    expect(placeVisibleOnFloor(onSecond, "")).toBe(false);
+  });
+
+  it("filters interchange store labels by height so mall floors do not stack", () => {
+    const layer = findInteractiveMap("interchange");
+    expect(layer).toBeTruthy();
+    const bands = mapLayerFloorBands(layer);
+    const byText = new Map(
+      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+    );
+    const idea = byText.get("IDEA");
+    const goshan = byText.get("好圣");
+    const garage = byText.get("车库 A");
+    const third = byText.get("父与子");
+    expect(idea && goshan && garage && third).toBeTruthy();
+    expect(placeVisibleOnFloor(idea!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(idea!, "2nd Floor", bands)).toBe(true);
+    expect(placeVisibleOnFloor(idea!, "3rd Floor", bands)).toBe(false);
+    expect(placeVisibleOnFloor(goshan!, "2nd Floor", bands)).toBe(true);
+    expect(placeVisibleOnFloor(goshan!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(garage!, "", bands)).toBe(true);
+    expect(placeVisibleOnFloor(garage!, "2nd Floor", bands)).toBe(false);
+    expect(placeVisibleOnFloor(third!, "3rd Floor", bands)).toBe(true);
+    expect(placeVisibleOnFloor(third!, "2nd Floor", bands)).toBe(false);
+    expect(placeVisibleOnFloor(third!, "", bands)).toBe(false);
   });
 
   it("splits and centers multi-line names", () => {
@@ -173,5 +202,142 @@ describe("resolveMapPlaceLabels", () => {
     const items = fallbackPlacesForImport(layer!);
     expect(items.some((row) => row.name === "真别墅")).toBe(true);
     expect(items.every((row) => row.kind === "point")).toBe(true);
+  });
+});
+
+function placeXZ(row: ResolvedMapPlace): { x: number; z: number } {
+  return {
+    x: row.x ?? row.position[0],
+    z: row.z ?? row.position[1],
+  };
+}
+
+function placeHasHeight(row: ResolvedMapPlace): boolean {
+  return Number.isFinite(row.top) || Number.isFinite(row.bottom);
+}
+
+function selectableFloors(layer: NonNullable<ReturnType<typeof findInteractiveMap>>): string[] {
+  const named = (layer.layers || [])
+    .filter((floor) => floor.svgLayer || floor.tilePath)
+    .map((floor) => floor.name);
+  return ["", ...named];
+}
+
+describe("place labels on every interactive map", () => {
+  const groups = rawMaps as TarkovDevMapGroup[];
+
+  it("splits same-spot labels that have disjoint height onto different floors", () => {
+    const stacks: string[] = [];
+    for (const group of groups) {
+      const layer = findInteractiveMap(group.normalizedName);
+      if (!layer) continue;
+      const bands = mapLayerFloorBands(layer);
+      const places = resolveMapPlaceLabels(layer);
+      const floors = selectableFloors(layer);
+      for (const floor of floors) {
+        const visible = places.filter((row) =>
+          placeVisibleOnFloor(row, floor, bands),
+        );
+        for (let i = 0; i < visible.length; i += 1) {
+          const a = visible[i]!;
+          if (!placeHasHeight(a)) continue;
+          const aAt = placeXZ(a);
+          for (let j = i + 1; j < visible.length; j += 1) {
+            const b = visible[j]!;
+            if (!placeHasHeight(b)) continue;
+            const bAt = placeXZ(b);
+            const dx = aAt.x - bAt.x;
+            const dz = aAt.z - bAt.z;
+            if (dx * dx + dz * dz > 18 * 18) continue;
+            const aLo = Math.min(a.bottom ?? a.top ?? 0, a.top ?? a.bottom ?? 0);
+            const aHi = Math.max(a.bottom ?? a.top ?? 0, a.top ?? a.bottom ?? 0);
+            const bLo = Math.min(b.bottom ?? b.top ?? 0, b.top ?? b.bottom ?? 0);
+            const bHi = Math.max(b.bottom ?? b.top ?? 0, b.top ?? b.bottom ?? 0);
+            if (aHi < bLo || bHi < aLo) {
+              stacks.push(
+                `${group.normalizedName} ${floor || "ground"}: ${a.text} × ${b.text}`,
+              );
+            }
+          }
+        }
+      }
+    }
+    expect(stacks).toEqual([]);
+  });
+
+  it("keeps factory office/tunnel names on the floors their height belongs to", () => {
+    const layer = findInteractiveMap("factory");
+    expect(layer).toBeTruthy();
+    const bands = mapLayerFloorBands(layer);
+    const byText = new Map(
+      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+    );
+    const lockers = byText.get("更衣室");
+    const mainOffice = byText.get("主办公区");
+    const stash = byText.get("地下藏匿点");
+    expect(lockers && mainOffice && stash).toBeTruthy();
+    expect(placeVisibleOnFloor(lockers!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(lockers!, "2nd Floor", bands)).toBe(true);
+    expect(placeVisibleOnFloor(lockers!, "3rd Floor", bands)).toBe(false);
+    expect(placeVisibleOnFloor(mainOffice!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(mainOffice!, "2nd Floor", bands)).toBe(false);
+    expect(placeVisibleOnFloor(mainOffice!, "3rd Floor", bands)).toBe(true);
+    expect(placeVisibleOnFloor(stash!, "Tunnels", bands)).toBe(true);
+    expect(placeVisibleOnFloor(stash!, "3rd Floor", bands)).toBe(false);
+  });
+
+  it("keeps labs level-1 and level-2 names from stacking at the same spot", () => {
+    const layer = findInteractiveMap("the-lab");
+    expect(layer).toBeTruthy();
+    const bands = mapLayerFloorBands(layer);
+    const byText = new Map(
+      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+    );
+    const vestibule = byText.get("门厅 1");
+    const security = byText.get("安保 1");
+    const infirmary1 = byText.get("医务室 1 层");
+    const infirmary2 = byText.get("医务室 2 层");
+    expect(vestibule && security && infirmary1 && infirmary2).toBeTruthy();
+    expect(placeVisibleOnFloor(vestibule!, "", bands)).toBe(true);
+    expect(placeVisibleOnFloor(vestibule!, "Second Level", bands)).toBe(false);
+    expect(placeVisibleOnFloor(security!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(security!, "Second Level", bands)).toBe(true);
+    expect(placeVisibleOnFloor(infirmary1!, "", bands)).toBe(true);
+    expect(placeVisibleOnFloor(infirmary1!, "Second Level", bands)).toBe(false);
+    expect(placeVisibleOnFloor(infirmary2!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(infirmary2!, "Second Level", bands)).toBe(true);
+  });
+
+  it("keeps ground zero office/winery names on the floors their height belongs to", () => {
+    const layer = findInteractiveMap("ground-zero");
+    expect(layer).toBeTruthy();
+    const bands = mapLayerFloorBands(layer);
+    const byText = new Map(
+      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+    );
+    const office = byText.get("科学办公室");
+    const winery = byText.get("ASAP 酒庄");
+    expect(office && winery).toBeTruthy();
+    expect(placeVisibleOnFloor(office!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(office!, "2nd Floor", bands)).toBe(true);
+    expect(placeVisibleOnFloor(winery!, "", bands)).toBe(true);
+    expect(placeVisibleOnFloor(winery!, "2nd Floor", bands)).toBe(false);
+    expect(placeVisibleOnFloor(winery!, "3rd Floor", bands)).toBe(false);
+  });
+
+  it("keeps height on every map whose upstream labels actually use top/bottom", () => {
+    const lost: string[] = [];
+    for (const group of groups) {
+      const layer = findInteractiveMap(group.normalizedName);
+      if (!layer) continue;
+      const raw = (layer.labels || []).filter(
+        (row) => Number.isFinite(row.top) || Number.isFinite(row.bottom),
+      );
+      if (!raw.length) continue;
+      if (hasCustomMapPlaceLabels(group.normalizedName)) continue;
+      const resolved = resolveMapPlaceLabels(layer).filter(placeHasHeight);
+      if (!resolved.length) lost.push(group.normalizedName);
+    }
+    expect(lost).toEqual([]);
   });
 });

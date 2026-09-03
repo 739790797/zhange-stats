@@ -14,6 +14,7 @@ from app.services.tarkov import bosses as bosses_svc
 from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import key_packs as key_packs_svc
+from app.services.tarkov import overlay as overlay_svc
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import upstream as upstream_svc
@@ -164,14 +165,14 @@ def _seed_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _apply_extras(db: Session, *, lang: str = "zh") -> dict[str, Any]:
-    data = upstream_svc.download_graphql_extras(lang=lang)
+def _apply_extras(db: Session, dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    data = upstream_svc.extras_from_site_dump(dump)
     return upstream_svc.persist_raw(
         db,
         upstream_svc.EXTRAS_RESOURCE,
         data,
-        source="api.tarkov.dev",
-        note="api.tarkov.dev extras",
+        source=SOURCE_JSON_API,
+        note=f"json.tarkov.dev/{json_api_prefix()} extras",
     )
 
 
@@ -202,6 +203,13 @@ def _sync_current_mode(db: Session, *, lang: str = "zh") -> list[dict[str, Any]]
             _domain_row("dump", ok=False, error=str(exc)),
         ]
 
+    try:
+        overlay = overlay_svc.sync_overlay(db)
+        domains.append(_domain_row("overlay", ok=True, result=overlay))
+    except overlay_svc.TarkovOverlayError as exc:
+        logger.warning("tarkov overlay dump failed (%s): %s", mode, exc)
+        domains.append(_domain_row("overlay", ok=False, error=str(exc)))
+
     for domain_id, fn, error_cls in _APPLY_STEPS:
         try:
             result = fn(db, dump)
@@ -211,7 +219,7 @@ def _sync_current_mode(db: Session, *, lang: str = "zh") -> list[dict[str, Any]]
             domains.append(_domain_row(domain_id, ok=False, error=str(exc)))
 
     try:
-        extras = _apply_extras(db, lang=lang)
+        extras = _apply_extras(db, dump)
         domains.append(_domain_row("extras", ok=True, result=extras))
     except upstream_svc.TarkovUpstreamError as exc:
         logger.warning("tarkov extras dump failed: %s", exc)
@@ -226,7 +234,7 @@ def sync_all_from_upstream(
     game_mode: str | None = None,
     lang: str = "zh",
 ) -> dict[str, Any]:
-    """拉齐 json.tarkov.dev 全文件与 api.tarkov.dev extras；raw 只写一次，再派生弹药/枪械。"""
+    """拉齐 json.tarkov.dev 全文件；raw 只写一次，再派生弹药/枪械。 extras 从 dump 投影。"""
     domains: list[dict[str, Any]] = []
     for mode in sync_modes(game_mode):
         with game_mode_scope(mode):

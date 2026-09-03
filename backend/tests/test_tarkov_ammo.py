@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from app.services.tarkov import ammo as svc
@@ -105,38 +103,3 @@ def test_parse_json_api_ammo():
     assert rows[0]["short_name"] == "M855"
     assert rows[0]["caliber"] == "5.56x45mm"
     assert rows[0]["initial_speed"] == 922
-
-
-def test_download_graphql_ammo_posts_json(monkeypatch: pytest.MonkeyPatch):
-    captured: dict = {}
-
-    def fake_http(url, *, method="GET", body=None, headers=None, timeout=120):  # noqa: ANN001
-        captured["url"] = url
-        captured["method"] = method
-        captured["body"] = body
-        captured["headers"] = headers
-        return json.dumps(
-            {
-                "data": {
-                    "ammo": [
-                        {
-                            "caliber": "9x19mm",
-                            "damage": 50,
-                            "penetrationPower": 20,
-                            "armorDamage": 27,
-                            "item": {"id": "a", "name": "PST", "shortName": "PST"},
-                        }
-                    ]
-                }
-            }
-        ).encode()
-
-    monkeypatch.setattr(svc, "_http_request", fake_http)
-    bundle = svc.download_graphql_ammo(lang="zh")
-    assert captured["method"] == "POST"
-    assert captured["url"] == svc.TARKOV_GRAPHQL_URL
-    payload = json.loads(captured["body"].decode())
-    assert payload["variables"]["lang"] == "zh"
-    assert bundle.source == svc.SOURCE_GRAPHQL
-    rows = svc.parse_ammo_raw(bundle.source, bundle.payload)
-    assert len(rows) == 1

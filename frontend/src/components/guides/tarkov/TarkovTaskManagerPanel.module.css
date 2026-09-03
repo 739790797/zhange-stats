@@ -12,13 +12,27 @@
 
 .stats {
   display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
   min-width: 0;
 }
 
 .stat {
-  flex: 0 1 0;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
-  padding-right: 8px;
+  padding-right: 16px;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.statLabel,
+.statValue {
+  flex: none;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .statLabel {
@@ -28,7 +42,6 @@
 }
 
 .statValue {
-  margin-top: 2px;
   font-size: 28px;
   font-weight: 700;
   line-height: 1.1;
@@ -531,12 +544,7 @@ a.syncHint:hover {
 }
 
 @media (max-width: 560px) {
-  .stats {
-    gap: 8px 12px;
-  }
-
   .statValue {
     font-size: 22px;
   }
-
 }

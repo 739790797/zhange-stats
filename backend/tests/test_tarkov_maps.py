@@ -7,7 +7,8 @@ import time
 from app.services.tarkov.bosses import map_xyz
 from app.services.tarkov.maps import (
     HUB_SKIP,
-    _apply_graphql_markers,
+    _apply_map_markers,
+    _fill_item_refs,
     _marker_cache,
     _marker_cache_key,
     classify_map_spawn,
@@ -167,7 +168,7 @@ def test_parse_map_rows_keeps_extract_and_boss_coords() -> None:
     assert locs and locs[0]["positions"][0]["x"] == 3
 
 
-def test_apply_graphql_markers_fills_missing_coords() -> None:
+def test_apply_map_markers_fills_missing_coords() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     _marker_cache[_marker_cache_key("pvp")] = {
         "at": time.time(),
@@ -196,7 +197,7 @@ def test_apply_graphql_markers_fills_missing_coords() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {"Shop": "商店"})
+    _apply_map_markers(factory, {"Shop": "商店"})
     gate = next(row for row in factory["extracts"] if row["id"] == "e1")
     assert gate["x"] == 10
     assert gate["z"] == 20
@@ -205,7 +206,7 @@ def test_apply_graphql_markers_fills_missing_coords() -> None:
     assert locs[0]["name"] == "商店"
 
 
-def test_apply_graphql_markers_appends_transits_when_coords_exist() -> None:
+def test_apply_map_markers_appends_transits_when_coords_exist() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     factory["extracts"] = [
         row for row in factory["extracts"] if not str(row.get("id") or "").startswith("transit:")
@@ -229,7 +230,7 @@ def test_apply_graphql_markers_appends_transits_when_coords_exist() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {"WOO_TRANSIT_15_DESC": "前往海关"})
+    _apply_map_markers(factory, {"WOO_TRANSIT_15_DESC": "前往海关"})
     transit = next(row for row in factory["extracts"] if row["id"] == "transit:99")
     assert transit["name"] == "前往海关"
     assert transit["faction"] == "转图"
@@ -237,8 +238,8 @@ def test_apply_graphql_markers_appends_transits_when_coords_exist() -> None:
     assert transit["z"] == 5
 
 
-def test_apply_graphql_markers_fills_existing_transit_coords() -> None:
-    """撤离点已有坐标、转移点已在列表但缺坐标时，仍要从 GraphQL transits 补点。"""
+def test_apply_map_markers_fills_existing_transit_coords() -> None:
+    """撤离点已有坐标、转移点已在列表但缺坐标时，仍要从 overlay transits 补点。"""
     factory = {
         "id": "factory",
         "slug": "factory",
@@ -271,7 +272,7 @@ def test_apply_graphql_markers_fills_existing_transit_coords() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {})
+    _apply_map_markers(factory, {})
     transit = next(row for row in factory["extracts"] if row["id"] == "transit:15")
     assert transit["x"] == 8
     assert transit["z"] == 9
@@ -317,11 +318,11 @@ def test_classify_map_spawn_pmc_scav_and_skip_boss() -> None:
                 "position": {"x": 1, "y": 0, "z": 2},
             }
         )
-        is None
+        == "sniper"
     )
 
 
-def test_apply_graphql_markers_fills_spawns_when_extracts_complete() -> None:
+def test_apply_map_markers_fills_spawns_when_extracts_complete() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     for row in factory["extracts"]:
         row["x"] = 1
@@ -358,7 +359,7 @@ def test_apply_graphql_markers_fills_spawns_when_extracts_complete() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {})
+    _apply_map_markers(factory, {})
     kinds = {row["kind"] for row in factory["spawns"]}
     assert kinds == {"pmc", "scav"}
     pmc = next(row for row in factory["spawns"] if row["kind"] == "pmc")
@@ -419,7 +420,11 @@ def test_parse_map_rows_projects_lock_and_hazard_coords() -> None:
     mortar = next(row for row in hazards if row["hazard_type"] == "mortar")
     assert mortar["name"] == "迫击炮"
     assert mortar["x"] == 9
-    assert "loot_loose" not in factory
+    loose = factory["loot_loose"]
+    assert len(loose) == 1
+    assert loose[0]["items"][0]["id"] == "rouble"
+    assert loose[0]["x"] == 1
+    assert loose[0]["z"] == 1
     assert "lootLoose" not in factory
 
 
@@ -531,11 +536,14 @@ def test_parse_map_rows_resolves_loot_container_catalog() -> None:
     assert box["name"] == "旅行袋"
     assert box["x"] == 1
     assert box["z"] == 2
-    assert "loot_loose" not in factory
+    loose = factory["loot_loose"]
+    assert len(loose) == 1
+    assert loose[0]["items"][0]["id"] == "rouble"
+    assert loose[0]["x"] == 9
     assert "lootLoose" not in factory
 
 
-def test_apply_graphql_markers_fills_lock_coords_when_dump_lacks_them() -> None:
+def test_apply_map_markers_fills_lock_coords_when_dump_lacks_them() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     factory["locks"] = [
         {
@@ -566,14 +574,14 @@ def test_apply_graphql_markers_fills_lock_coords_when_dump_lacks_them() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {"Dorm 114 Key": "宿舍 114"})
+    _apply_map_markers(factory, {"Dorm 114 Key": "宿舍 114"})
     lock = factory["locks"][0]
     assert lock["x"] == 21
     assert lock["z"] == 22
     assert lock["key_id"] == "dorm-114"
 
 
-def test_apply_graphql_markers_replaces_empty_locks_from_graphql() -> None:
+def test_apply_map_markers_replaces_empty_locks_from_overlay() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     for row in factory["extracts"]:
         row["x"] = 1
@@ -597,16 +605,20 @@ def test_apply_graphql_markers_replaces_empty_locks_from_graphql() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {})
+    _apply_map_markers(factory, {})
     assert len(factory["locks"]) == 1
     assert factory["locks"][0]["key_id"] == "pump"
     assert factory["locks"][0]["x"] == 5
     assert factory["locks"][0]["z"] == 6
-    assert "loot_loose" not in factory
+    loose = factory["loot_loose"]
+    assert len(loose) == 1
+    assert loose[0]["items"][0]["id"] == "rouble"
+    assert loose[0]["x"] == 1
+    assert loose[0]["z"] == 2
     assert "lootLoose" not in factory
 
 
-def test_apply_graphql_markers_fills_lock_key_names() -> None:
+def test_apply_map_markers_fills_lock_key_names() -> None:
     factory = {
         "id": "factory",
         "slug": "factory",
@@ -646,7 +658,7 @@ def test_apply_graphql_markers_fills_lock_key_names() -> None:
             }
         },
     }
-    _apply_graphql_markers(factory, {})
+    _apply_map_markers(factory, {})
     lock = factory["locks"][0]
     assert lock["key_name"] == "工厂钥匙"
     assert lock["key_short_name"] == "工厂"
@@ -676,3 +688,115 @@ def test_enrich_lock_keys_from_item_catalog() -> None:
     )
     assert locks[0]["key_name"] == "工厂钥匙"
     assert locks[0]["key_icon"] == "https://assets.tarkov.dev/factory-icon.webp"
+
+
+def test_parse_map_rows_extract_outline_switches_transfer_and_botom() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["extracts"] = [
+        {
+            "id": "zb013",
+            "name": "ZB-013",
+            "faction": "pmc",
+            "position": {"x": 10, "y": 2, "z": 20},
+            "top": 6,
+            "bottom": 0,
+            "outline": [
+                {"x": 9, "y": 2, "z": 19},
+                {"x": 11, "y": 2, "z": 19},
+                {"x": 11, "y": 2, "z": 21},
+            ],
+            "switches": ["sw-unlock"],
+            "switch": "sw-unlock",
+            "transferItem": {"item": "roubles", "count": 20000},
+        }
+    ]
+    payload["maps"]["factory"]["switches"] = [
+        {
+            "id": "sw-unlock",
+            "name": "Pumping Station",
+            "activatedBy": False,
+            "activates": [{"operation": "Unlock", "extract": "zb013"}],
+            "position": {"x": 4, "y": 1, "z": 5},
+        },
+        {
+            "id": "sw-slave",
+            "name": "Lab Elevator",
+            "activatedBy": "sw-unlock",
+            "activates": [{"operation": "Activate", "switch": "sw-unlock"}],
+            "position": {"x": 1, "y": 0, "z": 2},
+        },
+    ]
+    payload["maps"]["factory"]["artillery"] = {
+        "zones": [
+            {
+                "position": {"x": 9, "y": 2, "z": 7},
+                "top": 6,
+                "botom": 1,
+                "outline": [
+                    {"x": 8, "y": 2, "z": 6},
+                    {"x": 10, "y": 2, "z": 6},
+                    {"x": 10, "y": 2, "z": 8},
+                ],
+            }
+        ]
+    }
+    payload["maps"]["factory"]["lootLoose"] = [
+        {"items": ["roubles", "bandage"], "position": {"x": 3, "y": 0, "z": 4}}
+    ]
+    payload["maps"]["factory"]["spawns"] = [
+        {
+            "categories": ["sniper"],
+            "sides": ["scav"],
+            "zoneName": "Sniper",
+            "position": {"x": 30, "y": 8, "z": 40},
+        }
+    ]
+    payload["locale"]["Pumping Station"] = "泵站"
+    payload["locale"]["ZB-013"] = "ZB-013"
+    payload["locale"]["roubles Name"] = "卢布"
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    extract = next(row for row in factory["extracts"] if row["id"] == "zb013")
+    assert extract["top"] == 6
+    assert extract["bottom"] == 0
+    assert extract["outline"][0]["x"] == 9
+    assert extract["switches"] == [{"id": "sw-unlock", "name": "泵站"}]
+    assert extract["transfer_item"]["id"] == "roubles"
+    assert extract["transfer_item"]["count"] == 20000
+    assert extract["transfer_item"]["name"] == "卢布"
+    switch = next(row for row in factory["switches"] if row["id"] == "sw-unlock")
+    assert switch["activates"] == [
+        {"operation": "Unlock", "name": "ZB-013", "kind": "extract"}
+    ]
+    slave = next(row for row in factory["switches"] if row["id"] == "sw-slave")
+    assert slave["activated_by"] == "泵站"
+    assert slave["activates"][0]["kind"] == "switch"
+    assert slave["activates"][0]["name"] == "泵站"
+    mortar = next(row for row in factory["hazards"] if row["hazard_type"] == "mortar")
+    assert mortar["bottom"] == 1
+    assert len(mortar["outline"]) == 3
+    loose = factory["loot_loose"][0]
+    assert [item["id"] for item in loose["items"]] == ["roubles", "bandage"]
+    assert loose["items"][0]["name"] == "卢布"
+    assert loose["items"][0]["handbook_ids"] == []
+    assert factory["spawns"][0]["kind"] == "sniper"
+    assert factory["spawns"][0]["x"] == 30
+
+
+def test_fill_item_refs_copies_handbook_ids() -> None:
+    refs = [{"id": "roubles", "name": "", "types": [], "handbook_ids": []}]
+    _fill_item_refs(
+        refs,
+        {
+            "roubles": {
+                "id": "roubles",
+                "name": "卢布",
+                "short_name": "RUB",
+                "icon_link": "https://icon",
+                "types": ["money"],
+                "handbook_ids": ["5b47574386f77428ca22b2f1"],
+            }
+        },
+    )
+    assert refs[0]["name"] == "卢布"
+    assert refs[0]["types"] == ["money"]
+    assert refs[0]["handbook_ids"] == ["5b47574386f77428ca22b2f1"]

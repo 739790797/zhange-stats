@@ -17,6 +17,7 @@ from app.api import runtime_logs as runtime_logs_api
 from app.api import settings as settings_api
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
+from app.core.cors import resolve_cors_origin_regex
 from app.core.database import SessionLocal, engine
 from app.core.http_client import close_http_client
 from app.core.migrate import run_migrations
@@ -184,8 +185,10 @@ _cors_kwargs: dict = {
 if _cors_origins:
     _cors_kwargs["allow_origins"] = _cors_origins
 else:
-    # 本地 Vite（任意端口）；生产同域部署一般不触发跨域
-    _cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+    # 本地 Vite（任意端口）+ Tauri 2 壳源；可用 CORS_ORIGIN_REGEX 覆盖
+    _cors_kwargs["allow_origin_regex"] = resolve_cors_origin_regex(
+        settings.CORS_ORIGIN_REGEX
+    )
 
 app.add_middleware(RequestLogMiddleware)
 app.add_middleware(CORSMiddleware, **_cors_kwargs)

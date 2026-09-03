@@ -9099,7 +9099,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Full Sync",
-        "description": "管理员：回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，落本地后再投影现有栏目。",
+        "description": "管理员：回源 json.tarkov.dev 全文件，落本地后再投影现有栏目。",
         "operationId": "guides_tarkov_full_sync_api_guides_tarkov_sync_post",
         "security": [
           {
@@ -9720,7 +9720,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Tasks Sync",
-        "description": "管理员：回源同步任务（api.tarkov.dev 优先，失败回退 json.tarkov.dev）。",
+        "description": "管理员：回源同步任务（json.tarkov.dev）。",
         "operationId": "guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post",
         "security": [
           {
@@ -27450,6 +27450,13 @@
             "type": "array",
             "title": "Loot Containers"
           },
+          "loot_loose": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapLootLooseOut"
+            },
+            "type": "array",
+            "title": "Loot Loose"
+          },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/TarkovMapVariantOut"
@@ -27555,10 +27562,72 @@
               }
             ],
             "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          },
+          "outline": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskPointOut"
+            },
+            "type": "array",
+            "title": "Outline"
+          },
+          "switches": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapExtractSwitchOut"
+            },
+            "type": "array",
+            "title": "Switches"
+          },
+          "transfer_item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovMapItemRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "title": "TarkovMapExtractOut"
+      },
+      "TarkovMapExtractSwitchOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapExtractSwitchOut"
       },
       "TarkovMapHazardOut": {
         "properties": {
@@ -27631,10 +27700,62 @@
               }
             ],
             "title": "Bottom"
+          },
+          "outline": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskPointOut"
+            },
+            "type": "array",
+            "title": "Outline"
           }
         },
         "type": "object",
         "title": "TarkovMapHazardOut"
+      },
+      "TarkovMapItemRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "handbook_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Handbook Ids"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapItemRefOut"
       },
       "TarkovMapListItemOut": {
         "properties": {
@@ -27875,6 +27996,79 @@
         },
         "type": "object",
         "title": "TarkovMapLootContainerOut"
+      },
+      "TarkovMapLootLooseOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapItemRefOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapLootLooseOut"
       },
       "TarkovMapPlaceImportIn": {
         "properties": {
@@ -28270,7 +28464,7 @@
           "z"
         ],
         "title": "TarkovMapSpawnOut",
-        "description": "PMC / Scav 出生点；Boss 仍走 bosses.locations。"
+        "description": "PMC / Scav / 狙击 Scav 出生点；Boss 仍走 bosses.locations。"
       },
       "TarkovMapStationaryWeaponOut": {
         "properties": {
@@ -28844,6 +29038,11 @@
             "title": "Lightkeeper Required",
             "default": false
           },
+          "kappa_required": {
+            "type": "boolean",
+            "title": "Kappa Required",
+            "default": false
+          },
           "faction_name": {
             "type": "string",
             "title": "Faction Name",
@@ -28884,6 +29083,13 @@
             },
             "type": "array",
             "title": "Needed Keys"
+          },
+          "fail_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskFailConditionOut"
+            },
+            "type": "array",
+            "title": "Fail Conditions"
           },
           "has_map_markers": {
             "type": "boolean",
@@ -29881,6 +30087,33 @@
         ],
         "title": "TarkovStationChipOut"
       },
+      "TarkovTaskAttributeOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "compare_method": {
+            "type": "string",
+            "title": "Compare Method",
+            "default": ""
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskAttributeOut"
+      },
       "TarkovTaskCatalogOut": {
         "properties": {
           "items": {
@@ -29952,6 +30185,42 @@
         ],
         "title": "TarkovTaskCatalogOut"
       },
+      "TarkovTaskCraftUnlockOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "station": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskCraftUnlockOut"
+      },
       "TarkovTaskDetailOut": {
         "properties": {
           "id": {
@@ -30017,6 +30286,11 @@
             "title": "Lightkeeper Required",
             "default": false
           },
+          "kappa_required": {
+            "type": "boolean",
+            "title": "Kappa Required",
+            "default": false
+          },
           "faction_name": {
             "type": "string",
             "title": "Faction Name",
@@ -30069,7 +30343,27 @@
             "type": "array",
             "title": "Trader Requirements"
           },
+          "task_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
+            },
+            "type": "array",
+            "title": "Task Requirements"
+          },
+          "unlocks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskRequirementOut"
+            },
+            "type": "array",
+            "title": "Unlocks"
+          },
+          "start_rewards": {
+            "$ref": "#/components/schemas/TarkovTaskFinishRewardsOut"
+          },
           "finish_rewards": {
+            "$ref": "#/components/schemas/TarkovTaskFinishRewardsOut"
+          },
+          "fail_rewards": {
             "$ref": "#/components/schemas/TarkovTaskFinishRewardsOut"
           },
           "needed_keys": {
@@ -30079,10 +30373,49 @@
             "type": "array",
             "title": "Needed Keys"
           },
+          "fail_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskFailConditionOut"
+            },
+            "type": "array",
+            "title": "Fail Conditions"
+          },
           "restartable": {
             "type": "boolean",
             "title": "Restartable",
             "default": false
+          },
+          "required_prestige": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskPrestigeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available_delay_seconds_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Delay Seconds Min"
+          },
+          "available_delay_seconds_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Delay Seconds Max"
           }
         },
         "type": "object",
@@ -30146,6 +30479,96 @@
         "type": "object",
         "title": "TarkovTaskDonesOut"
       },
+      "TarkovTaskFailConditionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "status": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Status"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskFailTaskRefOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "exit_status": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exit Status"
+          },
+          "trader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskFailConditionOut"
+      },
+      "TarkovTaskFailTaskRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "trader_id": {
+            "type": "string",
+            "title": "Trader Id",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovTaskFailTaskRefOut"
+      },
       "TarkovTaskFinishRewardsOut": {
         "properties": {
           "items": {
@@ -30161,10 +30584,113 @@
             },
             "type": "array",
             "title": "Trader Standing"
+          },
+          "offer_unlock": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskOfferUnlockOut"
+            },
+            "type": "array",
+            "title": "Offer Unlock"
+          },
+          "skill_level_reward": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskSkillRewardOut"
+            },
+            "type": "array",
+            "title": "Skill Level Reward"
+          },
+          "trader_unlock": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+            },
+            "type": "array",
+            "title": "Trader Unlock"
+          },
+          "craft_unlock": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskCraftUnlockOut"
+            },
+            "type": "array",
+            "title": "Craft Unlock"
+          },
+          "achievement": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskImageRefOut"
+            },
+            "type": "array",
+            "title": "Achievement"
+          },
+          "customization": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskImageRefOut"
+            },
+            "type": "array",
+            "title": "Customization"
           }
         },
         "type": "object",
         "title": "TarkovTaskFinishRewardsOut"
+      },
+      "TarkovTaskHealthEffectOut": {
+        "properties": {
+          "body_parts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Body Parts"
+          },
+          "effects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Effects"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNumberCompareOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskHealthEffectOut"
+      },
+      "TarkovTaskImageRefOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "image_link": {
+            "type": "string",
+            "title": "Image Link",
+            "default": ""
+          },
+          "customization_type": {
+            "type": "string",
+            "title": "Customization Type",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskImageRefOut"
       },
       "TarkovTaskListItemOut": {
         "properties": {
@@ -30229,6 +30755,11 @@
           "lightkeeper_required": {
             "type": "boolean",
             "title": "Lightkeeper Required",
+            "default": false
+          },
+          "kappa_required": {
+            "type": "boolean",
+            "title": "Kappa Required",
             "default": false
           },
           "faction_name": {
@@ -30319,6 +30850,28 @@
           "map"
         ],
         "title": "TarkovTaskNeededKeysOut"
+      },
+      "TarkovTaskNumberCompareOut": {
+        "properties": {
+          "compare_method": {
+            "type": "string",
+            "title": "Compare Method",
+            "default": ""
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskNumberCompareOut"
       },
       "TarkovTaskObjectiveOut": {
         "properties": {
@@ -30419,6 +30972,275 @@
             },
             "type": "array",
             "title": "Zone Names"
+          },
+          "target_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Target Names"
+          },
+          "body_parts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Body Parts"
+          },
+          "shot_type": {
+            "type": "string",
+            "title": "Shot Type",
+            "default": ""
+          },
+          "distance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNumberCompareOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "using_weapon": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+            },
+            "type": "array",
+            "title": "Using Weapon"
+          },
+          "using_weapon_mods": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Using Weapon Mods"
+          },
+          "wearing": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Wearing"
+          },
+          "not_wearing": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+            },
+            "type": "array",
+            "title": "Not Wearing"
+          },
+          "use_any": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+            },
+            "type": "array",
+            "title": "Use Any"
+          },
+          "contains_all": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+            },
+            "type": "array",
+            "title": "Contains All"
+          },
+          "contains_category": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+            },
+            "type": "array",
+            "title": "Contains Category"
+          },
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskAttributeOut"
+            },
+            "type": "array",
+            "title": "Attributes"
+          },
+          "health_effect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskHealthEffectOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "player_health_effect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskHealthEffectOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enemy_health_effect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskHealthEffectOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "time_from_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time From Hour"
+          },
+          "time_until_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Until Hour"
+          },
+          "dog_tag_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dog Tag Level"
+          },
+          "min_durability": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Durability"
+          },
+          "max_durability": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Durability"
+          },
+          "skill_name": {
+            "type": "string",
+            "title": "Skill Name",
+            "default": ""
+          },
+          "skill_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Level"
+          },
+          "hideout_station": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "station_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Level"
+          },
+          "trader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trader_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trader Level"
+          },
+          "standing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNumberCompareOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "player_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Level"
+          },
+          "related_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskFailTaskRefOut"
+            },
+            "type": "array",
+            "title": "Related Tasks"
+          },
+          "related_status": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Status"
           }
         },
         "type": "object",
@@ -30426,6 +31248,42 @@
           "id"
         ],
         "title": "TarkovTaskObjectiveOut"
+      },
+      "TarkovTaskOfferUnlockOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "trader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovTaskNamedRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskOfferUnlockOut"
       },
       "TarkovTaskPointOut": {
         "properties": {
@@ -30478,6 +31336,77 @@
         "type": "object",
         "title": "TarkovTaskPossibleLocationOut"
       },
+      "TarkovTaskPrestigeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "prestige_level": {
+            "type": "integer",
+            "title": "Prestige Level",
+            "default": 0
+          },
+          "image_link": {
+            "type": "string",
+            "title": "Image Link",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskPrestigeOut"
+      },
+      "TarkovTaskRequirementOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "trader_id": {
+            "type": "string",
+            "title": "Trader Id",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          },
+          "status": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovTaskRequirementOut"
+      },
       "TarkovTaskRewardItemOut": {
         "properties": {
           "id": {
@@ -30517,6 +31446,22 @@
           "id"
         ],
         "title": "TarkovTaskRewardItemOut"
+      },
+      "TarkovTaskSkillRewardOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskSkillRewardOut"
       },
       "TarkovTaskStandingOut": {
         "properties": {
@@ -30592,7 +31537,7 @@
             "default": ""
           },
           "value": {
-            "type": "integer",
+            "type": "number",
             "title": "Value",
             "default": 0
           },

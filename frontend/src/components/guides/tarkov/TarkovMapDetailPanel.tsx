@@ -222,6 +222,7 @@ function TarkovMapDetailReady({
           stationaryWeapons={detail.stationary_weapons}
           btrStops={detail.btr_stops}
           lootContainers={detail.loot_containers}
+          lootLoose={detail.loot_loose}
           places={detail.places}
           placeEdit={editor.placeEdit}
           onFloorChange={setFloor}

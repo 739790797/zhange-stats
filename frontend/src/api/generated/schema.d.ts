@@ -2895,7 +2895,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Full Sync
-         * @description 管理员：回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，落本地后再投影现有栏目。
+         * @description 管理员：回源 json.tarkov.dev 全文件，落本地后再投影现有栏目。
          */
         post: operations["guides_tarkov_full_sync_api_guides_tarkov_sync_post"];
         delete?: never;
@@ -3095,7 +3095,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Tasks Sync
-         * @description 管理员：回源同步任务（api.tarkov.dev 优先，失败回退 json.tarkov.dev）。
+         * @description 管理员：回源同步任务（json.tarkov.dev）。
          */
         post: operations["guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post"];
         delete?: never;
@@ -10688,6 +10688,8 @@ export interface components {
             btr_stops?: components["schemas"]["TarkovMapBtrStopOut"][];
             /** Loot Containers */
             loot_containers?: components["schemas"]["TarkovMapLootContainerOut"][];
+            /** Loot Loose */
+            loot_loose?: components["schemas"]["TarkovMapLootLooseOut"][];
             /** Variants */
             variants?: components["schemas"]["TarkovMapVariantOut"][];
             /** Places */
@@ -10722,6 +10724,28 @@ export interface components {
             y?: number | null;
             /** Z */
             z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
+            /** Outline */
+            outline?: components["schemas"]["TarkovTaskPointOut"][];
+            /** Switches */
+            switches?: components["schemas"]["TarkovMapExtractSwitchOut"][];
+            transfer_item?: components["schemas"]["TarkovMapItemRefOut"] | null;
+        };
+        /** TarkovMapExtractSwitchOut */
+        TarkovMapExtractSwitchOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
         };
         /** TarkovMapHazardOut */
         TarkovMapHazardOut: {
@@ -10750,6 +10774,40 @@ export interface components {
             top?: number | null;
             /** Bottom */
             bottom?: number | null;
+            /** Outline */
+            outline?: components["schemas"]["TarkovTaskPointOut"][];
+        };
+        /** TarkovMapItemRefOut */
+        TarkovMapItemRefOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /** Types */
+            types?: string[];
+            /** Handbook Ids */
+            handbook_ids?: string[];
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
         };
         /** TarkovMapListItemOut */
         TarkovMapListItemOut: {
@@ -10881,6 +10939,26 @@ export interface components {
             /** Bottom */
             bottom?: number | null;
         };
+        /** TarkovMapLootLooseOut */
+        TarkovMapLootLooseOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /** Items */
+            items?: components["schemas"]["TarkovMapItemRefOut"][];
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
+        };
         /** TarkovMapPlaceImportIn */
         TarkovMapPlaceImportIn: {
             /** Items */
@@ -10997,7 +11075,7 @@ export interface components {
         };
         /**
          * TarkovMapSpawnOut
-         * @description PMC / Scav 出生点；Boss 仍走 bosses.locations。
+         * @description PMC / Scav / 狙击 Scav 出生点；Boss 仍走 bosses.locations。
          */
         TarkovMapSpawnOut: {
             /**
@@ -11365,6 +11443,11 @@ export interface components {
              */
             lightkeeper_required: boolean;
             /**
+             * Kappa Required
+             * @default false
+             */
+            kappa_required: boolean;
+            /**
              * Faction Name
              * @default Any
              */
@@ -11390,6 +11473,8 @@ export interface components {
             objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
             /** Needed Keys */
             needed_keys?: components["schemas"]["TarkovTaskNeededKeysOut"][];
+            /** Fail Conditions */
+            fail_conditions?: components["schemas"]["TarkovTaskFailConditionOut"][];
             /**
              * Has Map Markers
              * @default false
@@ -11847,6 +11932,21 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** TarkovTaskAttributeOut */
+        TarkovTaskAttributeOut: {
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Compare Method
+             * @default
+             */
+            compare_method: string;
+            /** Value */
+            value?: number | null;
+        };
         /** TarkovTaskCatalogOut */
         TarkovTaskCatalogOut: {
             /** Items */
@@ -11871,6 +11971,21 @@ export interface components {
             synced_at?: string | null;
             /** Note */
             note?: string | null;
+        };
+        /** TarkovTaskCraftUnlockOut */
+        TarkovTaskCraftUnlockOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            station?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+            item?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
         };
         /** TarkovTaskDetailOut */
         TarkovTaskDetailOut: {
@@ -11934,6 +12049,11 @@ export interface components {
              */
             lightkeeper_required: boolean;
             /**
+             * Kappa Required
+             * @default false
+             */
+            kappa_required: boolean;
+            /**
              * Faction Name
              * @default Any
              */
@@ -11961,14 +12081,27 @@ export interface components {
             objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
             /** Trader Requirements */
             trader_requirements?: components["schemas"]["TarkovTaskTraderReqOut"][];
+            /** Task Requirements */
+            task_requirements?: components["schemas"]["TarkovTaskRequirementOut"][];
+            /** Unlocks */
+            unlocks?: components["schemas"]["TarkovTaskRequirementOut"][];
+            start_rewards?: components["schemas"]["TarkovTaskFinishRewardsOut"];
             finish_rewards?: components["schemas"]["TarkovTaskFinishRewardsOut"];
+            fail_rewards?: components["schemas"]["TarkovTaskFinishRewardsOut"];
             /** Needed Keys */
             needed_keys?: components["schemas"]["TarkovTaskNeededKeysOut"][];
+            /** Fail Conditions */
+            fail_conditions?: components["schemas"]["TarkovTaskFailConditionOut"][];
             /**
              * Restartable
              * @default false
              */
             restartable: boolean;
+            required_prestige?: components["schemas"]["TarkovTaskPrestigeOut"] | null;
+            /** Available Delay Seconds Min */
+            available_delay_seconds_min?: number | null;
+            /** Available Delay Seconds Max */
+            available_delay_seconds_max?: number | null;
         };
         /** TarkovTaskDonesIn */
         TarkovTaskDonesIn: {
@@ -11989,12 +12122,115 @@ export interface components {
             /** Started Ids */
             started_ids?: string[];
         };
+        /** TarkovTaskFailConditionOut */
+        TarkovTaskFailConditionOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Type
+             * @default
+             */
+            type: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Status */
+            status?: string[];
+            /** Tasks */
+            tasks?: components["schemas"]["TarkovTaskFailTaskRefOut"][];
+            /** Exit Status */
+            exit_status?: string[];
+            trader?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
+        };
+        /** TarkovTaskFailTaskRefOut */
+        TarkovTaskFailTaskRefOut: {
+            /** Id */
+            id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Trader Id
+             * @default
+             */
+            trader_id: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+        };
         /** TarkovTaskFinishRewardsOut */
         TarkovTaskFinishRewardsOut: {
             /** Items */
             items?: components["schemas"]["TarkovTaskRewardItemOut"][];
             /** Trader Standing */
             trader_standing?: components["schemas"]["TarkovTaskStandingOut"][];
+            /** Offer Unlock */
+            offer_unlock?: components["schemas"]["TarkovTaskOfferUnlockOut"][];
+            /** Skill Level Reward */
+            skill_level_reward?: components["schemas"]["TarkovTaskSkillRewardOut"][];
+            /** Trader Unlock */
+            trader_unlock?: components["schemas"]["TarkovTaskNamedRefOut"][];
+            /** Craft Unlock */
+            craft_unlock?: components["schemas"]["TarkovTaskCraftUnlockOut"][];
+            /** Achievement */
+            achievement?: components["schemas"]["TarkovTaskImageRefOut"][];
+            /** Customization */
+            customization?: components["schemas"]["TarkovTaskImageRefOut"][];
+        };
+        /** TarkovTaskHealthEffectOut */
+        TarkovTaskHealthEffectOut: {
+            /** Body Parts */
+            body_parts?: string[];
+            /** Effects */
+            effects?: string[];
+            time?: components["schemas"]["TarkovTaskNumberCompareOut"] | null;
+        };
+        /** TarkovTaskImageRefOut */
+        TarkovTaskImageRefOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Image Link
+             * @default
+             */
+            image_link: string;
+            /**
+             * Customization Type
+             * @default
+             */
+            customization_type: string;
         };
         /** TarkovTaskListItemOut */
         TarkovTaskListItemOut: {
@@ -12058,6 +12294,11 @@ export interface components {
              */
             lightkeeper_required: boolean;
             /**
+             * Kappa Required
+             * @default false
+             */
+            kappa_required: boolean;
+            /**
              * Faction Name
              * @default Any
              */
@@ -12108,6 +12349,16 @@ export interface components {
             /** Keys */
             keys?: components["schemas"]["TarkovTaskNamedRefOut"][];
         };
+        /** TarkovTaskNumberCompareOut */
+        TarkovTaskNumberCompareOut: {
+            /**
+             * Compare Method
+             * @default
+             */
+            compare_method: string;
+            /** Value */
+            value?: number | null;
+        };
         /** TarkovTaskObjectiveOut */
         TarkovTaskObjectiveOut: {
             /** Id */
@@ -12150,6 +12401,80 @@ export interface components {
             possible_locations?: components["schemas"]["TarkovTaskPossibleLocationOut"][];
             /** Zone Names */
             zone_names?: string[];
+            /** Target Names */
+            target_names?: string[];
+            /** Body Parts */
+            body_parts?: string[];
+            /**
+             * Shot Type
+             * @default
+             */
+            shot_type: string;
+            distance?: components["schemas"]["TarkovTaskNumberCompareOut"] | null;
+            /** Using Weapon */
+            using_weapon?: components["schemas"]["TarkovTaskNamedRefOut"][];
+            /** Using Weapon Mods */
+            using_weapon_mods?: components["schemas"]["TarkovTaskNamedRefOut"][][];
+            /** Wearing */
+            wearing?: components["schemas"]["TarkovTaskNamedRefOut"][][];
+            /** Not Wearing */
+            not_wearing?: components["schemas"]["TarkovTaskNamedRefOut"][];
+            /** Use Any */
+            use_any?: components["schemas"]["TarkovTaskNamedRefOut"][];
+            /** Contains All */
+            contains_all?: components["schemas"]["TarkovTaskNamedRefOut"][];
+            /** Contains Category */
+            contains_category?: components["schemas"]["TarkovTaskNamedRefOut"][];
+            /** Attributes */
+            attributes?: components["schemas"]["TarkovTaskAttributeOut"][];
+            health_effect?: components["schemas"]["TarkovTaskHealthEffectOut"] | null;
+            player_health_effect?: components["schemas"]["TarkovTaskHealthEffectOut"] | null;
+            enemy_health_effect?: components["schemas"]["TarkovTaskHealthEffectOut"] | null;
+            /** Time From Hour */
+            time_from_hour?: number | null;
+            /** Time Until Hour */
+            time_until_hour?: number | null;
+            /** Dog Tag Level */
+            dog_tag_level?: number | null;
+            /** Min Durability */
+            min_durability?: number | null;
+            /** Max Durability */
+            max_durability?: number | null;
+            /**
+             * Skill Name
+             * @default
+             */
+            skill_name: string;
+            /** Skill Level */
+            skill_level?: number | null;
+            hideout_station?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
+            /** Station Level */
+            station_level?: number | null;
+            trader?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
+            /** Trader Level */
+            trader_level?: number | null;
+            standing?: components["schemas"]["TarkovTaskNumberCompareOut"] | null;
+            /** Player Level */
+            player_level?: number | null;
+            /** Related Tasks */
+            related_tasks?: components["schemas"]["TarkovTaskFailTaskRefOut"][];
+            /** Related Status */
+            related_status?: string[];
+        };
+        /** TarkovTaskOfferUnlockOut */
+        TarkovTaskOfferUnlockOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            trader?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+            item?: components["schemas"]["TarkovTaskNamedRefOut"] | null;
         };
         /** TarkovTaskPointOut */
         TarkovTaskPointOut: {
@@ -12183,6 +12508,61 @@ export interface components {
             /** Positions */
             positions?: components["schemas"]["TarkovTaskPointOut"][];
         };
+        /** TarkovTaskPrestigeOut */
+        TarkovTaskPrestigeOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Prestige Level
+             * @default 0
+             */
+            prestige_level: number;
+            /**
+             * Image Link
+             * @default
+             */
+            image_link: string;
+        };
+        /** TarkovTaskRequirementOut */
+        TarkovTaskRequirementOut: {
+            /** Id */
+            id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Trader Id
+             * @default
+             */
+            trader_id: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+            /** Status */
+            status?: string[];
+        };
         /** TarkovTaskRewardItemOut */
         TarkovTaskRewardItemOut: {
             /** Id */
@@ -12209,6 +12589,19 @@ export interface components {
             icon_link: string;
             /** Types */
             types?: string[];
+        };
+        /** TarkovTaskSkillRewardOut */
+        TarkovTaskSkillRewardOut: {
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
         };
         /** TarkovTaskStandingOut */
         TarkovTaskStandingOut: {

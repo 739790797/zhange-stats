@@ -741,6 +741,8 @@ function SummaryList({
                           traderName={row.traderName}
                           objectives={row.objectives || []}
                           otherMapGroups={row.otherMapGroups}
+                          sequenceGroups={row.sequenceGroups}
+                          failChips={row.failChips}
                           skipped={raidPrepSkippedIds(skippedByTask, row.taskId)}
                           taskDone={doneIdSet.has(row.taskId)}
                           onToggle={

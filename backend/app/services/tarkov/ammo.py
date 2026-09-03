@@ -19,38 +19,10 @@ from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
 
-TARKOV_GRAPHQL_URL = "https://api.tarkov.dev/graphql"
-TARKOV_JSON_ITEMS_URL = "https://json.tarkov.dev/regular/items"
-TARKOV_JSON_ITEMS_LOCALE_URL = "https://json.tarkov.dev/regular/items_{lang}"
-
 SOURCE_GRAPHQL = "tarkov.dev"
 SOURCE_JSON_API = "json.tarkov.dev"
 
 DOWNLOAD_TIMEOUT = 120
-
-_AMMO_QUERY = """
-query AmmoSync($lang: LanguageCode) {
-  ammo(lang: $lang) {
-    caliber
-    damage
-    penetrationPower
-    armorDamage
-    ammoType
-    initialSpeed
-    accuracyModifier
-    recoilModifier
-    lightBleedModifier
-    heavyBleedModifier
-    item {
-      id
-      name
-      shortName
-      iconLink
-      baseImageLink
-    }
-  }
-}
-""".strip()
 
 _CALIBER_PREFIX_RE = re.compile(r"^Caliber", re.IGNORECASE)
 
@@ -234,7 +206,7 @@ def _ammo_row(
 def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
     errors = payload.get("errors")
     if errors:
-        raise TarkovAmmoError(f"api.tarkov.dev 错误: {errors}")
+        raise TarkovAmmoError(f"历史 GraphQL ammo 错误: {errors}")
     data = payload.get("data") or {}
     rows_raw = data.get("ammo")
     if not isinstance(rows_raw, list):
@@ -348,57 +320,6 @@ def parse_ammo_raw(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]
             locale = None
         return parse_json_api_ammo(items_payload, locale=locale)
     raise TarkovAmmoError(f"未知弹药 raw 来源: {src or '—'}")
-
-
-def download_graphql_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
-    """拉取 GraphQL ammo 原始响应（不落库）。"""
-    attempts: list[dict[str, Any] | None] = [{"lang": lang}, None]
-    last_error: TarkovAmmoError | None = None
-    for variables in attempts:
-        body_obj: dict[str, Any] = {"query": _AMMO_QUERY}
-        if variables is not None:
-            body_obj["variables"] = variables
-        else:
-            body_obj["query"] = _AMMO_QUERY.replace(
-                "query AmmoSync($lang: LanguageCode) {\n  ammo(lang: $lang) {",
-                "query AmmoSync {\n  ammo {",
-            )
-        body = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
-        try:
-            raw = _http_request(
-                TARKOV_GRAPHQL_URL,
-                method="POST",
-                body=body,
-                headers={"Content-Type": "application/json", "Accept": "application/json"},
-            )
-            payload = json.loads(raw.decode("utf-8"))
-        except TarkovAmmoError as exc:
-            last_error = exc
-            continue
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            last_error = TarkovAmmoError("tarkov.dev 响应解析失败")
-            last_error.__cause__ = exc
-            continue
-        if not isinstance(payload, dict):
-            last_error = TarkovAmmoError("tarkov.dev 响应格式无效")
-            continue
-        # 先校验可解析，再作为成功 raw（避免把 GraphQL errors 当成功落库）
-        try:
-            rows = parse_graphql_ammo(payload)
-        except TarkovAmmoError as exc:
-            last_error = exc
-            continue
-        if not rows:
-            last_error = TarkovAmmoError("tarkov.dev ammo 为空")
-            continue
-        return AmmoUpstreamBundle(
-            source=SOURCE_GRAPHQL,
-            payload=payload,
-            note="api.tarkov.dev ammo",
-        )
-    if last_error:
-        raise last_error
-    raise TarkovAmmoError("tarkov.dev ammo 拉取失败")
 
 
 def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:

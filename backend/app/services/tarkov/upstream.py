@@ -1,4 +1,4 @@
-"""塔科夫上游整站 dump：json.tarkov.dev 全文件 + api.tarkov.dev 静态补集。"""
+"""塔科夫上游整站 dump：json.tarkov.dev 全文件（含 extras 投影）。"""
 
 from __future__ import annotations
 
@@ -15,20 +15,20 @@ from app.models.tarkov import (
     TarkovCraftsRaw,
     TarkovExtrasRaw,
     TarkovHideoutRaw,
+    TarkovOverlayRaw,
     TarkovItemsRaw,
     TarkovMapsRaw,
     TarkovTasksRaw,
     TarkovTradersRaw,
 )
-from app.services.tarkov.ammo import SOURCE_JSON_API, TARKOV_GRAPHQL_URL
+from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
-    graphql_game_mode,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
     raw_row_id,
 )
-from app.services.tarkov.http import download_bytes, download_bytes_with_meta
+from app.services.tarkov.http import download_bytes_with_meta
 
 logger = logging.getLogger(__name__)
 
@@ -61,31 +61,25 @@ RAW_MODELS: dict[str, type[TarkovCatalogRawMixin]] = {
     "barters": TarkovBartersRaw,
     "crafts": TarkovCraftsRaw,
     "extras": TarkovExtrasRaw,
+    "overlay": TarkovOverlayRaw,
 }
 
-_EXTRAS_QUERY = """
-query CatalogExtras($lang: LanguageCode, $gameMode: GameMode) {
-  achievements(lang: $lang) { id name hidden side }
-  prestige(lang: $lang, gameMode: $gameMode) { id name prestigeLevel iconLink }
-  skills(lang: $lang) { id name }
-  playerLevels { level exp }
-  fleaMarket(lang: $lang, gameMode: $gameMode) {
-    name
-    normalizedName
-    minPlayerLevel
-    enabled
-    sellOfferFeeRate
-    sellRequirementFeeRate
-    foundInRaidRequired
-  }
-  lootContainers(lang: $lang) { id name normalizedName }
-  questItems(lang: $lang) { id name shortName normalizedName }
-  armorMaterials(lang: $lang) { id name destructibility }
-  stationaryWeapons(lang: $lang) { id name shortName }
-  handbookCategories(lang: $lang) { id name normalizedName }
-  itemCategories(lang: $lang) { id name normalizedName }
-}
-""".strip()
+EXTRAS_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "items",
+        (
+            "skills",
+            "playerLevels",
+            "fleaMarket",
+            "armorMaterials",
+            "itemCategories",
+            "handbookCategories",
+            "mastering",
+        ),
+    ),
+    ("maps", ("lootContainers", "stationaryWeapons")),
+    ("tasks", ("achievements", "prestige", "questItems")),
+)
 
 
 class TarkovUpstreamError(Exception):
@@ -428,26 +422,16 @@ def locale_data(dump: dict[str, dict[str, Any]], resource: str, *, lang: str = "
     return data if isinstance(data, dict) else {}
 
 
-def download_graphql_extras(*, lang: str = "zh") -> dict[str, Any]:
-    body = json.dumps(
-        {
-            "query": _EXTRAS_QUERY,
-            "variables": {"lang": lang, "gameMode": graphql_game_mode()},
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
-    raw = download_bytes(
-        TARKOV_GRAPHQL_URL,
-        method="POST",
-        body=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        timeout=45,
-        error_cls=TarkovUpstreamError,
-    )
-    payload = _decode_json(raw, label="api.tarkov.dev extras")
-    if payload.get("errors"):
-        raise TarkovUpstreamError(f"api.tarkov.dev extras: {payload.get('errors')}")
-    data = payload.get("data")
-    if not isinstance(data, dict) or not data:
-        raise TarkovUpstreamError("api.tarkov.dev extras 为空")
-    return data
+def extras_from_site_dump(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """从已下载的 json.tarkov.dev dump 抽出原 GraphQL extras 字段。"""
+    out: dict[str, Any] = {}
+    for resource, keys in EXTRAS_KEYS:
+        blob = unwrap_json_blob(dump.get(resource) or {})
+        if not isinstance(blob, dict):
+            continue
+        for key in keys:
+            if key in blob:
+                out[key] = blob[key]
+    if not out:
+        raise TarkovUpstreamError("json.tarkov.dev dump 未解析到 extras")
+    return out

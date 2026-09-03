@@ -20,6 +20,7 @@ import type {
   TarkovMapHazard,
   TarkovMapLock,
   TarkovMapLootContainer,
+  TarkovMapLootLoose,
   TarkovMapSpawn,
   TarkovMapStationaryWeapon,
   TarkovMapSwitch,
@@ -30,6 +31,11 @@ import {
   type TarkovCanvasMarker,
 } from "@/lib/tarkovMapCanvasMarkers";
 import { getBounds, getCRS, getScaledBounds, pos } from "@/lib/tarkovMapCrs";
+import {
+  pickTooltipVerticalSide,
+  TARKOV_MAP_TIP_QUEST,
+  tooltipOffsetForSide,
+} from "@/lib/tarkovMapTooltip";
 import { tarkovBossMapLabel, tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import {
   isPlaceEditTool,
@@ -68,7 +74,15 @@ import {
   type RaidPrepPoint,
   type TarkovRaidPrepOverlay,
 } from "@/lib/tarkovRaidPrep";
+import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
+import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { traderIconUrl, traderPortraitUrl } from "@/lib/tarkovHomeNav";
+import {
+  addMarkerOutline,
+  bindMarkerOutlineHover,
+  setMarkerOutlineVisible,
+} from "@/lib/tarkovMapMarkerOutlineLayers";
+import { hazardOutlineColor } from "@/lib/tarkovMapMarkerOutlines";
 import {
   RAID_ROOM_OTHER_FLOOR_OPACITY,
   collectPlayerFixMarks,
@@ -82,6 +96,7 @@ import {
   simplifyStroke,
   strokeFingerprint,
   type RaidRoomDraftStroke,
+  type RaidRoomKeyBringLike,
   type RaidRoomMarkLike,
   type StrokePoint,
   type TarkovMapDrawMode,
@@ -107,6 +122,7 @@ import {
   withExtractKind,
   withHazardKind,
   withLootContainerKind,
+  withLootLooseKind,
   withMapFloor,
   withSpawnKind,
   type TarkovMapOverlayMode,
@@ -138,6 +154,8 @@ import {
   tarkovSpawnIconAnchor,
   tarkovSpawnIconUrl,
   withSpawnKindsForPresent,
+  type TarkovSpawnKind,
+  type TarkovSpawnKindFlags,
 } from "@/lib/tarkovMapSpawns";
 import {
   allPresentKindsOn,
@@ -155,14 +173,26 @@ import {
   tarkovHazardKindLabel,
   tarkovLockHref,
   tarkovLockIconUrl,
-  tarkovLockLabel,
-  tarkovLockThumbUrl,
+  tarkovLockKeyBadge,
+  tarkovLockTooltipHtml,
+  tarkovLooseLootIconUrl,
   tarkovMarkerVisibleOnFloor,
   tarkovStationaryIconUrl,
   tarkovStationaryLabel,
   tarkovSwitchIconUrl,
   withKindsForPresent,
+  type TarkovLockKeyContext,
+  type TarkovLockKeyMode,
 } from "@/lib/tarkovMapMarkers";
+import {
+  isLootLooseKindOn,
+  lootLooseKindLabel,
+  lootLooseKindsPresent,
+  lootLooseMarkerIconUrl,
+  lootLooseRowVisible,
+  tarkovLootLooseTooltipHtml,
+  tarkovLooseLootKindIconUrl,
+} from "@/lib/tarkovMapLootLoose";
 import {
   gameForwardXZ,
   gameYawToCssDeg,
@@ -185,6 +215,7 @@ type Props = {
   stationaryWeapons?: TarkovMapStationaryWeapon[];
   btrStops?: TarkovMapBtrStop[];
   lootContainers?: TarkovMapLootContainer[];
+  lootLoose?: TarkovMapLootLoose[];
   questOverlays?: TarkovRaidPrepOverlay[];
   fill?: boolean;
   className?: string;
@@ -225,6 +256,9 @@ type Props = {
   /** 库里的自定义地名；有则替换 tarkov.dev / 手写表 */
   places?: TarkovMapPlaceLike[];
   placeEdit?: TarkovMapPlaceEdit;
+  lockKeyMode?: TarkovLockKeyMode;
+  lockKeyOwns?: readonly RaidRoomKeyBringLike[] | null;
+  lockKeyBrings?: readonly RaidRoomKeyBringLike[] | null;
 };
 
 type MapRuntime = {
@@ -233,6 +267,9 @@ type MapRuntime = {
   tileLayer?: L.TileLayer;
   floorTiles: Map<string, L.TileLayer>;
   extracts: L.LayerGroup;
+  outlines: L.LayerGroup;
+  outlineById: Map<string, L.Polygon>;
+  hoveredOutlineId: string | null;
   iconCanvas?: TarkovMapCanvasMarkerLayer;
   btrStops: L.LayerGroup;
   labels: L.LayerGroup;
@@ -260,6 +297,7 @@ const QUEST_LABEL_ZOOM_MS = 80;
 const CANVAS_ICON_SIZE: [number, number] = [24, 24];
 const CANVAS_ANCHOR_CENTER: [number, number] = [12, 12];
 const CANVAS_Z = {
+  loose: 8,
   loot: 10,
   hazard: 20,
   stationary: 30,
@@ -412,15 +450,46 @@ async function loadSvgElement(svgPath: string): Promise<SVGSVGElement> {
   throw lastError instanceof Error ? lastError : new Error("无法加载 SVG 地图");
 }
 
+function extractPopupExtraHtml(row: TarkovMapExtract): string {
+  const lines: string[] = [];
+  const switches = (row.switches || [])
+    .map((item) => (item.name || item.id || "").trim())
+    .filter(Boolean);
+  if (switches.length) lines.push(`由 ${switches.join("、")} 激活`);
+  const item = row.transfer_item;
+  if (item?.id) {
+    const label = (item.name || item.short_name || item.id).trim();
+    const count = item.count && item.count !== 1 ? `${item.count} × ` : "";
+    const href = itemHrefFromTypes(item.id, item.types || []);
+    const thumb = inventoryThumbUrl(item.icon_link, item.id);
+    const img = thumb
+      ? `<img src="${escapeHtml(thumb)}" alt="" width="18" height="18"/>`
+      : "";
+    const text = `需携带 ${count}${label}`;
+    lines.push(
+      href
+        ? `${img}<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`
+        : `${img}${escapeHtml(text)}`,
+    );
+  }
+  return lines
+    .map((line) => `<span class="${styles.extractPopupMeta}">${line}</span>`)
+    .join("");
+}
+
 function addExtractMarkers(
   group: L.LayerGroup,
   extracts: TarkovMapExtract[],
   kindFlags: TarkovExtractKindFlags,
+  floor: string,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+  outlines: L.LayerGroup,
 ) {
   group.clearLayers();
   for (const row of extracts) {
     if (row.x == null || row.z == null) continue;
     if (!isExtractKindVisible(kindFlags, row.faction)) continue;
+    if (!tarkovMarkerVisibleOnFloor(row, floor, floorBands)) continue;
     const style = tarkovExtractStyle(row.faction);
     const marker = L.marker(pos({ x: row.x, z: row.z }), {
       icon: L.divIcon({
@@ -434,20 +503,22 @@ function addExtractMarkers(
       riseOnHover: true,
     });
     marker.bindPopup(
-      `<div class="${styles.extractPopup}"><img src="${escapeHtml(style.iconUrl)}" alt="" width="18" height="18"/><strong style="color:${style.color}">${escapeHtml(row.name)}</strong><span>${escapeHtml(row.faction || "撤离")}</span></div>`,
+      `<div class="${styles.extractPopup}"><img src="${escapeHtml(style.iconUrl)}" alt="" width="18" height="18"/><strong style="color:${style.color}">${escapeHtml(row.name)}</strong><span>${escapeHtml(row.faction || "撤离")}</span>${extractPopupExtraHtml(row)}</div>`,
     );
+    const polygon = addMarkerOutline(outlines, row.outline, style.color);
+    bindMarkerOutlineHover(marker, polygon, style.color);
     marker.addTo(group);
   }
 }
 
 function collectPlayerSpawnMarkers(
   spawns: TarkovMapSpawn[],
-  kindFlags: { pmc: boolean; scav: boolean },
+  kindFlags: TarkovSpawnKindFlags,
 ): TarkovCanvasMarker[] {
   const out: TarkovCanvasMarker[] = [];
   spawns.forEach((row, index) => {
-    const kind = String(row.kind || "").trim().toLowerCase();
-    if (kind !== "pmc" && kind !== "scav") return;
+    const kind = String(row.kind || "").trim().toLowerCase() as TarkovSpawnKind;
+    if (kind !== "pmc" && kind !== "scav" && kind !== "sniper") return;
     if (!kindFlags[kind]) return;
     if (row.x == null || row.z == null) return;
     const label = TARKOV_SPAWN_KIND_LABELS[kind];
@@ -516,19 +587,21 @@ function collectLockMarkers(
   floor: string,
   floorBands: ReturnType<typeof mapLayerFloorBands>,
   onLockClick?: (keyId: string) => void,
+  lockKey?: TarkovLockKeyContext,
 ): TarkovCanvasMarker[] {
   const out: TarkovCanvasMarker[] = [];
   const iconUrl = tarkovLockIconUrl();
+  const tipClasses = {
+    tip: styles.lockTip,
+    icon: styles.lockTipIcon,
+    text: styles.lockTipText,
+    status: styles.lockTipStatus,
+  };
   locks.forEach((row, index) => {
     if (row.x == null || row.z == null) return;
     if (!tarkovMarkerVisibleOnFloor(row, floor, floorBands)) return;
-    const name = tarkovLockLabel(row);
     const keyId = (row.key_id || "").trim();
-    const power = row.needs_power ? "需供电" : "";
-    const thumb = tarkovLockThumbUrl(row);
-    const img = thumb
-      ? `<img class="${styles.lockTipIcon}" src="${escapeHtml(thumb)}" alt="" width="32" height="32"/>`
-      : "";
+    const badge = tarkovLockKeyBadge(keyId, lockKey);
     out.push(
       {
         id: `lock:${row.id || index}`,
@@ -537,9 +610,10 @@ function collectLockMarkers(
         iconUrl,
         iconSize: CANVAS_ICON_SIZE,
         iconAnchor: CANVAS_ANCHOR_CENTER,
-        tooltipHtml: `<div class="${styles.lockTip}">${img}<div class="${styles.lockTipText}"><strong>${escapeHtml(name)}</strong>${power ? `<div>${escapeHtml(power)}</div>` : ""}</div></div>`,
+        tooltipHtml: tarkovLockTooltipHtml(row, tipClasses, lockKey),
         onClick: keyId && onLockClick ? () => onLockClick(keyId) : undefined,
         zIndex: CANVAS_Z.lock,
+        badge,
       },
     );
   });
@@ -573,6 +647,28 @@ function collectHazardMarkers(
     );
   });
   return out;
+}
+
+function addHazardOutlines(
+  group: L.LayerGroup,
+  byId: Map<string, L.Polygon>,
+  hazards: TarkovMapHazard[],
+  kindOn: (kind: string) => boolean,
+  floor: string,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+) {
+  hazards.forEach((row, index) => {
+    if (row.x == null || row.z == null) return;
+    const kind = String(row.hazard_type || "").trim();
+    if (!kindOn(kind)) return;
+    if (!tarkovMarkerVisibleOnFloor(row, floor, floorBands)) return;
+    const polygon = addMarkerOutline(
+      group,
+      row.outline,
+      hazardOutlineColor(kind),
+    );
+    if (polygon) byId.set(`hazard:${row.id || index}`, polygon);
+  });
 }
 
 function collectSwitchMarkers(
@@ -697,6 +793,51 @@ function collectLootContainerMarkers(
         zIndex: CANVAS_Z.loot,
       },
     );
+  });
+  return out;
+}
+
+function collectLootLooseMarkers(
+  rows: TarkovMapLootLoose[],
+  floor: string,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+  kindOn: (row: TarkovMapLootLoose) => boolean,
+  onItemClick?: (itemId: string, types: string[]) => void,
+): TarkovCanvasMarker[] {
+  const out: TarkovCanvasMarker[] = [];
+  rows.forEach((row, index) => {
+    if (row.x == null || row.z == null) return;
+    if (!kindOn(row)) return;
+    if (!tarkovMarkerVisibleOnFloor(row, floor, floorBands)) return;
+    const items = row.items || [];
+    if (!items.length) return;
+    const first = items[0];
+    const single = items.length === 1;
+    const firstId = (first?.id || "").trim();
+    out.push({
+      id: `loose:${row.id || index}`,
+      x: row.x,
+      z: row.z,
+      iconUrl: lootLooseMarkerIconUrl(row),
+      iconSize: CANVAS_ICON_SIZE,
+      iconAnchor: CANVAS_ANCHOR_CENTER,
+      tooltipHtml: tarkovLootLooseTooltipHtml(items, {
+        tip: styles.lootLooseTip,
+        icon: styles.lootLooseTipIcon,
+        item: styles.lootLooseTipItem,
+        count: styles.lootLooseTipCount,
+        card: styles.lootLooseItemCard,
+        cardIcon: styles.lootLooseItemCardIcon,
+        cardBody: styles.lootLooseItemCardBody,
+        cardName: styles.lootLooseItemCardName,
+        cardMeta: styles.lootLooseItemCardMeta,
+      }),
+      onClick:
+        single && firstId && onItemClick
+          ? () => onItemClick(firstId, first?.types || [])
+          : undefined,
+      zIndex: CANVAS_Z.loose,
+    });
   });
   return out;
 }
@@ -920,6 +1061,10 @@ type QuestClickHandler = (
   at?: RaidPrepPoint,
 ) => boolean | void;
 
+function leafletLayerMap(layer: L.Layer): L.Map | undefined {
+  return (layer as L.Layer & { _map?: L.Map })._map;
+}
+
 function bindQuestBubble(
   layer: L.Layer,
   row: QuestBubbleRow,
@@ -930,7 +1075,29 @@ function bindQuestBubble(
     direction: "top",
     opacity: 1,
     sticky: true,
-    className: styles.questTooltip,
+    className: `${styles.questTooltip} ${TARKOV_MAP_TIP_QUEST}`,
+  });
+  layer.on("tooltipopen", (event: L.TooltipEvent) => {
+    const map = leafletLayerMap(layer);
+    const tip = event.tooltip;
+    if (!map || !tip) return;
+    const place = () => {
+      const latlng = tip.getLatLng();
+      if (!latlng) return;
+      const height = tip.getElement()?.offsetHeight || 96;
+      const point = map.latLngToContainerPoint(latlng);
+      const side = pickTooltipVerticalSide({
+        pointY: point.y,
+        mapHeight: map.getSize().y,
+        tooltipHeight: height,
+      });
+      tip.options.direction = side;
+      const [ox, oy] = tooltipOffsetForSide(side, 12);
+      tip.options.offset = L.point(ox, oy);
+      tip.update();
+    };
+    place();
+    window.requestAnimationFrame(place);
   });
   const taskId = (row.taskId || "").trim();
   if (!onClick || !taskId) return;
@@ -1491,6 +1658,7 @@ export function TarkovMapViewer({
   stationaryWeapons = [],
   btrStops = [],
   lootContainers = [],
+  lootLoose = [],
   questOverlays = [],
   fill = false,
   className = "",
@@ -1519,6 +1687,9 @@ export function TarkovMapViewer({
   topRight,
   places = [],
   placeEdit,
+  lockKeyMode = "neutral",
+  lockKeyOwns,
+  lockKeyBrings,
 }: Props) {
   const interactive = useMemo(
     () => findInteractiveMap(slug, parentSlug),
@@ -1598,14 +1769,16 @@ export function TarkovMapViewer({
     prefs.floorsByMap[interactive?.key || ""],
     floorNames,
   );
-  const visiblePlaces = useMemo(
-    () =>
-      placeLabels.filter((row) => placeVisibleOnFloor(row.floor, floor)),
-    [placeLabels, floor],
-  );
   const floorBands = useMemo(
     () => mapLayerFloorBands(interactive),
     [interactive],
+  );
+  const visiblePlaces = useMemo(
+    () =>
+      placeLabels.filter((row) =>
+        placeVisibleOnFloor(row, floor, floorBands),
+      ),
+    [placeLabels, floor, floorBands],
   );
   const questPeople = useMemo(
     () => collectRaidPrepQuestFilterPeople(questParticipantsByTask),
@@ -1687,14 +1860,23 @@ export function TarkovMapViewer({
     showStationary,
     showBtrStops,
     showLootContainers,
+    showLootLoose,
     hazardKinds,
     lootContainerKinds,
+    lootLooseKinds,
   } = overlay;
   const navigate = useNavigate();
   const onLockClickRef = useRef<(keyId: string) => void>(() => {});
   onLockClickRef.current = (keyId) => {
     if (isMapDrawTool(drawModeRef.current)) return;
     navigate(tarkovLockHref(keyId));
+  };
+  const onLooseClickRef = useRef<(itemId: string, types: string[]) => void>(
+    () => {},
+  );
+  onLooseClickRef.current = (itemId, types) => {
+    if (isMapDrawTool(drawModeRef.current)) return;
+    navigate(itemHrefFromTypes(itemId, types));
   };
   const showPointLayers = layerChrome !== "floors";
   const extractKindOptions = useMemo(
@@ -1729,14 +1911,30 @@ export function TarkovMapViewer({
     () => lootContainerKindsPresent(lootContainers),
     [lootContainers],
   );
+  const containersAllOn =
+    !lootKindOptions.length ||
+    (showLootContainers &&
+      allPresentKindsOn(lootContainerKinds, lootKindOptions, false));
   const lootParentOn =
-    showLootContainers &&
-    allPresentKindsOn(lootContainerKinds, lootKindOptions, false);
+    lootKindOptions.length > 0 && containersAllOn;
   const lootParentPartial =
-    showLootContainers &&
+    lootKindOptions.length > 0 &&
     !lootParentOn &&
+    showLootContainers &&
     anyPresentKindOn(lootContainerKinds, lootKindOptions, false);
   const lootParentRef = useRef<HTMLInputElement>(null);
+  const looseKindOptions = useMemo(
+    () => lootLooseKindsPresent(lootLoose),
+    [lootLoose],
+  );
+  const hasLootLoose = lootLoose.length > 0;
+  const looseParentOn =
+    showLootLoose && allPresentKindsOn(lootLooseKinds, looseKindOptions, false);
+  const looseParentPartial =
+    showLootLoose &&
+    !looseParentOn &&
+    anyPresentKindOn(lootLooseKinds, looseKindOptions, false);
+  const looseParentRef = useRef<HTMLInputElement>(null);
   const usableItems = useMemo(() => {
     const items: { key: "showLocks" | "showSwitches" | "showStationary"; on: boolean }[] =
       [];
@@ -1843,6 +2041,31 @@ export function TarkovMapViewer({
   }, [lootParentPartial]);
 
   useEffect(() => {
+    const el = looseParentRef.current;
+    if (el) el.indeterminate = looseParentPartial;
+  }, [looseParentPartial]);
+
+  useEffect(() => {
+    if (!hasLootLoose || !looseKindOptions.length) return;
+    if (!prefs.showLootLoose) return;
+    if (Object.keys(prefs.lootLooseKinds).length > 0) return;
+    updatePrefs((prev) => ({
+      ...prev,
+      lootLooseKinds: withKindsForPresent(
+        prev.lootLooseKinds,
+        looseKindOptions,
+        true,
+      ),
+    }));
+  }, [
+    hasLootLoose,
+    looseKindOptions,
+    prefs.lootLooseKinds,
+    prefs.showLootLoose,
+    updatePrefs,
+  ]);
+
+  useEffect(() => {
     const el = usableParentRef.current;
     if (el) el.indeterminate = usableParentPartial;
   }, [usableParentPartial]);
@@ -1865,6 +2088,9 @@ export function TarkovMapViewer({
       map: null as unknown as L.Map,
       floorTiles: new Map(),
       extracts: L.layerGroup(),
+      outlines: L.layerGroup(),
+      outlineById: new Map(),
+      hoveredOutlineId: null,
       btrStops: L.layerGroup(),
       labels: L.layerGroup(),
       placeBoxes: L.layerGroup(),
@@ -2046,8 +2272,27 @@ export function TarkovMapViewer({
       }
       runtime.iconCanvas = new TarkovMapCanvasMarkerLayer({
         tooltipClassName: styles.spawnTooltip,
+        onLootItemClick: (itemId, types) => {
+          onLooseClickRef.current(itemId, [...types]);
+        },
+        onHoverId: (id) => {
+          const current = runtimeRef.current;
+          if (!current) return;
+          if (current.hoveredOutlineId) {
+            setMarkerOutlineVisible(
+              current.outlineById.get(current.hoveredOutlineId),
+              false,
+            );
+          }
+          const next = id && current.outlineById.has(id) ? id : null;
+          current.hoveredOutlineId = next;
+          if (next) {
+            setMarkerOutlineVisible(current.outlineById.get(next), true);
+          }
+        },
       });
       runtime.iconCanvas.addTo(map);
+      runtime.outlines.addTo(map);
       runtime.extracts.addTo(map);
       runtime.btrStops.addTo(map);
       runtime.labels.addTo(map);
@@ -2191,17 +2436,22 @@ export function TarkovMapViewer({
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (!ready || !runtime?.map || !interactive) return;
+    runtime.outlines.clearLayers();
+    runtime.outlineById.clear();
+    runtime.hoveredOutlineId = null;
     if (anyPresentExtractKindOn(extractKinds, extractKindOptions)) {
-      addExtractMarkers(runtime.extracts, extracts, extractKinds);
+      addExtractMarkers(
+        runtime.extracts,
+        extracts,
+        extractKinds,
+        floor,
+        floorBands,
+        runtime.outlines,
+      );
     } else runtime.extracts.clearLayers();
     const canvasMarkers: TarkovCanvasMarker[] = [];
-    if (spawnKinds.pmc || spawnKinds.scav) {
-      canvasMarkers.push(
-        ...collectPlayerSpawnMarkers(spawns, {
-          pmc: spawnKinds.pmc,
-          scav: spawnKinds.scav,
-        }),
-      );
+    if (spawnKinds.pmc || spawnKinds.scav || spawnKinds.sniper) {
+      canvasMarkers.push(...collectPlayerSpawnMarkers(spawns, spawnKinds));
     }
     if (spawnKinds.boss) {
       canvasMarkers.push(
@@ -2213,19 +2463,32 @@ export function TarkovMapViewer({
     }
     if (showLocks) {
       canvasMarkers.push(
-        ...collectLockMarkers(locks, floor, floorBands, (keyId) =>
-          onLockClickRef.current(keyId),
+        ...collectLockMarkers(
+          locks,
+          floor,
+          floorBands,
+          (keyId) => onLockClickRef.current(keyId),
+          {
+            mode: lockKeyMode,
+            viewerId: authorUserId || null,
+            owns: lockKeyOwns,
+            brings: lockKeyBrings,
+          },
         ),
       );
     }
     if (showHazards) {
+      const kindOn = (kind: string) => isHazardKindOn(hazardKinds, kind);
       canvasMarkers.push(
-        ...collectHazardMarkers(
-          hazards,
-          (kind) => isHazardKindOn(hazardKinds, kind),
-          floor,
-          floorBands,
-        ),
+        ...collectHazardMarkers(hazards, kindOn, floor, floorBands),
+      );
+      addHazardOutlines(
+        runtime.outlines,
+        runtime.outlineById,
+        hazards,
+        kindOn,
+        floor,
+        floorBands,
       );
     }
     if (showSwitches) {
@@ -2243,6 +2506,17 @@ export function TarkovMapViewer({
           (kind) => isLootContainerKindOn(lootContainerKinds, kind),
           floor,
           floorBands,
+        ),
+      );
+    }
+    if (showLootLoose) {
+      canvasMarkers.push(
+        ...collectLootLooseMarkers(
+          lootLoose,
+          floor,
+          floorBands,
+          (row) => lootLooseRowVisible(row, lootLooseKinds),
+          (itemId, types) => onLooseClickRef.current(itemId, types),
         ),
       );
     }
@@ -2288,6 +2562,7 @@ export function TarkovMapViewer({
     stationaryWeapons,
     btrStops,
     lootContainers,
+    lootLoose,
     extractKinds,
     spawnKinds,
     showLocks,
@@ -2296,8 +2571,10 @@ export function TarkovMapViewer({
     showStationary,
     showBtrStops,
     showLootContainers,
+    showLootLoose,
     hazardKinds,
     lootContainerKinds,
+    lootLooseKinds,
     showLabels,
     interactive,
     visiblePlaces,
@@ -2308,6 +2585,10 @@ export function TarkovMapViewer({
     extractKindOptions,
     floor,
     floorBands,
+    lockKeyMode,
+    lockKeyOwns,
+    lockKeyBrings,
+    authorUserId,
   ]);
 
   useEffect(() => {
@@ -2985,15 +3266,18 @@ export function TarkovMapViewer({
                       icon={tarkovContainerIconUrl("")}
                       label={TARKOV_MAP_FILTER_GROUP_LABELS.lootable}
                       onChange={() =>
-                        updatePrefs((prev) => ({
-                          ...prev,
-                          showLootContainers: !lootParentOn,
-                          lootContainerKinds: withKindsForPresent(
-                            prev.lootContainerKinds,
-                            lootKindOptions,
-                            !lootParentOn,
-                          ),
-                        }))
+                        updatePrefs((prev) => {
+                          const on = !lootParentOn;
+                          return {
+                            ...prev,
+                            showLootContainers: on,
+                            lootContainerKinds: withKindsForPresent(
+                              prev.lootContainerKinds,
+                              lootKindOptions,
+                              on,
+                            ),
+                          };
+                        })
                       }
                     />
                     {lootKindOptions.map((kind) => (
@@ -3215,6 +3499,53 @@ export function TarkovMapViewer({
                         </button>
                       )
                     ) : null}
+                  </div>
+                ) : null}
+                {hasLootLoose ? (
+                  <div className={styles.filterSubgroup}>
+                    <FilterCheckRow
+                      inputRef={looseParentRef}
+                      checked={looseParentOn}
+                      icon={tarkovLooseLootIconUrl()}
+                      label={TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose}
+                      onChange={() =>
+                        updatePrefs((prev) => {
+                          const on = !looseParentOn;
+                          return {
+                            ...prev,
+                            showLootLoose: on,
+                            lootLooseKinds: withKindsForPresent(
+                              prev.lootLooseKinds,
+                              looseKindOptions,
+                              on,
+                            ),
+                          };
+                        })
+                      }
+                    />
+                    {looseKindOptions.map((kind) => (
+                      <FilterCheckRow
+                        key={kind}
+                        child
+                        checked={
+                          showLootLoose && isLootLooseKindOn(lootLooseKinds, kind)
+                        }
+                        icon={tarkovLooseLootKindIconUrl(kind)}
+                        label={lootLooseKindLabel(kind)}
+                        onChange={() =>
+                          updatePrefs((prev) =>
+                            withLootLooseKind(
+                              prev,
+                              kind,
+                              !(
+                                prev.showLootLoose &&
+                                isLootLooseKindOn(prev.lootLooseKinds, kind)
+                              ),
+                            ),
+                          )
+                        }
+                      />
+                    ))}
                   </div>
                 ) : null}
               </div>

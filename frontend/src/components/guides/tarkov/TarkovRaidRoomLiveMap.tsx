@@ -16,6 +16,7 @@ import {
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
 import {
   playerFixMatchesRoomMap,
+  type RaidRoomKeyBringLike,
   type RaidRoomMarkLike,
   type StrokePoint,
   type TarkovMapDrawMode,
@@ -29,6 +30,7 @@ import type {
   TarkovMapHazard,
   TarkovMapLock,
   TarkovMapLootContainer,
+  TarkovMapLootLoose,
   TarkovMapPlace,
   TarkovMapSpawn,
   TarkovMapStationaryWeapon,
@@ -54,6 +56,7 @@ type Props = {
   stationaryWeapons?: TarkovMapStationaryWeapon[];
   btrStops?: TarkovMapBtrStop[];
   lootContainers?: TarkovMapLootContainer[];
+  lootLoose?: TarkovMapLootLoose[];
   places?: TarkovMapPlace[];
   questOverlays: TarkovRaidPrepOverlay[];
   questObjectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
@@ -85,6 +88,8 @@ type Props = {
     readonly RaidPrepMapParticipant[]
   >;
   topRight?: ReactNode;
+  lockKeyOwns?: readonly RaidRoomKeyBringLike[] | null;
+  lockKeyBrings?: readonly RaidRoomKeyBringLike[] | null;
 };
 
 function RaidRoomFixRelay({
@@ -142,6 +147,7 @@ export function TarkovRaidRoomLiveMap({
   stationaryWeapons,
   btrStops,
   lootContainers,
+  lootLoose,
   places,
   questOverlays,
   questObjectiveDones,
@@ -164,6 +170,8 @@ export function TarkovRaidRoomLiveMap({
   onQuestLabelClick,
   questParticipantsByTask,
   topRight,
+  lockKeyOwns,
+  lockKeyBrings,
 }: Props) {
   const drafts = useRaidRoomLiveStore((state) => state.drafts);
   const fixes = useRaidRoomLiveStore((state) => state.fixes);
@@ -246,6 +254,7 @@ export function TarkovRaidRoomLiveMap({
         stationaryWeapons={stationaryWeapons}
         btrStops={btrStops}
         lootContainers={lootContainers}
+        lootLoose={lootLoose}
         places={places}
         questOverlays={questOverlays}
         questObjectiveDones={questObjectiveDones}
@@ -269,6 +278,9 @@ export function TarkovRaidRoomLiveMap({
         onQuestLabelClick={onQuestLabelClick}
         questParticipantsByTask={questParticipantsByTask}
         topRight={topRight}
+        lockKeyMode="party"
+        lockKeyOwns={lockKeyOwns}
+        lockKeyBrings={lockKeyBrings}
       />
     </>
   );

@@ -183,15 +183,39 @@ def _overlap_payload(
     room: TarkovRaidRoom,
     occupants: list[TarkovRaidRoomMember],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    catalog_ids: set[str] | None = None
+    catalogs: dict[str, dict[str, Any]] = {}
+    map_order: list[str] = []
+    try:
+        from app.services.tarkov.tasks import (
+            catalog_task_id_set,
+            raid_prep_map_task_index,
+            raid_prep_room_map_slugs,
+        )
+
+        with game_mode_scope(parse_game_mode(room.game_mode or "pvp")):
+            catalog_ids = catalog_task_id_set(db)
+            catalogs = raid_prep_map_task_index(db)
+            map_order = raid_prep_room_map_slugs()
+    except Exception:  # noqa: BLE001
+        logger.debug("raid room map overlap skipped", exc_info=True)
+        catalogs = {}
+        map_order = []
+
     progress: list[dict[str, Any]] = []
     overlap_input: list[dict[str, Any]] = []
     for row in occupants:
         uploaded, started = _load_started_ids(row)
+        visible = (
+            [tid for tid in started if tid in catalog_ids]
+            if catalog_ids is not None
+            else started
+        )
         progress.append(
             {
                 "user_id": row.user_id,
                 "uploaded": uploaded,
-                "started_count": len(started) if uploaded else 0,
+                "started_count": len(visible) if uploaded else 0,
                 "uploaded_at": _iso(row.task_progress_at),
             }
         )
@@ -199,22 +223,14 @@ def _overlap_payload(
             {
                 "user_id": row.user_id,
                 "uploaded": uploaded,
-                "started_ids": started if uploaded else [],
+                "started_ids": visible if uploaded else [],
             }
         )
-    try:
-        from app.services.tarkov.tasks import (
-            raid_prep_map_task_index,
-            raid_prep_room_map_slugs,
-        )
-
-        with game_mode_scope(parse_game_mode(room.game_mode or "pvp")):
-            catalogs = raid_prep_map_task_index(db)
-            map_order = raid_prep_room_map_slugs()
-        overlap = build_raid_room_map_overlap(overlap_input, catalogs, map_order)
-    except Exception:  # noqa: BLE001
-        logger.debug("raid room map overlap skipped", exc_info=True)
-        overlap = []
+    overlap = (
+        build_raid_room_map_overlap(overlap_input, catalogs, map_order)
+        if map_order
+        else []
+    )
     return progress, overlap
 
 

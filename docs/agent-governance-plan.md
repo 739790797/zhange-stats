@@ -14,6 +14,7 @@
 | [`.cursor/rules/frontend-api-errors.mdc`](../.cursor/rules/frontend-api-errors.mdc) | apiError / `*Api` 边界 |
 | [`.cursor/rules/platform-raw-cache.mdc`](../.cursor/rules/platform-raw-cache.mdc) | 已有：平台 raw / 签到 |
 | [`.cursor/rules/skland-upstream.mdc`](../.cursor/rules/skland-upstream.mdc) | 森空岛官服/B服、补奖、cred（2026-08-07） |
+| [`.cursor/rules/tarkov-upstream.mdc`](../.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴只走 json.tarkov.dev（2026-09-03） |
 | [`.cursor/rules/db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | 已有：Alembic |
 | [`.cursor/rules/testing.mdc`](../.cursor/rules/testing.mdc) | 自测分层 / 补测门槛（2026-08-25） |
 

@@ -56,7 +56,7 @@ JOB_CATALOG: list[dict[str, Any]] = [
     {
         "id": "tarkov_full_sync",
         "name": "攻略数据全量更新",
-        "description": "回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，整站落本地库后再投影现有栏目",
+        "description": "回源 json.tarkov.dev 全文件与 tarkov-data-overlay，整站落本地库后再投影现有栏目",
         "kind": "cron",
         "platform": "tarkov_full",
     },

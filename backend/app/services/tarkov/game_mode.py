@@ -1,6 +1,6 @@
 """逃离塔科夫 PVP / PVE。
 
-上游：api.tarkov.dev `gameMode: regular | pve`；json.tarkov.dev `/regular/` 与 `/pve/`。
+上游：json.tarkov.dev `/regular/` 与 `/pve/`。
 落库：各 tarkov_{resource}_raws 用 mode_id=1 存 PVP、mode_id=2 存 PVE；lang='' 主文件、lang=zh locale。
 读路径靠 ContextVar，避免把 game_mode 逐层往下传。
 """
@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 GAME_MODES = ("pvp", "pve")
 DEFAULT_GAME_MODE = "pvp"
 ROW_ID_BY_MODE = {"pvp": 1, "pve": 2}
-GRAPHQL_BY_MODE = {"pvp": "regular", "pve": "pve"}
 JSON_PREFIX_BY_MODE = {"pvp": "regular", "pve": "pve"}
 JSON_API_ROOT = "https://json.tarkov.dev"
 
@@ -64,10 +63,6 @@ def game_mode_scope(mode: str) -> Iterator[str]:
 
 def raw_row_id(mode: str | None = None) -> int:
     return ROW_ID_BY_MODE[parse_game_mode(mode)]
-
-
-def graphql_game_mode(mode: str | None = None) -> str:
-    return GRAPHQL_BY_MODE[parse_game_mode(mode)]
 
 
 def json_api_prefix(mode: str | None = None) -> str:

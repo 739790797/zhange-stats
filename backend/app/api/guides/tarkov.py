@@ -140,7 +140,7 @@ def guides_tarkov_full_sync(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """管理员：回源 json.tarkov.dev 全文件与 api.tarkov.dev 静态补集，落本地后再投影现有栏目。"""
+    """管理员：回源 json.tarkov.dev 全文件，落本地后再投影现有栏目。"""
     try:
         result = full_sync_svc.sync_all_from_upstream(db)
     except full_sync_svc.TarkovFullSyncError as exc:
@@ -439,7 +439,7 @@ def guides_tarkov_tasks_sync(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """管理员：回源同步任务（api.tarkov.dev 优先，失败回退 json.tarkov.dev）。"""
+    """管理员：回源同步任务（json.tarkov.dev）。"""
     result = _sync_tasks(db)
     return TarkovTasksSyncOut(
         task_count=int(result.get("task_count") or 0),
@@ -1115,6 +1115,11 @@ def _task_dones_error(exc: task_dones_svc.TarkovTaskDonesError) -> HTTPException
 
 def _task_progress_out(db: Session, user: User) -> TarkovTaskDonesOut:
     done, started = task_dones_svc.list_progress(db, user.id)
+    done, started = task_dones_svc.filter_visible_progress(
+        done,
+        started,
+        tasks_svc.catalog_task_id_set(db),
+    )
     return TarkovTaskDonesOut(task_ids=done, started_ids=started)
 
 
@@ -1142,7 +1147,7 @@ def guides_tarkov_task_dones_write(
     user: User = Depends(get_current_user),
 ):
     """合并或整表替换当前模式的完成 / 进行中集合。省略 started_ids 则不改进行中。"""
-    done, started = task_dones_svc.write_progress(
+    task_dones_svc.write_progress(
         db,
         user,
         body.task_ids,
@@ -1150,7 +1155,7 @@ def guides_tarkov_task_dones_write(
         replace=body.replace,
     )
     db.commit()
-    return TarkovTaskDonesOut(task_ids=done, started_ids=started)
+    return _task_progress_out(db, user)
 
 
 @router.put(

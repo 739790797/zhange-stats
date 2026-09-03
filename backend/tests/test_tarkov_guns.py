@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from app.services.tarkov import guns as svc
@@ -410,46 +408,3 @@ def test_parse_gun_raw_json_envelope():
 def test_parse_graphql_guns_errors():
     with pytest.raises(svc.TarkovGunError):
         svc.parse_graphql_guns({"errors": ["down"]})
-
-
-def test_download_graphql_guns(monkeypatch: pytest.MonkeyPatch):
-    def fake_http(url, *, method="GET", body=None, headers=None, timeout=120):  # noqa: ANN001
-        assert method == "POST"
-        return json.dumps(
-            {
-                "data": {
-                    "items": [
-                        {
-                            "id": "g",
-                            "name": "Gun",
-                            "shortName": "G",
-                            "types": ["gun"],
-                            "categories": [
-                                {
-                                    "id": "5447b5f14bdc2d61278b4567",
-                                    "normalizedName": "assault-rifle",
-                                }
-                            ],
-                            "properties": {
-                                "__typename": "ItemPropertiesWeapon",
-                                "caliber": "5.56x45mm",
-                                "fireRate": 800,
-                                "ergonomics": 50,
-                                "recoilVertical": 70,
-                                "recoilHorizontal": 200,
-                                "effectiveDistance": 500,
-                                "fireModes": ["single"],
-                                "defaultAmmo": {"id": "a"},
-                                "allowedAmmo": [{"id": "a"}],
-                            },
-                        }
-                    ]
-                }
-            }
-        ).encode()
-
-    monkeypatch.setattr(svc, "_http_request", fake_http)
-    bundle = svc.download_graphql_guns(lang="zh")
-    assert bundle.source == SOURCE_GRAPHQL
-    rows = svc.parse_gun_raw(bundle.source, bundle.payload)
-    assert len(rows) == 1

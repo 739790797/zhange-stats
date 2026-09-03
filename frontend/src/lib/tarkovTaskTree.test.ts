@@ -12,6 +12,7 @@ import {
   loadTaskSyncAt,
   parseTaskDonesState,
   planAccountTaskHydrate,
+  keepCatalogTaskProgress,
   resolveAccountTaskProgress,
   resolveTaskMapId,
   resolveTaskStatus,
@@ -56,6 +57,19 @@ describe("task progress", () => {
     expect(resolveTaskStatus("p1", new Set(["p1"]), new Set(["p1"]))).toBe("done");
     expect(resolveTaskStatus("p1", new Set(), new Set(["p1"]))).toBe("active");
     expect(resolveTaskStatus("p1", new Set(), new Set())).toBe("todo");
+  });
+
+  it("hides ids missing from the live catalog", () => {
+    expect(
+      keepCatalogTaskProgress(
+        ["keep", "gone"],
+        ["live", "gone-start"],
+        ["keep", "live"],
+      ),
+    ).toEqual({ done: ["keep"], started: ["live"] });
+    expect(
+      keepCatalogTaskProgress(["gone"], ["gone-start"], null),
+    ).toEqual({ done: ["gone"], started: ["gone-start"] });
   });
 
   it("sets a specific status", () => {

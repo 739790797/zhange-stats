@@ -22,7 +22,7 @@ users 1 ── 1 members ── * play_sessions / presence_segments
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
 arknights_operators · arknights_catalog_meta · game_schedule_raws
 tarkov_items_raws · tarkov_maps_raws · tarkov_tasks_raws · tarkov_traders_raws
-tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extras_raws
+tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extras_raws · tarkov_overlay_raws
 tarkov_ammo · tarkov_guns
 tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_objective_dones / tarkov_raid_room_marks
 tarkov_map_places
@@ -45,7 +45,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`，`resource` 对齐 json.tarkov.dev 文件名。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/extras 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，不再把 maps 塞进 bosses、hideout/barters/crafts 合成 guides。 |
+| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`。回源只打 json.tarkov.dev（PVP=`/regular/`，PVE=`/pve/`），**不**请求 `api.tarkov.dev` GraphQL。json 文件一张表；`overlay` 为社区补丁。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/extras/overlay 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，任务/物品/制作在 parse 前与 overlay 内存合入，不落合并表。详见 `.cursor/rules/tarkov-upstream.mdc`。 |
 | `tarkov_items_raws` | json.tarkov.dev `/items` + `/items_zh`。弹药/枪械派生与目录列表的 `source` / `synced_at` / `note` 读当前模式主文件行 |
 | `tarkov_maps_raws` | json.tarkov.dev `/maps` + `/maps_zh`（含 mobs；地图与 BOSS 共用） |
 | `tarkov_tasks_raws` | json.tarkov.dev `/tasks` + `/tasks_zh` |
@@ -53,7 +53,8 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `tarkov_hideout_raws` | json.tarkov.dev `/hideout` + `/hideout_zh` |
 | `tarkov_barters_raws` | json.tarkov.dev `/barters` |
 | `tarkov_crafts_raws` | json.tarkov.dev `/crafts` |
-| `tarkov_extras_raws` | api.tarkov.dev extras |
+| `tarkov_extras_raws` | 从 json.tarkov.dev items/maps/tasks dump 抽出的 extras（技能、跳蚤规则、成就等） |
+| `tarkov_overlay_raws` | [tarkov-data-overlay](https://github.com/tarkovtracker-org/tarkov-data-overlay) `dist/overlay.json`。文件含 `modes.regular` / `modes.pve`，PVP/PVE 各存一行；读任务/物品/制作 raw 时内存合入，不改 json.tarkov.dev 各表 |
 | `tarkov_ammo` | 弹药派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正） |
 | `tarkov_guns` | 枪械派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；口径/射速/人机/后坐/`allowed_ammo` 等） |
 | `tarkov_raid_rooms` | 联机大厅席位房：PVP / PVE 各固定 5 张公开桌（`public_id`=`1`…`5` 为 PVP，`pve-1`…`pve-5` 为 PVE，标题均为 `1号房`…`5号房`，`listed=true`，模式写死不可改）。大厅按当前顶栏模式只列出对应 5 张。`password_hash` 可空（bcrypt）；空则任何人可入座，房主可设/改/清。API 只回 `has_password`，不回哈希。加入有密码的桌须在 join 带明文；已在座者再 join 不用。最后一人离开或房主清空房间则清空成员/画板/勾选/钥匙/目标完成/密码并取消地图（公开桌复位到该桌固定模式）。空桌无房主、`map_slug` 为空；第一位加入者成为房主；房主离开则转给最早在座者。房主可移除在座成员。换图同样清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |

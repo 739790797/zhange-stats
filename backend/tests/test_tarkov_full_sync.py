@@ -9,6 +9,7 @@ from app.services.tarkov import bosses as bosses_svc
 from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import key_packs as key_packs_svc
+from app.services.tarkov import overlay as overlay_svc
 from app.services.tarkov import sync as full_sync
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
@@ -21,7 +22,13 @@ class _Db:
 
 def _sample_dump() -> dict:
     return {
-        "items": {"data": {"items": {"a1": {"id": "a1"}}}},
+        "items": {
+            "data": {
+                "items": {"a1": {"id": "a1"}},
+                "skills": [{"id": "endurance"}],
+                "playerLevels": [{"level": 1, "exp": 0}],
+            }
+        },
         "items_zh": {"data": {}},
         "maps": {
             "data": {
@@ -33,10 +40,16 @@ def _sample_dump() -> dict:
                     }
                 },
                 "mobs": {"reshala": {"id": "reshala"}},
+                "lootContainers": {},
             }
         },
         "maps_zh": {"data": {}},
-        "tasks": {"data": {"tasks": {"t1": {"id": "t1", "name": "Task"}}}},
+        "tasks": {
+            "data": {
+                "tasks": {"t1": {"id": "t1", "name": "Task"}},
+                "achievements": {},
+            }
+        },
         "tasks_zh": {"data": {}},
         "traders": {"data": {"prapor": {"normalizedName": "prapor", "levels": []}}},
         "traders_zh": {"data": {}},
@@ -49,6 +62,29 @@ def _sample_dump() -> dict:
 
 def _ok(source: str = "json") -> dict:
     return {"source": source, "synced_at": "t"}
+
+
+def _stub_overlay_sync(monkeypatch, *, fail: bool = False) -> None:
+    if fail:
+        monkeypatch.setattr(
+            overlay_svc,
+            "sync_overlay",
+            lambda *_a, **_k: (_ for _ in ()).throw(
+                overlay_svc.TarkovOverlayError("cdn down")
+            ),
+        )
+        return
+    monkeypatch.setattr(
+        overlay_svc,
+        "sync_overlay",
+        lambda *_a, **_k: {
+            "id": "overlay",
+            "ok": True,
+            "source": overlay_svc.SOURCE_OVERLAY,
+            "synced_at": "t",
+            "error": None,
+        },
+    )
 
 
 def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
@@ -71,14 +107,13 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
             }
         ],
     )
-    monkeypatch.setattr(upstream_svc, "download_graphql_extras", lambda **_k: {"skills": []})
     monkeypatch.setattr(
         upstream_svc,
         "persist_raw",
         lambda *_a, **_k: {
             "id": "extras",
             "ok": True,
-            "source": "api.tarkov.dev",
+            "source": "json.tarkov.dev",
             "synced_at": "t",
             "error": None,
         },
@@ -88,6 +123,7 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
         "rebuild_from_raw",
         lambda *_a, **_k: calls.append("items") or _ok(),
     )
+    _stub_overlay_sync(monkeypatch)
     key_packs_svc._lock_cache.clear()
 
     out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp")
@@ -99,6 +135,7 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
     assert "items" in ids
     assert "maps" in ids
     assert "locks" in ids
+    assert "overlay" in ids
     assert "extras" in ids
     assert key_packs_svc._lock_cache
 
@@ -112,14 +149,13 @@ def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
         "persist_site_json",
         lambda *_a, **_k: [],
     )
-    monkeypatch.setattr(upstream_svc, "download_graphql_extras", lambda **_k: {"skills": []})
     monkeypatch.setattr(
         upstream_svc,
         "persist_raw",
         lambda *_a, **_k: {
             "id": "extras",
             "ok": True,
-            "source": "api.tarkov.dev",
+            "source": "json.tarkov.dev",
             "synced_at": "t",
             "error": None,
         },
@@ -130,12 +166,42 @@ def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
         "_tasks_map",
         lambda *_a, **_k: (_ for _ in ()).throw(tasks_svc.TarkovTasksError("tasks down")),
     )
+    _stub_overlay_sync(monkeypatch)
 
     out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp")
     assert out["message"] == "partial"
     by_id = {row["id"]: row for row in out["domains"]}
     assert by_id["tasks"]["ok"] is False
     assert "tasks down" in (by_id["tasks"]["error"] or "")
+    assert by_id["items"]["ok"] is True
+    assert by_id["overlay"]["ok"] is True
+    assert by_id["extras"]["ok"] is True
+
+
+def test_sync_all_keeps_going_when_overlay_fails(monkeypatch) -> None:
+    monkeypatch.setattr(
+        upstream_svc, "download_site_json", lambda **_k: (_sample_dump(), {})
+    )
+    monkeypatch.setattr(upstream_svc, "persist_site_json", lambda *_a, **_k: [])
+    monkeypatch.setattr(
+        upstream_svc,
+        "persist_raw",
+        lambda *_a, **_k: {
+            "id": "extras",
+            "ok": True,
+            "source": "json.tarkov.dev",
+            "synced_at": "t",
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(items_svc, "rebuild_from_raw", lambda *_a, **_k: _ok())
+    _stub_overlay_sync(monkeypatch, fail=True)
+
+    out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp")
+    assert out["message"] == "partial"
+    by_id = {row["id"]: row for row in out["domains"]}
+    assert by_id["overlay"]["ok"] is False
+    assert "cdn down" in (by_id["overlay"]["error"] or "")
     assert by_id["items"]["ok"] is True
     assert by_id["extras"]["ok"] is True
 
@@ -255,10 +321,18 @@ def test_persist_site_json_writes_eight_raw_tables() -> None:
             db,
             upstream_svc.EXTRAS_RESOURCE,
             {"skills": []},
-            source="api.tarkov.dev",
-            note="api.tarkov.dev extras",
+            source="json.tarkov.dev",
+            note="json.tarkov.dev/regular extras",
+        )
+        overlay = upstream_svc.persist_raw(
+            db,
+            overlay_svc.OVERLAY_RESOURCE,
+            {"tasks": {}},
+            source=overlay_svc.SOURCE_OVERLAY,
+            note="overlay",
         )
     assert extras["ok"] is True
+    assert overlay["ok"] is True
     ok_ids = {row["id"] for row in rows if row["ok"]}
     assert "dump:items" in ok_ids
     assert "dump:maps" in ok_ids
@@ -292,6 +366,14 @@ def test_persist_site_json_records_upstream_last_modified() -> None:
         if (row.lang or "") == ""
     )
     assert "上游 2026-08-26T09:01:54+00:00" in (items.note or "")
+
+
+def test_extras_from_site_dump_pulls_nested_catalogs() -> None:
+    extras = upstream_svc.extras_from_site_dump(_sample_dump())
+    assert extras["skills"] == [{"id": "endurance"}]
+    assert extras["playerLevels"] == [{"level": 1, "exp": 0}]
+    assert extras["lootContainers"] == {}
+    assert extras["achievements"] == {}
 
 
 def test_scheduler_drops_removed_per_domain_jobs() -> None:

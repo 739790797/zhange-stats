@@ -2,7 +2,9 @@ import { EnvironmentOutlined } from "@ant-design/icons";
 import { memo, useMemo } from "react";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
 import {
+  collectRaidPrepFailChips,
   collectRaidPrepOtherMapGroups,
+  collectRaidPrepSequenceGroups,
   collectRaidPrepTaskObjectives,
   colorForTaskId,
   displayRaidPrepTaskName,
@@ -72,6 +74,14 @@ function TarkovRaidPrepTaskCardInner({
   const otherMapGroups = useMemo(
     () => collectRaidPrepOtherMapGroups(row, mapSlug),
     [row, mapSlug],
+  );
+  const sequenceGroups = useMemo(
+    () => collectRaidPrepSequenceGroups(row, mapSlug),
+    [row, mapSlug],
+  );
+  const failChips = useMemo(
+    () => collectRaidPrepFailChips(row.fail_conditions),
+    [row],
   );
   const mapDone =
     isDone || raidPrepMapObjectivesComplete(row, mapSlug, skipped);
@@ -146,6 +156,8 @@ function TarkovRaidPrepTaskCardInner({
             taskDone={isDone || status === "done"}
             objectives={objectives}
             otherMapGroups={otherMapGroups}
+            sequenceGroups={sequenceGroups}
+            failChips={failChips}
             skipped={skipped}
             onNeedDetail={onNeedDetail}
             onToggle={

@@ -44,6 +44,7 @@ import {
   describeTaskMap,
   factionTaskSuffix,
   groupTasksByTrader,
+  keepCatalogTaskProgress,
   loadTaskDoneIds,
   loadTaskStartedIds,
   loadTaskSyncAt,
@@ -244,8 +245,6 @@ export function TarkovTaskManagerPanel() {
   const startedIdsRef = useRef(startedIds);
   doneIdsRef.current = doneIds;
   startedIdsRef.current = startedIds;
-  const done = useMemo(() => new Set(doneIds), [doneIds]);
-  const started = useMemo(() => new Set(startedIds), [startedIds]);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [scan, setScan] = useState<{ done: number; total: number } | null>(null);
@@ -379,6 +378,23 @@ export function TarkovTaskManagerPanel() {
     [traders],
   );
   const knownIds = useMemo(() => new Set(items.map((item) => item.id)), [items]);
+  const visibleProgress = useMemo(
+    () =>
+      keepCatalogTaskProgress(
+        doneIds,
+        startedIds,
+        catalogQuery.data ? knownIds : null,
+      ),
+    [catalogQuery.data, doneIds, knownIds, startedIds],
+  );
+  const done = useMemo(
+    () => new Set(visibleProgress.done),
+    [visibleProgress],
+  );
+  const started = useMemo(
+    () => new Set(visibleProgress.started),
+    [visibleProgress],
+  );
 
   const itemsByTrader = useMemo(() => {
     const map = new Map<string, TarkovTaskListItem[]>();
@@ -629,13 +645,9 @@ export function TarkovTaskManagerPanel() {
       <section className={styles.overview}>
         <div className={styles.stats}>
           {shownStats.map((row) => (
-            <div
-              key={row.key}
-              className={`${styles.stat} ${row.tone}`}
-              style={{ flexGrow: row.value || 1 }}
-            >
-              <div className={styles.statLabel}>{row.label}</div>
-              <div className={styles.statValue}>{row.value}</div>
+            <div key={row.key} className={`${styles.stat} ${row.tone}`}>
+              <span className={styles.statLabel}>{row.label}</span>
+              <span className={styles.statValue}>{row.value}</span>
             </div>
           ))}
         </div>

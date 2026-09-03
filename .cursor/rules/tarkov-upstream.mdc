@@ -1,0 +1,27 @@
+---
+description: 塔科夫图鉴上游：只走 json.tarkov.dev，不打 GraphQL
+globs: backend/app/services/tarkov/**/*.py,backend/app/api/guides/tarkov*.py,backend/tests/test_tarkov*.py,frontend/src/lib/tarkov*.ts,frontend/src/components/guides/tarkov/**/*,frontend/src/pages/guides/Tarkov*.tsx
+alwaysApply: false
+---
+
+# 塔科夫图鉴上游
+
+图鉴回源**只打** [json.tarkov.dev](https://json.tarkov.dev)：PVP=`/regular/`，PVE=`/pve/`。编排在 `tarkov.upstream` + `tarkov.sync`；`tarkov_*_raws` 一张上游文件一张表。
+
+## 必须
+
+- 新栏目、新标点、新同步从 **maps/items/tasks 等 dump** 投影，locale 走同资源 `_zh`
+- extras（技能 / 跳蚤 / 成就 / 容器目录等）从已下载 dump **抽出**，不另打 GraphQL
+- 任务 / 物品 / 制作在 **parse 前**与 `tarkov_overlay_raws`（[tarkov-data-overlay](https://github.com/tarkovtracker-org/tarkov-data-overlay)）内存合入，不改 json 各表、不落合并表
+- 互动地图底图仍用 `frontend/src/data/tarkov-dev-maps.json` + `assets.tarkov.dev`（SVG/瓦片），那是展示资源，不是图鉴 API
+
+## 禁止
+
+- 回源 `api.tarkov.dev` GraphQL（含 maps markers overlay、ammo/guns split）
+- 为「补全 GraphQL 才有的字段」再加一条 GraphQL 请求；dump 缺的字段就当 dump 没有
+- 把 BTR/门锁等标点改去现场打 GraphQL；走 `maps` raw 投影
+- pytest 打真实 json.tarkov.dev / overlay CDN（用夹具）
+
+## 兼容
+
+弹药/枪械 parse 仍能读历史 GraphQL split 信封，只为旧 `tarkov_items_raws` 行；**新写入只有 json dump**。不要再扩展 GraphQL 回源。

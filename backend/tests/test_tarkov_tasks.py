@@ -9,6 +9,7 @@ THERAPIST = "54cb57776803fa99248b456e"
 STREETS = "5714dc692459777137212e12"
 GROUND_ZERO = "653e6760052c01c1c805532f"
 CUSTOMS = "56f40101d2720b2a4d8b45d6"
+FACTORY = "55f2d3fd4bdc2d5f408b4567"
 
 
 def _envelope() -> dict:
@@ -270,6 +271,92 @@ def test_project_detail_resolves_locale():
     assert detail["finish_rewards"]["trader_standing"][0]["slug"] == "prapor"
     assert detail["needed_keys"][0]["map"]["name"] == "塔科夫街区"
     assert detail["objectives"][0]["required_keys"][0][0]["id"] == "key1"
+    assert detail["fail_conditions"] == []
+
+
+def test_project_fail_conditions_resolves_conflict_tasks_and_extract():
+    payload = {
+        "tasks": {
+            "chem": {
+                "id": "chem",
+                "name": "Chemical - Part 4",
+                "normalizedName": "chemical-part-4",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [{"id": "o1", "type": "visit", "maps": [STREETS]}],
+                "failConditions": [
+                    {
+                        "id": "f-curio",
+                        "type": "taskStatus",
+                        "task": "curio",
+                        "status": ["complete"],
+                    },
+                    {
+                        "id": "f-big",
+                        "type": "taskStatus",
+                        "task": "big",
+                        "status": ["complete"],
+                    },
+                    {
+                        "id": "f-die",
+                        "type": "extract",
+                        "description": "f-die",
+                        "exitStatus": [
+                            "ExpBonusKilled",
+                            "ExpBonusLeft",
+                            "ExpBonusMissingInAction",
+                        ],
+                    },
+                ],
+            },
+            "curio": {
+                "id": "curio",
+                "name": "Out of Curiosity",
+                "normalizedName": "out-of-curiosity",
+                "trader": PRAPOR,
+                "objectives": [],
+            },
+            "big": {
+                "id": "big",
+                "name": "Big Customer",
+                "normalizedName": "big-customer",
+                "trader": PRAPOR,
+                "objectives": [],
+            },
+        },
+        "locale": {
+            "chem name": "化学-第4部分",
+            "curio name": "好奇心",
+            "big name": "大客户",
+            "f-die": "任务进行中不得阵亡",
+        },
+    }
+    tasks_map = payload["tasks"]
+    detail = tasks.project_task_detail(
+        tasks_map["chem"],
+        payload["locale"],
+        tasks_by_id=tasks_map,
+    )
+    assert detail is not None
+    fails = detail["fail_conditions"]
+    assert [row["type"] for row in fails] == ["taskStatus", "taskStatus", "extract"]
+    assert [row["tasks"][0]["name"] for row in fails[:2]] == ["好奇心", "大客户"]
+    assert [row["tasks"][0]["trader_slug"] for row in fails[:2]] == [
+        "prapor",
+        "prapor",
+    ]
+    assert fails[2]["exit_status"] == ["Killed", "Left", "MissingInAction"]
+    assert fails[2]["description"] == "任务进行中不得阵亡"
+    _name, rows = tasks.collect_raid_prep_rows(payload, "streets")
+    by_id = {row["id"]: row for row in rows}
+    assert [row["type"] for row in by_id["chem"]["fail_conditions"]] == [
+        "taskStatus",
+        "taskStatus",
+        "extract",
+    ]
+    stripped = tasks.strip_raid_prep_catalog(by_id["chem"])
+    assert stripped["objectives"] == []
+    assert stripped["fail_conditions"][0]["tasks"][0]["name"] == "好奇心"
 
 
 def test_required_keys_or_groups_and_fallback_needed_keys():
@@ -778,6 +865,41 @@ def test_crop_raid_prep_detail_keeps_other_map_stubs():
     assert any((m.get("slug") == "customs") for m in o2["maps"])
 
 
+def test_crop_raid_prep_keeps_dump_objective_order():
+    detail = tasks.project_task_detail(
+        {
+            "id": "polikhim",
+            "name": "Secrets of Polikhim",
+            "normalizedName": "secrets-of-polikhim",
+            "trader": PRAPOR,
+            "objectives": [
+                {
+                    "id": "ex",
+                    "type": "extract",
+                    "maps": [CUSTOMS],
+                },
+                {
+                    "id": "find",
+                    "type": "findQuestItem",
+                    "maps": [CUSTOMS],
+                },
+                {
+                    "id": "plant",
+                    "type": "plantQuestItem",
+                    "maps": [FACTORY],
+                },
+            ],
+        },
+        {},
+    )
+    assert detail is not None
+    cropped = tasks.crop_raid_prep_detail_for_map(detail, "factory")
+    assert [o["id"] for o in cropped["objectives"]] == ["ex", "find", "plant"]
+    assert cropped["objective_count"] == 1
+    assert cropped["objectives"][0]["zones"] == []
+    assert cropped["objectives"][2]["id"] == "plant"
+
+
 def test_strip_raid_prep_geometry_keeps_items():
     row = {
         "id": "t1",
@@ -812,6 +934,7 @@ def test_strip_raid_prep_catalog_drops_objectives():
         "wiki_link": "https://example.test",
         "objectives": [{"id": "o1", "description": "go", "items": [{"name": "hdd"}]}],
         "needed_keys": [{"item_id": "k1"}],
+        "fail_conditions": [{"type": "extract", "description": "别死"}],
     }
     out = tasks.strip_raid_prep_catalog(row)
     assert out["id"] == "t1"
@@ -820,6 +943,7 @@ def test_strip_raid_prep_catalog_drops_objectives():
     assert out["has_map_markers"] is True
     assert out["objectives"] == []
     assert out["needed_keys"] == []
+    assert out["fail_conditions"] == [{"type": "extract", "description": "别死"}]
     assert "wiki_link" not in out
     assert row["objectives"][0]["description"] == "go"
 
@@ -920,3 +1044,196 @@ def test_collect_raid_prep_task_index_buckets_maps():
     assert index["streets"]["on-map"]["trader_slug"] == "prapor"
     assert "on-map" not in index["customs"]
     assert index["customs"]["other"]["name"] == "On customs"
+
+
+def test_project_detail_kappa_prereqs_and_unlocks():
+    payload = {
+        "tasks": {
+            "t1": {
+                "id": "t1",
+                "name": "Debut",
+                "trader": PRAPOR,
+                "kappaRequired": True,
+                "restartable": True,
+                "availableDelaySecondsMin": 3600,
+                "availableDelaySecondsMax": 7200,
+                "requiredPrestige": {"id": "p1", "name": "Prestige 1", "prestigeLevel": 1},
+                "taskRequirements": [],
+                "startRewards": {
+                    "items": [{"item": "item1", "count": 1}],
+                    "offerUnlock": [
+                        {
+                            "id": "off1",
+                            "trader": PRAPOR,
+                            "level": 2,
+                            "item": "gun1",
+                        }
+                    ],
+                    "skillLevelReward": [{"name": "Endurance", "level": 1}],
+                    "traderUnlock": [THERAPIST],
+                    "craftUnlock": [
+                        {
+                            "id": "craft1",
+                            "station": {
+                                "id": "st1",
+                                "name": "Workbench",
+                                "normalizedName": "workbench",
+                            },
+                            "level": 1,
+                            "rewardItems": [{"item": "ammo1", "count": 1}],
+                        }
+                    ],
+                    "achievement": [{"id": "ach1", "name": "Welcome", "imageLink": "a.png"}],
+                    "customization": [{"id": "c1", "name": "Hat"}],
+                },
+                "finishRewards": {
+                    "items": [{"item": "item1", "count": 2}],
+                    "traderStanding": [{"trader": PRAPOR, "standing": 0.05}],
+                },
+                "failureOutcome": {
+                    "traderStanding": [{"trader": PRAPOR, "standing": -0.2}],
+                },
+                "objectives": [],
+            },
+            "t2": {
+                "id": "t2",
+                "name": "Checking",
+                "trader": PRAPOR,
+                "taskRequirements": [{"task": "t1", "status": ["complete"]}],
+                "objectives": [],
+            },
+        },
+        "locale": {"t1 name": "首秀", "t2 name": "验收"},
+    }
+    detail = tasks.project_task_detail(
+        payload["tasks"]["t1"],
+        payload["locale"],
+        tasks_by_id=payload["tasks"],
+    )
+    assert detail is not None
+    assert detail["kappa_required"] is True
+    assert detail["restartable"] is True
+    assert detail["available_delay_seconds_min"] == 3600
+    assert detail["available_delay_seconds_max"] == 7200
+    assert detail["required_prestige"]["prestige_level"] == 1
+    assert detail["unlocks"][0]["id"] == "t2"
+    assert detail["unlocks"][0]["name"] == "验收"
+    assert detail["unlocks"][0]["status"] == ["complete"]
+    start = detail["start_rewards"]
+    assert start["items"][0]["id"] == "item1"
+    assert start["offer_unlock"][0]["level"] == 2
+    assert start["offer_unlock"][0]["item"]["id"] == "gun1"
+    assert start["skill_level_reward"][0] == {"name": "Endurance", "level": 1}
+    assert start["trader_unlock"][0]["slug"] == "therapist"
+    assert start["craft_unlock"][0]["station"]["slug"] == "workbench"
+    assert start["craft_unlock"][0]["item"]["id"] == "ammo1"
+    assert start["achievement"][0]["name"] == "Welcome"
+    assert start["customization"][0]["id"] == "c1"
+    assert detail["fail_rewards"]["trader_standing"][0]["standing"] == -0.2
+    later = tasks.project_task_detail(
+        payload["tasks"]["t2"],
+        payload["locale"],
+        tasks_by_id=payload["tasks"],
+    )
+    assert later is not None
+    assert later["task_requirements"][0]["id"] == "t1"
+    assert later["task_requirements"][0]["name"] == "首秀"
+
+
+def test_project_objective_structured_fields():
+    detail = tasks.project_task_detail(
+        {
+            "id": "shoot",
+            "name": "Shoot",
+            "trader": PRAPOR,
+            "objectives": [
+                {
+                    "id": "o-s",
+                    "type": "shoot",
+                    "description": "kill",
+                    "targetNames": ["Scavs"],
+                    "bodyParts": ["Head"],
+                    "shotType": "Kill",
+                    "distance": {"compareMethod": ">=", "value": 40},
+                    "usingWeapon": ["gun1"],
+                    "usingWeaponMods": [["mod1"]],
+                    "wearing": [["hat1", "hat2"]],
+                    "notWearing": ["mask1"],
+                    "timeFromHour": 22,
+                    "timeUntilHour": 6,
+                    "enemyHealthEffect": {
+                        "bodyParts": ["Head"],
+                        "effects": ["Pain"],
+                    },
+                },
+                {
+                    "id": "o-b",
+                    "type": "buildWeapon",
+                    "description": "build",
+                    "containsAll": ["grip1"],
+                    "containsCategory": [
+                        {"id": "cat1", "name": "Sights", "normalizedName": "sights"}
+                    ],
+                    "attributes": [
+                        {
+                            "name": "ergonomics",
+                            "requirement": {"compareMethod": ">=", "value": 30},
+                        }
+                    ],
+                },
+                {
+                    "id": "o-h",
+                    "type": "hideoutStation",
+                    "hideoutStation": {
+                        "id": "st1",
+                        "name": "Workbench",
+                        "normalizedName": "workbench",
+                    },
+                    "stationLevel": 2,
+                },
+                {
+                    "id": "o-t",
+                    "type": "taskStatus",
+                    "task": "t2",
+                    "status": ["complete"],
+                },
+                {
+                    "id": "o-i",
+                    "type": "giveItem",
+                    "item": "dog",
+                    "dogTagLevel": 4,
+                    "minDurability": 0,
+                    "maxDurability": 50,
+                },
+            ],
+        },
+        {"t2 name": "验收"},
+        tasks_by_id={
+            "t2": {
+                "id": "t2",
+                "name": "Checking",
+                "trader": PRAPOR,
+                "normalizedName": "checking",
+            }
+        },
+    )
+    assert detail is not None
+    shoot, build, hideout, related, item = detail["objectives"]
+    assert shoot["target_names"] == ["Scavs"]
+    assert shoot["body_parts"] == ["Head"]
+    assert shoot["distance"]["value"] == 40
+    assert shoot["using_weapon"][0]["id"] == "gun1"
+    assert shoot["using_weapon_mods"][0][0]["id"] == "mod1"
+    assert [r["id"] for r in shoot["wearing"][0]] == ["hat1", "hat2"]
+    assert shoot["time_from_hour"] == 22
+    assert shoot["enemy_health_effect"]["effects"] == ["Pain"]
+    assert build["contains_all"][0]["id"] == "grip1"
+    assert build["contains_category"][0]["slug"] == "sights"
+    assert build["attributes"][0]["name"] == "ergonomics"
+    assert hideout["hideout_station"]["slug"] == "workbench"
+    assert hideout["station_level"] == 2
+    assert related["related_tasks"][0]["name"] == "验收"
+    assert related["related_status"] == ["complete"]
+    assert item["dog_tag_level"] == 4
+    assert item["max_durability"] == 50
+

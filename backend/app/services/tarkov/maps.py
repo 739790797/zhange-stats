@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services.tarkov.ammo import TARKOV_GRAPHQL_URL
-from app.services.tarkov.game_mode import graphql_game_mode, parse_game_mode
+from app.services.tarkov.game_mode import parse_game_mode
 from app.services.tarkov.bosses import (
     TarkovBossesError,
     _as_int,
-    _http_request,
     _locale_lookup,
     _map_zh,
     _maps_blob,
@@ -52,87 +49,11 @@ VARIANT_PARENT: dict[str, str] = {
 
 HUB_SKIP = {"ground-zero-tutorial", "openworld", "transits"}
 
-_MARKERS_QUERY = """
-query MapMarkers($lang: LanguageCode, $gameMode: GameMode) {
-  maps(lang: $lang, gameMode: $gameMode) {
-    normalizedName
-    extracts {
-      id
-      name
-      faction
-      position { x y z }
-    }
-    transits {
-      id
-      description
-      position { x y z }
-    }
-    bosses {
-      normalizedName
-      spawnLocations {
-        name
-        chance
-        positions { x y z }
-      }
-    }
-    spawns {
-      zoneName
-      categories
-      sides
-      position { x y z }
-    }
-    locks {
-      lockType
-      needsPower
-      key { id name shortName iconLink }
-      position { x y z }
-      top
-      bottom
-    }
-    hazards {
-      hazardType
-      name
-      position { x y z }
-      top
-      bottom
-    }
-    switches {
-      id
-      name
-      switchType
-      position { x y z }
-      activatedBy { id name }
-    }
-    stationaryWeapons {
-      stationaryWeapon { id name shortName }
-      position { x y z }
-    }
-    btrStops {
-      name
-      x
-      y
-      z
-    }
-    lootContainers {
-      lootContainer { id name normalizedName }
-      position { x y z }
-    }
-    artillery {
-      zones {
-        position { x y z }
-        top
-        bottom
-      }
-    }
-  }
-}
-""".strip()
-
-# 对齐 tarkov.dev map/index.jsx Spawns：PMC / Scav（Boss 用 bosses.locations）。
-SPAWN_KINDS = ("pmc", "scav")
+# 对齐 tarkov.dev map/index.jsx Spawns：PMC / Scav / 狙击 Scav（Boss 用 bosses.locations）。
+SPAWN_KINDS = ("pmc", "scav", "sniper")
 
 _MARKER_TTL_SEC = 3600
-_MARKER_CACHE_VER = "markers-v3"
+_MARKER_CACHE_VER = "markers-v4"
 _marker_cache: dict[str, dict[str, Any]] = {}
 
 
@@ -198,11 +119,21 @@ def _extract_point_item(
         "name": label,
         "faction": _faction_label(faction),
     }
-    point = map_xyz(row)
-    if point:
-        item["x"] = point["x"]
-        item["y"] = point["y"]
-        item["z"] = point["z"]
+    _attach_point(item, row)
+    _attach_outline(item, row)
+    switches = _collect_switch_ids(row)
+    if switches:
+        item["switches"] = [{"id": sid, "name": ""} for sid in switches]
+    transfer = _parse_transfer_item(row.get("transferItem") or row.get("transfer_item"))
+    if transfer:
+        name = _resolved_item_name(
+            locale,
+            transfer.get("name"),
+            f"{transfer.get('id')} Name" if transfer.get("id") else "",
+        )
+        if name:
+            transfer["name"] = name
+        item["transfer_item"] = transfer
     return item
 
 
@@ -333,7 +264,7 @@ def _boss_locations(spawn: dict[str, Any], locale: dict[str, Any]) -> list[dict[
 
 
 def classify_map_spawn(spawn: dict[str, Any]) -> str | None:
-    """把 GraphQL MapSpawn 归到 pmc / scav；boss / sniper 等由其它图层处理。"""
+    """把 maps dump 的 spawn 归到 pmc / scav / sniper；boss 仍走 bosses.locations。"""
     categories = {
         str(item).strip().lower()
         for item in (spawn.get("categories") or [])
@@ -349,7 +280,7 @@ def classify_map_spawn(spawn: dict[str, Any]) -> str | None:
     if "player" in categories and ("pmc" in sides or "all" in sides):
         return "pmc"
     if "sniper" in categories:
-        return None
+        return "sniper"
     if "scav" in sides and ("bot" in categories or "all" in categories):
         return "scav"
     return None
@@ -386,6 +317,25 @@ def _opt_float(raw: Any) -> float | None:
         return float(raw)
     except (TypeError, ValueError):
         return None
+
+
+def _opt_bottom(raw: dict[str, Any]) -> float | None:
+    """炮区 dump 把 bottom 拼成 botom。"""
+    value = _opt_float(raw.get("bottom"))
+    if value is not None:
+        return value
+    return _opt_float(raw.get("botom"))
+
+
+def _parse_outline(raw: Any) -> list[dict[str, float]]:
+    out: list[dict[str, float]] = []
+    if not isinstance(raw, list):
+        return out
+    for item in raw:
+        point = map_xyz(item) if isinstance(item, dict) else None
+        if point:
+            out.append(point)
+    return out
 
 
 def _has_xz(row: dict[str, Any] | None) -> bool:
@@ -526,12 +476,20 @@ def _copy_point(dst: dict[str, Any], src: dict[str, Any] | None) -> bool:
         changed = True
     elif _fill_point_from_src(dst, src):
         changed = True
-    for key in ("top", "bottom"):
-        if dst.get(key) is not None:
-            continue
-        value = _opt_float(src.get(key))
-        if value is not None:
-            dst[key] = value
+    if dst.get("top") is None:
+        top = _opt_float(src.get("top"))
+        if top is not None:
+            dst["top"] = top
+            changed = True
+    if dst.get("bottom") is None:
+        bottom = _opt_bottom(src)
+        if bottom is not None:
+            dst["bottom"] = bottom
+            changed = True
+    if not dst.get("outline"):
+        outline = _parse_outline(src.get("outline"))
+        if outline:
+            dst["outline"] = outline
             changed = True
     return changed
 
@@ -543,12 +501,51 @@ def _attach_point(item: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
         item["y"] = point["y"]
         item["z"] = point["z"]
     top = _opt_float(raw.get("top"))
-    bottom = _opt_float(raw.get("bottom"))
+    bottom = _opt_bottom(raw)
     if top is not None:
         item["top"] = top
     if bottom is not None:
         item["bottom"] = bottom
     return item
+
+
+def _attach_outline(item: dict[str, Any], raw: dict[str, Any]) -> dict[str, Any]:
+    outline = _parse_outline(raw.get("outline"))
+    if outline:
+        item["outline"] = outline
+    return item
+
+
+def _collect_switch_ids(row: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    seen: set[str] = set()
+
+    def add(raw: Any) -> None:
+        ident = ""
+        if isinstance(raw, str):
+            ident = raw.strip()
+        elif isinstance(raw, dict):
+            ident = str(raw.get("id") or "").strip()
+        if ident and ident not in seen:
+            seen.add(ident)
+            ids.append(ident)
+
+    for item in row.get("switches") or []:
+        add(item)
+    add(row.get("switch"))
+    return ids
+
+
+def _parse_transfer_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    ref = _item_ref(raw.get("item"))
+    ident = str(ref.get("id") or "").strip()
+    if not ident:
+        return None
+    count = _as_int(raw.get("count"), 1) or 1
+    ref["count"] = count
+    return ref
 
 
 def _item_ref(raw: Any) -> dict[str, str]:
@@ -669,12 +666,15 @@ def _parse_map_hazards(
             index,
         )
         out.append(
-            _attach_point(
-                {
-                    "id": ident,
-                    "hazard_type": hazard_type or default_type,
-                    "name": name,
-                },
+            _attach_outline(
+                _attach_point(
+                    {
+                        "id": ident,
+                        "hazard_type": hazard_type or default_type,
+                        "name": name,
+                    },
+                    row,
+                ),
                 row,
             )
         )
@@ -726,6 +726,40 @@ def _switch_target(raw: Any) -> dict[str, str]:
     return {"name": name, "kind": kind}
 
 
+def _parse_switch_activate(
+    op: dict[str, Any],
+    locale: dict[str, Any],
+) -> dict[str, str] | None:
+    """dump 是 extract/switch id；旧 GraphQL extras 才带 target 对象。"""
+    operation = str(op.get("operation") or "").strip()
+    extract_id = str(op.get("extract") or "").strip()
+    switch_id = str(op.get("switch") or "").strip()
+    target_raw = op.get("target")
+    target_id = extract_id or switch_id
+    kind = "extract" if extract_id else "switch" if switch_id else ""
+    name = ""
+    if isinstance(target_raw, dict):
+        parsed = _switch_target(target_raw)
+        name = _localized(locale, parsed.get("name"), op.get("name"))
+        kind = parsed.get("kind") or kind or "switch"
+        if not target_id:
+            target_id = str(target_raw.get("id") or "").strip()
+    elif not target_id:
+        parsed = _switch_target(op)
+        name = _localized(locale, parsed.get("name"), op.get("name"))
+        kind = parsed.get("kind") or "switch"
+    if not target_id and not name:
+        return None
+    out = {
+        "operation": operation,
+        "name": name,
+        "kind": kind or "switch",
+    }
+    if target_id:
+        out["target_id"] = target_id
+    return out
+
+
 def _parse_map_switches(
     rows: list[Any] | None,
     locale: dict[str, Any] | None = None,
@@ -740,7 +774,9 @@ def _parse_map_switches(
             row.get("name"),
             index,
         )
-        activated = row.get("activatedBy") or row.get("activated_by")
+        activated = row.get("activatedBy")
+        if activated is None:
+            activated = row.get("activated_by")
         activated_by = ""
         if isinstance(activated, dict):
             activated_by = _localized(
@@ -749,22 +785,14 @@ def _parse_map_switches(
                 activated.get("id"),
             )
         elif isinstance(activated, str):
-            activated_by = _localized(lang, activated)
+            activated_by = activated.strip()
         activates: list[dict[str, str]] = []
         for op in row.get("activates") or []:
             if not isinstance(op, dict):
                 continue
-            target = _switch_target(op.get("target") or op)
-            name = _localized(lang, target.get("name") or op.get("name"))
-            if not name:
-                continue
-            activates.append(
-                {
-                    "operation": str(op.get("operation") or "").strip(),
-                    "name": name,
-                    "kind": target.get("kind") or "switch",
-                }
-            )
+            parsed = _parse_switch_activate(op, lang)
+            if parsed:
+                activates.append(parsed)
         out.append(
             _attach_point(
                 {
@@ -933,6 +961,171 @@ def _parse_map_loot_containers(
     return out
 
 
+def _parse_loot_item_ids(raw: Any) -> list[str]:
+    if isinstance(raw, str):
+        ident = raw.strip()
+        return [ident] if ident else []
+    if isinstance(raw, dict):
+        ident = str(raw.get("id") or raw.get("_id") or "").strip()
+        return [ident] if ident else []
+    return []
+
+
+def _parse_map_loot_loose(
+    rows: list[Any] | None,
+    locale: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    lang = locale or {}
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            continue
+        items: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for entry in row.get("items") or []:
+            for ident in _parse_loot_item_ids(entry):
+                if ident in seen:
+                    continue
+                seen.add(ident)
+                name = _resolved_item_name(lang, f"{ident} Name")
+                items.append(
+                    {
+                        "id": ident,
+                        "name": "" if _needs_display_name(name) else name,
+                        "short_name": "",
+                        "icon_link": "",
+                        "types": [],
+                        "handbook_ids": [],
+                    }
+                )
+        if not items:
+            continue
+        ident = str(row.get("id") or "").strip() or _marker_id("loose", index)
+        out.append(_attach_point({"id": ident, "items": items}, row))
+    return out
+
+
+def _link_extracts_and_switches(
+    extracts: list[Any],
+    switches: list[Any],
+) -> None:
+    switch_name = {
+        str(row.get("id") or ""): str(row.get("name") or "")
+        for row in switches
+        if isinstance(row, dict) and row.get("id")
+    }
+    extract_name = {
+        str(row.get("id") or ""): str(row.get("name") or "")
+        for row in extracts
+        if isinstance(row, dict) and row.get("id")
+    }
+    for sw in switches:
+        if not isinstance(sw, dict):
+            continue
+        ab = str(sw.get("activated_by") or "").strip()
+        if ab and ab in switch_name:
+            sw["activated_by"] = switch_name[ab] or ab
+        for act in sw.get("activates") or []:
+            if not isinstance(act, dict):
+                continue
+            tid = str(act.get("target_id") or "").strip()
+            if tid in extract_name:
+                act["kind"] = "extract"
+                act["name"] = extract_name[tid] or tid
+            elif tid in switch_name:
+                act["kind"] = "switch"
+                act["name"] = switch_name[tid] or tid
+            elif not str(act.get("name") or "").strip():
+                act["name"] = tid
+            act.pop("target_id", None)
+    for ex in extracts:
+        if not isinstance(ex, dict):
+            continue
+        linked: list[dict[str, str]] = []
+        for item in ex.get("switches") or []:
+            if not isinstance(item, dict):
+                continue
+            sid = str(item.get("id") or "").strip()
+            if not sid:
+                continue
+            linked.append(
+                {
+                    "id": sid,
+                    "name": switch_name.get(sid) or str(item.get("name") or "") or sid,
+                }
+            )
+        if linked:
+            ex["switches"] = linked
+
+
+def _fill_item_refs(
+    refs: list[Any],
+    catalog: dict[str, dict[str, Any]],
+) -> None:
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+        ident = str(ref.get("id") or "").strip()
+        item = catalog.get(ident) if ident else None
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if name and _needs_display_name(str(ref.get("name") or "")):
+            ref["name"] = name
+        short = str(item.get("short_name") or "").strip()
+        if short and not str(ref.get("short_name") or "").strip():
+            ref["short_name"] = short
+        icon = str(item.get("icon_link") or "").strip()
+        if icon and not str(ref.get("icon_link") or "").strip():
+            ref["icon_link"] = icon
+        types = item.get("types")
+        if isinstance(types, list) and not ref.get("types"):
+            ref["types"] = [str(t) for t in types if t is not None and str(t).strip()]
+        handbook = item.get("handbook_ids")
+        if isinstance(handbook, list) and not ref.get("handbook_ids"):
+            ref["handbook_ids"] = [
+                str(cid).strip()
+                for cid in handbook
+                if cid is not None and str(cid).strip()
+            ]
+
+
+def _collect_map_item_refs(row: dict[str, Any]) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for extract in row.get("extracts") or []:
+        if not isinstance(extract, dict):
+            continue
+        transfer = extract.get("transfer_item")
+        if isinstance(transfer, dict):
+            refs.append(transfer)
+    for loose in row.get("loot_loose") or []:
+        if not isinstance(loose, dict):
+            continue
+        for item in loose.get("items") or []:
+            if isinstance(item, dict):
+                refs.append(item)
+    return refs
+
+
+def _enrich_map_item_refs(db: Session, row: dict[str, Any]) -> None:
+    refs = _collect_map_item_refs(row)
+    if not refs:
+        return
+    try:
+        from app.services.tarkov.catalog import peek_catalog_items
+
+        catalog_rows = peek_catalog_items(db)
+    except Exception:
+        logger.warning("map item refs: items catalog unavailable", exc_info=True)
+        return
+    by_id = {
+        str(item.get("id") or "").strip(): item
+        for item in catalog_rows
+        if isinstance(item, dict) and item.get("id")
+    }
+    _fill_item_refs(refs, by_id)
+
+
 def _row_needs_marker_meta(row: dict[str, Any]) -> bool:
     if "key_id" in row or "key_name" in row:
         return _is_blank_item_label(str(row.get("key_name") or "")) or not str(
@@ -1052,43 +1245,35 @@ def _bosses_need_coords(bosses: list[Any]) -> bool:
     return False
 
 
-def _graphql_map_markers(*, lang: str = "zh") -> dict[str, dict[str, Any]]:
+def _cached_map_markers() -> dict[str, dict[str, Any]]:
     now = time.time()
-    mode = parse_game_mode()
-    key = _marker_cache_key(mode)
-    entry = _marker_cache.get(key) or {"at": 0.0, "by_slug": {}}
+    key = _marker_cache_key(parse_game_mode())
+    entry = _marker_cache.get(key) or {}
     cached = entry.get("by_slug")
-    if isinstance(cached, dict) and cached and now - float(entry.get("at") or 0) < _MARKER_TTL_SEC:
+    if (
+        isinstance(cached, dict)
+        and cached
+        and now - float(entry.get("at") or 0) < _MARKER_TTL_SEC
+    ):
         return cached
-    body = json.dumps(
-        {
-            "query": _MARKERS_QUERY,
-            "variables": {"lang": lang, "gameMode": graphql_game_mode()},
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
-    raw = _http_request(
-        TARKOV_GRAPHQL_URL,
-        method="POST",
-        body=body,
-        headers={"Content-Type": "application/json"},
-        timeout=20,
-    )
-    payload = json.loads(raw.decode("utf-8"))
-    if payload.get("errors"):
-        raise TarkovBossesError(f"api.tarkov.dev 错误: {payload.get('errors')}")
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    rows = data.get("maps") if isinstance(data, dict) else None
-    if not isinstance(rows, list):
-        raise TarkovBossesError("tarkov.dev maps 标记响应无效")
+    return {}
+
+
+def _markers_from_maps_payload(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    maps = _maps_blob(payload)
+    if isinstance(maps, dict):
+        rows = maps.values()
+    elif isinstance(maps, list):
+        rows = maps
+    else:
+        return {}
     by_slug: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        if not isinstance(row, dict):
+    for raw in rows:
+        if not isinstance(raw, dict):
             continue
-        slug = str(row.get("normalizedName") or "").strip()
+        slug = resolve_map_slug(str(raw.get("normalizedName") or raw.get("nameId") or ""))
         if slug:
-            by_slug[slug] = row
-    _marker_cache[key] = {"at": now, "by_slug": by_slug}
+            by_slug[slug] = raw
     return by_slug
 
 
@@ -1101,12 +1286,34 @@ def _fill_point_from_src(extract: dict[str, Any], src: dict[str, Any] | None) ->
     extract["x"] = point["x"]
     extract["y"] = point["y"]
     extract["z"] = point["z"]
+    if extract.get("top") is None:
+        top = _opt_float(src.get("top"))
+        if top is not None:
+            extract["top"] = top
+    if extract.get("bottom") is None:
+        bottom = _opt_bottom(src)
+        if bottom is not None:
+            extract["bottom"] = bottom
+    if not extract.get("outline"):
+        outline = _parse_outline(src.get("outline"))
+        if outline:
+            extract["outline"] = outline
+    if not extract.get("switches"):
+        ids = _collect_switch_ids(src)
+        if ids:
+            extract["switches"] = [{"id": sid, "name": ""} for sid in ids]
+    if not extract.get("transfer_item"):
+        transfer = _parse_transfer_item(src.get("transferItem") or src.get("transfer_item"))
+        if transfer:
+            extract["transfer_item"] = transfer
     return True
 
 
-def _apply_graphql_markers(
+def _apply_map_markers(
     row: dict[str, Any],
     locale: dict[str, Any] | None = None,
+    *,
+    overlay: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
     bosses = row.get("bosses") if isinstance(row.get("bosses"), list) else []
@@ -1145,6 +1352,9 @@ def _apply_graphql_markers(
         if isinstance(row.get("loot_containers"), list)
         else []
     )
+    need_loot_loose = _layer_needs_fill(
+        row.get("loot_loose") if isinstance(row.get("loot_loose"), list) else []
+    )
     if (
         not need_coords
         and not need_transits
@@ -1157,13 +1367,10 @@ def _apply_graphql_markers(
         and not need_stationary
         and not need_btr
         and not need_containers
+        and not need_loot_loose
     ):
         return
-    try:
-        by_slug = _graphql_map_markers()
-    except Exception:  # noqa: BLE001
-        logger.warning("api.tarkov.dev map markers unavailable", exc_info=True)
-        return
+    by_slug = overlay if overlay is not None else _cached_map_markers()
     extra = by_slug.get(str(row.get("slug") or "")) or by_slug.get(str(row.get("id") or ""))
     if not extra:
         return
@@ -1301,6 +1508,23 @@ def _apply_graphql_markers(
             ("container_id", "normalized_name"),
             fill_meta=True,
         )
+    if need_loot_loose:
+        gql_loose = (
+            extra.get("lootLoose")
+            if isinstance(extra.get("lootLoose"), list)
+            else extra.get("loot_loose")
+            if isinstance(extra.get("loot_loose"), list)
+            else []
+        )
+        row["loot_loose"] = _merge_marker_layer(
+            row.get("loot_loose") if isinstance(row.get("loot_loose"), list) else [],
+            _parse_map_loot_loose(gql_loose, locale or {}),
+            ("id",),
+        )
+    _link_extracts_and_switches(
+        row.get("extracts") if isinstance(row.get("extracts"), list) else [],
+        row.get("switches") if isinstance(row.get("switches"), list) else [],
+    )
 
 
 def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1358,8 +1582,13 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     locale,
                     container_catalog,
                 ),
+                "loot_loose": _parse_map_loot_loose(
+                    raw.get("lootLoose") or raw.get("loot_loose"),
+                    locale,
+                ),
             }
         )
+        _link_extracts_and_switches(rows[-1]["extracts"], rows[-1]["switches"])
     rows.sort(key=lambda r: (str(r.get("name") or ""), str(r.get("slug") or "")))
     return rows
 
@@ -1437,9 +1666,10 @@ def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
         if v.get("parent_slug") == parent and v.get("slug") != row.get("slug")
     ]
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
-    _apply_graphql_markers(row, locale)
+    _apply_map_markers(row, locale, overlay=_markers_from_maps_payload(payload))
     locks = row.get("locks") if isinstance(row.get("locks"), list) else []
     _enrich_map_lock_keys(db, locks)
+    _enrich_map_item_refs(db, row)
     return {
         **row,
         "variants": variants,

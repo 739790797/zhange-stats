@@ -37,4 +37,4 @@ alwaysApply: false
 - 用 `...(force ? { force: true } : {})` 省略参数还声称测过 status
 - vitest 挂 jsdom 测整页；pytest 打真实上游
 
-双数据源（guns GraphQL / JSON）可以平行测。常量表快照仅在防回归需要时保留。
+塔科夫回源只测 json.tarkov.dev dump 投影。历史 GraphQL split 信封若仍能 parse 可留兼容测，勿再写 GraphQL 回源路径。常量表快照仅在防回归需要时保留。

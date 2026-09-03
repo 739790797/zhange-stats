@@ -6,7 +6,9 @@ import {
   resolveRaidPrepGuideId,
 } from "@/lib/eftarkovGuide";
 import {
+  collectRaidPrepFailChips,
   collectRaidPrepOtherMapGroups,
+  collectRaidPrepSequenceGroups,
   collectRaidPrepTaskObjectives,
   colorForTaskId,
   colorForUserId,
@@ -30,6 +32,7 @@ export type RaidPrepGuideTask = {
   trader_slug?: string | null;
   trader_name?: string | null;
   objectives?: RaidPrepTaskLike["objectives"];
+  fail_conditions?: RaidPrepTaskLike["fail_conditions"];
 };
 
 type Props = {
@@ -107,6 +110,14 @@ export function TarkovRaidPrepGuideOverview({
     () => (activeTask ? collectRaidPrepOtherMapGroups(activeTask, mapId) : []),
     [activeTask, mapId],
   );
+  const activeSequence = useMemo(
+    () => (activeTask ? collectRaidPrepSequenceGroups(activeTask, mapId) : []),
+    [activeTask, mapId],
+  );
+  const activeFailChips = useMemo(
+    () => (activeTask ? collectRaidPrepFailChips(activeTask.fail_conditions) : []),
+    [activeTask],
+  );
   const activeSkipped = useMemo(
     () => (guideId ? raidPrepSkippedIds(skippedByTask, guideId) : undefined),
     [guideId, skippedByTask],
@@ -117,10 +128,6 @@ export function TarkovRaidPrepGuideOverview({
   );
 
   useEffect(() => {
-    if (!selectedIds.length) {
-      if (activeId) setActiveId("");
-      return;
-    }
     const next = resolveRaidPrepGuideId(selectedIds, activeId);
     if (next !== activeId) setActiveId(next);
   }, [activeId, selectedIds, setActiveId]);
@@ -168,6 +175,8 @@ export function TarkovRaidPrepGuideOverview({
                       traderName={activeTask.trader_name || ""}
                       objectives={activeObjectives}
                       otherMapGroups={activeOtherMaps}
+                      sequenceGroups={activeSequence}
+                      failChips={activeFailChips}
                       skipped={activeSkipped}
                       taskDone={Boolean(guideId && doneIdSet.has(guideId))}
                       onToggle={

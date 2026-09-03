@@ -7,7 +7,6 @@ import pytest
 from app.services.tarkov.bosses import MAP_ZH
 from app.services.tarkov.key_packs import (
     COMMUNITY_KEY_MAPS,
-    SOURCE_GRAPHQL,
     SOURCE_JSON,
     SOURCE_STALE,
     TarkovKeyPacksError,
@@ -20,7 +19,6 @@ from app.services.tarkov.key_packs import (
     group_key_packs,
     maps_have_lock_data,
     parse_json_maps_locks,
-    parse_locks_payload,
     parent_map_slug,
 )
 
@@ -424,20 +422,6 @@ def test_attach_key_sources_fills_grouped_keys() -> None:
     assert grouped["unbound"][0]["sources"]["flea"] is None
 
 
-def test_parse_locks_payload_rejects_errors() -> None:
-    with pytest.raises(TarkovKeyPacksError, match="api.tarkov.dev"):
-        parse_locks_payload({"errors": [{"message": "boom"}]})
-    with pytest.raises(TarkovKeyPacksError, match="无效"):
-        parse_locks_payload({"data": {"maps": None}})
-
-
-def test_parse_locks_payload_keeps_maps() -> None:
-    rows = parse_locks_payload(
-        {"data": {"maps": [{"normalizedName": "customs"}, "skip"]}}
-    )
-    assert rows == [{"normalizedName": "customs"}]
-
-
 def test_parse_json_maps_locks_from_id_dict() -> None:
     rows = parse_json_maps_locks(
         {
@@ -509,17 +493,12 @@ def test_group_accepts_json_string_key_ids() -> None:
     assert out["maps"][0]["keys"][0]["lock_count"] == 1
 
 
-def test_fetch_falls_back_to_json_maps(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_json_maps_locks(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.services.tarkov import key_packs as kp
 
     kp._lock_cache.clear()
 
-    def fake_http(url: str, **_kwargs):
-        if "graphql" in url:
-            raise TarkovKeyPacksError(
-                "下载失败 HTTP 422: https://api.tarkov.dev/graphql "
-                '({"errors":["GraphQL server unavailable. Try again later."]})'
-            )
+    def fake_http(_url: str, **_kwargs):
         return (
             b'{"data":{"maps":{"1":{"name":"Customs","normalizedName":"customs",'
             b'"locks":[{"key":"dorm-114"}],"accessKeys":[]}}}}'
@@ -532,14 +511,14 @@ def test_fetch_falls_back_to_json_maps(monkeypatch: pytest.MonkeyPatch) -> None:
     assert maps[0]["locks"][0]["key"] == "dorm-114"
 
 
-def test_fetch_uses_stale_cache_when_both_fail(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_uses_stale_cache_when_json_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.services.tarkov import key_packs as kp
 
     kp._lock_cache.clear()
     kp._lock_cache[kp._cache_key("pvp")] = {
         "at": 0.0,
         "maps": [{"normalizedName": "woods", "locks": [], "accessKeys": []}],
-        "source": SOURCE_GRAPHQL,
+        "source": SOURCE_JSON,
     }
 
     def fake_http(_url: str, **_kwargs):
@@ -551,7 +530,7 @@ def test_fetch_uses_stale_cache_when_both_fail(monkeypatch: pytest.MonkeyPatch) 
     assert maps[0]["normalizedName"] == "woods"
 
 
-def test_fetch_both_fail_without_cache_is_friendly(
+def test_fetch_fail_without_cache_is_friendly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.services.tarkov import key_packs as kp
@@ -566,28 +545,6 @@ def test_fetch_both_fail_without_cache_is_friendly(
         fetch_map_locks()
     assert "422" not in str(exc.value)
     assert str(exc.value) == UNAVAILABLE_MSG
-
-
-def test_fetch_graphql_success_skips_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.services.tarkov import key_packs as kp
-
-    kp._lock_cache.clear()
-    called: list[str] = []
-
-    def fake_http(url: str, **_kwargs):
-        called.append(url)
-        if "graphql" in url:
-            return (
-                '{"data":{"maps":[{"name":"海关","normalizedName":"customs",'
-                '"locks":[{"key":{"id":"dorm-114"}}],"accessKeys":[]}]}}'
-            ).encode("utf-8")
-        raise AssertionError("json fallback should not run")
-
-    monkeypatch.setattr(kp, "_http_request", fake_http)
-    maps, source = fetch_map_locks()
-    assert source == SOURCE_GRAPHQL
-    assert maps[0]["name"] == "海关"
-    assert len(called) == 1
 
 
 def test_fetch_ignores_persisted_slim_maps(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -610,9 +567,7 @@ def test_fetch_ignores_persisted_slim_maps(monkeypatch: pytest.MonkeyPatch) -> N
         },
     )
 
-    def fake_http(url: str, **_kwargs):
-        if "graphql" in url:
-            raise TarkovKeyPacksError("graphql down")
+    def fake_http(_url: str, **_kwargs):
         return (
             b'{"data":{"maps":{"1":{"normalizedName":"customs",'
             b'"locks":[{"key":"dorm-114"}],"accessKeys":[]}}}}'

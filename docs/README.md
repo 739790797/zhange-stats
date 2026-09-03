@@ -64,6 +64,7 @@ Cursor 规则，不是给人当手册从头读的。架构索引始终加载；�
 | [`zhange-architecture.mdc`](../.cursor/rules/zhange-architecture.mdc) | 始终 | 各域「必须 / 禁止 / 去哪看」总表，细节不重复写 |
 | [`platform-raw-cache.mdc`](../.cursor/rules/platform-raw-cache.mdc) | 签到/盒子/API | 盒子与旁路 raw **读库优先**；签到展示打开页始终 **force 回源** |
 | [`skland-upstream.mdc`](../.cursor/rules/skland-upstream.mdc) | 森空岛相关 | 官服 / B 服渠道语义、补奖、`unknown`、cred 缓存 |
+| [`tarkov-upstream.mdc`](../.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴 | 只走 json.tarkov.dev；禁止 GraphQL 回源 |
 | [`db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | `models/`、迁移 | 改表必须 Alembic + 同步 `docs/database.md` |
 | [`backend-conventions.mdc`](../.cursor/rules/backend-conventions.mdc) | `backend/app/` | `api/` 薄、`services/` 厚；新平台 Adapter + 注册表 |
 | [`frontend-conventions.mdc`](../.cursor/rules/frontend-conventions.mdc) | `frontend/` | 签到/兑换/平台页套 Template；status **显式传** `force` |

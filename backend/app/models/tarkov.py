@@ -99,11 +99,20 @@ class TarkovCraftsRaw(TarkovCatalogRawMixin, Base):
 
 
 class TarkovExtrasRaw(TarkovCatalogRawMixin, Base):
-    """api.tarkov.dev extras。"""
+    """json.tarkov.dev dump 抽出的 extras（成就 / 跳蚤规则 / 技能等）。"""
 
     __tablename__ = "tarkov_extras_raws"
     __table_args__ = (
         UniqueConstraint("mode_id", "lang", name="uq_tarkov_extras_raws_mode_lang"),
+    )
+
+
+class TarkovOverlayRaw(TarkovCatalogRawMixin, Base):
+    """tarkov-data-overlay dist/overlay.json。读库解析时与 json.tarkov.dev raw 内存合入。"""
+
+    __tablename__ = "tarkov_overlay_raws"
+    __table_args__ = (
+        UniqueConstraint("mode_id", "lang", name="uq_tarkov_overlay_raws_mode_lang"),
     )
 
 

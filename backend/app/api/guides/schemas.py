@@ -151,6 +151,15 @@ class TarkovTaskNamedRefOut(BaseModel):
     types: list[str] = Field(default_factory=list)
 
 
+class TarkovTaskFailTaskRefOut(BaseModel):
+    id: str
+    slug: str = ""
+    name: str = ""
+    trader_id: str = ""
+    trader_slug: str = ""
+    trader_name: str = ""
+
+
 class TarkovTaskTraderChipOut(BaseModel):
     id: str
     slug: str
@@ -162,7 +171,7 @@ class TarkovTaskTraderReqOut(BaseModel):
     slug: str = ""
     name: str = ""
     requirement_type: str = ""
-    value: int = 0
+    value: float = 0
     compare_method: str = ""
 
 
@@ -180,6 +189,7 @@ class TarkovTaskListItemOut(BaseModel):
     min_trader_level: int = 1
     experience: int = 0
     lightkeeper_required: bool = False
+    kappa_required: bool = False
     faction_name: str = "Any"
     task_image_link: str = ""
     wiki_link: str = ""
@@ -196,6 +206,23 @@ class TarkovTaskCatalogOut(BaseModel):
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None
+
+
+class TarkovTaskNumberCompareOut(BaseModel):
+    compare_method: str = ""
+    value: float | None = None
+
+
+class TarkovTaskHealthEffectOut(BaseModel):
+    body_parts: list[str] = Field(default_factory=list)
+    effects: list[str] = Field(default_factory=list)
+    time: TarkovTaskNumberCompareOut | None = None
+
+
+class TarkovTaskAttributeOut(BaseModel):
+    name: str = ""
+    compare_method: str = ""
+    value: float | None = None
 
 
 class TarkovTaskObjectiveOut(BaseModel):
@@ -215,6 +242,36 @@ class TarkovTaskObjectiveOut(BaseModel):
         default_factory=list
     )
     zone_names: list[str] = Field(default_factory=list)
+    target_names: list[str] = Field(default_factory=list)
+    body_parts: list[str] = Field(default_factory=list)
+    shot_type: str = ""
+    distance: TarkovTaskNumberCompareOut | None = None
+    using_weapon: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+    using_weapon_mods: list[list[TarkovTaskNamedRefOut]] = Field(default_factory=list)
+    wearing: list[list[TarkovTaskNamedRefOut]] = Field(default_factory=list)
+    not_wearing: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+    use_any: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+    contains_all: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+    contains_category: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+    attributes: list[TarkovTaskAttributeOut] = Field(default_factory=list)
+    health_effect: TarkovTaskHealthEffectOut | None = None
+    player_health_effect: TarkovTaskHealthEffectOut | None = None
+    enemy_health_effect: TarkovTaskHealthEffectOut | None = None
+    time_from_hour: int | None = None
+    time_until_hour: int | None = None
+    dog_tag_level: int | None = None
+    min_durability: int | None = None
+    max_durability: int | None = None
+    skill_name: str = ""
+    skill_level: int | None = None
+    hideout_station: TarkovTaskNamedRefOut | None = None
+    station_level: int | None = None
+    trader: TarkovTaskNamedRefOut | None = None
+    trader_level: int | None = None
+    standing: TarkovTaskNumberCompareOut | None = None
+    player_level: int | None = None
+    related_tasks: list[TarkovTaskFailTaskRefOut] = Field(default_factory=list)
+    related_status: list[str] = Field(default_factory=list)
 
 
 class TarkovTaskPointOut(BaseModel):
@@ -243,9 +300,20 @@ class TarkovTaskPossibleLocationOut(BaseModel):
     positions: list[TarkovTaskPointOut] = Field(default_factory=list)
 
 
+class TarkovTaskFailConditionOut(BaseModel):
+    id: str = ""
+    type: str = ""
+    description: str = ""
+    status: list[str] = Field(default_factory=list)
+    tasks: list[TarkovTaskFailTaskRefOut] = Field(default_factory=list)
+    exit_status: list[str] = Field(default_factory=list)
+    trader: TarkovTaskNamedRefOut | None = None
+
+
 class TarkovRaidPrepTaskOut(TarkovTaskListItemOut):
     objectives: list[TarkovTaskObjectiveOut] = Field(default_factory=list)
     needed_keys: list["TarkovTaskNeededKeysOut"] = Field(default_factory=list)
+    fail_conditions: list[TarkovTaskFailConditionOut] = Field(default_factory=list)
     has_map_markers: bool = False
 
 
@@ -276,14 +344,58 @@ class TarkovTaskStandingOut(BaseModel):
     standing: float = 0
 
 
+class TarkovTaskOfferUnlockOut(BaseModel):
+    id: str = ""
+    trader: TarkovTaskNamedRefOut | None = None
+    level: int = 0
+    item: TarkovTaskNamedRefOut | None = None
+
+
+class TarkovTaskSkillRewardOut(BaseModel):
+    name: str = ""
+    level: int = 0
+
+
+class TarkovTaskCraftUnlockOut(BaseModel):
+    id: str = ""
+    station: TarkovTaskNamedRefOut | None = None
+    level: int = 0
+    item: TarkovTaskNamedRefOut | None = None
+
+
+class TarkovTaskImageRefOut(BaseModel):
+    id: str = ""
+    slug: str = ""
+    name: str = ""
+    image_link: str = ""
+    customization_type: str = ""
+
+
 class TarkovTaskFinishRewardsOut(BaseModel):
     items: list[TarkovTaskRewardItemOut] = Field(default_factory=list)
     trader_standing: list[TarkovTaskStandingOut] = Field(default_factory=list)
+    offer_unlock: list[TarkovTaskOfferUnlockOut] = Field(default_factory=list)
+    skill_level_reward: list[TarkovTaskSkillRewardOut] = Field(default_factory=list)
+    trader_unlock: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+    craft_unlock: list[TarkovTaskCraftUnlockOut] = Field(default_factory=list)
+    achievement: list[TarkovTaskImageRefOut] = Field(default_factory=list)
+    customization: list[TarkovTaskImageRefOut] = Field(default_factory=list)
 
 
 class TarkovTaskNeededKeysOut(BaseModel):
     map: TarkovTaskNamedRefOut
     keys: list[TarkovTaskNamedRefOut] = Field(default_factory=list)
+
+
+class TarkovTaskRequirementOut(TarkovTaskFailTaskRefOut):
+    status: list[str] = Field(default_factory=list)
+
+
+class TarkovTaskPrestigeOut(BaseModel):
+    id: str = ""
+    name: str = ""
+    prestige_level: int = 0
+    image_link: str = ""
 
 
 TarkovTaskObjectiveOut.model_rebuild()
@@ -295,11 +407,23 @@ class TarkovTaskDetailOut(TarkovTaskListItemOut):
     source: str | None = None
     objectives: list[TarkovTaskObjectiveOut] = Field(default_factory=list)
     trader_requirements: list[TarkovTaskTraderReqOut] = Field(default_factory=list)
+    task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)
+    unlocks: list[TarkovTaskRequirementOut] = Field(default_factory=list)
+    start_rewards: TarkovTaskFinishRewardsOut = Field(
+        default_factory=TarkovTaskFinishRewardsOut
+    )
     finish_rewards: TarkovTaskFinishRewardsOut = Field(
         default_factory=TarkovTaskFinishRewardsOut
     )
+    fail_rewards: TarkovTaskFinishRewardsOut = Field(
+        default_factory=TarkovTaskFinishRewardsOut
+    )
     needed_keys: list[TarkovTaskNeededKeysOut] = Field(default_factory=list)
+    fail_conditions: list[TarkovTaskFailConditionOut] = Field(default_factory=list)
     restartable: bool = False
+    required_prestige: TarkovTaskPrestigeOut | None = None
+    available_delay_seconds_min: int | None = None
+    available_delay_seconds_max: int | None = None
 
 
 class TarkovTasksSyncOut(BaseModel):
@@ -541,6 +665,21 @@ class TarkovMapBossOut(BaseModel):
     locations: list[TarkovMapBossLocationOut] = Field(default_factory=list)
 
 
+class TarkovMapExtractSwitchOut(BaseModel):
+    id: str = ""
+    name: str = ""
+
+
+class TarkovMapItemRefOut(BaseModel):
+    id: str = ""
+    name: str = ""
+    short_name: str = ""
+    icon_link: str = ""
+    types: list[str] = Field(default_factory=list)
+    handbook_ids: list[str] = Field(default_factory=list)
+    count: int = 1
+
+
 class TarkovMapExtractOut(BaseModel):
     id: str = ""
     name: str = ""
@@ -548,10 +687,15 @@ class TarkovMapExtractOut(BaseModel):
     x: float | None = None
     y: float | None = None
     z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+    outline: list[TarkovTaskPointOut] = Field(default_factory=list)
+    switches: list[TarkovMapExtractSwitchOut] = Field(default_factory=list)
+    transfer_item: TarkovMapItemRefOut | None = None
 
 
 class TarkovMapSpawnOut(BaseModel):
-    """PMC / Scav 出生点；Boss 仍走 bosses.locations。"""
+    """PMC / Scav / 狙击 Scav 出生点；Boss 仍走 bosses.locations。"""
 
     kind: str = ""
     zone_name: str = ""
@@ -584,6 +728,7 @@ class TarkovMapHazardOut(BaseModel):
     z: float | None = None
     top: float | None = None
     bottom: float | None = None
+    outline: list[TarkovTaskPointOut] = Field(default_factory=list)
 
 
 class TarkovMapSwitchActivateOut(BaseModel):
@@ -628,6 +773,16 @@ class TarkovMapLootContainerOut(BaseModel):
     container_id: str = ""
     name: str = ""
     normalized_name: str = ""
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovMapLootLooseOut(BaseModel):
+    id: str = ""
+    items: list[TarkovMapItemRefOut] = Field(default_factory=list)
     x: float | None = None
     y: float | None = None
     z: float | None = None
@@ -729,6 +884,7 @@ class TarkovMapDetailOut(TarkovMapListItemOut):
     )
     btr_stops: list[TarkovMapBtrStopOut] = Field(default_factory=list)
     loot_containers: list[TarkovMapLootContainerOut] = Field(default_factory=list)
+    loot_loose: list[TarkovMapLootLooseOut] = Field(default_factory=list)
     variants: list[TarkovMapVariantOut] = Field(default_factory=list)
     places: list[TarkovMapPlaceOut] = Field(default_factory=list)
     source: str | None = None

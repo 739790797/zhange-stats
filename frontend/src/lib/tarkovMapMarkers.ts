@@ -7,6 +7,13 @@ import {
   type RaidPrepFloorBand,
   type RaidPrepHeightSpan,
 } from "./tarkovRaidPrep";
+import {
+  formatKeyBringHint,
+  formatKeyOwnHint,
+  userBroughtKey,
+  userOwnsKey,
+  type RaidRoomKeyBringLike,
+} from "./tarkovRaidRooms";
 
 export type TarkovMapMarkerPoint = {
   x?: number | null;
@@ -192,7 +199,7 @@ export function withKindsForPresent(
   return next;
 }
 
-function uniqueKinds(
+export function uniqueKinds(
   values: Iterable<string>,
   preferred: readonly string[] = [],
 ): string[] {
@@ -279,6 +286,120 @@ export function tarkovLockIconUrl(): string {
   return "/tarkov/map-icons/lock.png";
 }
 
+export type TarkovLockKeyMode = "neutral" | "solo" | "party";
+export type TarkovLockKeyBadge = "own" | "missing" | "teammate";
+
+export type TarkovLockKeyContext = {
+  mode?: TarkovLockKeyMode | null;
+  viewerId?: number | null;
+  owns?: readonly RaidRoomKeyBringLike[] | null;
+  brings?: readonly RaidRoomKeyBringLike[] | null;
+};
+
+export type TarkovLockTooltipClasses = {
+  tip: string;
+  icon: string;
+  text: string;
+  status?: string;
+};
+
+function lockKeyId(keyId: string | null | undefined): string {
+  return (keyId || "").trim();
+}
+
+function namesForLockKey(
+  rows: readonly RaidRoomKeyBringLike[] | null | undefined,
+  keyId: string,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<number>();
+  for (const row of rows || []) {
+    if (String(row.item_id || "").trim() !== keyId) continue;
+    if (seen.has(row.user_id)) continue;
+    seen.add(row.user_id);
+    names.push((row.display_name || "").trim() || `用户${row.user_id}`);
+  }
+  return names;
+}
+
+function lockKeyHeldByOther(
+  keyId: string,
+  owns: readonly RaidRoomKeyBringLike[] | null | undefined,
+  brings: readonly RaidRoomKeyBringLike[] | null | undefined,
+  viewerId: number | null,
+): boolean {
+  const other = (row: RaidRoomKeyBringLike) =>
+    String(row.item_id || "").trim() === keyId &&
+    (viewerId == null || row.user_id !== viewerId);
+  return (owns || []).some(other) || (brings || []).some(other);
+}
+
+export function tarkovLockKeyBadge(
+  keyId: string | null | undefined,
+  ctx: TarkovLockKeyContext = {},
+): TarkovLockKeyBadge | undefined {
+  const id = lockKeyId(keyId);
+  const mode = ctx.mode || "neutral";
+  if (!id || mode === "neutral") return undefined;
+  const viewerId = ctx.viewerId ?? null;
+  if (
+    userOwnsKey(ctx.owns, id, viewerId) ||
+    userBroughtKey(ctx.brings, id, viewerId)
+  ) {
+    return "own";
+  }
+  if (mode === "party" && lockKeyHeldByOther(id, ctx.owns, ctx.brings, viewerId)) {
+    return "teammate";
+  }
+  return "missing";
+}
+
+export function tarkovLockKeyStatusLines(
+  keyId: string | null | undefined,
+  ctx: TarkovLockKeyContext = {},
+): string[] {
+  const id = lockKeyId(keyId);
+  const mode = ctx.mode || "neutral";
+  if (!id || mode === "neutral") return [];
+  const ownNames = namesForLockKey(ctx.owns, id);
+  const bringNames = namesForLockKey(ctx.brings, id);
+  return [
+    formatKeyOwnHint(ownNames) || "没人拥有这把钥匙",
+    formatKeyBringHint(bringNames, { canToggle: false }),
+  ];
+}
+
+function escapeLockTipHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function tarkovLockTooltipHtml(
+  row: TarkovMapLockLike,
+  classes: TarkovLockTooltipClasses,
+  ctx: TarkovLockKeyContext = {},
+): string {
+  const name = tarkovLockLabel(row);
+  const thumb = tarkovLockThumbUrl(row);
+  const img = thumb
+    ? `<img class="${classes.icon}" src="${escapeLockTipHtml(thumb)}" alt="" width="32" height="32"/>`
+    : "";
+  const statusClass = classes.status || "";
+  const status = tarkovLockKeyStatusLines(row.key_id, ctx)
+    .map((line) => {
+      const cls = statusClass ? ` class="${statusClass}"` : "";
+      return `<div${cls}>${escapeLockTipHtml(line)}</div>`;
+    })
+    .join("");
+  const metaHtml = row.needs_power
+    ? `<div>${escapeLockTipHtml("需供电")}</div>`
+    : "";
+  return `<div class="${classes.tip}">${img}<div class="${classes.text}"><strong>${escapeLockTipHtml(name)}</strong>${status}${metaHtml}</div></div>`;
+}
+
 export function tarkovHazardIconUrl(kind: string): string {
   return kind.trim() === "mortar"
     ? "/tarkov/map-icons/hazard_mortar.png"
@@ -303,6 +424,10 @@ export function tarkovContainerIconUrl(normalizedName: string): string {
   return `/tarkov/map-icons/${file}.png`;
 }
 
+export function tarkovLooseLootIconUrl(): string {
+  return "/tarkov/map-icons/loose_loot.png";
+}
+
 export function tarkovMarkerHeightSpan(
   row: TarkovMapMarkerPoint,
 ): RaidPrepHeightSpan | null {
@@ -318,6 +443,16 @@ export function tarkovMarkerHeightSpan(
   return null;
 }
 
+function markerFloorAt(
+  row: TarkovMapMarkerPoint,
+): { x: number; z: number } | undefined {
+  const x = row.x;
+  const z = row.z;
+  if (typeof x !== "number" || typeof z !== "number") return undefined;
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return undefined;
+  return { x, z };
+}
+
 /** 无高度的点各层都显示（与撤离点一致）；有 top/bottom/y 则按楼层带过滤。 */
 export function tarkovMarkerVisibleOnFloor(
   row: TarkovMapMarkerPoint,
@@ -326,7 +461,7 @@ export function tarkovMarkerVisibleOnFloor(
 ): boolean {
   const span = tarkovMarkerHeightSpan(row);
   if (!span) return true;
-  return overlayVisibleOnFloor(span, floor, bands);
+  return overlayVisibleOnFloor(span, floor, bands, markerFloorAt(row));
 }
 
 export function parseKindFlags(raw: unknown): TarkovMapKindFlags {

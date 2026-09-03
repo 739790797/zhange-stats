@@ -1,14 +1,27 @@
 import { Popover } from "antd";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import {
+  formatRaidPrepAltMapsLead,
   formatRaidPrepKeyNeedLine,
-  formatRaidPrepOtherMapsLead,
+  formatRaidPrepSequenceMapTitle,
   placeRaidPrepListHint,
   raidPrepObjectiveCheckedForViewer,
+  tarkovFailConditionTypeLabel,
+  type RaidPrepFailChip,
+  type RaidPrepHintItem,
   type RaidPrepObjectiveHint,
   type RaidPrepOtherMapGroup,
+  type RaidPrepSequenceGroup,
 } from "@/lib/tarkovRaidPrep";
+import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -17,6 +30,8 @@ export type TarkovRaidPrepObjectiveProgressProps = {
   skipped?: ReadonlySet<string>;
   onToggle?: (objectiveId: string) => void;
   otherMapGroups?: readonly RaidPrepOtherMapGroup[];
+  sequenceGroups?: readonly RaidPrepSequenceGroup[];
+  failChips?: readonly RaidPrepFailChip[];
   taskName?: string;
   traderSlug?: string;
   traderName?: string;
@@ -92,20 +107,182 @@ function measureHintEdgeRight(host: HTMLElement): number {
   return measureHintTrigger(host).left;
 }
 
+function markFailText(text: string): ReactNode {
+  const parts = text.split("失败");
+  if (parts.length === 1) return text;
+  return parts.map((part, index) => (
+    <Fragment key={index}>
+      {part}
+      {index < parts.length - 1 ? (
+        <span className={styles.taskObjFailMark}>失败</span>
+      ) : null}
+    </Fragment>
+  ));
+}
+
+function FailChipText({ chip }: { chip: RaidPrepFailChip }) {
+  if (chip.tasks?.length) {
+    return (
+      <span className={styles.taskObjFailText}>
+        完成该任务会使
+        {chip.tasks.map((task, index) => (
+          <span key={task.id || `${task.name}:${index}`}>
+            {index > 0 ? "、" : null}
+            <span className={styles.taskObjFailName}>
+              {task.traderSlug ? (
+                <span className={styles.taskObjFailThumb}>
+                  <TarkovTraderThumb
+                    slug={task.traderSlug}
+                    size={14}
+                    title={task.traderName || task.traderSlug}
+                  />
+                </span>
+              ) : null}
+              {task.name}
+            </span>
+          </span>
+        ))}
+        <span className={styles.taskObjFailMark}>失败</span>
+      </span>
+    );
+  }
+  return <span className={styles.taskObjFailText}>{markFailText(chip.text)}</span>;
+}
+
+function ObjectiveHintItem({ item }: { item: RaidPrepHintItem }) {
+  const preferred = inventoryThumbUrl(item.icon_link, item.id);
+  const [src, setSrc] = useState(preferred);
+  useEffect(() => {
+    setSrc(preferred);
+  }, [preferred]);
+  const count = item.count > 1 ? ` ×${item.count}` : "";
+  return (
+    <span className={styles.taskObjItem}>
+      {src ? (
+        <img
+          className={styles.taskObjItemIcon}
+          src={src}
+          alt=""
+          onError={() => setSrc("")}
+        />
+      ) : null}
+      <span>
+        {item.name}
+        {count}
+      </span>
+    </span>
+  );
+}
+
+function objectiveSpokenText(obj: RaidPrepObjectiveHint, keyLine: string): string {
+  const names = (obj.items || []).map((item) => item.name).filter(Boolean);
+  const itemBit = names.length ? ` ${names.join("、")}` : "";
+  return `${obj.text}${itemBit}${keyLine ? ` ${keyLine}` : ""}`;
+}
+
+function ObjectiveStepBody({
+  obj,
+  sharedAlts,
+  altLead,
+}: {
+  obj: RaidPrepObjectiveHint;
+  sharedAlts: boolean;
+  altLead: ReactNode;
+}) {
+  const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
+  return (
+    <>
+      <span className={styles.taskObjStep}>
+        <span className={styles.taskObjStepText}>{obj.text}</span>
+        {(obj.items || []).map((item) => (
+          <ObjectiveHintItem key={`${item.id}:${item.name}`} item={item} />
+        ))}
+      </span>
+      {keyLine ? <span className={styles.taskObjKeys}>{keyLine}</span> : null}
+      {!sharedAlts ? altLead : null}
+    </>
+  );
+}
+
 export function TarkovRaidPrepObjectiveProgress({
   objectives,
   skipped,
   onToggle,
-  otherMapGroups,
+  sequenceGroups,
+  failChips,
   taskName,
   traderSlug,
   traderName,
   taskDone,
 }: TarkovRaidPrepObjectiveProgressProps) {
   const doneIds = skipped || new Set<string>();
-  const otherLead = formatRaidPrepOtherMapsLead(otherMapGroups);
+  const seqGroups =
+    sequenceGroups?.length
+      ? sequenceGroups
+      : objectives.length
+        ? [
+            {
+              mapSlug: "",
+              mapLabel: "",
+              onThisMap: true,
+              objectives: [...objectives],
+              altMaps: [],
+            },
+          ]
+        : [];
+  const hasOtherMaps = seqGroups.some((group) => !group.onThisMap);
   const title = (taskName || "").trim();
   const slug = (traderSlug || "").trim();
+  const renderAltLead = (
+    maps: RaidPrepSequenceGroup["altMaps"] | undefined,
+  ) => {
+    const text = formatRaidPrepAltMapsLead(maps, "step");
+    if (!text) return null;
+    return <div className={styles.taskObjOtherMapsLead}>{text}</div>;
+  };
+  const renderOtherMapObjective = (
+    obj: RaidPrepObjectiveHint,
+    sharedAlts: boolean,
+  ) => (
+    <div key={obj.id} className={styles.taskObjOtherMapLine}>
+      <ObjectiveStepBody
+        obj={obj}
+        sharedAlts={sharedAlts}
+        altLead={renderAltLead(obj.altMaps)}
+      />
+    </div>
+  );
+  const renderThisMapObjective = (
+    obj: RaidPrepObjectiveHint,
+    sharedAlts: boolean,
+  ) => {
+    const mineDone = raidPrepObjectiveCheckedForViewer(
+      obj.id,
+      doneIds,
+      taskDone,
+    );
+    const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
+    return (
+      <label key={obj.id} className={styles.taskObjCheck}>
+        <input
+          type="checkbox"
+          checked={mineDone}
+          disabled={!onToggle || Boolean(taskDone)}
+          aria-label={`${mineDone ? "取消勾选" : "勾选已完成"} ${objectiveSpokenText(obj, keyLine)}`}
+          onChange={() => {
+            if (!taskDone) onToggle?.(obj.id);
+          }}
+        />
+        <span className={mineDone ? styles.taskObjLineDone : styles.taskObjLine}>
+          <ObjectiveStepBody
+            obj={obj}
+            sharedAlts={sharedAlts}
+            altLead={renderAltLead(obj.altMaps)}
+          />
+        </span>
+      </label>
+    );
+  };
   return (
     <div
       className={styles.taskObjHint}
@@ -124,48 +301,50 @@ export function TarkovRaidPrepObjectiveProgress({
           {title ? <div className={styles.taskObjTitle}>{title}</div> : null}
         </div>
       ) : null}
-      {objectives.length ? (
-        objectives.map((obj) => {
-          const mineDone = raidPrepObjectiveCheckedForViewer(
-            obj.id,
-            doneIds,
-            taskDone,
-          );
-          const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
-          return (
-            <label key={obj.id} className={styles.taskObjCheck}>
-              <input
-                type="checkbox"
-                checked={mineDone}
-                disabled={!onToggle || Boolean(taskDone)}
-                aria-label={`${mineDone ? "取消勾选" : "勾选已完成"} ${obj.text}${keyLine ? ` ${keyLine}` : ""}`}
-                onChange={() => {
-                  if (!taskDone) onToggle?.(obj.id);
-                }}
-              />
-              <span className={mineDone ? styles.taskObjLineDone : styles.taskObjLine}>
-                <span>{obj.text}</span>
-                {keyLine ? (
-                  <span className={styles.taskObjKeys}>{keyLine}</span>
+      {seqGroups.length ? (
+        <div className={hasOtherMaps ? styles.taskObjSeq : undefined}>
+          {seqGroups.map((group, index) => {
+            const mapTitle = formatRaidPrepSequenceMapTitle(group);
+            const showHeader = hasOtherMaps || Boolean(group.altMaps.length);
+            const sharedAlts = Boolean(group.altMaps.length);
+            return (
+              <div
+                key={`${group.mapSlug}:${group.onThisMap}:${index}`}
+                className={styles.taskObjSeqGroup}
+              >
+                {showHeader ? (
+                  <div
+                    className={
+                      group.onThisMap
+                        ? `${styles.taskObjOtherMapLabel} ${styles.taskObjSeqMapHere}`
+                        : styles.taskObjOtherMapLabel
+                    }
+                  >
+                    {mapTitle}
+                  </div>
                 ) : null}
-              </span>
-            </label>
-          );
-        })
-      ) : (
+                {group.onThisMap
+                  ? group.objectives.map((obj) =>
+                      renderThisMapObjective(obj, sharedAlts),
+                    )
+                  : group.objectives.map((obj) =>
+                      renderOtherMapObjective(obj, sharedAlts),
+                    )}
+              </div>
+            );
+          })}
+        </div>
+      ) : failChips?.length ? null : (
         <div className={styles.taskObjLine}>无目标数据</div>
       )}
-      {otherMapGroups?.length ? (
-        <div className={styles.taskObjOtherMaps}>
-          <div className={styles.taskObjOtherMapsLead}>{otherLead}</div>
-          {otherMapGroups.map((group) => (
-            <div key={group.mapSlug || group.mapLabel} className={styles.taskObjOtherMap}>
-              <div className={styles.taskObjOtherMapLabel}>{group.mapLabel}</div>
-              {group.lines.map((line) => (
-                <div key={line} className={styles.taskObjOtherMapLine}>
-                  {line}
-                </div>
-              ))}
+      {failChips?.length ? (
+        <div className={styles.taskObjFails}>
+          {failChips.map((chip) => (
+            <div key={`${chip.type}:${chip.text}`} className={styles.taskObjFail}>
+              <span className={styles.taskObjFailChip}>
+                {tarkovFailConditionTypeLabel(chip.type)}
+              </span>
+              <FailChipText chip={chip} />
             </div>
           ))}
         </div>
@@ -179,6 +358,8 @@ export function TarkovRaidPrepObjectiveHint({
   skipped,
   onToggle,
   otherMapGroups,
+  sequenceGroups,
+  failChips,
   taskName,
   traderSlug,
   traderName,
@@ -304,7 +485,7 @@ export function TarkovRaidPrepObjectiveHint({
       window.removeEventListener("resize", update);
       ro?.disconnect();
     };
-  }, [renderFloat, preferLeft, objectives, otherMapGroups, taskName, traderSlug]);
+  }, [renderFloat, preferLeft, objectives, otherMapGroups, sequenceGroups, failChips, taskName, traderSlug]);
 
   useEffect(() => {
     if (!open || !boxStyle) return undefined;
@@ -342,6 +523,8 @@ export function TarkovRaidPrepObjectiveHint({
                   skipped={skipped}
                   onToggle={onToggle}
                   otherMapGroups={otherMapGroups}
+                  sequenceGroups={sequenceGroups}
+                  failChips={failChips}
                   taskName={taskName}
                   traderSlug={traderSlug}
                   traderName={traderName}
@@ -378,6 +561,8 @@ export function TarkovRaidPrepObjectiveHint({
           skipped={skipped}
           onToggle={onToggle}
           otherMapGroups={otherMapGroups}
+          sequenceGroups={sequenceGroups}
+          failChips={failChips}
           taskName={taskName}
           traderSlug={traderSlug}
           traderName={traderName}

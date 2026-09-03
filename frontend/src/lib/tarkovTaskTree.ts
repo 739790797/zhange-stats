@@ -484,6 +484,32 @@ export function taskProgressQueryData(
   };
 }
 
+/** 进度账是冗余 id；目录里没有的（overlay disabled 等）只隐藏。catalog 空则原样。 */
+export function keepCatalogTaskProgress(
+  doneIds: readonly string[],
+  startedIds: readonly string[],
+  catalogIds?: ReadonlySet<string> | readonly string[] | null,
+): { done: string[]; started: string[] } {
+  if (catalogIds == null) {
+    return {
+      done: asIdList(doneIds),
+      started: asIdList(startedIds),
+    };
+  }
+  const catalog = catalogIds instanceof Set ? catalogIds : new Set(asIdList(catalogIds));
+  if (!catalog.size) {
+    return {
+      done: asIdList(doneIds),
+      started: asIdList(startedIds),
+    };
+  }
+  const cleaned = taskProgressQueryData(
+    asIdList(doneIds).filter((id) => catalog.has(id)),
+    asIdList(startedIds).filter((id) => catalog.has(id)),
+  );
+  return { done: cleaned.task_ids, started: cleaned.started_ids };
+}
+
 export function unionTaskProgress(
   left: { done?: readonly string[]; started?: readonly string[] },
   right: { done?: readonly string[]; started?: readonly string[] },

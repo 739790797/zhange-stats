@@ -35,13 +35,15 @@ export function overlayFlagsForMode(
   | "showStationary"
   | "showBtrStops"
   | "showLootContainers"
+  | "showLootLoose"
   | "hazardKinds"
   | "lootContainerKinds"
+  | "lootLooseKinds"
 > {
   if (overlayMode === "boss-spawns") {
     return {
       extractKinds: defaultExtractKindFlags(false),
-      spawnKinds: { pmc: false, scav: false, boss: true },
+      spawnKinds: { pmc: false, scav: false, sniper: false, boss: true },
       showLabels: false,
       showQuests: false,
       showLocks: false,
@@ -50,8 +52,10 @@ export function overlayFlagsForMode(
       showStationary: false,
       showBtrStops: false,
       showLootContainers: false,
+      showLootLoose: false,
       hazardKinds: prefs.hazardKinds,
       lootContainerKinds: prefs.lootContainerKinds,
+      lootLooseKinds: prefs.lootLooseKinds,
     };
   }
   return {
@@ -65,8 +69,10 @@ export function overlayFlagsForMode(
     showStationary: prefs.showStationary,
     showBtrStops: prefs.showBtrStops,
     showLootContainers: prefs.showLootContainers,
+    showLootLoose: prefs.showLootLoose,
     hazardKinds: prefs.hazardKinds,
     lootContainerKinds: prefs.lootContainerKinds,
+    lootLooseKinds: prefs.lootLooseKinds,
   };
 }
 
@@ -77,7 +83,7 @@ export type TarkovMapViewerPrefs = {
   floorsByMap: Record<string, string>;
   /** 按阵营分类的撤离点显隐；对齐 tarkov.dev Extracts 子图层。 */
   extractKinds: TarkovExtractKindFlags;
-  /** 出生点：PMC / Scav / Boss；对齐 tarkov.dev Spawns。 */
+  /** 出生点：PMC / Scav / 狙击 Scav / Boss；对齐 tarkov.dev Spawns。 */
   spawnKinds: TarkovSpawnKindFlags;
   showLabels: boolean;
   showQuests: boolean;
@@ -87,8 +93,10 @@ export type TarkovMapViewerPrefs = {
   showStationary: boolean;
   showBtrStops: boolean;
   showLootContainers: boolean;
+  showLootLoose: boolean;
   hazardKinds: TarkovMapKindFlags;
   lootContainerKinds: TarkovMapKindFlags;
+  lootLooseKinds: TarkovMapKindFlags;
 };
 
 export const DEFAULT_TARKOV_MAP_VIEWER_PREFS: TarkovMapViewerPrefs = {
@@ -104,8 +112,10 @@ export const DEFAULT_TARKOV_MAP_VIEWER_PREFS: TarkovMapViewerPrefs = {
   showStationary: true,
   showBtrStops: true,
   showLootContainers: false,
+  showLootLoose: false,
   hazardKinds: defaultTarkovMapKindFlags(),
   lootContainerKinds: defaultTarkovMapKindFlags(),
+  lootLooseKinds: defaultTarkovMapKindFlags(),
 };
 
 function asStyle(value: unknown): TarkovMapViewerStyle | null {
@@ -168,6 +178,7 @@ function emptyPrefs(): TarkovMapViewerPrefs {
     spawnKinds: defaultSpawnKindFlags(true),
     hazardKinds: defaultTarkovMapKindFlags(),
     lootContainerKinds: defaultTarkovMapKindFlags(),
+    lootLooseKinds: defaultTarkovMapKindFlags(),
   };
 }
 
@@ -223,8 +234,13 @@ export function parseTarkovMapViewerPrefs(
         parsed.showLootContainers,
         DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLootContainers,
       ),
+      showLootLoose: asBool(
+        parsed.showLootLoose,
+        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLootLoose,
+      ),
       hazardKinds: parseKindFlags(parsed.hazardKinds),
       lootContainerKinds: parseKindFlags(parsed.lootContainerKinds),
+      lootLooseKinds: parseKindFlags(parsed.lootLooseKinds),
     };
   } catch {
     return emptyPrefs();
@@ -322,5 +338,17 @@ export function withLootContainerKind(
     ...prefs,
     showLootContainers: on ? true : prefs.showLootContainers,
     lootContainerKinds: { ...prefs.lootContainerKinds, [kind]: on },
+  };
+}
+
+export function withLootLooseKind(
+  prefs: TarkovMapViewerPrefs,
+  kind: string,
+  on: boolean,
+): TarkovMapViewerPrefs {
+  return {
+    ...prefs,
+    showLootLoose: on ? true : prefs.showLootLoose,
+    lootLooseKinds: { ...prefs.lootLooseKinds, [kind]: on },
   };
 }

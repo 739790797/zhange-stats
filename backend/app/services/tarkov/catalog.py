@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.services.tarkov import items as items_svc
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
-from app.services.tarkov.game_mode import cache_key
+from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.items import GRAPHQL_SPLIT_FORMAT, TarkovItemsError
 
 logger = logging.getLogger(__name__)
@@ -589,7 +589,7 @@ def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
     if items_svc.get_items_raw(db) is None:
         return {}
     _source, synced, _note = items_svc.items_raw_header(db)
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     with _parsed_lock:
         cached = _pack_index_cache
         if cached is not None and cached[0] == key:
@@ -599,7 +599,7 @@ def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
     except TarkovItemsError:
         return {}
     index = parse_ammo_pack_index(source, payload)
-    key = cache_key(synced_at or "")
+    key = parsed_cache_key(db, synced_at)
     with _parsed_lock:
         _pack_index_cache = (key, index)
     return index
@@ -723,7 +723,7 @@ def load_parsed_catalog(
     global _parsed_cache
     items_svc.ensure_items(db)
     _source, synced, _note = items_svc.items_raw_header(db)
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -737,7 +737,7 @@ def load_parsed_catalog(
         except TarkovItemsError as exc:
             logger.warning("upgrade catalog to json failed, using split raw: %s", exc)
     rows = parse_catalog_items(source, payload)
-    key = synced_at or ""
+    key = parsed_cache_key(db, synced_at)
     with _parsed_lock:
         _parsed_cache = (key, source, rows, synced_at, note)
     return source, rows, synced_at, note
@@ -748,7 +748,7 @@ def peek_catalog_items(db: Session) -> list[dict[str, Any]]:
     if items_svc.get_items_raw(db) is None:
         return []
     _source, synced, _note = items_svc.items_raw_header(db)
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -793,16 +793,18 @@ def extract_item_detail(
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
+    from app.services.tarkov import overlay as overlay_svc
     from app.services.tarkov import upstream as upstream_svc
 
     items_svc.ensure_items(db)
-    return upstream_svc.load_main_payload(
+    source, payload, synced, note = upstream_svc.load_main_payload(
         db,
         "items",
         error_cls=TarkovItemsError,
         missing="无物品 raw",
         invalid="物品 raw_json 无效",
     )
+    return source, overlay_svc.apply_loaded_overlay(db, "items", payload), synced, note
 
 
 def ensure_full_item_catalog(db: Session) -> None:

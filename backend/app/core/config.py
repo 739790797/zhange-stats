@@ -39,8 +39,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = DEFAULT_SECRET_KEY
     # 默认 24 小时；管理端可在 system_configs 再调（最长 1 年）
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
-    # 留空：本地 Vite 用 allow_origin_regex；生产同域一般无需 CORS
+    # 留空：本地 Vite + Tauri 2 用 allow_origin_regex；生产同域一般无需 CORS
     CORS_ORIGINS: str = ""
+    # 留空用默认正则（localhost / 127.0.0.1 / tauri.localhost）；非空则整段覆盖
+    CORS_ORIGIN_REGEX: str = ""
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "123456"
     ADMIN_DISPLAY_NAME: str = "管理员"

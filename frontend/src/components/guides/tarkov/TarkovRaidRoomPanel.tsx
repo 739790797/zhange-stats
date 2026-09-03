@@ -36,6 +36,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode, useTarkovGameModeControls, parseTarkovGameMode } from "@/lib/tarkovGameMode";
+import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
 import { TARKOV_RAID_PREP_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
@@ -639,6 +640,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         groups.map((row) => row.taskId),
       ),
     [catalogRich, groups],
+  );
+  const guideTasks = useMemo(
+    () => mergeRaidPrepGuideTasks(selectedTasks, catalogRich, guideTaskId),
+    [catalogRich, guideTaskId, selectedTasks],
   );
   const overlayTasks = geometry.items;
   const rows = useMemo(
@@ -1567,6 +1572,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   stationaryWeapons={mapQuery.data?.stationary_weapons}
                   btrStops={mapQuery.data?.btr_stops}
                   lootContainers={mapQuery.data?.loot_containers}
+                  lootLoose={mapQuery.data?.loot_loose}
                   places={mapQuery.data?.places}
                   questOverlays={overlays}
                   questObjectiveDones={viewerObjectiveDones}
@@ -1591,6 +1597,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                   onEraseMark={onEraseMark}
                   onQuestLabelClick={onQuestLabelClick}
                   questParticipantsByTask={participantsByTask}
+                  lockKeyOwns={room?.key_owns}
+                  lockKeyBrings={room?.key_brings}
                   topRight={
                     <div className={styles.summaryStack}>
                       <TarkovRaidPrepSummary
@@ -1611,7 +1619,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                         onTitle={openGuide}
                       />
                       <TarkovRaidPrepGuideOverview
-                        tasks={selectedTasks}
+                        tasks={guideTasks}
                         mapId={mapId}
                         participantsByTask={participantsByTask}
                         skippedByTask={objDone}

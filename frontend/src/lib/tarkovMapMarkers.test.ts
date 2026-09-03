@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { findInteractiveMap } from "./tarkovMapImages";
+import { mapLayerFloorBands } from "./tarkovRaidPrep";
 import {
   allPresentKindsOn,
   hazardKindsPresent,
@@ -13,8 +15,11 @@ import {
   tarkovHazardKindLabel,
   tarkovLockHref,
   tarkovLockIconUrl,
+  tarkovLockKeyBadge,
+  tarkovLockKeyStatusLines,
   tarkovLockLabel,
   tarkovLockThumbUrl,
+  tarkovLockTooltipHtml,
   tarkovStationaryLabel,
   tarkovMarkerHeightSpan,
   tarkovMarkerVisibleOnFloor,
@@ -116,5 +121,137 @@ describe("tarkov map marker helpers", () => {
     expect(
       tarkovMarkerVisibleOnFloor({ x: 1, z: 2, top: 14, bottom: 12 }, "2nd", bands),
     ).toBe(true);
+  });
+
+  it("uses x/z so customs dorm locks sit on 2nd, not the whole map", () => {
+    const bands = mapLayerFloorBands(findInteractiveMap("customs"));
+    const dorm = { x: 200, z: 160, y: 4 };
+    const yard = { x: 400, z: 0, y: 4 };
+    expect(tarkovMarkerVisibleOnFloor(dorm, "2nd Floor", bands)).toBe(true);
+    expect(tarkovMarkerVisibleOnFloor(dorm, "", bands)).toBe(false);
+    expect(tarkovMarkerVisibleOnFloor(yard, "2nd Floor", bands)).toBe(false);
+    expect(tarkovMarkerVisibleOnFloor(yard, "", bands)).toBe(true);
+  });
+
+  it("keeps shoreline resort basement off the outdoor ground layer", () => {
+    const bands = mapLayerFloorBands(findInteractiveMap("shoreline"));
+    const westWing = { x: -180, z: -80, y: -6 };
+    const road = { x: -355, z: 188, y: -6 };
+    expect(tarkovMarkerVisibleOnFloor(westWing, "Underground", bands)).toBe(
+      true,
+    );
+    expect(tarkovMarkerVisibleOnFloor(westWing, "", bands)).toBe(false);
+    expect(tarkovMarkerVisibleOnFloor(road, "Underground", bands)).toBe(false);
+    expect(tarkovMarkerVisibleOnFloor(road, "", bands)).toBe(true);
+  });
+});
+
+describe("tarkov lock key badge", () => {
+  const me = { item_id: "k1", user_id: 1, display_name: "甲" };
+  const mate = { item_id: "k1", user_id: 2, display_name: "乙" };
+
+  it("stays unset without a key or in encyclopedia mode", () => {
+    expect(tarkovLockKeyBadge("", { mode: "solo", viewerId: 1 })).toBeUndefined();
+    expect(
+      tarkovLockKeyBadge("k1", { mode: "neutral", viewerId: 1, owns: [me] }),
+    ).toBeUndefined();
+    expect(tarkovLockKeyBadge("k1")).toBeUndefined();
+  });
+
+  it("marks solo own vs missing and ignores teammates", () => {
+    expect(
+      tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, owns: [me] }),
+    ).toBe("own");
+    expect(
+      tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, brings: [me] }),
+    ).toBe("own");
+    expect(
+      tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, owns: [mate] }),
+    ).toBe("missing");
+    expect(tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1 })).toBe(
+      "missing",
+    );
+  });
+
+  it("prefers self in a party, then teammate own or bring", () => {
+    expect(
+      tarkovLockKeyBadge("k1", {
+        mode: "party",
+        viewerId: 1,
+        owns: [me, mate],
+        brings: [mate],
+      }),
+    ).toBe("own");
+    expect(
+      tarkovLockKeyBadge("k1", {
+        mode: "party",
+        viewerId: 1,
+        owns: [mate],
+      }),
+    ).toBe("teammate");
+    expect(
+      tarkovLockKeyBadge("k1", {
+        mode: "party",
+        viewerId: 1,
+        brings: [mate],
+      }),
+    ).toBe("teammate");
+    expect(tarkovLockKeyBadge("k1", { mode: "party", viewerId: 1 })).toBe(
+      "missing",
+    );
+  });
+});
+
+describe("tarkov lock tooltip html", () => {
+  const classes = {
+    tip: "lockTip",
+    icon: "lockTipIcon",
+    text: "lockTipText",
+    status: "lockTipStatus",
+  };
+
+  it("keeps encyclopedia bubbles to icon, name and power, without lock type", () => {
+    const html = tarkovLockTooltipHtml(
+      {
+        key_id: "k1",
+        key_name: "宿舍 114",
+        key_icon: "https://assets.tarkov.dev/k1-icon.webp",
+        lock_type: "door",
+        needs_power: true,
+      },
+      classes,
+    );
+    expect(html).toContain("宿舍 114");
+    expect(html).toContain("lockTipIcon");
+    expect(html).toContain("https://assets.tarkov.dev/k1-icon.webp");
+    expect(html).toContain("需供电");
+    expect(html).not.toContain(">门<");
+    expect(html).not.toContain("拥有");
+    expect(html).not.toContain("带了");
+    expect(tarkovLockKeyStatusLines("k1")).toEqual([]);
+  });
+
+  it("adds who owns and who brought for raid maps", () => {
+    expect(
+      tarkovLockKeyStatusLines("k1", {
+        mode: "party",
+        viewerId: 1,
+        owns: [{ item_id: "k1", user_id: 1, display_name: "甲" }],
+        brings: [{ item_id: "k1", user_id: 2, display_name: "乙" }],
+      }),
+    ).toEqual(["甲拥有这把钥匙。", "乙带了这把钥匙。"]);
+    expect(
+      tarkovLockKeyStatusLines("k1", { mode: "solo", viewerId: 1 }),
+    ).toEqual(["没人拥有这把钥匙", "还没人声明带这把钥匙"]);
+    const html = tarkovLockTooltipHtml(
+      { key_id: "k1", key_name: "工厂钥匙", lock_type: "door" },
+      classes,
+      { mode: "solo", viewerId: 1 },
+    );
+    expect(html).toContain("没人拥有这把钥匙");
+    expect(html).toContain("还没人声明带这把钥匙");
+    expect(html).not.toContain("没人拥有这把钥匙 还没人声明带这把钥匙");
+    expect(html).toContain("lockTipStatus");
+    expect(html).not.toContain(">门<");
   });
 });

@@ -1,6 +1,6 @@
-/** 对齐 tarkov.dev 地图出生点：PMC / Scav / Boss 图层与 interactive/spawn_*.png。 */
+/** 对齐 tarkov.dev 地图出生点：PMC / Scav / 狙击 Scav / Boss 图层与 interactive/spawn_*.png。 */
 
-export const TARKOV_SPAWN_KINDS = ["pmc", "scav", "boss"] as const;
+export const TARKOV_SPAWN_KINDS = ["pmc", "scav", "sniper", "boss"] as const;
 
 export type TarkovSpawnKind = (typeof TARKOV_SPAWN_KINDS)[number];
 
@@ -10,14 +10,16 @@ export type TarkovSpawnKindFlags = Record<TarkovSpawnKind, boolean>;
 export const TARKOV_SPAWN_KIND_LABELS: Record<TarkovSpawnKind, string> = {
   pmc: "PMC",
   scav: "Scav",
+  sniper: "狙击 Scav",
   boss: "Boss",
 };
 
 export function defaultSpawnKindFlags(on = true): TarkovSpawnKindFlags {
-  return { pmc: on, scav: on, boss: on };
+  return { pmc: on, scav: on, sniper: on, boss: on };
 }
 
 export function tarkovSpawnIconUrl(kind: TarkovSpawnKind): string {
+  if (kind === "sniper") return "/tarkov/map-icons/spawn_sniper_scav.png";
   return `/tarkov/map-icons/spawn_${kind}.png`;
 }
 
@@ -37,7 +39,7 @@ export function spawnKindsPresent(input: {
   const seen = new Set<TarkovSpawnKind>();
   for (const row of input.spawns || []) {
     const kind = String(row.kind || "").trim().toLowerCase();
-    if (kind === "pmc" || kind === "scav") seen.add(kind);
+    if (kind === "pmc" || kind === "scav" || kind === "sniper") seen.add(kind);
   }
   if ((input.bosses || []).length) seen.add("boss");
   return TARKOV_SPAWN_KINDS.filter((kind) => seen.has(kind));

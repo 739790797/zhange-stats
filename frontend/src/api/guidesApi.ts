@@ -217,6 +217,7 @@ export type TarkovMapStationaryWeapon =
 export type TarkovMapBtrStop = components["schemas"]["TarkovMapBtrStopOut"];
 export type TarkovMapLootContainer =
   components["schemas"]["TarkovMapLootContainerOut"];
+export type TarkovMapLootLoose = components["schemas"]["TarkovMapLootLooseOut"];
 export type TarkovMapPlace = components["schemas"]["TarkovMapPlaceOut"];
 export type TarkovMapPlaceIn = components["schemas"]["TarkovMapPlaceIn"];
 export type TarkovMapPlacePatch = components["schemas"]["TarkovMapPlacePatchIn"];

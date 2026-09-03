@@ -11,6 +11,7 @@ import {
   withExtractKind,
   withHazardKind,
   withLootContainerKind,
+  withLootLooseKind,
   withMapFloor,
   withSpawnKind,
 } from "./tarkovMapViewerPrefs";
@@ -22,6 +23,7 @@ const emptyDefaults = {
   spawnKinds: defaultSpawnKindFlags(true),
   hazardKinds: defaultTarkovMapKindFlags(),
   lootContainerKinds: defaultTarkovMapKindFlags(),
+  lootLooseKinds: defaultTarkovMapKindFlags(),
 };
 
 describe("parseTarkovMapViewerPrefs", () => {
@@ -58,7 +60,7 @@ describe("parseTarkovMapViewerPrefs", () => {
         shared: true,
         transit: false,
       },
-      spawnKinds: { pmc: false, scav: true, boss: false },
+      spawnKinds: { pmc: false, scav: true, sniper: true, boss: false },
       showLabels: false,
       showQuests: false,
       showLocks: true,
@@ -67,8 +69,10 @@ describe("parseTarkovMapViewerPrefs", () => {
       showStationary: true,
       showBtrStops: true,
       showLootContainers: false,
+      showLootLoose: false,
       hazardKinds: {},
       lootContainerKinds: {},
+      lootLooseKinds: {},
     });
   });
 
@@ -86,8 +90,10 @@ describe("parseTarkovMapViewerPrefs", () => {
     expect(parsed.showStationary).toBe(true);
     expect(parsed.showBtrStops).toBe(true);
     expect(parsed.showLootContainers).toBe(false);
+    expect(parsed.showLootLoose).toBe(false);
     expect(parsed.hazardKinds).toEqual({});
     expect(parsed.lootContainerKinds).toEqual({});
+    expect(parsed.lootLooseKinds).toEqual({});
   });
 
   it("migrates legacy showExtracts boolean into extractKinds", () => {
@@ -114,7 +120,7 @@ describe("parseTarkovMapViewerPrefs", () => {
       parseTarkovMapViewerPrefs(
         JSON.stringify({ showBosses: false }),
       ).spawnKinds,
-    ).toEqual({ pmc: true, scav: true, boss: false });
+    ).toEqual({ pmc: true, scav: true, sniper: true, boss: false });
     expect(
       parseTarkovMapViewerPrefs(
         JSON.stringify({ showBosses: true }),
@@ -171,6 +177,7 @@ describe("withSpawnKind", () => {
     expect(withSpawnKind(emptyDefaults, "boss", false).spawnKinds).toEqual({
       pmc: true,
       scav: true,
+      sniper: true,
       boss: false,
     });
   });
@@ -197,11 +204,21 @@ describe("withLootContainerKind", () => {
   });
 });
 
+describe("withLootLooseKind", () => {
+  it("turns on one loose-loot handbook kind without enabling others", () => {
+    expect(withLootLooseKind(emptyDefaults, "5b47574386f77428ca22b2f1", true)).toEqual({
+      ...emptyDefaults,
+      showLootLoose: true,
+      lootLooseKinds: { "5b47574386f77428ca22b2f1": true },
+    });
+  });
+});
+
 describe("overlayFlagsForMode", () => {
   it("keeps only boss markers in spawn overlay mode", () => {
     expect(overlayFlagsForMode(emptyDefaults, "boss-spawns")).toEqual({
       extractKinds: defaultExtractKindFlags(false),
-      spawnKinds: { pmc: false, scav: false, boss: true },
+      spawnKinds: { pmc: false, scav: false, sniper: false, boss: true },
       showLabels: false,
       showQuests: false,
       showLocks: false,
@@ -210,8 +227,10 @@ describe("overlayFlagsForMode", () => {
       showStationary: false,
       showBtrStops: false,
       showLootContainers: false,
+      showLootLoose: false,
       hazardKinds: {},
       lootContainerKinds: {},
+      lootLooseKinds: {},
     });
   });
 });

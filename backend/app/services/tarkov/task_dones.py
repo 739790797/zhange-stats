@@ -91,6 +91,23 @@ def list_progress(
     return done, started
 
 
+def filter_visible_progress(
+    done: list[str],
+    started: list[str],
+    catalog: set[str] | None,
+) -> tuple[list[str], list[str]]:
+    """进度账是冗余 id 表。目录里没有的（overlay disabled 等）只隐藏、不删行。
+
+    catalog 为 None 表示图鉴不可用，原样返回。
+    """
+    if catalog is None:
+        return done, started
+    return (
+        [ident for ident in done if ident in catalog],
+        [ident for ident in started if ident in catalog],
+    )
+
+
 def _started_rows(
     db: Session,
     user_id: int,

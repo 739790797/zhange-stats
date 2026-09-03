@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { TARKOV_MAPS, TARKOV_TRADERS } from "@/lib/tarkovHomeNav";
 import {
   orderObjectiveTypes,
+  tarkovExitStatusLabel,
   tarkovObjectiveTypeLabel,
 } from "@/lib/tarkovTaskObjective";
 
@@ -431,6 +432,9 @@ export type RaidPrepNamedRef = {
   name?: string | null;
   icon_link?: string | null;
   types?: string[] | null;
+  trader_id?: string | null;
+  trader_slug?: string | null;
+  trader_name?: string | null;
 };
 
 export type RaidPrepObjectiveLike = {
@@ -448,6 +452,29 @@ export type RaidPrepObjectiveLike = {
   zone_names?: string[] | null;
 };
 
+export type RaidPrepFailConditionLike = {
+  id?: string | null;
+  type?: string | null;
+  description?: string | null;
+  status?: string[] | null;
+  tasks?: RaidPrepNamedRef[] | null;
+  exit_status?: string[] | null;
+  trader?: RaidPrepNamedRef | null;
+};
+
+export type RaidPrepFailChipTask = {
+  id: string;
+  name: string;
+  traderSlug: string;
+  traderName: string;
+};
+
+export type RaidPrepFailChip = {
+  type: string;
+  text: string;
+  tasks?: RaidPrepFailChipTask[];
+};
+
 export type RaidPrepTaskLike = {
   id: string;
   name?: string | null;
@@ -459,6 +486,7 @@ export type RaidPrepTaskLike = {
     map?: { slug?: string | null } | null;
     keys?: RaidPrepNamedRef[] | null;
   }> | null;
+  fail_conditions?: RaidPrepFailConditionLike[] | null;
 };
 
 export type RaidPrepNeededItem = {
@@ -477,11 +505,30 @@ export type RaidPrepNeededItem = {
   anyOf?: RaidPrepNeededItem[];
 };
 
+export type RaidPrepHintItem = {
+  id: string;
+  name: string;
+  icon_link: string;
+  count: number;
+};
+
+export type RaidPrepNamedMap = {
+  slug: string;
+  label: string;
+};
+
 export type RaidPrepObjectiveHint = {
   id: string;
   text: string;
   optional: boolean;
   keyNames: string[];
+  /** 目标 items：原文旁挂图+名称，不改步骤文案。 */
+  items?: RaidPrepHintItem[];
+  objectiveType?: string;
+  /** 同一条目标上、当前分组地图以外的合法地点（OR）。 */
+  altMaps?: RaidPrepNamedMap[];
+  /** dump 顺序的全部地点，组标题用。 */
+  maps?: RaidPrepNamedMap[];
 };
 
 /** 跨地图任务：当前图以外的目标，按地图分组提示。 */
@@ -489,6 +536,16 @@ export type RaidPrepOtherMapGroup = {
   mapSlug: string;
   mapLabel: string;
   lines: string[];
+};
+
+/** 全部步骤按 dump 顺序排；本图可勾选，其它图只展示。 */
+export type RaidPrepSequenceGroup = {
+  mapSlug: string;
+  mapLabel: string;
+  onThisMap: boolean;
+  objectives: RaidPrepObjectiveHint[];
+  /** 组内步骤共用的备选图；不一致则为空，改看每条 altMaps。 */
+  altMaps: RaidPrepNamedMap[];
 };
 
 export type RaidPrepTaskSummary = {
@@ -507,12 +564,16 @@ export type RaidPrepTaskSummary = {
   objectiveLines: string[];
   /** 当前地图全部目标（含已勾掉），供勾选进度。 */
   objectives: RaidPrepObjectiveHint[];
+  /** 全部步骤按 dump 顺序，含其它图。 */
+  sequenceGroups: RaidPrepSequenceGroup[];
   /** 本图任务本身有钥匙（与个人/房间勾选无关）。 */
   hasMapKeys: boolean;
   /** 当前用户已勾完本图必做步骤。 */
   mapComplete: boolean;
   /** 其他地图仍要做的步骤（只提示，不在本图勾选）。 */
   otherMapGroups: RaidPrepOtherMapGroup[];
+  /** 失败条件芯片（任务级，不按图裁剪）。 */
+  failChips: RaidPrepFailChip[];
 };
 
 /** 任务 id → 已勾掉（本局不用再做）的目标 id。 */
@@ -561,6 +622,12 @@ export function tarkovReadableName(
   if (!text) return "";
   const ident = (id || "").trim();
   if (ident && text === ident) return "";
+  if (ident) {
+    const rest = text.slice(ident.length).trim().toLowerCase();
+    if (text.toLowerCase().startsWith(ident.toLowerCase()) && (rest === "name" || rest === "shortname")) {
+      return "";
+    }
+  }
   if (isTarkovHexId(text)) return "";
   if (isGarbledTarkovName(text)) return "";
   return text;
@@ -1712,6 +1779,51 @@ export function formatRaidPrepKeyNeedLine(
   return `需要${names.join("、")}`;
 }
 
+const RAID_PREP_HINT_ITEM_TYPES = new Set([
+  "giveItem",
+  "giveQuestItem",
+  "findItem",
+  "findQuestItem",
+]);
+
+/** 原文没点名具体物，多候选才逐件挂出。 */
+const RAID_PREP_GENERIC_HINT_DESC =
+  /^(上交(物品|信息|任务物)?|找到(物品)?)$/;
+
+/** 步骤原文旁挂的物品；只上交/找到。藏匿原文已写物，不挂。 */
+export function objectiveHintItems(obj: RaidPrepObjectiveLike): RaidPrepHintItem[] {
+  const type = (obj.type || "").trim();
+  if (!RAID_PREP_HINT_ITEM_TYPES.has(type)) return [];
+  const refs = obj.items || [];
+  if (!refs.length) return [];
+  if (isRaidPrepAnyOfCategoryObjective(obj, refs.length)) return [];
+  const desc = tarkovReadableName(obj.description, obj.id);
+  if (
+    refs.length >= RAID_PREP_ANY_OF_MIN &&
+    !RAID_PREP_GENERIC_HINT_DESC.test(desc)
+  ) {
+    return [];
+  }
+  const qty = objectiveItemCount(obj, refs.length);
+  const out: RaidPrepHintItem[] = [];
+  const seen = new Set<string>();
+  for (const ref of refs) {
+    const id = (ref.id || "").trim();
+    const name = tarkovReadableName(ref.name, id);
+    if (!name) continue;
+    const key = id || name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: key,
+      name,
+      icon_link: (ref.icon_link || "").trim(),
+      count: qty,
+    });
+  }
+  return out;
+}
+
 /** 无地图限制的目标（如上交）算本局需要；标了别的图则排除。 */
 export function objectiveAppliesToMap(
   obj: RaidPrepObjectiveLike,
@@ -1892,14 +2004,250 @@ export function collectRaidPrepOtherMapGroups(
   });
 }
 
+function otherMapGroupHasSteps(row: RaidPrepOtherMapGroup): boolean {
+  return (row.lines || []).some((line) => line.trim());
+}
+
+function otherMapGroupLabels(
+  groups: readonly RaidPrepOtherMapGroup[],
+): string {
+  return groups
+    .map((row) => row.mapLabel.trim())
+    .filter(Boolean)
+    .join("、");
+}
+
+/** 空名单 = 本图步骤也可在那些图做；有步骤 = 那些图还有别的目标。 */
+export function splitRaidPrepOtherMapGroups(
+  groups: readonly RaidPrepOtherMapGroup[] | null | undefined,
+): {
+  allowed: RaidPrepOtherMapGroup[];
+  required: RaidPrepOtherMapGroup[];
+} {
+  const allowed: RaidPrepOtherMapGroup[] = [];
+  const required: RaidPrepOtherMapGroup[] = [];
+  for (const row of groups || []) {
+    if (otherMapGroupHasSteps(row)) required.push(row);
+    else allowed.push(row);
+  }
+  return { allowed, required };
+}
+
 export function formatRaidPrepOtherMapsLead(
   groups: readonly RaidPrepOtherMapGroup[] | null | undefined,
 ): string {
-  const labels = (groups || [])
-    .map((row) => row.mapLabel.trim())
+  const { allowed, required } = splitRaidPrepOtherMapGroups(groups);
+  const parts: string[] = [];
+  const allowedLabels = otherMapGroupLabels(allowed);
+  const requiredLabels = otherMapGroupLabels(required);
+  if (allowedLabels) parts.push(`也可在${allowedLabels}完成`);
+  if (requiredLabels) parts.push(`还需在${requiredLabels}完成`);
+  if (!parts.length) return "";
+  return `此任务${parts.join("，")}`;
+}
+
+function altMapsKey(maps: readonly RaidPrepNamedMap[] | null | undefined): string {
+  return (maps || [])
+    .map((row) => `${row.slug}:${row.label}`)
+    .join("|");
+}
+
+function sharedSequenceAltMaps(
+  objectives: readonly RaidPrepObjectiveHint[],
+): RaidPrepNamedMap[] {
+  if (!objectives.length) return [];
+  const first = objectives[0]?.altMaps || [];
+  if (!first.length) return [];
+  const key = altMapsKey(first);
+  if (objectives.some((row) => altMapsKey(row.altMaps) !== key)) return [];
+  return first;
+}
+
+/** 组内步骤备选图不一致时，逐步提示；组级已并进地图名。 */
+export function formatRaidPrepAltMapsLead(
+  maps: readonly RaidPrepNamedMap[] | null | undefined,
+  scope: "group" | "step" = "group",
+): string {
+  const labels = (maps || [])
+    .map((row) => row.label.trim())
     .filter(Boolean);
   if (!labels.length) return "";
-  return `此任务还需在${labels.join("、")}完成`;
+  const where = `也可在${labels.join("、")}完成`;
+  return scope === "step" ? `此步骤${where}` : where;
+}
+
+/** 组标题：共用备选图时按 dump 顺序写成「海关/灯塔」。 */
+export function formatRaidPrepSequenceMapTitle(group: {
+  mapLabel?: string | null;
+  altMaps?: readonly RaidPrepNamedMap[] | null;
+  objectives?: readonly Pick<RaidPrepObjectiveHint, "maps">[] | null;
+}): string {
+  if ((group.altMaps || []).length) {
+    const dump = (group.objectives?.[0]?.maps || [])
+      .map((row) => row.label.trim())
+      .filter(Boolean);
+    if (dump.length >= 2) return dump.join("/");
+  }
+  const head = (group.mapLabel || "").trim();
+  const alts = (group.altMaps || [])
+    .map((row) => row.label.trim())
+    .filter(Boolean);
+  if (!head) return alts.join("/");
+  if (!alts.length) return head;
+  return [head, ...alts].join("/");
+}
+
+function collectObjectiveNamedMaps(
+  obj: RaidPrepObjectiveLike,
+): RaidPrepNamedMap[] {
+  const out: RaidPrepNamedMap[] = [];
+  const seen = new Set<string>();
+  for (const ref of objectiveMapRefs(obj)) {
+    const slug = (ref.slug || "").trim();
+    const label = raidPrepMapRefLabel(ref);
+    const key = raidPrepOtherMapGroupKey(slug, label);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ slug, label });
+  }
+  return out;
+}
+
+function collectObjectiveAltMaps(
+  obj: RaidPrepObjectiveLike,
+  primarySlug: string,
+): RaidPrepNamedMap[] {
+  const primaryKeys = mapSlugKeys(primarySlug);
+  const out: RaidPrepNamedMap[] = [];
+  const seen = new Set<string>();
+  for (const ref of objectiveMapRefs(obj)) {
+    const slug = (ref.slug || "").trim();
+    if (!slug) continue;
+    const keys = mapSlugKeys(slug);
+    if ([...keys].some((item) => primaryKeys.has(item))) continue;
+    const label = raidPrepMapRefLabel(ref);
+    const key = raidPrepOtherMapGroupKey(slug, label);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ slug, label });
+  }
+  return out;
+}
+
+const RAID_PREP_FAIL_CHIP_LABELS: Record<string, string> = {
+  taskStatus: "任务冲突",
+  extract: "撤离失败",
+  useItem: "禁止使用",
+  traderStanding: "商人声望",
+  shoot: "禁止击杀",
+};
+
+const RAID_PREP_FAIL_CHIP_ORDER: readonly string[] = [
+  "taskStatus",
+  "extract",
+  "shoot",
+  "useItem",
+  "traderStanding",
+];
+
+/** 失败芯片标签；与步骤 type 文案分开，避免「击杀/撤离」看起来像目标。 */
+export function tarkovFailConditionTypeLabel(type: string): string {
+  return RAID_PREP_FAIL_CHIP_LABELS[(type || "").trim()] || "";
+}
+
+function failChipRelatedTaskName(ref: RaidPrepNamedRef | null | undefined): string {
+  return (
+    tarkovReadableName(ref?.name, ref?.id) ||
+    tarkovReadableName(ref?.slug, ref?.id)
+  );
+}
+
+function failChipRelatedTask(
+  ref: RaidPrepNamedRef | null | undefined,
+): RaidPrepFailChipTask | null {
+  const name = failChipRelatedTaskName(ref);
+  if (!name) return null;
+  const traderName =
+    tarkovReadableName(ref?.trader_name, ref?.trader_id) ||
+    String(ref?.trader_name || "").trim();
+  return {
+    id: String(ref?.id || name).trim() || name,
+    name,
+    traderSlug: String(ref?.trader_slug || "").trim(),
+    traderName,
+  };
+}
+
+function failChipFallbackText(obj: RaidPrepFailConditionLike): string {
+  const type = (obj.type || "").trim();
+  if (type === "extract") {
+    const statuses: string[] = [];
+    for (const raw of obj.exit_status || []) {
+      const label = tarkovExitStatusLabel(String(raw));
+      if (label && !statuses.includes(label)) statuses.push(label);
+    }
+    if (statuses.length) return `不得以${statuses.join("、")}状态离开战局`;
+  }
+  if (type === "traderStanding") {
+    const trader = failChipRelatedTaskName(obj.trader);
+    if (trader) return `${trader}声望过低则失败`;
+  }
+  if (type === "shoot") return "任务进行期间禁止击杀指定目标";
+  return "";
+}
+
+function failChipBodyText(obj: RaidPrepFailConditionLike): string {
+  const type = (obj.type || "").trim();
+  const locale = tarkovReadableName(obj.description, obj.id);
+  if (type === "extract") return failChipFallbackText(obj) || locale;
+  return locale || failChipFallbackText(obj);
+}
+
+/** 任务悬浮窗底部失败条件芯片；冲突任务合成一条「完成该任务会使…失败」。 */
+export function collectRaidPrepFailChips(
+  conditions: readonly RaidPrepFailConditionLike[] | null | undefined,
+): RaidPrepFailChip[] {
+  const conflictTasks: RaidPrepFailChipTask[] = [];
+  const rest: RaidPrepFailChip[] = [];
+  for (const obj of conditions || []) {
+    const type = (obj.type || "").trim();
+    if (!type || !RAID_PREP_FAIL_CHIP_LABELS[type]) continue;
+    if (type === "taskStatus") {
+      for (const task of obj.tasks || []) {
+        const row = failChipRelatedTask(task);
+        if (!row) continue;
+        if (
+          conflictTasks.some((item) => item.id === row.id || item.name === row.name)
+        ) {
+          continue;
+        }
+        conflictTasks.push(row);
+      }
+      continue;
+    }
+    const text = failChipBodyText(obj);
+    if (!text) continue;
+    rest.push({ type, text });
+  }
+  const rank = new Map(
+    RAID_PREP_FAIL_CHIP_ORDER.map((type, index) => [type, index] as const),
+  );
+  rest.sort((a, b) => {
+    const ia = rank.get(a.type) ?? RAID_PREP_FAIL_CHIP_ORDER.length;
+    const ib = rank.get(b.type) ?? RAID_PREP_FAIL_CHIP_ORDER.length;
+    if (ia !== ib) return ia - ib;
+    return a.text.localeCompare(b.text, "zh");
+  });
+  const out: RaidPrepFailChip[] = [];
+  if (conflictTasks.length) {
+    out.push({
+      type: "taskStatus",
+      text: `完成该任务会使${conflictTasks.map((row) => row.name).join("、")}失败`,
+      tasks: conflictTasks,
+    });
+  }
+  out.push(...rest);
+  return out;
 }
 
 /** 当前地图上该任务的全部目标（含可选），整任务完成时用来回填个人勾选。 */
@@ -2596,6 +2944,23 @@ export function collectRaidPrepTaskTypes(
   return orderObjectiveTypes(types);
 }
 
+function raidPrepObjectiveHintCore(
+  obj: RaidPrepObjectiveLike,
+  index: number,
+): Pick<
+  RaidPrepObjectiveHint,
+  "id" | "text" | "optional" | "keyNames" | "items" | "objectiveType"
+> {
+  return {
+    id: raidPrepObjectiveKey(obj, index),
+    text: raidPrepObjectiveStepText(obj),
+    optional: Boolean(obj.optional),
+    keyNames: objectiveKeyNames(obj),
+    items: objectiveHintItems(obj),
+    objectiveType: (obj.type || "").trim(),
+  };
+}
+
 /** 准备总结任务名悬停：当前图适用的目标（含已勾掉，才能取消）。 */
 export function collectRaidPrepTaskObjectives(
   task: RaidPrepTaskLike,
@@ -2604,16 +2969,115 @@ export function collectRaidPrepTaskObjectives(
   const out: RaidPrepObjectiveHint[] = [];
   (task.objectives || []).forEach((obj, index) => {
     if (!objectiveAppliesToMap(obj, mapSlug)) return;
-    const text = raidPrepObjectiveStepText(obj);
-    if (!text) return;
-    out.push({
-      id: raidPrepObjectiveKey(obj, index),
-      text,
-      optional: Boolean(obj.optional),
-      keyNames: objectiveKeyNames(obj),
-    });
+    const core = raidPrepObjectiveHintCore(obj, index);
+    if (!core.text) return;
+    out.push(core);
   });
   return out;
+}
+
+function raidPrepMapOptionLabel(mapSlug: string): string {
+  const canon = normalizeRaidPrepMapId(mapSlug) || (mapSlug || "").trim();
+  if (!canon) return "";
+  const opt = raidPrepMapOptions().find((item) => item.id === canon);
+  return (opt?.label || canon).trim();
+}
+
+function isRaidPrepExtractHint(hint: Pick<RaidPrepObjectiveHint, "objectiveType">): boolean {
+  return (hint.objectiveType || "").trim() === "extract";
+}
+
+/** 同图组内：找物/藏匿等在前，撤离/转移在后（dump 常把转移写在获取前面）。 */
+function insertSequenceHint(
+  group: RaidPrepSequenceGroup,
+  hint: RaidPrepObjectiveHint,
+) {
+  if (isRaidPrepExtractHint(hint)) {
+    group.objectives.push(hint);
+    return;
+  }
+  const extractAt = group.objectives.findIndex(isRaidPrepExtractHint);
+  if (extractAt >= 0) {
+    group.objectives.splice(extractAt, 0, hint);
+    return;
+  }
+  group.objectives.push(hint);
+}
+
+/** 全部目标按 dump 顺序分组；不把本图步骤提前。 */
+export function collectRaidPrepSequenceGroups(
+  task: RaidPrepTaskLike,
+  mapSlug: string,
+): RaidPrepSequenceGroup[] {
+  const currentKeys = mapSlugKeys(mapSlug);
+  const hereLabel = raidPrepMapOptionLabel(mapSlug) || "当前地图";
+  const groups: RaidPrepSequenceGroup[] = [];
+  const push = (
+    slug: string,
+    label: string,
+    onThisMap: boolean,
+    hint: RaidPrepObjectiveHint,
+  ) => {
+    const text = (label || "").trim();
+    if (!text) return;
+    const last = groups[groups.length - 1];
+    const key = raidPrepOtherMapGroupKey(slug, text);
+    const lastKey = last
+      ? raidPrepOtherMapGroupKey(last.mapSlug, last.mapLabel)
+      : "";
+    if (last && lastKey === key && last.onThisMap === onThisMap) {
+      insertSequenceHint(last, hint);
+      return;
+    }
+    groups.push({
+      mapSlug: slug,
+      mapLabel: text,
+      onThisMap,
+      objectives: [hint],
+      altMaps: hint.altMaps || [],
+    });
+  };
+
+  (task.objectives || []).forEach((obj, index) => {
+    const core = raidPrepObjectiveHintCore(obj, index);
+    if (!core.text) return;
+    if (objectiveAppliesToMap(obj, mapSlug)) {
+      const hint: RaidPrepObjectiveHint = {
+        ...core,
+        altMaps: collectObjectiveAltMaps(obj, mapSlug),
+        maps: collectObjectiveNamedMaps(obj),
+      };
+      push(mapSlug, hereLabel, true, hint);
+      return;
+    }
+    const refs = objectiveMapRefs(obj);
+    const other = refs.filter((ref) => {
+      if (!ref.slug) return true;
+      const keys = mapSlugKeys(ref.slug);
+      for (const item of currentKeys) {
+        if (keys.has(item)) return false;
+      }
+      return true;
+    });
+    const primary = other[0] || refs[0];
+    if (!primary) return;
+    const groupSlug = primary.slug;
+    const hint: RaidPrepObjectiveHint = {
+      ...core,
+      altMaps: collectObjectiveAltMaps(obj, groupSlug),
+      maps: collectObjectiveNamedMaps(obj),
+    };
+    push(
+      groupSlug,
+      raidPrepMapRefLabel(primary) || "其他地图",
+      false,
+      hint,
+    );
+  });
+  for (const group of groups) {
+    group.altMaps = sharedSequenceAltMaps(group.objectives);
+  }
+  return groups;
 }
 
 /** 右侧任务列表气泡：贴在侧栏左缘外侧，整块夹在视口内。 */
@@ -2693,8 +3157,10 @@ export function buildRaidPrepSummary(
       types: collectRaidPrepTaskTypes(task, mapSlug, skipped),
       objectiveLines: collectRaidPrepTaskObjectiveLines(task, mapSlug),
       objectives,
+      sequenceGroups: collectRaidPrepSequenceGroups(task, mapSlug),
       mapComplete: raidPrepMapObjectivesComplete(task, mapSlug, skipped),
       otherMapGroups: collectRaidPrepOtherMapGroups(task, mapSlug),
+      failChips: collectRaidPrepFailChips(task.fail_conditions),
     };
   });
 }

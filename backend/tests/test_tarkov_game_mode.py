@@ -2,7 +2,6 @@ from app.services.tarkov.game_mode import (
     DEFAULT_GAME_MODE,
     cache_key,
     game_mode_scope,
-    graphql_game_mode,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
@@ -25,8 +24,8 @@ def test_parse_game_mode_aliases():
 def test_row_id_and_upstream_mapping():
     assert raw_row_id("pvp") == 1
     assert raw_row_id("pve") == 2
-    assert graphql_game_mode("pvp") == "regular"
-    assert graphql_game_mode("pve") == "pve"
+    assert json_api_prefix("pvp") == "regular"
+    assert json_api_prefix("pve") == "pve"
     assert json_api_prefix("pve") == "pve"
     assert json_resource_url("tasks", mode="pve") == "https://json.tarkov.dev/pve/tasks"
     assert json_resource_url("items", lang="zh", mode="pvp").endswith(

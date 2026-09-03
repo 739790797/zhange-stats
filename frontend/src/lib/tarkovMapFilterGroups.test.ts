@@ -19,11 +19,13 @@ describe("tarkov map filter groups", () => {
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.tasks).toBe("任务");
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.hazards).toBe("危险区");
     expect(TARKOV_MAP_FILTER_GROUP_LABELS.landmarks).toBe("地标");
+    expect(TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose).toBe("散落物");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.locks).toBe("锁");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.stationary).toBe("固定机枪");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.switches).toBe("开关");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.btrStop).toBe("BTR 停车点");
     expect(TARKOV_MAP_FILTER_ITEM_LABELS.placeNames).toBe("地名");
+    expect(TARKOV_MAP_FILTER_ITEM_LABELS.lootLoose).toBe("散落物");
   });
 
   it("keeps tarkov.dev sidebar group order", () => {
@@ -37,6 +39,7 @@ describe("tarkov map filter groups", () => {
       "tasks",
       "hazards",
       "landmarks",
+      "lootLoose",
     ]);
   });
 

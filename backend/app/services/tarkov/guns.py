@@ -1,6 +1,6 @@
 """逃离塔科夫枪械：parse / 派生读模型。
 
-共享回源见 tarkov_items。本模块保留 GraphQL/json 下载与解析。
+共享回源见 tarkov_items（json.tarkov.dev items dump）。
 列表行：有 defaultPreset 时用默认配置的 id/名/图/人机/后坐，口径与射速仍取机匣。
 """
 
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -17,16 +16,11 @@ from app.models.tarkov import TarkovGun
 from app.services.tarkov.ammo import (
     SOURCE_GRAPHQL,
     SOURCE_JSON_API,
-    TARKOV_GRAPHQL_URL,
-    TarkovAmmoError,
-    _http_request,
     normalize_caliber,
 )
-from app.services.tarkov.game_mode import graphql_game_mode, raw_row_id
+from app.services.tarkov.game_mode import raw_row_id
 
 logger = logging.getLogger(__name__)
-
-DOWNLOAD_TIMEOUT = 120
 
 # BSG itemCategories.normalizedName under weapon
 _WEAPON_CLASS_IDS: dict[str, str] = {
@@ -43,65 +37,10 @@ _WEAPON_CLASS_IDS: dict[str, str] = {
     "67446d4f04141c10630604e7": "rocket-launcher",
 }
 
-_GUN_QUERY = """
-query GunSync($lang: LanguageCode, $gameMode: GameMode) {
-  items(types: [gun], lang: $lang, gameMode: $gameMode) {
-    id
-    name
-    shortName
-    iconLink
-    baseImageLink
-    types
-    categories {
-      id
-      normalizedName
-    }
-    properties {
-      __typename
-      ... on ItemPropertiesWeapon {
-        caliber
-        fireRate
-        ergonomics
-        recoilVertical
-        recoilHorizontal
-        effectiveDistance
-        fireModes
-        defaultAmmo { id }
-        allowedAmmo { id }
-        defaultPreset {
-          id
-          name
-          shortName
-          iconLink
-          baseImageLink
-          types
-          properties {
-            __typename
-            ... on ItemPropertiesPreset {
-              ergonomics
-              recoilVertical
-              recoilHorizontal
-            }
-          }
-        }
-      }
-    }
-  }
-}
-""".strip()
-
-
 class TarkovGunError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
-
-
-@dataclass(frozen=True)
-class GunUpstreamBundle:
-    source: str
-    payload: dict[str, Any]
-    note: str
 
 
 def _item_id_list(raw: Any) -> list[str]:
@@ -336,7 +275,7 @@ def _as_float(value: Any) -> float:
 def parse_graphql_guns(payload: dict[str, Any]) -> list[dict[str, Any]]:
     errors = payload.get("errors")
     if errors:
-        raise TarkovGunError(f"api.tarkov.dev 错误: {errors}")
+        raise TarkovGunError(f"历史 GraphQL guns 错误: {errors}")
     data = payload.get("data") or {}
     rows_raw = data.get("items")
     if not isinstance(rows_raw, list):
@@ -442,61 +381,6 @@ def parse_gun_raw(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
             locale = None
         return parse_json_api_guns(items_payload, locale=locale)
     raise TarkovGunError(f"未知枪械 raw 来源: {src or '—'}")
-
-
-def download_graphql_guns(*, lang: str = "zh") -> GunUpstreamBundle:
-    attempts: list[dict[str, Any] | None] = [
-        {"lang": lang, "gameMode": graphql_game_mode()},
-        {"lang": lang},
-        None,
-    ]
-    last_error: TarkovGunError | None = None
-    for variables in attempts:
-        body_obj: dict[str, Any] = {"query": _GUN_QUERY}
-        if variables is not None:
-            body_obj["variables"] = variables
-        else:
-            body_obj["query"] = _GUN_QUERY.replace(
-                "query GunSync($lang: LanguageCode, $gameMode: GameMode) {\n"
-                "  items(types: [gun], lang: $lang, gameMode: $gameMode) {",
-                "query GunSync {\n  items(types: [gun]) {",
-            )
-        body = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
-        try:
-            raw = _http_request(
-                TARKOV_GRAPHQL_URL,
-                method="POST",
-                body=body,
-                headers={"Content-Type": "application/json", "Accept": "application/json"},
-                timeout=DOWNLOAD_TIMEOUT,
-            )
-            payload = json.loads(raw.decode("utf-8"))
-        except TarkovAmmoError as exc:
-            last_error = TarkovGunError(str(exc))
-            continue
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            last_error = TarkovGunError("tarkov.dev 枪械响应解析失败")
-            last_error.__cause__ = exc
-            continue
-        if not isinstance(payload, dict):
-            last_error = TarkovGunError("tarkov.dev 枪械响应格式无效")
-            continue
-        try:
-            rows = parse_graphql_guns(payload)
-        except TarkovGunError as exc:
-            last_error = exc
-            continue
-        if not rows:
-            last_error = TarkovGunError("tarkov.dev guns 为空")
-            continue
-        return GunUpstreamBundle(
-            source=SOURCE_GRAPHQL,
-            payload=payload,
-            note="api.tarkov.dev items(type:gun)",
-        )
-    if last_error:
-        raise last_error
-    raise TarkovGunError("tarkov.dev guns 拉取失败")
 
 
 def gun_count(db: Session) -> int:

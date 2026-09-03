@@ -14,12 +14,12 @@ from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovHideoutRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
-    cache_key,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
     run_for_modes,
 )
+from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.http import download_bytes
 from app.services.tarkov.tasks import TRADER_BY_ID
 
@@ -493,6 +493,7 @@ def _unwrap_part(blob: dict[str, Any] | None) -> Any:
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
+    from app.services.tarkov import overlay as overlay_svc
     from app.services.tarkov import upstream as upstream_svc
 
     source, payload, synced, note = upstream_svc.load_main_payload(
@@ -510,6 +511,7 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
     )
     if not envelope.get("locale"):
         envelope["locale"] = upstream_svc.load_locale_map(db, "hideout", payload=payload)
+    envelope = overlay_svc.apply_loaded_overlay(db, "crafts", envelope)
     return source, envelope, synced, note
 
 
@@ -517,7 +519,7 @@ def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, st
     global _parsed_cache
     row = get_hideout_raw(db)
     synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:

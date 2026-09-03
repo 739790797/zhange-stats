@@ -16,6 +16,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
 import { tarkovMapHref, TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
@@ -417,6 +418,10 @@ export function TarkovRaidPrepPanel() {
     () => selectedTasksFromCatalog(catalogRich, selected),
     [catalogRich, selected],
   );
+  const guideTasks = useMemo(
+    () => mergeRaidPrepGuideTasks(selectedTasks, catalogRich, guideTaskId),
+    [catalogRich, guideTaskId, selectedTasks],
+  );
   const overlayTasks = geometry.items;
   const objectiveDones = useMemo(
     () =>
@@ -707,6 +712,7 @@ export function TarkovRaidPrepPanel() {
                   stationaryWeapons={mapQuery.data?.stationary_weapons}
                   btrStops={mapQuery.data?.btr_stops}
                   lootContainers={mapQuery.data?.loot_containers}
+                  lootLoose={mapQuery.data?.loot_loose}
                   places={mapQuery.data?.places}
                   questOverlays={overlays}
                   focusRequest={focusRequest}
@@ -717,6 +723,9 @@ export function TarkovRaidPrepPanel() {
                   fill
                   onQuestLabelClick={onQuestLabelClick}
                   questParticipantsByTask={participantsByTask}
+                  lockKeyMode="solo"
+                  lockKeyOwns={keyOwns}
+                  lockKeyBrings={keyBrings}
                   topRight={
                     <div className={styles.summaryStack}>
                       <TarkovRaidPrepSummary
@@ -747,7 +756,7 @@ export function TarkovRaidPrepPanel() {
                       <TarkovRaidPrepGuideOverview
                         open={guideOpen}
                         onOpenChange={setGuideOpen}
-                        tasks={selectedTasks}
+                        tasks={guideTasks}
                         mapId={mapId}
                         activeId={guideTaskId}
                         onActiveIdChange={setGuideTaskId}

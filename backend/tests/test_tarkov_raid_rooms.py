@@ -1110,6 +1110,23 @@ def test_set_member_task_progress_marks_uploaded() -> None:
     assert isinstance(guest_snap["map_overlap"], list)
 
 
+def test_member_task_progress_count_hides_ids_missing_from_catalog(
+    monkeypatch,
+) -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    rooms.join_room(db, "1", host, now=now)
+    rooms.set_member_task_progress(db, "1", host, ["keep", "gone"], [], now=now)
+    monkeypatch.setattr(
+        "app.services.tarkov.tasks.catalog_task_id_set",
+        lambda _db: {"keep"},
+    )
+    snap = rooms.get_room(db, "1", host, now=now)
+    mine = next(row for row in snap["task_progress"] if row["user_id"] == host.id)
+    assert mine["started_count"] == 1
+
+
 def test_seed_claims_from_progress_host_only() -> None:
     db = _session()
     host = _user(db, "host", "甲")

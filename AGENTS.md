@@ -13,6 +13,7 @@
 | [`.cursor/rules/zhange-architecture.mdc`](.cursor/rules/zhange-architecture.mdc) | 架构索引（Agent always-on） |
 | [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc) | 盒子 / 旁路 raw / 签到今日 logs |
 | [`.cursor/rules/skland-upstream.mdc`](.cursor/rules/skland-upstream.mdc) | 森空岛官服/B服、补奖、cred、渠道测 |
+| [`.cursor/rules/tarkov-upstream.mdc`](.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴只走 json.tarkov.dev，不打 GraphQL |
 | [`.cursor/rules/db-schema-readme.mdc`](.cursor/rules/db-schema-readme.mdc) | Alembic + `docs/database.md` 表结构 |
 | [`.cursor/rules/frontend-conventions.mdc`](.cursor/rules/frontend-conventions.mdc) | 前端约定（含 status `force` 显式传参） |
 | [`.cursor/rules/frontend-ui.mdc`](.cursor/rules/frontend-ui.mdc) | Ant Design 主题、按钮角色/尺寸 |
@@ -52,6 +53,7 @@ alembic upgrade head
 - 新签到日历复制整份 Modal；新盒子复制 loading/刷新条；扫码绑定复制 start/poll 定时器（应走 `AttendanceCalendarButton` / `BoxPanelChrome` / `useQrBindSession`）
 - Button 内联 `#1a2332` 锁死主色；主应用引入第二套 UI 库或抄塔科夫暗色主题
 - 森空岛：B服 GET 空 records 当未签；attendance `gameId` 回退官服 `1`；B服 already 后再 GET 补奖
+- 塔科夫图鉴回源 `api.tarkov.dev` GraphQL（应走 json.tarkov.dev dump）
 - `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
 - 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
@@ -64,6 +66,7 @@ alembic upgrade head
 - [ ] 改模型：有 Alembic + `docs/database.md`
 - [ ] 改签到/盒子：盒子符合 raw 读库优先；签到展示始终 force 回源、不展示执行记录
 - [ ] 改森空岛渠道/补奖/cred：已对照 `skland-upstream.mdc`，相关 `test_skland_*` 通过
+- [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
 - [ ] 改纯函数/渠道/`force`/弱口令：已按 `testing.mdc` 补测（规则在哪层实现就在哪层测）
 - [ ] 改前端请求/报错：走 `*Api` + `apiError`；status 显式传 `force`
 - [ ] 改生产相关：核对 `APP_ENV` / 弱口令 / `REDIS_URL`（多实例须共享）/ 邮件日志

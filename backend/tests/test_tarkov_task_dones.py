@@ -160,3 +160,20 @@ def test_write_progress_replace_and_merge_started() -> None:
     )
     assert done == ["d2"]
     assert started == []
+
+
+def test_filter_visible_progress_hides_unknown_keeps_order() -> None:
+    done, started = dones.filter_visible_progress(
+        ["gone", "keep", "also-gone"],
+        ["keep-start", "gone-start"],
+        {"keep", "keep-start"},
+    )
+    assert done == ["keep"]
+    assert started == ["keep-start"]
+    raw_done, raw_started = dones.filter_visible_progress(
+        ["gone"],
+        ["gone-start"],
+        None,
+    )
+    assert raw_done == ["gone"]
+    assert raw_started == ["gone-start"]

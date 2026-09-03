@@ -10,6 +10,7 @@ export const TARKOV_MAP_FILTER_GROUP_LABELS = {
   tasks: "任务",
   hazards: "危险区",
   landmarks: "地标",
+  lootLoose: "散落物",
 } as const;
 
 export const TARKOV_MAP_FILTER_ITEM_LABELS = {
@@ -18,6 +19,7 @@ export const TARKOV_MAP_FILTER_ITEM_LABELS = {
   switches: "开关",
   btrStop: "BTR 停车点",
   placeNames: "地名",
+  lootLoose: "散落物",
 } as const;
 
 /** 侧栏分组顺序，对齐 tarkov.dev groupedLayers：底图 → 层级 → 点位组。 */
@@ -31,6 +33,7 @@ export const TARKOV_MAP_FILTER_GROUP_ORDER = [
   "tasks",
   "hazards",
   "landmarks",
+  "lootLoose",
 ] as const;
 
 export type TarkovMapFilterFlagItem = {

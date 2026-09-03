@@ -1,5 +1,9 @@
 import type { TarkovDevLabel, TarkovDevMapLayer } from "@/lib/tarkovMapImages";
 import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
+import {
+  overlayVisibleOnFloor,
+  type RaidPrepFloorBand,
+} from "@/lib/tarkovRaidPrep";
 
 export type TarkovMapPlaceKind = "point" | "box";
 
@@ -135,13 +139,47 @@ export function placeLabelMovePatch(
   return { x: at.x, z: at.z };
 }
 
+function isFiniteCoord(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function placeHeightSpan(
+  row: Pick<ResolvedMapPlace, "top" | "bottom">,
+): { min: number; max: number } | null {
+  const top = row.top;
+  const bottom = row.bottom;
+  if (!isFiniteCoord(top) && !isFiniteCoord(bottom)) return null;
+  const lo = isFiniteCoord(bottom) ? bottom : top!;
+  const hi = isFiniteCoord(top) ? top : bottom!;
+  return { min: Math.min(lo, hi), max: Math.max(lo, hi) };
+}
+
+function placeFloorAt(
+  row: Pick<ResolvedMapPlace, "x" | "z" | "position">,
+): { x: number; z: number } | undefined {
+  const x = isFiniteCoord(row.x) ? row.x : row.position?.[0];
+  const z = isFiniteCoord(row.z) ? row.z : row.position?.[1];
+  if (!isFiniteCoord(x) || !isFiniteCoord(z)) return undefined;
+  return { x, z };
+}
+
+/**
+ * 管理员写了楼层名则精确匹配；否则用上游 top/bottom 走楼层带（立交桥商场各层店名）。
+ * 无高度、无楼层名的点各层都显示。
+ */
 export function placeVisibleOnFloor(
-  floor: string | null | undefined,
+  row: Pick<ResolvedMapPlace, "floor" | "top" | "bottom" | "x" | "z" | "position">,
   selected: string,
+  bands: readonly RaidPrepFloorBand[] = [],
 ): boolean {
-  const value = (floor || "").trim();
-  if (!value) return true;
-  return value === selected;
+  const named = (row.floor || "").trim();
+  if (named) return named === selected;
+  const span = placeHeightSpan(row);
+  if (!span) return true;
+  // tarkov.dev：bottom < 该层 height[1]。闭区间会让立交桥 2/3 层交界（34）的店名叠两层。
+  const query =
+    span.max > span.min ? { min: span.min + 1e-6, max: span.max } : span;
+  return overlayVisibleOnFloor(query, selected, bands, placeFloorAt(row));
 }
 
 export function isPlaceEditTool(mode: TarkovMapPlaceEditMode | undefined): boolean {

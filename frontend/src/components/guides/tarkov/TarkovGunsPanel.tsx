@@ -17,10 +17,6 @@ import styles from "./TarkovGunsPanel.module.css";
 const EMPTY_ITEMS: TarkovGunItem[] = [];
 
 const GUN_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
-  "tarkov.dev": {
-    label: "api.tarkov.dev",
-    href: "https://api.tarkov.dev",
-  },
   "json.tarkov.dev": {
     label: "json.tarkov.dev/regular/items",
     href: "https://json.tarkov.dev/regular/items",

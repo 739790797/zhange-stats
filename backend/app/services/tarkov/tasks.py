@@ -19,7 +19,6 @@ from app.models.tarkov import TarkovTasksRaw
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     GAME_MODES,
-    cache_key,
     current_game_mode,
     game_mode_scope,
     json_api_prefix,
@@ -27,6 +26,7 @@ from app.services.tarkov.game_mode import (
     parse_game_mode,
     run_for_modes,
 )
+from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.http import download_bytes
 
 logger = logging.getLogger(__name__)
@@ -411,25 +411,6 @@ def normalize_objective_exit(obj: dict[str, Any]) -> tuple[list[str], str]:
     return seen, exit_name
 
 
-def parse_graphql_tasks(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    if payload.get("errors"):
-        raise TarkovTasksError(f"api.tarkov.dev 错误: {payload.get('errors')}")
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    rows = data.get("tasks") if isinstance(data, dict) else None
-    if not isinstance(rows, list):
-        raise TarkovTasksError("tarkov.dev tasks 响应无效")
-    out: dict[str, dict[str, Any]] = {}
-    for raw in rows:
-        if not isinstance(raw, dict):
-            continue
-        ident = str(raw.get("id") or "").strip()
-        if ident:
-            out[ident] = raw
-    if not out:
-        raise TarkovTasksError("tarkov.dev tasks 为空")
-    return out
-
-
 def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
     raw = _http_request(json_resource_url("tasks"), timeout=90)
     try:
@@ -500,6 +481,7 @@ def project_task_summary(
         "min_trader_level": task_min_trader_level(raw, trader_id),
         "experience": _as_int(raw.get("experience")),
         "lightkeeper_required": _as_bool(raw.get("lightkeeperRequired")),
+        "kappa_required": _as_bool(raw.get("kappaRequired")),
         "faction_name": str(raw.get("factionName") or "Any"),
         "task_image_link": str(raw.get("taskImageLink") or ""),
         "wiki_link": str(raw.get("wikiLink") or ""),
@@ -603,6 +585,296 @@ def _named_ref(
     }
 
 
+def _opt_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_number(value: Any, default: float = 0.0) -> float:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _named_refs(
+    values: Any,
+    locale: dict[str, Any],
+    *,
+    kind: str,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if isinstance(values, dict):
+        rows = list(values.values())
+    elif isinstance(values, list):
+        rows = values
+    else:
+        rows = [values] if values not in (None, "") else []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in rows:
+        if not _id_of(raw) and not (
+            isinstance(raw, dict) and str(raw.get("name") or "").strip()
+        ):
+            continue
+        ref = _named_ref(raw, locale, kind=kind, quest_items=quest_items)
+        ident = str(ref.get("id") or ref.get("name") or "").strip()
+        if not ident or ident in seen:
+            continue
+        seen.add(ident)
+        out.append(ref)
+    return out
+
+
+def _named_ref_groups(
+    raw: Any,
+    locale: dict[str, Any],
+    *,
+    kind: str,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> list[list[dict[str, Any]]]:
+    if not isinstance(raw, list) or not raw:
+        return []
+    groups: list[list[dict[str, Any]]] = []
+    for group in raw:
+        items = group if isinstance(group, list) else [group]
+        refs = _named_refs(items, locale, kind=kind, quest_items=quest_items)
+        if refs:
+            groups.append(refs)
+    return groups
+
+
+def _project_number_compare(raw: Any) -> dict[str, Any] | None:
+    if isinstance(raw, dict):
+        method = str(raw.get("compareMethod") or raw.get("compare_method") or "").strip()
+        if "value" not in raw and "level" not in raw:
+            if not method:
+                return None
+        value = raw.get("value")
+        if value is None:
+            value = raw.get("level")
+        if value is None or value == "":
+            return {"compare_method": method, "value": None}
+        return {"compare_method": method, "value": _as_number(value)}
+    if raw is None or raw == "":
+        return None
+    return {"compare_method": "", "value": _as_number(raw)}
+
+
+def _project_health_effect(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    body_parts = [
+        str(part).strip()
+        for part in (raw.get("bodyParts") or raw.get("body_parts") or [])
+        if str(part).strip()
+    ]
+    effects = [
+        str(item).strip()
+        for item in (raw.get("effects") or [])
+        if str(item).strip()
+    ]
+    time = _project_number_compare(raw.get("time"))
+    if not body_parts and not effects and time is None:
+        return None
+    return {"body_parts": body_parts, "effects": effects, "time": time}
+
+
+def _project_attributes(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        req = row.get("requirement") if isinstance(row.get("requirement"), dict) else row
+        cmp = _project_number_compare(req)
+        if not name and cmp is None:
+            continue
+        out.append(
+            {
+                "name": name,
+                "compare_method": "" if cmp is None else str(cmp.get("compare_method") or ""),
+                "value": None if cmp is None else cmp.get("value"),
+            }
+        )
+    return out
+
+
+def _project_skill(raw: Any) -> tuple[str, int | None]:
+    if isinstance(raw, dict):
+        name = str(raw.get("name") or raw.get("skill") or "").strip()
+        level = raw.get("level")
+        if level is None:
+            level = raw.get("value")
+        return name, _opt_int(level)
+    if raw is None or raw == "":
+        return "", None
+    return str(raw).strip(), None
+
+
+def _project_image_ref(raw: Any, locale: dict[str, Any]) -> dict[str, Any] | None:
+    ident = _id_of(raw)
+    name = ""
+    slug = ""
+    icon = ""
+    extra_type = ""
+    if isinstance(raw, dict):
+        name = str(raw.get("name") or "").strip()
+        slug = str(raw.get("normalizedName") or "").strip()
+        icon = str(
+            raw.get("imageLink")
+            or raw.get("iconLink")
+            or raw.get("icon_link")
+            or raw.get("image_link")
+            or ""
+        ).strip()
+        extra_type = str(
+            raw.get("customizationType") or raw.get("customization_type") or ""
+        ).strip()
+        if ident:
+            loc = _locale_lookup(locale, f"{ident} name", f"{ident} Name", ident)
+            if loc:
+                name = loc
+    elif raw not in (None, ""):
+        ident = str(raw).strip()
+    if not ident and not name:
+        return None
+    return {
+        "id": ident,
+        "slug": slug,
+        "name": name or ident,
+        "image_link": icon,
+        "customization_type": extra_type,
+    }
+
+
+def _empty_rewards() -> dict[str, Any]:
+    return {
+        "items": [],
+        "trader_standing": [],
+        "offer_unlock": [],
+        "skill_level_reward": [],
+        "trader_unlock": [],
+        "craft_unlock": [],
+        "achievement": [],
+        "customization": [],
+    }
+
+
+def _craft_reward_item(row: dict[str, Any]) -> Any:
+    product = row.get("productItem") or row.get("rewardItem") or row.get("item")
+    if product not in (None, ""):
+        return product
+    rewards = row.get("rewardItems") or row.get("rewards")
+    if isinstance(rewards, list) and rewards:
+        first = rewards[0]
+        if isinstance(first, dict):
+            return first.get("item") if first.get("item") not in (None, "") else first
+        return first
+    return None
+
+
+def _project_offer_unlock(
+    row: Any,
+    locale: dict[str, Any],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    if not isinstance(row, dict):
+        return None
+    item_raw = row.get("item")
+    item = _named_ref(
+        item_raw.get("item") if isinstance(item_raw, dict) and item_raw.get("item") else item_raw,
+        locale,
+        kind="item",
+        quest_items=quest_items,
+    )
+    trader = _named_ref(row.get("trader"), locale, kind="trader")
+    ident = str(row.get("id") or item.get("id") or "").strip()
+    if not ident and not trader["id"] and not item["id"]:
+        return None
+    return {
+        "id": ident,
+        "trader": trader if trader["id"] or trader["slug"] else None,
+        "level": _as_int(row.get("level")),
+        "item": item if item["id"] else None,
+    }
+
+
+def _project_craft_unlock(
+    row: Any,
+    locale: dict[str, Any],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    if isinstance(row, dict):
+        ident = str(row.get("id") or "").strip()
+        station = _named_ref(row.get("station"), locale, kind="station")
+        item_raw = _craft_reward_item(row)
+        item = (
+            _named_ref(item_raw, locale, kind="item", quest_items=quest_items)
+            if item_raw not in (None, "")
+            else None
+        )
+        if item is not None and not item.get("id"):
+            item = None
+        if not ident and not station.get("id") and item is None:
+            return None
+        return {
+            "id": ident,
+            "station": station if station.get("id") or station.get("slug") else None,
+            "level": _as_int(row.get("level")),
+            "item": item,
+        }
+    ident = _id_of(row)
+    if not ident:
+        return None
+    return {"id": ident, "station": None, "level": 0, "item": None}
+
+
+def _project_prestige(raw: Any, locale: dict[str, Any]) -> dict[str, Any] | None:
+    if raw in (None, "", False):
+        return None
+    if isinstance(raw, dict):
+        ident = str(raw.get("id") or "").strip()
+        name = str(raw.get("name") or "").strip()
+        if ident:
+            loc = _locale_lookup(locale, f"{ident} name", f"{ident} Name")
+            if loc:
+                name = loc
+        level = raw.get("prestigeLevel")
+        if level is None:
+            level = raw.get("prestige_level")
+        if level is None:
+            level = raw.get("level")
+        icon = str(raw.get("imageLink") or raw.get("iconLink") or raw.get("image_link") or "").strip()
+        if not ident and not name and level is None:
+            return None
+        return {
+            "id": ident,
+            "name": name or ident,
+            "prestige_level": _as_int(level),
+            "image_link": icon,
+        }
+    level = _opt_int(raw)
+    if level is None:
+        ident = str(raw).strip()
+        if not ident:
+            return None
+        return {"id": ident, "name": ident, "prestige_level": 0, "image_link": ""}
+    if level <= 0:
+        return None
+    return {"id": "", "name": "", "prestige_level": level, "image_link": ""}
+
+
 def _objective_item_values(
     obj: dict[str, Any],
     quest_items: dict[str, dict[str, Any]],
@@ -632,6 +904,7 @@ def _project_objective(
     locale: dict[str, Any],
     *,
     quest_items: dict[str, dict[str, Any]] | None = None,
+    tasks_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     maps_raw = obj.get("maps") if isinstance(obj.get("maps"), list) else []
     maps = [_named_ref(m, locale, kind="map") for m in maps_raw if _id_of(m)]
@@ -649,9 +922,34 @@ def _project_objective(
         items.append(ref)
     count = obj.get("count")
     exit_status, exit_name = normalize_objective_exit(obj)
+    target_names = [
+        str(name).strip()
+        for name in (obj.get("targetNames") or [])
+        if str(name).strip()
+    ]
+    target = str(obj.get("target") or "").strip()
+    if target and target not in target_names:
+        target_names.append(target)
+    skill_name, skill_level = _project_skill(obj.get("skillLevel") or obj.get("skill"))
+    trader_raw = obj.get("trader")
+    trader = (
+        _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
+    )
+    station_raw = obj.get("hideoutStation") or obj.get("station")
+    hideout_station = (
+        _named_ref(station_raw, locale, kind="station") if _id_of(station_raw) else None
+    )
+    related = _fail_task_ref(obj.get("task"), locale, tasks_by_id)
+    obj_type = str(obj.get("type") or "")
+    trader_level = _opt_int(obj.get("level")) if obj_type == "traderLevel" else None
+    standing_cmp = None
+    if obj_type == "traderStanding":
+        standing_cmp = _project_number_compare(
+            {"compareMethod": obj.get("compareMethod"), "value": obj.get("value")}
+        )
     return {
         "id": str(obj.get("id") or ""),
-        "type": str(obj.get("type") or ""),
+        "type": obj_type,
         "description": _resolve_obj_description(obj, locale),
         "optional": _as_bool(obj.get("optional")),
         "count": _as_int(count) if count is not None and count != "" else None,
@@ -668,7 +966,146 @@ def _project_objective(
             obj.get("possibleLocations"), locale
         ),
         "zone_names": _project_zone_names(obj.get("zoneNames")),
+        "target_names": target_names,
+        "body_parts": [
+            str(part).strip()
+            for part in (obj.get("bodyParts") or [])
+            if str(part).strip()
+        ],
+        "shot_type": str(obj.get("shotType") or "").strip(),
+        "distance": _project_number_compare(obj.get("distance")),
+        "using_weapon": _named_refs(
+            obj.get("usingWeapon"), locale, kind="item", quest_items=quest_items
+        ),
+        "using_weapon_mods": _named_ref_groups(
+            obj.get("usingWeaponMods"), locale, kind="item", quest_items=quest_items
+        ),
+        "wearing": _named_ref_groups(
+            obj.get("wearing"), locale, kind="item", quest_items=quest_items
+        ),
+        "not_wearing": _named_refs(
+            obj.get("notWearing"), locale, kind="item", quest_items=quest_items
+        ),
+        "use_any": _named_refs(
+            obj.get("useAny"), locale, kind="item", quest_items=quest_items
+        ),
+        "contains_all": _named_refs(
+            obj.get("containsAll"), locale, kind="item", quest_items=quest_items
+        ),
+        "contains_category": _named_refs(
+            obj.get("containsCategory"), locale, kind="category"
+        ),
+        "attributes": _project_attributes(obj.get("attributes")),
+        "health_effect": _project_health_effect(obj.get("healthEffect")),
+        "player_health_effect": _project_health_effect(obj.get("playerHealthEffect")),
+        "enemy_health_effect": _project_health_effect(obj.get("enemyHealthEffect")),
+        "time_from_hour": _opt_int(obj.get("timeFromHour")),
+        "time_until_hour": _opt_int(obj.get("timeUntilHour")),
+        "dog_tag_level": _opt_int(obj.get("dogTagLevel")),
+        "min_durability": _opt_int(obj.get("minDurability")),
+        "max_durability": _opt_int(obj.get("maxDurability")),
+        "skill_name": skill_name,
+        "skill_level": skill_level,
+        "hideout_station": hideout_station,
+        "station_level": _opt_int(obj.get("stationLevel")),
+        "trader": trader,
+        "trader_level": trader_level,
+        "standing": standing_cmp,
+        "player_level": _opt_int(obj.get("playerLevel")),
+        "related_tasks": [related] if related else [],
+        "related_status": [
+            str(item).strip()
+            for item in (obj.get("status") or [])
+            if str(item).strip()
+        ],
     }
+
+
+def _fail_task_ref(
+    value: Any,
+    locale: dict[str, Any],
+    tasks_by_id: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    ident = _id_of(value)
+    if not ident:
+        return None
+    blob: dict[str, Any]
+    if isinstance(value, dict):
+        blob = dict(value)
+        blob.setdefault("id", ident)
+    else:
+        blob = {"id": ident}
+    other = (tasks_by_id or {}).get(ident)
+    if isinstance(other, dict):
+        if not str(blob.get("name") or "").strip():
+            blob["name"] = other.get("name")
+        if not str(blob.get("normalizedName") or "").strip():
+            blob["normalizedName"] = other.get("normalizedName")
+        if blob.get("trader") in (None, ""):
+            blob["trader"] = other.get("trader")
+    named = _named_ref(blob, locale, kind="task")
+    if not named["id"]:
+        return None
+    trader_raw = blob.get("trader")
+    trader_id = _id_of(trader_raw)
+    trader_slug = ""
+    trader_name = ""
+    if trader_id:
+        trader = _named_ref(trader_raw, locale, kind="trader")
+        trader_id = str(trader.get("id") or trader_id)
+        trader_slug = str(trader.get("slug") or "")
+        trader_name = str(trader.get("name") or "")
+    return {
+        "id": named["id"],
+        "slug": named.get("slug") or "",
+        "name": named.get("name") or "",
+        "trader_id": trader_id,
+        "trader_slug": trader_slug,
+        "trader_name": trader_name,
+    }
+
+
+def _project_fail_condition(
+    obj: dict[str, Any],
+    locale: dict[str, Any],
+    *,
+    tasks_by_id: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    exit_status, _exit_name = normalize_objective_exit(obj)
+    task_ref = _fail_task_ref(obj.get("task"), locale, tasks_by_id)
+    trader_raw = obj.get("trader")
+    trader = (
+        _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
+    )
+    statuses = [
+        str(item).strip()
+        for item in (obj.get("status") or [])
+        if str(item).strip()
+    ]
+    return {
+        "id": str(obj.get("id") or ""),
+        "type": str(obj.get("type") or ""),
+        "description": _resolve_obj_description(obj, locale),
+        "status": statuses,
+        "tasks": [task_ref] if task_ref else [],
+        "exit_status": exit_status,
+        "trader": trader,
+    }
+
+
+def _project_fail_conditions(
+    raw: Any,
+    locale: dict[str, Any],
+    *,
+    tasks_by_id: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    return [
+        _project_fail_condition(obj, locale, tasks_by_id=tasks_by_id)
+        for obj in raw
+        if isinstance(obj, dict)
+    ]
 
 
 def _project_point(value: Any) -> dict[str, float] | None:
@@ -830,8 +1267,9 @@ def _project_rewards(
     *,
     quest_items: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    out = _empty_rewards()
     if not isinstance(raw, dict):
-        return {"items": [], "trader_standing": []}
+        return out
     items_out: list[dict[str, Any]] = []
     for row in raw.get("items") or []:
         if not isinstance(row, dict):
@@ -848,7 +1286,114 @@ def _project_rewards(
             continue
         trader = _named_ref(row.get("trader"), locale, kind="trader")
         standing.append({**trader, "standing": float(row.get("standing") or 0)})
-    return {"items": items_out, "trader_standing": standing}
+    offers: list[dict[str, Any]] = []
+    for row in raw.get("offerUnlock") or []:
+        offer = _project_offer_unlock(row, locale, quest_items=quest_items)
+        if offer:
+            offers.append(offer)
+    skills: list[dict[str, Any]] = []
+    for row in raw.get("skillLevelReward") or []:
+        name, level = _project_skill(row)
+        if not name and level is None:
+            continue
+        skills.append({"name": name, "level": 0 if level is None else level})
+    traders = _named_refs(raw.get("traderUnlock"), locale, kind="trader")
+    crafts: list[dict[str, Any]] = []
+    for row in raw.get("craftUnlock") or []:
+        craft = _project_craft_unlock(row, locale, quest_items=quest_items)
+        if craft:
+            crafts.append(craft)
+    achievements: list[dict[str, Any]] = []
+    for row in raw.get("achievement") or []:
+        ref = _project_image_ref(row, locale)
+        if ref:
+            achievements.append(ref)
+    customizations: list[dict[str, Any]] = []
+    for row in raw.get("customization") or []:
+        ref = _project_image_ref(row, locale)
+        if ref:
+            customizations.append(ref)
+    out.update(
+        {
+            "items": items_out,
+            "trader_standing": standing,
+            "offer_unlock": offers,
+            "skill_level_reward": skills,
+            "trader_unlock": traders,
+            "craft_unlock": crafts,
+            "achievement": achievements,
+            "customization": customizations,
+        }
+    )
+    return out
+
+
+def _project_task_requirements(
+    raw: Any,
+    locale: dict[str, Any],
+    *,
+    tasks_by_id: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        ref = _fail_task_ref(row.get("task"), locale, tasks_by_id)
+        if ref is None:
+            continue
+        ident = str(ref.get("id") or "").strip()
+        if not ident or ident in seen:
+            continue
+        seen.add(ident)
+        statuses = [
+            str(item).strip()
+            for item in (row.get("status") or [])
+            if str(item).strip()
+        ]
+        out.append({**ref, "status": statuses})
+    return out
+
+
+def _collect_unlocks(
+    task_id: str,
+    locale: dict[str, Any],
+    tasks_by_id: dict[str, dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    if not task_id or not tasks_by_id:
+        return []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for other_id, other in tasks_by_id.items():
+        if other_id == task_id or not isinstance(other, dict):
+            continue
+        reqs = other.get("taskRequirements")
+        if not isinstance(reqs, list):
+            continue
+        matched: list[str] = []
+        for req in reqs:
+            if not isinstance(req, dict):
+                continue
+            if _id_of(req.get("task")) != task_id:
+                continue
+            matched.extend(
+                str(item).strip()
+                for item in (req.get("status") or [])
+                if str(item).strip()
+            )
+        if not matched:
+            continue
+        if other_id in seen:
+            continue
+        seen.add(other_id)
+        ref = _fail_task_ref(other, locale, tasks_by_id)
+        if ref is None:
+            continue
+        out.append({**ref, "status": matched})
+    out.sort(key=lambda row: (str(row.get("trader_slug") or ""), str(row.get("name") or "")))
+    return out
 
 
 _LOYALTY_REQ_TYPES = frozenset({"", "level", "loyaltyLevel", "loyalty"})
@@ -902,7 +1447,7 @@ def _project_trader_requirements(
             {
                 **trader,
                 "requirement_type": req_type,
-                "value": _as_int(value),
+                "value": _as_number(value),
                 "compare_method": str(row.get("compareMethod") or ""),
             }
         )
@@ -914,13 +1459,17 @@ def project_task_detail(
     locale: dict[str, Any],
     *,
     quest_items: dict[str, dict[str, Any]] | None = None,
+    tasks_by_id: dict[str, dict[str, Any]] | None = None,
+    include_unlocks: bool = True,
 ) -> dict[str, Any] | None:
     summary = project_task_summary(raw, locale)
     if summary is None:
         return None
     locale = locale or {}
     objectives = [
-        _project_objective(obj, locale, quest_items=quest_items)
+        _project_objective(
+            obj, locale, quest_items=quest_items, tasks_by_id=tasks_by_id
+        )
         for obj in (raw.get("objectives") or [])
         if isinstance(obj, dict)
     ]
@@ -938,6 +1487,8 @@ def project_task_detail(
             keys_out.append({"map": map_ref, "keys": keys})
     if not keys_out:
         keys_out = _needed_keys_from_objectives(objectives)
+    delay_min = _opt_int(raw.get("availableDelaySecondsMin"))
+    delay_max = _opt_int(raw.get("availableDelaySecondsMax"))
     summary.update(
         {
             "objectives": objectives,
@@ -945,11 +1496,35 @@ def project_task_detail(
                 raw.get("traderRequirements") or raw.get("traderLevelRequirements"),
                 locale,
             ),
+            "task_requirements": _project_task_requirements(
+                raw.get("taskRequirements"),
+                locale,
+                tasks_by_id=tasks_by_id,
+            ),
+            "unlocks": _collect_unlocks(summary["id"], locale, tasks_by_id)
+            if include_unlocks
+            else [],
+            "start_rewards": _project_rewards(
+                raw.get("startRewards"), locale, quest_items=quest_items
+            ),
             "finish_rewards": _project_rewards(
                 raw.get("finishRewards"), locale, quest_items=quest_items
             ),
+            "fail_rewards": _project_rewards(
+                raw.get("failureOutcome") or raw.get("failRewards"),
+                locale,
+                quest_items=quest_items,
+            ),
             "needed_keys": keys_out,
+            "fail_conditions": _project_fail_conditions(
+                raw.get("failConditions"),
+                locale,
+                tasks_by_id=tasks_by_id,
+            ),
             "restartable": _as_bool(raw.get("restartable")),
+            "required_prestige": _project_prestige(raw.get("requiredPrestige"), locale),
+            "available_delay_seconds_min": delay_min,
+            "available_delay_seconds_max": delay_max,
         }
     )
     return summary
@@ -1149,21 +1724,38 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
+    from app.services.tarkov import overlay as overlay_svc
     from app.services.tarkov import upstream as upstream_svc
 
-    return upstream_svc.load_main_payload(
+    source, payload, synced, note = upstream_svc.load_main_payload(
         db,
         "tasks",
         error_cls=TarkovTasksError,
         missing="无任务 raw",
         invalid="任务 raw_json 无效",
     )
+    return source, overlay_svc.apply_loaded_overlay(db, "tasks", payload), synced, note
 
 
 def ensure_tasks(db: Session) -> None:
     if get_tasks_raw(db) is not None:
         return
     sync_from_upstream(db, game_mode=parse_game_mode())
+
+
+def catalog_task_id_set(db: Session) -> set[str] | None:
+    """当前图鉴任务 id（parse 前已合 overlay）。无 raw 时 None，进度接口不筛。"""
+    if get_tasks_raw(db) is None:
+        return None
+    try:
+        _source, rows, _locale, _synced, _note = load_parsed_tasks(db)
+    except TarkovTasksError:
+        return None
+    return {
+        str(row.get("id") or "").strip()
+        for row in rows
+        if str(row.get("id") or "").strip()
+    }
 
 
 def load_parsed_tasks(
@@ -1173,7 +1765,7 @@ def load_parsed_tasks(
     ensure_tasks(db)
     row = get_tasks_raw(db)
     synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     with _parsed_lock:
         cached = _parsed_cache
         if cached is not None and cached[0] == key:
@@ -1293,12 +1885,15 @@ def crop_raid_prep_detail_for_map(
     detail: dict[str, Any],
     map_slug: str,
 ) -> dict[str, Any]:
-    """按所选图裁剪 zones / needed_keys。其他图目标保留为无几何 stub，供跨图提示。"""
+    """按所选图裁剪 zones / needed_keys。其他图目标保留为无几何 stub，供跨图提示。
+
+    目标顺序与 dump 一致，不把本图步骤提前。
+    """
     keys, ids = map_match_keys(map_slug)
     if not keys and not ids:
         return detail
+    objectives_out: list[dict[str, Any]] = []
     this_map: list[dict[str, Any]] = []
-    stubs: list[dict[str, Any]] = []
     for obj in detail.get("objectives") or []:
         if not isinstance(obj, dict):
             continue
@@ -1315,7 +1910,7 @@ def crop_raid_prep_detail_for_map(
         if has_any_map_ref and not (maps or zones or locs):
             if not map_refs:
                 continue
-            stubs.append(
+            objectives_out.append(
                 {
                     **obj,
                     "maps": map_refs,
@@ -1324,14 +1919,14 @@ def crop_raid_prep_detail_for_map(
                 }
             )
             continue
-        this_map.append(
-            {
-                **obj,
-                "maps": map_refs if map_refs else ([] if has_any_map_ref else raw_maps),
-                "zones": zones,
-                "possible_locations": locs,
-            }
-        )
+        cropped = {
+            **obj,
+            "maps": map_refs if map_refs else ([] if has_any_map_ref else raw_maps),
+            "zones": zones,
+            "possible_locations": locs,
+        }
+        objectives_out.append(cropped)
+        this_map.append(cropped)
     needed = _needed_keys_from_objectives(this_map)
     needed = [
         row
@@ -1355,7 +1950,7 @@ def crop_raid_prep_detail_for_map(
             type_list.append(t)
     return {
         **detail,
-        "objectives": this_map + stubs,
+        "objectives": objectives_out,
         "needed_keys": needed,
         "objective_count": len(this_map),
         "objective_types": type_list
@@ -1396,6 +1991,7 @@ def strip_raid_prep_catalog(row: dict[str, Any]) -> dict[str, Any]:
     out.setdefault("has_map_markers", False)
     out["objectives"] = []
     out["needed_keys"] = []
+    out["fail_conditions"] = list(row.get("fail_conditions") or [])
     return out
 
 
@@ -1421,6 +2017,8 @@ def collect_raid_prep_rows(
             raw,
             locale,
             quest_items=quest_items,
+            tasks_by_id=tasks,
+            include_unlocks=False,
         )
         if detail is None or not task_hits_map(detail, map_slug):
             continue
@@ -1440,6 +2038,7 @@ def collect_raid_prep_rows(
                 "min_trader_level": detail.get("min_trader_level") or 1,
                 "experience": detail.get("experience") or 0,
                 "lightkeeper_required": bool(detail.get("lightkeeper_required")),
+                "kappa_required": bool(detail.get("kappa_required")),
                 "faction_name": detail.get("faction_name") or "Any",
                 "task_image_link": detail.get("task_image_link") or "",
                 "wiki_link": detail.get("wiki_link") or "",
@@ -1447,6 +2046,7 @@ def collect_raid_prep_rows(
                 "objective_types": list(detail.get("objective_types") or []),
                 "objectives": list(detail.get("objectives") or []),
                 "needed_keys": list(detail.get("needed_keys") or []),
+                "fail_conditions": list(detail.get("fail_conditions") or []),
                 "has_map_markers": task_has_map_markers(detail, map_slug),
             }
         )
@@ -1516,7 +2116,7 @@ def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, dict[str, str]]
         return empty
     row = get_tasks_raw(db)
     synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     with _parsed_lock:
         hit = _raid_prep_index_cache.get(key)
         if hit is not None:
@@ -1544,7 +2144,7 @@ def load_raid_prep_rows(
         raise TarkovTasksError("无任务 raw")
     row = get_tasks_raw(db)
     synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = cache_key(synced or "")
+    key = parsed_cache_key(db, synced)
     canon = canonical_raid_map_slug(map_slug)
     keys, ids = map_match_keys(map_slug)
     if not ids:
@@ -1694,14 +2294,29 @@ def get_task_detail(
         raw,
         _locale_map(payload),
         quest_items=_quest_items_map(payload),
+        tasks_by_id=tasks,
     )
     if detail is None:
         raise TarkovTasksError(f"未找到任务: {task_id}")
     detail["source"] = source
-    _enrich_items_from_catalog(
-        db, detail, quest_items=_quest_items_map(payload)
-    )
+    quest_items = _quest_items_map(payload)
+    _enrich_items_from_catalog(db, detail, quest_items=quest_items)
+    _enrich_stations_from_hideout(db, detail)
+    _enrich_crafts_from_guides(db, detail)
+    _enrich_image_refs_from_extras(db, detail)
     return detail
+
+
+def _iter_reward_item_refs(rewards: Any):
+    if not isinstance(rewards, dict):
+        return
+    yield from rewards.get("items") or []
+    for offer in rewards.get("offer_unlock") or []:
+        if isinstance(offer, dict) and isinstance(offer.get("item"), dict):
+            yield offer["item"]
+    for craft in rewards.get("craft_unlock") or []:
+        if isinstance(craft, dict) and isinstance(craft.get("item"), dict):
+            yield craft["item"]
 
 
 def _iter_named_item_refs(*details: dict[str, Any]):
@@ -1709,13 +2324,23 @@ def _iter_named_item_refs(*details: dict[str, Any]):
         if not isinstance(detail, dict):
             continue
         for obj in detail.get("objectives") or []:
+            if not isinstance(obj, dict):
+                continue
             for group in obj.get("required_keys") or []:
                 yield from group
             yield from obj.get("items") or []
+            yield from obj.get("using_weapon") or []
+            yield from obj.get("not_wearing") or []
+            yield from obj.get("use_any") or []
+            yield from obj.get("contains_all") or []
+            for group in obj.get("using_weapon_mods") or []:
+                yield from group
+            for group in obj.get("wearing") or []:
+                yield from group
         for row in detail.get("needed_keys") or []:
             yield from row.get("keys") or []
-        for item in (detail.get("finish_rewards") or {}).get("items") or []:
-            yield item
+        for key in ("finish_rewards", "start_rewards", "fail_rewards"):
+            yield from _iter_reward_item_refs(detail.get(key))
 
 
 def _quest_item_hits(
@@ -1839,6 +2464,202 @@ def _enrich_items_from_catalog(
     qi_hits = _quest_item_hits(wanted, quest_items or {})
     if qi_hits:
         _apply_item_hits(refs, qi_hits, prefer_hit_name=False)
+
+
+def _iter_station_refs(*details: dict[str, Any]):
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        for obj in detail.get("objectives") or []:
+            if not isinstance(obj, dict):
+                continue
+            station = obj.get("hideout_station")
+            if isinstance(station, dict) and str(station.get("id") or "").strip():
+                yield station
+        for key in ("finish_rewards", "start_rewards", "fail_rewards"):
+            rewards = detail.get(key)
+            if not isinstance(rewards, dict):
+                continue
+            for craft in rewards.get("craft_unlock") or []:
+                if not isinstance(craft, dict):
+                    continue
+                station = craft.get("station")
+                if isinstance(station, dict) and str(station.get("id") or "").strip():
+                    yield station
+
+
+def _id_map(blob: Any) -> dict[str, dict[str, Any]]:
+    if isinstance(blob, dict):
+        return {str(k): v for k, v in blob.items() if isinstance(v, dict)}
+    if isinstance(blob, list):
+        out: dict[str, dict[str, Any]] = {}
+        for row in blob:
+            if not isinstance(row, dict):
+                continue
+            ident = str(row.get("id") or "").strip()
+            if ident:
+                out[ident] = row
+        return out
+    return {}
+
+
+def _apply_station_hit(ref: dict[str, Any], hit: dict[str, Any]) -> None:
+    ident = str(ref.get("id") or "").strip()
+    name = str(hit.get("name") or "").strip()
+    slug = str(hit.get("slug") or "").strip()
+    if slug:
+        ref["slug"] = slug
+    if name and not _is_placeholder_name(ident, name):
+        ref["name"] = name
+
+
+def _enrich_stations_from_hideout(db: Session, detail: dict[str, Any]) -> None:
+    refs = [r for r in _iter_station_refs(detail) if isinstance(r, dict)]
+    wanted = {
+        str(r.get("id") or "").strip()
+        for r in refs
+        if str(r.get("id") or "").strip()
+    }
+    if not wanted:
+        return
+    try:
+        from app.services.tarkov.guides import load_parsed_guides
+    except Exception:  # noqa: BLE001
+        return
+    try:
+        _source, parsed, _synced, _note = load_parsed_guides(db)
+    except Exception:  # noqa: BLE001
+        return
+    by_id = {
+        str(row.get("id") or "").strip(): row
+        for row in (parsed.get("stations") or [])
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+    for ref in refs:
+        ident = str(ref.get("id") or "").strip()
+        hit = by_id.get(ident)
+        if hit:
+            _apply_station_hit(ref, hit)
+
+
+def _enrich_crafts_from_guides(db: Session, detail: dict[str, Any]) -> None:
+    crafts: list[dict[str, Any]] = []
+    for key in ("finish_rewards", "start_rewards", "fail_rewards"):
+        rewards = detail.get(key)
+        if not isinstance(rewards, dict):
+            continue
+        crafts.extend(
+            row
+            for row in (rewards.get("craft_unlock") or [])
+            if isinstance(row, dict) and str(row.get("id") or "").strip()
+        )
+    if not crafts:
+        return
+    try:
+        from app.services.tarkov.guides import load_parsed_guides
+    except Exception:  # noqa: BLE001
+        return
+    try:
+        _source, parsed, _synced, _note = load_parsed_guides(db)
+    except Exception:  # noqa: BLE001
+        return
+    by_id = {
+        str(row.get("id") or "").strip(): row
+        for row in (parsed.get("crafts") or [])
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+    for craft in crafts:
+        hit = by_id.get(str(craft.get("id") or "").strip())
+        if not hit:
+            continue
+        if not craft.get("level"):
+            craft["level"] = int(hit.get("level") or 0)
+        station = craft.get("station") if isinstance(craft.get("station"), dict) else {}
+        slug = str(hit.get("station_slug") or "").strip()
+        name = str(hit.get("station_name") or "").strip()
+        sid = str(hit.get("station_id") or "").strip()
+        if sid or slug or name:
+            craft["station"] = {
+                "id": sid or str(station.get("id") or ""),
+                "slug": slug or str(station.get("slug") or ""),
+                "name": name or str(station.get("name") or sid),
+                "icon_link": str(station.get("icon_link") or ""),
+                "types": list(station.get("types") or []),
+            }
+        if not isinstance(craft.get("item"), dict) or not str(
+            (craft.get("item") or {}).get("id") or ""
+        ).strip():
+            offered = hit.get("product_item") or {}
+            ident = str(offered.get("id") or "").strip()
+            if ident:
+                craft["item"] = {
+                    "id": ident,
+                    "slug": str(offered.get("slug") or ""),
+                    "name": str(offered.get("name") or ident),
+                    "icon_link": str(offered.get("icon_link") or ""),
+                    "types": list(offered.get("types") or []),
+                    "count": int(offered.get("count") or 1),
+                }
+
+
+def _iter_image_refs(*details: dict[str, Any]):
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        prestige = detail.get("required_prestige")
+        if isinstance(prestige, dict) and str(prestige.get("id") or "").strip():
+            yield "prestige", prestige
+        for key in ("finish_rewards", "start_rewards", "fail_rewards"):
+            rewards = detail.get(key)
+            if not isinstance(rewards, dict):
+                continue
+            for row in rewards.get("achievement") or []:
+                if isinstance(row, dict):
+                    yield "achievements", row
+            for row in rewards.get("customization") or []:
+                if isinstance(row, dict):
+                    yield "customization", row
+
+
+def _enrich_image_refs_from_extras(db: Session, detail: dict[str, Any]) -> None:
+    refs = list(_iter_image_refs(detail))
+    if not refs:
+        return
+    try:
+        from app.services.tarkov import upstream as upstream_svc
+    except Exception:  # noqa: BLE001
+        return
+    payload = upstream_svc.load_raw(db, "extras")
+    if not isinstance(payload, dict):
+        return
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    catalogs = {
+        "achievements": _id_map(data.get("achievements")),
+        "prestige": _id_map(data.get("prestige")),
+        "customization": _id_map(data.get("customization") or data.get("customizations")),
+    }
+    for kind, ref in refs:
+        ident = str(ref.get("id") or "").strip()
+        hit = catalogs.get(kind, {}).get(ident)
+        if not isinstance(hit, dict):
+            continue
+        name = str(hit.get("name") or "").strip()
+        icon = str(
+            hit.get("imageLink")
+            or hit.get("iconLink")
+            or hit.get("image_link")
+            or ""
+        ).strip()
+        if name and (
+            not str(ref.get("name") or "").strip()
+            or _is_placeholder_name(ident, str(ref.get("name") or ""))
+        ):
+            ref["name"] = name
+        if icon and not str(ref.get("image_link") or "").strip():
+            ref["image_link"] = icon
+        level = hit.get("prestigeLevel")
+        if level is not None and kind == "prestige" and not ref.get("prestige_level"):
+            ref["prestige_level"] = _as_int(level)
 
 
 def tasks_sync_job_wrapper() -> None:
