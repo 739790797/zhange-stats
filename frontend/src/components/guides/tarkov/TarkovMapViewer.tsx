@@ -1981,6 +1981,9 @@ export function TarkovMapViewer({
   onEraseMarkRef.current = onEraseMark;
   onQuestLabelClickRef.current = onQuestLabelClick;
   placeEditRef.current = placeEdit;
+  const placeEditActive = Boolean(placeEdit);
+  const placeEditMode = placeEdit?.mode;
+  const placeEditSelectedId = placeEdit?.selectedId;
   drawColorRef.current = drawColor;
   authorUserIdRef.current = authorUserId;
   floorRef.current = floor;
@@ -2524,11 +2527,11 @@ export function TarkovMapViewer({
     if (showBtrStops) {
       addBtrMarkers(runtime.btrStops, btrStops, floor, floorBands);
     } else runtime.btrStops.clearLayers();
-    const showPlaceLayer = showLabels || Boolean(placeEdit);
+    const showPlaceLayer = showLabels || placeEditActive;
     if (showPlaceLayer) {
       const edit = {
-        mode: placeEdit?.mode ?? "off",
-        selectedId: placeEdit?.selectedId,
+        mode: placeEditMode ?? "off",
+        selectedId: placeEditSelectedId,
         onSelect: (id: number) => placeEditRef.current?.onSelect?.(id),
         onMove: (id: number, at: { x: number; z: number }) =>
           placeEditRef.current?.onMove?.(id, at),
@@ -2542,8 +2545,16 @@ export function TarkovMapViewer({
           floor: string;
         }) => placeEditRef.current?.onBox?.(box),
       } satisfies TarkovMapPlaceEdit;
-      addLabelMarkers(runtime.labels, visiblePlaces, placeEdit ? edit : undefined);
-      addPlaceBoxes(runtime.placeBoxes, visiblePlaces, placeEdit ? edit : undefined);
+      addLabelMarkers(
+        runtime.labels,
+        visiblePlaces,
+        placeEditActive ? edit : undefined,
+      );
+      addPlaceBoxes(
+        runtime.placeBoxes,
+        visiblePlaces,
+        placeEditActive ? edit : undefined,
+      );
     } else {
       runtime.labels.clearLayers();
       runtime.placeBoxes.clearLayers();
@@ -2578,9 +2589,9 @@ export function TarkovMapViewer({
     showLabels,
     interactive,
     visiblePlaces,
-    placeEdit?.mode,
-    placeEdit?.selectedId,
-    Boolean(placeEdit),
+    placeEditActive,
+    placeEditMode,
+    placeEditSelectedId,
     ready,
     extractKindOptions,
     floor,
