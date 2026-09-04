@@ -543,6 +543,91 @@ def test_parse_map_rows_resolves_loot_container_catalog() -> None:
     assert "lootLoose" not in factory
 
 
+def test_parse_map_rows_can_skip_loot_layers() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["lootContainers"] = [
+        {"lootContainer": "box", "position": {"x": 1, "y": 0, "z": 2}}
+    ]
+    payload["maps"]["factory"]["lootLoose"] = [
+        {"items": [{"id": "rouble"}], "position": {"x": 9, "y": 0, "z": 8}}
+    ]
+    factory = {
+        str(r["slug"]): r
+        for r in parse_map_rows(payload, loot_loose=False, loot_containers=False)
+    }["factory"]
+    assert factory["loot_containers"] == []
+    assert factory["loot_loose"] == []
+
+
+def test_parse_map_rows_only_slugs_skips_other_maps() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["lootLoose"] = [
+        {"items": [{"id": "factory-item"}], "position": {"x": 1, "y": 0, "z": 2}}
+    ]
+    payload["maps"]["streets-of-tarkov"]["lootLoose"] = [
+        {"items": [{"id": "streets-item"}], "position": {"x": 3, "y": 0, "z": 4}}
+    ]
+    rows = parse_map_rows(payload, only_slugs={"factory"})
+    by_slug = {str(r["slug"]): r for r in rows}
+    assert set(by_slug) == {"factory"}
+    loose = by_slug["factory"]["loot_loose"]
+    assert loose
+    assert loose[0]["items"][0]["id"] == "factory-item"
+
+
+def test_slim_loot_loose_drops_icon_and_types() -> None:
+    from app.services.tarkov.maps import slim_loot_loose_layer
+
+    out = slim_loot_loose_layer(
+        [
+            {
+                "id": "p1",
+                "items": [
+                    {
+                        "id": "5448ba0b4bdc2d02308b456c",
+                        "name": "钥匙",
+                        "short_name": "Key",
+                        "icon_link": "https://example/icon.png",
+                        "types": ["keys"],
+                        "handbook_ids": ["cat1"],
+                    }
+                ],
+            }
+        ]
+    )
+    item = out[0]["items"][0]
+    assert item["id"] == "5448ba0b4bdc2d02308b456c"
+    assert item["handbook_ids"] == ["cat1"]
+    assert "icon_link" not in item
+    assert "types" not in item
+
+
+def test_apply_map_markers_skips_loot_when_disabled() -> None:
+    factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
+    factory["loot_loose"] = []
+    factory["loot_containers"] = []
+    _marker_cache[_marker_cache_key("pvp")] = {
+        "at": time.time(),
+        "by_slug": {
+            "factory": {
+                "normalizedName": "factory",
+                "lootLoose": [
+                    {"items": [{"id": "rouble"}], "position": {"x": 3, "y": 0, "z": 4}}
+                ],
+                "lootContainers": [
+                    {
+                        "lootContainer": "box",
+                        "position": {"x": 1, "y": 0, "z": 2},
+                    }
+                ],
+            }
+        },
+    }
+    _apply_map_markers(factory, loot_loose=False, loot_containers=False)
+    assert factory["loot_loose"] == []
+    assert factory["loot_containers"] == []
+
+
 def test_apply_map_markers_fills_lock_coords_when_dump_lacks_them() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     factory["locks"] = [

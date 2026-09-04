@@ -195,6 +195,10 @@ class TarkovTaskListItemOut(BaseModel):
     wiki_link: str = ""
     objective_count: int = 0
     objective_types: list[str] = Field(default_factory=list)
+    line_hint: str = ""
+    mutex_ids: list[str] = Field(default_factory=list)
+    blocked_by: list[str] = Field(default_factory=list)
+    prereq_ids: list[str] = Field(default_factory=list)
 
 
 class TarkovTaskCatalogOut(BaseModel):
@@ -398,6 +402,13 @@ class TarkovTaskPrestigeOut(BaseModel):
     image_link: str = ""
 
 
+class TarkovTaskDialogueOut(BaseModel):
+    description: str = ""
+    start: str = ""
+    success: str = ""
+    fail: str = ""
+
+
 TarkovTaskObjectiveOut.model_rebuild()
 TarkovRaidPrepTaskOut.model_rebuild()
 TarkovRaidPrepOut.model_rebuild()
@@ -424,6 +435,7 @@ class TarkovTaskDetailOut(TarkovTaskListItemOut):
     required_prestige: TarkovTaskPrestigeOut | None = None
     available_delay_seconds_min: int | None = None
     available_delay_seconds_max: int | None = None
+    dialogue: TarkovTaskDialogueOut = Field(default_factory=TarkovTaskDialogueOut)
 
 
 class TarkovTasksSyncOut(BaseModel):
@@ -892,6 +904,14 @@ class TarkovMapDetailOut(TarkovMapListItemOut):
     note: str | None = None
 
 
+class TarkovMapLootOut(BaseModel):
+    loot_containers: list[TarkovMapLootContainerOut] = Field(default_factory=list)
+    loot_loose: list[TarkovMapLootLooseOut] = Field(default_factory=list)
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
 class TarkovGuideItemRefOut(BaseModel):
     id: str
     name: str = ""
@@ -1120,6 +1140,13 @@ class TarkovRaidRoomJoinIn(BaseModel):
     password: str | None = Field(default=None, max_length=32)
 
 
+class TarkovRaidRoomCreateIn(BaseModel):
+    title: str | None = Field(default=None, max_length=40)
+    password: str | None = Field(default=None, max_length=32)
+    listed: bool = True
+    game_mode: str | None = None
+
+
 class TarkovRaidRoomPasswordIn(BaseModel):
     password: str | None = Field(default=None, max_length=32)
 
@@ -1324,6 +1351,14 @@ class TarkovRaidRoomLobbyItemOut(BaseModel):
 
 class TarkovRaidRoomLobbyOut(BaseModel):
     items: list[TarkovRaidRoomLobbyItemOut] = Field(default_factory=list)
+    page: int = 1
+    page_size: int = 10
+    total: int = 0
+    mine: TarkovRaidRoomLobbyItemOut | None = None
+
+
+class TarkovRaidRoomMineOut(BaseModel):
+    item: TarkovRaidRoomLobbyItemOut | None = None
 
 
 class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):

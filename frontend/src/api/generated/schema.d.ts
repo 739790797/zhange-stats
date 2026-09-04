@@ -895,7 +895,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Runtime Health */
+        /**
+         * Get Runtime Health
+         * @description 管理端运行时健康：控制面、MySQL、Redis、调度器，以及 APP_ENV / XFF / SMTP。
+         */
         get: operations["get_runtime_health_api_settings_runtime_health_get"];
         put?: never;
         post?: never;
@@ -2508,8 +2511,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Tarkov Raid Rooms */
+        /**
+         * List Tarkov Raid Rooms
+         * @description 分页列出当前模式的公开房间（listed、无密码、仍有人在座）。
+         *
+         *     限流：每 IP / 每账号 40 次/分钟。私密房不出现；自己的私密房在 `mine`。
+         */
         get: operations["list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get"];
+        put?: never;
+        /** Create Tarkov Raid Room */
+        post: operations["create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Tarkov Raid Room */
+        get: operations["get_my_tarkov_raid_room_api_guides_tarkov_raid_rooms_mine_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2542,7 +2568,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Tarkov Raid Room */
+        /**
+         * Get Tarkov Raid Room
+         * @description 取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。
+         */
         get: operations["get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get"];
         put?: never;
         post?: never;
@@ -2561,7 +2590,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Join Tarkov Raid Room */
+        /**
+         * Join Tarkov Raid Room
+         * @description 加入房间。有密码须带明文；成功与失败（含密码错误）都计入限流。
+         *
+         *     限流：每 IP+房间、每账号+房间各 10 次/10 分钟。
+         */
         post: operations["join_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__join_post"];
         delete?: never;
         options?: never;
@@ -3214,7 +3248,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Trader Catalog
-         * @description 商人目录：头像 / 英文 / 中文简称 / 报价数量。
+         * @description 商人目录：头像 / 英文名 / 报价数量。
          */
         get: operations["guides_tarkov_trader_catalog_api_guides_tarkov_traders_get"];
         put?: never;
@@ -3334,9 +3368,29 @@ export interface paths {
         };
         /**
          * Guides Tarkov Map Detail
-         * @description 地图详情：撤离点/BOSS/门锁等坐标与底图信息；前端 Leaflet 查看器使用。
+         * @description 地图详情：撤离点/BOSS/门锁等坐标与底图信息；散落物/容器默认不下发。
          */
         get: operations["guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/maps/{map_slug}/loot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Map Loot
+         * @description 地图散落物/容器图层；只解析当前 slug。
+         */
+        get: operations["guides_tarkov_map_loot_api_guides_tarkov_maps__map_slug__loot_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10977,6 +11031,19 @@ export interface components {
             /** Bottom */
             bottom?: number | null;
         };
+        /** TarkovMapLootOut */
+        TarkovMapLootOut: {
+            /** Loot Containers */
+            loot_containers?: components["schemas"]["TarkovMapLootContainerOut"][];
+            /** Loot Loose */
+            loot_loose?: components["schemas"]["TarkovMapLootLooseOut"][];
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /** TarkovMapPlaceImportIn */
         TarkovMapPlaceImportIn: {
             /** Items */
@@ -11487,6 +11554,17 @@ export interface components {
             objective_count: number;
             /** Objective Types */
             objective_types?: string[];
+            /**
+             * Line Hint
+             * @default
+             */
+            line_hint: string;
+            /** Mutex Ids */
+            mutex_ids?: string[];
+            /** Blocked By */
+            blocked_by?: string[];
+            /** Prereq Ids */
+            prereq_ids?: string[];
             /** Objectives */
             objectives?: components["schemas"]["TarkovTaskObjectiveOut"][];
             /** Needed Keys */
@@ -11514,6 +11592,20 @@ export interface components {
         TarkovRaidRoomClaimsIn: {
             /** Task Ids */
             task_ids?: string[];
+        };
+        /** TarkovRaidRoomCreateIn */
+        TarkovRaidRoomCreateIn: {
+            /** Title */
+            title?: string | null;
+            /** Password */
+            password?: string | null;
+            /**
+             * Listed
+             * @default true
+             */
+            listed: boolean;
+            /** Game Mode */
+            game_mode?: string | null;
         };
         /** TarkovRaidRoomDetailOut */
         TarkovRaidRoomDetailOut: {
@@ -11685,6 +11777,22 @@ export interface components {
         TarkovRaidRoomLobbyOut: {
             /** Items */
             items?: components["schemas"]["TarkovRaidRoomLobbyItemOut"][];
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 10
+             */
+            page_size: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            mine?: components["schemas"]["TarkovRaidRoomLobbyItemOut"] | null;
         };
         /** TarkovRaidRoomMapIn */
         TarkovRaidRoomMapIn: {
@@ -11806,6 +11914,10 @@ export interface components {
             started_count: number;
             /** Uploaded At */
             uploaded_at?: string | null;
+        };
+        /** TarkovRaidRoomMineOut */
+        TarkovRaidRoomMineOut: {
+            item?: components["schemas"]["TarkovRaidRoomLobbyItemOut"] | null;
         };
         /** TarkovRaidRoomObjectiveDoneOut */
         TarkovRaidRoomObjectiveDoneOut: {
@@ -12093,6 +12205,17 @@ export interface components {
             objective_count: number;
             /** Objective Types */
             objective_types?: string[];
+            /**
+             * Line Hint
+             * @default
+             */
+            line_hint: string;
+            /** Mutex Ids */
+            mutex_ids?: string[];
+            /** Blocked By */
+            blocked_by?: string[];
+            /** Prereq Ids */
+            prereq_ids?: string[];
             /** Source */
             source?: string | null;
             /** Objectives */
@@ -12120,6 +12243,30 @@ export interface components {
             available_delay_seconds_min?: number | null;
             /** Available Delay Seconds Max */
             available_delay_seconds_max?: number | null;
+            dialogue?: components["schemas"]["TarkovTaskDialogueOut"];
+        };
+        /** TarkovTaskDialogueOut */
+        TarkovTaskDialogueOut: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Start
+             * @default
+             */
+            start: string;
+            /**
+             * Success
+             * @default
+             */
+            success: string;
+            /**
+             * Fail
+             * @default
+             */
+            fail: string;
         };
         /** TarkovTaskDonesIn */
         TarkovTaskDonesIn: {
@@ -12342,6 +12489,17 @@ export interface components {
             objective_count: number;
             /** Objective Types */
             objective_types?: string[];
+            /**
+             * Line Hint
+             * @default
+             */
+            line_hint: string;
+            /** Mutex Ids */
+            mutex_ids?: string[];
+            /** Blocked By */
+            blocked_by?: string[];
+            /** Prereq Ids */
+            prereq_ids?: string[];
         };
         /** TarkovTaskNamedRefOut */
         TarkovTaskNamedRefOut: {
@@ -18434,6 +18592,8 @@ export interface operations {
     list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get: {
         parameters: {
             query?: {
+                page?: number;
+                page_size?: number;
                 /** @description PVP（regular）或 PVE */
                 game_mode?: string;
             };
@@ -18450,6 +18610,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovRaidRoomLobbyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_tarkov_raid_room_api_guides_tarkov_raid_rooms_mine_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomMineOut"];
                 };
             };
             /** @description Validation Error */
@@ -20100,6 +20328,8 @@ export interface operations {
     guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get: {
         parameters: {
             query?: {
+                loot_loose?: boolean;
+                loot_containers?: boolean;
                 /** @description PVP（regular）或 PVE */
                 game_mode?: string;
             };
@@ -20118,6 +20348,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovMapDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_loot_api_guides_tarkov_maps__map_slug__loot_get: {
+        parameters: {
+            query?: {
+                loot_loose?: boolean;
+                loot_containers?: boolean;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                map_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapLootOut"];
                 };
             };
             /** @description Validation Error */

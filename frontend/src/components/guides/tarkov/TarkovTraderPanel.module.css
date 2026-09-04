@@ -46,11 +46,6 @@
   line-height: 1.15;
 }
 
-.chinese {
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 18px;
-}
-
 .wiki {
   color: var(--hb-muted, #b0ae9a);
   font-size: 13px;
@@ -230,11 +225,6 @@
 
 .card:hover .english {
   color: var(--hb-orange, #c8932a);
-}
-
-.zh {
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 12px;
 }
 
 .offers {

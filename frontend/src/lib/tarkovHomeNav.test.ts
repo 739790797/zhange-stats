@@ -15,8 +15,10 @@ import {
   resolveTarkovMeTab,
   tarkovMeHref,
   tarkovKeyPackHref,
+  TARKOV_HOME_PATH,
   TARKOV_TOP_NAV,
   TARKOV_TRADERS,
+  isTarkovHomePath,
   bossPortraitUrl,
   traderIconUrl,
   traderPortraitUrl,
@@ -27,6 +29,7 @@ import {
   tarkovMapMarkByName,
   tarkovPageTitle,
   textMatchesQuery,
+  traderDisplayName,
 } from "./tarkovHomeNav";
 
 describe("filterHomeSearch", () => {
@@ -75,6 +78,15 @@ describe("filterHomeSearch", () => {
     );
     expect(filterHomeSearch("三兄弟", index).some((h) => h.id === "goons")).toBe(
       true,
+    );
+  });
+
+  it("finds traders by old nicknames but labels stay english", () => {
+    expect(filterHomeSearch("大妈", index).some((h) => h.id === "therapist")).toBe(
+      true,
+    );
+    expect(TARKOV_TRADERS.find((row) => row.id === "therapist")?.label).toBe(
+      "Therapist",
     );
   });
 
@@ -149,7 +161,7 @@ describe("buildSiteSearchSections", () => {
           {
             id: "task-1",
             name: "医疗隐私-1",
-            extra: "Therapist（大妈）",
+            extra: "Therapist",
           },
         ],
         traders: [],
@@ -334,6 +346,14 @@ describe("TARKOV_HOME_ITEMS", () => {
   });
 });
 
+describe("isTarkovHomePath", () => {
+  it("matches the tarkov home route including a trailing slash", () => {
+    expect(isTarkovHomePath(TARKOV_HOME_PATH)).toBe(true);
+    expect(isTarkovHomePath(`${TARKOV_HOME_PATH}/`)).toBe(true);
+    expect(isTarkovHomePath(`${TARKOV_HOME_PATH}/maps`)).toBe(false);
+  });
+});
+
 describe("isTarkovTopNavActive", () => {
   it("highlights items for ammo and guns subpaths", () => {
     expect(isTarkovTopNavActive(ITEMS_BASE_PATH, `${ITEMS_BASE_PATH}/ammo`)).toBe(
@@ -402,11 +422,12 @@ describe("TARKOV_TRADERS", () => {
     expect(TARKOV_TRADERS[0]).toMatchObject({
       href: "/guides/tarkov/traders/prapor",
       english: "Prapor",
-      chinese: "俄商",
+      chinese: "",
+      label: "Prapor",
     });
     expect(TARKOV_TRADERS.find((t) => t.id === "ref")).toMatchObject({
-      chinese: "竞技场裁判",
-      label: "Ref（竞技场裁判）",
+      chinese: "",
+      label: "Ref",
     });
   });
 });
@@ -421,6 +442,14 @@ describe("TARKOV_HOME_TRADERS", () => {
   });
 });
 
+describe("traderDisplayName", () => {
+  it("uses english cards and strips leftover nicknames", () => {
+    expect(traderDisplayName("prapor", "ignored")).toBe("Prapor");
+    expect(traderDisplayName("unknown", "Skier（走私客）")).toBe("Skier");
+    expect(traderDisplayName("", "Therapist（大妈）")).toBe("Therapist");
+  });
+});
+
 describe("TARKOV_TOOLS", () => {
   it("keeps ammo first after raid prep and 个人中心 left the rail", () => {
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("raid-prep");
@@ -428,7 +457,7 @@ describe("TARKOV_TOOLS", () => {
     expect(TARKOV_RAID_PREP_NAV).toMatchObject({
       id: "raid-prep",
       label: "联机大厅",
-      href: "/guides/tarkov/raid-prep",
+      href: "/guides/tarkov",
       status: "ready",
     });
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("key-packs");

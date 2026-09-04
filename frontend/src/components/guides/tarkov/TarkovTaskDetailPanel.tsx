@@ -6,10 +6,10 @@ import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_MAPS,
-  TARKOV_TRADERS,
   tarkovMapHref,
   tarkovTaskHref,
   tarkovTraderHref,
+  traderDisplayName,
   traderIconUrl,
   traderPortraitUrl,
 } from "@/lib/tarkovHomeNav";
@@ -32,14 +32,8 @@ type Props = {
 type TraderReq = components["schemas"]["TarkovTaskTraderReqOut"];
 type TaskReq = components["schemas"]["TarkovTaskRequirementOut"];
 
-function traderEnglish(slug: string, fallback: string): string {
-  const known = TARKOV_TRADERS.find((item) => item.id === slug);
-  if (known) return known.english;
-  return fallback.replace(/（.+）$/, "").trim() || fallback;
-}
-
 function traderReqLine(row: TraderReq, fallbackSlug: string, fallbackName: string): string {
-  const english = traderEnglish(row.slug || fallbackSlug, row.name || fallbackName);
+  const english = traderDisplayName(row.slug || fallbackSlug, row.name || fallbackName);
   const type = (row.requirement_type || "").trim();
   if (
     type === "level" ||
@@ -61,7 +55,7 @@ function traderLevelLabel(
   traderName: string,
   reqs: TraderReq[] | undefined,
 ): string {
-  const english = traderEnglish(traderSlug, traderName);
+  const english = traderDisplayName(traderSlug, traderName);
   if (!(reqs || []).length) return english || "—";
   return (reqs || [])
     .map((row) => traderReqLine(row, traderSlug, traderName))
@@ -104,7 +98,7 @@ function RelatedList({
               >
                 {row.name || row.id}
                 {row.trader_slug || row.trader_name
-                  ? ` · ${traderEnglish(row.trader_slug || "", row.trader_name || "")}`
+                  ? ` · ${traderDisplayName(row.trader_slug || "", row.trader_name || "")}`
                   : ""}
                 {status ? `（${status}）` : ""}
               </Link>
@@ -160,6 +154,10 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
   const traderHref = detail.trader_slug
     ? tarkovTraderHref(detail.trader_slug)
     : "";
+  const traderEnglish = traderDisplayName(
+    detail.trader_slug || "",
+    detail.trader_name || "",
+  );
   const mapLink = mapHref(detail.map_slug || "");
   const delay = formatTaskDelay(
     detail.available_delay_seconds_min,
@@ -187,7 +185,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
             <img
               className={styles.traderBadge}
               src={traderSrc}
-              alt={detail.trader_name || ""}
+              alt={traderEnglish}
             />
           </Link>
         ) : (
@@ -217,7 +215,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
             <span className={styles.endgameChip}>Kappa</span>
           ) : null}
           {detail.lightkeeper_required ? (
-            <span className={styles.endgameChip}>灯塔商人</span>
+            <span className={styles.endgameChip}>Lightkeeper</span>
           ) : null}
           {detail.restartable ? (
             <span className={styles.progressBadge}>可重开</span>
@@ -230,14 +228,14 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                 <img
                   className={styles.titleTrader}
                   src={traderSrc}
-                  alt={detail.trader_name || ""}
+                  alt={traderEnglish}
                 />
               </Link>
             ) : (
               <img
                 className={styles.titleTrader}
                 src={traderSrc}
-                alt={detail.trader_name || ""}
+                alt={traderEnglish}
               />
             )
           ) : traderFallback ? (
@@ -270,14 +268,14 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
               <Link className={styles.inlineLink} to={traderHref}>
                 {traderLevelLabel(
                   detail.trader_slug,
-                  detail.trader_name,
+                  traderEnglish,
                   detail.trader_requirements,
                 )}
               </Link>
             ) : (
               traderLevelLabel(
                 detail.trader_slug,
-                detail.trader_name,
+                traderEnglish,
                 detail.trader_requirements,
               )
             )}

@@ -199,43 +199,79 @@ a {
   text-align: center;
 }
 
-.app-sider-toggle-wrap {
-  position: fixed;
-  top: 50%;
-  left: 220px;
-  z-index: 40;
-  transform: translate(-50%, -50%);
+.app-sider-brand {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.app-sider-toggle-wrap--collapsed {
-  left: 0;
-  transform: translate(0, -50%);
-}
-
-.app-sider-toggle.ant-btn {
-  display: inline-flex;
+.app-sider-brand-top {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 20px;
-  min-width: 20px;
-  height: 56px;
-  padding: 0;
-  border-radius: 6px;
+  gap: 6px;
+  min-height: 56px;
+  padding: 8px 6px 8px 12px;
+}
+
+.app-sider-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-sider-brand-toggle.ant-btn {
+  flex-shrink: 0;
   color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.app-sider-brand-top > :last-child {
+  margin-left: auto;
+}
+
+.app-sider-brand-toggle.ant-btn:hover,
+.app-sider-brand-toggle.ant-btn:focus {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.app-sider-edge-slot {
+  position: fixed;
+  left: 0;
+  top: 12px;
+  z-index: 1100;
+  flex: 0 0 0 !important;
+  width: 0;
+  height: 0;
+  overflow: visible;
+}
+
+.app-sider-edge-toggle.ant-btn {
+  width: 18px;
+  height: 40px;
+  padding: 0 !important;
+  border-radius: 0 8px 8px 0;
+  color: rgba(255, 255, 255, 0.78) !important;
   background: #1a2332 !important;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-left: 0 !important;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.28);
 }
 
-.app-sider-toggle-wrap--collapsed .app-sider-toggle.ant-btn {
-  border-radius: 0 6px 6px 0;
-  border-left: none;
-}
-
-.app-sider-toggle.ant-btn:hover,
-.app-sider-toggle.ant-btn:focus {
+.app-sider-edge-toggle.ant-btn:hover,
+.app-sider-edge-toggle.ant-btn:focus {
+  width: 26px;
   color: #fff !important;
   background: #243044 !important;
+}
+
+.app-sider-beian {
+  display: flex;
+  justify-content: center;
+  padding: 14px 12px 16px;
+}
+
+.app-sider-beian a {
+  justify-content: center;
 }
 
 /* 任务调度：用户分组行整行灰底（含右侧 fixed 操作列） */

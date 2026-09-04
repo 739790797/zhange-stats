@@ -8,7 +8,7 @@ export default function TarkovTradersPage() {
       crumbs={[]}
       sectionLabel="商人"
       code="DATABASE_SEC_TRADERS"
-      subtitle="头像 / 英文名 / 中文简称。点进各商人查看忠诚等级报价。"
+      subtitle="头像与英文名。点进各商人查看忠诚等级报价。"
     >
       <TarkovTradersHubPanel />
     </TarkovItemsPageShell>

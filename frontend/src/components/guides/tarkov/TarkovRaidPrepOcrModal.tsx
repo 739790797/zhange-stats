@@ -15,6 +15,7 @@ import {
 } from "@/lib/tarkovRaidPrepOcrEngine";
 import { RAID_PREP_MAX_SELECTED, tarkovReadableName } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { traderDisplayName } from "@/lib/tarkovHomeNav";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 type Phase = "idle" | "working" | "done";
@@ -281,7 +282,10 @@ export function TarkovRaidPrepOcrModal({
                       <TarkovTraderThumb
                         slug={row.trader_slug}
                         size={28}
-                        title={row.trader_name || row.trader_slug}
+                        title={traderDisplayName(
+                          row.trader_slug,
+                          row.trader_name || row.trader_slug,
+                        )}
                       />
                     ) : null}
                     <span className={styles.ocrItemName}>

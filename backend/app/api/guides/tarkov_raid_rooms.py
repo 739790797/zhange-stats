@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, WebSocket
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, WebSocket
 from sqlalchemy.orm import Session
 
 from app.api.guides.schemas import (
     TarkovRaidRoomClaimsIn,
+    TarkovRaidRoomCreateIn,
     TarkovRaidRoomDetailOut,
     TarkovRaidRoomObjectiveDonesIn,
     TarkovRaidRoomGameModeIn,
     TarkovRaidRoomHostIn,
     TarkovRaidRoomJoinIn,
     TarkovRaidRoomLobbyOut,
+    TarkovRaidRoomMineOut,
     TarkovRaidRoomMapIn,
     TarkovRaidRoomMarkIn,
     TarkovRaidRoomPasswordIn,
@@ -21,6 +23,7 @@ from app.api.guides.schemas import (
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.platform_deps import require_feature
+from app.core.rate_limit import client_ip, platform_limiter
 from app.models.user import User
 from app.services.tarkov import raid_room_ws as room_ws_svc
 from app.services.tarkov import raid_rooms as rooms_svc
@@ -34,12 +37,51 @@ def _raise(exc: rooms_svc.RaidRoomError) -> None:
     raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
+_SNAPSHOT_WS_EVENTS = frozenset(
+    {"member_join", "member_leave", "reset", "snapshot"}
+)
+_PATCH_WS_FIELDS: dict[str, tuple[str, ...]] = {
+    "claim_add": ("claims",),
+    "claim_remove": ("claims",),
+    "key_bring_add": ("key_brings",),
+    "key_bring_remove": ("key_brings",),
+    "objective_done_add": ("objective_dones",),
+    "objective_done_remove": ("objective_dones",),
+    "task_progress": ("map_overlap", "task_progress"),
+    "key_own_change": ("key_owns",),
+}
+
+
+def room_ws_payload(
+    event: str,
+    snapshot: dict,
+    extra: dict | None = None,
+    *,
+    online_user_ids: list[int] | None = None,
+) -> dict:
+    """成员进离/换图等仍带整份 snapshot；画笔/声明只发补丁。"""
+    extra = dict(extra or {})
+    if event in _SNAPSHOT_WS_EVENTS:
+        payload: dict = {"event": event, "snapshot": snapshot, **extra}
+    else:
+        payload = {"event": event, **extra}
+        for field in _PATCH_WS_FIELDS.get(event, ()):
+            if field not in payload:
+                payload[field] = snapshot.get(field)
+    payload["online_user_ids"] = list(online_user_ids or [])
+    return payload
+
+
 def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = None) -> None:
-    payload = {"event": event, "snapshot": snapshot}
-    if extra:
-        payload.update(extra)
-    payload["online_user_ids"] = list(hub.online_user_ids(public_id))
-    hub.publish(public_id, payload)
+    hub.publish(
+        public_id,
+        room_ws_payload(
+            event,
+            snapshot,
+            extra,
+            online_user_ids=list(hub.online_user_ids(public_id)),
+        ),
+    )
 
 
 @router.get(
@@ -48,18 +90,105 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
     dependencies=[_FEATURE],
 )
 def list_tarkov_raid_rooms(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomLobbyOut:
+    """分页列出当前模式的公开房间（listed、无密码、仍有人在座）。
+
+    限流：每 IP / 每账号 40 次/分钟。私密房不出现；自己的私密房在 `mine`。
+    """
+    ip = client_ip(request)
+    lobby_ip, lobby_uid = rooms_svc.lobby_rate_limit_keys(ip, user.id)
+    platform_limiter.hit(
+        lobby_ip,
+        limit=rooms_svc.LOBBY_RATE_LIMIT,
+        window_sec=rooms_svc.LOBBY_RATE_WINDOW_SEC,
+    )
+    platform_limiter.hit(
+        lobby_uid,
+        limit=rooms_svc.LOBBY_RATE_LIMIT,
+        window_sec=rooms_svc.LOBBY_RATE_WINDOW_SEC,
+    )
     online_by_public_id = {
-        pid: hub.online_user_ids(pid)
-        for pid in set(rooms_svc.SLOT_PUBLIC_IDS) | hub.known_public_ids()
+        pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
     }
     data = rooms_svc.list_live_rooms(
-        db, viewer=user, online_by_public_id=online_by_public_id
+        db,
+        viewer=user,
+        online_by_public_id=online_by_public_id,
+        page=page,
+        page_size=page_size,
     )
     db.commit()
     return TarkovRaidRoomLobbyOut.model_validate(data)
+
+
+@router.get(
+    "/raid-rooms/mine",
+    response_model=TarkovRaidRoomMineOut,
+    dependencies=[_FEATURE],
+)
+def get_my_tarkov_raid_room(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomMineOut:
+    online_by_public_id = {
+        pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
+    }
+    item = rooms_svc.get_my_live_room(
+        db, user, online_by_public_id=online_by_public_id
+    )
+    db.commit()
+    return TarkovRaidRoomMineOut(item=item)
+
+
+@router.post(
+    "/raid-rooms",
+    response_model=TarkovRaidRoomDetailOut,
+    dependencies=[_FEATURE],
+)
+def create_tarkov_raid_room(
+    request: Request,
+    body: TarkovRaidRoomCreateIn = Body(default_factory=TarkovRaidRoomCreateIn),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomDetailOut:
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-raid-create:ip:{ip}", limit=20, window_sec=600)
+    platform_limiter.hit(f"tarkov-raid-create:uid:{user.id}", limit=10, window_sec=600)
+    try:
+        data, _joined_now, vacated = rooms_svc.create_room(
+            db,
+            user,
+            title=body.title,
+            password=body.password,
+            listed=body.listed,
+            game_mode=body.game_mode,
+        )
+    except rooms_svc.RaidRoomError as exc:
+        db.rollback()
+        _raise(exc)
+        raise
+    db.commit()
+    for snap in vacated:
+        vacated_id = str(snap.get("public_id") or "").strip()
+        if vacated_id:
+            _publish(
+                vacated_id,
+                "member_leave",
+                snap,
+                extra={"user_id": user.id},
+            )
+    _publish(
+        data["public_id"],
+        "member_join",
+        data,
+        extra={"user_id": user.id, "display_name": user.display_name},
+    )
+    return TarkovRaidRoomDetailOut.model_validate(data)
 
 
 @router.post(
@@ -101,6 +230,7 @@ def get_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    """取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。"""
     try:
         data = rooms_svc.get_room(
             db,
@@ -122,11 +252,28 @@ def get_tarkov_raid_room(
     dependencies=[_FEATURE],
 )
 def join_tarkov_raid_room(
+    request: Request,
     public_id: str,
     body: TarkovRaidRoomJoinIn = Body(default_factory=TarkovRaidRoomJoinIn),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    """加入房间。有密码须带明文；成功与失败（含密码错误）都计入限流。
+
+    限流：每 IP+房间、每账号+房间各 10 次/10 分钟。
+    """
+    ip = client_ip(request)
+    join_ip, join_uid = rooms_svc.join_rate_limit_keys(ip, user.id, public_id)
+    platform_limiter.hit(
+        join_ip,
+        limit=rooms_svc.JOIN_RATE_LIMIT,
+        window_sec=rooms_svc.JOIN_RATE_WINDOW_SEC,
+    )
+    platform_limiter.hit(
+        join_uid,
+        limit=rooms_svc.JOIN_RATE_LIMIT,
+        window_sec=rooms_svc.JOIN_RATE_WINDOW_SEC,
+    )
     payload = body
     try:
         data, joined_now, vacated = rooms_svc.join_room(
@@ -344,8 +491,6 @@ def claim_tarkov_raid_room_task(
             data,
             extra={"task_id": task_id, "user_id": user.id},
         )
-    else:
-        _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -368,8 +513,6 @@ def seed_tarkov_raid_room_claims_from_progress(
     db.commit()
     if added:
         _publish(public_id, "claim_add", data, extra={"user_id": user.id})
-    else:
-        _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 

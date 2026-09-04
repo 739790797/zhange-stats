@@ -16,6 +16,8 @@ const AppLayout = lazy(() =>
 );
 const SetupPage = lazy(() => import("@/pages/SetupPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const LegalTermsPage = lazy(() => import("@/pages/LegalTermsPage"));
+const LegalPrivacyPage = lazy(() => import("@/pages/LegalPrivacyPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
 const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
@@ -128,6 +130,8 @@ export default function App() {
             <Routes>
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/legal/terms" element={<LegalTermsPage />} />
+              <Route path="/legal/privacy" element={<LegalPrivacyPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route
                 path="/forgot-password"

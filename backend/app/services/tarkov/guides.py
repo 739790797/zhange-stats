@@ -348,6 +348,19 @@ def get_hideout_raw(db: Session) -> TarkovHideoutRaw | None:
     return upstream_svc.load_raw_row(db, "hideout")
 
 
+def guides_cache_token(db: Session) -> str:
+    """hideout / barters / crafts 三份 raw 的 synced_at，给图鉴 ETag。"""
+    from app.services.tarkov import upstream as upstream_svc
+
+    parts: list[str] = []
+    for resource in ("hideout", "barters", "crafts"):
+        _source, synced, _note = upstream_svc.raw_row_header(
+            upstream_svc.load_raw_row(db, resource)
+        )
+        parts.append(synced or "")
+    return "|".join(parts)
+
+
 def assemble_guides_envelope(
     hideout_payload: dict[str, Any],
     *,

@@ -40,11 +40,23 @@ def test_overall_prefers_error_then_degraded() -> None:
 
 
 def test_probe_redis_skipped_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(rh, "get_settings", lambda: MagicMock(REDIS_URL=""))
+    monkeypatch.setattr(
+        rh, "get_settings", lambda: MagicMock(REDIS_URL="", is_production=False)
+    )
     item = rh._probe_redis()
     assert item.id == "redis"
     assert item.status == "skipped"
     assert "未配置" in item.detail
+
+
+def test_probe_redis_degraded_in_production_when_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        rh, "get_settings", lambda: MagicMock(REDIS_URL="", is_production=True)
+    )
+    item = rh._probe_redis()
+    assert item.status == "degraded"
 
 
 def test_collect_runtime_health_shape(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,6 +70,21 @@ def test_collect_runtime_health_shape(monkeypatch: pytest.MonkeyPatch) -> None:
         "_probe_redis",
         lambda: rh.ServiceHealthItem("redis", "Redis", "skipped", detail="n/a"),
     )
+    monkeypatch.setattr(
+        rh,
+        "_probe_app_env",
+        lambda: rh.ServiceHealthItem("app_env", "运行环境", "skipped", detail="dev"),
+    )
+    monkeypatch.setattr(
+        rh,
+        "_probe_xff",
+        lambda: rh.ServiceHealthItem("xff", "X-Forwarded-For", "skipped", detail="off"),
+    )
+    monkeypatch.setattr(
+        rh,
+        "_probe_smtp",
+        lambda _db: rh.ServiceHealthItem("smtp", "SMTP", "skipped", detail="n/a"),
+    )
     report = rh.collect_runtime_health(MagicMock(), scheduler_running=True)
     assert report.overall == "ok"
     assert report.checked_at
@@ -67,6 +94,9 @@ def test_collect_runtime_health_shape(monkeypatch: pytest.MonkeyPatch) -> None:
         "mysql",
         "redis",
         "scheduler",
+        "app_env",
+        "xff",
+        "smtp",
     ]
     sched = next(s for s in report.services if s.id == "scheduler")
     assert sched.status == "ok"

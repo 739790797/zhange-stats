@@ -6,6 +6,7 @@ import {
   tarkovHideoutHref,
   tarkovMapSlug,
   tarkovTaskHref,
+  traderDisplayName,
 } from "@/lib/tarkovHomeNav";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
@@ -269,7 +270,10 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
       label: "以物易物",
       hint: uniqueHints(
         barters.map((row) => {
-          const name = row.trader_name || row.trader_slug || "";
+          const name = traderDisplayName(
+            row.trader_slug || "",
+            row.trader_name || "",
+          );
           const level = Number(row.min_trader_level || 0);
           return level > 0 ? `${name} ${level}级` : name;
         }),

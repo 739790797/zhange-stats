@@ -60,6 +60,14 @@
   color: #8fbf88;
 }
 
+.statFailed .statValue {
+  color: #d4887a;
+}
+
+.statUnreachable .statValue {
+  color: #9a9888;
+}
+
 .meter {
   display: flex;
   margin-top: 8px;
@@ -83,6 +91,14 @@
 
 .meterTodo {
   background: #3a3d30;
+}
+
+.meterFailed {
+  background: #8a4a42;
+}
+
+.meterUnreachable {
+  background: #5a5848;
 }
 
 .workspace {
@@ -152,7 +168,8 @@
 }
 
 .saveBtn,
-.syncBtn {
+.syncBtn,
+.viewBtn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -172,8 +189,19 @@
 }
 
 .saveBtn:hover:not(:disabled),
-.syncBtn:hover:not(:disabled) {
+.syncBtn:hover:not(:disabled),
+.viewBtn:hover {
   background: #101010;
+}
+
+.viewOn {
+  color: var(--hb-orange, #c8932a);
+  background: #1a160c;
+  box-shadow: inset 0 -2px 0 var(--hb-orange, #c8932a);
+}
+
+.viewOn:hover {
+  background: #1a160c;
 }
 
 .saveBtn:disabled,
@@ -350,7 +378,7 @@ a.syncHint:hover {
 }
 
 .colStatus {
-  width: 88px;
+  width: 108px;
 }
 
 .colMap {
@@ -383,12 +411,24 @@ a.syncHint:hover {
   opacity: 0.62;
 }
 
+.rowFailed td {
+  background: #1a1210;
+}
+
+.rowUnreachable td {
+  opacity: 0.55;
+}
+
 .row:hover td {
   background: #1c1c16;
 }
 
 .rowActive:hover td {
   background: #201a0e;
+}
+
+.rowFailed:hover td {
+  background: #221614;
 }
 
 .cellName {
@@ -402,7 +442,7 @@ a.syncHint:hover {
 }
 
 .cellStatus {
-  width: 72px;
+  width: 108px;
   white-space: nowrap;
 }
 
@@ -508,10 +548,160 @@ a.syncHint:hover {
   color: #8fbf88;
 }
 
+.statusSelectFailed {
+  border-color: #8a4a42;
+  color: #d4887a;
+}
+
+.statusSelectUnreachable {
+  border-color: #5a5848;
+  color: #9a9888;
+}
+
+.statusSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
 .empty {
   padding: 36px 12px;
   color: var(--hb-muted, #8a8878);
   font-size: 13px;
+}
+
+.treeList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.treeRow {
+  display: grid;
+  grid-template-columns: var(--tree-indent, 0px) minmax(0, 1fr) minmax(72px, 108px) 108px;
+  gap: 0 8px;
+  align-items: stretch;
+  background: transparent;
+  padding: 0;
+}
+
+.treeGutter {
+  position: relative;
+  min-width: 0;
+}
+
+.treeGutterOn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 12px;
+  bottom: 50%;
+  width: 1px;
+  background: #3a3d30;
+}
+
+.treeGutterOn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 12px;
+  height: 1px;
+  background: #3a3d30;
+}
+
+.treeMain,
+.treeMap,
+.treeStatus {
+  min-width: 0;
+  padding: 6px 8px;
+  background: #141414;
+}
+
+.treeRow.rowActive .treeMain,
+.treeRow.rowActive .treeMap,
+.treeRow.rowActive .treeStatus {
+  background: #1a160c;
+}
+
+.treeRow.rowDone .treeMain,
+.treeRow.rowDone .treeMap,
+.treeRow.rowDone .treeStatus {
+  opacity: 0.62;
+}
+
+.treeRow.rowFailed .treeMain,
+.treeRow.rowFailed .treeMap,
+.treeRow.rowFailed .treeStatus {
+  background: #1a1210;
+}
+
+.treeRow.rowUnreachable .treeMain,
+.treeRow.rowUnreachable .treeMap,
+.treeRow.rowUnreachable .treeStatus {
+  opacity: 0.55;
+}
+
+.treeRow:hover .treeMain,
+.treeRow:hover .treeMap,
+.treeRow:hover .treeStatus {
+  background: #1c1c16;
+}
+
+.treeRow.rowActive:hover .treeMain,
+.treeRow.rowActive:hover .treeMap,
+.treeRow.rowActive:hover .treeStatus {
+  background: #201a0e;
+}
+
+.treeRow.rowFailed:hover .treeMain,
+.treeRow.rowFailed:hover .treeMap,
+.treeRow.rowFailed:hover .treeStatus {
+  background: #221614;
+}
+
+.treeRowDim .name {
+  color: var(--hb-muted, #8a8c78);
+  font-weight: 500;
+}
+
+.treeMain {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.treeMain .name {
+  white-space: normal;
+}
+
+.treeExtra {
+  color: var(--hb-muted, #8a8c78);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.treeMap,
+.treeStatus {
+  min-width: 0;
+}
+
+.choiceBlock {
+  margin: 2px 0;
+  padding: 0;
+  border: 0;
+}
+
+.choiceLabel {
+  margin: 0 0 4px;
+  padding-left: calc(var(--tree-indent, 0px) + 8px);
+  color: var(--hb-orange, #c8932a);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 920px) {
@@ -540,6 +730,14 @@ a.syncHint:hover {
 
   .traderAll {
     min-width: 72px;
+  }
+
+  .treeRow {
+    grid-template-columns: var(--tree-indent, 0px) minmax(0, 1fr) 108px;
+  }
+
+  .treeMap {
+    display: none;
   }
 }
 

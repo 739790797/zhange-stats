@@ -9,7 +9,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { TARKOV_TRADERS, tarkovTaskHref, traderIconUrl } from "@/lib/tarkovHomeNav";
+import { TARKOV_TRADERS, tarkovTaskHref, traderDisplayName, traderIconUrl } from "@/lib/tarkovHomeNav";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import { guideItemFleaCost } from "@/lib/tarkovGuideItemCost";
@@ -105,7 +105,7 @@ export function TarkovBartersPanel() {
       width: 140,
       render: (_: unknown, row) => (
         <span className={styles.reqs}>
-          {row.trader_name || row.trader_slug} LL{row.min_trader_level}
+          {traderDisplayName(row.trader_slug, row.trader_name || row.trader_slug)} LL{row.min_trader_level}
           {row.task_unlock ? (
             <>
               <br />

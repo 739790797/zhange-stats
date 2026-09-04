@@ -44,7 +44,23 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 持久化目录：`var/data/`（含 `.secret_key` 与日志）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
 
-健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。数据库探测结果进程内缓存 1 秒，避免探针打满连接池。
+健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。数据库探测结果进程内缓存 1 秒，避免探针打满连接池。管理端「平台日志」的运行时健康另含 `APP_ENV`、Redis、`TRUST_X_FORWARDED_FOR`、SMTP，公开引流前应在该页核对。
+
+## 公开运营检查
+
+对外宣传（例如 B 站）前核对这些项。ICP 备案号在页脚展示，应用不探测备案状态。
+
+| 项 | 期望 |
+|----|------|
+| `APP_ENV=production` | 弱管理员口令拒绝启动；关闭 Swagger；禁止 `ALLOW_EMAIL_CODE_LOG` |
+| `REDIS_URL` | 生产应配置；否则限流与短时 KV 只在本进程内存，重启即丢 |
+| `TRUST_X_FORWARDED_FOR` | **仅**在受信反代之后设 `true`；直接暴露 uvicorn 时保持默认 `false` |
+| SMTP | 邮箱注册要能发出验证码；管理端「邮件」里 `configured` |
+| 条款 | 站内 `/legal/terms`、`/legal/privacy`；片尾写明非官方、非作弊 |
+| ICP 备案 | 页脚展示 [浙ICP备2025147006号](https://beian.miit.gov.cn/)（登录页、主布局、塔科夫首页） |
+| 管理端核对 | 「平台日志」运行时健康：`app` / `mysql` / `redis` / `scheduler` / `app_env` / `xff` / `smtp`。生产未配 Redis 或 SMTP 会标降级 |
+
+联机大厅为单进程内存 WebSocket，不要承诺可水平扩展。宣传口径走「队友协作勾任务 / 标点」，不要把截图同步说成实时雷达。限流数字见 [`security.md`](security.md)「塔科夫联机」。
 
 ## 反代与静态资源
 

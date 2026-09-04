@@ -104,17 +104,19 @@ def _envelope() -> dict:
     }
 
 
-def test_parse_locale_and_community_names():
+def test_parse_locale_and_english_names():
     rows = traders.parse_trader_rows(_envelope())
     by_slug = {r["slug"]: r for r in rows}
     assert [r["slug"] for r in rows[:3]] == ["prapor", "therapist", "taran"]
     assert by_slug["prapor"]["english"] == "Prapor"
-    assert by_slug["prapor"]["chinese"] == "俄商"
-    assert by_slug["prapor"]["name"] == "Prapor（俄商）"
+    assert by_slug["prapor"]["chinese"] == ""
+    assert by_slug["prapor"]["name"] == "Prapor"
+    assert by_slug["prapor"]["search_alias"] == "俄商 售货员"
     assert by_slug["prapor"]["description"].startswith("普拉普尔")
     assert by_slug["prapor"]["offer_count"] == 2
     assert by_slug["prapor"]["wiki_link"].endswith("/Prapor")
-    assert by_slug["therapist"]["chinese"] == "大妈"
+    assert by_slug["therapist"]["chinese"] == ""
+    assert by_slug["therapist"]["name"] == "Therapist"
     assert by_slug["taran"]["english"] == "Taran"
     assert by_slug["taran"]["chinese"] == ""
     assert by_slug["taran"]["offer_count"] == 0

@@ -20,6 +20,7 @@ import {
 import { tarkovBossHref, tarkovMapHref, tarkovRaidPrepHref } from "@/lib/tarkovHomeNav";
 import { normalizeRaidPrepMapId } from "@/lib/tarkovRaidPrep";
 import { tarkovExtractStyle } from "@/lib/tarkovMapExtracts";
+import { tarkovMapViewerLayerProps } from "@/lib/tarkovMapViewerDetail";
 import { PanelFallback } from "@/components/RouteFallback";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovMapsPanel.module.css";
@@ -212,18 +213,7 @@ function TarkovMapDetailReady({
       <Suspense fallback={<PanelFallback tip="加载地图…" />}>
         <TarkovMapViewer
           slug={slug}
-          parentSlug={detail.parent_slug || undefined}
-          extracts={detail.extracts}
-          bosses={detail.bosses}
-          spawns={detail.spawns}
-          locks={detail.locks}
-          hazards={detail.hazards}
-          switches={detail.switches}
-          stationaryWeapons={detail.stationary_weapons}
-          btrStops={detail.btr_stops}
-          lootContainers={detail.loot_containers}
-          lootLoose={detail.loot_loose}
-          places={detail.places}
+          {...tarkovMapViewerLayerProps(detail)}
           placeEdit={editor.placeEdit}
           onFloorChange={setFloor}
         />

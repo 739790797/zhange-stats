@@ -15,6 +15,8 @@ import {
   planAccountTaskHydrate,
   keepCatalogTaskProgress,
   mergeObjectivesForTask,
+  displayTaskProgressName,
+  isWritableTaskStatus,
   resolveAccountTaskProgress,
   resolveTaskMapId,
   resolveTaskStatus,
@@ -24,6 +26,8 @@ import {
   setTaskObjective,
   summarizeTaskProgress,
   taskHitsMap,
+  taskLoyaltyLevel,
+  taskPlayerLevelLabel,
 } from "./tarkovTaskTree";
 import type { TaskListItem } from "./tarkovTaskTree";
 
@@ -48,6 +52,8 @@ describe("task progress", () => {
       incomplete: 1,
       active: 1,
       completed: 1,
+      failed: 0,
+      unreachable: 0,
     });
   });
 
@@ -60,6 +66,72 @@ describe("task progress", () => {
     expect(resolveTaskStatus("p1", new Set(["p1"]), new Set(["p1"]))).toBe("done");
     expect(resolveTaskStatus("p1", new Set(), new Set(["p1"]))).toBe("active");
     expect(resolveTaskStatus("p1", new Set(), new Set())).toBe("todo");
+  });
+
+  it("derives failed and unreachable from line index", () => {
+    const mutex = { mutex_ids: ["choose"], blocked_by: [] };
+    const fork = { mutex_ids: ["choose"], blocked_by: ["bat1"] };
+    expect(
+      resolveTaskStatus("price1", new Set(["price1"]), new Set(), mutex),
+    ).toBe("done");
+    expect(
+      resolveTaskStatus("price1", new Set(["choose"]), new Set(), mutex),
+    ).toBe("failed");
+    expect(
+      resolveTaskStatus("price2", new Set(["bat1"]), new Set(), fork),
+    ).toBe("unreachable");
+    expect(
+      resolveTaskStatus("price2", new Set(), new Set(["bat1"]), fork),
+    ).toBe("unreachable");
+    expect(
+      resolveTaskStatus("choose", new Set(), new Set(["choose"]), mutex),
+    ).toBe("active");
+    expect(isWritableTaskStatus("failed")).toBe(false);
+    expect(isWritableTaskStatus("todo")).toBe(true);
+  });
+
+  it("counts failed and unreachable outside incomplete", () => {
+    const rows = [
+      task("price1", "独立的代价", { mutex_ids: ["choose"], blocked_by: ["bat2"] }),
+      task("price2", "独立的代价", { mutex_ids: ["choose"], blocked_by: ["bat1"] }),
+      task("side", "支线"),
+    ];
+    expect(
+      summarizeTaskProgress(rows, new Set(["choose", "bat1"]), new Set()),
+    ).toEqual({
+      total: 3,
+      incomplete: 1,
+      active: 0,
+      completed: 0,
+      failed: 2,
+      unreachable: 0,
+    });
+    expect(summarizeTaskProgress(rows, new Set(["bat1"]), new Set())).toEqual({
+      total: 3,
+      incomplete: 2,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      unreachable: 1,
+    });
+  });
+
+  it("appends line hint without duplicating faction", () => {
+    expect(
+      displayTaskProgressName({
+        id: "p1",
+        name: "独立的代价",
+        line_hint: "经「横插一杠」",
+      }),
+    ).toBe("独立的代价（经「横插一杠」）");
+    expect(
+      displayTaskProgressName({
+        id: "u",
+        name: "湿活",
+        faction_name: "USEC",
+        line_hint: "USEC",
+      }),
+    ).toBe("湿活 (USEC)");
   });
 
   it("hides ids missing from the live catalog", () => {
@@ -104,7 +176,7 @@ describe("groupTasksByTrader", () => {
     ];
     const groups = groupTasksByTrader(
       items,
-      [{ slug: "prapor", name: "Prapor（俄商）" }],
+      [{ slug: "prapor", name: "Prapor" }],
       ["solo"],
     );
     expect(groups[0]?.items.map((row) => row.id)).toEqual(["p1", "p2", "solo"]);
@@ -119,7 +191,7 @@ describe("groupTasksByTrader", () => {
     ];
     const groups = groupTasksByTrader(
       items,
-      [{ slug: "prapor", name: "Prapor（俄商）" }],
+      [{ slug: "prapor", name: "Prapor" }],
       [],
       { q: "支线" },
     );
@@ -134,7 +206,7 @@ describe("groupTasksByTrader", () => {
     ];
     const groups = groupTasksByTrader(
       items,
-      [{ slug: "prapor", name: "Prapor（俄商）" }],
+      [{ slug: "prapor", name: "Prapor" }],
       [],
       { map: "customs" },
     );
@@ -309,5 +381,19 @@ describe("task dones storage", () => {
       { task_id: "t1", objective_id: "a" },
       { task_id: "t1", objective_id: "b" },
     ]);
+  });
+});
+
+describe("task level and loyalty marks", () => {
+  it("hides a missing player level and clamps loyalty to 1–4", () => {
+    expect(taskPlayerLevelLabel(undefined)).toBe("—");
+    expect(taskPlayerLevelLabel(0)).toBe("—");
+    expect(taskPlayerLevelLabel(15)).toBe("15");
+    expect(taskLoyaltyLevel(undefined)).toBe(1);
+    expect(taskLoyaltyLevel(0)).toBe(1);
+    expect(taskLoyaltyLevel(2)).toBe(2);
+    expect(taskLoyaltyLevel(3)).toBe(3);
+    expect(taskLoyaltyLevel(4)).toBe(4);
+    expect(taskLoyaltyLevel(9)).toBe(4);
   });
 });

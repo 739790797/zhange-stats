@@ -1,12 +1,22 @@
-import { Alert, Modal } from "antd";
+import { Alert, Input, Modal } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createTarkovRaidRoom, joinTarkovRaidRoom } from "@/api/guidesApi";
+import { apiError } from "@/lib/apiError";
 import {
+  TARKOV_HOME_PATH,
   TARKOV_RAID_PREP_PATH,
   tarkovRaidRoomHref,
 } from "@/lib/tarkovHomeNav";
 import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
-import { parseRaidRoomPublicId } from "@/lib/tarkovRaidRooms";
+import {
+  defaultRaidRoomTitle,
+  parseRaidRoomPublicId,
+  RAID_ROOM_TITLE_MAX,
+  raidRoomJoinNeedsPassword,
+} from "@/lib/tarkovRaidRooms";
+import { RAID_ROOM_TITLE_POLICY } from "@/lib/legalDocs";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   raidPrepMapOptions,
@@ -19,7 +29,7 @@ import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import mapStyles from "./TarkovMapsPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
-export type RaidPrepEntryStep = "mode" | "solo" | "join";
+export type RaidPrepEntryStep = "create" | "join" | "solo";
 
 type Props = {
   open: boolean;
@@ -105,23 +115,28 @@ export function MapPickGrid({
 
 function modalTitle(step: RaidPrepEntryStep): string {
   if (step === "solo") return "选择地图";
-  if (step === "join") return "选择房间";
-  return "联机大厅";
+  if (step === "join") return "加入房间";
+  return "创建房间";
 }
 
 export function TarkovRaidPrepEntryModal({
   open,
-  step: stepProp = "mode",
+  step: stepProp = "create",
   currentMapId = "",
   onClose,
   onSoloMap,
 }: Props) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const gameMode = useTarkovGameMode();
   const loggedIn = Boolean(useAuthStore((s) => s.token));
+  const displayName = useAuthStore((s) => s.user?.display_name);
   const [step, setStep] = useState<RaidPrepEntryStep>(stepProp);
   const [joinText, setJoinText] = useState("");
   const [joinError, setJoinError] = useState("");
+  const [listed, setListed] = useState(true);
+  const [title, setTitle] = useState("");
+  const [password, setPassword] = useState("");
   const mapOptions = useMemo(() => raidPrepMapOptions(), []);
   const { status: goonStatus } = useTarkovGoonTracker();
 
@@ -130,12 +145,15 @@ export function TarkovRaidPrepEntryModal({
     setStep(stepProp);
     setJoinText("");
     setJoinError("");
-  }, [open, stepProp]);
+    setListed(true);
+    setTitle(defaultRaidRoomTitle(displayName));
+    setPassword("");
+  }, [open, stepProp, displayName]);
 
   const requireAuth = () => {
     onClose();
     navigate("/login", {
-      state: { from: { pathname: TARKOV_RAID_PREP_PATH } },
+      state: { from: { pathname: TARKOV_HOME_PATH } },
     });
   };
 
@@ -154,53 +172,134 @@ export function TarkovRaidPrepEntryModal({
     navigate(tarkovRaidRoomHref(publicId));
   };
 
-  const handleCancel = () => {
-    if (step !== "mode" && stepProp === "mode") {
-      setStep("mode");
-      return;
-    }
-    onClose();
-  };
+  const createMut = useMutation({
+    mutationFn: () =>
+      createTarkovRaidRoom({
+        gameMode,
+        title: title.trim() || undefined,
+        listed,
+        password: listed ? undefined : password.trim(),
+      }),
+    onSuccess: (room) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["guides-tarkov-raid-rooms"],
+      });
+      enterRoom(room.public_id);
+    },
+  });
+
+  const joinByCodeMut = useMutation({
+    mutationFn: (publicId: string) =>
+      joinTarkovRaidRoom(publicId, { gameMode }),
+    onSuccess: (room) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["guides-tarkov-raid-rooms"],
+      });
+      enterRoom(room.public_id);
+    },
+    onError: (error, publicId) => {
+      if (raidRoomJoinNeedsPassword(error)) {
+        enterRoom(publicId);
+        return;
+      }
+      setJoinError(apiError(error, "加入失败"));
+    },
+  });
+
+  const createBlocked =
+    createMut.isPending || (!listed && !password.trim());
 
   return (
     <Modal
       title={modalTitle(step)}
       open={open}
-      onCancel={handleCancel}
+      onCancel={onClose}
       footer={null}
-      width={step === "mode" ? 440 : 960}
+      width={step === "create" ? 440 : 960}
       destroyOnClose
       classNames={{ body: styles.entryModalBody }}
     >
-      {step === "mode" ? (
-        <div className={styles.entryModeList}>
+      {step === "create" ? (
+        <form
+          className={styles.entryCreate}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!loggedIn) {
+              requireAuth();
+              return;
+            }
+            if (createBlocked) return;
+            createMut.mutate();
+          }}
+        >
+          <div>
+            <div className={styles.entryFieldLabel}>房间性质</div>
+            <div className={styles.entryKind}>
+              <label className={styles.entryKindLabel}>
+                <input
+                  type="radio"
+                  name="raid-room-listed"
+                  checked={listed}
+                  onChange={() => {
+                    setListed(true);
+                    setPassword("");
+                  }}
+                />
+                公开
+              </label>
+              <label className={styles.entryKindLabel}>
+                <input
+                  type="radio"
+                  name="raid-room-listed"
+                  checked={!listed}
+                  onChange={() => setListed(false)}
+                />
+                私密
+              </label>
+            </div>
+          </div>
+          <label>
+            <div className={styles.entryFieldLabel}>房间名称</div>
+            <input
+              className={styles.dockSearch}
+              value={title}
+              maxLength={RAID_ROOM_TITLE_MAX}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={defaultRaidRoomTitle(displayName)}
+              aria-label="房间名称"
+            />
+          </label>
+          {listed ? null : (
+            <label>
+              <div className={styles.entryFieldLabel}>房间密码</div>
+              <Input.Password
+                value={password}
+                maxLength={32}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="加入时需要"
+                autoComplete="new-password"
+              />
+            </label>
+          )}
+          <p className={styles.entryHint}>
+            {RAID_ROOM_TITLE_POLICY}{" "}
+            若你已在其他房间，创建后会自动离开。地图进房后再选。
+          </p>
+          {createMut.isError ? (
+            <Alert
+              type="error"
+              showIcon
+              message={apiError(createMut.error, "创建房间失败")}
+            />
+          ) : null}
           <button
-            type="button"
-            className={styles.entryModeBtn}
-            onClick={() => {
-              setStep("solo");
-            }}
+            type="submit"
+            className={styles.dockChip}
+            disabled={createBlocked}
           >
-            <span className={styles.entryModeTitle}>单人准备</span>
-            <span className={styles.entryModeHint}>选图后勾选任务，叠点位到地图</span>
+            {createMut.isPending ? "创建中…" : "创建房间"}
           </button>
-          <button
-            type="button"
-            className={styles.entryModeBtn}
-            onClick={() => {
-              if (!loggedIn) {
-                requireAuth();
-                return;
-              }
-              setStep("join");
-            }}
-          >
-            <span className={styles.entryModeTitle}>加入房间</span>
-            <span className={styles.entryModeHint}>
-              当前模式五张公开桌（PVP / PVE 各一套）；房主可设密码，空桌第一人当房主
-            </span>
-          </button>
-        </div>
+        </form>
       ) : null}
 
       {step === "solo" ? (
@@ -218,13 +317,17 @@ export function TarkovRaidPrepEntryModal({
             className={styles.joinForm}
             onSubmit={(event) => {
               event.preventDefault();
+              if (!loggedIn) {
+                requireAuth();
+                return;
+              }
               const parsed = parseRaidRoomPublicId(joinText, gameMode);
               if (!parsed) {
-                setJoinError("粘贴房间链接或当前模式 1～5 号");
+                setJoinError("填写房间码或粘贴房间链接");
                 return;
               }
               setJoinError("");
-              enterRoom(parsed);
+              joinByCodeMut.mutate(parsed);
             }}
           >
             <input
@@ -234,11 +337,15 @@ export function TarkovRaidPrepEntryModal({
                 setJoinText(event.target.value);
                 if (joinError) setJoinError("");
               }}
-              placeholder="粘贴房间链接或当前模式 1～5 号"
-              aria-label="房间链接或房间号"
+              placeholder="填写房间码"
+              aria-label="房间码"
             />
-            <button type="submit" className={styles.dockChip}>
-              打开
+            <button
+              type="submit"
+              className={styles.dockChip}
+              disabled={joinByCodeMut.isPending}
+            >
+              {joinByCodeMut.isPending ? "加入中…" : "加入"}
             </button>
           </form>
           {joinError ? (
@@ -246,7 +353,7 @@ export function TarkovRaidPrepEntryModal({
           ) : null}
           <TarkovRaidSeatBoard
             onEntered={onClose}
-            loginFrom={TARKOV_RAID_PREP_PATH}
+            loginFrom={TARKOV_HOME_PATH}
           />
         </div>
       ) : null}

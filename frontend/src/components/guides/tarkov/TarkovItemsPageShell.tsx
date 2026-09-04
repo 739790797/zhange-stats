@@ -6,8 +6,8 @@ import {
 import styles from "./TarkovItemsPageShell.module.css";
 
 type Props = {
-  /** 当前页标题（面包屑之后） */
-  title: string;
+  /** 当前页标题（面包屑之后）；不传则只留面包屑 */
+  title?: string;
   /** 不含分区根（物品/任务）；会自动前置 */
   crumbs: TarkovCrumb[];
   children: ReactNode;
@@ -42,19 +42,22 @@ export function TarkovItemsPageShell({
     { label: sectionLabel, to: sectionHref },
     ...crumbs,
   ];
+  const showHeader = Boolean(title || subtitle || extra);
 
   return (
     <div className={`${styles.inner}${fill ? ` ${styles.innerFill}` : ""}`}>
       {hideHead ? null : (
         <>
           <TarkovItemsBreadcrumb items={breadcrumbItems} />
-          <div className={styles.headerRow}>
-            <div>
-              <h1 className={styles.title}>{title}</h1>
-              {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+          {showHeader ? (
+            <div className={styles.headerRow}>
+              <div>
+                {title ? <h1 className={styles.title}>{title}</h1> : null}
+                {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+              </div>
+              {extra}
             </div>
-            {extra}
-          </div>
+          ) : null}
         </>
       )}
       {children}

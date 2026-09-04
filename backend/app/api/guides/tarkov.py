@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.guides import tarkov_goons, tarkov_raid_rooms
@@ -30,6 +30,7 @@ from app.api.guides.schemas import (
     TarkovSiteSearchOut,
     TarkovMapCatalogOut,
     TarkovMapDetailOut,
+    TarkovMapLootOut,
     TarkovMapPlaceIn,
     TarkovMapPlaceImportIn,
     TarkovMapPlaceOut,
@@ -54,6 +55,7 @@ from app.api.guides.schemas import (
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
+from app.core.http_cache import catalog_freshness, set_catalog_cache_headers
 from app.core.platform_deps import require_feature
 from app.models.user import User
 from app.services.tarkov import ammo as ammo_svc
@@ -79,6 +81,7 @@ from app.services.tarkov.game_mode import (
     reset_game_mode,
     use_game_mode,
 )
+from app.services.tarkov.upstream import raw_row_header
 
 router = APIRouter(prefix="/tarkov")
 
@@ -100,8 +103,8 @@ async def tarkov_game_mode(
 
 
 router.dependencies.append(Depends(tarkov_game_mode))
-# include 会把当时的父级 deps 拍进子路由；先 include 再 append 的话
-# GET /raid-rooms 吃不到 game_mode，大厅永远按 PVP 五桌返回。
+# include 会把当时的父级 deps 拍进子路由；须先 append 再 include，
+# 否则 GET /raid-rooms 吃不到 game_mode，大厅会按默认 PVP 列公开房。
 router.include_router(tarkov_raid_rooms.router)
 router.include_router(tarkov_goons.router)
 
@@ -122,6 +125,22 @@ def _parse_csv_ids(raw: str | None) -> list[str]:
     if not raw:
         return []
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _raw_synced(row: object) -> str:
+    return raw_row_header(row)[1] or ""  # type: ignore[arg-type]
+
+
+def _catalog_fresh(
+    request: Request,
+    *parts: object,
+) -> tuple[str, Response | None]:
+    return catalog_freshness(request, parse_game_mode(), *parts)
+
+
+def _catalog_ok(response: Response, etag: str, body: object) -> object:
+    set_catalog_cache_headers(response, etag)
+    return body
 
 
 def _sync_items(db: Session) -> dict:
@@ -174,6 +193,8 @@ def guides_tarkov_items_sync(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_item_catalog(
+    request: Request,
+    response: Response,
     category_ids: str | None = None,
     types: str | None = None,
     q: str | None = Query(default=None, max_length=80),
@@ -184,6 +205,22 @@ def guides_tarkov_item_catalog(
 ):
     """手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。"""
     _ = user
+    try:
+        items_svc.ensure_items(db)
+    except items_svc.TarkovItemsError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "items",
+        _raw_synced(items_svc.get_items_raw(db)),
+        category_ids,
+        types,
+        q,
+        page,
+        page_size,
+    )
+    if hit is not None:
+        return hit
     try:
         result = catalog_svc.list_catalog(
             db,
@@ -198,14 +235,18 @@ def guides_tarkov_item_catalog(
         if msg.startswith("请指定"):
             raise HTTPException(status_code=400, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
-    return TarkovCatalogOut(
-        items=[TarkovCatalogItemOut(**row) for row in result["items"]],
-        item_count=int(result.get("item_count") or 0),
-        page=int(result.get("page") or page),
-        page_size=int(result.get("page_size") or page_size),
-        source=result.get("source"),
-        synced_at=result.get("synced_at"),
-        note=result.get("note"),
+    return _catalog_ok(
+        response,
+        etag,
+        TarkovCatalogOut(
+            items=[TarkovCatalogItemOut(**row) for row in result["items"]],
+            item_count=int(result.get("item_count") or 0),
+            page=int(result.get("page") or page),
+            page_size=int(result.get("page_size") or page_size),
+            source=result.get("source"),
+            synced_at=result.get("synced_at"),
+            note=result.get("note"),
+        ),
     )
 
 
@@ -264,6 +305,8 @@ def guides_tarkov_item_detail(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_ammo(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -273,6 +316,10 @@ def guides_tarkov_ammo(
         ammo_svc.ensure_ammo(db)
     except ammo_svc.TarkovAmmoError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    source, synced_at, note = items_svc.items_raw_header(db)
+    etag, hit = _catalog_fresh(request, "ammo", synced_at)
+    if hit is not None:
+        return hit
     packs = catalog_svc.list_ammo_pack_index(db)
     items = [
         TarkovAmmoItemOut(
@@ -295,13 +342,16 @@ def guides_tarkov_ammo(
         )
         for row in ammo_svc.list_ammo(db)
     ]
-    source, synced_at, note = items_svc.items_raw_header(db)
-    return TarkovAmmoCatalogOut(
-        items=items,
-        ammo_count=len(items),
-        source=source,
-        synced_at=synced_at,
-        note=note,
+    return _catalog_ok(
+        response,
+        etag,
+        TarkovAmmoCatalogOut(
+            items=items,
+            ammo_count=len(items),
+            source=source,
+            synced_at=synced_at,
+            note=note,
+        ),
     )
 
 
@@ -365,6 +415,8 @@ def guides_tarkov_ammo_sync(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_guns(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -374,6 +426,10 @@ def guides_tarkov_guns(
         gun_svc.ensure_guns(db)
     except gun_svc.TarkovGunError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    source, synced_at, note = items_svc.items_raw_header(db)
+    etag, hit = _catalog_fresh(request, "guns", synced_at)
+    if hit is not None:
+        return hit
     items = [
         TarkovGunItemOut(
             id=row.item_id,
@@ -393,13 +449,16 @@ def guides_tarkov_guns(
         )
         for row in gun_svc.list_guns(db)
     ]
-    source, synced_at, note = items_svc.items_raw_header(db)
-    return TarkovGunCatalogOut(
-        items=items,
-        gun_count=len(items),
-        source=source,
-        synced_at=synced_at,
-        note=note,
+    return _catalog_ok(
+        response,
+        etag,
+        TarkovGunCatalogOut(
+            items=items,
+            gun_count=len(items),
+            source=source,
+            synced_at=synced_at,
+            note=note,
+        ),
     )
 
 
@@ -455,6 +514,8 @@ def guides_tarkov_tasks_sync(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_task_catalog(
+    request: Request,
+    response: Response,
     q: str | None = Query(default=None, max_length=80),
     trader: str | None = Query(default=None, max_length=64),
     map_slug: str | None = Query(default=None, max_length=64, alias="map"),
@@ -465,6 +526,25 @@ def guides_tarkov_task_catalog(
     user: User = Depends(get_current_user),
 ):
     """任务目录：商人 / 地图 / 关键词过滤。layout=all 时不分页，返回筛选后的全量。"""
+    _ = user
+    try:
+        tasks_svc.ensure_tasks(db)
+    except tasks_svc.TarkovTasksError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "tasks",
+        "trader-en",
+        _raw_synced(tasks_svc.get_tasks_raw(db)),
+        q,
+        trader,
+        map_slug,
+        page,
+        page_size,
+        layout,
+    )
+    if hit is not None:
+        return hit
     try:
         result = tasks_svc.list_tasks(
             db,
@@ -477,7 +557,9 @@ def guides_tarkov_task_catalog(
         )
     except tasks_svc.TarkovTasksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovTaskCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovTaskCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -486,6 +568,8 @@ def guides_tarkov_task_catalog(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_raid_prep(
+    request: Request,
+    response: Response,
     map_slug: str = Query(..., alias="map", max_length=64),
     q: str | None = Query(default=None, max_length=80),
     trader: str | None = Query(default=None, max_length=64),
@@ -496,8 +580,27 @@ def guides_tarkov_raid_prep(
     user: User = Depends(get_current_user),
 ):
     """联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。"""
+    _ = user
     type_list = _parse_csv_ids(types)
     id_list = _parse_csv_ids(ids)[:40]
+    try:
+        tasks_svc.ensure_tasks(db)
+    except tasks_svc.TarkovTasksError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "raid-prep",
+        "trader-en",
+        _raw_synced(tasks_svc.get_tasks_raw(db)),
+        map_slug,
+        q,
+        trader,
+        types,
+        int(geometry),
+        ids,
+    )
+    if hit is not None:
+        return hit
     try:
         result = tasks_svc.list_raid_prep(
             db,
@@ -513,7 +616,9 @@ def guides_tarkov_raid_prep(
         if msg.startswith("地图无效"):
             raise HTTPException(status_code=400, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
-    return TarkovRaidPrepOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovRaidPrepOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -615,16 +720,32 @@ def guides_tarkov_traders_sync(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_trader_catalog(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """商人目录：头像 / 英文 / 中文简称 / 报价数量。"""
+    """商人目录：头像 / 英文名 / 报价数量。"""
     _ = user
+    try:
+        traders_svc.ensure_traders(db)
+    except traders_svc.TarkovTradersError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "traders",
+        "trader-en",
+        _raw_synced(traders_svc.get_traders_raw(db)),
+    )
+    if hit is not None:
+        return hit
     try:
         result = traders_svc.list_traders(db)
     except traders_svc.TarkovTradersError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovTraderCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovTraderCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -692,16 +813,29 @@ def guides_tarkov_bosses_sync(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_boss_catalog(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """BOSS 目录：头像 / 英文名 / 出生地图。"""
     _ = user
     try:
+        bosses_svc.ensure_maps(db)
+    except bosses_svc.TarkovBossesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request, "bosses", maps_svc.maps_cache_token(db)
+    )
+    if hit is not None:
+        return hit
+    try:
         result = bosses_svc.list_bosses(db)
     except bosses_svc.TarkovBossesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovBossCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovBossCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -739,16 +873,28 @@ def _sync_guides(db: Session) -> dict:
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_map_catalog(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """地图目录：时长 / 人数 / 缩略图（读 bosses maps raw）。"""
     _ = user
     try:
+        if maps_svc.get_maps_raw(db) is None:
+            maps_svc.ensure_maps(db)
+    except bosses_svc.TarkovBossesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(request, "maps", maps_svc.maps_cache_token(db))
+    if hit is not None:
+        return hit
+    try:
         result = maps_svc.list_maps(db)
     except bosses_svc.TarkovBossesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovMapCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovMapCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -757,14 +903,43 @@ def guides_tarkov_map_catalog(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_map_detail(
+    request: Request,
+    response: Response,
     map_slug: str,
+    loot_loose: bool = Query(default=False),
+    loot_containers: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """地图详情：撤离点/BOSS/门锁等坐标与底图信息；前端 Leaflet 查看器使用。"""
+    """地图详情：撤离点/BOSS/门锁等坐标与底图信息；散落物/容器默认不下发。"""
     _ = user
     try:
-        detail = maps_svc.get_map_detail(db, map_slug)
+        if maps_svc.get_maps_raw(db) is None:
+            maps_svc.ensure_maps(db)
+    except bosses_svc.TarkovBossesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    try:
+        places_token = places_svc.places_cache_token(db, map_slug)
+    except places_svc.TarkovMapPlacesError:
+        places_token = ""
+    etag, hit = _catalog_fresh(
+        request,
+        "map-detail",
+        map_slug,
+        int(loot_loose),
+        int(loot_containers),
+        maps_svc.maps_cache_token(db),
+        places_token,
+    )
+    if hit is not None:
+        return hit
+    try:
+        detail = maps_svc.get_map_detail(
+            db,
+            map_slug,
+            loot_loose=loot_loose,
+            loot_containers=loot_containers,
+        )
     except bosses_svc.TarkovBossesError as exc:
         msg = str(exc)
         if msg.startswith("未找到地图") or "slug 无效" in msg:
@@ -774,7 +949,53 @@ def guides_tarkov_map_detail(
         detail["places"] = places_svc.list_places(db, map_slug)
     except places_svc.TarkovMapPlacesError as exc:
         raise _places_error(exc) from exc
-    return TarkovMapDetailOut.model_validate(detail)
+    return _catalog_ok(response, etag, TarkovMapDetailOut.model_validate(detail))
+
+
+@router.get(
+    "/maps/{map_slug}/loot",
+    response_model=TarkovMapLootOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_loot(
+    request: Request,
+    response: Response,
+    map_slug: str,
+    loot_loose: bool = Query(default=False),
+    loot_containers: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """地图散落物/容器图层；只解析当前 slug。"""
+    _ = user
+    try:
+        if maps_svc.get_maps_raw(db) is None:
+            maps_svc.ensure_maps(db)
+    except bosses_svc.TarkovBossesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "map-loot",
+        map_slug,
+        int(loot_loose),
+        int(loot_containers),
+        maps_svc.maps_cache_token(db),
+    )
+    if hit is not None:
+        return hit
+    try:
+        layers = maps_svc.get_map_loot_layers(
+            db,
+            map_slug,
+            loot_loose=loot_loose,
+            loot_containers=loot_containers,
+        )
+    except bosses_svc.TarkovBossesError as exc:
+        msg = str(exc)
+        if msg.startswith("未找到地图") or "slug 无效" in msg:
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=502, detail=msg) from exc
+    return _catalog_ok(response, etag, TarkovMapLootOut.model_validate(layers))
 
 
 def _places_error(exc: places_svc.TarkovMapPlacesError) -> HTTPException:
@@ -914,16 +1135,29 @@ def guides_tarkov_guides_sync(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_hideout_catalog(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """藏身处模块与升级材料。"""
     _ = user
     try:
+        guides_svc.ensure_guides(db)
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request, "hideout", "trader-en", guides_svc.guides_cache_token(db)
+    )
+    if hit is not None:
+        return hit
+    try:
         result = guides_svc.list_hideout(db)
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovHideoutCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovHideoutCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -954,6 +1188,8 @@ def guides_tarkov_hideout_detail(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_barter_catalog(
+    request: Request,
+    response: Response,
     q: str | None = Query(default=None, max_length=80),
     trader: str | None = Query(default=None, max_length=64),
     page: int = Query(default=1, ge=1),
@@ -964,12 +1200,30 @@ def guides_tarkov_barter_catalog(
     """商人以物易物。"""
     _ = user
     try:
+        guides_svc.ensure_guides(db)
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "barters",
+        "trader-en",
+        guides_svc.guides_cache_token(db),
+        q,
+        trader,
+        page,
+        page_size,
+    )
+    if hit is not None:
+        return hit
+    try:
         result = guides_svc.list_barters(
             db, trader=trader, q=q, page=page, page_size=page_size
         )
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovBarterCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovBarterCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -978,6 +1232,8 @@ def guides_tarkov_barter_catalog(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_craft_catalog(
+    request: Request,
+    response: Response,
     q: str | None = Query(default=None, max_length=80),
     station: str | None = Query(default=None, max_length=64),
     page: int = Query(default=1, ge=1),
@@ -988,12 +1244,29 @@ def guides_tarkov_craft_catalog(
     """藏身处制作。"""
     _ = user
     try:
+        guides_svc.ensure_guides(db)
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "crafts",
+        guides_svc.guides_cache_token(db),
+        q,
+        station,
+        page,
+        page_size,
+    )
+    if hit is not None:
+        return hit
+    try:
         result = guides_svc.list_crafts(
             db, station=station, q=q, page=page, page_size=page_size
         )
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovCraftCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovCraftCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -1002,6 +1275,8 @@ def guides_tarkov_craft_catalog(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_loot_tiers(
+    request: Request,
+    response: Response,
     q: str | None = Query(default=None, max_length=80),
     tier: str | None = Query(default=None, max_length=8),
     page: int = Query(default=1, ge=1),
@@ -1012,12 +1287,29 @@ def guides_tarkov_loot_tiers(
     """战利品等级：跳蚤每格价分档。"""
     _ = user
     try:
+        items_svc.ensure_items(db)
+    except items_svc.TarkovItemsError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "loot-tiers",
+        _raw_synced(items_svc.get_items_raw(db)),
+        q,
+        tier,
+        page,
+        page_size,
+    )
+    if hit is not None:
+        return hit
+    try:
         result = catalog_svc.list_loot_tiers(
             db, q=q, tier=tier, page=page, page_size=page_size
         )
     except items_svc.TarkovItemsError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovLootTierCatalogOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovLootTierCatalogOut.model_validate(result)
+    )
 
 
 @router.get(
@@ -1026,16 +1318,41 @@ def guides_tarkov_loot_tiers(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_key_packs(
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """钥匙分类速查：门锁 / 入场钥按地图分包；附带用途（任务需要 / 门锁类型）。"""
     _ = user
     try:
+        items_svc.ensure_items(db)
+        if maps_svc.get_maps_raw(db) is None:
+            maps_svc.ensure_maps(db)
+        tasks_svc.ensure_tasks(db)
+    except (
+        items_svc.TarkovItemsError,
+        bosses_svc.TarkovBossesError,
+        tasks_svc.TarkovTasksError,
+    ) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "key-packs",
+        "trader-en",
+        _raw_synced(items_svc.get_items_raw(db)),
+        maps_svc.maps_cache_token(db),
+        _raw_synced(tasks_svc.get_tasks_raw(db)),
+    )
+    if hit is not None:
+        return hit
+    try:
         result = key_packs_svc.list_key_packs(db)
     except key_packs_svc.TarkovKeyPacksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovKeyPacksOut.model_validate(result)
+    return _catalog_ok(
+        response, etag, TarkovKeyPacksOut.model_validate(result)
+    )
 
 
 def _key_owns_error(exc: key_owns_svc.TarkovKeyOwnsError) -> HTTPException:
@@ -1068,6 +1385,7 @@ def guides_tarkov_key_owns_merge(
     """合并写入一批「我有」（本机勾选迁到账号）。"""
     ids = key_owns_svc.merge_owns(db, user, body.item_ids)
     db.commit()
+    rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
 
 

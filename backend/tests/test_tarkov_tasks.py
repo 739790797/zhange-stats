@@ -96,7 +96,7 @@ def test_parse_locale_and_trader_map():
     by_id = {r["id"]: r for r in rows}
     assert by_id["t1"]["name"] == "首秀"
     assert by_id["t1"]["trader_slug"] == "prapor"
-    assert by_id["t1"]["trader_name"] == "Prapor（俄商）"
+    assert by_id["t1"]["trader_name"] == "Prapor"
     assert by_id["t1"]["map_name"] == "塔科夫街区"
     assert by_id["t1"]["objective_count"] == 2
     assert by_id["t1"]["objective_types"] == ["visit", "giveItem"]
@@ -107,6 +107,11 @@ def test_parse_locale_and_trader_map():
     assert by_id["t3"]["trader_slug"] == "therapist"
     assert by_id["t3"]["map_name"] == "海关"
     assert by_id["t3"]["min_trader_level"] == 1
+    assert by_id["t1"]["line_hint"] == ""
+    assert by_id["t1"]["mutex_ids"] == []
+    assert by_id["t1"]["blocked_by"] == []
+    assert by_id["t1"]["prereq_ids"] == ["t2"]
+    assert by_id["t2"]["prereq_ids"] == []
 
 
 def test_garbled_zh_locale_falls_back_to_english_name():
@@ -1153,6 +1158,39 @@ def test_project_detail_kappa_prereqs_and_unlocks():
     assert later is not None
     assert later["task_requirements"][0]["id"] == "t1"
     assert later["task_requirements"][0]["name"] == "首秀"
+    assert detail["dialogue"] == {
+        "description": "",
+        "start": "",
+        "success": "",
+        "fail": "",
+    }
+
+
+def test_project_dialogue_from_locale_message_ids():
+    raw = {
+        "id": "t1",
+        "name": "Debut",
+        "trader": PRAPOR,
+        "descriptionMessageId": "msg-desc",
+        "startMessageId": "msg-start",
+        "successMessageId": "msg-ok",
+        "failMessageId": "msg-fail",
+        "objectives": [],
+    }
+    locale = {
+        "msg-desc": "简介台词",
+        "msg-start description": "接取台词",
+        "msg-ok": "完成台词",
+        "msg-fail": "????",
+    }
+    detail = tasks.project_task_detail(raw, locale)
+    assert detail is not None
+    assert detail["dialogue"] == {
+        "description": "简介台词",
+        "start": "接取台词",
+        "success": "完成台词",
+        "fail": "",
+    }
 
 
 def test_project_objective_structured_fields():

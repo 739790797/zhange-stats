@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { TARKOV_MAPS, TARKOV_TRADERS } from "@/lib/tarkovHomeNav";
+import { TARKOV_MAPS, traderDisplayName } from "@/lib/tarkovHomeNav";
 import {
   orderObjectiveTypes,
   tarkovExitStatusLabel,
@@ -865,13 +865,7 @@ export function traderFilterLabel(
   slug: string,
   apiName: string,
 ): { english: string; chinese: string } {
-  const known = TARKOV_TRADERS.find((item) => item.id === slug);
-  if (known) return { english: known.english, chinese: known.chinese };
-  const match = apiName.match(/^(.*?)\s*[（(](.+?)[）)]\s*$/);
-  if (match) {
-    return { english: match[1].trim(), chinese: match[2].trim() };
-  }
-  return { english: apiName, chinese: "" };
+  return { english: traderDisplayName(slug, apiName), chinese: "" };
 }
 
 /** 与后端 filter_task_rows 对齐；前端单次拉全量后本地筛。 */
@@ -2208,9 +2202,11 @@ function failChipRelatedTask(
 ): RaidPrepFailChipTask | null {
   const name = failChipRelatedTaskName(ref);
   if (!name) return null;
-  const traderName =
+  const traderName = traderDisplayName(
+    String(ref?.trader_slug || "").trim(),
     tarkovReadableName(ref?.trader_name, ref?.trader_id) ||
-    String(ref?.trader_name || "").trim();
+      String(ref?.trader_name || "").trim(),
+  );
   return {
     id: String(ref?.id || name).trim() || name,
     name,
@@ -2230,7 +2226,10 @@ function failChipFallbackText(obj: RaidPrepFailConditionLike): string {
     if (statuses.length) return `不得以${statuses.join("、")}状态离开战局`;
   }
   if (type === "traderStanding") {
-    const trader = failChipRelatedTaskName(obj.trader);
+    const trader = traderDisplayName(
+      String(obj.trader?.slug || "").trim(),
+      failChipRelatedTaskName(obj.trader),
+    );
     if (trader) return `${trader}声望过低则失败`;
   }
   if (type === "shoot") return "任务进行期间禁止击杀指定目标";
@@ -3237,7 +3236,10 @@ export function buildRaidPrepSummary(
       taskId: task.id,
       taskName: displayRaidPrepTaskName(task),
       traderSlug: (task.trader_slug || "").trim(),
-      traderName: (task.trader_name || "").trim(),
+      traderName: traderDisplayName(
+        (task.trader_slug || "").trim(),
+        (task.trader_name || "").trim(),
+      ),
       itemsByType: groupRaidPrepItemsByType(items),
       keys,
       hasMapKeys: collectRaidPrepTaskKeys(task, mapSlug).length > 0,

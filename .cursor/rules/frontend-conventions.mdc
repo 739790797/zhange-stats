@@ -31,7 +31,8 @@ alwaysApply: false
 - **新签到日历**套 `AttendanceCalendarButton`（禁止再复制五份 Modal）
 - **新盒子**先套 `BoxPanelChrome`（禁止复制未绑定 / 加载 / 失败 / 刷新条）；角色卡仍由面板自己画
 - **新扫码绑定**走 `useQrBindSession`（短信/密码/极验仍留 BindPanel；表单走 `PhoneAuthBindTemplate`）
-- **认证未登录页**套 `AuthGuestShell`（登录/注册/找回/验证/安装）
+- **认证未登录页**套 `AuthGuestShell`（登录/注册/找回/验证/安装/**服务条款/隐私说明**）
+- 条款 / 隐私走公开路由 `/legal/terms`、`/legal/privacy`（在 `PrivateRoute` 外）；文案、片尾免责与 ICP 备案号在 `lib/legalDocs.ts`；页脚条款链用 `LegalLinks`，备案号用 `IcpBeianLink`（`AuthGuestShell` / 主布局页脚 / 塔科夫首页）
 - 塔科夫 antd 暗色只走 `TarkovGuideShell` 的 `TarkovThemed` 一层，详情页不要再包 `ConfigProvider`
 - 盒子读库优先；**签到展示**打开页始终 `force` 回源（见 `platform-raw-cache`）
 - 平台积分/代币兑换：页签与任务配置统一称 **「兑换」**（勿写「库洛币兑换」「积分兑换」等）；面板标题用「兑换商城」，货币名仅在余额/消耗文案中出现

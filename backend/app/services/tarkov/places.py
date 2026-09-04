@@ -142,6 +142,22 @@ def place_map_key(slug: str) -> str:
     return VARIANT_PARENT.get(key, key)
 
 
+def places_cache_token(db: Session, slug: str) -> str:
+    """地名条数 / 最大 id / 最近更新，给地图详情 ETag；不序列化整表。"""
+    key = place_map_key(slug)
+    count, max_id, max_updated = (
+        db.query(
+            func.count(TarkovMapPlace.id),
+            func.max(TarkovMapPlace.id),
+            func.max(TarkovMapPlace.updated_at),
+        )
+        .filter(TarkovMapPlace.map_key == key)
+        .one()
+    )
+    updated = max_updated.isoformat() if max_updated else ""
+    return f"{int(count or 0)}:{int(max_id or 0)}:{updated}"
+
+
 def _as_float(raw: Any, label: str) -> float:
     try:
         value = float(raw)

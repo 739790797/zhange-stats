@@ -33,6 +33,7 @@ def get_runtime_health(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> RuntimeHealthOut:
+    """管理端运行时健康：控制面、MySQL、Redis、调度器，以及 APP_ENV / XFF / SMTP。"""
     from app.main import scheduler
 
     running = bool(scheduler.running) if scheduler else False

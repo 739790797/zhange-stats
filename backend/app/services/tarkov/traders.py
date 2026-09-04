@@ -32,19 +32,33 @@ DOWNLOAD_TIMEOUT = 180
 TARKOV_JSON_TRADERS_URL = "https://json.tarkov.dev/regular/traders"
 TARKOV_JSON_TRADERS_LOCALE_URL = "https://json.tarkov.dev/regular/traders_{lang}"
 
-# slug → (英文, 社区简称)
-TRADER_LABELS: dict[str, tuple[str, str]] = {
-    "prapor": ("Prapor", "俄商"),
-    "therapist": ("Therapist", "大妈"),
-    "fence": ("Fence", "黑商"),
-    "skier": ("Skier", "走私客"),
-    "peacekeeper": ("Peacekeeper", "美商"),
-    "mechanic": ("Mechanic", "机械师"),
-    "ragman": ("Ragman", "服装商"),
-    "jaeger": ("Jaeger", "耶格"),
-    "lightkeeper": ("Lightkeeper", "灯塔商人"),
-    "ref": ("Ref", "竞技场裁判"),
-    "btr-driver": ("BTR Driver", "BTR"),
+# slug → 英文展示名。社区昵称只进 search_alias，不进 name / chinese。
+TRADER_LABELS: dict[str, str] = {
+    "prapor": "Prapor",
+    "therapist": "Therapist",
+    "fence": "Fence",
+    "skier": "Skier",
+    "peacekeeper": "Peacekeeper",
+    "mechanic": "Mechanic",
+    "ragman": "Ragman",
+    "jaeger": "Jaeger",
+    "lightkeeper": "Lightkeeper",
+    "ref": "Ref",
+    "btr-driver": "BTR Driver",
+}
+
+TRADER_SEARCH_ALIASES: dict[str, str] = {
+    "prapor": "俄商 售货员",
+    "therapist": "大妈 治疗者 小护士",
+    "fence": "黑商 围栏",
+    "skier": "走私客 滑雪者",
+    "peacekeeper": "美商 维和者",
+    "mechanic": "机械师",
+    "ragman": "服装商 破布",
+    "jaeger": "耶格 猎人",
+    "lightkeeper": "灯塔商人 灯塔看守",
+    "ref": "竞技场裁判 裁判 竞技场",
+    "btr-driver": "BTR 装甲车",
 }
 
 TRADER_WIKI: dict[str, str] = {
@@ -117,17 +131,11 @@ def _id_of(value: Any) -> str:
 
 def _english_name(slug: str, raw_name: str = "") -> str:
     if slug in TRADER_LABELS:
-        return TRADER_LABELS[slug][0]
+        return TRADER_LABELS[slug]
     name = (raw_name or "").strip()
     if name and slug not in name.lower() and "nickname" not in name.lower():
         return name
     return slug.replace("-", " ").title()
-
-
-def _chinese_name(slug: str) -> str:
-    if slug in TRADER_LABELS:
-        return TRADER_LABELS[slug][1]
-    return ""
 
 
 def _traders_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -252,7 +260,6 @@ def project_trader(
     if not slug:
         return None
     english = _english_name(slug, str(raw.get("name") or ""))
-    chinese = _chinese_name(slug)
     desc = str(locale.get(f"{trader_id} Description") or "").strip()
     if trader_id and desc.endswith(" Description") and trader_id in desc:
         desc = ""
@@ -282,8 +289,9 @@ def project_trader(
         "id": trader_id,
         "slug": slug,
         "english": english,
-        "chinese": chinese,
-        "name": f"{english}（{chinese}）" if chinese else english,
+        "chinese": "",
+        "search_alias": TRADER_SEARCH_ALIASES.get(slug, ""),
+        "name": english,
         "description": desc,
         "image_link": str(raw.get("imageLink") or ""),
         "portrait_link": trader_portrait_url(slug),

@@ -52,6 +52,18 @@ export function traderIconUrl(id: string): string {
   return `https://tarkov.dev/images/traders/${id}-icon.jpg`;
 }
 
+const TRADER_NICK_RE = /\s*[（(][^）)]+[）)]\s*$/;
+
+/** 全站商人展示名：英文。旧「Name（昵称）」回退时剥掉括号。 */
+export function traderDisplayName(slug = "", fallback = ""): string {
+  const key = slug.trim();
+  const known = TARKOV_TRADERS.find((item) => item.id === key);
+  if (known?.english) return known.english;
+  const raw = fallback.trim();
+  if (!raw) return key;
+  return raw.replace(TRADER_NICK_RE, "").trim() || raw;
+}
+
 /** tarkov.dev 头像文件名（Goons 用 Knight，邪教徒用祭司）。 */
 const BOSS_PORTRAIT_FILES: Record<string, string> = {
   reshala: "reshala-portrait.webp",
@@ -81,6 +93,11 @@ export type TarkovBossRow = TarkovHomeLink & {
 };
 
 export const TARKOV_HOME_PATH = "/guides/tarkov";
+
+export function isTarkovHomePath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return path === TARKOV_HOME_PATH;
+}
 
 export const MAPS_HREF = "/guides/tarkov/maps";
 export const TARKOV_TRADERS_PATH = "/guides/tarkov/traders";
@@ -281,8 +298,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "prapor",
     english: "Prapor",
-    chinese: "俄商",
-    label: "Prapor（俄商）",
+    chinese: "",
+    label: "Prapor",
     href: tarkovTraderHref("prapor"),
     status: "ready",
     keywords: ["售货员", "俄商"],
@@ -292,8 +309,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "therapist",
     english: "Therapist",
-    chinese: "大妈",
-    label: "Therapist（大妈）",
+    chinese: "",
+    label: "Therapist",
     href: tarkovTraderHref("therapist"),
     status: "ready",
     keywords: ["治疗者", "大妈", "小护士"],
@@ -303,8 +320,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "fence",
     english: "Fence",
-    chinese: "黑商",
-    label: "Fence（黑商）",
+    chinese: "",
+    label: "Fence",
     href: tarkovTraderHref("fence"),
     status: "ready",
     keywords: ["围栏", "黑商"],
@@ -314,8 +331,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "skier",
     english: "Skier",
-    chinese: "走私客",
-    label: "Skier（走私客）",
+    chinese: "",
+    label: "Skier",
     href: tarkovTraderHref("skier"),
     status: "ready",
     keywords: ["滑雪者", "走私客"],
@@ -325,8 +342,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "peacekeeper",
     english: "Peacekeeper",
-    chinese: "美商",
-    label: "Peacekeeper（美商）",
+    chinese: "",
+    label: "Peacekeeper",
     href: tarkovTraderHref("peacekeeper"),
     status: "ready",
     keywords: ["维和者", "美商"],
@@ -336,8 +353,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "mechanic",
     english: "Mechanic",
-    chinese: "机械师",
-    label: "Mechanic（机械师）",
+    chinese: "",
+    label: "Mechanic",
     href: tarkovTraderHref("mechanic"),
     status: "ready",
     keywords: ["机械师"],
@@ -347,8 +364,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "ragman",
     english: "Ragman",
-    chinese: "服装商",
-    label: "Ragman（服装商）",
+    chinese: "",
+    label: "Ragman",
     href: tarkovTraderHref("ragman"),
     status: "ready",
     keywords: ["ragman", "服装商", "破布"],
@@ -358,8 +375,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "jaeger",
     english: "Jaeger",
-    chinese: "耶格",
-    label: "Jaeger（耶格）",
+    chinese: "",
+    label: "Jaeger",
     href: tarkovTraderHref("jaeger"),
     status: "ready",
     keywords: ["猎人", "耶格"],
@@ -369,8 +386,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "lightkeeper",
     english: "Lightkeeper",
-    chinese: "灯塔商人",
-    label: "Lightkeeper（灯塔商人）",
+    chinese: "",
+    label: "Lightkeeper",
     href: tarkovTraderHref("lightkeeper"),
     status: "ready",
     keywords: ["灯塔看守", "灯塔商人"],
@@ -380,8 +397,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "ref",
     english: "Ref",
-    chinese: "竞技场裁判",
-    label: "Ref（竞技场裁判）",
+    chinese: "",
+    label: "Ref",
     href: tarkovTraderHref("ref"),
     status: "ready",
     keywords: ["裁判", "竞技场裁判", "竞技场"],
@@ -391,8 +408,8 @@ export const TARKOV_TRADERS: TarkovTraderCard[] = [
   {
     id: "btr-driver",
     english: "BTR Driver",
-    chinese: "BTR",
-    label: "BTR Driver（BTR）",
+    chinese: "",
+    label: "BTR Driver",
     href: tarkovTraderHref("btr-driver"),
     status: "ready",
     keywords: ["btr", "装甲车"],
@@ -596,7 +613,7 @@ export const TARKOV_ME_NAV: TarkovHomeLink = {
 export const TARKOV_RAID_PREP_NAV: TarkovHomeLink = {
   id: "raid-prep",
   label: "联机大厅",
-  href: TARKOV_RAID_PREP_PATH,
+  href: TARKOV_HOME_PATH,
   status: "ready",
   icon: "⌖",
   keywords: ["raid", "prep", "lobby", "战局", "准备", "联机", "大厅", "任务点位", "房间"],

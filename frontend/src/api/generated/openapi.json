@@ -2585,6 +2585,7 @@
           "settings"
         ],
         "summary": "Get Runtime Health",
+        "description": "管理端运行时健康：控制面、MySQL、Redis、调度器，以及 APP_ENV / XFF / SMTP。",
         "operationId": "get_runtime_health_api_settings_runtime_health_get",
         "responses": {
           "200": {
@@ -7442,7 +7443,140 @@
           "guides"
         ],
         "summary": "List Tarkov Raid Rooms",
+        "description": "分页列出当前模式的公开房间（listed、无密码、仍有人在座）。\n\n限流：每 IP / 每账号 40 次/分钟。私密房不出现；自己的私密房在 `mine`。",
         "operationId": "list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomLobbyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Create Tarkov Raid Room",
+        "operationId": "create_tarkov_raid_room_api_guides_tarkov_raid_rooms_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/raid-rooms/mine": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Get My Tarkov Raid Room",
+        "operationId": "get_my_tarkov_raid_room_api_guides_tarkov_raid_rooms_mine_get",
         "security": [
           {
             "HTTPBearer": []
@@ -7469,7 +7603,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TarkovRaidRoomLobbyOut"
+                  "$ref": "#/components/schemas/TarkovRaidRoomMineOut"
                 }
               }
             }
@@ -7563,6 +7697,7 @@
           "guides"
         ],
         "summary": "Get Tarkov Raid Room",
+        "description": "取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。",
         "operationId": "get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get",
         "security": [
           {
@@ -7623,6 +7758,7 @@
           "guides"
         ],
         "summary": "Join Tarkov Raid Room",
+        "description": "加入房间。有密码须带明文；成功与失败（含密码错误）都计入限流。\n\n限流：每 IP+房间、每账号+房间各 10 次/10 分钟。",
         "operationId": "join_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__join_post",
         "security": [
           {
@@ -10300,7 +10436,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Trader Catalog",
-        "description": "商人目录：头像 / 英文 / 中文简称 / 报价数量。",
+        "description": "商人目录：头像 / 英文名 / 报价数量。",
         "operationId": "guides_tarkov_trader_catalog_api_guides_tarkov_traders_get",
         "security": [
           {
@@ -10688,7 +10824,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Map Detail",
-        "description": "地图详情：撤离点/BOSS/门锁等坐标与底图信息；前端 Leaflet 查看器使用。",
+        "description": "地图详情：撤离点/BOSS/门锁等坐标与底图信息；散落物/容器默认不下发。",
         "operationId": "guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get",
         "security": [
           {
@@ -10703,6 +10839,26 @@
             "schema": {
               "type": "string",
               "title": "Map Slug"
+            }
+          },
+          {
+            "name": "loot_loose",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Loot Loose"
+            }
+          },
+          {
+            "name": "loot_containers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Loot Containers"
             }
           },
           {
@@ -10726,6 +10882,87 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovMapDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/maps/{map_slug}/loot": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Map Loot",
+        "description": "地图散落物/容器图层；只解析当前 slug。",
+        "operationId": "guides_tarkov_map_loot_api_guides_tarkov_maps__map_slug__loot_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Map Slug"
+            }
+          },
+          {
+            "name": "loot_loose",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Loot Loose"
+            }
+          },
+          {
+            "name": "loot_containers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Loot Containers"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovMapLootOut"
                 }
               }
             }
@@ -28206,6 +28443,59 @@
         "type": "object",
         "title": "TarkovMapLootLooseOut"
       },
+      "TarkovMapLootOut": {
+        "properties": {
+          "loot_containers": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapLootContainerOut"
+            },
+            "type": "array",
+            "title": "Loot Containers"
+          },
+          "loot_loose": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovMapLootLooseOut"
+            },
+            "type": "array",
+            "title": "Loot Loose"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapLootOut"
+      },
       "TarkovMapPlaceImportIn": {
         "properties": {
           "items": {
@@ -29206,6 +29496,32 @@
             "type": "array",
             "title": "Objective Types"
           },
+          "line_hint": {
+            "type": "string",
+            "title": "Line Hint",
+            "default": ""
+          },
+          "mutex_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mutex Ids"
+          },
+          "blocked_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocked By"
+          },
+          "prereq_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prereq Ids"
+          },
           "objectives": {
             "items": {
               "$ref": "#/components/schemas/TarkovTaskObjectiveOut"
@@ -29287,6 +29603,52 @@
         },
         "type": "object",
         "title": "TarkovRaidRoomClaimsIn"
+      },
+      "TarkovRaidRoomCreateIn": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "listed": {
+            "type": "boolean",
+            "title": "Listed",
+            "default": true
+          },
+          "game_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Mode"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomCreateIn"
       },
       "TarkovRaidRoomDetailOut": {
         "properties": {
@@ -29628,6 +29990,31 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 10
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "mine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovRaidRoomLobbyItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -29929,6 +30316,22 @@
           "user_id"
         ],
         "title": "TarkovRaidRoomMemberProgressOut"
+      },
+      "TarkovRaidRoomMineOut": {
+        "properties": {
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovRaidRoomLobbyItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidRoomMineOut"
       },
       "TarkovRaidRoomObjectiveDoneOut": {
         "properties": {
@@ -30454,6 +30857,32 @@
             "type": "array",
             "title": "Objective Types"
           },
+          "line_hint": {
+            "type": "string",
+            "title": "Line Hint",
+            "default": ""
+          },
+          "mutex_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mutex Ids"
+          },
+          "blocked_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocked By"
+          },
+          "prereq_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prereq Ids"
+          },
           "source": {
             "anyOf": [
               {
@@ -30552,6 +30981,9 @@
               }
             ],
             "title": "Available Delay Seconds Max"
+          },
+          "dialogue": {
+            "$ref": "#/components/schemas/TarkovTaskDialogueOut"
           }
         },
         "type": "object",
@@ -30560,6 +30992,32 @@
           "name"
         ],
         "title": "TarkovTaskDetailOut"
+      },
+      "TarkovTaskDialogueOut": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "start": {
+            "type": "string",
+            "title": "Start",
+            "default": ""
+          },
+          "success": {
+            "type": "string",
+            "title": "Success",
+            "default": ""
+          },
+          "fail": {
+            "type": "string",
+            "title": "Fail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovTaskDialogueOut"
       },
       "TarkovTaskDonesIn": {
         "properties": {
@@ -30946,6 +31404,32 @@
             },
             "type": "array",
             "title": "Objective Types"
+          },
+          "line_hint": {
+            "type": "string",
+            "title": "Line Hint",
+            "default": ""
+          },
+          "mutex_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mutex Ids"
+          },
+          "blocked_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocked By"
+          },
+          "prereq_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prereq Ids"
           }
         },
         "type": "object",

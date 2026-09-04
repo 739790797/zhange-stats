@@ -11,7 +11,7 @@ export const TARKOV_MAP_FILTER_GROUP_LABELS = {
   hazards: "危险区",
   landmarks: "地名",
   lootLoose: "散落物",
-  screenshot: "截图定位",
+  screenshot: "截图同步",
 } as const;
 
 export const TARKOV_MAP_FILTER_ITEM_LABELS = {

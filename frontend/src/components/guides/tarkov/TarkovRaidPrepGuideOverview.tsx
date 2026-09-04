@@ -24,6 +24,7 @@ import {
 } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
 import { TarkovRaidPrepObjectiveProgress } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { traderDisplayName } from "@/lib/tarkovHomeNav";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 export type RaidPrepGuideTask = {
@@ -178,7 +179,10 @@ export function TarkovRaidPrepGuideOverview({
                     <TarkovRaidPrepObjectiveProgress
                       taskName={displayRaidPrepTaskName(activeTask)}
                       traderSlug={activeTask.trader_slug || ""}
-                      traderName={activeTask.trader_name || ""}
+                      traderName={traderDisplayName(
+                        activeTask.trader_slug || "",
+                        activeTask.trader_name || "",
+                      )}
                       objectives={activeObjectives}
                       otherMapGroups={activeOtherMaps}
                       sequenceGroups={activeSequence}
@@ -234,7 +238,10 @@ export function TarkovRaidPrepGuideOverview({
                           <TarkovTraderThumb
                             slug={row.trader_slug}
                             size={22}
-                            title={row.trader_name || row.trader_slug}
+                            title={traderDisplayName(
+                              row.trader_slug || "",
+                              row.trader_name || row.trader_slug || "",
+                            )}
                           />
                         ) : null}
                         <span

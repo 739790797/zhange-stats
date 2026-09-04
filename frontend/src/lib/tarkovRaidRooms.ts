@@ -1,3 +1,4 @@
+import { formatRequestError } from "@/lib/formatRequestError";
 import { logMapLabel } from "@/lib/tarkovGameLogs";
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
 import {
@@ -8,12 +9,31 @@ import {
   raidPrepMapsEquivalent,
 } from "@/lib/tarkovRaidPrep";
 
+export const RAID_ROOM_TITLE_MAX = 40;
+
+export function defaultRaidRoomTitle(displayName?: string | null): string {
+  const name = (displayName || "").replace(/\n/g, " ").trim() || "房间";
+  const title = `${name}的房间`;
+  return title.length > RAID_ROOM_TITLE_MAX
+    ? title.slice(0, RAID_ROOM_TITLE_MAX)
+    : title;
+}
+
+export function raidRoomJoinNeedsPassword(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = (error as { response?: { status?: number } }).response
+    ?.status;
+  if (status !== 403) return false;
+  return formatRequestError(error, "") === "需要房间密码";
+}
+
 export { tarkovRaidRoomHref, colorForUserId };
 
 export const RAID_ROOM_SLOT_COUNT = 5;
 export const RAID_ROOM_SLOT_IDS = ["1", "2", "3", "4", "5"] as const;
 
 const RAID_ROOM_SLOT_ID_RE = /^(?:pve-)?[1-5]$/i;
+const RAID_ROOM_PUBLIC_ID_RE = /^(?:(?:pve-)?[1-5]|[a-z0-9]{8,16})$/i;
 
 export function raidRoomSlotPublicId(
   slot: number,
@@ -32,7 +52,7 @@ export function raidRoomSlotIdsForMode(gameMode: string = "pvp"): string[] {
   );
 }
 
-/** 按当前模式 1～5 号对齐大厅条目；对不上的桌用占位，不因模式错位整表清空。 */
+/** 按 public_id 对齐大厅条目；缺的用占位补上。 */
 export function mergeRaidLobbySeats<T extends { public_id: string }>(
   items: readonly T[] | null | undefined,
   placeholders: readonly T[],
@@ -62,12 +82,98 @@ export function parseRaidRoomPublicId(
 
 export function normalizeRaidRoomPublicId(raw: string): string {
   const key = (raw || "").trim().toLowerCase();
-  if (RAID_ROOM_SLOT_ID_RE.test(key)) return key;
+  if (!key || key === "solo") return "";
+  if (RAID_ROOM_PUBLIC_ID_RE.test(key)) return key;
   return "";
 }
 
 export function isRaidRoomSlotId(publicId: string): boolean {
   return RAID_ROOM_SLOT_ID_RE.test(publicId);
+}
+
+/** 单人准备的假房间 id：不进大厅席位、不连 WS。 */
+export const SOLO_RAID_ROOM_PUBLIC_ID = "solo";
+
+export function isSoloRaidSession(publicId: string): boolean {
+  return (publicId || "").trim().toLowerCase() === SOLO_RAID_ROOM_PUBLIC_ID;
+}
+
+export function soloRaidActor(user?: {
+  id?: number | null;
+  displayName?: string | null;
+} | null): { userId: number; name: string } {
+  const userId = user?.id && user.id > 0 ? user.id : 0;
+  const name =
+    (user?.displayName || "").trim() || (userId ? `用户${userId}` : "游客");
+  return { userId, name };
+}
+
+type SoloRaidRoomDetailInput = {
+  gameMode: string;
+  mapSlug: string;
+  user?: { id?: number | null; displayName?: string | null } | null;
+  selectedIds?: readonly string[];
+  keyBringIds?: readonly string[];
+  keyOwnIds?: readonly string[];
+  objectiveDones?: readonly { task_id: string; objective_id: string }[];
+};
+
+/** 把单人准备态投影成 1 人房间，供与席位房同一套工作台渲染。 */
+export function buildSoloRaidRoomDetail(opts: SoloRaidRoomDetailInput) {
+  const actor = soloRaidActor(opts.user);
+  const mapSlug = (opts.mapSlug || "").trim();
+  const member = {
+    user_id: actor.userId,
+    display_name: actor.name,
+    is_host: true,
+    in_room: true,
+    online: true,
+  };
+  return {
+    public_id: SOLO_RAID_ROOM_PUBLIC_ID,
+    title: "单人准备",
+    map_slug: mapSlug,
+    game_mode: (opts.gameMode || "pvp").trim() || "pvp",
+    listed: false,
+    has_password: false,
+    host_user_id: actor.userId || null,
+    host_display_name: actor.name,
+    member_count: 1,
+    max_members: 1,
+    is_member: true,
+    is_host: true,
+    can_edit: Boolean(mapSlug),
+    occupants: [member],
+    members: [member],
+    claims: (opts.selectedIds || []).map((task_id) => ({
+      task_id,
+      user_id: actor.userId,
+      display_name: actor.name,
+    })),
+    key_brings: (opts.keyBringIds || []).map((item_id) => ({
+      item_id,
+      user_id: actor.userId,
+      display_name: actor.name,
+    })),
+    key_owns: (opts.keyOwnIds || []).map((item_id) => ({
+      item_id,
+      user_id: actor.userId,
+      display_name: actor.name,
+    })),
+    objective_dones: (opts.objectiveDones || []).map((row) => ({
+      task_id: row.task_id,
+      objective_id: row.objective_id,
+      user_id: actor.userId,
+      display_name: actor.name,
+    })),
+    marks: [] as { id: number; kind: string; x: number; z: number }[],
+    task_progress: [] as {
+      user_id: number;
+      uploaded: boolean;
+      started_count: number;
+    }[],
+    map_overlap: [] as { map_slug: string }[],
+  };
 }
 
 /** WS 断线后指数退避，上限 30 秒。 */
@@ -76,7 +182,7 @@ export function raidRoomWsRetryDelayMs(attempt: number): number {
   return Math.min(30_000, 1000 * 2 ** n);
 }
 
-/** 房间占用心跳：只要这条 WS 还在，服务端就不收座位。 */
+/** 房间占用心跳：只要这条 WS 还在，服务端就不收座位；断线满 2 分钟才踢。 */
 export const RAID_ROOM_WS_PING_MS = 25_000;
 
 export const RAID_ROOM_OTHER_FLOOR_OPACITY = 0.28;
@@ -792,13 +898,23 @@ export function raidRoomLiveSig(
   ].join("|");
 }
 
+export type RaidRoomWsEvent<T extends RaidRoomSnapshotLike = RaidRoomSnapshotLike> = {
+  event?: string;
+  snapshot?: T;
+  online_user_ids?: number[];
+  mark?: RaidRoomMarkLike;
+  mark_id?: number;
+  claims?: RaidRoomClaimLike[];
+  key_brings?: RaidRoomKeyBringLike[];
+  objective_dones?: RaidRoomObjectiveDoneLike[];
+  map_overlap?: RaidRoomMapOverlapLike[];
+  task_progress?: RaidRoomMemberProgressLike[];
+  key_owns?: RaidRoomKeyBringLike[];
+};
+
 export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
   current: T | null,
-  event: {
-    event?: string;
-    snapshot?: T;
-    online_user_ids?: number[];
-  },
+  event: RaidRoomWsEvent<T>,
   userId?: number | null,
 ): (T & { is_host: boolean; is_member: boolean; can_edit: boolean }) | null {
   const online = event.online_user_ids;
@@ -831,8 +947,51 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
     }
     return withRaidRoomViewerFlags(base, userId);
   }
-  if (event.event === "presence" && current) return withPresence(current);
-  return current ? withRaidRoomViewerFlags(current, userId) : null;
+  if (!current) return null;
+  const kind = event.event || "";
+  if (kind === "presence") return withPresence(current);
+  if (kind === "mark_add" && event.mark) {
+    const marks = current.marks || [];
+    if (marks.some((row) => row.id === event.mark?.id)) {
+      return withPresence(current);
+    }
+    return withPresence({ ...current, marks: [...marks, event.mark] });
+  }
+  if (kind === "mark_remove" && event.mark_id != null) {
+    return withPresence({
+      ...current,
+      marks: (current.marks || []).filter((row) => row.id !== event.mark_id),
+    });
+  }
+  if (kind === "board_clear") {
+    return withPresence({ ...current, marks: [] });
+  }
+  if ((kind === "claim_add" || kind === "claim_remove") && event.claims) {
+    return withPresence({ ...current, claims: event.claims });
+  }
+  if (
+    (kind === "key_bring_add" || kind === "key_bring_remove") &&
+    event.key_brings
+  ) {
+    return withPresence({ ...current, key_brings: event.key_brings });
+  }
+  if (
+    (kind === "objective_done_add" || kind === "objective_done_remove") &&
+    event.objective_dones
+  ) {
+    return withPresence({ ...current, objective_dones: event.objective_dones });
+  }
+  if (kind === "task_progress") {
+    return withPresence({
+      ...current,
+      ...(event.map_overlap ? { map_overlap: event.map_overlap } : {}),
+      ...(event.task_progress ? { task_progress: event.task_progress } : {}),
+    });
+  }
+  if (kind === "key_own_change" && Array.isArray(event.key_owns)) {
+    return withPresence({ ...current, key_owns: event.key_owns });
+  }
+  return withPresence(current);
 }
 
 export function roundStrokeCoord(value: number): number {

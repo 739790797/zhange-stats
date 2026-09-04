@@ -369,24 +369,35 @@
   margin-left: auto;
 }
 
-.dockToggle {
-  display: inline-flex;
+.dockEdge {
+  display: flex;
   align-items: center;
-  flex: none;
+  justify-content: center;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 30;
+  width: 18px;
+  height: 56px;
   margin: 0;
-  padding: 0 10px;
-  height: 28px;
-  border: 1px solid #2a2a2a;
-  background: #1a1b14;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 1px solid var(--hb-border, #3a3d30);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  background: var(--hb-panel, #22241a);
   color: var(--hb-muted, #b0ae9a);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
   appearance: none;
 }
 
-.dockEdge {
-  display: none;
+.dockEdge:hover {
+  color: var(--hb-orange, #c8932a);
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  background: #101010;
 }
 
 .bindHint {
@@ -495,37 +506,6 @@
 
   .stage[data-dock="closed"] .dock {
     display: none;
-  }
-
-  .dockEdge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 50%;
-    right: 0;
-    z-index: 30;
-    width: 18px;
-    height: 56px;
-    margin: 0;
-    padding: 0;
-    transform: translateY(-50%);
-    border: 1px solid var(--hb-border, #3a3d30);
-    border-right: none;
-    border-radius: 6px 0 0 6px;
-    background: var(--hb-panel, #22241a);
-    color: var(--hb-muted, #b0ae9a);
-    font: inherit;
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-    appearance: none;
-  }
-
-  .dockEdge:hover {
-    color: var(--hb-orange, #c8932a);
-    border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
-    background: #101010;
   }
 }
 
@@ -1985,6 +1965,33 @@
   gap: 10px;
 }
 
+.entryFieldLabel {
+  margin-bottom: 6px;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.entryKind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.entryKindLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--hb-text, #eee9d6);
+  cursor: pointer;
+}
+
+.entryHint {
+  margin: 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .entryMapGrid {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
@@ -2821,15 +2828,6 @@
 
   .stage[data-dock="open"] .dock {
     transform: none;
-  }
-
-  .dockToggle {
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .dockEdge {
-    display: none;
   }
 }
 

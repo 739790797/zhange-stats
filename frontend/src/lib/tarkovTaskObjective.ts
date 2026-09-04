@@ -285,6 +285,69 @@ export function taskUnlockStatusLabel(status: string): string {
   return status.trim();
 }
 
+/** dump 的商人 LL（loyaltyLevel）；详情页归到「声望要求」，不是 PMC 等级。 */
+export const TARKOV_TRADER_LOYALTY_REQ_TYPES = new Set([
+  "",
+  "level",
+  "loyaltyLevel",
+  "loyalty",
+]);
+
+export const TARKOV_TRADER_STANDING_REQ_TYPES = new Set([
+  "reputation",
+  "standing",
+]);
+
+export function isTaskMutexFailType(type: string | null | undefined): boolean {
+  return (type || "").trim() === "taskStatus";
+}
+
+export type TaskMutexRef = {
+  id: string;
+  name: string;
+  trader_slug: string;
+  trader_name: string;
+  status: string[];
+};
+
+export function collectTaskMutexRows(
+  conditions:
+    | ReadonlyArray<{
+        type?: string | null;
+        status?: string[] | null;
+        tasks?: ReadonlyArray<{
+          id?: string | null;
+          name?: string | null;
+          trader_slug?: string | null;
+          trader_name?: string | null;
+        }> | null;
+      }>
+    | null
+    | undefined,
+): TaskMutexRef[] {
+  const out: TaskMutexRef[] = [];
+  const seen = new Set<string>();
+  for (const row of conditions || []) {
+    if (!isTaskMutexFailType(row.type)) continue;
+    const statuses = (row.status || [])
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+    for (const task of row.tasks || []) {
+      const id = (task.id || "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push({
+        id,
+        name: (task.name || "").trim() || id,
+        trader_slug: (task.trader_slug || "").trim(),
+        trader_name: (task.trader_name || "").trim(),
+        status: statuses,
+      });
+    }
+  }
+  return out;
+}
+
 function joinLabels(values: string[]): string {
   return values.filter(Boolean).join("、");
 }

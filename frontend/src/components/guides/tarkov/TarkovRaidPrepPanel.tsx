@@ -1,6 +1,6 @@
 import { Alert, Spin, message } from "antd";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addTarkovKeyOwn,
@@ -19,12 +19,11 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
-import { tarkovMapHref, TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
   colorForTaskIndex,
-  filterRaidPrepOverlaysForViewer,
   filterRaidPrepRows,
   groupRaidPrepRowsByProgress,
   hydrateRaidPrepCatalogRows,
@@ -56,7 +55,15 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import { mergeRaidPrepOcrSelection } from "@/lib/tarkovRaidPrepOcr";
 import { applyTarkovKeyOwnsCache } from "@/lib/tarkovKeyPacks";
-import { keyOwnsForUser, shouldSuppressLocalPlayerFix } from "@/lib/tarkovRaidRooms";
+import {
+  buildSoloRaidRoomDetail,
+  formatRaidRoomLiveStatus,
+  keyOwnsForUser,
+  overlayRaidRoomLocalPhase,
+  raidRoomLiveStatus,
+  shouldSuppressLocalPlayerFix,
+  SOLO_RAID_ROOM_PUBLIC_ID,
+} from "@/lib/tarkovRaidRooms";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
   formatLogSyncActionLabel,
@@ -78,28 +85,20 @@ import {
   resolveAccountTaskProgress,
   taskProgressQueryData,
 } from "@/lib/tarkovTaskTree";
-import { PanelFallback } from "@/components/RouteFallback";
 import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
 import { TarkovRaidPrepTaskGroups } from "@/components/guides/tarkov/TarkovRaidPrepTaskGroups";
 import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
 import { TarkovRaidPrepGuideOverview } from "@/components/guides/tarkov/TarkovRaidPrepGuideOverview";
-import {
-  TarkovGoonRoomNotice,
-  TarkovGoonSightingHint,
-} from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
+import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
 import { TarkovRaidPrepOcrModal } from "@/components/guides/tarkov/TarkovRaidPrepOcrModal";
 import { TarkovRaidPrepTaskCard } from "@/components/guides/tarkov/TarkovRaidPrepTaskCard";
+import { TarkovRaidMemberStrip } from "@/components/guides/tarkov/TarkovRaidMemberStrip";
+import { TarkovRaidSessionMap } from "@/components/guides/tarkov/TarkovRaidSessionMap";
+import { TarkovRaidWorkspace } from "@/components/guides/tarkov/TarkovRaidWorkspace";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { useAuthStore } from "@/stores/authStore";
-import catalogCss from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
-
-const TarkovMapViewer = lazy(() =>
-  import("@/components/guides/tarkov/TarkovMapViewer").then((m) => ({
-    default: m.TarkovMapViewer,
-  })),
-);
 
 export function TarkovRaidPrepPanel() {
   const gameMode = useTarkovGameMode();
@@ -113,7 +112,6 @@ export function TarkovRaidPrepPanel() {
   const q = (searchParams.get("q") || "").trim();
   const selected = parseCsvParam(searchParams.get("sel"));
   const [keyword, setKeyword] = useState(q);
-  const [entryOpen, setEntryOpen] = useState(!mapId);
   const [changeMapOpen, setChangeMapOpen] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -251,10 +249,6 @@ export function TarkovRaidPrepPanel() {
     next.delete("types");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
-
-  useEffect(() => {
-    setEntryOpen(!mapId);
-  }, [mapId]);
 
   const patchParams = useCallback(
     (mutate: (params: URLSearchParams) => void) => {
@@ -600,13 +594,50 @@ export function TarkovRaidPrepPanel() {
         : [],
     [keyBringIds, me, myName],
   );
-  const overlays = useMemo(
+  const soloRoom = useMemo(
     () =>
-      filterRaidPrepOverlaysForViewer(
-        buildRaidPrepOverlays(overlayTasks, mapId),
-        objDoneView,
-      ),
-    [overlayTasks, mapId, objDoneView],
+      buildSoloRaidRoomDetail({
+        gameMode,
+        mapSlug: mapId,
+        user: me ? { id: me.id, displayName: myName } : null,
+        selectedIds: selected,
+        keyBringIds,
+        keyOwnIds: ownsQuery.data?.item_ids,
+        objectiveDones: objectiveDones?.map((row) => ({
+          task_id: row.task_id,
+          objective_id: row.objective_id,
+        })),
+      }),
+    [
+      gameMode,
+      keyBringIds,
+      mapId,
+      me,
+      myName,
+      objectiveDones,
+      ownsQuery.data?.item_ids,
+      selected,
+    ],
+  );
+  const displayLogPhases = useMemo(
+    () => overlayRaidRoomLocalPhase([], me?.id, lastLogPhase),
+    [lastLogPhase, me?.id],
+  );
+  const phaseByUser = useMemo(() => {
+    const map = new Map<number, (typeof displayLogPhases)[number]>();
+    for (const row of displayLogPhases) map.set(row.userId, row);
+    return map;
+  }, [displayLogPhases]);
+  const roomLiveStatus =
+    lastLogPhase?.kind === "raid_started"
+      ? "in_raid"
+      : raidRoomLiveStatus(
+          me?.id ? [me.id] : [],
+          displayLogPhases,
+        );
+  const overlays = useMemo(
+    () => buildRaidPrepOverlays(overlayTasks, mapId),
+    [overlayTasks, mapId],
   );
   const hideLocalFix = shouldSuppressLocalPlayerFix({
     viewMapId: mapId,
@@ -727,177 +758,134 @@ export function TarkovRaidPrepPanel() {
     openGuide(taskId);
   }, [openGuide]);
 
+  useEffect(() => {
+    if (!mapId) navigate(TARKOV_HOME_PATH, { replace: true });
+  }, [mapId, navigate]);
 
-  if (!mapId) {
-    return (
-      <div className={styles.stagePick}>
-        <h1 className={styles.srOnly}>联机大厅</h1>
-        <TarkovRaidPrepEntryModal
-          open={entryOpen}
-          onClose={() => {
-            setEntryOpen(false);
-            navigate(TARKOV_HOME_PATH);
-          }}
-        />
-      </div>
-    );
-  }
+  if (!mapId) return null;
 
   return (
-    <div className={styles.stage} data-dock={dockOpen ? "open" : "closed"}>
-      <div className={styles.topBar}>
-        <h1 className={styles.srOnly}>联机大厅</h1>
-        <div className={styles.roomId}>
-          <p className={styles.roomTitle}>
-            联机大厅 · {mapLabel}
+    <TarkovRaidWorkspace
+      dockOpen={dockOpen}
+      onToggleDock={() => setDockOpen((open) => !open)}
+      alerts={
+        prepQuery.isError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="任务点位加载失败"
+            description={apiError(prepQuery.error, "任务点位加载失败")}
+          />
+        ) : null
+      }
+      title={soloRoom.title}
+      meta={
+        <>
+          {mapLabel}
+          {mapId ? (
             <TarkovGoonSightingHint mapId={mapId} variant="inline" />
-          </p>
-        </div>
-        <div className={styles.topActions}>
-          <button
-            type="button"
-            className={styles.dockToggle}
-            aria-expanded={dockOpen}
-            aria-controls="tarkov-raid-dock"
-            onClick={() => setDockOpen((open) => !open)}
+          ) : null}
+          {" · "}
+          {soloRoom.member_count}/{soloRoom.max_members}
+          {" · "}
+          <span
+            className={styles.roomLive}
+            data-in-raid={roomLiveStatus === "in_raid" ? "true" : "false"}
           >
-            {dockOpen ? "收起任务" : "任务列表"}
-          </button>
-          <Link className={styles.wiki} to={tarkovMapHref(mapId)}>
-            地图页
-          </Link>
-        </div>
-      </div>
-
-      {prepQuery.isError ? (
-        <Alert
-          type="error"
-          showIcon
-          message="任务点位加载失败"
-          description={apiError(prepQuery.error, "任务点位加载失败")}
+            {formatRaidRoomLiveStatus(roomLiveStatus)}
+          </span>
+        </>
+      }
+      members={
+        <TarkovRaidMemberStrip
+          members={soloRoom.occupants}
+          phaseByUser={phaseByUser}
         />
-      ) : null}
-
-      <div className={styles.workspace}>
-        <div className={styles.mapPane}>
-          <TarkovGoonRoomNotice mapId={mapId} />
+      }
+      topActions={
+        <>
           <button
             type="button"
-            className={styles.dockEdge}
-            aria-expanded={dockOpen}
-            aria-controls="tarkov-raid-dock"
-            onClick={() => setDockOpen((open) => !open)}
+            className={styles.dockChip}
+            onClick={() => setChangeMapOpen(true)}
           >
-            <span className={styles.srOnly}>
-              {dockOpen ? "收起任务栏" : "展开任务栏"}
-            </span>
-            <span aria-hidden>{dockOpen ? "›" : "‹"}</span>
+            更换地图
           </button>
-          <div className={styles.mapFill}>
-            {mapQuery.isLoading ? (
-              <div className={catalogCss.status}>
-                <Spin tip="加载地图…" />
-              </div>
-            ) : mapQuery.isError ? (
-              <Alert
-                type="error"
-                showIcon
-                message="地图加载失败"
-                description={apiError(mapQuery.error, "地图加载失败")}
+        </>
+      }
+      goonMapId={mapId}
+      map={
+        <TarkovRaidSessionMap
+          publicId={SOLO_RAID_ROOM_PUBLIC_ID}
+          mapId={mapId}
+          detail={mapQuery.data}
+          loading={mapQuery.isLoading}
+          error={mapQuery.isError ? mapQuery.error : undefined}
+          questOverlays={overlays}
+          questObjectiveDones={objectiveDones}
+          questSkippedByTask={objDoneView}
+          focusRequest={focusRequest}
+          highlightTaskId={highlightTaskId}
+          suppressLocalFix={hideLocalFix}
+          authorUserId={me?.id || 0}
+          authorDisplayName={myName}
+          members={soloRoom.occupants}
+          onQuestLabelClick={onQuestLabelClick}
+          onQuestCompleteObjective={toggleObjDone}
+          questParticipantsByTask={participantsByTask}
+          lockKeyMode="solo"
+          lockKeyOwns={keyOwns}
+          lockKeyBrings={keyBrings}
+          topRight={
+            <div className={styles.summaryStack}>
+              <TarkovRaidPrepSummary
+                tasks={selectedTasks}
+                mapId={mapId}
+                participantsByTask={participantsByTask}
+                keyOwns={keyOwns}
+                keyBrings={keyBrings}
+                canToggleKeyBring={Boolean(me)}
+                onToggleKeyBring={me ? toggleKeyBring : undefined}
+                canToggleKeyOwn={Boolean(me)}
+                onToggleKeyOwn={me ? toggleKeyOwn : undefined}
+                skippedByTask={objDoneView}
+                doneTaskIds={doneTaskIds}
+                objectiveDones={objectiveDones}
+                currentUserId={me?.id}
+                currentUser={
+                  me
+                    ? {
+                        userId: me.id,
+                        name: myName,
+                      }
+                    : null
+                }
+                onToggleObjective={toggleObjDone}
+                onTitle={openGuide}
               />
-            ) : (
-              <Suspense fallback={<PanelFallback tip="加载地图…" />}>
-                <TarkovMapViewer
-                  slug={mapId}
-                  parentSlug={mapQuery.data?.parent_slug || undefined}
-                  extracts={mapQuery.data?.extracts}
-                  bosses={mapQuery.data?.bosses}
-                  spawns={mapQuery.data?.spawns}
-                  locks={mapQuery.data?.locks}
-                  hazards={mapQuery.data?.hazards}
-                  switches={mapQuery.data?.switches}
-                  stationaryWeapons={mapQuery.data?.stationary_weapons}
-                  btrStops={mapQuery.data?.btr_stops}
-                  lootContainers={mapQuery.data?.loot_containers}
-                  lootLoose={mapQuery.data?.loot_loose}
-                  places={mapQuery.data?.places}
-                  questOverlays={overlays}
-                  focusRequest={focusRequest}
-                  highlightTaskId={highlightTaskId}
-                  authorUserId={me?.id || 0}
-                  authorDisplayName={myName}
-                  suppressLocalFix={hideLocalFix}
-                  fill
-                  onQuestLabelClick={onQuestLabelClick}
-                  onQuestCompleteObjective={toggleObjDone}
-                  questParticipantsByTask={participantsByTask}
-                  lockKeyMode="solo"
-                  lockKeyOwns={keyOwns}
-                  lockKeyBrings={keyBrings}
-                  topRight={
-                    <div className={styles.summaryStack}>
-                      <TarkovRaidPrepSummary
-                        tasks={selectedTasks}
-                        mapId={mapId}
-                        participantsByTask={participantsByTask}
-                        keyOwns={keyOwns}
-                        keyBrings={keyBrings}
-                        canToggleKeyBring={Boolean(me)}
-                        onToggleKeyBring={me ? toggleKeyBring : undefined}
-                        canToggleKeyOwn={Boolean(me)}
-                        onToggleKeyOwn={me ? toggleKeyOwn : undefined}
-                        skippedByTask={objDoneView}
-                        doneTaskIds={doneTaskIds}
-                        objectiveDones={objectiveDones}
-                        currentUserId={me?.id}
-                        currentUser={
-                          me
-                            ? {
-                                userId: me.id,
-                                name: myName,
-                              }
-                            : null
-                        }
-                        onToggleObjective={toggleObjDone}
-                        onTitle={openGuide}
-                      />
-                      <TarkovRaidPrepGuideOverview
-                        open={guideOpen}
-                        onOpenChange={setGuideOpen}
-                        tasks={guideTasks}
-                        mapId={mapId}
-                        activeId={guideTaskId}
-                        onActiveIdChange={setGuideTaskId}
-                        participantsByTask={participantsByTask}
-                        skippedByTask={objDoneView}
-                        doneTaskIds={doneTaskIds}
-                        onToggleObjective={toggleObjDone}
-                      />
-                    </div>
-                  }
-                />
-              </Suspense>
-            )}
-          </div>
-        </div>
-
-        <aside
-          id="tarkov-raid-dock"
-          className={styles.dock}
-          aria-label="任务列表"
-        >
+              <TarkovRaidPrepGuideOverview
+                open={guideOpen}
+                onOpenChange={setGuideOpen}
+                tasks={guideTasks}
+                mapId={mapId}
+                activeId={guideTaskId}
+                onActiveIdChange={setGuideTaskId}
+                participantsByTask={participantsByTask}
+                skippedByTask={objDoneView}
+                doneTaskIds={doneTaskIds}
+                onToggleObjective={toggleObjDone}
+              />
+            </div>
+          }
+        />
+      }
+      dock={
+        <>
           <TarkovRaidPrepFilters
             keyword={keyword}
             onKeyword={setKeyword}
             leading={
               <div className={styles.dockLeadActions}>
-                <button
-                  type="button"
-                  className={styles.changeMapBtn}
-                  onClick={() => setChangeMapOpen(true)}
-                >
-                  更换地图
-                </button>
                 <button
                   type="button"
                   className={styles.changeMapBtn}
@@ -957,9 +945,9 @@ export function TarkovRaidPrepPanel() {
               />
             )}
           </div>
-        </aside>
-      </div>
-
+        </>
+      }
+    >
       <TarkovRaidPrepEntryModal
         open={changeMapOpen}
         step="solo"
@@ -981,6 +969,6 @@ export function TarkovRaidPrepPanel() {
           });
         }}
       />
-    </div>
+    </TarkovRaidWorkspace>
   );
 }

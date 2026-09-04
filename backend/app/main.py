@@ -9,6 +9,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.api import auth, exilium, guides, jobs, kujiequ, members, mihoyo, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
@@ -193,6 +194,8 @@ else:
 app.add_middleware(RequestLogMiddleware)
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
 app.add_middleware(SetupRequiredMiddleware)
+# 最后 add = 最外层：无反代时也能压 JSON；nginx 见到 Content-Encoding 通常不再压。
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 api = APIRouter(prefix="/api")
 api.include_router(setup.router)

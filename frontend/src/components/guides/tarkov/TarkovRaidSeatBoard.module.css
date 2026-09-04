@@ -136,8 +136,43 @@
   text-align: right;
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pagerBtn {
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--hb-border);
+  background: var(--hb-panel);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pagerBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagerMeta {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .error {
   margin: 0;
   color: #d44a4a;
+  font-size: 12px;
+}
+
+.empty {
+  margin: 0;
+  color: var(--hb-muted, #b0ae9a);
   font-size: 12px;
 }

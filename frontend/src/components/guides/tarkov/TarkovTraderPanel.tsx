@@ -228,9 +228,6 @@ export function TarkovTraderPanel({ slug }: Props) {
           <span className={styles.badge}>商人</span>
           <div className={styles.nameRow}>
             <h2 className={styles.name}>{title}</h2>
-            {detail.chinese ? (
-              <span className={styles.chinese}>（{detail.chinese}）</span>
-            ) : null}
             {detail.wiki_link ? (
               <a
                 className={styles.wiki}

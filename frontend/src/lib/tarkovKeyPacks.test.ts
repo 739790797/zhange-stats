@@ -327,7 +327,7 @@ describe("formatKeySourceTags", () => {
       "task",
       "flea",
     ]);
-    expect(tags[0]).toMatchObject({ label: "以物易物", hint: "大妈 1级" });
+    expect(tags[0]).toMatchObject({ label: "以物易物", hint: "Therapist 1级" });
     expect(tags[1].href).toContain("/hideout/intelligence-center");
     expect(tags[2].href).toContain("/tasks/task-1");
     expect(tags[3].hint).toContain("88,000");

@@ -1,5 +1,4 @@
-import { Input, Modal } from "antd";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,40 +8,17 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import {
-  TARKOV_HOME_PATH,
-  tarkovRaidRoomHref,
-} from "@/lib/tarkovHomeNav";
+import { TARKOV_HOME_PATH, tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
 import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
 import { colorForUserId, raidPrepMapOptions } from "@/lib/tarkovRaidPrep";
-import {
-  mergeRaidLobbySeats,
-  raidRoomSlotIdsForMode,
-  raidRoomIsFull,
-} from "@/lib/tarkovRaidRooms";
+import { raidRoomIsFull } from "@/lib/tarkovRaidRooms";
+import { useDocumentHidden, visibleRefetchInterval } from "@/lib/visibleRefetchInterval";
 import { useAuthStore } from "@/stores/authStore";
 import styles from "./TarkovRaidSeatBoard.module.css";
 
 const THUMB_W = 36;
 const THUMB_H = 24;
-
-function emptySeats(gameMode: string): TarkovRaidRoomLobbyItem[] {
-  const mode = gameMode === "pve" ? "pve" : "pvp";
-  return raidRoomSlotIdsForMode(mode).map((id, index) => ({
-    public_id: id,
-    title: `${index + 1}号房`,
-    map_slug: "",
-    game_mode: mode,
-    listed: true,
-    has_password: false,
-    host_user_id: null,
-    host_display_name: "",
-    member_count: 0,
-    max_members: 8,
-    is_member: false,
-    occupants: [],
-  }));
-}
+const PAGE_SIZE = 10;
 
 function SeatThumb({ slug }: { slug: string }) {
   const [broken, setBroken] = useState(false);
@@ -81,38 +57,50 @@ export function TarkovRaidSeatBoard({
     for (const option of mapOptions) map.set(option.id, option.label);
     return map;
   }, [mapOptions]);
-  const [lockTarget, setLockTarget] = useState<TarkovRaidRoomLobbyItem | null>(
-    null,
-  );
-  const [lockPassword, setLockPassword] = useState("");
+  const [page, setPage] = useState(1);
+  const hidden = useDocumentHidden();
+
+  useEffect(() => {
+    setPage(1);
+  }, [gameMode]);
 
   const roomsQuery = useQuery({
-    queryKey: ["guides-tarkov-raid-rooms", "seats", gameMode],
-    queryFn: () => fetchTarkovRaidRooms(gameMode),
+    queryKey: ["guides-tarkov-raid-rooms", "lobby", gameMode, page],
+    queryFn: async () => {
+      const data = await fetchTarkovRaidRooms(gameMode, {
+        page,
+        pageSize: PAGE_SIZE,
+      });
+      queryClient.setQueryData(["guides-tarkov-raid-rooms", "mine"], {
+        item: data.mine ?? null,
+      });
+      return data;
+    },
     enabled: loggedIn,
-    refetchInterval: loggedIn ? 15_000 : false,
+    refetchInterval: loggedIn ? visibleRefetchInterval(15_000, hidden) : false,
     retry: 1,
   });
 
   const joinMut = useMutation({
-    mutationFn: (args: { publicId: string; password?: string }) =>
-      joinTarkovRaidRoom(args.publicId, {
-        gameMode,
-        password: args.password,
-      }),
+    mutationFn: (args: { publicId: string }) =>
+      joinTarkovRaidRoom(args.publicId, { gameMode }),
     onSuccess: (room) => {
-      setLockTarget(null);
-      setLockPassword("");
-      void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-raid-rooms"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["guides-tarkov-raid-rooms"],
+      });
       onEntered?.();
       navigate(tarkovRaidRoomHref(room.public_id));
     },
   });
 
-  const items = useMemo(
-    () => mergeRaidLobbySeats(roomsQuery.data?.items, emptySeats(gameMode)),
-    [gameMode, roomsQuery.data?.items],
-  );
+  const items = roomsQuery.data?.items || [];
+  const total = roomsQuery.data?.total || 0;
+  const pageSize = roomsQuery.data?.page_size || PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   const enterRoom = (publicId: string) => {
     onEntered?.();
@@ -126,17 +114,16 @@ export function TarkovRaidSeatBoard({
     });
   };
 
-  const closeLock = () => {
-    setLockTarget(null);
-    setLockPassword("");
-  };
-
-  const submitLock = () => {
-    if (!lockTarget || !lockPassword.trim()) return;
-    return joinMut.mutateAsync({
-      publicId: lockTarget.public_id,
-      password: lockPassword.trim(),
-    });
+  const clickRoom = (room: TarkovRaidRoomLobbyItem) => {
+    if (!loggedIn) {
+      requireAuth();
+      return;
+    }
+    if (room.is_member) {
+      enterRoom(room.public_id);
+      return;
+    }
+    joinMut.mutate({ publicId: room.public_id });
   };
 
   return (
@@ -149,6 +136,12 @@ export function TarkovRaidSeatBoard({
           {apiError(roomsQuery.error, "房间列表加载失败")}
         </p>
       ) : null}
+      {!roomsQuery.isLoading && loggedIn && items.length === 0 ? (
+        <p className={styles.empty}>暂无公开房间，用房间码加入或自己创建一个</p>
+      ) : null}
+      {!loggedIn ? (
+        <p className={styles.empty}>登录后可查看公开房间</p>
+      ) : null}
       <div className={styles.list}>
         {items.map((room) => {
           const full = raidRoomIsFull(room) && !room.is_member;
@@ -159,40 +152,21 @@ export function TarkovRaidSeatBoard({
           const occupants = room.occupants || [];
           const max = Number(room.max_members) || 8;
           const count = Number(room.member_count) || occupants.length;
-          const locked = Boolean(room.has_password) && !mine;
           return (
             <button
               key={room.public_id}
               type="button"
-              className={`${styles.seat} ${mine ? styles.seatMine : ""} ${
-                room.has_password ? styles.seatLocked : ""
-              }`}
+              className={`${styles.seat} ${mine ? styles.seatMine : ""}`}
               disabled={full || joinMut.isPending}
               onClick={() => {
                 if (full || joinMut.isPending) return;
-                if (!loggedIn) {
-                  requireAuth();
-                  return;
-                }
-                if (room.is_member) {
-                  enterRoom(room.public_id);
-                  return;
-                }
-                if (room.has_password) {
-                  setLockTarget(room);
-                  setLockPassword("");
-                  return;
-                }
-                joinMut.mutate({ publicId: room.public_id });
+                clickRoom(room);
               }}
             >
               <SeatThumb slug={room.map_slug} />
               <span className={styles.identity}>
                 <span className={styles.name}>
-                  {room.title || `${room.public_id}号房`}
-                  {room.has_password ? (
-                    <span className={styles.lockMark}>锁</span>
-                  ) : null}
+                  {room.title || room.host_display_name || "房间"}
                 </span>
                 <span className={styles.map}>
                   {mapLabel || "未选地图"}
@@ -200,7 +174,6 @@ export function TarkovRaidSeatBoard({
                     ? ` · ${String(room.game_mode).toUpperCase()}`
                     : ""}
                   {joining ? " · 加入中…" : full ? " · 已满" : ""}
-                  {locked && !joining && !full ? " · 需密码" : ""}
                 </span>
               </span>
               <span className={styles.tags}>
@@ -221,26 +194,29 @@ export function TarkovRaidSeatBoard({
           );
         })}
       </div>
-      <Modal
-        title={lockTarget ? `加入 ${lockTarget.title || "房间"}` : "输入房间密码"}
-        open={Boolean(lockTarget)}
-        onCancel={closeLock}
-        onOk={submitLock}
-        okText="加入"
-        cancelText="取消"
-        confirmLoading={joinMut.isPending}
-        okButtonProps={{ disabled: !lockPassword.trim() }}
-        destroyOnClose
-      >
-        <Input.Password
-          value={lockPassword}
-          onChange={(event) => setLockPassword(event.target.value)}
-          placeholder="房间密码"
-          maxLength={32}
-          autoFocus
-          onPressEnter={submitLock}
-        />
-      </Modal>
+      {loggedIn && total > pageSize ? (
+        <div className={styles.pager}>
+          <button
+            type="button"
+            className={styles.pagerBtn}
+            disabled={page <= 1 || joinMut.isPending}
+            onClick={() => setPage((n) => Math.max(1, n - 1))}
+          >
+            上一页
+          </button>
+          <span className={styles.pagerMeta}>
+            {page}/{pageCount}
+          </span>
+          <button
+            type="button"
+            className={styles.pagerBtn}
+            disabled={page >= pageCount || joinMut.isPending}
+            onClick={() => setPage((n) => n + 1)}
+          >
+            下一页
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

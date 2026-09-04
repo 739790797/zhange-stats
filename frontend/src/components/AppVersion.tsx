@@ -20,10 +20,13 @@ export function AppVersion({
   light = false,
   hasUpdate = false,
   latestVersion,
+  inline = false,
 }: {
   light?: boolean;
   hasUpdate?: boolean;
   latestVersion?: string;
+  /** 侧栏顶栏等行内排版，不要独占一行居中 */
+  inline?: boolean;
 }) {
   const user = useAuthStore((s) => s.user);
   const { data: version } = useQuery({
@@ -37,7 +40,7 @@ export function AppVersion({
 
   const style = {
     display: "inline-block" as const,
-    textAlign: "center" as const,
+    textAlign: (inline ? "start" : "center") as "start" | "center",
     fontSize: 12,
     color: light ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)",
     userSelect: "none" as const,
@@ -45,14 +48,16 @@ export function AppVersion({
 
   const tip =
     hasUpdate && latestVersion ? `有新版本 v${latestVersion}` : undefined;
+  const wrapStyle = {
+    textDecoration: "none" as const,
+    display: inline ? ("inline-flex" as const) : ("block" as const),
+    alignItems: "center" as const,
+    textAlign: (inline ? "start" : "center") as "start" | "center",
+  };
 
   if (isAdminUser(user)) {
     return (
-      <Link
-        to="/settings/system"
-        style={{ textDecoration: "none", display: "block", textAlign: "center" }}
-        title={tip}
-      >
+      <Link to="/settings/system" style={wrapStyle} title={tip}>
         <Badge dot={hasUpdate} offset={[4, 0]} color="#ff4d4f" title={tip}>
           <Typography.Text style={style}>v{version}</Typography.Text>
         </Badge>
@@ -61,7 +66,7 @@ export function AppVersion({
   }
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={wrapStyle}>
       <Typography.Text style={style}>v{version}</Typography.Text>
     </div>
   );

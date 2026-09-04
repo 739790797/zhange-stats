@@ -289,7 +289,7 @@ def test_build_key_source_index_joins_barter_craft_task_flea() -> None:
     )
     dorm = index["dorm-114"]
     assert dorm["barters"] == [
-        {"trader_slug": "therapist", "trader_name": "大妈", "min_trader_level": 1}
+        {"trader_slug": "therapist", "trader_name": "Therapist", "min_trader_level": 1}
     ]
     assert dorm["crafts"][0]["station_name"] == "情报中心"
     assert [row["id"] for row in dorm["tasks"]] == ["task-1"]

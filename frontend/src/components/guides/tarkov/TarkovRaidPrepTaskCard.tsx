@@ -15,6 +15,7 @@ import {
   type RaidPrepTaskProgressStatus,
 } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { traderDisplayName } from "@/lib/tarkovHomeNav";
 import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -142,7 +143,7 @@ function TarkovRaidPrepTaskCardInner({
           <TarkovTraderThumb
             slug={row.trader_slug}
             size={28}
-            title={row.trader_name || row.trader_slug}
+            title={traderDisplayName(row.trader_slug, row.trader_name || row.trader_slug)}
           />
         ) : null}
       </span>
@@ -152,7 +153,7 @@ function TarkovRaidPrepTaskCardInner({
             taskId={row.id}
             taskName={title}
             traderSlug={row.trader_slug || ""}
-            traderName={row.trader_name || ""}
+            traderName={traderDisplayName(row.trader_slug, row.trader_name || "")}
             taskDone={isDone || status === "done"}
             objectives={objectives}
             otherMapGroups={otherMapGroups}

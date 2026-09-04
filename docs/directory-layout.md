@@ -31,7 +31,7 @@ zhange-stats/
     models/ schemas/ core/
 ```
 
-`components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AuthGuestShell` 等跨平台外壳。
+`components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AuthGuestShell`、`LegalDocView` / `LegalLinks` / `IcpBeianLink` 等跨平台外壳。
 
 `services/` 根上只留横切：`app_updator`、`avatar_store`、`auth_config`、`email*`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`job_runs_prune`、`game_schedule`、`box_role_cache`。
 

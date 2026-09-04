@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  collectTaskMutexRows,
   formatTaskCompare,
   formatTaskDelay,
   formatTaskExtractLines,
@@ -93,6 +94,47 @@ describe("task detail extras", () => {
       "人机 ≥30",
       "目标状态：头部 · 疼痛",
       "配件分类：瞄具",
+    ]);
+  });
+});
+
+describe("collectTaskMutexRows", () => {
+  it("keeps unique taskStatus fail conditions as mutex links", () => {
+    expect(
+      collectTaskMutexRows([
+        {
+          type: "extract",
+          tasks: [{ id: "x", name: "X" }],
+        },
+        {
+          type: "taskStatus",
+          status: ["complete"],
+          tasks: [
+            { id: "curio", name: "好奇心", trader_slug: "skier" },
+            { id: "curio", name: "重复" },
+          ],
+        },
+        {
+          type: "taskStatus",
+          status: ["complete"],
+          tasks: [{ id: "big", name: "大客户", trader_name: "Prapor" }],
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "curio",
+        name: "好奇心",
+        trader_slug: "skier",
+        trader_name: "",
+        status: ["complete"],
+      },
+      {
+        id: "big",
+        name: "大客户",
+        trader_slug: "",
+        trader_name: "Prapor",
+        status: ["complete"],
+      },
     ]);
   });
 });

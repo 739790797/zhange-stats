@@ -9,7 +9,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { TARKOV_TRADERS, tarkovTaskHref } from "@/lib/tarkovHomeNav";
+import { tarkovTaskHref, traderDisplayName } from "@/lib/tarkovHomeNav";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import {
   orderObjectiveTypes,
@@ -20,19 +20,6 @@ import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb"
 import tableStyles from "./TarkovDarkTable.module.css";
 import catalog from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovTasksPanel.module.css";
-
-function traderFilterLabel(slug: string, apiName: string): {
-  english: string;
-  chinese: string;
-} {
-  const known = TARKOV_TRADERS.find((item) => item.id === slug);
-  if (known) return { english: known.english, chinese: known.chinese };
-  const match = apiName.match(/^(.*?)\s*[（(](.+?)[）)]\s*$/);
-  if (match) {
-    return { english: match[1].trim(), chinese: match[2].trim() };
-  }
-  return { english: apiName, chinese: "" };
-}
 
 function factionSuffix(value: string | undefined): string {
   const v = (value || "").trim();
@@ -128,7 +115,7 @@ export function TarkovTasksPanel() {
       ellipsis: true,
       render: (_: unknown, row) => {
         const label = row.name || row.normalized_name || row.id;
-        const traderName = row.trader_name || row.trader_slug;
+        const traderName = traderDisplayName(row.trader_slug, row.trader_name || row.trader_slug);
         return (
           <span className={styles.taskCell}>
             {row.trader_slug ? (
@@ -264,7 +251,7 @@ export function TarkovTasksPanel() {
               全部
             </button>
             {traders.map((item) => {
-              const { english, chinese } = traderFilterLabel(item.slug, item.name);
+              const english = traderDisplayName(item.slug, item.name);
               const selected = trader === item.slug;
               return (
                 <button
@@ -272,14 +259,14 @@ export function TarkovTasksPanel() {
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  aria-label={chinese ? `${english}（${chinese}）` : english}
-                  title={chinese ? `${english}（${chinese}）` : english}
+                  aria-label={english}
+                  title={english}
                   className={`${styles.traderBtn} ${selected ? styles.traderBtnOn : ""}`}
                   onClick={() => setTraderFilter(item.slug)}
                 >
                   <TarkovTraderThumb slug={item.slug} size={40} />
                   <span className={styles.traderCaption}>
-                    {chinese || english}
+                    {english}
                   </span>
                 </button>
               );

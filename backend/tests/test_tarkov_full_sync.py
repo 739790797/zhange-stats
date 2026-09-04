@@ -347,6 +347,48 @@ def test_persist_site_json_writes_eight_raw_tables() -> None:
     assert filled == set(upstream_svc.RAW_MODELS)
 
 
+def test_persist_raw_keeps_synced_at_when_payload_unchanged(monkeypatch) -> None:
+    from datetime import datetime
+
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    ticks = iter(
+        [
+            datetime(2026, 1, 1, 12, 0, 0),
+            datetime(2026, 1, 1, 12, 0, 5),
+            datetime(2026, 1, 1, 12, 0, 10),
+        ]
+    )
+    monkeypatch.setattr(upstream_svc, "now_naive", lambda: next(ticks))
+    db = _RawDb()
+    payload = {"data": {"maps": {"customs": {"normalizedName": "customs"}}}}
+    with game_mode_scope("pvp"):
+        first = upstream_svc.persist_raw(
+            db,
+            "maps",
+            payload,
+            source="json.tarkov.dev",
+            note="first",
+        )
+        second = upstream_svc.persist_raw(
+            db,
+            "maps",
+            payload,
+            source="json.tarkov.dev",
+            note="second",
+        )
+        changed = upstream_svc.persist_raw(
+            db,
+            "maps",
+            {"data": {"maps": {"factory": {"normalizedName": "factory"}}}},
+            source="json.tarkov.dev",
+            note="third",
+        )
+    assert first["synced_at"] == second["synced_at"]
+    assert first["synced_at"] == "2026-01-01T12:00:00"
+    assert changed["synced_at"] == "2026-01-01T12:00:10"
+
+
 def test_persist_site_json_records_upstream_last_modified() -> None:
     from app.services.tarkov.game_mode import game_mode_scope
 

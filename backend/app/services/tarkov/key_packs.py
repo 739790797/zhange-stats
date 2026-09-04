@@ -381,11 +381,11 @@ def group_key_packs(
 def _trader_label(trader_id: str, slug: str, name: str) -> str:
     mapped = TRADER_BY_ID.get(trader_id)
     if mapped:
-        full = mapped[1]
-        if "（" in full and full.endswith("）"):
-            return full.rsplit("（", 1)[1][:-1] or mapped[0]
-        return full
-    return name or slug or trader_id
+        return mapped[1]
+    raw = name or slug or trader_id
+    if "（" in raw and raw.endswith("）"):
+        return raw.rsplit("（", 1)[0].strip() or raw
+    return raw
 
 
 def _task_source_name(row: dict[str, Any]) -> str:

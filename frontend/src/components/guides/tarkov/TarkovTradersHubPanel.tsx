@@ -58,7 +58,6 @@ export function TarkovTradersHubPanel() {
             }}
           />
           <div className={styles.english}>{item.english}</div>
-          {item.chinese ? <div className={styles.zh}>{item.chinese}</div> : null}
           <div className={styles.offers}>
             {item.offer_count ? `${item.offer_count} 条报价` : "无现金报价"}
           </div>

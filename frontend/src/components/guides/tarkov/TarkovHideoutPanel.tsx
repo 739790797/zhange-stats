@@ -14,6 +14,7 @@ import {
   TARKOV_HIDEOUT_PATH,
   tarkovHideoutHref,
   tarkovTraderHref,
+  traderDisplayName,
 } from "@/lib/tarkovHomeNav";
 import { formatDurationSeconds, formatMoney } from "@/lib/tarkovItemFormat";
 import { guideItemFleaCost } from "@/lib/tarkovGuideItemCost";
@@ -205,7 +206,7 @@ function StationBlock({ station }: { station: TarkovHideoutStation }) {
                   <span key={`${req.id}-${req.level}`}>
                     {" · "}
                     <Link to={tarkovTraderHref(req.slug || req.id)}>
-                      {req.name} LL{req.level}
+                      {traderDisplayName(req.slug, req.name)} LL{req.level}
                     </Link>
                   </span>
                 ))}

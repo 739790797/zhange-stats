@@ -48,6 +48,29 @@ def test_pick_hits_matches_task_locale_name():
     assert picked[0]["id"] == "t1"
 
 
+def test_trader_search_alias_matches_community_name():
+    rows = [
+        {
+            "id": "t1",
+            "slug": "therapist",
+            "name": "Therapist",
+            "english": "Therapist",
+            "search_alias": "大妈 治疗者",
+        }
+    ]
+    picked, total = search.pick_hits(
+        rows,
+        "大妈",
+        ("name", "english", "search_alias", "slug", "id"),
+        limit=10,
+    )
+    assert total == 1
+    assert picked[0]["slug"] == "therapist"
+    hit = search._trader_hit(picked[0])
+    assert hit["name"] == "Therapist"
+    assert hit["extra"] == ""
+
+
 def test_boss_search_alias_matches_community_name():
     rows = search._boss_search_rows(
         [{"slug": "reshala", "name": "Reshala", "maps_label": "海关"}]

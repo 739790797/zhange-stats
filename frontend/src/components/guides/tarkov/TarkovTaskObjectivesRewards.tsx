@@ -3,11 +3,11 @@ import { GiftOutlined, UnorderedListOutlined, WarningOutlined } from "@ant-desig
 import { Link } from "react-router-dom";
 import {
   TARKOV_MAPS,
-  TARKOV_TRADERS,
   tarkovHideoutHref,
   tarkovMapHref,
   tarkovTaskHref,
   tarkovTraderHref,
+  traderDisplayName,
 } from "@/lib/tarkovHomeNav";
 import {
   formatTaskCompare,
@@ -27,12 +27,6 @@ type NamedRef = components["schemas"]["TarkovTaskNamedRefOut"];
 type Objective = components["schemas"]["TarkovTaskObjectiveOut"];
 type Rewards = components["schemas"]["TarkovTaskFinishRewardsOut"];
 type FailCondition = components["schemas"]["TarkovTaskFailConditionOut"];
-
-function traderEnglish(slug: string, fallback: string): string {
-  const known = TARKOV_TRADERS.find((item) => item.id === slug);
-  if (known) return known.english;
-  return fallback.replace(/（.+）$/, "").trim() || fallback;
-}
 
 function itemHref(item: NamedRef): string {
   if (item.types?.length) return itemHrefFromTypes(item.id, item.types);
@@ -313,7 +307,7 @@ function ObjectiveRow({ obj }: { obj: Objective }) {
             商人：
             {obj.trader?.slug ? (
               <Link className={styles.inlineLink} to={tarkovTraderHref(obj.trader.slug)}>
-                {traderEnglish(obj.trader.slug, obj.trader.name || obj.trader.id)}
+                {traderDisplayName(obj.trader.slug, obj.trader.name || obj.trader.id)}
                 {obj.trader_level != null ? ` LL${obj.trader_level}` : ""}
               </Link>
             ) : null}
@@ -439,10 +433,10 @@ function RewardsBlock({
                 <span key={`st-${row.id}`}>
                   {row.slug ? (
                     <Link className={styles.inlineLink} to={tarkovTraderHref(row.slug)}>
-                      {traderEnglish(row.slug, row.name || row.id)}
+                      {traderDisplayName(row.slug, row.name || row.id)}
                     </Link>
                   ) : (
-                    traderEnglish(row.slug, row.name || row.id)
+                    traderDisplayName(row.slug, row.name || row.id)
                   )}{" "}
                   {row.standing > 0 ? "+" : ""}
                   {row.standing}
@@ -462,7 +456,7 @@ function RewardsBlock({
                   <span key={row.id || item?.id} className={styles.rewardUnlock}>
                     {trader?.slug ? (
                       <Link className={styles.inlineLink} to={tarkovTraderHref(trader.slug)}>
-                        {traderEnglish(trader.slug, trader.name || trader.id)}
+                        {traderDisplayName(trader.slug, trader.name || trader.id)}
                         {row.level ? ` LL${row.level}` : ""}
                       </Link>
                     ) : null}
@@ -507,7 +501,7 @@ function RewardsBlock({
               {rewards.trader_unlock.map((row) =>
                 row.slug ? (
                   <Link key={row.id} className={styles.inlineLink} to={tarkovTraderHref(row.slug)}>
-                    {traderEnglish(row.slug, row.name || row.id)}
+                    {traderDisplayName(row.slug, row.name || row.id)}
                   </Link>
                 ) : (
                   <span key={row.id}>{namedLabel(row)}</span>

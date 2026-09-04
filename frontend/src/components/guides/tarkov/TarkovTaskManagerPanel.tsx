@@ -9,10 +9,11 @@ import {
   type TarkovTaskListItem,
 } from "@/api/guidesApi";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { TarkovTaskFlowBoard } from "@/components/guides/tarkov/TarkovTaskFlowBoard";
 import { apiError } from "@/lib/apiError";
 import { nowBeijingStamp } from "@/lib/time";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { TARKOV_TRADERS, tarkovTaskHref } from "@/lib/tarkovHomeNav";
+import { tarkovTaskHref, traderDisplayName } from "@/lib/tarkovHomeNav";
 import {
   orderObjectiveTypes,
   tarkovObjectiveTypeLabel,
@@ -28,8 +29,9 @@ import { formatLastQuestSyncLine } from "@/lib/tarkovTaskLogSync";
 import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 import {
   describeTaskMap,
-  factionTaskSuffix,
+  displayTaskProgressName,
   groupTasksByTrader,
+  isWritableTaskStatus,
   keepCatalogTaskProgress,
   loadTaskDoneIds,
   loadTaskObjectivePairs,
@@ -41,41 +43,47 @@ import {
   saveTaskSyncMark,
   setTaskStatus,
   summarizeTaskProgress,
+  taskMatchesQuery,
   taskProgressQueryData,
+  TASK_STATUS_KINDS,
+  TASK_STATUS_LABELS,
   type TaskProgressSummary,
   type TaskStatusKind,
   type TraderTaskGroup,
 } from "@/lib/tarkovTaskTree";
+import {
+  buildTaskForest,
+  countForestTasks,
+  filterTaskForest,
+  loadTaskProgressView,
+  saveTaskProgressView,
+  tarkovFlowTaskAnchor,
+  tarkovFlowTraderAnchor,
+  type TaskProgressView,
+} from "@/lib/tarkovTaskForest";
 import trade from "./TarkovGuideTrade.module.css";
 import taskStyles from "./TarkovTasksPanel.module.css";
 import styles from "./TarkovTaskManagerPanel.module.css";
-
-function traderFilterLabel(slug: string, apiName: string): {
-  english: string;
-  chinese: string;
-} {
-  const known = TARKOV_TRADERS.find((item) => item.id === slug);
-  if (known) return { english: known.english, chinese: known.chinese };
-  const match = apiName.match(/^(.*?)\s*[（(](.+?)[）)]\s*$/);
-  if (match) {
-    return { english: match[1].trim(), chinese: match[2].trim() };
-  }
-  return { english: apiName, chinese: "" };
-}
 
 function requestStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   return (error as { response?: { status?: number } }).response?.status;
 }
 
+const TASK_STATUS_RANK: Record<TaskStatusKind, number> = {
+  active: 0,
+  todo: 1,
+  failed: 2,
+  unreachable: 3,
+  done: 4,
+};
+
 function rankTask(
-  id: string,
+  task: TarkovTaskListItem,
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
 ): number {
-  if (done.has(id)) return 2;
-  if (started.has(id)) return 0;
-  return 1;
+  return TASK_STATUS_RANK[resolveTaskStatus(task.id, done, started, task)];
 }
 
 function sortTasksForBoard(
@@ -84,7 +92,7 @@ function sortTasksForBoard(
   started: ReadonlySet<string>,
 ): TarkovTaskListItem[] {
   return [...items].sort((a, b) => {
-    const diff = rankTask(a.id, done, started) - rankTask(b.id, done, started);
+    const diff = rankTask(a, done, started) - rankTask(b, done, started);
     if (diff !== 0) return diff;
     return (a.name || a.id).localeCompare(b.name || b.id, "zh-CN");
   });
@@ -93,15 +101,17 @@ function sortTasksForBoard(
 function formatBoardMeta(count: TaskProgressSummary, visible: number): string {
   const bits = [`显示 ${visible}`];
   if (count.active) bits.push(`进行中 ${count.active}`);
+  if (count.failed) bits.push(`失败 ${count.failed}`);
+  if (count.unreachable) bits.push(`无法完成 ${count.unreachable}`);
   if (count.completed) bits.push(`已完成 ${count.completed}`);
   return bits.join(" · ");
 }
 
-const TASK_STATUS_OPTIONS: { value: TaskStatusKind; label: string }[] = [
-  { value: "todo", label: "未完成" },
-  { value: "active", label: "进行中" },
-  { value: "done", label: "已完成" },
-];
+const TASK_STATUS_OPTIONS: { value: TaskStatusKind; label: string }[] =
+  TASK_STATUS_KINDS.map((value) => ({
+    value,
+    label: TASK_STATUS_LABELS[value],
+  }));
 
 function collectTypeColumns(items: TarkovTaskListItem[]): string[] {
   const seen = new Set<string>();
@@ -114,74 +124,114 @@ function collectTypeColumns(items: TarkovTaskListItem[]): string[] {
   return orderObjectiveTypes([...seen]);
 }
 
+function statusRowClass(status: TaskStatusKind): string {
+  if (status === "done") return styles.rowDone;
+  if (status === "active") return styles.rowActive;
+  if (status === "failed") return styles.rowFailed;
+  if (status === "unreachable") return styles.rowUnreachable;
+  return "";
+}
+
+function TaskStatusSelect({
+  task,
+  done,
+  started,
+  onSetStatus,
+}: {
+  task: TarkovTaskListItem;
+  done: ReadonlySet<string>;
+  started: ReadonlySet<string>;
+  onSetStatus: (taskId: string, status: TaskStatusKind) => void;
+}) {
+  const label = displayTaskProgressName(task);
+  const status = resolveTaskStatus(task.id, done, started, task);
+  const derived = !isWritableTaskStatus(status);
+  return (
+    <select
+      className={`${styles.statusSelect}${
+        status === "done"
+          ? ` ${styles.statusSelectDone}`
+          : status === "active"
+            ? ` ${styles.statusSelectActive}`
+            : status === "failed"
+              ? ` ${styles.statusSelectFailed}`
+              : status === "unreachable"
+                ? ` ${styles.statusSelectUnreachable}`
+                : ""
+      }`}
+      aria-label={`${label} 状态`}
+      value={status}
+      disabled={derived}
+      onChange={(event) =>
+        onSetStatus(task.id, event.target.value as TaskStatusKind)
+      }
+    >
+      {TASK_STATUS_OPTIONS.map((option) => (
+        <option
+          key={option.value}
+          value={option.value}
+          disabled={
+            !isWritableTaskStatus(option.value) && option.value !== status
+          }
+        >
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TaskMapMark({ task }: { task: TarkovTaskListItem }) {
+  const mapMark = describeTaskMap(task);
+  if (!mapMark) return null;
+  return (
+    <span
+      className={styles.rowMap}
+      title={
+        mapMark.english
+          ? `${mapMark.label}（${mapMark.english}）`
+          : mapMark.label
+      }
+    >
+      <MapGlyph icon={mapMark.icon} />
+      <span>{mapMark.label}</span>
+    </span>
+  );
+}
+
 function TaskRow({
   task,
-  complete,
-  active,
+  done,
+  started,
   onSetStatus,
   typeColumns,
 }: {
   task: TarkovTaskListItem;
-  complete: boolean;
-  active: boolean;
+  done: ReadonlySet<string>;
+  started: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   typeColumns: string[];
 }) {
-  const label = `${task.name || task.id}${factionTaskSuffix(task.faction_name)}`;
-  const status: TaskStatusKind = complete ? "done" : active ? "active" : "todo";
-  const mapMark = describeTaskMap(task);
+  const label = displayTaskProgressName(task);
+  const status = resolveTaskStatus(task.id, done, started, task);
   const typeSet = new Set(orderObjectiveTypes(task.objective_types));
   return (
-    <tr
-      className={`${styles.row} ${
-        status === "done"
-          ? styles.rowDone
-          : status === "active"
-            ? styles.rowActive
-            : ""
-      }`}
-    >
+    <tr className={`${styles.row} ${statusRowClass(status)}`}>
       <td className={styles.cellName}>
         <Link className={styles.name} to={tarkovTaskHref(task.id)}>
           {label}
         </Link>
       </td>
       <td className={styles.cellStatus}>
-        <select
-          className={`${styles.statusSelect}${
-            status === "done"
-              ? ` ${styles.statusSelectDone}`
-              : status === "active"
-                ? ` ${styles.statusSelectActive}`
-                : ""
-          }`}
-          aria-label={`${label} 状态`}
-          value={status}
-          onChange={(event) =>
-            onSetStatus(task.id, event.target.value as TaskStatusKind)
-          }
-        >
-          {TASK_STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <TaskStatusSelect
+          task={task}
+          done={done}
+          started={started}
+          onSetStatus={onSetStatus}
+        />
       </td>
       <td className={styles.cellMap}>
-        {mapMark ? (
-          <span
-            className={styles.rowMap}
-            title={
-              mapMark.english
-                ? `${mapMark.label}（${mapMark.english}）`
-                : mapMark.label
-            }
-          >
-            <MapGlyph icon={mapMark.icon} />
-            <span>{mapMark.label}</span>
-          </span>
-        ) : null}
+        <TaskMapMark task={task} />
       </td>
       {typeColumns.map((type) => (
         <td key={type} className={styles.cellType}>
@@ -229,6 +279,12 @@ export function TarkovTaskManagerPanel() {
   startedIdsRef.current = startedIds;
   const [saving, setSaving] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(() => loadTaskSyncAt(gameMode));
+  const [flowHighlightTrader, setFlowHighlightTrader] = useState("");
+  const [flowHighlightTask, setFlowHighlightTask] = useState("");
+  const [flowVisibleTrader, setFlowVisibleTrader] = useState("");
+  const [progressView, setProgressView] = useState<TaskProgressView>(
+    loadTaskProgressView,
+  );
 
   useEffect(() => {
     setDoneIds(loadTaskDoneIds(gameMode));
@@ -405,9 +461,19 @@ export function TarkovTaskManagerPanel() {
   );
 
   const summary = useMemo(
-    () => summarizeTaskProgress(scopedItems, done, started),
-    [done, scopedItems, started],
+    () =>
+      summarizeTaskProgress(
+        progressView === "tree" ? items : scopedItems,
+        done,
+        started,
+      ),
+    [done, items, progressView, scopedItems, started],
   );
+  const itemById = useMemo(() => {
+    const map = new Map<string, TarkovTaskListItem>();
+    for (const item of items) map.set(item.id, item);
+    return map;
+  }, [items]);
   const groups = useMemo(
     () =>
       groupTasksByTrader(items, traderChips, done, {
@@ -415,6 +481,25 @@ export function TarkovTaskManagerPanel() {
       }).filter((group) => !trader || group.traderSlug === trader),
     [done, items, q, trader, traderChips],
   );
+  const treeBoards = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return groupTasksByTrader(items, traderChips, done, {})
+      .map((group) => {
+        const native = group.items as TarkovTaskListItem[];
+        const built = buildTaskForest(native);
+        const forest = needle
+          ? filterTaskForest(built, (row) => taskMatchesQuery(row, needle))
+          : built;
+        return {
+          traderSlug: group.traderSlug,
+          traderName: group.traderName,
+          forest,
+          count: summarizeTaskProgress(native, done, started),
+          visible: countForestTasks(forest),
+        };
+      })
+      .filter((row) => row.visible > 0);
+  }, [done, items, q, started, traderChips]);
   const typeColumns = useMemo(
     () => collectTypeColumns(scopedItems),
     [scopedItems],
@@ -425,7 +510,7 @@ export function TarkovTaskManagerPanel() {
         const rows = itemsByTrader.get(item.slug) ?? [];
         return {
           item,
-          labels: traderFilterLabel(item.slug, item.name),
+          labels: { english: traderDisplayName(item.slug, item.name) },
           count: summarizeTaskProgress(rows, done, started),
         };
       }),
@@ -439,13 +524,62 @@ export function TarkovTaskManagerPanel() {
     setSearchParams(params, { replace: true });
   };
 
+  const locateFlowTrader = (slug: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (!slug) {
+      params.delete("trader");
+      setSearchParams(params, { replace: true });
+      setFlowHighlightTrader("");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    params.set("trader", slug);
+    setSearchParams(params, { replace: true });
+    window.setTimeout(() => {
+      document
+        .getElementById(tarkovFlowTraderAnchor(slug))
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    setFlowHighlightTrader(slug);
+    window.setTimeout(() => setFlowHighlightTrader(""), 1600);
+  };
+
+  const jumpToFlowTask = (taskId: string) => {
+    const el = document.getElementById(tarkovFlowTaskAnchor(taskId));
+    if (el) {
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
+      setFlowHighlightTask(taskId);
+      window.setTimeout(() => setFlowHighlightTask(""), 1600);
+      return;
+    }
+    const slug = (itemById.get(taskId)?.trader_slug || "").trim();
+    if (slug) locateFlowTrader(slug);
+  };
+
+  const onVisibleTrader = useCallback((slug: string) => {
+    setFlowVisibleTrader(slug);
+  }, []);
+
+  const changeProgressView = (next: TaskProgressView) => {
+    setProgressView(next);
+    saveTaskProgressView(next);
+  };
+
   const changeStatus = (taskId: string, status: TaskStatusKind) => {
+    if (!isWritableTaskStatus(status)) return;
+    const task = items.find((row) => row.id === taskId);
     const current = resolveTaskStatus(
       taskId,
       new Set(doneIdsRef.current),
       new Set(startedIdsRef.current),
+      task,
     );
     if (current === status) return;
+    if (!isWritableTaskStatus(current)) return;
     const next = setTaskStatus(
       doneIdsRef.current,
       startedIdsRef.current,
@@ -522,7 +656,9 @@ export function TarkovTaskManagerPanel() {
     );
   }
 
-  const allOn = !trader;
+  const flowSelected =
+    progressView === "tree" ? flowVisibleTrader || trader : trader;
+  const allOn = !flowSelected;
   const statSegments = (
     [
       {
@@ -545,6 +681,20 @@ export function TarkovTaskManagerPanel() {
         value: summary.incomplete,
         tone: styles.statTodo,
         bar: styles.meterTodo,
+      },
+      {
+        key: "failed",
+        label: "失败",
+        value: summary.failed,
+        tone: styles.statFailed,
+        bar: styles.meterFailed,
+      },
+      {
+        key: "unreachable",
+        label: "无法完成",
+        value: summary.unreachable,
+        tone: styles.statUnreachable,
+        bar: styles.meterUnreachable,
       },
     ] as const
   ).filter((row) => row.value > 0);
@@ -607,6 +757,32 @@ export function TarkovTaskManagerPanel() {
                   <td>
                     <button
                       type="button"
+                      className={`${styles.viewBtn}${
+                        progressView === "list" ? ` ${styles.viewOn}` : ""
+                      }`}
+                      aria-pressed={progressView === "list"}
+                      onClick={() => changeProgressView("list")}
+                    >
+                      列表
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={`${styles.viewBtn}${
+                        progressView === "tree" ? ` ${styles.viewOn}` : ""
+                      }`}
+                      aria-pressed={progressView === "tree"}
+                      onClick={() => changeProgressView("tree")}
+                    >
+                      流程图
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <button
+                      type="button"
                       className={styles.saveBtn}
                       disabled={saving}
                       onClick={saveProgress}
@@ -642,12 +818,16 @@ export function TarkovTaskManagerPanel() {
               role="radio"
               aria-checked={allOn}
               className={`${styles.traderBtn} ${styles.traderAll}${allOn ? ` ${styles.traderOn}` : ""}`}
-              onClick={() => setTraderFilter(null)}
+              onClick={() =>
+                progressView === "tree"
+                  ? locateFlowTrader(null)
+                  : setTraderFilter(null)
+              }
             >
               全部
             </button>
             {traderNav.map(({ item, labels, count }) => {
-              const selected = trader === item.slug;
+              const selected = flowSelected === item.slug;
               const pct = count.total
                 ? Math.round((count.completed / count.total) * 100)
                 : 0;
@@ -657,23 +837,19 @@ export function TarkovTaskManagerPanel() {
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  aria-label={
-                    labels.chinese
-                      ? `${labels.english}（${labels.chinese}）`
-                      : labels.english
-                  }
-                  title={
-                    labels.chinese
-                      ? `${labels.english}（${labels.chinese}）`
-                      : labels.english
-                  }
+                  aria-label={labels.english}
+                  title={labels.english}
                   className={`${styles.traderBtn}${selected ? ` ${styles.traderOn}` : ""}`}
-                  onClick={() => setTraderFilter(item.slug)}
+                  onClick={() =>
+                    progressView === "tree"
+                      ? locateFlowTrader(item.slug)
+                      : setTraderFilter(item.slug)
+                  }
                 >
                   <TarkovTraderThumb slug={item.slug} size={36} />
                   <span className={styles.traderCaption}>
                     <span className={styles.traderName}>
-                      {labels.chinese || labels.english}
+                      {labels.english}
                     </span>
                     <span className={styles.traderMeta}>
                       <span
@@ -697,7 +873,19 @@ export function TarkovTaskManagerPanel() {
         </aside>
 
         <div className={styles.board}>
-          {groups.length ? (
+          {progressView === "tree" ? (
+            <TarkovTaskFlowBoard
+              lanes={treeBoards}
+              done={done}
+              started={started}
+              itemById={itemById}
+              highlightTrader={flowHighlightTrader}
+              highlightTask={flowHighlightTask}
+              onSetStatus={changeStatus}
+              onJumpTask={jumpToFlowTask}
+              onVisibleTrader={onVisibleTrader}
+            />
+          ) : groups.length ? (
             groups.map((group) => (
               <TraderGroup
                 key={group.traderSlug || "none"}
@@ -737,10 +925,8 @@ function TraderGroup({
   typeColumns: string[];
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
-  const labels = traderFilterLabel(group.traderSlug, group.traderName);
-  const title = labels.chinese
-    ? `${labels.english} · ${labels.chinese}`
-    : group.traderName || "未知商人";
+  const title =
+    traderDisplayName(group.traderSlug, group.traderName) || "未知商人";
   const rows = sortTasksForBoard(
     group.items as TarkovTaskListItem[],
     done,
@@ -760,7 +946,7 @@ function TraderGroup({
           <span>{title}</span>
         </span>
         <span className={styles.sectionMeta}>
-          {formatBoardMeta(count, group.items.length)}
+          {formatBoardMeta(count, rows.length)}
         </span>
       </h3>
       <div className={styles.tableWrap}>
@@ -801,8 +987,8 @@ function TraderGroup({
             <TaskRow
               key={item.id}
               task={item}
-              complete={done.has(item.id)}
-              active={started.has(item.id)}
+              done={done}
+              started={started}
               typeColumns={typeColumns}
               onSetStatus={onSetStatus}
             />

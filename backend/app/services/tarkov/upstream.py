@@ -256,28 +256,32 @@ def persist_raw(
     model = raw_model(resource)
     row = load_raw_row(db, resource, lang=lang_key, mode_id=mode_id)
     if row is None:
-        db.add(
-            model(
-                mode_id=mode_id,
-                lang=lang_key,
-                source=source,
-                raw_json=raw_json,
-                synced_at=now,
-                note=note,
-            )
+        row = model(
+            mode_id=mode_id,
+            lang=lang_key,
+            source=source,
+            raw_json=raw_json,
+            synced_at=now,
+            note=note,
         )
-    else:
+        db.add(row)
+    elif row.raw_json != raw_json:
         row.source = source
         row.raw_json = raw_json
         row.synced_at = now
         row.note = note
+    else:
+        # dump 字节没变：保留 synced_at，ETag / 浏览器哈希才不会被空同步打穿。
+        row.source = source
+        row.note = note
     if commit:
         db.commit()
+    synced = row.synced_at.isoformat() if row.synced_at else now.isoformat()
     return {
         "id": resource_key(resource, lang=lang_key or None),
         "ok": True,
         "source": source,
-        "synced_at": now.isoformat(),
+        "synced_at": synced,
         "upstream_at": upstream_at,
         "error": None,
     }

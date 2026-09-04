@@ -2621,13 +2621,13 @@ describe("collectRaidPrepFailChips", () => {
             id: "curio",
             name: "好奇心",
             traderSlug: "prapor",
-            traderName: "Prapor（俄商）",
+            traderName: "Prapor",
           },
           {
             id: "big",
             name: "大客户",
             traderSlug: "skier",
-            traderName: "Skier（走私客）",
+            traderName: "Skier",
           },
         ],
       },
@@ -2653,7 +2653,7 @@ describe("collectRaidPrepFailChips", () => {
     ).toEqual([
       {
         type: "traderStanding",
-        text: "Lightkeeper（灯塔商人）声望过低则失败",
+        text: "Lightkeeper声望过低则失败",
       },
     ]);
   });
@@ -3021,14 +3021,14 @@ describe("raid prep geometry cache", () => {
 });
 
 describe("traderFilterLabel", () => {
-  it("reads known trader nicknames", () => {
+  it("returns english only", () => {
     expect(traderFilterLabel("prapor", "Prapor")).toEqual({
       english: "Prapor",
-      chinese: "俄商",
+      chinese: "",
     });
     expect(traderFilterLabel("unknown", "Skier（滑雪）")).toEqual({
       english: "Skier",
-      chinese: "滑雪",
+      chinese: "",
     });
   });
 });

@@ -34,6 +34,7 @@ import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
 import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
+import { IcpBeianLink } from "@/components/IcpBeianLink";
 import { RouteFallback } from "@/components/RouteFallback";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
@@ -418,6 +419,15 @@ export function AppLayout() {
     saveAppSiderCollapsed(collapsed);
   };
 
+  const versionEl = (
+    <AppVersion
+      light
+      inline
+      hasUpdate={hasAppUpdate}
+      latestVersion={appUpdateQuery.data?.latest_version}
+    />
+  );
+
   const siderInner = (
     <div
       style={{
@@ -427,26 +437,33 @@ export function AppLayout() {
         overflow: "hidden",
       }}
     >
-      <Link
-        to="/"
-        style={{
-          height: 64,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          flexShrink: 0,
-        }}
-      >
-        <BrandLogo size={32} color="#e8b86d" />
-        <Typography.Text
-          strong
-          style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
-        >
-          战鸽数据
-        </Typography.Text>
-      </Link>
+      <div className="app-sider-brand">
+        <div className="app-sider-brand-top">
+          <Link to="/" className="app-sider-brand-link">
+            <BrandLogo size={32} color="#e8b86d" />
+            <Typography.Text
+              strong
+              style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
+            >
+              战鸽数据
+            </Typography.Text>
+          </Link>
+          {versionEl}
+          {isMobile ? null : (
+            <Tooltip title="收起侧栏">
+              <Button
+                type="text"
+                size="small"
+                className="app-sider-brand-toggle"
+                icon={<MenuFoldOutlined />}
+                aria-label="收起侧栏"
+                aria-expanded
+                onClick={() => toggleSider(true)}
+              />
+            </Tooltip>
+          )}
+        </div>
+      </div>
       <Menu
         theme="dark"
         mode="inline"
@@ -470,7 +487,7 @@ export function AppLayout() {
           flexShrink: 0,
         }}
       >
-        <div style={{ padding: "4px 10px 12px" }}>
+        <div style={{ padding: "4px 10px 4px" }}>
           <div
             style={{
               display: "flex",
@@ -524,12 +541,8 @@ export function AppLayout() {
               />
             </Tooltip>
           </div>
-          <div style={{ marginTop: 4, paddingBottom: 2 }}>
-            <AppVersion
-              light
-              hasUpdate={hasAppUpdate}
-              latestVersion={appUpdateQuery.data?.latest_version}
-            />
+          <div className="app-sider-beian">
+            <IcpBeianLink light />
           </div>
         </div>
       </div>
@@ -574,27 +587,6 @@ export function AppLayout() {
           flexDirection: "column",
         }}
       >
-        {isMobile ? null : (
-          <div
-            className={`app-sider-toggle-wrap${
-              siderCollapsed ? " app-sider-toggle-wrap--collapsed" : ""
-            }`}
-          >
-            <Tooltip title={siderCollapsed ? "展开侧栏" : "收起侧栏"}>
-              <Button
-                type="text"
-                size="small"
-                className="app-sider-toggle"
-                icon={
-                  siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
-                }
-                aria-label={siderCollapsed ? "展开侧栏" : "收起侧栏"}
-                aria-expanded={!siderCollapsed}
-                onClick={() => toggleSider(!siderCollapsed)}
-              />
-            </Tooltip>
-          </div>
-        )}
         {isMobile ? (
           <Header
             style={{
@@ -622,10 +614,21 @@ export function AppLayout() {
                 战鸽数据
               </Typography.Text>
             </Link>
+            <AppVersion
+              light
+              inline
+              hasUpdate={hasAppUpdate}
+              latestVersion={appUpdateQuery.data?.latest_version}
+            />
           </Header>
         ) : null}
         <Content
-          className={isTarkovGuide ? "app-main-tarkov" : "app-main-scroll"}
+          className={[
+            isTarkovGuide ? "app-main-tarkov" : "app-main-scroll",
+            !isMobile && siderCollapsed ? "app-main--sider-collapsed" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           style={
             isTarkovGuide
               ? { flex: 1, minHeight: 0, margin: 0, overflow: "hidden" }
@@ -668,7 +671,37 @@ export function AppLayout() {
             </div>
           )}
         </Content>
+        {isMobile || (!siderCollapsed && !isTarkovGuide) ? (
+          <div
+            style={{
+              flexShrink: 0,
+              textAlign: "center",
+              padding: "6px 12px 10px",
+              fontSize: 12,
+              lineHeight: 1.4,
+            }}
+          >
+            <IcpBeianLink
+              style={{ color: token.colorTextTertiary, justifyContent: "center" }}
+            />
+          </div>
+        ) : null}
       </Layout>
+      {isMobile || !siderCollapsed ? null : (
+        <div className="app-sider-edge-slot">
+          <Tooltip title="展开侧栏" placement="right">
+            <Button
+              type="text"
+              size="small"
+              className="app-sider-edge-toggle"
+              icon={<MenuUnfoldOutlined />}
+              aria-label="展开侧栏"
+              aria-expanded={false}
+              onClick={() => toggleSider(false)}
+            />
+          </Tooltip>
+        </div>
+      )}
       <CompleteProfileModal
         open={completeOpen}
         onClose={() => setCompleteOpen(false)}

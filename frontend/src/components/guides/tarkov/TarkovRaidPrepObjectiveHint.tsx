@@ -24,6 +24,7 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
+import { traderDisplayName } from "@/lib/tarkovHomeNav";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 export type TarkovRaidPrepObjectiveProgressProps = {
@@ -135,7 +136,7 @@ function FailChipText({ chip }: { chip: RaidPrepFailChip }) {
                   <TarkovTraderThumb
                     slug={task.traderSlug}
                     size={14}
-                    title={task.traderName || task.traderSlug}
+                    title={traderDisplayName(task.traderSlug, task.traderName)}
                   />
                 </span>
               ) : null}
@@ -290,7 +291,7 @@ export function TarkovRaidPrepObjectiveProgress({
             <TarkovTraderThumb
               slug={slug}
               size={22}
-              title={traderName || slug}
+              title={traderDisplayName(slug, traderName || "")}
             />
           ) : null}
           {title ? <div className={styles.taskObjTitle}>{title}</div> : null}

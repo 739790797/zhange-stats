@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovSiteSearch } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
@@ -8,6 +8,7 @@ import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
   TARKOV_HOME_ITEM_GROUPS,
+  TARKOV_HOME_PATH,
   TARKOV_HOME_TRADERS,
   TARKOV_MAPS,
   buildHomeSearchIndex,
@@ -16,12 +17,21 @@ import {
   type TarkovMapCard,
   type TarkovSiteSearchRow,
 } from "@/lib/tarkovHomeNav";
+import {
+  LEGAL_PRIVACY_PATH,
+  LEGAL_TERMS_PATH,
+  TARKOV_PUBLIC_DISCLAIMER,
+} from "@/lib/legalDocs";
+import { IcpBeianLink } from "@/components/IcpBeianLink";
 import { TarkovHomeToolRail } from "@/components/guides/tarkov/TarkovHomeToolRail";
-import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
-import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
+import {
+  TarkovRaidPrepEntryModal,
+  type RaidPrepEntryStep,
+} from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
 import { sameGoonMap } from "@/lib/tarkovGoonTracker";
 import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
+import { useAuthStore } from "@/stores/authStore";
 import styles from "./TarkovHomeView.module.css";
 
 function SearchIcon() {
@@ -180,9 +190,12 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
 }
 
 export function TarkovHomeView() {
+  const navigate = useNavigate();
   const gameMode = useTarkovGameMode();
+  const loggedIn = Boolean(useAuthStore((s) => s.token));
   const [searchParams, setSearchParams] = useSearchParams();
-  const [soloOpen, setSoloOpen] = useState(false);
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [entryStep, setEntryStep] = useState<RaidPrepEntryStep>("create");
   const committed = (searchParams.get("q") || "").trim();
   const [draft, setDraft] = useState(committed);
   const index = useMemo(() => buildHomeSearchIndex(), []);
@@ -212,6 +225,17 @@ export function TarkovHomeView() {
   };
 
   const waiting = searching && searchQuery.isLoading && !searchQuery.data;
+
+  const openEntry = (step: RaidPrepEntryStep) => {
+    if (!loggedIn) {
+      navigate("/login", {
+        state: { from: { pathname: TARKOV_HOME_PATH } },
+      });
+      return;
+    }
+    setEntryStep(step);
+    setEntryOpen(true);
+  };
 
   return (
     <>
@@ -271,20 +295,23 @@ export function TarkovHomeView() {
           ) : (
             <>
               <section>
-                <SectionHead
-                  title="联机大厅"
-                  en="Lobby"
-                  extra={
-                    <button
-                      type="button"
-                      className={styles.raidSolo}
-                      onClick={() => setSoloOpen(true)}
-                    >
-                      单人准备
-                    </button>
-                  }
-                />
-                <TarkovRaidSeatBoard />
+                <SectionHead title="联机大厅" en="Lobby" />
+                <div className={styles.raidActions}>
+                  <button
+                    type="button"
+                    className={styles.raidAction}
+                    onClick={() => openEntry("create")}
+                  >
+                    <span className={styles.raidActionTitle}>创建房间</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.raidAction}
+                    onClick={() => openEntry("join")}
+                  >
+                    <span className={styles.raidActionTitle}>加入房间</span>
+                  </button>
+                </div>
               </section>
 
               <section>
@@ -343,7 +370,6 @@ export function TarkovHomeView() {
                         decoding="async"
                       />
                       <div className={styles.traderEnglish}>{item.english}</div>
-                      <div className={styles.traderChinese}>{item.chinese}</div>
                     </Link>
                   ))}
                 </div>
@@ -355,25 +381,31 @@ export function TarkovHomeView() {
       </div>
 
       <TarkovRaidPrepEntryModal
-        open={soloOpen}
-        step="solo"
-        onClose={() => setSoloOpen(false)}
+        open={entryOpen}
+        step={entryStep}
+        onClose={() => setEntryOpen(false)}
       />
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
-          <span>非官方第三方 · 数据来源 tarkov.dev</span>
-          <div className={styles.footerLinks}>
-            <a
-              href="https://github.com/739790797/zhange-stats"
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub
-            </a>
-            <a href="https://tarkov.dev" target="_blank" rel="noreferrer">
-              API
-            </a>
+          <p className={styles.footerDisclaimer}>{TARKOV_PUBLIC_DISCLAIMER}</p>
+          <div className={styles.footerRow}>
+            <span>非官方第三方 · 数据来源 tarkov.dev</span>
+            <div className={styles.footerLinks}>
+              <IcpBeianLink />
+              <Link to={LEGAL_TERMS_PATH}>服务条款</Link>
+              <Link to={LEGAL_PRIVACY_PATH}>隐私说明</Link>
+              <a
+                href="https://github.com/739790797/zhange-stats"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+              <a href="https://tarkov.dev" target="_blank" rel="noreferrer">
+                API
+              </a>
+            </div>
           </div>
         </div>
       </footer>

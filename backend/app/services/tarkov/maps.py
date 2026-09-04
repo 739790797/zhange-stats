@@ -1314,6 +1314,8 @@ def _apply_map_markers(
     locale: dict[str, Any] | None = None,
     *,
     overlay: dict[str, dict[str, Any]] | None = None,
+    loot_loose: bool = True,
+    loot_containers: bool = True,
 ) -> None:
     extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
     bosses = row.get("bosses") if isinstance(row.get("bosses"), list) else []
@@ -1343,16 +1345,19 @@ def _apply_map_markers(
     need_btr = _layer_needs_fill(
         row.get("btr_stops") if isinstance(row.get("btr_stops"), list) else []
     )
-    need_containers = _layer_needs_fill(
-        row.get("loot_containers")
-        if isinstance(row.get("loot_containers"), list)
-        else []
-    ) or _containers_need_names(
-        row.get("loot_containers")
-        if isinstance(row.get("loot_containers"), list)
-        else []
+    need_containers = loot_containers and (
+        _layer_needs_fill(
+            row.get("loot_containers")
+            if isinstance(row.get("loot_containers"), list)
+            else []
+        )
+        or _containers_need_names(
+            row.get("loot_containers")
+            if isinstance(row.get("loot_containers"), list)
+            else []
+        )
     )
-    need_loot_loose = _layer_needs_fill(
+    need_loot_loose = loot_loose and _layer_needs_fill(
         row.get("loot_loose") if isinstance(row.get("loot_loose"), list) else []
     )
     if (
@@ -1527,11 +1532,48 @@ def _apply_map_markers(
     )
 
 
-def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def slim_loot_loose_item(item: dict[str, Any]) -> dict[str, Any]:
+    """散落物条目：id + 名称 + handbook（图层筛选）；图标走 CDN，不回 icon_link。"""
+    handbook = item.get("handbook_ids") if isinstance(item.get("handbook_ids"), list) else []
+    return {
+        "id": str(item.get("id") or "").strip(),
+        "name": str(item.get("name") or "").strip(),
+        "short_name": str(item.get("short_name") or "").strip(),
+        "handbook_ids": [
+            str(cid).strip()
+            for cid in handbook
+            if cid is not None and str(cid).strip()
+        ],
+    }
+
+
+def slim_loot_loose_layer(rows: list[Any] | None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        items = [
+            slim_loot_loose_item(item)
+            for item in (row.get("items") or [])
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        ]
+        out.append({**row, "items": items})
+    return out
+
+
+def parse_map_rows(
+    payload: dict[str, Any],
+    *,
+    loot_loose: bool = True,
+    loot_containers: bool = True,
+    only_slugs: set[str] | None = None,
+) -> list[dict[str, Any]]:
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     maps = _maps_blob(payload)
     mobs = _mobs_blob(payload)
-    container_catalog = _loot_containers_blob(payload)
+    container_catalog = (
+        _loot_containers_blob(payload) if loot_containers else {}
+    )
     weapon_catalog = _stationary_weapons_blob(payload)
     slugs = assign_boss_slugs(_spawn_mobs(maps, mobs))
     rows: list[dict[str, Any]] = []
@@ -1541,6 +1583,10 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
         slug = str(raw.get("normalizedName") or key or "").strip()
         if not slug:
             continue
+        if only_slugs is not None:
+            resolved = resolve_map_slug(slug) or slug
+            if slug not in only_slugs and resolved not in only_slugs:
+                continue
         duration = _as_int(raw.get("raidDuration"), 0) or 0
         rows.append(
             {
@@ -1577,14 +1623,22 @@ def parse_map_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     raw.get("btrStops") or raw.get("btr_stops"),
                     locale,
                 ),
-                "loot_containers": _parse_map_loot_containers(
-                    raw.get("lootContainers") or raw.get("loot_containers"),
-                    locale,
-                    container_catalog,
+                "loot_containers": (
+                    _parse_map_loot_containers(
+                        raw.get("lootContainers") or raw.get("loot_containers"),
+                        locale,
+                        container_catalog,
+                    )
+                    if loot_containers
+                    else []
                 ),
-                "loot_loose": _parse_map_loot_loose(
-                    raw.get("lootLoose") or raw.get("loot_loose"),
-                    locale,
+                "loot_loose": (
+                    _parse_map_loot_loose(
+                        raw.get("lootLoose") or raw.get("loot_loose"),
+                        locale,
+                    )
+                    if loot_loose
+                    else []
                 ),
             }
         )
@@ -1609,6 +1663,14 @@ def _find_map(rows: list[dict[str, Any]], slug: str) -> dict[str, Any] | None:
     return None
 
 
+def maps_cache_token(db: Session) -> str:
+    """maps raw 的 synced_at，给图鉴 ETag 用；不解析 dump。"""
+    row = get_maps_raw(db)
+    if row is None or row.synced_at is None:
+        return ""
+    return row.synced_at.isoformat()
+
+
 _HUB_FIELDS = (
     "id",
     "slug",
@@ -1628,7 +1690,7 @@ def list_maps(db: Session) -> dict[str, Any]:
     if get_maps_raw(db) is None:
         ensure_maps(db)
     source, payload, synced_at, note = load_maps_payload(db)
-    rows = parse_map_rows(payload)
+    rows = parse_map_rows(payload, loot_loose=False, loot_containers=False)
     hub = [
         {key: r.get(key) for key in _HUB_FIELDS}
         for r in rows
@@ -1643,14 +1705,61 @@ def list_maps(db: Session) -> dict[str, Any]:
     }
 
 
-def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
+def _attach_map_loot_layers(
+    db: Session,
+    payload: dict[str, Any],
+    row: dict[str, Any],
+    *,
+    loot_loose: bool,
+    loot_containers: bool,
+) -> None:
+    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
+    map_slug = str(row.get("slug") or "")
+    if map_slug and (loot_loose or loot_containers):
+        loot_rows = parse_map_rows(
+            payload,
+            loot_loose=loot_loose,
+            loot_containers=loot_containers,
+            only_slugs={map_slug},
+        )
+        loot_row = _find_map(loot_rows, map_slug)
+        if loot_row is not None:
+            if loot_loose:
+                row["loot_loose"] = loot_row.get("loot_loose") or []
+            if loot_containers:
+                row["loot_containers"] = loot_row.get("loot_containers") or []
+    _apply_map_markers(
+        row,
+        locale,
+        overlay=_markers_from_maps_payload(payload),
+        loot_loose=loot_loose,
+        loot_containers=loot_containers,
+    )
+    if not loot_loose:
+        row["loot_loose"] = []
+    if not loot_containers:
+        row["loot_containers"] = []
+    _enrich_map_item_refs(db, row)
+    if loot_loose:
+        row["loot_loose"] = slim_loot_loose_layer(
+            row.get("loot_loose") if isinstance(row.get("loot_loose"), list) else []
+        )
+
+
+def get_map_detail(
+    db: Session,
+    slug: str,
+    *,
+    loot_loose: bool = False,
+    loot_containers: bool = False,
+) -> dict[str, Any]:
     key = resolve_map_slug(slug)
     if not key:
         raise TarkovBossesError("地图 slug 无效")
     if get_maps_raw(db) is None:
         ensure_maps(db)
     source, payload, synced_at, note = load_maps_payload(db)
-    rows = parse_map_rows(payload)
+    rows = parse_map_rows(payload, loot_loose=False, loot_containers=False)
     row = _find_map(rows, key)
     if row is None:
         raise TarkovBossesError(f"未找到地图: {slug}")
@@ -1665,14 +1774,75 @@ def get_map_detail(db: Session, slug: str) -> dict[str, Any]:
         for v in rows
         if v.get("parent_slug") == parent and v.get("slug") != row.get("slug")
     ]
-    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
-    _apply_map_markers(row, locale, overlay=_markers_from_maps_payload(payload))
+    _attach_map_loot_layers(
+        db,
+        payload,
+        row,
+        loot_loose=loot_loose,
+        loot_containers=loot_containers,
+    )
     locks = row.get("locks") if isinstance(row.get("locks"), list) else []
     _enrich_map_lock_keys(db, locks)
-    _enrich_map_item_refs(db, row)
     return {
         **row,
         "variants": variants,
+        "source": source,
+        "synced_at": synced_at,
+        "note": note,
+    }
+
+
+def get_map_loot_layers(
+    db: Session,
+    slug: str,
+    *,
+    loot_loose: bool = False,
+    loot_containers: bool = False,
+) -> dict[str, Any]:
+    key = resolve_map_slug(slug)
+    if not key:
+        raise TarkovBossesError("地图 slug 无效")
+    if get_maps_raw(db) is None:
+        ensure_maps(db)
+    source, payload, synced_at, note = load_maps_payload(db)
+    empty = {
+        "loot_loose": [],
+        "loot_containers": [],
+        "source": source,
+        "synced_at": synced_at,
+        "note": note,
+    }
+    if not loot_loose and not loot_containers:
+        return empty
+    rows = parse_map_rows(
+        payload,
+        loot_loose=loot_loose,
+        loot_containers=loot_containers,
+        only_slugs={key},
+    )
+    row = _find_map(rows, key)
+    if row is None:
+        raise TarkovBossesError(f"未找到地图: {slug}")
+    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
+    _apply_map_markers(
+        row,
+        locale,
+        overlay=_markers_from_maps_payload(payload),
+        loot_loose=loot_loose,
+        loot_containers=loot_containers,
+    )
+    if not loot_loose:
+        row["loot_loose"] = []
+    if not loot_containers:
+        row["loot_containers"] = []
+    _enrich_map_item_refs(db, row)
+    if loot_loose:
+        row["loot_loose"] = slim_loot_loose_layer(
+            row.get("loot_loose") if isinstance(row.get("loot_loose"), list) else []
+        )
+    return {
+        "loot_loose": row.get("loot_loose") or [],
+        "loot_containers": row.get("loot_containers") or [],
         "source": source,
         "synced_at": synced_at,
         "note": note,

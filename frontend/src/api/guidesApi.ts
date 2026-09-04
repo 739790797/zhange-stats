@@ -206,6 +206,7 @@ export async function fetchTarkovBossDetail(slug: string) {
 export type TarkovMapCatalog = components["schemas"]["TarkovMapCatalogOut"];
 export type TarkovMapListItem = components["schemas"]["TarkovMapListItemOut"];
 export type TarkovMapDetail = components["schemas"]["TarkovMapDetailOut"];
+export type TarkovMapLoot = components["schemas"]["TarkovMapLootOut"];
 export type TarkovMapExtract = components["schemas"]["TarkovMapExtractOut"];
 export type TarkovMapBoss = components["schemas"]["TarkovMapBossOut"];
 export type TarkovMapSpawn = components["schemas"]["TarkovMapSpawnOut"];
@@ -245,10 +246,36 @@ export async function fetchTarkovMaps() {
   return data;
 }
 
-export async function fetchTarkovMapDetail(slug: string) {
+export async function fetchTarkovMapDetail(
+  slug: string,
+  opts?: { lootLoose?: boolean; lootContainers?: boolean },
+) {
   const { data } = await client.get<TarkovMapDetail>(
     `/guides/tarkov/maps/${encodeURIComponent(slug)}`,
-    { timeout: 120_000 },
+    {
+      timeout: 120_000,
+      params: {
+        loot_loose: opts?.lootLoose ?? false,
+        loot_containers: opts?.lootContainers ?? false,
+      },
+    },
+  );
+  return data;
+}
+
+export async function fetchTarkovMapLoot(
+  slug: string,
+  opts?: { lootLoose?: boolean; lootContainers?: boolean },
+) {
+  const { data } = await client.get<TarkovMapLoot>(
+    `/guides/tarkov/maps/${encodeURIComponent(slug)}/loot`,
+    {
+      timeout: 120_000,
+      params: {
+        loot_loose: opts?.lootLoose ?? false,
+        loot_containers: opts?.lootContainers ?? false,
+      },
+    },
   );
   return data;
 }
@@ -544,6 +571,7 @@ export async function importTarkovRaidLogs(raids: TarkovRaidLogImport[]) {
 export type TarkovRaidRoomLobby = components["schemas"]["TarkovRaidRoomLobbyOut"];
 export type TarkovRaidRoomLobbyItem =
   components["schemas"]["TarkovRaidRoomLobbyItemOut"];
+export type TarkovRaidRoomMine = components["schemas"]["TarkovRaidRoomMineOut"];
 export type TarkovRaidRoomDetail =
   components["schemas"]["TarkovRaidRoomDetailOut"];
 export type TarkovRaidRoomMark = components["schemas"]["TarkovRaidRoomMarkOut"];
@@ -555,11 +583,47 @@ export type TarkovRaidRoomObjectiveDone =
 
 const RAID_ROOMS = "/guides/tarkov/raid-rooms";
 
-export async function fetchTarkovRaidRooms(gameMode?: string) {
+export async function fetchTarkovRaidRooms(
+  gameMode?: string,
+  opts?: { page?: number; pageSize?: number },
+) {
   const { data } = await client.get<TarkovRaidRoomLobby>(RAID_ROOMS, {
     timeout: 30_000,
-    params: gameMode ? { game_mode: gameMode } : undefined,
+    params: {
+      ...(gameMode ? { game_mode: gameMode } : {}),
+      ...(opts?.page ? { page: opts.page } : {}),
+      ...(opts?.pageSize ? { page_size: opts.pageSize } : {}),
+    },
   });
+  return data;
+}
+
+export async function fetchTarkovRaidRoomMine() {
+  const { data } = await client.get<TarkovRaidRoomMine>(`${RAID_ROOMS}/mine`, {
+    timeout: 30_000,
+  });
+  return data;
+}
+
+export async function createTarkovRaidRoom(opts?: {
+  title?: string;
+  password?: string;
+  listed?: boolean;
+  gameMode?: string;
+}) {
+  const { data } = await client.post<TarkovRaidRoomDetail>(
+    RAID_ROOMS,
+    {
+      title: opts?.title || undefined,
+      password: opts?.password || undefined,
+      listed: opts?.listed ?? true,
+      game_mode: opts?.gameMode || undefined,
+    },
+    {
+      timeout: 30_000,
+      params: opts?.gameMode ? { game_mode: opts.gameMode } : undefined,
+    },
+  );
   return data;
 }
 

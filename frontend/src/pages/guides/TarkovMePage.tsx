@@ -3,12 +3,7 @@ import { TarkovItemsPageShell } from "@/components/guides/tarkov/TarkovItemsPage
 
 export default function TarkovMePage() {
   return (
-    <TarkovItemsPageShell
-      title="个人中心"
-      crumbs={[]}
-      sectionLabel="个人中心"
-      subtitle="任务勾选、钥匙和本机日志路径都在这里。"
-    >
+    <TarkovItemsPageShell crumbs={[]} sectionLabel="个人中心">
       <TarkovMePanel />
     </TarkovItemsPageShell>
   );

@@ -37,7 +37,7 @@ alwaysApply: false
 - 时间：`app.core.timeutil`（北京墙钟）
 - 密钥：`crypto_secret` Fernet
 - 运行时：`DATA_DIR` / `UPLOAD_DIR` 相对路径相对**安装根**（默认 `var/data`、`var/uploads`），见 `app.core.paths`；勿按 cwd 写进 `backend/` / `frontend/`
-- 限流 + 短时 KV（扫码 / 森空岛 cred）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 `docs/deploy.md`「部署形态」）
+- 限流 + 短时 KV（扫码 / 森空岛 cred / 塔科夫 join 与大厅列表）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 `docs/deploy.md`「部署形态」）
 - 出站 HTTP：`app.core.http_client.http_request`（进程级 httpx）；勿每次新建 `httpx.Client` / `urllib.urlopen`
 - QQ 登录：一次性 ticket，勿把 JWT 放回调 query
 

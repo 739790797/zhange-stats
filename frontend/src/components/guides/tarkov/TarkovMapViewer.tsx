@@ -9,6 +9,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { FullscreenExitOutlined, FullscreenOutlined } from "@ant-design/icons";
 import { Spin } from "antd";
 import {
@@ -22,18 +23,20 @@ import { useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "@/components/guides/tarkov/tarkovFonts.css";
-import type {
-  TarkovMapBoss,
-  TarkovMapBtrStop,
-  TarkovMapExtract,
-  TarkovMapHazard,
-  TarkovMapLock,
-  TarkovMapLootContainer,
-  TarkovMapLootLoose,
-  TarkovMapSpawn,
-  TarkovMapStationaryWeapon,
-  TarkovMapSwitch,
+import {
+  fetchTarkovMapLoot,
+  type TarkovMapBoss,
+  type TarkovMapBtrStop,
+  type TarkovMapExtract,
+  type TarkovMapHazard,
+  type TarkovMapLock,
+  type TarkovMapLootContainer,
+  type TarkovMapLootLoose,
+  type TarkovMapSpawn,
+  type TarkovMapStationaryWeapon,
+  type TarkovMapSwitch,
 } from "@/api/guidesApi";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { TarkovMapCanvasMarkerLayer } from "@/lib/tarkovMapCanvasMarkerLayer";
 import {
   isCanvasMarkerEvent,
@@ -1788,8 +1791,8 @@ export function TarkovMapViewer({
   switches = [],
   stationaryWeapons = [],
   btrStops = [],
-  lootContainers = [],
-  lootLoose = [],
+  lootContainers: lootContainersProp = [],
+  lootLoose: lootLooseProp = [],
   questOverlays = [],
   fill = false,
   className = "",
@@ -2008,6 +2011,31 @@ export function TarkovMapViewer({
     lootContainerKinds,
     lootLooseKinds,
   } = overlay;
+  const gameMode = useTarkovGameMode();
+  const lootQuery = useQuery({
+    queryKey: [
+      "guides-tarkov-map",
+      gameMode,
+      slug,
+      "loot",
+      showLootLoose,
+      showLootContainers,
+    ],
+    queryFn: () =>
+      fetchTarkovMapLoot(slug, {
+        lootLoose: showLootLoose,
+        lootContainers: showLootContainers,
+      }),
+    enabled:
+      Boolean(slug) &&
+      overlayMode !== "boss-spawns" &&
+      (showLootLoose || showLootContainers),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    retry: 1,
+  });
+  const lootContainers = lootQuery.data?.loot_containers ?? lootContainersProp;
+  const lootLoose = lootQuery.data?.loot_loose ?? lootLooseProp;
   const navigate = useNavigate();
   const onLockClickRef = useRef<(keyId: string) => void>(() => {});
   onLockClickRef.current = (keyId) => {
@@ -3737,6 +3765,20 @@ export function TarkovMapViewer({
                 ) : null}
               </div>
               ) : null}
+              {lootQuery.isError && (showLootLoose || showLootContainers) ? (
+                <p className={styles.filterError} role="alert">
+                  <span>
+                    {apiError(lootQuery.error, "散落物图层加载失败")}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.filterErrorRetry}
+                    onClick={() => void lootQuery.refetch()}
+                  >
+                    重试
+                  </button>
+                </p>
+              ) : null}
               {hasQuestFilters ? (
                 <>
                   {hasMapLayerFilters ? (
@@ -3824,10 +3866,10 @@ export function TarkovMapViewer({
                       <span className={styles.filterRow}>
                         <span className={styles.playerStatus}>
                           {shotWatch.fix
-                            ? "截图定位中"
+                            ? "正在把你的位置同步给队友"
                             : shotWatch.lastFileName
                               ? "截图无坐标，请在战局里用游戏截图键"
-                              : "战局里按游戏截图键定位"}
+                              : "战局里按游戏截图键，把位置同步给队友"}
                         </span>
                       </span>
                     ) : (

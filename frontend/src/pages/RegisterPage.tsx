@@ -1,9 +1,11 @@
-import { Alert, Button, Form, Input, Space, message } from "antd";
+import { Alert, Button, Checkbox, Form, Input, Space, message } from "antd";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { fetchMe, register, sendRegisterCode } from "@/api/client";
 import { apiError } from "@/lib/apiError";
 import { AuthGuestShell } from "@/components/AuthGuestShell";
+import { LegalLinks } from "@/components/LegalLinks";
+import { LEGAL_PRIVACY_PATH, LEGAL_TERMS_PATH } from "@/lib/legalDocs";
 import { QqLoginButton } from "@/components/QqLoginButton";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -159,6 +161,27 @@ export default function RegisterPage() {
           >
             <Input.Password size="large" autoComplete="new-password" />
           </Form.Item>
+          <Form.Item
+            name="agree"
+            valuePropName="checked"
+            rules={[
+              {
+                validator: (_, value) =>
+                  value
+                    ? Promise.resolve()
+                    : Promise.reject(
+                        new Error("请先阅读并同意服务条款与隐私说明"),
+                      ),
+              },
+            ]}
+          >
+            <Checkbox>
+              我已阅读并同意{" "}
+              <Link to={LEGAL_TERMS_PATH}>服务条款</Link>
+              {" 与 "}
+              <Link to={LEGAL_PRIVACY_PATH}>隐私说明</Link>
+            </Checkbox>
+          </Form.Item>
           <Button
             type="primary"
             htmlType="submit"
@@ -174,6 +197,7 @@ export default function RegisterPage() {
         </Form>
 
         <QqLoginButton dividerText="或使用 QQ 登录" />
+        <LegalLinks prefix="QQ 登录即表示同意" />
     </AuthGuestShell>
   );
 }

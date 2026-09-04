@@ -174,7 +174,7 @@ class TarkovGun(Base):
 
 
 class TarkovRaidRoom(Base):
-    """联机大厅席位房：PVP / PVE 各 5 张公开桌；房主可设密码；换图或清空不留档。"""
+    """联机大厅房间：登录用户创建；空房删除不留档。"""
 
     __tablename__ = "tarkov_raid_rooms"
     __table_args__ = (Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),)

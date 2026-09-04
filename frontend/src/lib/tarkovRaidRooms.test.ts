@@ -37,6 +37,8 @@ import {
   partitionRaidLobbyRooms,
   raidRoomReturnHref,
   raidRoomIsFull,
+  defaultRaidRoomTitle,
+  raidRoomJoinNeedsPassword,
   RAID_ROOM_WS_PING_MS,
   raidRoomWsRetryDelayMs,
   remainMs,
@@ -45,6 +47,11 @@ import {
   strokeFingerprint,
   userBroughtKey,
   withRaidRoomViewerFlags,
+  type RaidRoomSnapshotLike,
+  buildSoloRaidRoomDetail,
+  isSoloRaidSession,
+  soloRaidActor,
+  SOLO_RAID_ROOM_PUBLIC_ID,
   dropPlayerFixesNotIn,
   formatRaidRoomOverlapCell,
   raidRoomOverlapPeopleLabel,
@@ -80,12 +87,33 @@ describe("raid room helpers", () => {
     expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3")).toBe(
       "3",
     );
-    expect(parseRaidRoomPublicId("ab12cd34")).toBe("");
+    expect(parseRaidRoomPublicId("ab12cd34")).toBe("ab12cd34");
     expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/ab12cd34")).toBe(
-      "",
+      "ab12cd34",
     );
-    expect(parseRaidRoomPublicId("ABCDEF123456")).toBe("");
+    expect(parseRaidRoomPublicId("ABCDEF123456")).toBe("abcdef123456");
     expect(parseRaidRoomPublicId("nope")).toBe("");
+    expect(parseRaidRoomPublicId("solo")).toBe("");
+    expect(defaultRaidRoomTitle("甲")).toBe("甲的房间");
+    expect(defaultRaidRoomTitle("")).toBe("房间的房间");
+    expect(defaultRaidRoomTitle("一".repeat(40)).length).toBe(40);
+    expect(
+      raidRoomJoinNeedsPassword({
+        response: { status: 403, data: { detail: "需要房间密码" } },
+      }),
+    ).toBe(true);
+    expect(
+      raidRoomJoinNeedsPassword({
+        response: { status: 403, data: { detail: "房间密码错误" } },
+      }),
+    ).toBe(false);
+    expect(
+      raidRoomJoinNeedsPassword({
+        response: { status: 404, data: { detail: "需要房间密码" } },
+      }),
+    ).toBe(false);
+    expect(isSoloRaidSession("solo")).toBe(true);
+    expect(isSoloRaidSession("3")).toBe(false);
     expect(RAID_ROOM_SLOT_IDS).toEqual(["1", "2", "3", "4", "5"]);
     expect(raidRoomSlotIdsForMode("pve")).toEqual([
       "pve-1",
@@ -521,6 +549,74 @@ describe("raid room helpers", () => {
     expect(staleSnap?.members?.map((row) => row.online)).toEqual([true, true]);
   });
 
+  it("applies mark / claim / board patches without a snapshot", () => {
+    const room: RaidRoomSnapshotLike = {
+      public_id: "1",
+      map_slug: "customs",
+      host_user_id: 1,
+      host_display_name: "甲",
+      members: [{ user_id: 1, display_name: "甲", online: true }],
+      marks: [],
+      claims: [],
+    };
+    const added = applyRoomWsEvent(
+      room,
+      {
+        event: "mark_add",
+        mark: { id: 9, kind: "pin", x: 1, z: 2, author_user_id: 1 },
+      },
+      1,
+    );
+    expect(added?.marks).toEqual([
+      { id: 9, kind: "pin", x: 1, z: 2, author_user_id: 1 },
+    ]);
+    const removed = applyRoomWsEvent(
+      added,
+      { event: "mark_remove", mark_id: 9 },
+      1,
+    );
+    expect(removed?.marks).toEqual([]);
+    const claimed = applyRoomWsEvent(
+      room,
+      {
+        event: "claim_add",
+        claims: [{ task_id: "t1", user_id: 1, display_name: "甲" }],
+      },
+      1,
+    );
+    expect(claimed?.claims).toEqual([
+      { task_id: "t1", user_id: 1, display_name: "甲" },
+    ]);
+    const cleared = applyRoomWsEvent(
+      { ...room, marks: [{ id: 1, kind: "pin", x: 0, z: 0, author_user_id: 1 }] },
+      { event: "board_clear" },
+      1,
+    );
+    expect(cleared?.marks).toEqual([]);
+    const progress = applyRoomWsEvent(
+      room,
+      {
+        event: "task_progress",
+        map_overlap: [{ map_slug: "customs", with_tasks_count: 1, synced_count: 1, occupant_count: 1 }],
+        task_progress: [{ user_id: 1, uploaded: true, started_count: 2 }],
+      },
+      1,
+    );
+    expect(progress?.map_overlap?.[0]?.map_slug).toBe("customs");
+    expect(progress?.task_progress?.[0]?.started_count).toBe(2);
+    const owns = applyRoomWsEvent(
+      room,
+      {
+        event: "key_own_change",
+        key_owns: [{ user_id: 1, item_id: "key-1", display_name: "甲" }],
+      },
+      1,
+    );
+    expect(owns?.key_owns).toEqual([
+      { user_id: 1, item_id: "key-1", display_name: "甲" },
+    ]);
+  });
+
   it("simplifies freehand strokes and reads mark points", () => {
     expect(parseStrokePoints([[1, 2], { x: 3, z: 4 }, ["bad"]])).toEqual([
       { x: 1, z: 2 },
@@ -800,3 +896,59 @@ describe("raid room helpers", () => {
     ).toBe("customs");
   });
 });
+
+describe("solo as one-person room", () => {
+  it("projects prep state into a listed=false 1-seat room", () => {
+    expect(soloRaidActor(null)).toEqual({ userId: 0, name: "游客" });
+    expect(soloRaidActor({ id: 7, displayName: "鸽" })).toEqual({
+      userId: 7,
+      name: "鸽",
+    });
+    const room = buildSoloRaidRoomDetail({
+      gameMode: "pve",
+      mapSlug: "customs",
+      user: { id: 7, displayName: "鸽" },
+      selectedIds: ["task-a"],
+      keyBringIds: ["key-1"],
+      keyOwnIds: ["key-2"],
+      objectiveDones: [{ task_id: "task-a", objective_id: "obj-1" }],
+    });
+    expect(room.public_id).toBe(SOLO_RAID_ROOM_PUBLIC_ID);
+    expect(room.listed).toBe(false);
+    expect(room.member_count).toBe(1);
+    expect(room.max_members).toBe(1);
+    expect(room.is_member).toBe(true);
+    expect(room.is_host).toBe(true);
+    expect(room.can_edit).toBe(true);
+    expect(room.claims).toEqual([
+      { task_id: "task-a", user_id: 7, display_name: "鸽" },
+    ]);
+    expect(room.key_brings).toEqual([
+      { item_id: "key-1", user_id: 7, display_name: "鸽" },
+    ]);
+    expect(room.key_owns).toEqual([
+      { item_id: "key-2", user_id: 7, display_name: "鸽" },
+    ]);
+    expect(room.objective_dones).toEqual([
+      {
+        task_id: "task-a",
+        objective_id: "obj-1",
+        user_id: 7,
+        display_name: "鸽",
+      },
+    ]);
+    expect(room.marks).toEqual([]);
+  });
+
+  it("keeps guest seat editable without occupying a lobby slot", () => {
+    const room = buildSoloRaidRoomDetail({
+      gameMode: "pvp",
+      mapSlug: "woods",
+    });
+    expect(room.host_user_id).toBeNull();
+    expect(room.members[0]?.user_id).toBe(0);
+    expect(room.occupants[0]?.display_name).toBe("游客");
+    expect(isSoloRaidSession(room.public_id)).toBe(true);
+  });
+});
+

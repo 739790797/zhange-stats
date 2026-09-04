@@ -10,6 +10,7 @@ import {
 import { fetchMe, login, exchangeQqTicket } from "@/api/client";
 import { apiError } from "@/lib/apiError";
 import { AuthGuestShell } from "@/components/AuthGuestShell";
+import { LegalLinks } from "@/components/LegalLinks";
 import { QqLoginButton } from "@/components/QqLoginButton";
 import {
   consumePostLoginPath,
@@ -174,6 +175,7 @@ export default function LoginPage() {
         </Form>
 
         <QqLoginButton />
+        <LegalLinks prefix="登录即表示同意" />
     </AuthGuestShell>
   );
 }

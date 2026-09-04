@@ -124,13 +124,11 @@ def _task_hit(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _trader_hit(row: dict[str, Any]) -> dict[str, Any]:
-    chinese = str(row.get("chinese") or "").strip()
     english = str(row.get("english") or "").strip()
-    extra = chinese if chinese else english
     return {
         "id": str(row.get("id") or ""),
         "name": str(row.get("name") or english or row.get("slug") or ""),
-        "extra": extra,
+        "extra": "",
         "icon_link": str(row.get("portrait_link") or ""),
         "types": [],
         "slug": str(row.get("slug") or ""),
@@ -221,7 +219,7 @@ def search_site(db: Session, q: str, *, limit: int = SEARCH_LIMIT) -> dict[str, 
     traders, trader_count = pick_hits(
         _trader_rows(db),
         needle,
-        ("name", "english", "chinese", "slug", "id"),
+        ("name", "english", "search_alias", "slug", "id"),
         limit=limit,
     )
     bosses, boss_count = pick_hits(

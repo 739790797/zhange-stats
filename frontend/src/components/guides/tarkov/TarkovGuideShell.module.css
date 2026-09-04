@@ -41,6 +41,10 @@
   backdrop-filter: blur(12px);
 }
 
+:global(.app-main--sider-collapsed) .topbar {
+  display: none;
+}
+
 .topbarInner {
   position: relative;
   display: flex;

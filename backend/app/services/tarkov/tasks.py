@@ -28,6 +28,7 @@ from app.services.tarkov.game_mode import (
 )
 from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.http import download_bytes
+from app.services.tarkov.task_lines import index_task_lines, stamp_task_line_fields
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +43,19 @@ TARKOV_JSON_TASKS_URL = "https://json.tarkov.dev/regular/tasks"
 TARKOV_JSON_TASKS_LOCALE_URL = "https://json.tarkov.dev/regular/tasks_{lang}"
 
 
-# BSG 商人 id → slug / 英文名（社区简称）
+# BSG 商人 id → slug / 英文名
 TRADER_BY_ID: dict[str, tuple[str, str]] = {
-    "54cb50c76803fa8b248b4571": ("prapor", "Prapor（俄商）"),
-    "54cb57776803fa99248b456e": ("therapist", "Therapist（大妈）"),
-    "579dc571d53a0658a154fbec": ("fence", "Fence（黑商）"),
-    "58330581ace78e27b8b10cee": ("skier", "Skier（走私客）"),
-    "5935c25fb3acc3127c3d8cd9": ("peacekeeper", "Peacekeeper（美商）"),
-    "5a7c2eca46aef81a7ca2145d": ("mechanic", "Mechanic（机械师）"),
-    "5ac3b934156ae10c4430e83c": ("ragman", "Ragman（服装商）"),
-    "5c0647fdd443bc2504c2d371": ("jaeger", "Jaeger（耶格）"),
-    "638f541a29ffd1183d187f57": ("lightkeeper", "Lightkeeper（灯塔商人）"),
-    "6617beeaa9cfa777ca915b7c": ("ref", "Ref（竞技场裁判）"),
-    "656f0f98d80a697f855d34b1": ("btr-driver", "BTR Driver（BTR）"),
+    "54cb50c76803fa8b248b4571": ("prapor", "Prapor"),
+    "54cb57776803fa99248b456e": ("therapist", "Therapist"),
+    "579dc571d53a0658a154fbec": ("fence", "Fence"),
+    "58330581ace78e27b8b10cee": ("skier", "Skier"),
+    "5935c25fb3acc3127c3d8cd9": ("peacekeeper", "Peacekeeper"),
+    "5a7c2eca46aef81a7ca2145d": ("mechanic", "Mechanic"),
+    "5ac3b934156ae10c4430e83c": ("ragman", "Ragman"),
+    "5c0647fdd443bc2504c2d371": ("jaeger", "Jaeger"),
+    "638f541a29ffd1183d187f57": ("lightkeeper", "Lightkeeper"),
+    "6617beeaa9cfa777ca915b7c": ("ref", "Ref"),
+    "656f0f98d80a697f855d34b1": ("btr-driver", "BTR Driver"),
 }
 
 # 突袭图 id → slug / 中文名（与首页地图格对齐）。
@@ -599,9 +600,8 @@ def _named_ref(
             name = name2
     if kind == "trader" and ident:
         slug2, name2 = trader_info(ident, value if isinstance(value, dict) else None)
-        slug = slug or slug2
-        if not name or _is_placeholder_name(ident, name):
-            name = name2
+        slug = slug2 or slug
+        name = name2 or name
     if kind == "task" and ident:
         loc = _locale_lookup(locale, f"{ident} name", f"{ident} Name")
         if loc:
@@ -887,6 +887,30 @@ def _project_craft_unlock(
     if not ident:
         return None
     return {"id": ident, "station": None, "level": 0, "item": None}
+
+
+def _project_dialogue(raw: dict[str, Any], locale: dict[str, Any]) -> dict[str, str]:
+    """商人台词：dump 里是 messageId，正文走 tasks locale。"""
+
+    def resolve(field: str) -> str:
+        ident = str(raw.get(field) or "").strip()
+        if not ident:
+            return ""
+        return _locale_lookup(
+            locale,
+            ident,
+            f"{ident} description",
+            f"{ident} Description",
+            f"{ident} name",
+            f"{ident} Name",
+        )
+
+    return {
+        "description": resolve("descriptionMessageId"),
+        "start": resolve("startMessageId"),
+        "success": resolve("successMessageId"),
+        "fail": resolve("failMessageId"),
+    }
 
 
 def _project_prestige(raw: Any, locale: dict[str, Any]) -> dict[str, Any] | None:
@@ -1574,6 +1598,7 @@ def project_task_detail(
             "required_prestige": _project_prestige(raw.get("requiredPrestige"), locale),
             "available_delay_seconds_min": delay_min,
             "available_delay_seconds_max": delay_max,
+            "dialogue": _project_dialogue(raw, locale),
         }
     )
     return summary
@@ -1581,11 +1606,13 @@ def project_task_detail(
 
 def parse_task_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     locale = _locale_map(payload)
+    tasks_map = _tasks_map(payload)
+    line_index = index_task_lines(tasks_map, locale)
     rows: list[dict[str, Any]] = []
-    for raw in _tasks_map(payload).values():
+    for raw in tasks_map.values():
         row = project_task_summary(raw, locale)
         if row:
-            rows.append(row)
+            rows.append(stamp_task_line_fields(row, line_index))
     rows.sort(
         key=lambda r: (
             r.get("trader_slug") or "",

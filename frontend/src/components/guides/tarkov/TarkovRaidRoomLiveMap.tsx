@@ -15,6 +15,7 @@ import {
   useTarkovScreenshotFix,
 } from "@/lib/useTarkovLiveWatch";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
+import type { TarkovLockKeyMode } from "@/lib/tarkovMapMarkers";
 import {
   playerFixMatchesRoomMap,
   shouldSuppressLocalPlayerFix,
@@ -45,7 +46,7 @@ type MemberLike = {
   display_name: string;
 };
 
-type Props = {
+export type TarkovRaidRoomLiveMapProps = {
   publicId: string;
   mapId: string;
   parentSlug?: string;
@@ -65,25 +66,25 @@ type Props = {
   questSkippedByTask?: RaidPrepSkipMap;
   focusRequest: TarkovMapFocusRequest | null;
   highlightTaskId: string;
-  boardMarks: RaidRoomMarkLike[];
+  boardMarks?: RaidRoomMarkLike[];
   suppressLocalFix: boolean;
   authorUserId: number;
   authorDisplayName?: string;
-  drawMode: TarkovMapDrawMode;
-  canEdit: boolean;
-  members: readonly MemberLike[];
-  wsRef: RefObject<WebSocket | null>;
-  wsGen: number;
-  onStroke: (stroke: { floor: string; points: StrokePoint[] }) => void;
-  onPin: (mark: { floor: string; x: number; z: number }) => void;
-  onLine: (mark: {
+  drawMode?: TarkovMapDrawMode;
+  canEdit?: boolean;
+  members?: readonly MemberLike[];
+  wsRef?: RefObject<WebSocket | null>;
+  wsGen?: number;
+  onStroke?: (stroke: { floor: string; points: StrokePoint[] }) => void;
+  onPin?: (mark: { floor: string; x: number; z: number }) => void;
+  onLine?: (mark: {
     floor: string;
     x: number;
     z: number;
     x2: number;
     z2: number;
   }) => void;
-  onEraseMark: (markId: number) => void;
+  onEraseMark?: (markId: number) => void;
   onQuestLabelClick: (taskId: string) => void;
   onQuestCompleteObjective?: (taskId: string, objectiveId: string) => void;
   questParticipantsByTask: ReadonlyMap<
@@ -91,6 +92,7 @@ type Props = {
     readonly RaidPrepMapParticipant[]
   >;
   topRight?: ReactNode;
+  lockKeyMode?: TarkovLockKeyMode;
   lockKeyOwns?: readonly RaidRoomKeyBringLike[] | null;
   lockKeyBrings?: readonly RaidRoomKeyBringLike[] | null;
 };
@@ -166,15 +168,15 @@ export function TarkovRaidRoomLiveMap({
   questSkippedByTask,
   focusRequest,
   highlightTaskId,
-  boardMarks,
+  boardMarks = [],
   suppressLocalFix,
   authorUserId,
   authorDisplayName = "",
-  drawMode,
-  canEdit,
-  members,
+  drawMode = "pan",
+  canEdit = false,
+  members = [],
   wsRef,
-  wsGen,
+  wsGen = 0,
   onStroke,
   onPin,
   onLine,
@@ -183,9 +185,10 @@ export function TarkovRaidRoomLiveMap({
   onQuestCompleteObjective,
   questParticipantsByTask,
   topRight,
+  lockKeyMode = "party",
   lockKeyOwns,
   lockKeyBrings,
-}: Props) {
+}: TarkovRaidRoomLiveMapProps) {
   const drafts = useRaidRoomLiveStore((state) => state.drafts);
   const fixes = useRaidRoomLiveStore((state) => state.fixes);
 
@@ -234,7 +237,7 @@ export function TarkovRaidRoomLiveMap({
 
   const onDraftStroke = useCallback(
     (draft: { floor: string; points: StrokePoint[] } | null) => {
-      const ws = wsRef.current;
+      const ws = wsRef?.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(
         JSON.stringify({
@@ -249,12 +252,14 @@ export function TarkovRaidRoomLiveMap({
 
   return (
     <>
-      <RaidRoomFixRelay
-        canEdit={canEdit}
-        mapId={mapId}
-        wsRef={wsRef}
-        wsGen={wsGen}
-      />
+      {canEdit && wsRef ? (
+        <RaidRoomFixRelay
+          canEdit={canEdit}
+          mapId={mapId}
+          wsRef={wsRef}
+          wsGen={wsGen}
+        />
+      ) : null}
       <TarkovMapViewer
         slug={mapId}
         parentSlug={parentSlug}
@@ -292,7 +297,7 @@ export function TarkovRaidRoomLiveMap({
         onQuestCompleteObjective={onQuestCompleteObjective}
         questParticipantsByTask={questParticipantsByTask}
         topRight={topRight}
-        lockKeyMode="party"
+        lockKeyMode={lockKeyMode}
         lockKeyOwns={lockKeyOwns}
         lockKeyBrings={lockKeyBrings}
       />

@@ -2,6 +2,7 @@ import { Card, Typography } from "antd";
 import type { ReactNode } from "react";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
+import { IcpBeianLink } from "@/components/IcpBeianLink";
 
 type Props = {
   /** 默认 420；安装向导 440 */
@@ -94,11 +95,22 @@ export function AuthGuestShell({
         </div>
         {children}
       </Card>
-      {showVersion ? (
-        <div style={{ position: "fixed", left: 0, right: 0, bottom: 8 }}>
-          <AppVersion light />
-        </div>
-      ) : null}
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 8,
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        <IcpBeianLink light />
+        {showVersion ? <AppVersion light /> : null}
+      </div>
     </div>
   );
 }

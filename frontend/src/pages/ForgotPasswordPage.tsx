@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { resetPassword, sendResetPasswordCode } from "@/api/client";
 import { apiError } from "@/lib/apiError";
 import { AuthGuestShell } from "@/components/AuthGuestShell";
+import { LegalLinks } from "@/components/LegalLinks";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function ForgotPasswordPage() {
@@ -165,6 +166,7 @@ export default function ForgotPasswordPage() {
             <Link to="/login">返回登录</Link>
           </div>
         </Form>
+        <LegalLinks />
     </AuthGuestShell>
   );
 }

@@ -24,6 +24,15 @@ export type TaskListItem = {
   map_name?: string;
   lightkeeper_required?: boolean;
   faction_name?: string;
+  line_hint?: string;
+  mutex_ids?: string[];
+  blocked_by?: string[];
+  prereq_ids?: string[];
+};
+
+export type TaskLineRef = {
+  mutex_ids?: readonly string[] | null;
+  blocked_by?: readonly string[] | null;
 };
 
 export type TaskListFilter = {
@@ -44,6 +53,8 @@ export type TaskProgressSummary = {
   incomplete: number;
   active: number;
   completed: number;
+  failed: number;
+  unreachable: number;
 };
 
 export type TraderTaskGroup = {
@@ -194,7 +205,7 @@ function asClockMap(
   };
 }
 
-function taskMatchesQuery(task: TaskListItem, q: string): boolean {
+export function taskMatchesQuery(task: TaskListItem, q: string): boolean {
   if (!q) return true;
   const hay = `${task.name} ${task.id}`.toLowerCase();
   return hay.includes(q);
@@ -309,28 +320,96 @@ export function summarizeTaskProgress(
 ): TaskProgressSummary {
   let completed = 0;
   let active = 0;
+  let failed = 0;
+  let unreachable = 0;
+  let incomplete = 0;
   for (const item of items) {
-    if (done.has(item.id)) completed += 1;
-    else if (started.has(item.id)) active += 1;
+    const status = resolveTaskStatus(item.id, done, started, item);
+    if (status === "done") completed += 1;
+    else if (status === "active") active += 1;
+    else if (status === "failed") failed += 1;
+    else if (status === "unreachable") unreachable += 1;
+    else incomplete += 1;
   }
   return {
     total: items.length,
-    incomplete: items.length - completed - active,
+    incomplete,
     active,
     completed,
+    failed,
+    unreachable,
   };
 }
 
-export const TASK_STATUS_KINDS = ["todo", "active", "done"] as const;
+export const TASK_WRITABLE_STATUS_KINDS = ["todo", "active", "done"] as const;
+export type TaskWritableStatus = (typeof TASK_WRITABLE_STATUS_KINDS)[number];
+
+export const TASK_STATUS_KINDS = [
+  "todo",
+  "active",
+  "done",
+  "failed",
+  "unreachable",
+] as const;
 export type TaskStatusKind = (typeof TASK_STATUS_KINDS)[number];
+
+export const TASK_STATUS_LABELS: Record<TaskStatusKind, string> = {
+  todo: "未完成",
+  active: "进行中",
+  done: "已完成",
+  failed: "失败",
+  unreachable: "无法完成",
+};
+
+export function isWritableTaskStatus(
+  status: TaskStatusKind,
+): status is TaskWritableStatus {
+  return status === "todo" || status === "active" || status === "done";
+}
+
+export function taskPlayerLevelLabel(level: number | null | undefined): string {
+  const n = Math.trunc(Number(level) || 0);
+  return n > 0 ? String(n) : "—";
+}
+
+export type TaskLoyaltyLevel = 1 | 2 | 3 | 4;
+
+/** 商人好感 1–3 为罗马数字，4 及以上为皇冠（与游戏商人页一致）。 */
+export function taskLoyaltyLevel(
+  level: number | null | undefined,
+): TaskLoyaltyLevel {
+  const n = Math.trunc(Number(level) || 0);
+  if (n <= 1) return 1;
+  if (n >= 4) return 4;
+  return n as 2 | 3;
+}
+
+function lineIdHits(
+  ids: readonly string[] | null | undefined,
+  ...pools: ReadonlySet<string>[]
+): boolean {
+  if (!ids?.length) return false;
+  for (const raw of ids) {
+    const ident = String(raw || "").trim();
+    if (!ident) continue;
+    for (const pool of pools) {
+      if (pool.has(ident)) return true;
+    }
+  }
+  return false;
+}
 
 export function resolveTaskStatus(
   taskId: string,
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
+  line?: TaskLineRef | null,
 ): TaskStatusKind {
-  if (done.has(taskId)) return "done";
-  if (started.has(taskId)) return "active";
+  const ident = String(taskId || "").trim();
+  if (ident && done.has(ident)) return "done";
+  if (lineIdHits(line?.mutex_ids, done)) return "failed";
+  if (lineIdHits(line?.blocked_by, done, started)) return "unreachable";
+  if (ident && started.has(ident)) return "active";
   return "todo";
 }
 
@@ -338,7 +417,7 @@ export function setTaskStatus(
   doneIds: readonly string[],
   startedIds: readonly string[],
   taskId: string,
-  status: TaskStatusKind,
+  status: TaskWritableStatus,
 ): { done: string[]; started: string[] } {
   const ident = taskId.trim();
   const done = new Set(doneIds);
@@ -355,7 +434,7 @@ export function setTaskStatus(
 export function commitTaskStatus(
   mode: TarkovGameMode,
   taskId: string,
-  status: TaskStatusKind,
+  status: TaskWritableStatus,
   fillObjectiveIds?: readonly string[],
 ): { done: string[]; started: string[]; objectives: TaskObjectivePair[] } {
   const next = setTaskStatus(
@@ -805,4 +884,28 @@ export function factionTaskSuffix(value: string | undefined): string {
   const text = (value || "").trim();
   if (!text || text === "Any") return "";
   return ` (${text})`;
+}
+
+export function taskLineHintSuffix(
+  hint: string | undefined,
+  factionName?: string,
+): string {
+  const text = (hint || "").trim();
+  if (!text) return "";
+  const faction = (factionName || "").trim();
+  if (faction && faction !== "Any" && text === faction) return "";
+  return `（${text}）`;
+}
+
+export function displayTaskProgressName(task: {
+  id: string;
+  name?: string | null;
+  faction_name?: string;
+  line_hint?: string | null;
+}): string {
+  const name = (task.name || task.id).trim() || task.id;
+  return `${name}${factionTaskSuffix(task.faction_name)}${taskLineHintSuffix(
+    task.line_hint || "",
+    task.faction_name,
+  )}`;
 }
