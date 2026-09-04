@@ -65,13 +65,14 @@ def test_room_snapshot_lists_seated_owns() -> None:
     owns.add_own(db, guest, "key-a", now=now)
     owns.add_own(db, guest, "key-b", now=now)
     owns.add_own(db, outsider, "key-a", now=now)
-    rooms.join_room(db, "1", host, now=now)
-    rooms.set_room_map(db, "1", host, "customs", now=now)
-    rooms.join_room(db, "1", guest, now=now)
-    snap = rooms.get_room(db, "1", host)
+    created, _joined, _vacated = rooms.create_room(db, host, now=now)
+    pid = created["public_id"]
+    rooms.set_room_map(db, pid, host, "customs", now=now)
+    rooms.join_room(db, pid, guest, now=now)
+    snap = rooms.get_room(db, pid, host)
     names = {
         (row["item_id"], row["display_name"]) for row in snap["key_owns"]
     }
     assert names == {("key-a", "甲"), ("key-a", "乙"), ("key-b", "乙")}
-    assert rooms.occupant_public_ids(db, host.id) == ["1"]
+    assert rooms.occupant_public_ids(db, host.id) == [pid]
     assert rooms.occupant_public_ids(db, outsider.id) == []
