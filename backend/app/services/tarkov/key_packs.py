@@ -22,7 +22,12 @@ from app.services.tarkov.game_mode import (
 from app.services.tarkov.guides import TarkovGuidesError, load_parsed_guides
 from app.services.tarkov.http import download_bytes
 from app.services.tarkov.items import TarkovItemsError
-from app.services.tarkov.maps import HUB_SKIP, VARIANT_PARENT, resolve_map_slug
+from app.services.tarkov.maps import (
+    HUB_SKIP,
+    VARIANT_PARENT,
+    factory_exit_key_lock_allowed,
+    resolve_map_slug,
+)
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov.tasks import TRADER_BY_ID, TarkovTasksError, load_parsed_tasks
 
@@ -314,6 +319,8 @@ def group_key_packs(
                 continue
             ref = _item_ref(lock.get("key"))
             if not ref:
+                continue
+            if not factory_exit_key_lock_allowed(slug, ref["id"]):
                 continue
             bound_ids.add(ref["id"])
             entry = _ensure_entry(pack_keys, ref, catalog_by_id)

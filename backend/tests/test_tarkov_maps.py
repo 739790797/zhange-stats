@@ -6,6 +6,7 @@ import time
 
 from app.services.tarkov.bosses import map_xyz
 from app.services.tarkov.maps import (
+    FACTORY_EXIT_KEY_ID,
     HUB_SKIP,
     _apply_map_markers,
     _fill_item_refs,
@@ -13,6 +14,7 @@ from app.services.tarkov.maps import (
     _marker_cache_key,
     classify_map_spawn,
     enrich_lock_keys,
+    factory_exit_key_lock_allowed,
     parse_map_rows,
     resolve_map_slug,
 )
@@ -865,6 +867,227 @@ def test_parse_map_rows_extract_outline_switches_transfer_and_botom() -> None:
     assert loose["items"][0]["handbook_ids"] == []
     assert factory["spawns"][0]["kind"] == "sniper"
     assert factory["spawns"][0]["x"] == 30
+
+
+def test_factory_exit_lock_snaps_to_med_tent_gate() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["extracts"] = [
+        {"id": "e1", "name": "Gate 3", "faction": "pmc", "position": {"x": 58, "y": 3, "z": 63}},
+        {
+            "id": "7bb46d641d59983a58440a7a58d65933d981c211",
+            "name": "Gate m",
+            "faction": "pmc",
+            "position": {"x": -17.5257778, "y": 1.99233329, "z": -61.27189},
+        },
+        {
+            "id": "cellars",
+            "name": "Cellars",
+            "faction": "pmc",
+            "position": {"x": 73.89422, "y": -3.2876668, "z": -29.0818882},
+        },
+    ]
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": -19.077774, "y": 1.44520187, "z": -48.57139},
+        },
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": 66.8279953, "y": -1.60700011, "z": -29.3244076},
+        },
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": 29.1163082, "y": 9.08, "z": 36.51697},
+        },
+    ]
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    locks = factory["locks"]
+    assert locks[0]["x"] == -17.5257778
+    assert locks[0]["z"] == -61.27189
+    assert locks[0]["y"] == 1.99233329
+    assert locks[1]["x"] == 66.8279953
+    assert locks[1]["z"] == -29.3244076
+    assert locks[2]["x"] == 29.1163082
+    assert locks[2]["z"] == 36.51697
+
+
+def test_factory_exit_lock_already_on_med_gate_stays() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["extracts"] = [
+        {
+            "id": "7bb46d641d59983a58440a7a58d65933d981c211",
+            "name": "医疗帐篷大门",
+            "faction": "pmc",
+            "position": {"x": -17.5, "y": 2, "z": -61.3},
+        }
+    ]
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": -18.0, "y": 1.5, "z": -60.0},
+        }
+    ]
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    lock = factory["locks"][0]
+    assert lock["x"] == -18.0
+    assert lock["z"] == -60.0
+
+
+def test_factory_exit_key_not_shown_on_lighthouse() -> None:
+    assert factory_exit_key_lock_allowed("factory", FACTORY_EXIT_KEY_ID) is True
+    assert factory_exit_key_lock_allowed("night-factory", FACTORY_EXIT_KEY_ID) is True
+    assert factory_exit_key_lock_allowed("customs", FACTORY_EXIT_KEY_ID) is True
+    assert factory_exit_key_lock_allowed("interchange", FACTORY_EXIT_KEY_ID) is True
+    assert factory_exit_key_lock_allowed("shoreline", FACTORY_EXIT_KEY_ID) is True
+    assert factory_exit_key_lock_allowed("lighthouse", FACTORY_EXIT_KEY_ID) is False
+    assert factory_exit_key_lock_allowed("streets-of-tarkov", FACTORY_EXIT_KEY_ID) is False
+    assert factory_exit_key_lock_allowed("lighthouse", "other-key") is True
+
+    payload = _payload()
+    payload["maps"]["lighthouse"] = {
+        "id": "lighthouse",
+        "name": "Lighthouse",
+        "normalizedName": "lighthouse",
+        "raidDuration": 40,
+        "players": "9-12",
+        "locks": [
+            {
+                "lockType": "trunk",
+                "key": FACTORY_EXIT_KEY_ID,
+                "position": {"x": 206.0, "y": 3.8, "z": 521.8},
+            },
+            {
+                "lockType": "door",
+                "key": "police-truck",
+                "position": {"x": 1, "y": 0, "z": 2},
+            },
+        ],
+    }
+    payload["locale"]["Lighthouse"] = "灯塔"
+    rows = {str(r["slug"]): r for r in parse_map_rows(payload)}
+    locks = rows["lighthouse"]["locks"]
+    assert [row["key_id"] for row in locks] == ["police-truck"]
+    assert locks[0]["x"] == 1
+    assert locks[0]["z"] == 2
+
+
+def test_apply_map_markers_early_return_still_drops_factory_exit_trunks() -> None:
+    lighthouse = {
+        "id": "lighthouse",
+        "slug": "lighthouse",
+        "extracts": [{"id": "e1", "name": "Road to Customs", "faction": "PMC", "x": 1, "z": 2}],
+        "bosses": [],
+        "locks": [
+            {
+                "id": "lock:factory-exit:trunk:0",
+                "lock_type": "trunk",
+                "key_id": FACTORY_EXIT_KEY_ID,
+                "key_name": "工厂紧急出口钥匙",
+                "x": 206.0,
+                "z": 521.8,
+            },
+            {
+                "id": "lock:police-truck:door:1",
+                "lock_type": "door",
+                "key_id": "police-truck",
+                "key_name": "警车钥匙",
+                "x": 3,
+                "z": 4,
+            },
+        ],
+        "spawns": [{"id": "s1", "kind": "pmc", "x": 1, "z": 2}],
+        "hazards": [{"id": "h1", "hazard_type": "minefield", "name": "雷区", "x": 1, "z": 2}],
+        "switches": [{"id": "sw1", "name": "开关", "x": 1, "z": 2}],
+        "stationary_weapons": [{"id": "st1", "name": "机枪", "x": 1, "z": 2}],
+        "btr_stops": [{"name": "BTR", "x": 1, "z": 2}],
+        "loot_containers": [
+            {
+                "container_id": "c1",
+                "normalized_name": "duffle-bag",
+                "name": "旅行袋",
+                "x": 1,
+                "z": 2,
+            }
+        ],
+        "loot_loose": [{"id": "loose:0", "items": [{"id": "rouble"}], "x": 1, "z": 2}],
+    }
+    _apply_map_markers(lighthouse, {}, overlay={"lighthouse": {"normalizedName": "lighthouse"}})
+    assert [row["key_id"] for row in lighthouse["locks"]] == ["police-truck"]
+
+
+def test_apply_map_markers_does_not_readd_factory_exit_trunks() -> None:
+    lighthouse = {
+        "id": "lighthouse",
+        "slug": "lighthouse",
+        "extracts": [{"id": "e1", "name": "Road to Customs", "faction": "PMC", "x": 1, "z": 2}],
+        "bosses": [],
+        "locks": [],
+        "spawns": [{"id": "s1", "kind": "pmc", "x": 1, "z": 2}],
+        "hazards": [{"id": "h1", "hazard_type": "minefield", "name": "雷区", "x": 1, "z": 2}],
+        "switches": [{"id": "sw1", "name": "开关", "x": 1, "z": 2}],
+        "stationary_weapons": [{"id": "st1", "name": "机枪", "x": 1, "z": 2}],
+        "btr_stops": [{"name": "BTR", "x": 1, "z": 2}],
+        "loot_containers": [
+            {
+                "container_id": "c1",
+                "normalized_name": "duffle-bag",
+                "name": "旅行袋",
+                "x": 1,
+                "z": 2,
+            }
+        ],
+        "loot_loose": [{"id": "loose:0", "items": [{"id": "rouble"}], "x": 1, "z": 2}],
+    }
+    _apply_map_markers(
+        lighthouse,
+        {},
+        overlay={
+            "lighthouse": {
+                "normalizedName": "lighthouse",
+                "locks": [
+                    {
+                        "lockType": "trunk",
+                        "key": FACTORY_EXIT_KEY_ID,
+                        "position": {"x": 206.0, "y": 3.8, "z": 521.8},
+                    },
+                    {
+                        "lockType": "door",
+                        "key": "police-truck",
+                        "position": {"x": 3, "y": 0, "z": 4},
+                    },
+                ],
+            }
+        },
+    )
+    assert [row["key_id"] for row in lighthouse["locks"]] == ["police-truck"]
+    assert lighthouse["locks"][0]["x"] == 3
+    assert lighthouse["locks"][0]["z"] == 4
+
+
+def test_factory_exit_lock_does_not_pull_office_across_map() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["extracts"] = [
+        {
+            "name": "Gate m",
+            "faction": "pmc",
+            "position": {"x": -17.5, "y": 2, "z": -61.3},
+        }
+    ]
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": 29.1, "y": 9.08, "z": 36.5},
+        }
+    ]
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
+    lock = factory["locks"][0]
+    assert lock["x"] == 29.1
+    assert lock["z"] == 36.5
 
 
 def test_fill_item_refs_copies_handbook_ids() -> None:

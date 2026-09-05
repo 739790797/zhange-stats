@@ -49,6 +49,22 @@ VARIANT_PARENT: dict[str, str] = {
 
 HUB_SKIP = {"ground-zero-tutorial", "openworld", "transits"}
 
+# 工厂紧急出口钥匙：dump 把门 transform 落在医疗帐篷南侧空地，
+# 实际开的是南墙「医疗帐篷大门」（Gate m）。只吸附这一扇，不动地窖/办公室。
+FACTORY_EXIT_KEY_ID = "5448ba0b4bdc2d02308b456c"
+# 游戏车辆预制体把这把钥匙当成默认 KeyId。json.tarkov.dev 原样抽出，
+# 全库只有这一把钥匙跨 4+ 张图：门只在工厂/海关，其余全是 trunk。
+# 百科实机：工厂门、海关门、立交桥/海岸线油罐车。灯塔/街区/零号的 trunk 丢掉。
+FACTORY_EXIT_KEY_MAPS = frozenset(
+    {"factory", "customs", "interchange", "shoreline"}
+)
+_FACTORY_MED_GATE_EXTRACT_IDS = frozenset(
+    {"7bb46d641d59983a58440a7a58d65933d981c211"}
+)
+_FACTORY_MED_GATE_EXTRACT_NAMES = frozenset({"gate m", "医疗帐篷大门"})
+_FACTORY_MED_GATE_SNAP_MIN_M = 8.0
+_FACTORY_MED_GATE_SNAP_MAX_M = 40.0
+
 # 对齐 tarkov.dev map/index.jsx Spawns：PMC / Scav / 狙击 Scav（Boss 用 bosses.locations）。
 SPAWN_KINDS = ("pmc", "scav", "sniper")
 
@@ -338,10 +354,103 @@ def _parse_outline(raw: Any) -> list[dict[str, float]]:
     return out
 
 
+def factory_exit_key_lock_allowed(map_slug: str, key_id: str) -> bool:
+    """工厂紧急出口钥匙只挂在真实能开的图上，不跟 dump 的通用车辆锁走。"""
+    if (key_id or "").strip() != FACTORY_EXIT_KEY_ID:
+        return True
+    resolved = resolve_map_slug(map_slug)
+    parent = VARIANT_PARENT.get(resolved, resolved)
+    return parent in FACTORY_EXIT_KEY_MAPS
+
+
+def _lock_key_id(row: dict[str, Any]) -> str:
+    key_id = str(row.get("key_id") or "").strip()
+    if key_id:
+        return key_id
+    raw = row.get("key")
+    if isinstance(raw, dict):
+        return str(raw.get("id") or "").strip()
+    return str(raw or "").strip()
+
+
+def _filter_factory_exit_key_locks(map_slug: str, locks: list[Any]) -> list[Any]:
+    out: list[Any] = []
+    for row in locks or []:
+        if not isinstance(row, dict):
+            out.append(row)
+            continue
+        if factory_exit_key_lock_allowed(map_slug, _lock_key_id(row)):
+            out.append(row)
+    return out
+
+
+def _finalize_map_lock_corrections(row: dict[str, Any]) -> None:
+    """过滤默认车辆锁、吸附工厂医疗帐篷门。overlay 合并后也必须再跑一遍。"""
+    slug = str(row.get("slug") or "")
+    row["locks"] = _filter_factory_exit_key_locks(
+        slug,
+        row.get("locks") if isinstance(row.get("locks"), list) else [],
+    )
+    _snap_factory_exit_med_gate_lock(row)
+
+
 def _has_xz(row: dict[str, Any] | None) -> bool:
     if not isinstance(row, dict):
         return False
     return row.get("x") is not None and row.get("z") is not None
+
+
+def _xz_dist2(a: dict[str, Any], b: dict[str, Any]) -> float:
+    return (float(a["x"]) - float(b["x"])) ** 2 + (float(a["z"]) - float(b["z"])) ** 2
+
+
+def _is_factory_med_gate_extract(row: dict[str, Any]) -> bool:
+    ident = str(row.get("id") or "").strip()
+    if ident in _FACTORY_MED_GATE_EXTRACT_IDS:
+        return True
+    return str(row.get("name") or "").strip().lower() in _FACTORY_MED_GATE_EXTRACT_NAMES
+
+
+def _snap_factory_exit_med_gate_lock(row: dict[str, Any]) -> None:
+    """把误落在帐篷空地的紧急出口锁吸到医疗帐篷大门撤离点。"""
+    if str(row.get("slug") or "") not in {"factory", "night-factory"}:
+        return
+    extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
+    gate = next(
+        (
+            item
+            for item in extracts
+            if isinstance(item, dict)
+            and _has_xz(item)
+            and _is_factory_med_gate_extract(item)
+        ),
+        None,
+    )
+    if not gate:
+        return
+    candidates: list[dict[str, Any]] = []
+    for lock in row.get("locks") or []:
+        if not isinstance(lock, dict) or not _has_xz(lock):
+            continue
+        if str(lock.get("key_id") or "") != FACTORY_EXIT_KEY_ID:
+            continue
+        candidates.append(lock)
+    if not candidates:
+        return
+    nearest = min(candidates, key=lambda item: _xz_dist2(item, gate))
+    dist2 = _xz_dist2(nearest, gate)
+    if dist2 <= _FACTORY_MED_GATE_SNAP_MIN_M**2:
+        return
+    if dist2 > _FACTORY_MED_GATE_SNAP_MAX_M**2:
+        return
+    nearest["x"] = gate["x"]
+    nearest["z"] = gate["z"]
+    if gate.get("y") is not None:
+        nearest["y"] = gate["y"]
+    if nearest.get("top") is None and gate.get("top") is not None:
+        nearest["top"] = gate["top"]
+    if nearest.get("bottom") is None and gate.get("bottom") is not None:
+        nearest["bottom"] = gate["bottom"]
 
 
 def _is_hex_item_id(raw: str) -> bool:
@@ -1374,10 +1483,12 @@ def _apply_map_markers(
         and not need_containers
         and not need_loot_loose
     ):
+        _finalize_map_lock_corrections(row)
         return
     by_slug = overlay if overlay is not None else _cached_map_markers()
     extra = by_slug.get(str(row.get("slug") or "")) or by_slug.get(str(row.get("id") or ""))
     if not extra:
+        _finalize_map_lock_corrections(row)
         return
     gql_extracts = extra.get("extracts") if isinstance(extra.get("extracts"), list) else []
     gql_transits = extra.get("transits") if isinstance(extra.get("transits"), list) else []
@@ -1530,6 +1641,7 @@ def _apply_map_markers(
         row.get("extracts") if isinstance(row.get("extracts"), list) else [],
         row.get("switches") if isinstance(row.get("switches"), list) else [],
     )
+    _finalize_map_lock_corrections(row)
 
 
 def slim_loot_loose_item(item: dict[str, Any]) -> dict[str, Any]:
@@ -1643,6 +1755,7 @@ def parse_map_rows(
             }
         )
         _link_extracts_and_switches(rows[-1]["extracts"], rows[-1]["switches"])
+        _finalize_map_lock_corrections(rows[-1])
     rows.sort(key=lambda r: (str(r.get("name") or ""), str(r.get("slug") or "")))
     return rows
 

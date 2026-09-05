@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.services.tarkov.bosses import MAP_ZH
+from app.services.tarkov.maps import FACTORY_EXIT_KEY_ID
 from app.services.tarkov.key_packs import (
     COMMUNITY_KEY_MAPS,
     SOURCE_JSON,
@@ -72,6 +73,28 @@ def test_group_merges_variant_locks_into_parent() -> None:
     assert by_id["k-gate"]["name"] == "大门钥匙"
     assert by_id["k-gate"]["lock_types"] == []
     assert by_id["k-gate"]["needs_power"] is False
+
+
+def test_group_drops_factory_exit_trunks_on_lighthouse() -> None:
+    maps = [
+        {
+            "name": "工厂",
+            "normalizedName": "factory",
+            "locks": [{"key": _key(FACTORY_EXIT_KEY_ID, "工厂紧急出口钥匙")}],
+        },
+        {
+            "name": "灯塔",
+            "normalizedName": "lighthouse",
+            "locks": [
+                {"key": _key(FACTORY_EXIT_KEY_ID, "工厂紧急出口钥匙"), "lockType": "trunk"},
+                {"key": _key("police-truck", "警车钥匙"), "lockType": "door"},
+            ],
+        },
+    ]
+    out = group_key_packs(maps, [])
+    by_slug = {row["slug"]: row for row in out["maps"]}
+    assert {k["id"] for k in by_slug["factory"]["keys"]} == {FACTORY_EXIT_KEY_ID}
+    assert {k["id"] for k in by_slug["lighthouse"]["keys"]} == {"police-truck"}
 
 
 def test_group_keeps_multi_map_key_on_each_pack() -> None:
