@@ -1248,6 +1248,253 @@ export function pruneStalePlayerFixes(
   return current.filter((row) => playerFixIsFresh(row.at, now, ttlMs));
 }
 
+/** 截图定位「找人」提示线：3 秒线性淡出，不进画笔/房间快照。 */
+export const PLAYER_FIX_PULSE_MS = 3_000;
+
+export type RaidRoomPlayerFixPulseMark = {
+  userId: number;
+  x: number;
+  y: number;
+  z: number;
+  key?: string;
+  floor?: string;
+};
+
+export type RaidRoomPlayerFixPulseLine = {
+  key: string;
+  fromUserId: number;
+  toUserId: number;
+  x1: number;
+  z1: number;
+  y1: number;
+  x2: number;
+  z2: number;
+  y2: number;
+  color: string;
+  crossFloor: boolean;
+  bornAt: number;
+};
+
+export function playerFixPulseOpacity(
+  bornAt: number,
+  now: number,
+  ttlMs = PLAYER_FIX_PULSE_MS,
+): number {
+  const age = now - bornAt;
+  if (age >= ttlMs) return 0;
+  if (age <= 0) return 1;
+  return 1 - age / ttlMs;
+}
+
+export function playerFixPulseCrossFloor(
+  fromFloor: string,
+  toFloor: string,
+): boolean {
+  const a = (fromFloor || "").trim();
+  const b = (toFloor || "").trim();
+  if (!a || !b) return false;
+  return a !== b;
+}
+
+export function playerFixPulseIdentity(
+  mark: RaidRoomPlayerFixPulseMark,
+): string {
+  if (mark.key) return `${mark.userId}:${mark.key}`;
+  return `${mark.userId}:${mark.x}:${mark.y}:${mark.z}`;
+}
+
+/** 首次hydrate只记账；之后坐标/截图身份变了才算「新广播」。 */
+export function detectPlayerFixPulseUpdaters(
+  prevByUser: ReadonlyMap<number, string> | null,
+  marks: readonly RaidRoomPlayerFixPulseMark[],
+): { updaterIds: number[]; next: Map<number, string> } {
+  const next = new Map<number, string>();
+  for (const mark of marks) {
+    if (mark.userId > 0) next.set(mark.userId, playerFixPulseIdentity(mark));
+  }
+  if (!prevByUser) return { updaterIds: [], next };
+  const updaterIds: number[] = [];
+  for (const [userId, identity] of next) {
+    if (prevByUser.get(userId) !== identity) updaterIds.push(userId);
+  }
+  return { updaterIds, next };
+}
+
+export function buildPlayerFixPulseLines(opts: {
+  marks: readonly RaidRoomPlayerFixPulseMark[];
+  updaterId: number;
+  now: number;
+  seatedCount: number;
+  floorOf?: (mark: RaidRoomPlayerFixPulseMark) => string;
+}): RaidRoomPlayerFixPulseLine[] {
+  if (opts.seatedCount < 2 || opts.updaterId <= 0) return [];
+  const updater = opts.marks.find((row) => row.userId === opts.updaterId);
+  if (!updater) return [];
+  const color = colorForUserId(opts.updaterId);
+  const toFloor = (
+    opts.floorOf?.(updater) ||
+    updater.floor ||
+    ""
+  ).trim();
+  const lines: RaidRoomPlayerFixPulseLine[] = [];
+  for (const mark of opts.marks) {
+    if (mark.userId <= 0 || mark.userId === opts.updaterId) continue;
+    const fromFloor = (opts.floorOf?.(mark) || mark.floor || "").trim();
+    lines.push({
+      key: `${opts.updaterId}:${mark.userId}:${opts.now}`,
+      fromUserId: mark.userId,
+      toUserId: opts.updaterId,
+      x1: mark.x,
+      z1: mark.z,
+      y1: mark.y,
+      x2: updater.x,
+      z2: updater.z,
+      y2: updater.y,
+      color,
+      crossFloor: playerFixPulseCrossFloor(fromFloor, toFloor),
+      bornAt: opts.now,
+    });
+  }
+  return lines;
+}
+
+export function replacePlayerFixPulseLines(
+  current: readonly RaidRoomPlayerFixPulseLine[],
+  nextForUpdater: readonly RaidRoomPlayerFixPulseLine[],
+  updaterId: number,
+): RaidRoomPlayerFixPulseLine[] {
+  return [
+    ...current.filter((row) => row.toUserId !== updaterId),
+    ...nextForUpdater,
+  ];
+}
+
+export function playerFixPulseLinesEqual(
+  a: readonly RaidRoomPlayerFixPulseLine[],
+  b: readonly RaidRoomPlayerFixPulseLine[],
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every(
+    (row, index) =>
+      row.key === b[index]?.key && row.bornAt === b[index]?.bornAt,
+  );
+}
+
+export function retainPlayerFixPulseLines(
+  lines: readonly RaidRoomPlayerFixPulseLine[],
+  opts: {
+    now: number;
+    seatedCount: number;
+    seatedUserIds?: ReadonlySet<number>;
+    locatedUserIds?: ReadonlySet<number>;
+    ttlMs?: number;
+  },
+): RaidRoomPlayerFixPulseLine[] {
+  if (opts.seatedCount < 2) return [];
+  const ttlMs = opts.ttlMs ?? PLAYER_FIX_PULSE_MS;
+  return lines.filter((line) => {
+    if (playerFixPulseOpacity(line.bornAt, opts.now, ttlMs) <= 0) return false;
+    if (
+      opts.seatedUserIds &&
+      (!opts.seatedUserIds.has(line.fromUserId) ||
+        !opts.seatedUserIds.has(line.toUserId))
+    ) {
+      return false;
+    }
+    if (
+      opts.locatedUserIds &&
+      (!opts.locatedUserIds.has(line.fromUserId) ||
+        !opts.locatedUserIds.has(line.toUserId))
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/** 仅开发环境找人线演示：不进大厅、不写库。 */
+export const PULSE_DEMO_ROOM_PUBLIC_ID = "pulse-demo";
+export const PULSE_DEMO_MAP_ID = "customs";
+export const PULSE_DEMO_TICK_MS = 4_000;
+
+export const PULSE_DEMO_BOTS = [
+  { userId: 900001, displayName: "假人甲" },
+  { userId: 900002, displayName: "假人乙" },
+] as const;
+
+const PULSE_DEMO_PATHS: Record<number, Array<{ x: number; y: number; z: number }>> =
+  {
+    900001: [
+      { x: 360, y: 0, z: 40 },
+      { x: 280, y: 0, z: -30 },
+      { x: 420, y: 0, z: 90 },
+      { x: 190, y: 0, z: 20 },
+    ],
+    900002: [
+      { x: 200, y: 4, z: 160 },
+      { x: 400, y: 0, z: 10 },
+      { x: 250, y: 4, z: 155 },
+      { x: 330, y: 0, z: -20 },
+    ],
+  };
+
+export function isPulseDemoSession(publicId: string): boolean {
+  return (publicId || "").trim().toLowerCase() === PULSE_DEMO_ROOM_PUBLIC_ID;
+}
+
+export function pulseDemoFixAt(opts: {
+  userId: number;
+  step: number;
+  mapId?: string;
+  now?: number;
+}): RaidRoomPlayerFix | null {
+  const path = PULSE_DEMO_PATHS[opts.userId];
+  if (!path?.length) return null;
+  const n = Math.max(0, Math.trunc(opts.step));
+  const point = path[n % path.length]!;
+  return {
+    userId: opts.userId,
+    x: point.x,
+    y: point.y,
+    z: point.z,
+    yaw: (n * 45) % 360,
+    mapId: (opts.mapId || PULSE_DEMO_MAP_ID).trim() || PULSE_DEMO_MAP_ID,
+    fileName: `pulse-demo-${opts.userId}-${n}.png`,
+    at: opts.now ?? Date.now(),
+  };
+}
+
+export function pulseDemoMembers(self?: {
+  user_id: number;
+  display_name: string;
+} | null): Array<{
+  user_id: number;
+  display_name: string;
+  is_host?: boolean;
+  in_room?: boolean;
+  online?: boolean;
+}> {
+  const bots = PULSE_DEMO_BOTS.map((bot, index) => ({
+    user_id: bot.userId,
+    display_name: bot.displayName,
+    is_host: index === 0 && !(self && self.user_id > 0),
+    in_room: true,
+    online: true,
+  }));
+  if (!self || self.user_id <= 0) return bots;
+  return [
+    {
+      user_id: self.user_id,
+      display_name: self.display_name || `用户${self.user_id}`,
+      is_host: true,
+      in_room: true,
+      online: true,
+    },
+    ...bots,
+  ];
+}
+
 export function mergeBoardMarks(
   boardMarks: RaidRoomMarkLike[],
   optimistic: RaidRoomMarkLike[],

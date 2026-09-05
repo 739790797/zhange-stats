@@ -1,6 +1,6 @@
 import { Alert, Spin, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addTarkovKeyOwn,
@@ -19,7 +19,7 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
-import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { TARKOV_HOME_PATH, tarkovRaidPulseDemoHref } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   buildRaidPrepOverlays,
@@ -796,6 +796,15 @@ export function TarkovRaidPrepPanel() {
       }
       topActions={
         <>
+          {import.meta.env.DEV ? (
+            <Link
+              className={styles.dockChip}
+              to={tarkovRaidPulseDemoHref()}
+              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+            >
+              找人线演示
+            </Link>
+          ) : null}
           <button
             type="button"
             className={styles.dockChip}

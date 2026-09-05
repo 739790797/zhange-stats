@@ -67,6 +67,20 @@ import {
   collectPlayerFixMarks,
   pruneStalePlayerFixes,
   upsertPlayerFix,
+  colorForUserId,
+  PULSE_DEMO_BOTS,
+  PULSE_DEMO_MAP_ID,
+  isPulseDemoSession,
+  pulseDemoFixAt,
+  pulseDemoMembers,
+  PLAYER_FIX_PULSE_MS,
+  buildPlayerFixPulseLines,
+  detectPlayerFixPulseUpdaters,
+  playerFixPulseCrossFloor,
+  playerFixPulseLinesEqual,
+  playerFixPulseOpacity,
+  replacePlayerFixPulseLines,
+  retainPlayerFixPulseLines,
 } from "./tarkovRaidRooms";
 
 describe("raid room helpers", () => {
@@ -879,6 +893,147 @@ describe("raid room helpers", () => {
     ).toEqual([12]);
     expect(pruneStalePlayerFixes([first], 1000 + 8 * 60_000 + 1)).toEqual([]);
     expect(pruneStalePlayerFixes([first], 1000 + 60_000)).toEqual([first]);
+  });
+
+  it("builds a star of find-teammate pulse lines to the updater", () => {
+    const marks = [
+      { userId: 1, x: 0, y: 0, z: 0, key: "self", floor: "ground" },
+      { userId: 2, x: 10, y: 0, z: 0, key: "u:2", floor: "ground" },
+      { userId: 3, x: 0, y: 8, z: 10, key: "u:3", floor: "second" },
+    ];
+    expect(
+      buildPlayerFixPulseLines({
+        marks,
+        updaterId: 2,
+        now: 1000,
+        seatedCount: 1,
+      }),
+    ).toEqual([]);
+    expect(
+      buildPlayerFixPulseLines({
+        marks: [marks[1]!],
+        updaterId: 2,
+        now: 1000,
+        seatedCount: 3,
+      }),
+    ).toEqual([]);
+    const lines = buildPlayerFixPulseLines({
+      marks,
+      updaterId: 2,
+      now: 1000,
+      seatedCount: 3,
+    });
+    expect(lines.map((row) => `${row.fromUserId}->${row.toUserId}`).sort()).toEqual(
+      ["1->2", "3->2"],
+    );
+    expect(lines.some((row) => row.fromUserId === 2)).toBe(false);
+    expect(new Set(lines.map((row) => row.color))).toEqual(
+      new Set([colorForUserId(2)]),
+    );
+    expect(lines.find((row) => row.fromUserId === 1)?.crossFloor).toBe(false);
+    expect(lines.find((row) => row.fromUserId === 3)?.crossFloor).toBe(true);
+    expect(playerFixPulseCrossFloor("", "second")).toBe(false);
+    expect(playerFixPulseCrossFloor("ground", "second")).toBe(true);
+    expect(playerFixPulseOpacity(1000, 1000)).toBe(1);
+    expect(playerFixPulseOpacity(1000, 1000 + PLAYER_FIX_PULSE_MS / 2)).toBe(0.5);
+    expect(playerFixPulseOpacity(1000, 1000 + PLAYER_FIX_PULSE_MS)).toBe(0);
+    const replaced = replacePlayerFixPulseLines(
+      lines,
+      buildPlayerFixPulseLines({
+        marks: [
+          { userId: 1, x: 1, y: 0, z: 1, key: "self" },
+          { userId: 2, x: 20, y: 0, z: 20, key: "u:2:next" },
+        ],
+        updaterId: 2,
+        now: 2000,
+        seatedCount: 3,
+      }),
+      2,
+    );
+    expect(replaced).toHaveLength(1);
+    expect(replaced[0]).toMatchObject({
+      fromUserId: 1,
+      toUserId: 2,
+      x2: 20,
+      z2: 20,
+      bornAt: 2000,
+    });
+    const otherPulse = buildPlayerFixPulseLines({
+      marks,
+      updaterId: 3,
+      now: 1500,
+      seatedCount: 3,
+    });
+    const both = replacePlayerFixPulseLines(lines, otherPulse, 3);
+    expect(both.filter((row) => row.toUserId === 2)).toHaveLength(2);
+    expect(both.filter((row) => row.toUserId === 3)).toHaveLength(2);
+    expect(
+      retainPlayerFixPulseLines(lines, { now: 1000, seatedCount: 1 }),
+    ).toEqual([]);
+    expect(
+      retainPlayerFixPulseLines(lines, {
+        now: 1000 + PLAYER_FIX_PULSE_MS,
+        seatedCount: 3,
+      }),
+    ).toEqual([]);
+    expect(
+      retainPlayerFixPulseLines(lines, {
+        now: 1000,
+        seatedCount: 3,
+        seatedUserIds: new Set([1, 2]),
+      }).map((row) => row.fromUserId),
+    ).toEqual([1]);
+    expect(
+      retainPlayerFixPulseLines(lines, {
+        now: 1000,
+        seatedCount: 3,
+        locatedUserIds: new Set([2, 3]),
+      }).map((row) => row.fromUserId),
+    ).toEqual([3]);
+    const hydrated = detectPlayerFixPulseUpdaters(null, marks);
+    expect(hydrated.updaterIds).toEqual([]);
+    expect(
+      detectPlayerFixPulseUpdaters(hydrated.next, [
+        marks[0]!,
+        { ...marks[1]!, key: "u:2:shot2", x: 11 },
+        marks[2]!,
+      ]).updaterIds,
+    ).toEqual([2]);
+    expect(
+      detectPlayerFixPulseUpdaters(hydrated.next, marks).updaterIds,
+    ).toEqual([]);
+    expect(playerFixPulseLinesEqual(lines, lines)).toBe(true);
+    expect(playerFixPulseLinesEqual(lines, replaced)).toBe(false);
+  });
+
+  it("walks pulse-demo bots around customs waypoints", () => {
+    expect(isPulseDemoSession("pulse-demo")).toBe(true);
+    expect(isPulseDemoSession("solo")).toBe(false);
+    const first = pulseDemoFixAt({
+      userId: PULSE_DEMO_BOTS[0].userId,
+      step: 0,
+      now: 10,
+    });
+    const next = pulseDemoFixAt({
+      userId: PULSE_DEMO_BOTS[0].userId,
+      step: 1,
+      now: 20,
+    });
+    expect(first).toMatchObject({
+      userId: 900001,
+      mapId: PULSE_DEMO_MAP_ID,
+      at: 10,
+    });
+    expect(next?.x).not.toBe(first?.x);
+    expect(pulseDemoFixAt({ userId: 7, step: 0 })).toBeNull();
+    expect(pulseDemoMembers(null).map((row) => row.user_id)).toEqual([
+      900001, 900002,
+    ]);
+    expect(
+      pulseDemoMembers({ user_id: 12, display_name: "我" }).map(
+        (row) => row.user_id,
+      ),
+    ).toEqual([12, 900001, 900002]);
   });
 
   it("formats overlap cells and ranks map rows", () => {

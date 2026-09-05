@@ -183,6 +183,10 @@ export function tarkovRaidRoomHref(publicId: string): string {
   return `${TARKOV_RAID_PREP_PATH}/rooms/${encodeURIComponent(publicId)}`;
 }
 
+export function tarkovRaidPulseDemoHref(): string {
+  return `${TARKOV_RAID_PREP_PATH}/pulse-demo`;
+}
+
 export function tarkovRaidRoomShareUrl(publicId: string, origin: string): string {
   return `${String(origin || "").replace(/\/$/, "")}${tarkovRaidRoomHref(publicId)}`;
 }

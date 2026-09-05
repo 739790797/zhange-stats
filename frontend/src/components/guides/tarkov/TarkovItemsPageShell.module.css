@@ -23,6 +23,10 @@
   overflow: hidden;
 }
 
+.innerFillPagePad {
+  padding: 24px 28px 32px;
+}
+
 .crumbs {
   display: flex;
   flex-wrap: wrap;

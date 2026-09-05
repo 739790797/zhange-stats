@@ -8,7 +8,6 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchTarkovCollection,
@@ -48,7 +47,6 @@ import {
   collectionItemImageUrl,
   inventoryThumbUrl,
 } from "@/lib/tarkovItemImages";
-import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import trade from "./TarkovGuideTrade.module.css";
 import styles from "./TarkovCollectionPanel.module.css";
 
@@ -130,6 +128,10 @@ function snappedGhostRect(
   };
 }
 
+function itemIconClass(rotated?: boolean): string {
+  return rotated ? `${styles.itemIcon} ${styles.itemIconRotated}` : styles.itemIcon;
+}
+
 function itemLabel(item: TarkovCollectionItem): string {
   return item.name || item.short_name || item.id;
 }
@@ -142,26 +144,14 @@ function ItemShortName({ item }: { item: TarkovCollectionItem }) {
   const short = itemShortLabel(item);
   const full = itemLabel(item);
   return (
-    <Link
-      className={styles.itemName}
-      to={itemHrefFromTypes(item.id, item.types || [])}
-      title={full}
-      onClick={onItemNameClick}
-    >
+    <span className={styles.itemName} title={full}>
       {short}
-    </Link>
+    </span>
   );
 }
 
 function isToggleClick(event: { ctrlKey: boolean; metaKey: boolean }): boolean {
   return event.ctrlKey || event.metaKey;
-}
-
-function onItemNameClick(
-  event: { ctrlKey: boolean; metaKey: boolean; preventDefault: () => void; stopPropagation: () => void },
-) {
-  if (isToggleClick(event)) event.preventDefault();
-  event.stopPropagation();
 }
 
 function CollectionItemImage({
@@ -288,7 +278,7 @@ function CollectionItemCard({
       }}
     >
       <div className={styles.itemBody}>
-        <CollectionItemImage item={item} className={styles.itemIcon} />
+        <CollectionItemImage item={item} className={itemIconClass(rotated)} />
         <ItemShortName item={item} />
         {item.found_in_raid ? <FirMark /> : null}
         {count > 1 ? <span className={styles.count}>{count}</span> : null}
@@ -547,7 +537,6 @@ export function TarkovCollectionPanel() {
       toggleItem(item.id, rotated);
       return;
     }
-    if (target.closest("a")) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const metrics = readGridMetrics(event.currentTarget);
     const stride = metrics.cell + metrics.gap;
@@ -881,16 +870,23 @@ export function TarkovCollectionPanel() {
       {drag?.moved && draggingItem && ghost ? (
         <div
           className={styles.ghost}
-          style={{
-            left: ghost.left,
-            top: ghost.top,
-            width: ghost.width,
-            height: ghost.height,
-          }}
+          style={
+            {
+              left: ghost.left,
+              top: ghost.top,
+              width: ghost.width,
+              height: ghost.height,
+              "--w": dragSize?.width,
+              "--h": dragSize?.height,
+            } as CSSProperties
+          }
         >
           {collectionItemImageUrl(draggingItem.icon_link, draggingItem.id) ||
           inventoryThumbUrl(draggingItem.icon_link, draggingItem.id) ? (
-            <CollectionItemImage item={draggingItem} />
+            <CollectionItemImage
+              item={draggingItem}
+              className={itemIconClass(drag.rotated)}
+            />
           ) : (
             <span>{itemLabel(draggingItem)}</span>
           )}
@@ -918,17 +914,21 @@ function PlacedItem({
   return (
     <div
       className={`${styles.item}${dragging ? ` ${styles.itemDragging}` : ""}`}
-      style={{
-        gridColumn: `${slot.col + 1} / span ${slot.width}`,
-        gridRow: `${slot.row + 1} / span ${slot.height}`,
-      }}
+      style={
+        {
+          gridColumn: `${slot.col + 1} / span ${slot.width}`,
+          gridRow: `${slot.row + 1} / span ${slot.height}`,
+          "--w": slot.width,
+          "--h": slot.height,
+        } as CSSProperties
+      }
       onPointerDown={(event) => onPointerDown(event, item, Boolean(slot.rotated))}
       onContextMenu={(event) => {
         if (isToggleClick(event)) event.preventDefault();
       }}
     >
       <div className={styles.itemBody}>
-        <CollectionItemImage item={item} className={styles.itemIcon} />
+        <CollectionItemImage item={item} className={itemIconClass(slot.rotated)} />
         <ItemShortName item={item} />
         {item.found_in_raid ? <FirMark /> : null}
         {count > 1 ? <span className={styles.count}>{count}</span> : null}

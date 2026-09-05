@@ -239,6 +239,7 @@
   display: flex;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   border: 1px solid #1a1a14;
   background: #0d0d0b;
   cursor: grab;
@@ -263,12 +264,23 @@
 }
 
 .itemIcon {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   image-rendering: auto;
   pointer-events: none;
+}
+
+.itemIconRotated {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: calc(100% * var(--h) / var(--w));
+  height: calc(100% * var(--w) / var(--h));
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 .fir {
@@ -302,17 +314,19 @@
 
 .itemName {
   position: absolute;
-  top: 1px;
-  right: 2px;
-  left: 3px;
+  top: 2px;
+  right: 3px;
+  left: auto;
   z-index: 2;
+  max-width: calc(100% - 6px);
   color: #f7f4ea;
   font-size: clamp(8px, calc(var(--cell) * 0.28), 15px);
   font-weight: 800;
   letter-spacing: 0;
   line-height: 1.1;
-  text-align: left;
+  text-align: right;
   text-decoration: none;
+  pointer-events: none;
   -webkit-text-stroke: 0.35px #000;
   paint-order: stroke fill;
   text-shadow:
@@ -325,10 +339,6 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.itemName:hover {
-  color: #fff;
 }
 
 .trayBody {
@@ -399,18 +409,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   pointer-events: none;
   border: 1px solid var(--hb-orange, #c8932a);
   background: rgba(26, 22, 12, 0.92);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
-.ghost img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  image-rendering: auto;
 }
 
 .dragging {

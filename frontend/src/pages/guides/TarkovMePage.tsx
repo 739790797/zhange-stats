@@ -7,7 +7,12 @@ export default function TarkovMePage() {
   const [searchParams] = useSearchParams();
   const fill = resolveTarkovMeTab(searchParams.get("tab")) === "collection";
   return (
-    <TarkovItemsPageShell crumbs={[]} sectionLabel="个人中心" fill={fill}>
+    <TarkovItemsPageShell
+      crumbs={[]}
+      sectionLabel="个人中心"
+      fill={fill}
+      fillPagePad={fill}
+    >
       <TarkovMePanel />
     </TarkovItemsPageShell>
   );

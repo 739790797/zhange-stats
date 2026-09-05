@@ -103,6 +103,9 @@ import {
   RAID_ROOM_OTHER_FLOOR_OPACITY,
   collectPlayerFixMarks,
   playerFixMarkerCaption,
+  playerFixPulseCrossFloor,
+  playerFixPulseOpacity,
+  type RaidRoomPlayerFixPulseLine,
   type TarkovMapPlayerMark,
   isMapDrawTool,
   isTypingTarget,
@@ -246,6 +249,7 @@ type Props = {
   boardMarks?: RaidRoomMarkLike[];
   remoteDrafts?: RaidRoomDraftStroke[];
   remotePlayerFixes?: TarkovMapPlayerMark[];
+  playerFixPulseLines?: RaidRoomPlayerFixPulseLine[];
   suppressLocalFix?: boolean;
   drawColor?: string;
   authorUserId?: number;
@@ -309,16 +313,19 @@ type MapRuntime = {
   mine: L.LayerGroup;
   remote: L.LayerGroup;
   player: L.LayerGroup;
+  pulse: L.LayerGroup;
   localStroke?: L.Polyline;
   mineKeys: Set<string>;
   strokeLayers: Map<string, L.Layer>;
   draftLayers: Map<number, L.Layer>;
   playerLayers: Map<string, L.Marker>;
+  pulseLayers: Map<string, L.Polyline>;
   boardPane?: HTMLElement;
   svgRoot?: SVGSVGElement;
 };
 
 const BOARD_PANE = "boardPane";
+const PLAYER_PULSE_PANE = "playerPulsePane";
 const SVG_BASE_PANE = "svgBasePane";
 const DRAFT_THROTTLE_MS = 48;
 const QUEST_LABEL_ZOOM_MS = 80;
@@ -1497,6 +1504,80 @@ function syncPlayerFixMarkers(
   }
 }
 
+function pulseLineCrossFloor(
+  line: RaidRoomPlayerFixPulseLine,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+): boolean {
+  if (line.crossFloor) return true;
+  const fromFloor = overlayFloorForPoint(line.y1, floorBands, {
+    x: line.x1,
+    z: line.z1,
+  });
+  const toFloor = overlayFloorForPoint(line.y2, floorBands, {
+    x: line.x2,
+    z: line.z2,
+  });
+  return playerFixPulseCrossFloor(fromFloor, toFloor);
+}
+
+function pulseLinePathOptions(
+  line: RaidRoomPlayerFixPulseLine,
+  now: number,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+): L.PolylineOptions {
+  const fade = playerFixPulseOpacity(line.bornAt, now);
+  const cross = pulseLineCrossFloor(line, floorBands);
+  return {
+    color: line.color,
+    weight: 3,
+    opacity: fade * (cross ? 0.55 : 1),
+    dashArray: cross ? "8 10" : undefined,
+    lineCap: "round",
+    interactive: false,
+    bubblingMouseEvents: false,
+    pane: PLAYER_PULSE_PANE,
+  };
+}
+
+function syncPlayerFixPulseLines(
+  runtime: MapRuntime,
+  lines: readonly RaidRoomPlayerFixPulseLine[],
+  now: number,
+  floorBands: ReturnType<typeof mapLayerFloorBands>,
+) {
+  const group = runtime.pulse;
+  const keep = new Set(lines.map((line) => line.key));
+  for (const [key, layer] of [...runtime.pulseLayers.entries()]) {
+    if (keep.has(key)) continue;
+    group.removeLayer(layer);
+    runtime.pulseLayers.delete(key);
+  }
+  for (const line of lines) {
+    if (playerFixPulseOpacity(line.bornAt, now) <= 0) {
+      const stale = runtime.pulseLayers.get(line.key);
+      if (stale) {
+        group.removeLayer(stale);
+        runtime.pulseLayers.delete(line.key);
+      }
+      continue;
+    }
+    const latlngs: L.LatLngExpression[] = [
+      pos({ x: line.x1, z: line.z1 }),
+      pos({ x: line.x2, z: line.z2 }),
+    ];
+    const style = pulseLinePathOptions(line, now, floorBands);
+    let layer = runtime.pulseLayers.get(line.key);
+    if (!layer) {
+      layer = L.polyline(latlngs, style);
+      layer.addTo(group);
+      runtime.pulseLayers.set(line.key, layer);
+      continue;
+    }
+    layer.setLatLngs(latlngs);
+    layer.setStyle(style);
+  }
+}
+
 function syncRemoteDrafts(
   runtime: MapRuntime,
   drafts: RaidRoomDraftStroke[],
@@ -1810,6 +1891,7 @@ export function TarkovMapViewer({
   boardMarks = [],
   remoteDrafts = [],
   remotePlayerFixes = [],
+  playerFixPulseLines = [],
   suppressLocalFix = false,
   drawColor = "#c8932a",
   authorUserId = 0,
@@ -2330,10 +2412,12 @@ export function TarkovMapViewer({
       mine: L.layerGroup(),
       remote: L.layerGroup(),
       player: L.layerGroup(),
+      pulse: L.layerGroup(),
       mineKeys: new Set(),
       strokeLayers: new Map(),
       draftLayers: new Map(),
       playerLayers: new Map(),
+      pulseLayers: new Map(),
     };
     runtimeRef.current = runtime;
 
@@ -2359,6 +2443,12 @@ export function TarkovMapViewer({
         boardPane.style.zIndex = "650";
         boardPane.style.pointerEvents = "none";
         runtime.boardPane = boardPane;
+      }
+      map.createPane(PLAYER_PULSE_PANE);
+      const pulsePane = map.getPane(PLAYER_PULSE_PANE);
+      if (pulsePane) {
+        pulsePane.style.zIndex = "580";
+        pulsePane.style.pointerEvents = "none";
       }
       map.createPane(SVG_BASE_PANE);
       const svgPane = map.getPane(SVG_BASE_PANE);
@@ -2527,6 +2617,7 @@ export function TarkovMapViewer({
       runtime.live.addTo(map);
       runtime.remote.addTo(map);
       runtime.player.addTo(map);
+      runtime.pulse.addTo(map);
       map.fitBounds(bounds, { animate: false });
       const detachPanPerf = attachPanPerfGuards(
         map,
@@ -3120,6 +3211,24 @@ export function TarkovMapViewer({
     parentSlug,
     updatePrefs,
   ]);
+
+  const pulseLinesRef = useRef(playerFixPulseLines);
+  pulseLinesRef.current = playerFixPulseLines;
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!ready || !runtime?.pulse) return undefined;
+    let raf = 0;
+    const tick = () => {
+      const now = Date.now();
+      const lines = pulseLinesRef.current;
+      syncPlayerFixPulseLines(runtime, lines, now, floorBands);
+      if (lines.some((line) => playerFixPulseOpacity(line.bornAt, now) > 0)) {
+        raf = window.requestAnimationFrame(tick);
+      }
+    };
+    tick();
+    return () => window.cancelAnimationFrame(raf);
+  }, [floorBands, playerFixPulseLines, ready]);
 
   useEffect(() => {
     const map = runtimeRef.current?.map;
