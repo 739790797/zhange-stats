@@ -397,6 +397,11 @@ describe("collection layout", () => {
     expect(layoutToApi(parsed!)).toEqual({
       placements: [{ item_id: "a", col: 2, row: 3, rotated: true }],
     });
+    expect(
+      layoutToApi({ v: 2, placements: [{ itemId: "b", col: 0, row: 1 }] }),
+    ).toEqual({
+      placements: [{ item_id: "b", col: 0, row: 1, rotated: false }],
+    });
     expect(layoutFromApi({ placements: [] })?.placements).toEqual([]);
     expect(layoutFromApi(null)).toBeNull();
   });

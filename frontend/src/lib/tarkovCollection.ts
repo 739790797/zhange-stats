@@ -423,7 +423,7 @@ export function layoutToApi(layout: CollectionLayout): {
     item_id: string;
     col: number;
     row: number;
-    rotated?: boolean;
+    rotated: boolean;
   }>;
 } {
   return {
@@ -431,7 +431,7 @@ export function layoutToApi(layout: CollectionLayout): {
       item_id: row.itemId,
       col: row.col,
       row: row.row,
-      ...(row.rotated ? { rotated: true } : {}),
+      rotated: Boolean(row.rotated),
     })),
   };
 }
