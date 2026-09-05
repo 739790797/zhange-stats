@@ -261,6 +261,7 @@ export function TarkovRaidRoomLiveMap({
         />
       ) : null}
       <TarkovMapViewer
+        key={mapId}
         slug={mapId}
         parentSlug={parentSlug}
         extracts={extracts}

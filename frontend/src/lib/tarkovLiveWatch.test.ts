@@ -34,6 +34,7 @@ describe("formatLogSyncActionLabel", () => {
     expect(formatLogSyncActionLabel(true, { done: 2, total: 9 })).toBe(
       "正在读取 2 / 9",
     );
+    expect(formatLogSyncActionLabel(false, null, true)).toBe("正在查看目录…");
   });
 });
 
@@ -53,6 +54,16 @@ describe("formatLiveLogBackfillHint", () => {
         unfinished: -3,
       }),
     ).toBe("已从日志回填 已完成 +2，进行中 +1，未完成 -3（3 次启动）");
+    expect(
+      formatLiveLogBackfillHint(
+        2,
+        "backfill",
+        { done: 0, started: 0, unfinished: 0 },
+        { questEvents: 0, skipped: 1 },
+      ),
+    ).toBe(
+      "已从日志回填 已完成 0，进行中 0，未完成 0（2 次启动），1 个日志文件过大已跳过。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）",
+    );
   });
 });
 

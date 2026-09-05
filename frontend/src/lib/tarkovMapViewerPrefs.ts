@@ -22,7 +22,14 @@ import {
 
 const STORAGE_KEY = "zhange.guides.tarkov.mapViewer.v1";
 
-export type TarkovMapOverlayMode = "all" | "boss-spawns";
+export type TarkovMapOverlayMode = "all" | "boss-spawns" | "locks";
+
+/** 互动地图侧栏始终给出战利品父级开关；Boss/门锁 overlay 不提供。 */
+export function mapLootLayerTogglesVisible(
+  overlayMode: TarkovMapOverlayMode = "all",
+): boolean {
+  return overlayMode === "all";
+}
 
 export function overlayFlagsForMode(
   prefs: TarkovMapViewerPrefs,
@@ -51,6 +58,24 @@ export function overlayFlagsForMode(
       showLabels: false,
       showQuests: false,
       showLocks: false,
+      showHazards: false,
+      showSwitches: false,
+      showStationary: false,
+      showBtrStops: false,
+      showLootContainers: false,
+      showLootLoose: false,
+      hazardKinds: prefs.hazardKinds,
+      lootContainerKinds: prefs.lootContainerKinds,
+      lootLooseKinds: prefs.lootLooseKinds,
+    };
+  }
+  if (overlayMode === "locks") {
+    return {
+      extractKinds: defaultExtractKindFlags(false),
+      spawnKinds: { pmc: false, scav: false, sniper: false, boss: false },
+      showLabels: true,
+      showQuests: false,
+      showLocks: true,
       showHazards: false,
       showSwitches: false,
       showStationary: false,

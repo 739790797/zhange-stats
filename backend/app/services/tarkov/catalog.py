@@ -925,6 +925,35 @@ def list_loot_tiers(
     }
 
 
+def _detail_is_key(detail: dict[str, Any]) -> bool:
+    item = detail.get("item") if isinstance(detail.get("item"), dict) else {}
+    types = [str(t) for t in (item.get("types") or []) if t]
+    return _is_handbook_key(_id_list(item.get("handbookCategories")), types)
+
+
+def attach_item_key_locks(db: Session, detail: dict[str, Any]) -> None:
+    """钥匙详情反查 dump 门锁；地图 raw 缺失时保持空列表，不挡物品页。"""
+    detail["locks"] = []
+    if not _detail_is_key(detail):
+        return
+    try:
+        from app.services.tarkov.bosses import (
+            _load_payload as load_maps_payload,
+            ensure_maps,
+            get_maps_raw,
+        )
+        from app.services.tarkov.maps import collect_key_lock_maps
+
+        if get_maps_raw(db) is None:
+            ensure_maps(db)
+        _source, maps_payload, _synced, _note = load_maps_payload(db)
+        detail["locks"] = collect_key_lock_maps(
+            maps_payload, str(detail.get("id") or "")
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("item key locks unavailable", exc_info=True)
+
+
 def get_item_detail(db: Session, item_id: str) -> dict[str, Any]:
     item_id = (item_id or "").strip()
     if not item_id:
@@ -942,4 +971,5 @@ def get_item_detail(db: Session, item_id: str) -> dict[str, Any]:
     if detail is None:
         raise TarkovItemsError(f"未找到物品: {item_id}")
     detail["source"] = source
+    attach_item_key_locks(db, detail)
     return detail

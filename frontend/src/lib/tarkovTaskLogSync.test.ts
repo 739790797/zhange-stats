@@ -3,9 +3,12 @@ import {
   accountHasQuestState,
   applyQuestLogState,
   collectQuestEventsFromSessions,
+  foldQuestEvents,
+  foldSessionQuests,
   formatLastQuestSyncLine,
   formatQuestSyncDeltaLine,
   formatSignedDelta,
+  mergeQuestProgressFromFolded,
   questProgressDelta,
   mergeQuestProgressFromLogs,
   replayQuestEvents,
@@ -30,6 +33,8 @@ describe("sessionModeMatchesGameMode", () => {
     expect(sessionModeMatchesGameMode("regular", "pve")).toBe(false);
     expect(sessionModeMatchesGameMode("", "pve")).toBe(true);
     expect(sessionModeMatchesGameMode(undefined, "pvp")).toBe(true);
+    expect(sessionModeMatchesGameMode("seasonal", "pvp")).toBe(true);
+    expect(sessionModeMatchesGameMode("seasonal", "pve")).toBe(false);
   });
 });
 
@@ -76,6 +81,23 @@ describe("applyQuestLogState", () => {
     );
     expect(merged.done.sort()).toEqual(["old", "t1"]);
     expect(merged.started).toEqual(["t2"]);
+  });
+
+  it("keeps hex quest ids even when the catalog is stale", () => {
+    const merged = applyQuestLogState(
+      ["5AC346A886F7744E1B083D67"],
+      [],
+      new Map([
+        ["5ac346a886f7744e1b083d67", "started"],
+        ["625d6ffaf7308432be1d44c5", "completed"],
+      ]),
+      new Set(["5ac346a886f7744e1b083d67"]),
+    );
+    expect(merged.done.sort()).toEqual([
+      "5ac346a886f7744e1b083d67",
+      "625d6ffaf7308432be1d44c5",
+    ]);
+    expect(merged.started).toEqual([]);
   });
 
   it("keeps a failed attempt as in-progress instead of wiping it", () => {
@@ -184,6 +206,71 @@ describe("mergeQuestProgressFromLogs", () => {
     expect(merged.done.sort()).toEqual(["missed", "old"]);
     expect(merged.started).toEqual(["fresh"]);
     expect(merged.eventCount).toBe(4);
+  });
+});
+
+describe("foldQuestEvents", () => {
+  it("keeps the later clock when sessions arrive out of order", () => {
+    const first = foldQuestEvents(
+      new Map(),
+      [ev("completed", "t1", "2026-01-01 12:00:00")],
+    );
+    const second = foldQuestEvents(first, [
+      ev("started", "t1", "2026-01-01 10:00:00"),
+      ev("started", "t2", "2026-01-01 11:00:00"),
+    ]);
+    expect(second.get("t1")).toEqual({
+      kind: "completed",
+      at: "2026-01-01 12:00:00",
+    });
+    expect(second.get("t2")?.kind).toBe("started");
+  });
+});
+
+describe("foldSessionQuests", () => {
+  it("skips the other game mode and does not keep file text", () => {
+    const skipped = foldSessionQuests(
+      new Map(),
+      {
+        sessionMode: "pve",
+        quests: [ev("completed", "pve-q", "2026-01-01 10:00:00")],
+      },
+      "pvp",
+    );
+    expect(skipped.eventCount).toBe(0);
+    expect(skipped.next.size).toBe(0);
+
+    const folded = foldSessionQuests(
+      new Map(),
+      {
+        sessionMode: "regular",
+        quests: [ev("completed", "pvp-q", "2026-01-01 10:00:00")],
+      },
+      "pvp",
+    );
+    expect(folded.eventCount).toBe(1);
+    expect(folded.next.get("pvp-q")?.kind).toBe("completed");
+  });
+});
+
+describe("mergeQuestProgressFromFolded", () => {
+  it("applies the folded map the same way as replaying sessions", () => {
+    const { next, eventCount } = foldSessionQuests(
+      new Map(),
+      {
+        sessionMode: "pve",
+        quests: [
+          ev("started", "a", "2026-01-01 10:00:00"),
+          ev("completed", "b", "2026-01-01 11:00:00"),
+        ],
+      },
+      "pve",
+    );
+    const merged = mergeQuestProgressFromFolded([], [], next, eventCount);
+    expect(merged.done).toEqual(["b"]);
+    expect(merged.started).toEqual(["a"]);
+    expect(merged.eventCount).toBe(2);
+    expect(merged.latestEventAt).toBe("2026-01-01 11:00:00");
   });
 });
 

@@ -1,0 +1,94 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.title {
+  margin: 40px 0 0;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.mapLink {
+  color: var(--hb-orange, #c8932a);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.mapLink:hover {
+  color: #e0b45a;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+  color: #e8e3cf;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab:hover,
+.tabOn {
+  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  color: var(--hb-orange, #c8932a);
+}
+
+.tabCount {
+  color: var(--hb-muted, #b0ae9a);
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+}
+
+.points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.point {
+  padding: 4px 10px;
+  border: 1px solid #3a3d30;
+  background: #101010;
+  color: #d8d4b8;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.point:hover,
+.pointOn {
+  border-color: var(--hb-orange, #c8932a);
+  color: #eee9d6;
+}
+
+.map {
+  display: flex;
+  flex-direction: column;
+  height: min(62vh, 640px);
+  min-height: 420px;
+}

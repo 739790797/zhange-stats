@@ -6,6 +6,7 @@ import {
   isRaidPrepAutoMapKind,
   mapSlugKeys,
   normalizeRaidPrepMapId,
+  raidPrepAutoSwitchMapId,
   raidPrepMapsEquivalent,
 } from "@/lib/tarkovRaidPrep";
 
@@ -289,6 +290,22 @@ export function raidRoomCanAutoSwitchMap(
   const viewer = Number(viewerUserId);
   if (!Number.isFinite(viewer) || viewer <= 0) return false;
   return raidRoomActingHostUserId(hostUserId, members) === viewer;
+}
+
+/** 房主按自己的日志换图：已有图也跟开战相位；空房可垫上一场。 */
+export function raidRoomHostLogMapId(opts: {
+  canSwitchMap: boolean;
+  currentMapId: string;
+  logMapId: string;
+  phaseKind?: string | null;
+}): string {
+  if (!opts.canSwitchMap) return "";
+  return raidPrepAutoSwitchMapId({
+    currentMapId: opts.currentMapId,
+    logMapId: opts.logMapId,
+    phaseKind: opts.phaseKind,
+    fillEmpty: !normalizeRaidPrepMapId(opts.currentMapId),
+  });
 }
 
 export function normalizeRaidRoomRaidId(raw: string | null | undefined): string {

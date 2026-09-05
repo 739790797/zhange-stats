@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   averageWipeLength,
   buildWipeRows,
+  currentWipeStart,
   type TarkovWipeStart,
 } from "./tarkovWipeLength";
 
@@ -27,5 +28,28 @@ describe("buildWipeRows", () => {
   it("averages the last finished wipes", () => {
     const now = new Date("2024-04-11T00:00:00.000Z");
     expect(averageWipeLength(starts, now)).toBe(Math.floor((60 + 31) / 2));
+  });
+});
+
+describe("currentWipeStart", () => {
+  const starts: TarkovWipeStart[] = [
+    { name: "A", start: "2024-01-01T00:00:00.000Z" },
+    { name: "B", start: "2024-02-01T00:00:00.000Z" },
+    { name: "C", start: "2024-04-01T00:00:00.000Z" },
+  ];
+
+  it("picks the latest wipe that has already started", () => {
+    expect(currentWipeStart(starts, new Date("2024-02-15T00:00:00.000Z")).name).toBe(
+      "B",
+    );
+    expect(currentWipeStart(starts, new Date("2024-04-01T00:00:00.000Z")).name).toBe(
+      "C",
+    );
+  });
+
+  it("falls back to the first row before any wipe clock", () => {
+    expect(currentWipeStart(starts, new Date("2023-12-31T00:00:00.000Z")).name).toBe(
+      "A",
+    );
   });
 });

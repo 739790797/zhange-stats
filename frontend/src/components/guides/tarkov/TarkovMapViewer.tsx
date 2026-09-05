@@ -131,6 +131,7 @@ import {
 } from "@/lib/tarkovMapImages";
 import {
   loadTarkovMapViewerPrefs,
+  mapLootLayerTogglesVisible,
   overlayFlagsForMode,
   resolveMapFloor,
   resolveMapStyle,
@@ -150,6 +151,7 @@ import {
   extractKindsPresent,
   isExtractKindVisible,
   TARKOV_EXTRACT_KIND_LABELS,
+  tarkovExtractFloorDisplay,
   tarkovExtractIconUrl,
   tarkovExtractStyle,
   withExtractKindsForPresent,
@@ -185,6 +187,7 @@ import {
   lootContainerKindKey,
   lootContainerKindLabel,
   lootContainerKindsPresent,
+  lootFilterParentOn,
   tarkovBtrIconUrl,
   tarkovBtrStopLabel,
   tarkovContainerIconUrl,
@@ -199,6 +202,7 @@ import {
   tarkovStationaryIconUrl,
   tarkovStationaryLabel,
   tarkovSwitchIconUrl,
+  withArrivedLootKindsOn,
   withKindsForPresent,
   type TarkovLockKeyContext,
   type TarkovLockKeyMode,
@@ -558,7 +562,7 @@ function addExtractMarkers(
   for (const row of extracts) {
     if (row.x == null || row.z == null) continue;
     if (!isExtractKindVisible(kindFlags, row.faction)) continue;
-    if (!tarkovMarkerVisibleOnFloor(row, floor, floorBands)) continue;
+    const floorView = tarkovExtractFloorDisplay(row, floor, floorBands);
     const style = tarkovExtractStyle(row.faction);
     const marker = L.marker(pos({ x: row.x, z: row.z }), {
       icon: L.divIcon({
@@ -568,7 +572,8 @@ function addExtractMarkers(
         iconAnchor: [12, 12],
       }),
       title: `${row.name}（${row.faction || "撤离"}）`,
-      zIndexOffset: style.zIndex,
+      opacity: floorView.opacity,
+      zIndexOffset: style.zIndex + floorView.zBoost,
       riseOnHover: true,
     });
     marker.bindPopup(
@@ -665,6 +670,9 @@ function collectLockMarkers(
     icon: styles.lockTipIcon,
     text: styles.lockTipText,
     status: styles.lockTipStatus,
+    chips: styles.lockTipChips,
+    chip: styles.lockTipChip,
+    chipLabel: styles.lockTipChipLabel,
   };
   locks.forEach((row, index) => {
     if (row.x == null || row.z == null) return;
@@ -2029,6 +2037,7 @@ export function TarkovMapViewer({
     enabled:
       Boolean(slug) &&
       overlayMode !== "boss-spawns" &&
+      overlayMode !== "locks" &&
       (showLootLoose || showLootContainers),
     staleTime: 60_000,
     placeholderData: keepPreviousData,
@@ -2040,6 +2049,7 @@ export function TarkovMapViewer({
   const onLockClickRef = useRef<(keyId: string) => void>(() => {});
   onLockClickRef.current = (keyId) => {
     if (isMapDrawTool(drawModeRef.current)) return;
+    if (overlayMode === "locks") return;
     navigate(tarkovLockHref(keyId));
   };
   const onLooseClickRef = useRef<(itemId: string, types: string[]) => void>(
@@ -2082,12 +2092,11 @@ export function TarkovMapViewer({
     () => lootContainerKindsPresent(lootContainers),
     [lootContainers],
   );
-  const containersAllOn =
-    !lootKindOptions.length ||
-    (showLootContainers &&
-      allPresentKindsOn(lootContainerKinds, lootKindOptions, false));
-  const lootParentOn =
-    lootKindOptions.length > 0 && containersAllOn;
+  const lootParentOn = lootFilterParentOn(
+    showLootContainers,
+    lootKindOptions,
+    lootContainerKinds,
+  );
   const lootParentPartial =
     lootKindOptions.length > 0 &&
     !lootParentOn &&
@@ -2098,12 +2107,15 @@ export function TarkovMapViewer({
     () => lootLooseKindsPresent(lootLoose),
     [lootLoose],
   );
-  const hasLootLoose = lootLoose.length > 0;
-  const looseParentOn =
-    showLootLoose && allPresentKindsOn(lootLooseKinds, looseKindOptions, false);
+  const looseParentOn = lootFilterParentOn(
+    showLootLoose,
+    looseKindOptions,
+    lootLooseKinds,
+  );
   const looseParentPartial =
-    showLootLoose &&
+    looseKindOptions.length > 0 &&
     !looseParentOn &&
+    showLootLoose &&
     anyPresentKindOn(lootLooseKinds, looseKindOptions, false);
   const looseParentRef = useRef<HTMLInputElement>(null);
   const usableItems = useMemo(() => {
@@ -2126,6 +2138,7 @@ export function TarkovMapViewer({
   const usableParentOn = filterGroupAllOn(usableItems);
   const usableParentPartial = filterGroupPartial(usableItems);
   const usableParentRef = useRef<HTMLInputElement>(null);
+  const showLootLayerToggles = mapLootLayerTogglesVisible(overlayMode);
   const hasMapLayerFilters =
     placeLabels.length > 0 ||
     btrStops.length > 0 ||
@@ -2133,8 +2146,7 @@ export function TarkovMapViewer({
     spawnKindOptions.length > 0 ||
     usableItems.length > 0 ||
     hazardKindOptions.length > 0 ||
-    lootKindOptions.length > 0 ||
-    hasLootLoose;
+    showLootLayerToggles;
   const hasQuestFilters = questOverlays.length > 0;
   const questPeopleOnCount = questTree
     ? questPeople.filter(
@@ -2236,19 +2248,45 @@ export function TarkovMapViewer({
   }, [looseParentPartial]);
 
   useEffect(() => {
-    if (!hasLootLoose || !looseKindOptions.length) return;
-    if (!prefs.showLootLoose) return;
-    if (Object.keys(prefs.lootLooseKinds).length > 0) return;
+    if (!prefs.showLootContainers || !lootKindOptions.length) return;
+    const next = withArrivedLootKindsOn(
+      prefs.lootContainerKinds,
+      lootKindOptions,
+      true,
+    );
+    if (next === prefs.lootContainerKinds) return;
     updatePrefs((prev) => ({
       ...prev,
-      lootLooseKinds: withKindsForPresent(
-        prev.lootLooseKinds,
-        looseKindOptions,
-        true,
+      lootContainerKinds: withArrivedLootKindsOn(
+        prev.lootContainerKinds,
+        lootKindOptions,
+        prev.showLootContainers,
       ),
     }));
   }, [
-    hasLootLoose,
+    lootKindOptions,
+    prefs.lootContainerKinds,
+    prefs.showLootContainers,
+    updatePrefs,
+  ]);
+
+  useEffect(() => {
+    if (!prefs.showLootLoose || !looseKindOptions.length) return;
+    const next = withArrivedLootKindsOn(
+      prefs.lootLooseKinds,
+      looseKindOptions,
+      true,
+    );
+    if (next === prefs.lootLooseKinds) return;
+    updatePrefs((prev) => ({
+      ...prev,
+      lootLooseKinds: withArrivedLootKindsOn(
+        prev.lootLooseKinds,
+        looseKindOptions,
+        prev.showLootLoose,
+      ),
+    }));
+  }, [
     looseKindOptions,
     prefs.lootLooseKinds,
     prefs.showLootLoose,
@@ -3651,7 +3689,7 @@ export function TarkovMapViewer({
                     ))}
                   </FilterCollapsibleGroup>
                 ) : null}
-                {lootKindOptions.length ? (
+                {showLootLayerToggles ? (
                   <FilterCollapsibleGroup
                     groupId="lootable"
                     label={TARKOV_MAP_FILTER_GROUP_LABELS.lootable}
@@ -3680,36 +3718,42 @@ export function TarkovMapViewer({
                     />
                     }
                   >
-                    {lootKindOptions.map((kind) => (
-                      <FilterCheckRow
-                        key={kind}
-                        child
-                        checked={
-                          showLootContainers &&
-                          isLootContainerKindOn(lootContainerKinds, kind)
-                        }
-                        icon={tarkovContainerIconUrl(kind)}
-                        label={lootContainerKindLabel(kind, lootContainers)}
-                        onChange={() =>
-                          updatePrefs((prev) =>
-                            withLootContainerKind(
-                              prev,
-                              kind,
-                              !(
-                                prev.showLootContainers &&
-                                isLootContainerKindOn(
-                                  prev.lootContainerKinds,
+                    {lootKindOptions.length
+                      ? lootKindOptions.map((kind) => (
+                          <FilterCheckRow
+                            key={kind}
+                            child
+                            checked={
+                              showLootContainers &&
+                              isLootContainerKindOn(lootContainerKinds, kind)
+                            }
+                            icon={tarkovContainerIconUrl(kind)}
+                            label={lootContainerKindLabel(kind, lootContainers)}
+                            onChange={() =>
+                              updatePrefs((prev) =>
+                                withLootContainerKind(
+                                  prev,
                                   kind,
-                                )
-                              ),
-                            ),
+                                  !(
+                                    prev.showLootContainers &&
+                                    isLootContainerKindOn(
+                                      prev.lootContainerKinds,
+                                      kind,
+                                    )
+                                  ),
+                                ),
+                              )
+                            }
+                          />
+                        ))
+                      : showLootContainers && lootQuery.isFetching
+                        ? (
+                            <span className={styles.filterHint}>加载中…</span>
                           )
-                        }
-                      />
-                    ))}
+                        : null}
                   </FilterCollapsibleGroup>
                 ) : null}
-                {hasLootLoose ? (
+                {showLootLayerToggles ? (
                   <FilterCollapsibleGroup
                     groupId="lootLoose"
                     label={TARKOV_MAP_FILTER_GROUP_LABELS.lootLoose}
@@ -3738,29 +3782,35 @@ export function TarkovMapViewer({
                     />
                     }
                   >
-                    {looseKindOptions.map((kind) => (
-                      <FilterCheckRow
-                        key={kind}
-                        child
-                        checked={
-                          showLootLoose && isLootLooseKindOn(lootLooseKinds, kind)
-                        }
-                        icon={tarkovLooseLootKindIconUrl(kind)}
-                        label={lootLooseKindLabel(kind)}
-                        onChange={() =>
-                          updatePrefs((prev) =>
-                            withLootLooseKind(
-                              prev,
-                              kind,
-                              !(
-                                prev.showLootLoose &&
-                                isLootLooseKindOn(prev.lootLooseKinds, kind)
-                              ),
-                            ),
+                    {looseKindOptions.length
+                      ? looseKindOptions.map((kind) => (
+                          <FilterCheckRow
+                            key={kind}
+                            child
+                            checked={
+                              showLootLoose && isLootLooseKindOn(lootLooseKinds, kind)
+                            }
+                            icon={tarkovLooseLootKindIconUrl(kind)}
+                            label={lootLooseKindLabel(kind)}
+                            onChange={() =>
+                              updatePrefs((prev) =>
+                                withLootLooseKind(
+                                  prev,
+                                  kind,
+                                  !(
+                                    prev.showLootLoose &&
+                                    isLootLooseKindOn(prev.lootLooseKinds, kind)
+                                  ),
+                                ),
+                              )
+                            }
+                          />
+                        ))
+                      : showLootLoose && lootQuery.isFetching
+                        ? (
+                            <span className={styles.filterHint}>加载中…</span>
                           )
-                        }
-                      />
-                    ))}
+                        : null}
                   </FilterCollapsibleGroup>
                 ) : null}
               </div>

@@ -60,6 +60,36 @@ const SESSION_MODE_RE = /Session mode:\s*([^\s|]+)/i;
 
 export const TARKOV_GAME_LOG_MAX_FILE_BYTES = 32 * 1024 * 1024;
 
+/** 任务事件在 notifications.log； flea 多的号很容易超过 32MB。 */
+export const TARKOV_GAME_LOG_NOTIFICATIONS_MAX_BYTES = 96 * 1024 * 1024;
+
+/** 超大通知日志只读尾部，避免整文件拖死标签页。 */
+export const TARKOV_GAME_LOG_NOTIFICATIONS_TAIL_BYTES = 48 * 1024 * 1024;
+
+export function logFileByteBudget(name: string): number {
+  return isNotificationsLogFileName(name)
+    ? TARKOV_GAME_LOG_NOTIFICATIONS_MAX_BYTES
+    : TARKOV_GAME_LOG_MAX_FILE_BYTES;
+}
+
+/** 普通日志超限跳过；通知日志超限改读尾部，避免任务事件整份丢掉。 */
+export function planLogFileRead(
+  name: string,
+  size: number,
+): { skip: boolean; offset: number } {
+  const n = Number(size) || 0;
+  if (n <= 0) return { skip: true, offset: 0 };
+  const budget = logFileByteBudget(name);
+  if (n <= budget) return { skip: false, offset: 0 };
+  if (isNotificationsLogFileName(name)) {
+    return {
+      skip: false,
+      offset: Math.max(0, n - TARKOV_GAME_LOG_NOTIFICATIONS_TAIL_BYTES),
+    };
+  }
+  return { skip: true, offset: 0 };
+}
+
 export const TARKOV_GAME_LOG_SCAN_LIMITS = [40, 120, 0] as const;
 
 export type TarkovGameLogScanLimit = (typeof TARKOV_GAME_LOG_SCAN_LIMITS)[number];
@@ -720,7 +750,16 @@ export function buildRaidsFromEvents(
       continue;
     }
     if (event.kind === "raid_starting" || event.kind === "map_loading" || event.kind === "matching") {
-      if (awaitNewMatch && !current) continue;
+      if (awaitNewMatch && !current) {
+        // 战后 hideout 的 LocationLoaded / GameStarted 仍跳过；
+        // 选了新图的 scene preset 要开下一局，否则离线/无 match_found 永远不切图。
+        if (event.kind === "map_loading" && event.mapId) {
+          awaitNewMatch = false;
+          current = emptyRaid();
+          applyRaidFields(current, event);
+        }
+        continue;
+      }
       if (!current) current = emptyRaid();
       applyRaidFields(current, event);
       continue;
@@ -752,8 +791,26 @@ function extractJsonObject(
   const start = text.indexOf("{", from);
   if (start < 0 || start - from > 240) return null;
   let depth = 0;
+  let inStr = false;
+  let escape = false;
   for (let i = start; i < text.length && i < start + maxLen; i += 1) {
     const ch = text[i];
+    if (inStr) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === "\"") inStr = false;
+      continue;
+    }
+    if (ch === "\"") {
+      inStr = true;
+      continue;
+    }
     if (ch === "{") depth += 1;
     else if (ch === "}") {
       depth -= 1;
@@ -769,9 +826,72 @@ const QUEST_MESSAGE_TYPE: Record<number, TarkovLogQuestKind> = {
   12: "completed",
 };
 
+const QUEST_STATUS_WORD: Record<string, TarkovLogQuestKind> = {
+  started: "started",
+  start: "started",
+  failed: "failed",
+  fail: "failed",
+  completed: "completed",
+  complete: "completed",
+  finished: "completed",
+  success: "completed",
+};
+
 export function taskIdFromQuestTemplate(templateId: string): string {
   const token = (templateId || "").trim().split(/\s+/)[0] || "";
-  return /^[a-fA-F0-9]{20,32}$/.test(token) ? token : "";
+  return /^[a-fA-F0-9]{20,32}$/.test(token) ? token.toLowerCase() : "";
+}
+
+function asRecord(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : null;
+}
+
+function pickUnknown(
+  rec: Record<string, unknown> | null,
+  keys: readonly string[],
+): unknown {
+  if (!rec) return undefined;
+  for (const key of keys) {
+    if (rec[key] !== undefined) return rec[key];
+  }
+  return undefined;
+}
+
+function questKindFromMessageType(raw: unknown): TarkovLogQuestKind | "" {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return QUEST_MESSAGE_TYPE[raw] || "";
+  }
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  const asNum = Number.parseInt(text, 10);
+  if (Number.isFinite(asNum) && QUEST_MESSAGE_TYPE[asNum]) {
+    return QUEST_MESSAGE_TYPE[asNum];
+  }
+  return QUEST_STATUS_WORD[text.toLowerCase()] || "";
+}
+
+function questEventFromMessage(raw: unknown, at: string): TarkovLogQuestEvent | null {
+  const root = asRecord(raw);
+  const message = asRecord(pickUnknown(root, ["message", "Message"])) || root;
+  const kind = questKindFromMessageType(
+    pickUnknown(message, ["type", "Type", "status", "Status"]),
+  );
+  if (!kind) return null;
+  const taskId = taskIdFromQuestTemplate(
+    String(
+      pickUnknown(message, [
+        "templateId",
+        "TemplateId",
+        "questId",
+        "QuestId",
+        "tid",
+      ]) || "",
+    ),
+  );
+  if (!taskId) return null;
+  return { kind, at, taskId };
 }
 
 function parseChatQuest(
@@ -781,22 +901,10 @@ function parseChatQuest(
 ): TarkovLogQuestEvent | null {
   const until = nextLogLineIndex(text, lineStart + 1);
   const block = text.slice(lineStart, until);
-  const jsonText = extractJsonObject(block, 0, 48_000);
+  const jsonText = extractJsonObject(block, 0, 512_000);
   if (!jsonText) return null;
   try {
-    const parsed = JSON.parse(jsonText) as {
-      message?: { type?: unknown; templateId?: unknown };
-    };
-    const rawType = parsed.message?.type;
-    const type =
-      typeof rawType === "number"
-        ? rawType
-        : Number.parseInt(String(rawType || ""), 10);
-    const kind = QUEST_MESSAGE_TYPE[type];
-    if (!kind) return null;
-    const taskId = taskIdFromQuestTemplate(String(parsed.message?.templateId || ""));
-    if (!taskId) return null;
-    return { kind, at, taskId };
+    return questEventFromMessage(JSON.parse(jsonText), at);
   } catch {
     return null;
   }
@@ -1089,7 +1197,7 @@ function lastRaidFacingEvent(
 
 /** 回菜单空壳：登录/战后重载档案，没有 shortId 和地图。 */
 function isPostRaidShell(raid: TarkovLogRaid): boolean {
-  return !raid.raidId && !raid.location && !raid.aborted;
+  return !raid.raidId && !raid.location && !raid.mapId && !raid.aborted;
 }
 
 function latestMeaningfulRaid(

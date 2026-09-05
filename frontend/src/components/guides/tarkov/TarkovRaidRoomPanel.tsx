@@ -50,7 +50,6 @@ import {
   hydrateRaidPrepCatalogRows,
   planRaidPrepTaskProgressSync,
   objectiveDonesToSkipMap,
-  raidPrepAutoSwitchMapId,
   raidPrepMapOptions,
   raidPrepSkippedIds,
   resolveRaidPrepLocateTargets,
@@ -74,10 +73,11 @@ import {
 } from "@/lib/tarkovRaidPrep";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
-  formatLogSyncActionLabel,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
-import { useTarkovLastLogMapId, useTarkovLastLogPhase, useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
+import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
+import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
+import { useTarkovLastLogMapId, useTarkovLastLogPhase } from "@/lib/useTarkovLiveWatch";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
 import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
@@ -101,6 +101,7 @@ import {
   overlayRaidRoomLocalPhase,
   normalizeRaidRoomRaidId,
   raidRoomCanAutoSwitchMap,
+  raidRoomHostLogMapId,
   raidRoomPickDockMapId,
   raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
@@ -161,7 +162,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [logPhases, setLogPhases] = useState<RaidRoomLogPhase[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
   const lastLogPhase = useTarkovLastLogPhase();
-  const live = useTarkovLiveWatch();
+  const logSync = useTarkovLogSyncDialog();
   const lastLogPhaseSigRef = useRef("");
   const autoClaimKeyRef = useRef("");
   const [error, setError] = useState("");
@@ -933,14 +934,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   const autoMapId =
     sharedAutoMapId ||
-    (!mapId && canSwitchMap
-      ? raidPrepAutoSwitchMapId({
-          currentMapId: "",
-          logMapId: lastLogPhase?.mapId || lastLogMapId,
-          phaseKind: lastLogPhase?.kind,
-          fillEmpty: true,
-        })
-      : "");
+    raidRoomHostLogMapId({
+      canSwitchMap,
+      currentMapId: mapId,
+      logMapId: lastLogPhase?.mapId || lastLogMapId,
+      phaseKind: lastLogPhase?.kind,
+    });
   useEffect(() => {
     autoMapSigRef.current = "";
     autoClaimKeyRef.current = "";
@@ -1013,14 +1012,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     room?.is_member,
     run,
   ]);
-
-  const syncLogs = () => {
-    void live.syncLogs().then((result) => {
-      if (!result.hint) return;
-      if (result.ok) message.success(result.hint);
-      else message.error(result.hint);
-    });
-  };
 
   const toggleKeyBring = useCallback(
     (itemId: string) => {
@@ -1649,11 +1640,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                 <button
                   type="button"
                   className={styles.changeMapBtn}
-                  disabled={live.logSyncBusy}
-                  title="读取本机全部启动日志并回填任务进度。轮询只跟最新一场，旧日志要点这里。"
-                  onClick={syncLogs}
+                  disabled={logSync.listing}
+                  title={logSync.title}
+                  onClick={() => void logSync.openDialog()}
                 >
-                  {formatLogSyncActionLabel(live.logSyncBusy, live.logSyncScan)}
+                  {logSync.label}
                 </button>
               </div>
             }
@@ -1714,6 +1705,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           if (!next.length) return;
           await run(() => claimTarkovRaidRoomTasks(publicId, next));
         }}
+      />
+      <TarkovLogSyncRangeModal
+        open={logSync.open}
+        sessions={logSync.sessions}
+        onCancel={logSync.closeDialog}
+        onConfirm={logSync.confirm}
       />
       <Modal
         title="各图任务"

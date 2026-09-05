@@ -1,5 +1,4 @@
 import {
-  TARKOV_GAME_LOG_MAX_FILE_BYTES,
   classifyLogsRoot,
   formatBindPath,
   isNewerScreenshot,
@@ -10,6 +9,7 @@ import {
   listSessionStubs,
   logWalkCandidatesFrom,
   mergeBindPath,
+  planLogFileRead,
   screenshotWalkCandidatesFrom,
   type TarkovLogSessionStub,
 } from "@/lib/tarkovGameLogs";
@@ -566,7 +566,6 @@ export async function peekSessionFingerprint(
   const parts: string[] = [];
   for (const fileHandle of handles) {
     const file = await fileHandle.getFile();
-    if (file.size > TARKOV_GAME_LOG_MAX_FILE_BYTES) continue;
     parts.push(fileFingerprint(file));
   }
   return joinFingerprint(parts);
@@ -581,13 +580,15 @@ export async function readSessionLogs(
   const skipped: string[] = [];
   for (const fileHandle of handles) {
     const file = await fileHandle.getFile();
-    if (file.size > TARKOV_GAME_LOG_MAX_FILE_BYTES) {
+    const plan = planLogFileRead(fileHandle.name, file.size);
+    if (plan.skip) {
       skipped.push(fileHandle.name);
       continue;
     }
+    const blob = plan.offset > 0 ? file.slice(plan.offset) : file;
     files.push({
       name: fileHandle.name,
-      text: await file.text(),
+      text: await blob.text(),
       lastModified: file.lastModified,
       size: file.size,
     });

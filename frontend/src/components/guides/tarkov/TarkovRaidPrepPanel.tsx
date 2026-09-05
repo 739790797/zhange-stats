@@ -66,14 +66,14 @@ import {
 } from "@/lib/tarkovRaidRooms";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
-  formatLogSyncActionLabel,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
+import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
+import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
 import { logMapLabel } from "@/lib/tarkovGameLogs";
 import {
   useTarkovLastLogMapId,
   useTarkovLastLogPhase,
-  useTarkovLiveWatch,
 } from "@/lib/useTarkovLiveWatch";
 import { useTarkovRaidDockOpen } from "@/lib/tarkovRaidDockPrefs";
 import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
@@ -133,7 +133,7 @@ export function TarkovRaidPrepPanel() {
   const [keyBringIds, setKeyBringIds] = useState<string[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
   const lastLogPhase = useTarkovLastLogPhase();
-  const live = useTarkovLiveWatch();
+  const logSync = useTarkovLogSyncDialog();
   const autoMapSigRef = useRef("");
   const [progressTick, setProgressTick] = useState(0);
   const hydratedKeyRef = useRef("");
@@ -703,14 +703,6 @@ export function TarkovRaidPrepPanel() {
     [doneTaskIds, patchParams, startedTaskIds],
   );
 
-  const syncLogs = () => {
-    void live.syncLogs().then((result) => {
-      if (!result.hint) return;
-      if (result.ok) message.success(result.hint);
-      else message.error(result.hint);
-    });
-  };
-
   const locateTask = useCallback(
     async (row: (typeof rows)[number]) => {
       let points = resolveRaidPrepLocateTargets(
@@ -896,11 +888,11 @@ export function TarkovRaidPrepPanel() {
                 <button
                   type="button"
                   className={styles.changeMapBtn}
-                  disabled={live.logSyncBusy}
-                  title="读取本机全部启动日志并回填任务进度。轮询只跟最新一场，旧日志要点这里。"
-                  onClick={syncLogs}
+                  disabled={logSync.listing}
+                  title={logSync.title}
+                  onClick={() => void logSync.openDialog()}
                 >
-                  {formatLogSyncActionLabel(live.logSyncBusy, live.logSyncScan)}
+                  {logSync.label}
                 </button>
               </div>
             }
@@ -968,6 +960,12 @@ export function TarkovRaidPrepPanel() {
             else params.delete("sel");
           });
         }}
+      />
+      <TarkovLogSyncRangeModal
+        open={logSync.open}
+        sessions={logSync.sessions}
+        onCancel={logSync.closeDialog}
+        onConfirm={logSync.confirm}
       />
     </TarkovRaidWorkspace>
   );

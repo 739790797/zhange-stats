@@ -394,6 +394,69 @@ def _finalize_map_lock_corrections(row: dict[str, Any]) -> None:
     _snap_factory_exit_med_gate_lock(row)
 
 
+def _project_key_lock(lock: dict[str, Any], key_id: str) -> dict[str, Any] | None:
+    if not _has_xz(lock):
+        return None
+    return {
+        "id": str(lock.get("id") or ""),
+        "lock_type": str(lock.get("lock_type") or ""),
+        "needs_power": bool(lock.get("needs_power")),
+        "x": lock.get("x"),
+        "y": lock.get("y"),
+        "z": lock.get("z"),
+        "top": lock.get("top"),
+        "bottom": lock.get("bottom"),
+        "key_id": key_id,
+    }
+
+
+def collect_key_lock_maps(
+    payload: dict[str, Any],
+    key_id: str,
+) -> list[dict[str, Any]]:
+    """钥匙能开的锁：按母图归组，走与地图页同一套过滤 / 吸附。"""
+    ident = (key_id or "").strip()
+    if not ident:
+        return []
+    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
+    overlay = _markers_from_maps_payload(payload)
+    rows = parse_map_rows(payload, loot_loose=False, loot_containers=False)
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        slug = str(row.get("slug") or "").strip()
+        if not slug or slug in HUB_SKIP or row.get("parent_slug"):
+            continue
+        _apply_map_markers(
+            row,
+            locale,
+            overlay=overlay,
+            loot_loose=False,
+            loot_containers=False,
+        )
+        hits: list[dict[str, Any]] = []
+        for lock in row.get("locks") or []:
+            if not isinstance(lock, dict):
+                continue
+            if str(lock.get("key_id") or "").strip() != ident:
+                continue
+            projected = _project_key_lock(lock, ident)
+            if projected:
+                hits.append(projected)
+        if not hits:
+            continue
+        out.append(
+            {
+                "slug": slug,
+                "name": str(row.get("name") or slug),
+                "english": str(row.get("english") or ""),
+                "parent_slug": "",
+                "locks": hits,
+            }
+        )
+    out.sort(key=lambda item: (str(item.get("name") or ""), str(item.get("slug") or "")))
+    return out
+
+
 def _has_xz(row: dict[str, Any] | None) -> bool:
     if not isinstance(row, dict):
         return False

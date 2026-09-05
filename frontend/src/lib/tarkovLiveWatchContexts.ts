@@ -1,5 +1,6 @@
 import { createContext } from "react";
-import type { TarkovLogPhasePayload } from "@/lib/tarkovGameLogs";
+import type { TarkovLogPhasePayload, TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
+import type { TarkovLogSyncOpts } from "@/lib/tarkovLogSyncRange";
 import type { TarkovScreenshotPos } from "@/lib/tarkovScreenshotPos";
 
 export type TarkovScreenshotFix = TarkovScreenshotPos & {
@@ -28,8 +29,15 @@ export type TarkovLiveWatchValue = {
   logSyncScan: { done: number; total: number } | null;
   enableShots: () => Promise<void>;
   resume: () => Promise<void>;
-  /** 手动扫全部启动文件夹（含旧日志），回填任务进度并补传战局摘要。 */
-  syncLogs: () => Promise<{ ok: boolean; hint: string }>;
+  /** 只列启动文件夹，不打开日志文件。 */
+  previewLogSessions: () => Promise<{
+    ok: boolean;
+    hint: string;
+    sessions: TarkovLogSessionStub[];
+  }>;
+  /** 按日期范围排队解析启动文件夹；只上传任务 id。 */
+  syncLogs: (opts?: TarkovLogSyncOpts) => Promise<{ ok: boolean; hint: string }>;
+  cancelLogSync: () => void;
 };
 
 export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
@@ -51,7 +59,9 @@ export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
   logSyncScan: null,
   enableShots: async () => undefined,
   resume: async () => undefined,
+  previewLogSessions: async () => ({ ok: false, hint: "", sessions: [] }),
   syncLogs: async () => ({ ok: false, hint: "" }),
+  cancelLogSync: () => undefined,
 };
 
 export type TarkovLiveShotMeta = {

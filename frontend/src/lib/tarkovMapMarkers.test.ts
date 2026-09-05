@@ -8,6 +8,8 @@ import {
   isLootContainerKindOn,
   lootContainerKindLabel,
   lootContainerKindsPresent,
+  lootFilterParentOn,
+  withArrivedLootKindsOn,
   tarkovBtrIconUrl,
   tarkovBtrStopLabel,
   tarkovContainerIconUrl,
@@ -20,6 +22,8 @@ import {
   tarkovLockLabel,
   tarkovLockThumbUrl,
   tarkovLockTooltipHtml,
+  tarkovLockTypeChipsHtml,
+  tarkovLockTypeLine,
   tarkovStationaryLabel,
   tarkovMarkerHeightSpan,
   tarkovMarkerVisibleOnFloor,
@@ -36,6 +40,23 @@ describe("tarkov map marker helpers", () => {
       jacket: true,
       safe: true,
     });
+  });
+
+  it("keeps loot parents checkable before kinds arrive", () => {
+    expect(lootFilterParentOn(false, [], {})).toBe(false);
+    expect(lootFilterParentOn(true, [], {})).toBe(true);
+    expect(lootFilterParentOn(true, ["jacket"], {})).toBe(false);
+    expect(lootFilterParentOn(true, ["jacket"], { jacket: true })).toBe(true);
+    expect(withArrivedLootKindsOn({}, ["jacket", "safe"], false)).toEqual({});
+    expect(withArrivedLootKindsOn({}, ["jacket", "safe"], true)).toEqual({
+      jacket: true,
+      safe: true,
+    });
+    expect(
+      withArrivedLootKindsOn({ jacket: false }, ["jacket", "safe"], true),
+    ).toEqual({ jacket: false, safe: true });
+    const kept = { jacket: true };
+    expect(withArrivedLootKindsOn(kept, ["jacket"], true)).toBe(kept);
   });
 
   it("lists hazard and container kinds with known order", () => {
@@ -208,9 +229,12 @@ describe("tarkov lock tooltip html", () => {
     icon: "lockTipIcon",
     text: "lockTipText",
     status: "lockTipStatus",
+    chips: "lockTipChips",
+    chip: "lockTipChip",
+    chipLabel: "lockTipChipLabel",
   };
 
-  it("keeps encyclopedia bubbles to icon, name and power, without lock type", () => {
+  it("shows lock type as text above the key name", () => {
     const html = tarkovLockTooltipHtml(
       {
         key_id: "k1",
@@ -221,14 +245,29 @@ describe("tarkov lock tooltip html", () => {
       },
       classes,
     );
-    expect(html).toContain("宿舍 114");
-    expect(html).toContain("lockTipIcon");
-    expect(html).toContain("https://assets.tarkov.dev/k1-icon.webp");
+    expect(html.indexOf("锁的类型：门")).toBeGreaterThan(-1);
+    expect(html.indexOf("锁的类型：门")).toBeLessThan(html.indexOf("宿舍 114"));
+    expect(html).toContain("lockTipChip");
     expect(html).toContain("需供电");
-    expect(html).not.toContain(">门<");
+    expect(html).toContain("https://assets.tarkov.dev/k1-icon.webp");
+    expect(html).not.toContain("/tarkov/map-icons/lock.png");
     expect(html).not.toContain("拥有");
     expect(html).not.toContain("带了");
     expect(tarkovLockKeyStatusLines("k1")).toEqual([]);
+  });
+
+  it("omits type chips when the lock has no type", () => {
+    expect(tarkovLockTypeLine("")).toBe("");
+    expect(tarkovLockTypeLine("door")).toBe("锁的类型：门");
+    expect(
+      tarkovLockTypeChipsHtml({ key_id: "k1", key_name: "工厂钥匙" }, classes),
+    ).toBe("");
+    expect(
+      tarkovLockTypeChipsHtml(
+        { key_id: "k1", lock_type: "trunk", needs_power: true },
+        classes,
+      ),
+    ).toContain("锁的类型：后备箱");
   });
 
   it("adds who owns and who brought for raid maps", () => {
@@ -252,6 +291,6 @@ describe("tarkov lock tooltip html", () => {
     expect(html).toContain("还没人声明带这把钥匙");
     expect(html).not.toContain("没人拥有这把钥匙 还没人声明带这把钥匙");
     expect(html).toContain("lockTipStatus");
-    expect(html).not.toContain(">门<");
+    expect(html).toContain("锁的类型：门");
   });
 });

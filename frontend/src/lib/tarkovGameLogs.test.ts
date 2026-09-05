@@ -32,6 +32,8 @@ import {
   logEventLabel,
   logMapHref,
   logMapLabel,
+  logFileByteBudget,
+  planLogFileRead,
   mapLogLocationToMapId,
   mapLogSceneToMapId,
   parseLogRaidMode,
@@ -323,6 +325,9 @@ describe("parseTarkovLogText", () => {
     expect(taskIdFromQuestTemplate("5ac346a886f7744e1b083d67 description")).toBe(
       "5ac346a886f7744e1b083d67",
     );
+    expect(taskIdFromQuestTemplate("5AC346A886F7744E1B083D67 description")).toBe(
+      "5ac346a886f7744e1b083d67",
+    );
     const parsed = parseTarkovLogBundle([
       {
         name: "application.log",
@@ -354,6 +359,38 @@ describe("parseTarkovLogText", () => {
       },
     ]);
     expect(latestLogActivityAt(parsed)).toBe("2024-02-05 19:04:00.000");
+  });
+
+  it("reads PascalCase quest messages used in newer clients", () => {
+    const parsed = parseTarkovLogText(
+      [
+        "2026-09-05 20:00:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        '{ "Type": "new_message", "Message": { "Type": 12, "TemplateId": "5AC346A886F7744E1B083D67 description" } }',
+      ].join("\n"),
+    );
+    expect(parsed.quests).toEqual([
+      {
+        kind: "completed",
+        at: "2026-09-05 20:00:00.000",
+        taskId: "5ac346a886f7744e1b083d67",
+      },
+    ]);
+  });
+
+  it("reads oversized notification logs from the tail instead of skipping", () => {
+    expect(planLogFileRead("application.log", 33 * 1024 * 1024)).toEqual({
+      skip: true,
+      offset: 0,
+    });
+    expect(planLogFileRead("notifications.log", 40 * 1024 * 1024)).toEqual({
+      skip: false,
+      offset: 0,
+    });
+    expect(planLogFileRead("push-notifications.log", 100 * 1024 * 1024)).toEqual({
+      skip: false,
+      offset: 100 * 1024 * 1024 - 48 * 1024 * 1024,
+    });
+    expect(logFileByteBudget("notifications.log")).toBe(96 * 1024 * 1024);
   });
 
   it("closes a raid from notifications UserMatchOver JSON", () => {
@@ -464,9 +501,62 @@ describe("parseTarkovLogText", () => {
         ],
       }),
     ).toMatchObject({ kind: "raid_exited", raidId: "PQXKR6" });
+    expect(
+      logPhaseFromParsed({
+        events: [],
+        raids: [
+          {
+            raidId: "PQXKR6",
+            location: "Shoreline",
+            mapId: "shoreline",
+            mapLabel: "海岸线",
+            raidMode: "online",
+            startedAt: "2023-12-29 19:03:40.000",
+            endedAt: "2023-12-29 19:41:00.000",
+          },
+          {
+            raidId: "",
+            location: "",
+            mapId: "woods",
+            mapLabel: "森林",
+            raidMode: "unknown",
+            startedAt: "2023-12-29 19:51:00.000",
+          },
+        ],
+      }),
+    ).toMatchObject({ kind: "raid_started", mapId: "woods" });
   });
 
-  it("opens a new raid after exit only on match_found", () => {
+  it("opens a new raid after exit on map_loading with a known map", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [
+          MATCH_LINE,
+          "2023-12-29 19:03:40.000|x|Info|application|GameStarted",
+          "2023-12-29 19:42:01.000|x|Info|application|LocationLoaded:1.00 real:1.00",
+          "2023-12-29 19:42:02.000|x|Info|application|GameStarted",
+          "2023-12-29 19:50:00.000|x|Info|application|scene preset path:maps/woods.bundle",
+          "2023-12-29 19:50:10.000|x|Info|application|LocationLoaded:1.00 real:1.00",
+          "2023-12-29 19:51:00.000|x|Info|application|GameStarted",
+        ].join("\n"),
+      },
+      {
+        name: "notifications.log",
+        text: [
+          "2023-12-29 19:41:00.000|x|Info|notifications|Got notification | UserMatchOver",
+          '{ "location": "Shoreline", "shortId": "PQXKR6" }',
+        ].join("\n"),
+      },
+    ]);
+    expect(parsed.raids.map((raid) => raid.mapId)).toEqual(["shoreline", "woods"]);
+    expect(logPhaseFromParsed(parsed)).toMatchObject({
+      kind: "raid_started",
+      mapId: "woods",
+    });
+  });
+
+  it("opens a new raid after exit on match_found", () => {
     const parsed = parseTarkovLogBundle([
       {
         name: "application.log",

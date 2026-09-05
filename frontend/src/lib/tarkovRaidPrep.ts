@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { TARKOV_MAPS, traderDisplayName } from "@/lib/tarkovHomeNav";
+import { MAPS_HREF, TARKOV_MAPS, traderDisplayName } from "@/lib/tarkovHomeNav";
+import { logMapHref } from "@/lib/tarkovGameLogs";
 import {
   orderObjectiveTypes,
   tarkovExitStatusLabel,
@@ -1292,8 +1293,10 @@ export function normalizeRaidPrepMapId(raw: string): string {
   return "";
 }
 
-/** 匹配成功 / 倒计时 / 开战：足以认定「正在进这张图」。 */
+/** 载入地图 / 匹配中 / 匹配成功 / 倒计时 / 开战：认定「正在进这张图」。 */
 export const RAID_PREP_AUTO_MAP_KINDS = [
+  "map_loading",
+  "matching",
   "match_found",
   "raid_starting",
   "raid_started",
@@ -1317,9 +1320,9 @@ export function raidPrepMapsEquivalent(a: string, b: string): boolean {
 
 /**
  * 日志要切到哪张图；空字符串表示不切。
- * 开战类相位：当前图不同就切。
+ * 载入 / 匹配 / 开战相位：当前图不同就切。
  * 未选图时：可用上一场日志图垫上（单人 / 房主空房）。
- * 房间开战切图另走「同一 shortId」共识，不单独用这条。
+ * 房间里房主自己的日志也走这条；多人同一 shortId 另走共识。
  */
 export function raidPrepAutoSwitchMapId(opts: {
   currentMapId: string;
@@ -1334,6 +1337,25 @@ export function raidPrepAutoSwitchMapId(opts: {
   if (isRaidPrepAutoMapKind(opts.phaseKind)) return next;
   if (opts.fillEmpty && !current) return next;
   return "";
+}
+
+/** 图鉴地图页按日志跳转；已在等价图或目录未就绪则空。 */
+export function tarkovMapPageFollowHref(opts: {
+  currentSlug: string;
+  logMapId: string;
+  phaseKind?: string | null;
+}): string {
+  const next = raidPrepAutoSwitchMapId({
+    currentMapId: opts.currentSlug,
+    logMapId: opts.logMapId,
+    phaseKind: opts.phaseKind,
+    fillEmpty: false,
+  });
+  if (!next) return "";
+  const href = logMapHref(next);
+  if (!href || href === MAPS_HREF) return "";
+  if (href === logMapHref(opts.currentSlug)) return "";
+  return href;
 }
 
 export function parseCsvParam(raw: string | null | undefined): string[] {

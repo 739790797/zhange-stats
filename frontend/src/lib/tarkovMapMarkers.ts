@@ -2,6 +2,7 @@
 
 import { inventoryThumbUrl } from "./tarkovItemImages";
 import { itemHrefFromTypes } from "./tarkovItemTypes";
+import { lockTypeLabel } from "./tarkovKeyPacks";
 import {
   overlayVisibleOnFloor,
   type RaidPrepFloorBand,
@@ -199,6 +200,32 @@ export function withKindsForPresent(
   return next;
 }
 
+/** 无子类时跟父级开关；有子类时要全部打开才算勾上。 */
+export function lootFilterParentOn(
+  layerOn: boolean,
+  present: readonly string[],
+  flags: TarkovMapKindFlags,
+): boolean {
+  if (!present.length) return layerOn;
+  return layerOn && allPresentKindsOn(flags, present, false);
+}
+
+/** 父级已开、子类刚到且尚未写入时，把当前图上的类全部打开。 */
+export function withArrivedLootKindsOn(
+  flags: TarkovMapKindFlags,
+  present: readonly string[],
+  layerOn: boolean,
+): TarkovMapKindFlags {
+  if (!layerOn || !present.length) return flags;
+  let next: TarkovMapKindFlags | null = null;
+  for (const kind of present) {
+    if (flags[kind] !== undefined) continue;
+    if (!next) next = { ...flags };
+    next[kind] = true;
+  }
+  return next || flags;
+}
+
 export function uniqueKinds(
   values: Iterable<string>,
   preferred: readonly string[] = [],
@@ -301,6 +328,9 @@ export type TarkovLockTooltipClasses = {
   icon: string;
   text: string;
   status?: string;
+  chips?: string;
+  chip?: string;
+  chipLabel?: string;
 };
 
 function lockKeyId(keyId: string | null | undefined): string {
@@ -377,6 +407,34 @@ function escapeLockTipHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+export function tarkovLockTypeLine(
+  lockType: string | null | undefined,
+): string {
+  const type = lockTypeLabel(lockType || undefined);
+  return type ? `锁的类型：${type}` : "";
+}
+
+function lockTypeChipHtml(
+  label: string,
+  classes: TarkovLockTooltipClasses,
+): string {
+  const chipClass = classes.chip || "";
+  const text = `<span class="${classes.chipLabel || ""}">${escapeLockTipHtml(label)}</span>`;
+  return `<span class="${chipClass}">${text}</span>`;
+}
+
+export function tarkovLockTypeChipsHtml(
+  row: TarkovMapLockLike,
+  classes: TarkovLockTooltipClasses,
+): string {
+  const chips: string[] = [];
+  const type = tarkovLockTypeLine(row.lock_type);
+  if (type) chips.push(lockTypeChipHtml(type, classes));
+  if (row.needs_power) chips.push(lockTypeChipHtml("需供电", classes));
+  if (!chips.length) return "";
+  return `<div class="${classes.chips || ""}">${chips.join("")}</div>`;
+}
+
 export function tarkovLockTooltipHtml(
   row: TarkovMapLockLike,
   classes: TarkovLockTooltipClasses,
@@ -394,10 +452,8 @@ export function tarkovLockTooltipHtml(
       return `<div${cls}>${escapeLockTipHtml(line)}</div>`;
     })
     .join("");
-  const metaHtml = row.needs_power
-    ? `<div>${escapeLockTipHtml("需供电")}</div>`
-    : "";
-  return `<div class="${classes.tip}">${img}<div class="${classes.text}"><strong>${escapeLockTipHtml(name)}</strong>${status}${metaHtml}</div></div>`;
+  const chips = tarkovLockTypeChipsHtml(row, classes);
+  return `<div class="${classes.tip}">${chips}${img}<div class="${classes.text}"><strong>${escapeLockTipHtml(name)}</strong>${status}</div></div>`;
 }
 
 export function tarkovHazardIconUrl(kind: string): string {
@@ -453,7 +509,9 @@ function markerFloorAt(
   return { x, z };
 }
 
-/** 无高度的点各层都显示（与撤离点一致）；有 top/bottom/y 则按楼层带过滤。 */
+/** 无高度的点各层都显示；有 top/bottom/y 则按楼层带过滤。
+ * 撤离点不走隐藏，用 `tarkovExtractFloorDisplay` 降透明度。
+ */
 export function tarkovMarkerVisibleOnFloor(
   row: TarkovMapMarkerPoint,
   floor: string,

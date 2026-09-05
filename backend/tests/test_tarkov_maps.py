@@ -13,6 +13,7 @@ from app.services.tarkov.maps import (
     _marker_cache,
     _marker_cache_key,
     classify_map_spawn,
+    collect_key_lock_maps,
     enrich_lock_keys,
     factory_exit_key_lock_allowed,
     parse_map_rows,
@@ -973,6 +974,60 @@ def test_factory_exit_key_not_shown_on_lighthouse() -> None:
     assert [row["key_id"] for row in locks] == ["police-truck"]
     assert locks[0]["x"] == 1
     assert locks[0]["z"] == 2
+
+
+def test_collect_key_lock_maps_groups_and_skips_variants() -> None:
+    payload = _payload()
+    payload["maps"]["factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": 29.1, "y": 9.0, "z": 36.5},
+        }
+    ]
+    payload["maps"]["night-factory"]["locks"] = [
+        {
+            "lockType": "door",
+            "key": FACTORY_EXIT_KEY_ID,
+            "position": {"x": 29.1, "y": 9.0, "z": 36.5},
+        }
+    ]
+    payload["maps"]["lighthouse"] = {
+        "id": "lighthouse",
+        "normalizedName": "lighthouse",
+        "name": "Lighthouse",
+        "locks": [
+            {
+                "lockType": "trunk",
+                "key": FACTORY_EXIT_KEY_ID,
+                "position": {"x": 206.0, "y": 3.8, "z": 521.8},
+            },
+            {
+                "lockType": "door",
+                "key": "police-truck",
+                "needsPower": True,
+                "position": {"x": 1, "y": 0, "z": 2},
+            },
+        ],
+    }
+    payload["locale"]["Factory"] = "工厂"
+    payload["locale"]["Lighthouse"] = "灯塔"
+
+    factory_maps = collect_key_lock_maps(payload, FACTORY_EXIT_KEY_ID)
+    assert [row["slug"] for row in factory_maps] == ["factory"]
+    assert len(factory_maps[0]["locks"]) == 1
+    assert factory_maps[0]["locks"][0]["lock_type"] == "door"
+    assert factory_maps[0]["locks"][0]["x"] == 29.1
+
+    police = collect_key_lock_maps(payload, "police-truck")
+    assert [row["slug"] for row in police] == ["lighthouse"]
+    assert police[0]["name"] == "灯塔"
+    lock = police[0]["locks"][0]
+    assert lock["lock_type"] == "door"
+    assert lock["needs_power"] is True
+    assert lock["x"] == 1
+    assert lock["z"] == 2
+    assert collect_key_lock_maps(payload, "missing") == []
 
 
 def test_apply_map_markers_early_return_still_drops_factory_exit_trunks() -> None:

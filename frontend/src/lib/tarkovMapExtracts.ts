@@ -1,7 +1,14 @@
 /** 对齐 tarkov.dev 地图撤离点：阵营盾牌图标 + 标签色。
  * GraphQL MapExtract 只有 faction，没有独立 icon 字段；图标与
  * https://tarkov.dev/maps/interactive/extract_{pmc|scav|shared|transit}.png 同源。
+ * 撤离点不按楼层隐藏，只靠透明度标高度。
  */
+
+import type { RaidPrepFloorBand } from "./tarkovRaidPrep";
+import {
+  tarkovMarkerVisibleOnFloor,
+  type TarkovMapMarkerPoint,
+} from "./tarkovMapMarkers";
 
 export const TARKOV_EXTRACT_KINDS = ["pmc", "scav", "shared", "transit"] as const;
 
@@ -121,5 +128,31 @@ export function tarkovExtractStyle(faction?: string | null): TarkovExtractStyle 
     color: TARKOV_EXTRACT_COLORS[kind],
     iconUrl: tarkovExtractIconUrl(kind),
     zIndex: Z_INDEX[kind],
+  };
+}
+
+/** 非当前楼层仍画出，略淡以便和当前层区分。 */
+export const EXTRACT_OTHER_FLOOR_OPACITY = 0.42;
+
+/** 当前层叠在淡化点之上，避免点名被挡住。 */
+export const EXTRACT_ON_FLOOR_Z_BOOST = 80;
+
+export type TarkovExtractFloorDisplay = {
+  onFloor: boolean;
+  opacity: number;
+  zBoost: number;
+};
+
+/** 无高度或落在当前层：不透明；其它层：始终显示但降透明度。 */
+export function tarkovExtractFloorDisplay(
+  row: TarkovMapMarkerPoint,
+  floor: string,
+  bands: readonly RaidPrepFloorBand[],
+): TarkovExtractFloorDisplay {
+  const onFloor = tarkovMarkerVisibleOnFloor(row, floor, bands);
+  return {
+    onFloor,
+    opacity: onFloor ? 1 : EXTRACT_OTHER_FLOOR_OPACITY,
+    zBoost: onFloor ? EXTRACT_ON_FLOOR_Z_BOOST : 0,
   };
 }

@@ -26982,6 +26982,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Properties"
+          },
+          "locks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovItemKeyLockMapOut"
+            },
+            "type": "array",
+            "title": "Locks"
           }
         },
         "type": "object",
@@ -26991,6 +26998,117 @@
         ],
         "title": "TarkovItemDetailOut",
         "description": "通用物品详情：来自 items raw 的完整 item + properties。"
+      },
+      "TarkovItemKeyLockMapOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "english": {
+            "type": "string",
+            "title": "English",
+            "default": ""
+          },
+          "parent_slug": {
+            "type": "string",
+            "title": "Parent Slug",
+            "default": ""
+          },
+          "locks": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovItemKeyLockOut"
+            },
+            "type": "array",
+            "title": "Locks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "TarkovItemKeyLockMapOut"
+      },
+      "TarkovItemKeyLockOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "lock_type": {
+            "type": "string",
+            "title": "Lock Type",
+            "default": ""
+          },
+          "needs_power": {
+            "type": "boolean",
+            "title": "Needs Power",
+            "default": false
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
+          }
+        },
+        "type": "object",
+        "title": "TarkovItemKeyLockOut"
       },
       "TarkovItemsSyncOut": {
         "properties": {

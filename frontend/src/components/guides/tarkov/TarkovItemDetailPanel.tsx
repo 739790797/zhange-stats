@@ -25,7 +25,9 @@ import {
   type VendorOffer,
 } from "@/lib/tarkovItemFormat";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
+import { itemKeyLockMaps } from "@/lib/tarkovItemLocks";
 import { TarkovItemRefGrid } from "@/components/guides/tarkov/TarkovGuideItemCell";
+import { TarkovItemKeyLocks } from "@/components/guides/tarkov/TarkovItemKeyLocks";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovItemDetailPanel.module.css";
 
@@ -257,6 +259,7 @@ export function TarkovItemDetailPanel({
   const lastLow = Number(item.lastLowPrice);
   const change48 = Number(item.changeLast48h);
   const change48p = Number(item.changeLast48hPercent);
+  const lockMaps = itemKeyLockMaps(detail);
   const mergedProps: Record<string, unknown> = {
     weight: item.weight,
     size:
@@ -267,7 +270,9 @@ export function TarkovItemDetailPanel({
     conflictingItems: item.conflictingItems,
     conflictingCategories: item.conflictingCategories,
     ...properties,
-    usedOnMaps: properties.usedOnMaps ?? item.usedOnMaps,
+    usedOnMaps: lockMaps.length
+      ? undefined
+      : properties.usedOnMaps ?? item.usedOnMaps,
   };
   const propRows = formatPropertyList(mergedProps);
   const contained = containedRows(item);
@@ -454,6 +459,8 @@ export function TarkovItemDetailPanel({
       ) : (
         <div className={styles.fleaMeta}>暂无属性</div>
       )}
+
+      {!embed && lockMaps.length ? <TarkovItemKeyLocks detail={detail} /> : null}
 
       {armorRows.length ? (
         <>

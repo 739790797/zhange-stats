@@ -3,10 +3,13 @@ import {
   allPresentExtractKindsOn,
   anyPresentExtractKindOn,
   defaultExtractKindFlags,
+  EXTRACT_ON_FLOOR_Z_BOOST,
+  EXTRACT_OTHER_FLOOR_OPACITY,
   extractKindsPresent,
   isExtractKindVisible,
   TARKOV_EXTRACT_COLORS,
   TARKOV_EXTRACT_KIND_LABELS,
+  tarkovExtractFloorDisplay,
   tarkovExtractIconUrl,
   tarkovExtractKind,
   tarkovExtractStyle,
@@ -64,5 +67,38 @@ describe("tarkov map extract styles", () => {
       shared: false,
       transit: true,
     });
+  });
+
+  it("keeps extracts on every floor and fades other heights", () => {
+    const bands = [
+      { name: "", min: -2, max: 4 },
+      { name: "2nd", min: 10, max: 16 },
+    ];
+    const upstairs = { x: 1, z: 2, top: 14, bottom: 12 };
+    const ground = { x: 1, z: 2, y: 0 };
+    const unknown = { x: 1, z: 2 };
+
+    expect(tarkovExtractFloorDisplay(unknown, "2nd", bands)).toEqual({
+      onFloor: true,
+      opacity: 1,
+      zBoost: EXTRACT_ON_FLOOR_Z_BOOST,
+    });
+    expect(tarkovExtractFloorDisplay(upstairs, "2nd", bands)).toEqual({
+      onFloor: true,
+      opacity: 1,
+      zBoost: EXTRACT_ON_FLOOR_Z_BOOST,
+    });
+    expect(tarkovExtractFloorDisplay(upstairs, "", bands)).toEqual({
+      onFloor: false,
+      opacity: EXTRACT_OTHER_FLOOR_OPACITY,
+      zBoost: 0,
+    });
+    expect(tarkovExtractFloorDisplay(ground, "2nd", bands)).toEqual({
+      onFloor: false,
+      opacity: EXTRACT_OTHER_FLOOR_OPACITY,
+      zBoost: 0,
+    });
+    expect(EXTRACT_OTHER_FLOOR_OPACITY).toBeGreaterThan(0);
+    expect(EXTRACT_OTHER_FLOOR_OPACITY).toBeLessThan(1);
   });
 });

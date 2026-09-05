@@ -10339,6 +10339,55 @@ export interface components {
             properties?: {
                 [key: string]: unknown;
             };
+            /** Locks */
+            locks?: components["schemas"]["TarkovItemKeyLockMapOut"][];
+        };
+        /** TarkovItemKeyLockMapOut */
+        TarkovItemKeyLockMapOut: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /**
+             * English
+             * @default
+             */
+            english: string;
+            /**
+             * Parent Slug
+             * @default
+             */
+            parent_slug: string;
+            /** Locks */
+            locks?: components["schemas"]["TarkovItemKeyLockOut"][];
+        };
+        /** TarkovItemKeyLockOut */
+        TarkovItemKeyLockOut: {
+            /**
+             * Id
+             * @default
+             */
+            id: string;
+            /**
+             * Lock Type
+             * @default
+             */
+            lock_type: string;
+            /**
+             * Needs Power
+             * @default false
+             */
+            needs_power: boolean;
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+            /** Z */
+            z?: number | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovItemsSyncOut */
         TarkovItemsSyncOut: {

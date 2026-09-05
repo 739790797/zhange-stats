@@ -268,6 +268,13 @@
   pointer-events: none;
 }
 
+.filterHint {
+  padding: 1px 0 1px 14px;
+  color: #8a8674;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .filterError {
   display: flex;
   flex-wrap: wrap;
@@ -863,9 +870,11 @@
 
 .lockTip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   width: max-content;
+  max-width: 280px;
 }
 
 .lockTipIcon {
@@ -890,6 +899,33 @@
   color: #c8c4a8;
   margin-top: 2px;
   white-space: nowrap;
+}
+
+.lockTipChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 100%;
+}
+
+.lockTipChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid #3a3d30;
+  background: #14160f;
+  color: #eee9d6;
+}
+
+.lockTipChipLabel {
+  color: #c8c4a8;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.wrap :global(.leaflet-tooltip).spawnTooltip:has(.lockTipChips) {
+  white-space: normal;
 }
 
 .wrap :global(.leaflet-tooltip.leaflet-tooltip-top).questTooltip::before,

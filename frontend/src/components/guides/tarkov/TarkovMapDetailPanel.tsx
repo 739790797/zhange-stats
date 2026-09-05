@@ -1,7 +1,7 @@
-import { Alert, Spin, Table } from "antd";
+import { Alert, Spin, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Link } from "react-router-dom";
-import { Suspense, lazy, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchTarkovMapDetail,
@@ -18,7 +18,15 @@ import {
   TARKOV_BOSS_KIND_LABELS,
 } from "@/lib/tarkovBossKinds";
 import { tarkovBossHref, tarkovMapHref, tarkovRaidPrepHref } from "@/lib/tarkovHomeNav";
-import { normalizeRaidPrepMapId } from "@/lib/tarkovRaidPrep";
+import { logMapLabel } from "@/lib/tarkovGameLogs";
+import {
+  normalizeRaidPrepMapId,
+  tarkovMapPageFollowHref,
+} from "@/lib/tarkovRaidPrep";
+import {
+  useTarkovLastLogMapId,
+  useTarkovLastLogPhase,
+} from "@/lib/useTarkovLiveWatch";
 import { tarkovExtractStyle } from "@/lib/tarkovMapExtracts";
 import { tarkovMapViewerLayerProps } from "@/lib/tarkovMapViewerDetail";
 import { PanelFallback } from "@/components/RouteFallback";
@@ -37,6 +45,32 @@ type Props = {
 
 export function TarkovMapDetailPanel({ slug }: Props) {
   const gameMode = useTarkovGameMode();
+  const navigate = useNavigate();
+  const lastLogMapId = useTarkovLastLogMapId();
+  const lastLogPhase = useTarkovLastLogPhase();
+  const autoMapSigRef = useRef("");
+  const followHref = tarkovMapPageFollowHref({
+    currentSlug: slug,
+    logMapId: lastLogPhase?.mapId || lastLogMapId,
+    phaseKind: lastLogPhase?.kind,
+  });
+  useEffect(() => {
+    if (!followHref) return;
+    const sig = `${followHref}:${lastLogPhase?.raidId || ""}:${lastLogPhase?.kind || "idle"}`;
+    if (autoMapSigRef.current === sig) return;
+    autoMapSigRef.current = sig;
+    navigate(followHref);
+    message.info(
+      `已按游戏日志切换到${logMapLabel(lastLogPhase?.mapId || lastLogMapId)}`,
+    );
+  }, [
+    followHref,
+    lastLogMapId,
+    lastLogPhase?.kind,
+    lastLogPhase?.mapId,
+    lastLogPhase?.raidId,
+    navigate,
+  ]);
   const detailQuery = useQuery({
     queryKey: ["guides-tarkov-map", gameMode, slug],
     queryFn: () => fetchTarkovMapDetail(slug),
@@ -212,6 +246,7 @@ function TarkovMapDetailReady({
       {editor.bar}
       <Suspense fallback={<PanelFallback tip="加载地图…" />}>
         <TarkovMapViewer
+          key={slug}
           slug={slug}
           {...tarkovMapViewerLayerProps(detail)}
           placeEdit={editor.placeEdit}

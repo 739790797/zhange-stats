@@ -25,6 +25,7 @@ import {
   overlayRaidRoomLocalPhase,
   raidRoomActingHostUserId,
   raidRoomCanAutoSwitchMap,
+  raidRoomHostLogMapId,
   raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
   formatRaidRoomLiveStatus,
@@ -197,6 +198,46 @@ describe("raid room helpers", () => {
         ],
       }),
     ).toBe("");
+    expect(
+      raidRoomHostLogMapId({
+        canSwitchMap: true,
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "raid_started",
+      }),
+    ).toBe("customs");
+    expect(
+      raidRoomHostLogMapId({
+        canSwitchMap: true,
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "map_loading",
+      }),
+    ).toBe("customs");
+    expect(
+      raidRoomHostLogMapId({
+        canSwitchMap: true,
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "raid_exited",
+      }),
+    ).toBe("");
+    expect(
+      raidRoomHostLogMapId({
+        canSwitchMap: false,
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "raid_started",
+      }),
+    ).toBe("");
+    expect(
+      raidRoomHostLogMapId({
+        canSwitchMap: true,
+        currentMapId: "",
+        logMapId: "customs",
+        phaseKind: "raid_exited",
+      }),
+    ).toBe("customs");
     expect(formatRaidRoomLiveStatus("in_raid")).toBe("已在战局中");
     expect(
       formatRaidRoomMemberChipLine({
@@ -769,6 +810,13 @@ describe("raid room helpers", () => {
         viewMapId: "customs",
         logMapId: "woods",
         phaseKind: "raid_started",
+      }),
+    ).toBe(true);
+    expect(
+      shouldSuppressLocalPlayerFix({
+        viewMapId: "customs",
+        logMapId: "woods",
+        phaseKind: "map_loading",
       }),
     ).toBe(true);
     expect(

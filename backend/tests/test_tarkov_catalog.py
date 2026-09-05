@@ -315,3 +315,42 @@ def test_parse_ammo_pack_index_reads_properties_contains():
     index = catalog.parse_ammo_pack_index(SOURCE_JSON_API, payload)
     assert index["ammo2"]["pack_item_id"] == "pack1"
     assert index["ammo2"]["pack_count"] == 20
+
+
+def test_attach_item_key_locks_skips_non_keys(monkeypatch) -> None:
+    detail = {
+        "id": "hs1",
+        "item": {"types": ["headphones"], "handbookCategories": []},
+    }
+    catalog.attach_item_key_locks(object(), detail)
+    assert detail["locks"] == []
+
+
+def test_attach_item_key_locks_for_key(monkeypatch) -> None:
+    called = {}
+
+    def fake_collect(payload, key_id):
+        called["payload"] = payload
+        called["key_id"] = key_id
+        return [{"slug": "factory", "name": "工厂", "locks": [{"x": 1, "z": 2}]}]
+
+    monkeypatch.setattr(
+        "app.services.tarkov.bosses.get_maps_raw", lambda db: object()
+    )
+    monkeypatch.setattr(
+        "app.services.tarkov.bosses._load_payload",
+        lambda db: ("json", {"maps": {}}, None, None),
+    )
+    monkeypatch.setattr(
+        "app.services.tarkov.maps.collect_key_lock_maps", fake_collect
+    )
+    detail = {
+        "id": "k1",
+        "item": {
+            "types": ["keys"],
+            "handbookCategories": [{"id": "5c518ec986f7743b68682ce2"}],
+        },
+    }
+    catalog.attach_item_key_locks(object(), detail)
+    assert called["key_id"] == "k1"
+    assert detail["locks"][0]["slug"] == "factory"

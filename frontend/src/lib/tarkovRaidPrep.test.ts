@@ -48,6 +48,7 @@ import {
   normalizeRaidPrepMapId,
   raidPrepAutoSwitchMapId,
   raidPrepMapsEquivalent,
+  tarkovMapPageFollowHref,
   objectiveAppliesToMap,
   objectiveZoneNames,
   overlayFloorNames,
@@ -181,6 +182,34 @@ describe("raid prep map keys", () => {
         currentMapId: "woods",
         logMapId: "customs",
         phaseKind: "map_loading",
+      }),
+    ).toBe("customs");
+    expect(
+      raidPrepAutoSwitchMapId({
+        currentMapId: "woods",
+        logMapId: "customs",
+        phaseKind: "matching",
+      }),
+    ).toBe("customs");
+    expect(
+      tarkovMapPageFollowHref({
+        currentSlug: "woods",
+        logMapId: "customs",
+        phaseKind: "map_loading",
+      }),
+    ).toBe("/guides/tarkov/maps/customs");
+    expect(
+      tarkovMapPageFollowHref({
+        currentSlug: "customs",
+        logMapId: "bigmap",
+        phaseKind: "raid_started",
+      }),
+    ).toBe("");
+    expect(
+      tarkovMapPageFollowHref({
+        currentSlug: "woods",
+        logMapId: "customs",
+        phaseKind: "raid_exited",
       }),
     ).toBe("");
   });

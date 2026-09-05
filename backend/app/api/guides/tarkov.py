@@ -296,6 +296,7 @@ def guides_tarkov_item_detail(
             if isinstance(detail.get("properties"), dict)
             else {}
         ),
+        locks=detail.get("locks") if isinstance(detail.get("locks"), list) else [],
     )
 
 

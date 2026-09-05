@@ -4,6 +4,7 @@ import { defaultTarkovMapKindFlags } from "./tarkovMapMarkers";
 import { defaultSpawnKindFlags } from "./tarkovMapSpawns";
 import {
   DEFAULT_TARKOV_MAP_VIEWER_PREFS,
+  mapLootLayerTogglesVisible,
   overlayFlagsForMode,
   parseTarkovMapViewerPrefs,
   resolveMapFloor,
@@ -238,6 +239,15 @@ describe("withLootLooseKind", () => {
   });
 });
 
+describe("mapLootLayerTogglesVisible", () => {
+  it("shows loot parents only in the full overlay", () => {
+    expect(mapLootLayerTogglesVisible("all")).toBe(true);
+    expect(mapLootLayerTogglesVisible()).toBe(true);
+    expect(mapLootLayerTogglesVisible("boss-spawns")).toBe(false);
+    expect(mapLootLayerTogglesVisible("locks")).toBe(false);
+  });
+});
+
 describe("overlayFlagsForMode", () => {
   it("keeps only boss markers in spawn overlay mode", () => {
     expect(overlayFlagsForMode(emptyDefaults, "boss-spawns")).toEqual({
@@ -246,6 +256,25 @@ describe("overlayFlagsForMode", () => {
       showLabels: false,
       showQuests: false,
       showLocks: false,
+      showHazards: false,
+      showSwitches: false,
+      showStationary: false,
+      showBtrStops: false,
+      showLootContainers: false,
+      showLootLoose: false,
+      hazardKinds: {},
+      lootContainerKinds: {},
+      lootLooseKinds: {},
+    });
+  });
+
+  it("keeps only lock markers in locks overlay mode", () => {
+    expect(overlayFlagsForMode(emptyDefaults, "locks")).toEqual({
+      extractKinds: defaultExtractKindFlags(false),
+      spawnKinds: { pmc: false, scav: false, sniper: false, boss: false },
+      showLabels: true,
+      showQuests: false,
+      showLocks: true,
       showHazards: false,
       showSwitches: false,
       showStationary: false,

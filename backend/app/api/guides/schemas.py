@@ -131,6 +131,25 @@ class TarkovCatalogOut(BaseModel):
     note: str | None = None
 
 
+class TarkovItemKeyLockOut(BaseModel):
+    id: str = ""
+    lock_type: str = ""
+    needs_power: bool = False
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    top: float | None = None
+    bottom: float | None = None
+
+
+class TarkovItemKeyLockMapOut(BaseModel):
+    slug: str
+    name: str
+    english: str = ""
+    parent_slug: str = ""
+    locks: list[TarkovItemKeyLockOut] = Field(default_factory=list)
+
+
 class TarkovItemDetailOut(BaseModel):
     """通用物品详情：来自 items raw 的完整 item + properties。"""
 
@@ -141,6 +160,7 @@ class TarkovItemDetailOut(BaseModel):
     source: str | None = None
     item: dict = Field(default_factory=dict)
     properties: dict = Field(default_factory=dict)
+    locks: list[TarkovItemKeyLockMapOut] = Field(default_factory=list)
 
 
 class TarkovTaskNamedRefOut(BaseModel):

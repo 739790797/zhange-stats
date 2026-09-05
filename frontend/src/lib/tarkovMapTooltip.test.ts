@@ -89,6 +89,10 @@ describe("tarkov map tooltip side", () => {
     expect(estimatedCanvasTooltipHeight(`<div class="lootLooseTip"></div>`)).toBe(
       56,
     );
+    expect(estimatedCanvasTooltipHeight(`<div class="lockTipChip">门</div>`)).toBe(
+      84,
+    );
+    expect(estimatedCanvasTooltipHeight(`<div class="lockTip"></div>`)).toBe(52);
     expect(estimatedCanvasTooltipHeight("<strong>Boss</strong>")).toBe(48);
   });
 

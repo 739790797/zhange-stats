@@ -59,6 +59,19 @@ export function buildWipeRows(
   return rows.slice().reverse();
 }
 
+/** 当前时刻已开打的最新 wipe；时刻早于表头则退回第一项。 */
+export function currentWipeStart(
+  starts: TarkovWipeStart[] = TARKOV_WIPE_STARTS,
+  now: Date = new Date(),
+): TarkovWipeStart {
+  const ts = now.getTime();
+  let current = starts[0];
+  for (const wipe of starts) {
+    if (new Date(wipe.start).getTime() <= ts) current = wipe;
+  }
+  return current ?? starts[starts.length - 1];
+}
+
 export function averageWipeLength(
   starts: TarkovWipeStart[] = TARKOV_WIPE_STARTS,
   now: Date = new Date(),

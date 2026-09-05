@@ -163,19 +163,30 @@ export function logStampFromParsed(
 }
 
 /** UserMatchOver 后本机把战局摘要推到账号；有新的 ended_at 才导入。 */
+export function planRaidLogImportRows(
+  prevEndedKeys: ReadonlySet<string>,
+  rows: TarkovRaidLogImportRow[],
+  opts?: { force?: boolean },
+): { nextKeys: Set<string>; rows: TarkovRaidLogImportRow[] } {
+  const ended = rows.filter((row) => Boolean(row.ended_at));
+  const nextKeys = new Set(ended.map((row) => raidLogEndedKey(row)));
+  if (opts?.force) return { nextKeys, rows };
+  const hasFresh =
+    prevEndedKeys.size > 0 &&
+    ended.some((row) => !prevEndedKeys.has(raidLogEndedKey(row)));
+  return { nextKeys, rows: hasFresh ? rows : [] };
+}
+
 export function planRaidLogImport(
   prevEndedKeys: ReadonlySet<string>,
   sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
   opts?: { force?: boolean },
 ): { nextKeys: Set<string>; rows: TarkovRaidLogImportRow[] } {
-  const all = toRaidLogImportRows(sessions);
-  const ended = all.filter((row) => Boolean(row.ended_at));
-  const nextKeys = new Set(ended.map((row) => raidLogEndedKey(row)));
-  if (opts?.force) return { nextKeys, rows: all };
-  const hasFresh =
-    prevEndedKeys.size > 0 &&
-    ended.some((row) => !prevEndedKeys.has(raidLogEndedKey(row)));
-  return { nextKeys, rows: hasFresh ? all : [] };
+  return planRaidLogImportRows(
+    prevEndedKeys,
+    toRaidLogImportRows(sessions),
+    opts,
+  );
 }
 
 export type LiveLogSyncResult = {
@@ -189,7 +200,9 @@ export type LogSyncScan = { done: number; total: number };
 export function formatLogSyncActionLabel(
   busy: boolean,
   scan?: LogSyncScan | null,
+  listing?: boolean,
 ): string {
+  if (listing && !busy) return "正在查看目录…";
   if (!busy) return "同步日志";
   if (scan && scan.total > 0) {
     return `正在读取 ${scan.done} / ${scan.total}`;
@@ -202,7 +215,20 @@ export function formatLiveLogBackfillHint(
   sessionCount: number,
   kind: "incremental" | "backfill",
   delta: QuestProgressDelta,
+  extras?: { questEvents?: number; skipped?: number },
 ): string {
   if (sessionCount <= 0) return "这个目录里没有启动记录。";
-  return `${formatQuestSyncDeltaLine(kind, delta)}（${sessionCount} 次启动）`;
+  let line = `${formatQuestSyncDeltaLine(kind, delta)}（${sessionCount} 次启动）`;
+  if (extras?.skipped) {
+    line += `，${extras.skipped} 个日志文件过大已跳过`;
+  }
+  if (
+    extras?.questEvents === 0 &&
+    delta.done === 0 &&
+    delta.started === 0
+  ) {
+    line +=
+      "。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）";
+  }
+  return line;
 }

@@ -46,8 +46,16 @@ import {
   parseTarkovLogBundle,
   screenshotNamesToPrune,
   takeSessionStubs,
+  toRaidLogImportRows,
   type TarkovLogPhasePayload,
+  type TarkovRaidLogImportRow,
 } from "@/lib/tarkovGameLogs";
+import {
+  defaultLogSyncRange,
+  filterSessionStubsByRange,
+  yieldLogSyncQueue,
+  type TarkovLogSyncOpts,
+} from "@/lib/tarkovLogSyncRange";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_LIVE_DIRS_EVENT,
@@ -58,6 +66,8 @@ import {
   notifyTarkovTaskProgress,
   planLogSessionReads,
   planRaidLogImport,
+  planRaidLogImportRows,
+  sameIdLists,
   type LogPollCursor,
 } from "@/lib/tarkovLiveWatch";
 import {
@@ -83,7 +93,12 @@ import {
   taskProgressQueryData,
   unionTaskProgress,
 } from "@/lib/tarkovTaskTree";
-import { questProgressDelta } from "@/lib/tarkovTaskLogSync";
+import {
+  foldSessionQuests,
+  mergeQuestProgressFromFolded,
+  questProgressDelta,
+  type FoldedQuestEntry,
+} from "@/lib/tarkovTaskLogSync";
 import { useTarkovTaskAccountSync } from "@/lib/useTarkovTaskAccountSync";
 
 export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
@@ -110,6 +125,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const endedRaidKeysRef = useRef<Set<string>>(new Set());
   const shotTickBusyRef = useRef(false);
   const logTickBusyRef = useRef(false);
+  const syncAbortRef = useRef<AbortController | null>(null);
   const gameModeRef = useRef(gameMode);
   const knownIdsRef = useRef<Set<string> | undefined>(undefined);
   gameModeRef.current = gameMode;
@@ -148,31 +164,31 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     ? new Set(catalogQuery.data.items.map((item) => item.id))
     : undefined;
 
-  const applySessions = useCallback(
-    (sessions: Array<{ parsed: ReturnType<typeof parseTarkovLogBundle> }>) => {
-      lastParsedRef.current = sessions;
+  const loadQuestBase = useCallback(() => {
+    const mode = gameModeRef.current;
+    const prevDone = loadTaskDoneIds(mode);
+    const prevStarted = loadTaskStartedIds(mode);
+    const cached = queryClient.getQueryData<{
+      task_ids?: string[];
+      started_ids?: string[];
+      objective_dones?: Array<{ task_id: string; objective_id: string }>;
+    }>(["guides-tarkov-task-dones", mode]);
+    return unionTaskProgress(
+      { done: prevDone, started: prevStarted },
+      {
+        done: cached?.task_ids,
+        started: cached?.started_ids,
+      },
+    );
+  }, [queryClient]);
+
+  const commitQuestProgress = useCallback(
+    (
+      base: { done: string[]; started: string[] },
+      next: { done: string[]; started: string[]; changed: boolean },
+      opts?: { put?: boolean },
+    ) => {
       const mode = gameModeRef.current;
-      const prevDone = loadTaskDoneIds(mode);
-      const prevStarted = loadTaskStartedIds(mode);
-      const cached = queryClient.getQueryData<{
-        task_ids?: string[];
-        started_ids?: string[];
-        objective_dones?: Array<{ task_id: string; objective_id: string }>;
-      }>(["guides-tarkov-task-dones", mode]);
-      const base = unionTaskProgress(
-        { done: prevDone, started: prevStarted },
-        {
-          done: cached?.task_ids,
-          started: cached?.started_ids,
-        },
-      );
-      const next = nextLiveQuestProgress(
-        base.done,
-        base.started,
-        sessions,
-        mode,
-        knownIdsRef.current,
-      );
       const syncedAt = nowBeijingStamp();
       saveTaskSyncMark(mode, syncedAt);
       if (next.changed) {
@@ -189,6 +205,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         source: "log",
       });
       if (!next.changed) return;
+      const cached = queryClient.getQueryData(["guides-tarkov-task-dones", mode]);
       if (cached) {
         queryClient.setQueryData(
           ["guides-tarkov-task-dones", mode],
@@ -199,41 +216,60 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           ),
         );
       }
+      if (opts?.put === false) return;
       void writeTarkovTaskDones(next.done, {
         startedIds: next.started,
-      }).then((data) => {
-        const objectives = data.objective_dones || loadTaskObjectivePairs(mode);
-        saveTaskProgress(
-          mode,
-          data.task_ids || next.done,
-          data.started_ids || next.started,
-          true,
-          true,
-          objectives,
-        );
-        queryClient.setQueryData(
-          ["guides-tarkov-task-dones", mode],
-          taskProgressQueryData(
+      })
+        .then((data) => {
+          const objectives = data.objective_dones || loadTaskObjectivePairs(mode);
+          saveTaskProgress(
+            mode,
             data.task_ids || next.done,
             data.started_ids || next.started,
+            true,
+            true,
             objectives,
-          ),
-        );
-        notifyTarkovTaskProgress({
-          mode,
-          done: data.task_ids || next.done,
-          started: data.started_ids || next.started,
-          objectives,
-          syncedAt,
-          changed: true,
-          completedIds: addedIdList(base.done, data.task_ids || next.done),
-          source: "log",
+          );
+          queryClient.setQueryData(
+            ["guides-tarkov-task-dones", mode],
+            taskProgressQueryData(
+              data.task_ids || next.done,
+              data.started_ids || next.started,
+              objectives,
+            ),
+          );
+          notifyTarkovTaskProgress({
+            mode,
+            done: data.task_ids || next.done,
+            started: data.started_ids || next.started,
+            objectives,
+            syncedAt,
+            changed: true,
+            completedIds: addedIdList(base.done, data.task_ids || next.done),
+            source: "log",
+          });
+        })
+        .catch(() => {
+          /* 未登录或网络失败时本机进度仍已写上 */
         });
-      }).catch(() => {
-        /* 未登录或网络失败时本机进度仍已写上 */
-      });
     },
     [queryClient],
+  );
+
+  const applySessions = useCallback(
+    (sessions: Array<{ parsed: ReturnType<typeof parseTarkovLogBundle> }>) => {
+      lastParsedRef.current = sessions;
+      const base = loadQuestBase();
+      const next = nextLiveQuestProgress(
+        base.done,
+        base.started,
+        sessions,
+        gameModeRef.current,
+        knownIdsRef.current,
+      );
+      commitQuestProgress(base, next);
+    },
+    [commitQuestProgress, loadQuestBase],
   );
 
   const hydrate = useCallback(async () => {
@@ -306,9 +342,10 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   }, [hydrate]);
 
   useEffect(() => {
+    if (logSyncBusy) return;
     if (!lastParsedRef.current.length) return;
     applySessions(lastParsedRef.current);
-  }, [applySessions, gameMode]);
+  }, [applySessions, gameMode, logSyncBusy]);
 
   useEffect(() => {
     if (!supported || shotPerm !== "granted") return;
@@ -606,125 +643,231 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     }
   }, [supported]);
 
-  const syncLogs = useCallback(async (): Promise<{ ok: boolean; hint: string }> => {
+  const ensureLogsHandle = useCallback(async (): Promise<
+    { ok: true; handle: NonNullable<typeof logRef.current> } | { ok: false; hint: string }
+  > => {
     if (!supported) {
       return {
         ok: false,
         hint: "当前浏览器不支持读取本机日志目录，请用 Chrome 或 Edge。",
       };
     }
-    if (logTickBusyRef.current) {
-      return { ok: false, hint: "正在读取日志，请稍后再试。" };
+    let handle = logRef.current;
+    if (handle) {
+      const next = await requestLogsDirPermission(handle);
+      if (next !== "granted") {
+        setLogPerm("prompt");
+        return { ok: false, hint: "浏览器没有批准读取日志目录。" };
+      }
+      setLogPerm("granted");
+      return { ok: true, handle };
     }
-    setLogSyncBusy(true);
-    logTickBusyRef.current = true;
+    const picked = await pickLogsDirectory(null);
+    const next = await requestLogsDirPermission(picked);
+    if (next !== "granted") {
+      setLogPerm("prompt");
+      return { ok: false, hint: "浏览器没有批准读取日志目录。" };
+    }
+    logRef.current = picked;
+    setLogLabel(picked.name);
+    await saveLogsDir(picked);
+    setLogPerm("granted");
+    return { ok: true, handle: picked };
+  }, [supported]);
+
+  const previewLogSessions = useCallback(async (): Promise<{
+    ok: boolean;
+    hint: string;
+    sessions: Awaited<ReturnType<typeof readLogsIndex>>["sessions"];
+  }> => {
     try {
-      let handle = logRef.current;
-      if (handle) {
-        const next = await requestLogsDirPermission(handle);
-        if (next !== "granted") {
-          setLogPerm("prompt");
-          return { ok: false, hint: "浏览器没有批准读取日志目录。" };
-        }
-        setLogPerm("granted");
-      } else {
-        const picked = await pickLogsDirectory(null);
-        const next = await requestLogsDirPermission(picked);
-        if (next !== "granted") {
-          setLogPerm("prompt");
-          return { ok: false, hint: "浏览器没有批准读取日志目录。" };
-        }
-        logRef.current = picked;
-        setLogLabel(picked.name);
-        await saveLogsDir(picked);
-        setLogPerm("granted");
-        handle = picked;
-      }
-      const { sessions } = await readLogsIndex(handle);
-      const targets = takeSessionStubs(sessions, 0);
-      if (!targets.length) {
-        return { ok: true, hint: formatLiveLogBackfillHint(0, "backfill", {
-          done: 0,
-          started: 0,
-          unfinished: 0,
-        }) };
-      }
-      const mode = gameModeRef.current;
-      const prevDone = loadTaskDoneIds(mode);
-      const prevStarted = loadTaskStartedIds(mode);
-      const hadSync = Boolean(loadTaskSyncAt(mode));
-      const parsedSessions = [];
-      setLogSyncScan({ done: 0, total: targets.length });
-      for (const [index, stub] of targets.entries()) {
-        const read = await readSessionLogs(handle, stub.folder);
-        parsedSessions.push({
-          folder: stub.folder,
-          parsed: parseTarkovLogBundle(read.files),
-          read,
-        });
-        setLogSyncScan({ done: index + 1, total: targets.length });
-      }
-      const newest = sessions[0] || null;
-      if (newest) {
-        const fingerprint = await peekSessionFingerprint(handle, newest.folder);
-        logCursorRef.current = { folder: newest.folder, fingerprint };
-        const newestRead =
-          parsedSessions.find((row) => row.read.folder === newest.folder) ||
-          parsedSessions[parsedSessions.length - 1];
-        if (newestRead) {
-          const stamp = logStampFromParsed(
-            newestRead.parsed,
-            newestRead.read.files.map((file) => file.lastModified),
-          );
-          if (stamp != null) setLastLogAt(stamp);
-          const mapId = latestLogMapId(newestRead.parsed);
-          if (mapId) setLastLogMapId(mapId);
-          setLastLogPhase(logPhaseFromParsed(newestRead.parsed));
-        }
-      }
-      const sessionRows = parsedSessions.map((row) => ({
-        folder: row.folder,
-        parsed: row.parsed,
-      }));
-      applySessions(sessionRows.map((row) => ({ parsed: row.parsed })));
-      const importPlan = planRaidLogImport(
-        endedRaidKeysRef.current,
-        sessionRows,
-        { force: true },
-      );
-      endedRaidKeysRef.current = importPlan.nextKeys;
-      if (importPlan.rows.length) {
-        void importTarkovRaidLogs(importPlan.rows)
-          .then(() => {
-            void queryClient.invalidateQueries({
-              queryKey: ["guides-tarkov-raid-logs"],
-            });
-          })
-          .catch(() => {});
-      }
-      const nextDone = loadTaskDoneIds(mode);
-      const nextStarted = loadTaskStartedIds(mode);
-      return {
-        ok: true,
-        hint: formatLiveLogBackfillHint(
-          targets.length,
-          hadSync ? "incremental" : "backfill",
-          questProgressDelta(prevDone, prevStarted, nextDone, nextStarted),
-        ),
-      };
+      const ready = await ensureLogsHandle();
+      if (!ready.ok) return { ok: false, hint: ready.hint, sessions: [] };
+      const { sessions } = await readLogsIndex(ready.handle);
+      return { ok: true, hint: "", sessions };
     } catch (error) {
-      if (isPickerAbort(error)) return { ok: false, hint: "" };
+      if (isPickerAbort(error)) return { ok: false, hint: "", sessions: [] };
       const text =
         error instanceof Error && error.message
           ? error.message
-          : "同步日志失败";
-      return { ok: false, hint: text };
-    } finally {
-      logTickBusyRef.current = false;
-      setLogSyncBusy(false);
-      setLogSyncScan(null);
+          : "无法列出启动记录";
+      return { ok: false, hint: text, sessions: [] };
     }
-  }, [applySessions, queryClient, supported]);
+  }, [ensureLogsHandle]);
+
+  const cancelLogSync = useCallback(() => {
+    syncAbortRef.current?.abort();
+  }, []);
+
+  const syncLogs = useCallback(
+    async (opts?: TarkovLogSyncOpts): Promise<{ ok: boolean; hint: string }> => {
+      if (logTickBusyRef.current) {
+        return { ok: false, hint: "正在读取日志，请稍后再试。" };
+      }
+      const range = opts?.from && opts?.to ? opts : defaultLogSyncRange();
+      const abort = new AbortController();
+      if (opts?.signal) {
+        if (opts.signal.aborted) abort.abort();
+        else {
+          opts.signal.addEventListener("abort", () => abort.abort(), {
+            once: true,
+          });
+        }
+      }
+      syncAbortRef.current = abort;
+      setLogSyncBusy(true);
+      logTickBusyRef.current = true;
+      const emptyDelta = { done: 0, started: 0, unfinished: 0 };
+      try {
+        const ready = await ensureLogsHandle();
+        if (!ready.ok) return { ok: false, hint: ready.hint };
+        if (abort.signal.aborted) return { ok: false, hint: "已取消同步。" };
+        const handle = ready.handle;
+        const { sessions } = await readLogsIndex(handle);
+        const targets = filterSessionStubsByRange(
+          takeSessionStubs(sessions, 0),
+          range,
+        );
+        if (!targets.length) {
+          return {
+            ok: true,
+            hint: sessions.length
+              ? "这个日期范围内没有启动记录。"
+              : formatLiveLogBackfillHint(0, "backfill", emptyDelta),
+          };
+        }
+        const mode = gameModeRef.current;
+        const prevDone = loadTaskDoneIds(mode);
+        const prevStarted = loadTaskStartedIds(mode);
+        const hadSync = Boolean(loadTaskSyncAt(mode));
+        const base = loadQuestBase();
+        let folded: Map<string, FoldedQuestEntry> = new Map();
+        let questEvents = 0;
+        let skipped = 0;
+        const raidRows: TarkovRaidLogImportRow[] = [];
+        let newestParsed: ReturnType<typeof parseTarkovLogBundle> | null = null;
+        let newestFileTimes: number[] = [];
+        const newestFolder = sessions[0]?.folder || "";
+        const oldestFirst = [...targets].sort((a, b) => {
+          const ta = a.startedAt || a.folder;
+          const tb = b.startedAt || b.folder;
+          return ta.localeCompare(tb);
+        });
+        setLogSyncScan({ done: 0, total: oldestFirst.length });
+        let processed = 0;
+        for (const stub of oldestFirst) {
+          if (abort.signal.aborted) break;
+          const read = await readSessionLogs(handle, stub.folder);
+          if (abort.signal.aborted) break;
+          const parsed = parseTarkovLogBundle(read.files);
+          skipped += read.skipped.length;
+          const foldedStep = foldSessionQuests(folded, parsed, mode);
+          folded = foldedStep.next;
+          questEvents += foldedStep.eventCount;
+          raidRows.push(...toRaidLogImportRows([{ folder: stub.folder, parsed }]));
+          if (stub.folder === newestFolder) {
+            newestParsed = parsed;
+            newestFileTimes = read.files.map((file) => file.lastModified);
+          }
+          processed += 1;
+          setLogSyncScan({ done: processed, total: oldestFirst.length });
+          if (processed % 8 === 0) {
+            const mid = mergeQuestProgressFromFolded(
+              base.done,
+              base.started,
+              folded,
+              questEvents,
+              knownIdsRef.current,
+            );
+            commitQuestProgress(
+              base,
+              {
+                done: mid.done,
+                started: mid.started,
+                changed:
+                  !sameIdLists(base.done, mid.done) ||
+                  !sameIdLists(base.started, mid.started),
+              },
+              { put: false },
+            );
+          }
+          await yieldLogSyncQueue();
+        }
+        if (newestFolder) {
+          const fingerprint = await peekSessionFingerprint(handle, newestFolder);
+          logCursorRef.current = { folder: newestFolder, fingerprint };
+          if (newestParsed) {
+            const stamp = logStampFromParsed(newestParsed, newestFileTimes);
+            if (stamp != null) setLastLogAt(stamp);
+            const mapId = latestLogMapId(newestParsed);
+            if (mapId) setLastLogMapId(mapId);
+            setLastLogPhase(logPhaseFromParsed(newestParsed));
+          }
+        }
+        if (processed > 0) {
+          const merged = mergeQuestProgressFromFolded(
+            base.done,
+            base.started,
+            folded,
+            questEvents,
+            knownIdsRef.current,
+          );
+          const changed =
+            !sameIdLists(base.done, merged.done) ||
+            !sameIdLists(base.started, merged.started);
+          commitQuestProgress(
+            base,
+            { done: merged.done, started: merged.started, changed },
+          );
+          const importPlan = planRaidLogImportRows(
+            endedRaidKeysRef.current,
+            raidRows,
+            { force: true },
+          );
+          endedRaidKeysRef.current = importPlan.nextKeys;
+          if (importPlan.rows.length) {
+            void importTarkovRaidLogs(importPlan.rows)
+              .then(() => {
+                void queryClient.invalidateQueries({
+                  queryKey: ["guides-tarkov-raid-logs"],
+                });
+              })
+              .catch(() => {});
+          }
+        }
+        const nextDone = loadTaskDoneIds(mode);
+        const nextStarted = loadTaskStartedIds(mode);
+        let hint = formatLiveLogBackfillHint(
+          processed,
+          hadSync ? "incremental" : "backfill",
+          questProgressDelta(prevDone, prevStarted, nextDone, nextStarted),
+          { questEvents, skipped },
+        );
+        if (abort.signal.aborted) {
+          hint = processed
+            ? `${hint}（已取消）`
+            : "已取消同步。";
+        }
+        return {
+          ok: Boolean(processed) || !abort.signal.aborted,
+          hint,
+        };
+      } catch (error) {
+        if (isPickerAbort(error)) return { ok: false, hint: "" };
+        const text =
+          error instanceof Error && error.message
+            ? error.message
+            : "同步日志失败";
+        return { ok: false, hint: text };
+      } finally {
+        if (syncAbortRef.current === abort) syncAbortRef.current = null;
+        logTickBusyRef.current = false;
+        setLogSyncBusy(false);
+        setLogSyncScan(null);
+      }
+    },
+    [commitQuestProgress, ensureLogsHandle, loadQuestBase, queryClient],
+  );
 
   const hasStoredShots = Boolean(shotRef.current) || Boolean(shotLabel);
   const hasStoredLogs = Boolean(logRef.current) || Boolean(logLabel);
@@ -755,9 +898,12 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       logSyncScan,
       enableShots,
       resume,
+      previewLogSessions,
       syncLogs,
+      cancelLogSync,
     }),
     [
+      cancelLogSync,
       enableShots,
       fix,
       hasStoredLogs,
@@ -770,6 +916,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       logPerm,
       logSyncBusy,
       logSyncScan,
+      previewLogSessions,
       resume,
       shotBusy,
       shotLabel,

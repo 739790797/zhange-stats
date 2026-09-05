@@ -21,12 +21,12 @@ import {
 } from "@/lib/tarkovTaskObjective";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
-  formatLogSyncActionLabel,
   notifyTarkovTaskProgress,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
 import { formatLastQuestSyncLine } from "@/lib/tarkovTaskLogSync";
-import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
+import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
+import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
 import {
   describeTaskMap,
   displayTaskProgressName,
@@ -260,7 +260,7 @@ function MapGlyph({ icon }: { icon: string }) {
 
 export function TarkovTaskManagerPanel() {
   const gameMode = useTarkovGameMode();
-  const live = useTarkovLiveWatch();
+  const logSync = useTarkovLogSyncDialog();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
@@ -628,15 +628,6 @@ export function TarkovTaskManagerPanel() {
     message.success("已保存进度");
   };
 
-  const syncFromLogs = () => {
-    if (live.logSyncBusy) return;
-    void live.syncLogs().then((result) => {
-      if (!result.hint) return;
-      if (result.ok) message.success(result.hint);
-      else message.error(result.hint);
-    });
-  };
-
   if (catalogQuery.isLoading && !catalogQuery.data) {
     return (
       <div className={trade.status}>
@@ -794,21 +785,19 @@ export function TarkovTaskManagerPanel() {
                     <button
                       type="button"
                       className={styles.syncBtn}
-                      disabled={live.logSyncBusy}
-                      onClick={syncFromLogs}
+                      disabled={logSync.listing}
+                      title={logSync.title}
+                      onClick={() => void logSync.openDialog()}
                     >
-                      {formatLogSyncActionLabel(
-                        live.logSyncBusy,
-                        live.logSyncScan,
-                      )}
+                      {logSync.label}
                     </button>
                   </td>
                 </tr>
               </tbody>
             </table>
             <span className={styles.syncHint}>
-              {live.logSyncScan
-                ? `正在读取 ${live.logSyncScan.done} / ${live.logSyncScan.total}`
+              {logSync.scan
+                ? `正在解析 ${logSync.scan.done} / ${logSync.scan.total}`
                 : formatLastQuestSyncLine(lastSyncAt)}
             </span>
           </div>
@@ -906,6 +895,12 @@ export function TarkovTaskManagerPanel() {
           )}
         </div>
       </div>
+      <TarkovLogSyncRangeModal
+        open={logSync.open}
+        sessions={logSync.sessions}
+        onCancel={logSync.closeDialog}
+        onConfirm={logSync.confirm}
+      />
     </div>
   );
 }

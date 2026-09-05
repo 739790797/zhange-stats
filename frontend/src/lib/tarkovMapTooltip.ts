@@ -64,6 +64,7 @@ export function tooltipSideFromClassName(
 export function estimatedCanvasTooltipHeight(html: string): number {
   const text = html || "";
   if (text.includes("lootLooseTip")) return 56;
+  if (text.includes("lockTipChip")) return 84;
   if (text.includes("lockTip")) return 52;
   return 48;
 }
