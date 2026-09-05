@@ -45,6 +45,11 @@ from app.api.guides.schemas import (
     TarkovKeyPacksOut,
     TarkovKeyOwnsIn,
     TarkovKeyOwnsOut,
+    TarkovCollectionOut,
+    TarkovCollectionOwnsIn,
+    TarkovCollectionOwnsOut,
+    TarkovCollectionLayoutIn,
+    TarkovCollectionLayoutOut,
     TarkovTaskDonesIn,
     TarkovTaskDonesOut,
     TarkovRaidLogsIn,
@@ -67,6 +72,9 @@ from app.services.tarkov import items as items_svc
 from app.services.tarkov import key_owns as key_owns_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
+from app.services.tarkov import collection as collection_svc
+from app.services.tarkov import collection_owns as collection_owns_svc
+from app.services.tarkov import collection_layout as collection_layout_svc
 from app.services.tarkov import task_dones as task_dones_svc
 from app.services.tarkov import raid_logs as raid_logs_svc
 from app.services.tarkov import raid_prep_state as raid_prep_state_svc
@@ -1426,6 +1434,145 @@ def guides_tarkov_key_owns_remove(
     db.commit()
     rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
+
+
+@router.get(
+    "/collection",
+    response_model=TarkovCollectionOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """3×4 收集：收集者任务需上交的道具，按目标顺序。"""
+    _ = user
+    try:
+        items_svc.ensure_items(db)
+        tasks_svc.ensure_tasks(db)
+    except (items_svc.TarkovItemsError, tasks_svc.TarkovTasksError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    etag, hit = _catalog_fresh(
+        request,
+        "collection",
+        _raw_synced(items_svc.get_items_raw(db)),
+        _raw_synced(tasks_svc.get_tasks_raw(db)),
+    )
+    if hit is not None:
+        return hit
+    try:
+        result = collection_svc.list_collection(db)
+    except collection_svc.TarkovCollectionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return _catalog_ok(
+        response, etag, TarkovCollectionOut.model_validate(result)
+    )
+
+
+def _collection_owns_error(
+    exc: collection_owns_svc.TarkovCollectionOwnsError,
+) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/collection-owns",
+    response_model=TarkovCollectionOwnsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection_owns_list(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return TarkovCollectionOwnsOut(
+        item_ids=collection_owns_svc.list_item_ids(db, user.id)
+    )
+
+
+@router.put(
+    "/collection-owns",
+    response_model=TarkovCollectionOwnsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection_owns_merge(
+    body: TarkovCollectionOwnsIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    ids = collection_owns_svc.merge_owns(db, user, body.item_ids)
+    db.commit()
+    return TarkovCollectionOwnsOut(item_ids=ids)
+
+
+@router.put(
+    "/collection-owns/{item_id}",
+    response_model=TarkovCollectionOwnsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection_owns_add(
+    item_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        ids, _added = collection_owns_svc.add_own(db, user, item_id)
+    except collection_owns_svc.TarkovCollectionOwnsError as exc:
+        raise _collection_owns_error(exc) from exc
+    db.commit()
+    return TarkovCollectionOwnsOut(item_ids=ids)
+
+
+@router.delete(
+    "/collection-owns/{item_id}",
+    response_model=TarkovCollectionOwnsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection_owns_remove(
+    item_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        ids, _removed = collection_owns_svc.remove_own(db, user, item_id)
+    except collection_owns_svc.TarkovCollectionOwnsError as exc:
+        raise _collection_owns_error(exc) from exc
+    db.commit()
+    return TarkovCollectionOwnsOut(item_ids=ids)
+
+
+@router.get(
+    "/collection-layout",
+    response_model=TarkovCollectionLayoutOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection_layout_get(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return TarkovCollectionLayoutOut.model_validate(
+        collection_layout_svc.get_layout(db, user.id)
+    )
+
+
+@router.put(
+    "/collection-layout",
+    response_model=TarkovCollectionLayoutOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_collection_layout_put(
+    body: TarkovCollectionLayoutIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    payload = collection_layout_svc.replace_layout(
+        db,
+        user,
+        [item.model_dump() for item in body.placements],
+    )
+    db.commit()
+    return TarkovCollectionLayoutOut.model_validate(payload)
 
 
 def _task_dones_error(exc: task_dones_svc.TarkovTaskDonesError) -> HTTPException:

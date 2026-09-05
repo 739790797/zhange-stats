@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  collectionItemImageUrl,
   hdPreviewUrl,
   inventoryThumbUrl,
   transparentThumbUrl,
@@ -25,5 +26,15 @@ describe("tarkov item image urls", () => {
     );
     expect(inventoryThumbUrl(null, "not-an-id")).toBe("");
     expect(inventoryThumbUrl("")).toBe("");
+  });
+
+  it("uses 512px assets for collection tiles", () => {
+    expect(
+      collectionItemImageUrl("https://assets.tarkov.dev/abc-icon.webp"),
+    ).toBe("https://assets.tarkov.dev/abc-512.webp");
+    expect(collectionItemImageUrl("", "5910922b86f7747d96753483")).toBe(
+      "https://assets.tarkov.dev/5910922b86f7747d96753483-512.webp",
+    );
+    expect(collectionItemImageUrl("", "not-an-id")).toBe("");
   });
 });

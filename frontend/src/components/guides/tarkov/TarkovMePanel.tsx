@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { TarkovCollectionPanel } from "@/components/guides/tarkov/TarkovCollectionPanel";
 import { TarkovGameLogsPanel } from "@/components/guides/tarkov/TarkovGameLogsPanel";
 import { TarkovKeyPacksPanel } from "@/components/guides/tarkov/TarkovKeyPacksPanel";
 import { TarkovTaskManagerPanel } from "@/components/guides/tarkov/TarkovTaskManagerPanel";
@@ -12,6 +13,7 @@ import styles from "./TarkovMePanel.module.css";
 const TABS: Array<{ id: TarkovMeTabId; label: string }> = [
   { id: "tasks", label: "任务管理" },
   { id: "keys", label: "钥匙管理" },
+  { id: "collection", label: "3×4收集" },
   { id: "logs", label: "日志路径" },
 ];
 
@@ -24,11 +26,11 @@ export function TarkovMePanel() {
     params.set("tab", id);
     if (id !== "keys") {
       params.delete("map");
-      params.delete("have");
       params.delete("page");
       params.delete("pageSize");
+      params.delete("have");
     }
-    if (id !== "keys" && id !== "tasks") {
+    if (id !== "keys" && id !== "tasks" && id !== "collection") {
       params.delete("q");
     }
     params.delete("kappa");
@@ -41,7 +43,9 @@ export function TarkovMePanel() {
   };
 
   return (
-    <div className={styles.stack}>
+    <div
+      className={`${styles.stack}${tab === "collection" ? ` ${styles.stackFill}` : ""}`}
+    >
       <div className={trade.chipBar} role="tablist" aria-label="个人中心栏目">
         {TABS.map((item) => (
           <button
@@ -58,6 +62,7 @@ export function TarkovMePanel() {
       </div>
       {tab === "tasks" ? <TarkovTaskManagerPanel /> : null}
       {tab === "keys" ? <TarkovKeyPacksPanel /> : null}
+      {tab === "collection" ? <TarkovCollectionPanel /> : null}
       {tab === "logs" ? <TarkovGameLogsPanel /> : null}
     </div>
   );

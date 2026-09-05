@@ -12103,6 +12103,396 @@
         }
       }
     },
+    "/api/guides/tarkov/collection": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection",
+        "description": "3×4 收集：收集者任务需上交的道具，按目标顺序。",
+        "operationId": "guides_tarkov_collection_api_guides_tarkov_collection_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/collection-owns": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection Owns List",
+        "operationId": "guides_tarkov_collection_owns_list_api_guides_tarkov_collection_owns_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionOwnsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection Owns Merge",
+        "operationId": "guides_tarkov_collection_owns_merge_api_guides_tarkov_collection_owns_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovCollectionOwnsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionOwnsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/collection-owns/{item_id}": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection Owns Add",
+        "operationId": "guides_tarkov_collection_owns_add_api_guides_tarkov_collection_owns__item_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionOwnsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection Owns Remove",
+        "operationId": "guides_tarkov_collection_owns_remove_api_guides_tarkov_collection_owns__item_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionOwnsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/collection-layout": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection Layout Get",
+        "operationId": "guides_tarkov_collection_layout_get_api_guides_tarkov_collection_layout_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionLayoutOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Collection Layout Put",
+        "operationId": "guides_tarkov_collection_layout_put_api_guides_tarkov_collection_layout_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovCollectionLayoutIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovCollectionLayoutOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/task-dones": {
       "get": {
         "tags": [
@@ -26114,6 +26504,300 @@
           "item_count"
         ],
         "title": "TarkovCatalogOut"
+      },
+      "TarkovCollectionItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "handbook_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Handbook Ids"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "default": 1
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height",
+            "default": 1
+          },
+          "found_in_raid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found In Raid"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 1
+          },
+          "objective_id": {
+            "type": "string",
+            "title": "Objective Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovCollectionItemOut"
+      },
+      "TarkovCollectionLayoutIn": {
+        "properties": {
+          "placements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovCollectionPlacementIn"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Placements"
+          }
+        },
+        "type": "object",
+        "title": "TarkovCollectionLayoutIn"
+      },
+      "TarkovCollectionLayoutOut": {
+        "properties": {
+          "placements": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovCollectionPlacementOut"
+            },
+            "type": "array",
+            "title": "Placements"
+          },
+          "saved": {
+            "type": "boolean",
+            "title": "Saved",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TarkovCollectionLayoutOut"
+      },
+      "TarkovCollectionOut": {
+        "properties": {
+          "task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovCollectionTaskOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grid_width": {
+            "type": "integer",
+            "title": "Grid Width",
+            "default": 3
+          },
+          "grid_height": {
+            "type": "integer",
+            "title": "Grid Height",
+            "default": 4
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovCollectionItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "default": 0
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovCollectionOut"
+      },
+      "TarkovCollectionOwnsIn": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Item Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovCollectionOwnsIn"
+      },
+      "TarkovCollectionOwnsOut": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Item Ids"
+          }
+        },
+        "type": "object",
+        "title": "TarkovCollectionOwnsOut"
+      },
+      "TarkovCollectionPlacementIn": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Item Id"
+          },
+          "col": {
+            "type": "integer",
+            "title": "Col"
+          },
+          "row": {
+            "type": "integer",
+            "title": "Row"
+          },
+          "rotated": {
+            "type": "boolean",
+            "title": "Rotated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "col",
+          "row"
+        ],
+        "title": "TarkovCollectionPlacementIn"
+      },
+      "TarkovCollectionPlacementOut": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "col": {
+            "type": "integer",
+            "title": "Col"
+          },
+          "row": {
+            "type": "integer",
+            "title": "Row"
+          },
+          "rotated": {
+            "type": "boolean",
+            "title": "Rotated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "col",
+          "row"
+        ],
+        "title": "TarkovCollectionPlacementOut"
+      },
+      "TarkovCollectionTaskOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "normalized_name": {
+            "type": "string",
+            "title": "Normalized Name",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovCollectionTaskOut"
       },
       "TarkovCraftCatalogOut": {
         "properties": {

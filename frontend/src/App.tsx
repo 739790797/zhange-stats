@@ -96,6 +96,9 @@ const TarkovKeyPacksPage = lazy(
 const TarkovGameLogsPage = lazy(
   () => import("@/pages/guides/TarkovGameLogsPage"),
 );
+const TarkovCollectionPage = lazy(
+  () => import("@/pages/guides/TarkovCollectionPage"),
+);
 const TarkovProgressionPage = lazy(
   () => import("@/pages/guides/TarkovProgressionPage"),
 );
@@ -273,6 +276,10 @@ export default function App() {
                   <Route
                     path="game-logs"
                     element={<TarkovGameLogsPage />}
+                  />
+                  <Route
+                    path="collection"
+                    element={<TarkovCollectionPage />}
                   />
                   <Route
                     path="progression"

@@ -111,14 +111,22 @@ export const TARKOV_WIPE_LENGTH_PATH = "/guides/tarkov/wipe-length";
 export const TARKOV_BITCOIN_FARM_PATH = "/guides/tarkov/bitcoin-farm";
 export const TARKOV_KEY_PACKS_PATH = "/guides/tarkov/key-packs";
 export const TARKOV_GAME_LOGS_PATH = "/guides/tarkov/game-logs";
+export const TARKOV_COLLECTION_PATH = "/guides/tarkov/collection";
 export const TARKOV_ME_PATH = "/guides/tarkov/me";
 
-export const TARKOV_ME_TAB_IDS = ["tasks", "keys", "logs"] as const;
+export const TARKOV_ME_TAB_IDS = ["tasks", "keys", "collection", "logs"] as const;
 export type TarkovMeTabId = (typeof TARKOV_ME_TAB_IDS)[number];
 
 export function resolveTarkovMeTab(raw: string | null | undefined): TarkovMeTabId {
   const key = (raw || "").trim();
-  if (key === "logs" || key === "keys" || key === "tasks") return key;
+  if (
+    key === "logs" ||
+    key === "keys" ||
+    key === "tasks" ||
+    key === "collection"
+  ) {
+    return key;
+  }
   return "tasks";
 }
 
@@ -580,7 +588,7 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   },
 ];
 
-/** 塔科夫个人中心：任务 / 钥匙 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
+/** 塔科夫个人中心：任务 / 钥匙 / 3×4收集 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
 export const TARKOV_ME_NAV: TarkovHomeLink = {
   id: "me",
   label: "个人中心",
@@ -591,6 +599,12 @@ export const TARKOV_ME_NAV: TarkovHomeLink = {
     "任务管理",
     "任务树",
     "任务进度",
+    "3×4收集",
+    "3x4",
+    "收藏家",
+    "收集者",
+    "收集",
+    "kappa",
     "钥匙管理",
     "钥匙分类",
     "钥匙分类速查",
@@ -1024,9 +1038,10 @@ export function tarkovPageTitle(pathname: string): string {
   if (path.startsWith("/guides/tarkov/loot-tiers")) return "战利品等级";
   if (path.startsWith("/guides/tarkov/wipe-length")) return "平均删档周期";
   if (path.startsWith("/guides/tarkov/bitcoin-farm")) return "比特币矿场利润";
-  if (path.startsWith("/guides/tarkov/me")) return "个人中心";
-  if (path.startsWith("/guides/tarkov/key-packs")) return "个人中心";
-  if (path.startsWith("/guides/tarkov/game-logs")) return "个人中心";
+  if (path.startsWith(TARKOV_ME_PATH)) return "个人中心";
+  if (path.startsWith(TARKOV_KEY_PACKS_PATH)) return "个人中心";
+  if (path.startsWith(TARKOV_GAME_LOGS_PATH)) return "个人中心";
+  if (path.startsWith(TARKOV_COLLECTION_PATH)) return "个人中心";
   if (path.startsWith("/guides/tarkov/progression")) return "进度";
   if (path.startsWith("/guides/tarkov/items")) {
     const seg = path.split("/")[4];

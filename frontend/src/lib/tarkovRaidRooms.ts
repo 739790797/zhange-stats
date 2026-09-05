@@ -1090,6 +1090,11 @@ export function isMapDrawTool(mode: TarkovMapDrawMode): boolean {
   return mode === "pen" || mode === "pin" || mode === "line" || mode === "erase";
 }
 
+/** 画笔/钉点等占用左键时，右键用来拖地图。 */
+export function shouldRightButtonPanMap(mode: TarkovMapDrawMode): boolean {
+  return isMapDrawTool(mode);
+}
+
 export function strokeFingerprint(mark: RaidRoomMarkLike): string {
   const pts = markStrokePoints(mark);
   if (!pts.length) return `${mark.kind}:${mark.floor || ""}:${mark.x}:${mark.z}`;

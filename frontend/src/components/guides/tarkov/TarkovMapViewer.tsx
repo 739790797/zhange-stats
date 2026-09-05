@@ -106,6 +106,7 @@ import {
   type TarkovMapPlayerMark,
   isMapDrawTool,
   isTypingTarget,
+  shouldRightButtonPanMap,
   markMatchesFloor,
   markStrokePoints,
   mergeBoardMarks,
@@ -278,6 +279,8 @@ type Props = {
   /** 外部请求将地图平移到指定游戏坐标（seq 递增可重复定位同一点） */
   focusRequest?: TarkovMapFocusRequest | null;
   topRight?: ReactNode;
+  /** 叠在地图上的工具条（涂鸦等）；挂在全屏根节点里，全屏时仍可见。 */
+  toolbar?: ReactNode;
   /** 库里的自定义地名；有则替换 tarkov.dev / 手写表 */
   places?: TarkovMapPlaceLike[];
   placeEdit?: TarkovMapPlaceEdit;
@@ -1828,6 +1831,7 @@ export function TarkovMapViewer({
   layerChrome = "full",
   focusRequest,
   topRight,
+  toolbar,
   places = [],
   placeEdit,
   lockKeyMode = "neutral",
@@ -1880,6 +1884,7 @@ export function TarkovMapViewer({
   >(() => {});
   const drawingRef = useRef(false);
   const spaceHeldRef = useRef(false);
+  const rightPanHeldRef = useRef(false);
   const floorRef = useRef("");
   const styleRef = useRef("");
   const wrapElRef = useRef<HTMLDivElement | null>(null);
@@ -1897,6 +1902,7 @@ export function TarkovMapViewer({
   const [error, setError] = useState("");
   const [ready, setReady] = useState(0);
   const [spaceHeld, setSpaceHeld] = useState(false);
+  const [rightPanHeld, setRightPanHeld] = useState(false);
   const [optimisticMarks, setOptimisticMarks] = useState<RaidRoomMarkLike[]>([]);
   const prevVisibleKeysRef = useRef<Set<string>>(new Set());
   const prevBoardCountRef = useRef(0);
@@ -2406,7 +2412,7 @@ export function TarkovMapViewer({
           cancelStroke();
           return;
         }
-        if (spaceHeldRef.current) return;
+        if (spaceHeldRef.current || rightPanHeldRef.current) return;
         if (drawModeRef.current !== "pen") return;
         if (drawingRef.current) finishStroke();
         if (runtime.localStroke) {
@@ -3121,7 +3127,8 @@ export function TarkovMapViewer({
     if (!map) return;
     const drawing =
       ((isMapDrawTool(drawMode) || isPlaceEditTool(placeEdit?.mode)) &&
-        !spaceHeld);
+        !spaceHeld &&
+        !rightPanHeld);
     if (drawing) {
       map.dragging.disable();
       map.doubleClickZoom.disable();
@@ -3133,7 +3140,7 @@ export function TarkovMapViewer({
     }
     if (pane) pane.style.pointerEvents = drawMode === "erase" ? "auto" : "none";
     runtimeRef.current?.iconCanvas?.setInteractive(!drawing);
-  }, [drawMode, placeEdit?.mode, spaceHeld, ready]);
+  }, [drawMode, placeEdit?.mode, spaceHeld, rightPanHeld, ready]);
 
   useEffect(() => {
     if (drawMode !== "line") lineStartRef.current = null;
@@ -3143,7 +3150,7 @@ export function TarkovMapViewer({
       if (isCanvasMarkerEvent(event.originalEvent)) return;
       const mode = drawModeRef.current;
       if (mode !== "pin" && mode !== "line") return;
-      if (spaceHeldRef.current) return;
+      if (spaceHeldRef.current || rightPanHeldRef.current) return;
       const floor = floorRef.current;
       const x = event.latlng.lng;
       const z = event.latlng.lat;
@@ -3172,7 +3179,7 @@ export function TarkovMapViewer({
       if (isCanvasMarkerEvent(event.originalEvent)) return;
       const edit = placeEditRef.current;
       if (edit?.mode !== "point") return;
-      if (spaceHeldRef.current) return;
+      if (spaceHeldRef.current || rightPanHeldRef.current) return;
       edit.onPoint?.({
         floor: floorRef.current,
         x: event.latlng.lng,
@@ -3198,7 +3205,7 @@ export function TarkovMapViewer({
     const onDown = (event: PointerEvent) => {
       if (placeEditRef.current?.mode !== "box") return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
-      if (spaceHeldRef.current) return;
+      if (spaceHeldRef.current || rightPanHeldRef.current) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest(".leaflet-control")) return;
       const latlng = map.mouseEventToLatLng(event as unknown as MouseEvent);
@@ -3290,6 +3297,70 @@ export function TarkovMapViewer({
     };
   }, []);
 
+  useEffect(() => {
+    const map = runtimeRef.current?.map;
+    if (!ready || !map) return undefined;
+    const container = map.getContainer();
+    let last: { x: number; y: number } | null = null;
+    const allowsRightPan = () =>
+      shouldRightButtonPanMap(drawModeRef.current) ||
+      isPlaceEditTool(placeEditRef.current?.mode);
+    const endPan = () => {
+      if (!rightPanHeldRef.current) return;
+      rightPanHeldRef.current = false;
+      setRightPanHeld(false);
+      last = null;
+    };
+    const onDown = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" && event.button !== 2) return;
+      if (event.pointerType !== "mouse") return;
+      if (!allowsRightPan()) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".leaflet-control")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      rightPanHeldRef.current = true;
+      setRightPanHeld(true);
+      last = { x: event.clientX, y: event.clientY };
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!rightPanHeldRef.current || !last) return;
+      const dx = event.clientX - last.x;
+      const dy = event.clientY - last.y;
+      last = { x: event.clientX, y: event.clientY };
+      map.panBy([-dx, -dy], { animate: false });
+      event.preventDefault();
+    };
+    const onUp = (event: PointerEvent) => {
+      if (!rightPanHeldRef.current) return;
+      if (
+        event.type === "pointerup" &&
+        event.pointerType === "mouse" &&
+        event.button !== 2
+      ) {
+        return;
+      }
+      endPan();
+    };
+    const onContextMenu = (event: Event) => {
+      if (!allowsRightPan() && !rightPanHeldRef.current) return;
+      event.preventDefault();
+    };
+    container.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
+    container.addEventListener("contextmenu", onContextMenu, true);
+    return () => {
+      endPan();
+      container.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
+      container.removeEventListener("contextmenu", onContextMenu, true);
+    };
+  }, [ready]);
+
   if (!interactive && !raster) {
     return (
       <div className={styles.status}>这张图还没有可嵌入的底图。</div>
@@ -3302,7 +3373,7 @@ export function TarkovMapViewer({
     >
     <div
       ref={setWrapEl}
-      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${className}`.trim()}
+      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld || rightPanHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${className}`.trim()}
       onPointerDown={() => {
         if (shotResumeOnceRef.current) return;
         if (shotWatch.perm !== "prompt" || !shotWatch.hasStored) return;
@@ -3312,6 +3383,7 @@ export function TarkovMapViewer({
     >
       <div className={styles.map} ref={mapDivRef} />
       {topRight ? <div className={styles.topRight}>{topRight}</div> : null}
+      {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
       {loading ? (
         <div className={`${styles.status} ${styles.overlay}`}>
           <Spin />

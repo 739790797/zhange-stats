@@ -3,3 +3,17 @@
   flex-direction: column;
   gap: 16px;
 }
+
+.stackFill {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stackFill > :last-child {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

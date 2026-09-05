@@ -3649,6 +3649,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/collection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Collection
+         * @description 3×4 收集：收集者任务需上交的道具，按目标顺序。
+         */
+        get: operations["guides_tarkov_collection_api_guides_tarkov_collection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/collection-owns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Guides Tarkov Collection Owns List */
+        get: operations["guides_tarkov_collection_owns_list_api_guides_tarkov_collection_owns_get"];
+        /** Guides Tarkov Collection Owns Merge */
+        put: operations["guides_tarkov_collection_owns_merge_api_guides_tarkov_collection_owns_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/collection-owns/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Guides Tarkov Collection Owns Add */
+        put: operations["guides_tarkov_collection_owns_add_api_guides_tarkov_collection_owns__item_id__put"];
+        post?: never;
+        /** Guides Tarkov Collection Owns Remove */
+        delete: operations["guides_tarkov_collection_owns_remove_api_guides_tarkov_collection_owns__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/collection-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Guides Tarkov Collection Layout Get */
+        get: operations["guides_tarkov_collection_layout_get_api_guides_tarkov_collection_layout_get"];
+        /** Guides Tarkov Collection Layout Put */
+        put: operations["guides_tarkov_collection_layout_put_api_guides_tarkov_collection_layout_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/task-dones": {
         parameters: {
             query?: never;
@@ -9868,6 +9942,157 @@ export interface components {
             synced_at?: string | null;
             /** Note */
             note?: string | null;
+        };
+        /** TarkovCollectionItemOut */
+        TarkovCollectionItemOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /** Types */
+            types?: string[];
+            /** Handbook Ids */
+            handbook_ids?: string[];
+            /**
+             * Width
+             * @default 1
+             */
+            width: number;
+            /**
+             * Height
+             * @default 1
+             */
+            height: number;
+            /** Found In Raid */
+            found_in_raid?: boolean | null;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /**
+             * Objective Id
+             * @default
+             */
+            objective_id: string;
+        };
+        /** TarkovCollectionLayoutIn */
+        TarkovCollectionLayoutIn: {
+            /** Placements */
+            placements?: components["schemas"]["TarkovCollectionPlacementIn"][];
+        };
+        /** TarkovCollectionLayoutOut */
+        TarkovCollectionLayoutOut: {
+            /** Placements */
+            placements?: components["schemas"]["TarkovCollectionPlacementOut"][];
+            /**
+             * Saved
+             * @default false
+             */
+            saved: boolean;
+        };
+        /** TarkovCollectionOut */
+        TarkovCollectionOut: {
+            task?: components["schemas"]["TarkovCollectionTaskOut"] | null;
+            /**
+             * Grid Width
+             * @default 3
+             */
+            grid_width: number;
+            /**
+             * Grid Height
+             * @default 4
+             */
+            grid_height: number;
+            /** Items */
+            items?: components["schemas"]["TarkovCollectionItemOut"][];
+            /**
+             * Item Count
+             * @default 0
+             */
+            item_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** TarkovCollectionOwnsIn */
+        TarkovCollectionOwnsIn: {
+            /** Item Ids */
+            item_ids?: string[];
+        };
+        /** TarkovCollectionOwnsOut */
+        TarkovCollectionOwnsOut: {
+            /** Item Ids */
+            item_ids?: string[];
+        };
+        /** TarkovCollectionPlacementIn */
+        TarkovCollectionPlacementIn: {
+            /** Item Id */
+            item_id: string;
+            /** Col */
+            col: number;
+            /** Row */
+            row: number;
+            /**
+             * Rotated
+             * @default false
+             */
+            rotated: boolean;
+        };
+        /** TarkovCollectionPlacementOut */
+        TarkovCollectionPlacementOut: {
+            /** Item Id */
+            item_id: string;
+            /** Col */
+            col: number;
+            /** Row */
+            row: number;
+            /**
+             * Rotated
+             * @default false
+             */
+            rotated: boolean;
+        };
+        /** TarkovCollectionTaskOut */
+        TarkovCollectionTaskOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Normalized Name
+             * @default
+             */
+            normalized_name: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
         };
         /** TarkovCraftCatalogOut */
         TarkovCraftCatalogOut: {
@@ -20991,6 +21216,242 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovKeyOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_api_guides_tarkov_collection_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_owns_list_api_guides_tarkov_collection_owns_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_owns_merge_api_guides_tarkov_collection_owns_put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovCollectionOwnsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_owns_add_api_guides_tarkov_collection_owns__item_id__put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_owns_remove_api_guides_tarkov_collection_owns__item_id__delete: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_layout_get_api_guides_tarkov_collection_layout_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionLayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_collection_layout_put_api_guides_tarkov_collection_layout_put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovCollectionLayoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovCollectionLayoutOut"];
                 };
             };
             /** @description Validation Error */

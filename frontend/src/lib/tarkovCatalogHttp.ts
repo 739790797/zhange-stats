@@ -5,6 +5,8 @@ const SKIP_SUBSTRINGS = [
   "/goons",
   "/search",
   "/key-owns",
+  "/collection-owns",
+  "/collection-layout",
   "/task-dones",
   "/raid-logs",
   "/raid-prep/state",

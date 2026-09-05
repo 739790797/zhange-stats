@@ -92,6 +92,7 @@ export type TarkovRaidRoomLiveMapProps = {
     readonly RaidPrepMapParticipant[]
   >;
   topRight?: ReactNode;
+  toolbar?: ReactNode;
   lockKeyMode?: TarkovLockKeyMode;
   lockKeyOwns?: readonly RaidRoomKeyBringLike[] | null;
   lockKeyBrings?: readonly RaidRoomKeyBringLike[] | null;
@@ -185,6 +186,7 @@ export function TarkovRaidRoomLiveMap({
   onQuestCompleteObjective,
   questParticipantsByTask,
   topRight,
+  toolbar,
   lockKeyMode = "party",
   lockKeyOwns,
   lockKeyBrings,
@@ -298,6 +300,7 @@ export function TarkovRaidRoomLiveMap({
         onQuestCompleteObjective={onQuestCompleteObjective}
         questParticipantsByTask={questParticipantsByTask}
         topRight={topRight}
+        toolbar={toolbar}
         lockKeyMode={lockKeyMode}
         lockKeyOwns={lockKeyOwns}
         lockKeyBrings={lockKeyBrings}

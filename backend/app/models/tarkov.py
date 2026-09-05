@@ -334,6 +334,65 @@ class TarkovUserKeyOwn(Base):
     )
 
 
+class TarkovUserCollectionOwn(Base):
+    """用户 3×4 收集勾选：按 PVP/PVE 分开，个人中心收集者道具清单。"""
+
+    __tablename__ = "tarkov_user_collection_owns"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserCollectionLayout(Base):
+    """用户 3×4 收集摆放过账号：空格子也算已保存，避免被本地旧数据盖回去。"""
+
+    __tablename__ = "tarkov_user_collection_layouts"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserCollectionPlacement(Base):
+    """用户 3×4 收集摆放：按 PVP/PVE 分开，格子坐标跟账号走。"""
+
+    __tablename__ = "tarkov_user_collection_placements"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    col: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    row: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rotated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class TarkovUserRaidLog(Base):
     """用户从本机游戏日志导入的战局摘要（不含原文）。"""
 

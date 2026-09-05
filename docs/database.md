@@ -26,7 +26,7 @@ tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extra
 tarkov_ammo · tarkov_guns
 tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_objective_dones / tarkov_raid_room_marks
 tarkov_map_places
-tarkov_user_key_owns · tarkov_user_task_dones · tarkov_user_task_starteds · tarkov_user_task_objective_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
+tarkov_user_key_owns · tarkov_user_collection_owns · tarkov_user_collection_layouts · tarkov_user_collection_placements · tarkov_user_task_dones · tarkov_user_task_starteds · tarkov_user_task_objective_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
 ```
 
@@ -61,6 +61,9 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开或被房主移除则删行。`last_seen_at` 入座、WS 连接/断开与 WS ping 时刷新；HTTP 拉房间不算心跳。WebSocket 在线集合里的人不踢；不在线且 `last_seen_at` 超过 **2 分钟**则收回座位。`left_at` 列为旧兼容，新写入不再使用。`started_task_ids_json` 为入座后上传的「进行中」任务 id（已去掉完成项），`task_progress_at` 为空表示尚未上传。`room_id` / `user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。同一任务可多人勾选。ON DELETE CASCADE |
 | `tarkov_user_key_owns` | 用户仓库钥匙拥有（账号级）；复合主键 `(user_id, item_id)`。钥匙分类速查勾选「我有」；准备总结按在座成员展示谁拥有。截图识别只合并这些 id，不存图。ON DELETE CASCADE |
+| `tarkov_user_collection_owns` | 用户 3×4 收集勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。个人中心「3×4收集」标记已获得的收集者道具；写入摆放账时按格子里的道具整表对齐。ON DELETE CASCADE |
+| `tarkov_user_collection_layouts` | 用户 3×4 收集摆放过账号（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode)`。清空格子也会写这一行，GET 带 `saved`，避免空网被本机旧缓存盖回去。ON DELETE CASCADE |
+| `tarkov_user_collection_placements` | 用户 3×4 收集摆放（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。`col`/`row`/`rotated` 为格子坐标。个人中心改格子即覆盖写入。ON DELETE CASCADE |
 | `tarkov_user_task_dones` | 用户任务完成勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「已完成」，与 `tarkov_user_task_starteds` / `tarkov_user_task_objective_dones` 组成账号进度账。同一任务若同时出现在完成与进行中，完成优先。ON DELETE CASCADE |
 | `tarkov_user_task_starteds` | 用户任务进行中勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「进行中」；换设备无游戏日志时仍从账号拉回。ON DELETE CASCADE |
 | `tarkov_user_task_objective_dones` | 用户任务小步骤勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id, objective_id)`。准备/房间勾选写入账号进度账；整任务进入已完成时按任务目录把该任务全部步骤勾上。取消整任务完成不自动取消小步骤。ON DELETE CASCADE |

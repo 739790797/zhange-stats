@@ -137,6 +137,18 @@ describe("filterHomeSearch", () => {
       filterHomeSearch("application", index).some((h) => h.id === "me"),
     ).toBe(true);
   });
+
+  it("finds 3x4 collection inside 个人中心", () => {
+    expect(
+      filterHomeSearch("3×4收集", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("收集者", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("收藏家", index).some((h) => h.id === "me"),
+    ).toBe(true);
+  });
 });
 
 describe("textMatchesQuery", () => {
@@ -520,6 +532,7 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/me")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/key-packs")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/game-logs")).toBe("个人中心");
+    expect(tarkovPageTitle("/guides/tarkov/collection")).toBe("个人中心");
   });
 });
 
@@ -528,9 +541,11 @@ describe("tarkov me tabs", () => {
     expect(resolveTarkovMeTab(null)).toBe("tasks");
     expect(resolveTarkovMeTab("tasks")).toBe("tasks");
     expect(resolveTarkovMeTab("keys")).toBe("keys");
+    expect(resolveTarkovMeTab("collection")).toBe("collection");
     expect(resolveTarkovMeTab("logs")).toBe("logs");
     expect(resolveTarkovMeTab("nope")).toBe("tasks");
     expect(tarkovMeHref("logs")).toBe("/guides/tarkov/me?tab=logs");
+    expect(tarkovMeHref("collection")).toBe("/guides/tarkov/me?tab=collection");
     expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
     expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
     expect(tarkovKeyPackHref({ q: "Dorm 114", map: "customs" })).toBe(

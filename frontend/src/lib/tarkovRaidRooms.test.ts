@@ -19,6 +19,7 @@ import {
   markMatchesFloor,
   markStrokePoints,
   isMapDrawTool,
+  shouldRightButtonPanMap,
   mergeBoardMarks,
   parseRaidRoomPublicId,
   parseRaidRoomLogPhases,
@@ -735,6 +736,9 @@ describe("raid room helpers", () => {
     expect(isMapDrawTool("pin")).toBe(true);
     expect(isMapDrawTool("line")).toBe(true);
     expect(isMapDrawTool("erase")).toBe(true);
+    expect(shouldRightButtonPanMap("pan")).toBe(false);
+    expect(shouldRightButtonPanMap("pen")).toBe(true);
+    expect(shouldRightButtonPanMap("erase")).toBe(true);
   });
 
   it("fingerprints two freehand strokes separately even with the same endpoints", () => {

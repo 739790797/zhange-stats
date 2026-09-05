@@ -455,6 +455,44 @@ export function isGenericItemCategoryId(id: string): boolean {
   return IGNORE_CATEGORY_IDS.has((id || "").trim());
 }
 
+export type HandbookCategoryHit = {
+  id: string;
+  label: string;
+  order: number;
+};
+
+/** 手册 id 取最细分类：子类优先，否则一级。 */
+export function handbookCategoryFromIds(
+  ids: readonly string[] | null | undefined,
+): HandbookCategoryHit | null {
+  const set = new Set(
+    (ids || []).map((id) => String(id).trim()).filter(Boolean),
+  );
+  if (!set.size) return null;
+  let childHit: HandbookCategoryHit | null = null;
+  let rootHit: HandbookCategoryHit | null = null;
+  for (const root of TARKOV_HANDBOOK_ROOTS) {
+    if (set.has(root.id)) {
+      const hit = {
+        id: root.id,
+        label: root.label,
+        order: root.order * 1000,
+      };
+      if (!rootHit || hit.order < rootHit.order) rootHit = hit;
+    }
+    for (const [index, child] of root.children.entries()) {
+      if (!set.has(child.id)) continue;
+      const hit = {
+        id: child.id,
+        label: child.label,
+        order: root.order * 1000 + index,
+      };
+      if (!childHit || hit.order < childHit.order) childHit = hit;
+    }
+  }
+  return childHit || rootHit;
+}
+
 /** 手册分类 id → 本站分类页；泛 Item 节点不链。 */
 export function handbookHrefFromCategoryId(id: string): string | null {
   const key = (id || "").trim();

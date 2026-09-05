@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allItemPages,
+  handbookCategoryFromIds,
   handbookHrefFromCategoryId,
   itemHrefFromTypes,
   itemPageBySlug,
@@ -54,6 +55,31 @@ describe("itemHrefFromTypes", () => {
     expect(itemTypeHrefFromTypes(["suppressor"])).toBe(
       "/guides/tarkov/items/suppressors",
     );
+  });
+});
+
+describe("handbookCategoryFromIds", () => {
+  it("prefers the handbook child over the parent root", () => {
+    expect(
+      handbookCategoryFromIds([
+        "5b47574386f77428ca22b33e",
+        "5b47574386f77428ca22b2ef",
+      ]),
+    ).toEqual({
+      id: "5b47574386f77428ca22b2ef",
+      label: "电子产品",
+      order: 13_004,
+    });
+  });
+
+  it("falls back to the root and ignores unknown ids", () => {
+    expect(handbookCategoryFromIds(["5b47574386f77428ca22b342"])).toEqual({
+      id: "5b47574386f77428ca22b342",
+      label: "钥匙",
+      order: 6_000,
+    });
+    expect(handbookCategoryFromIds(["missing", ""])).toBeNull();
+    expect(handbookCategoryFromIds([])).toBeNull();
   });
 });
 

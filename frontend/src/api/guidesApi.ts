@@ -238,6 +238,10 @@ export type TarkovKeyPackMap = components["schemas"]["TarkovKeyPackMapOut"];
 export type TarkovKeyPackKey = components["schemas"]["TarkovKeyPackKeyOut"];
 export type TarkovKeyOwns = components["schemas"]["TarkovKeyOwnsOut"];
 export type TarkovKeyOwn = components["schemas"]["TarkovKeyOwnOut"];
+export type TarkovCollection = components["schemas"]["TarkovCollectionOut"];
+export type TarkovCollectionOwns = components["schemas"]["TarkovCollectionOwnsOut"];
+export type TarkovCollectionLayout = components["schemas"]["TarkovCollectionLayoutOut"];
+export type TarkovCollectionLayoutIn = components["schemas"]["TarkovCollectionLayoutIn"];
 
 export async function fetchTarkovMaps() {
   const { data } = await client.get<TarkovMapCatalog>("/guides/tarkov/maps", {
@@ -444,6 +448,65 @@ export async function addTarkovKeyOwn(itemId: string) {
 export async function removeTarkovKeyOwn(itemId: string) {
   const { data } = await client.delete<TarkovKeyOwns>(
     `/guides/tarkov/key-owns/${encodeURIComponent(itemId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovCollection() {
+  const { data } = await client.get<TarkovCollection>(
+    "/guides/tarkov/collection",
+    { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovCollectionOwns() {
+  const { data } = await client.get<TarkovCollectionOwns>(
+    "/guides/tarkov/collection-owns",
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function mergeTarkovCollectionOwns(itemIds: string[]) {
+  const { data } = await client.put<TarkovCollectionOwns>(
+    "/guides/tarkov/collection-owns",
+    { item_ids: itemIds },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function addTarkovCollectionOwn(itemId: string) {
+  const { data } = await client.put<TarkovCollectionOwns>(
+    `/guides/tarkov/collection-owns/${encodeURIComponent(itemId)}`,
+    {},
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function removeTarkovCollectionOwn(itemId: string) {
+  const { data } = await client.delete<TarkovCollectionOwns>(
+    `/guides/tarkov/collection-owns/${encodeURIComponent(itemId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovCollectionLayout() {
+  const { data } = await client.get<TarkovCollectionLayout>(
+    "/guides/tarkov/collection-layout",
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function saveTarkovCollectionLayout(body: TarkovCollectionLayoutIn) {
+  const { data } = await client.put<TarkovCollectionLayout>(
+    "/guides/tarkov/collection-layout",
+    body,
     { timeout: 30_000 },
   );
   return data;

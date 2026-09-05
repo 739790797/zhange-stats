@@ -10,7 +10,9 @@ import {
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
   TARKOV_HOME_PATH,
+  TARKOV_ME_PATH,
   TARKOV_TOP_NAV,
+  resolveTarkovMeTab,
   isTarkovTopNavActive,
   tarkovBossHref,
   tarkovPageTitle,
@@ -381,7 +383,16 @@ export function TarkovGuideShell({ children }: Props) {
           </div>
         </div>
       </header>
-      <div className={styles.body}>{children}</div>
+      <div
+        className={`${styles.body}${
+          pathname === TARKOV_ME_PATH &&
+          resolveTarkovMeTab(searchParams.get("tab")) === "collection"
+            ? ` ${styles.bodyFill}`
+            : ""
+        }`}
+      >
+        {children}
+      </div>
     </div>
     </TarkovGoonTrackerProvider>
     </TarkovLiveWatchProvider>

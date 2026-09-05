@@ -28,6 +28,12 @@ describe("isTarkovCatalogGet", () => {
       false,
     );
     expect(isTarkovCatalogGet("get", "/guides/tarkov/key-owns")).toBe(false);
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/collection-owns")).toBe(
+      false,
+    );
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/collection-layout")).toBe(
+      false,
+    );
     expect(isTarkovCatalogGet("post", "/guides/tarkov/maps")).toBe(false);
   });
 });

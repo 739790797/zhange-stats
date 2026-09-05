@@ -1269,6 +1269,72 @@ class TarkovKeyOwnsIn(BaseModel):
     item_ids: list[str] = Field(default_factory=list, max_length=400)
 
 
+class TarkovCollectionTaskOut(BaseModel):
+    id: str
+    name: str = ""
+    normalized_name: str = ""
+    trader_slug: str = ""
+    trader_name: str = ""
+
+
+class TarkovCollectionItemOut(BaseModel):
+    id: str
+    name: str = ""
+    short_name: str = ""
+    icon_link: str = ""
+    types: list[str] = Field(default_factory=list)
+    handbook_ids: list[str] = Field(default_factory=list)
+    width: int = 1
+    height: int = 1
+    found_in_raid: bool | None = None
+    count: int = 1
+    objective_id: str = ""
+
+
+class TarkovCollectionOut(BaseModel):
+    task: TarkovCollectionTaskOut | None = None
+    grid_width: int = 3
+    grid_height: int = 4
+    items: list[TarkovCollectionItemOut] = Field(default_factory=list)
+    item_count: int = 0
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovCollectionOwnsOut(BaseModel):
+    item_ids: list[str] = Field(default_factory=list)
+
+
+class TarkovCollectionOwnsIn(BaseModel):
+    item_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
+class TarkovCollectionPlacementOut(BaseModel):
+    item_id: str
+    col: int
+    row: int
+    rotated: bool = False
+
+
+class TarkovCollectionLayoutOut(BaseModel):
+    placements: list[TarkovCollectionPlacementOut] = Field(default_factory=list)
+    saved: bool = False
+
+
+class TarkovCollectionPlacementIn(BaseModel):
+    item_id: str = Field(min_length=1, max_length=64)
+    col: int
+    row: int
+    rotated: bool = False
+
+
+class TarkovCollectionLayoutIn(BaseModel):
+    placements: list[TarkovCollectionPlacementIn] = Field(
+        default_factory=list, max_length=200
+    )
+
+
 class TarkovTaskObjectiveDonePair(BaseModel):
     task_id: str = Field(min_length=1, max_length=64)
     objective_id: str = Field(min_length=1, max_length=64)

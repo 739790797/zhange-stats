@@ -33,6 +33,20 @@ export function hdPreviewUrl(src: string | null | undefined): string {
   return url.replace(CDN_SUFFIX_RE, "-512.webp$1");
 }
 
+/**
+ * 收藏家格子：用 512 再缩小。-icon 只有几十像素，铺到 2×2 / 高分屏会糊。
+ */
+export function collectionItemImageUrl(
+  src?: string | null,
+  itemId?: string | null,
+): string {
+  const url = (src || "").trim();
+  if (url) return hdPreviewUrl(url);
+  const id = (itemId || "").trim();
+  if (!ITEM_ID_RE.test(id)) return "";
+  return `${TARKOV_ITEM_CDN}/${id}-512.webp`;
+}
+
 /** 详情大图：优先 512，再 grid / inspect / base */
 export function inspectImageUrl(
   item: Record<string, unknown> | undefined,

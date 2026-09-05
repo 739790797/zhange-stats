@@ -1461,67 +1461,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         </>
       }
       goonMapId={mapId || undefined}
-      mapToolbar={
-        canEdit && !showOverlap ? (
-          <div className={styles.drawDock}>
-            {(
-              [
-                ["pan", "拖拽", "拖拽移动地图"],
-                ["pen", "画笔", "按住拖拽涂鸦，空格拖地图"],
-                ["pin", "钉点", "单击钉一个点"],
-                ["line", "直线", "点两点连成直线"],
-                ["erase", "橡皮", "点一下擦掉笔画"],
-              ] as const
-            ).map(([mode, label, hint]) => (
-              <button
-                key={mode}
-                type="button"
-                title={hint}
-                className={`${styles.dockChip} ${tool === mode ? styles.dockChipOn : ""}`}
-                onClick={() => setTool(mode)}
-              >
-                {label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={styles.dockChip}
-              onClick={() => void run(() => undoTarkovRaidRoomMark(publicId))}
-            >
-              撤销
-            </button>
-            {room.is_host ? (
-              <button
-                type="button"
-                className={styles.dockChip}
-                onClick={() =>
-                  void (async () => {
-                    const ok = await run(() => clearTarkovRaidRoomMarks(publicId));
-                    if (ok) setPendingMarks([]);
-                  })()
-                }
-              >
-                清板
-              </button>
-            ) : null}
-            {tool === "pan" ? (
-              <span className={styles.drawHint}>拖拽移动地图</span>
-            ) : null}
-            {tool === "pen" ? (
-              <span className={styles.drawHint}>拖拽涂鸦，按住空格拖地图</span>
-            ) : null}
-            {tool === "pin" ? (
-              <span className={styles.drawHint}>单击钉点</span>
-            ) : null}
-            {tool === "line" ? (
-              <span className={styles.drawHint}>点两个位置连直线</span>
-            ) : null}
-            {tool === "erase" ? (
-              <span className={styles.drawHint}>点一下擦掉笔画</span>
-            ) : null}
-          </div>
-        ) : null
-      }
       map={
         showOverlap ? (
           room.is_member ? (
@@ -1575,6 +1514,75 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             questParticipantsByTask={participantsByTask}
             lockKeyOwns={room?.key_owns}
             lockKeyBrings={room?.key_brings}
+            toolbar={
+              canEdit ? (
+                <div className={styles.drawDock}>
+                  {(
+                    [
+                      ["pan", "拖拽", "拖拽移动地图"],
+                      ["pen", "画笔", "按住拖拽涂鸦，右键或空格拖地图"],
+                      ["pin", "钉点", "单击钉一个点，右键拖地图"],
+                      ["line", "直线", "点两点连成直线，右键拖地图"],
+                      ["erase", "橡皮", "点一下擦掉笔画，右键拖地图"],
+                    ] as const
+                  ).map(([mode, label, hint]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      title={hint}
+                      className={`${styles.dockChip} ${tool === mode ? styles.dockChipOn : ""}`}
+                      onClick={() => setTool(mode)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={styles.dockChip}
+                    onClick={() => void run(() => undoTarkovRaidRoomMark(publicId))}
+                  >
+                    撤销
+                  </button>
+                  {room.is_host ? (
+                    <button
+                      type="button"
+                      className={styles.dockChip}
+                      onClick={() =>
+                        void (async () => {
+                          const ok = await run(() =>
+                            clearTarkovRaidRoomMarks(publicId),
+                          );
+                          if (ok) setPendingMarks([]);
+                        })()
+                      }
+                    >
+                      清板
+                    </button>
+                  ) : null}
+                  {tool === "pan" ? (
+                    <span className={styles.drawHint}>拖拽移动地图</span>
+                  ) : null}
+                  {tool === "pen" ? (
+                    <span className={styles.drawHint}>
+                      拖拽涂鸦，右键或空格拖地图
+                    </span>
+                  ) : null}
+                  {tool === "pin" ? (
+                    <span className={styles.drawHint}>单击钉点，右键拖地图</span>
+                  ) : null}
+                  {tool === "line" ? (
+                    <span className={styles.drawHint}>
+                      点两个位置连直线，右键拖地图
+                    </span>
+                  ) : null}
+                  {tool === "erase" ? (
+                    <span className={styles.drawHint}>
+                      点一下擦掉笔画，右键拖地图
+                    </span>
+                  ) : null}
+                </div>
+              ) : null
+            }
             topRight={
               <div className={styles.summaryStack}>
                 <TarkovRaidPrepSummary
