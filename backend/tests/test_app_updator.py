@@ -7,6 +7,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+import httpx
 import pytest
 
 from app.services import app_updator as u
@@ -344,3 +345,169 @@ def test_update_lock_rejects_concurrent(monkeypatch: pytest.MonkeyPatch):
         assert "进行中" in queued.message
     finally:
         u._lock.release()
+
+
+def test_download_retryable_and_size_helpers(tmp_path: Path):
+    assert u._download_retryable(u.IncompleteDownload("x"))
+    assert u._download_retryable(
+        httpx.RemoteProtocolError(
+            "peer closed connection without sending complete message body "
+            "(received 6634923 bytes, expected 6889538)"
+        )
+    )
+    not_found = httpx.Response(404, request=httpx.Request("GET", "https://example.com/x"))
+    assert not u._download_retryable(
+        httpx.HTTPStatusError("nope", request=not_found.request, response=not_found)
+    )
+    bad_gateway = httpx.Response(502, request=httpx.Request("GET", "https://example.com/x"))
+    assert u._download_retryable(
+        httpx.HTTPStatusError("bad", request=bad_gateway.request, response=bad_gateway)
+    )
+    assert not u._download_retryable(RuntimeError("缺少 zipball_url"))
+
+    assert u._parse_content_range("bytes 5-9/10") == (5, 9, 10)
+    assert u._parse_content_range("bytes 0-0/*") == (0, 0, 1)
+    assert u._parse_content_range("nope") is None
+
+    headers = httpx.Headers({"Content-Length": "10"})
+    assert u._expected_total_bytes(status=200, headers=headers, resume_from=0) == 10
+    headers_206 = httpx.Headers(
+        {"Content-Range": "bytes 5-9/10", "Content-Length": "5"}
+    )
+    assert u._expected_total_bytes(status=206, headers=headers_206, resume_from=5) == 10
+
+    dest = tmp_path / "partial.bin"
+    dest.write_bytes(b"abc")
+    with pytest.raises(u.IncompleteDownload, match="应为 10"):
+        u._check_download_size(dest, 10)
+    dest.write_bytes(b"0123456789")
+    u._check_download_size(dest, 10)
+
+    msg = u._format_download_error(
+        httpx.RemoteProtocolError(
+            "peer closed connection without sending complete message body "
+            "(received 6634923 bytes, expected 6889538)"
+        )
+    )
+    assert "从 GitHub 下载被中断" in msg
+    assert "一键更新" in msg
+    assert u._format_download_error(RuntimeError(msg)) == msg
+
+    assert not u._download_send_range("https://api.github.com/repos/x/y/zipball/v1", 100)
+    assert u._download_send_range("https://codeload.github.com/x/y/zip/refs/tags/v1", 100)
+    assert not u._download_send_range("https://codeload.github.com/x/y/zip/v1", 0)
+
+
+def _patch_download_client(
+    monkeypatch: pytest.MonkeyPatch, handler
+) -> None:
+    transport = httpx.MockTransport(handler)
+    real_client = httpx.AsyncClient
+
+    def client_factory(*args: object, **kwargs: object):
+        kwargs["transport"] = transport
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(u.httpx, "AsyncClient", client_factory)
+
+    async def no_sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(u.asyncio, "sleep", no_sleep)
+
+
+def test_download_retries_truncated_body_then_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    dest = tmp_path / "file.bin"
+    payload = b"abcdefghij"
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        state["n"] += 1
+        if state["n"] == 1:
+            raise httpx.RemoteProtocolError(
+                "peer closed connection without sending complete message body "
+                "(received 6634923 bytes, expected 6889538)"
+            )
+        return httpx.Response(
+            200,
+            content=payload,
+            headers={"Content-Length": str(len(payload))},
+        )
+
+    _patch_download_client(monkeypatch, handler)
+    import asyncio
+
+    asyncio.run(u._download("https://example.com/file.bin", dest))
+    assert dest.read_bytes() == payload
+    assert state["n"] == 2
+
+
+def test_download_resumes_partial_with_range(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    dest = tmp_path / "file.bin"
+    dest.write_bytes(b"hello")
+    seen: dict[str, str | None] = {"range": None}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["range"] = request.headers.get("range")
+        if request.headers.get("range") == "bytes=5-":
+            return httpx.Response(
+                206,
+                content=b"world",
+                headers={
+                    "Content-Range": "bytes 5-9/10",
+                    "Content-Length": "5",
+                },
+            )
+        return httpx.Response(
+            200,
+            content=b"helloworld",
+            headers={"Content-Length": "10"},
+        )
+
+    _patch_download_client(monkeypatch, handler)
+    import asyncio
+
+    asyncio.run(u._download("https://example.com/file.bin", dest))
+    assert dest.read_bytes() == b"helloworld"
+    assert seen["range"] == "bytes=5-"
+
+
+def test_download_404_does_not_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    dest = tmp_path / "file.bin"
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        state["n"] += 1
+        return httpx.Response(404, content=b"missing")
+
+    _patch_download_client(monkeypatch, handler)
+    import asyncio
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(u._download("https://example.com/file.bin", dest))
+    assert state["n"] == 1
+
+
+def test_download_exhausted_retries_use_chinese_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    dest = tmp_path / "file.bin"
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        state["n"] += 1
+        raise httpx.RemoteProtocolError(
+            "peer closed connection without sending complete message body"
+        )
+
+    _patch_download_client(monkeypatch, handler)
+    monkeypatch.setattr(u, "_DOWNLOAD_ATTEMPTS", 3)
+    import asyncio
+
+    with pytest.raises(RuntimeError, match="一键更新"):
+        asyncio.run(u._download("https://example.com/file.bin", dest))
+    assert state["n"] == 3

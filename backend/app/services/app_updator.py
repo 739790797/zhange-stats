@@ -17,7 +17,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -26,6 +26,10 @@ from app.core.paths import resolve_install_dir as resolve_install_dir_from_env
 from app.core.paths import resolve_runtime_path
 
 logger = logging.getLogger(__name__)
+
+# GitHub zipball / CDN 在国内链路偶发掐流；整文件重试 + Range 续传。
+_DOWNLOAD_ATTEMPTS = 5
+_DOWNLOAD_RETRY_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 
 # Relative to install root — only these are overwritten from source zip.
 SOURCE_WHITELIST: tuple[str, ...] = (
@@ -470,6 +474,160 @@ def build_status(
     )
 
 
+class IncompleteDownload(RuntimeError):
+    """Stream ended before Content-Length / Content-Range total."""
+
+
+def _download_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, IncompleteDownload):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code if exc.response is not None else 0
+        return code in _DOWNLOAD_RETRY_STATUS
+    if isinstance(exc, (httpx.TransportError, httpx.TimeoutException)):
+        return True
+    text = str(exc).lower()
+    return any(
+        s in text
+        for s in (
+            "incomplete",
+            "peer closed",
+            "connection reset",
+            "connection aborted",
+        )
+    )
+
+
+def _parse_content_range(value: str) -> tuple[int, int, int] | None:
+    """Parse ``bytes start-end/total``. Unknown total (``*``) returns end+1."""
+    match = re.match(r"bytes\s+(\d+)-(\d+)/(\d+|\*)", (value or "").strip(), re.I)
+    if not match:
+        return None
+    start, end = int(match.group(1)), int(match.group(2))
+    total_s = match.group(3)
+    total = end + 1 if total_s == "*" else int(total_s)
+    return start, end, total
+
+
+def _expected_total_bytes(
+    *,
+    status: int,
+    headers: Any,
+    resume_from: int,
+) -> int | None:
+    cr = headers.get("content-range") if headers is not None else None
+    if cr:
+        parsed = _parse_content_range(str(cr))
+        if parsed:
+            return parsed[2]
+    cl = headers.get("content-length") if headers is not None else None
+    if cl is not None and str(cl).isdigit():
+        size = int(cl)
+        if status == 206:
+            return resume_from + size
+        return size
+    return None
+
+
+def _check_download_size(path: Path, expected: int | None) -> None:
+    got = path.stat().st_size if path.exists() else 0
+    if got <= 0:
+        raise IncompleteDownload("下载结果为空")
+    if expected is not None and got != expected:
+        raise IncompleteDownload(f"下载不完整（已收 {got} 字节，应为 {expected}）")
+
+
+def _format_download_error(exc: BaseException) -> str:
+    text = str(exc).strip() or exc.__class__.__name__
+    if text.startswith("从 GitHub 下载被中断"):
+        return text
+    looks_truncated = isinstance(exc, IncompleteDownload) or any(
+        s in text.lower()
+        for s in ("incomplete", "peer closed", "connection reset", "connection aborted")
+    )
+    if not looks_truncated:
+        return text
+    return (
+        f"从 GitHub 下载被中断（{text}）。"
+        "请再点一次「一键更新」。若反复失败，请在主机执行 docs/deploy.md 中的应急更新脚本。"
+    )
+
+
+def _github_download_headers(url: str, *, token: str, user_agent: str) -> dict[str, str]:
+    """Token only on GitHub API / github.com — never on codeload CDN."""
+    headers = {"User-Agent": user_agent}
+    if not token:
+        return headers
+    host = (urlparse(url).hostname or "").lower()
+    if host in {"api.github.com", "github.com", "www.github.com"}:
+        headers["Authorization"] = f"Bearer {token}"
+        if "/releases/download/" in url:
+            headers["Accept"] = "application/octet-stream"
+    return headers
+
+
+def _download_send_range(url: str, have: int) -> bool:
+    """Range belongs on the file CDN, not GitHub API/html 302 hops."""
+    if have <= 0:
+        return False
+    host = (urlparse(url).hostname or "").lower()
+    return host not in {"api.github.com", "github.com", "www.github.com"}
+
+
+async def _download_follow(
+    client: httpx.AsyncClient,
+    url: str,
+    dest: Path,
+    *,
+    token: str,
+    user_agent: str,
+) -> None:
+    """Follow redirects then stream to dest. Resume with Range if dest is partial."""
+    current = url
+    for _ in range(12):
+        have = dest.stat().st_size if dest.exists() else 0
+        headers = _github_download_headers(current, token=token, user_agent=user_agent)
+        if _download_send_range(current, have):
+            headers["Range"] = f"bytes={have}-"
+        resp = await client.send(
+            client.build_request("GET", current, headers=headers),
+            stream=True,
+        )
+        if resp.status_code in (301, 302, 303, 307, 308):
+            loc = resp.headers.get("location") or ""
+            await resp.aclose()
+            if not loc:
+                raise RuntimeError(f"下载重定向缺少 Location（HTTP {resp.status_code}）")
+            current = urljoin(current, loc)
+            continue
+        if resp.status_code == 416:
+            await resp.aclose()
+            dest.unlink(missing_ok=True)
+            raise IncompleteDownload("服务器拒绝续传（HTTP 416），将整文件重试")
+        expected: int | None = None
+        try:
+            resp.raise_for_status()
+            if resp.status_code == 206:
+                mode = "ab"
+                resume_from = have
+            else:
+                mode = "wb"
+                resume_from = 0
+            expected = _expected_total_bytes(
+                status=resp.status_code,
+                headers=resp.headers,
+                resume_from=resume_from,
+            )
+            with dest.open(mode) as f:
+                async for chunk in resp.aiter_bytes():
+                    f.write(chunk)
+        finally:
+            await resp.aclose()
+        _check_download_size(dest, expected)
+        return
+    raise RuntimeError("下载重定向次数过多")
+
+
 async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
     """Download URL to dest.
 
@@ -478,7 +636,7 @@ async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
     """
     final = _proxy_url(url, proxy)
     settings = get_settings()
-    base_headers = {"User-Agent": f"zhange-stats/{settings.APP_VERSION}"}
+    user_agent = f"zhange-stats/{settings.APP_VERSION}"
     token = ""
     try:
         from app.services.integrations_config import get_github_token
@@ -488,48 +646,40 @@ async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
         token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-
-    def _headers_for(u: str) -> dict[str, str]:
-        h = dict(base_headers)
-        if not token:
-            return h
-        # Token only on GitHub API / release asset hosts — never on codeload CDN
-        host = ""
+    timeout = httpx.Timeout(300.0, connect=30.0)
+    last_exc: BaseException | None = None
+    for attempt in range(1, _DOWNLOAD_ATTEMPTS + 1):
         try:
-            from urllib.parse import urlparse
-
-            host = (urlparse(u).hostname or "").lower()
-        except Exception:  # noqa: BLE001
-            host = ""
-        if host in {"api.github.com", "github.com", "www.github.com"}:
-            h["Authorization"] = f"Bearer {token}"
-            if "/releases/download/" in u:
-                h["Accept"] = "application/octet-stream"
-        return h
-
-    async with httpx.AsyncClient(timeout=300.0, follow_redirects=False) as client:
-        current = final
-        for _ in range(12):
-            resp = await client.send(
-                client.build_request("GET", current, headers=_headers_for(current)),
-                stream=True,
-            )
-            if resp.status_code in (301, 302, 303, 307, 308):
-                loc = resp.headers.get("location") or ""
-                await resp.aclose()
-                if not loc:
-                    raise RuntimeError(f"下载重定向缺少 Location（HTTP {resp.status_code}）")
-                current = urljoin(current, loc)
-                continue
-            try:
-                resp.raise_for_status()
-                with dest.open("wb") as f:
-                    async for chunk in resp.aiter_bytes():
-                        f.write(chunk)
-            finally:
-                await resp.aclose()
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=False,
+                http2=False,
+            ) as client:
+                await _download_follow(
+                    client,
+                    final,
+                    dest,
+                    token=token,
+                    user_agent=user_agent,
+                )
             return
-        raise RuntimeError("下载重定向次数过多")
+        except Exception as exc:
+            last_exc = exc
+            if not _download_retryable(exc) or attempt >= _DOWNLOAD_ATTEMPTS:
+                raise RuntimeError(_format_download_error(exc)) from exc
+            logger.warning(
+                "download attempt %s/%s failed: %s",
+                attempt,
+                _DOWNLOAD_ATTEMPTS,
+                exc,
+            )
+            _set_progress(
+                busy=True,
+                phase="download",
+                message=f"下载中断，正在重试（{attempt}/{_DOWNLOAD_ATTEMPTS}）…",
+            )
+            await asyncio.sleep(min(8.0, 1.5 * attempt))
+    raise RuntimeError(_format_download_error(last_exc or RuntimeError("下载失败")))
 
 
 def _resolve_target_release(
@@ -890,8 +1040,9 @@ async def apply_update(
         return UpdateResult(ok=False, message=f"更新失败: {msg}")
     except Exception as e:
         logger.exception("self-update failed")
-        _set_progress(phase="error", message="更新失败", error=str(e))
-        return UpdateResult(ok=False, message=f"更新失败: {e}")
+        msg = _format_download_error(e)
+        _set_progress(phase="error", message="更新失败", error=msg)
+        return UpdateResult(ok=False, message=f"更新失败: {msg}")
     finally:
         prog = get_progress()
         if prog.get("phase") != "restart":
@@ -930,9 +1081,10 @@ async def enqueue_update(
             return resolved
     except Exception as e:
         logger.exception("self-update preflight failed")
-        _set_progress(busy=False, phase="error", message="更新失败", error=str(e))
+        msg = _format_download_error(e)
+        _set_progress(busy=False, phase="error", message="更新失败", error=msg)
         _lock.release()
-        return UpdateResult(ok=False, message=f"更新失败: {e}")
+        return UpdateResult(ok=False, message=f"更新失败: {msg}")
 
     target = resolved
     target_ver = target.tag_name.lstrip("vV")
@@ -958,7 +1110,12 @@ async def enqueue_update(
             _set_progress(phase="error", message="更新失败", error=msg, busy=False)
         except Exception as e:
             logger.exception("self-update background failed")
-            _set_progress(phase="error", message="更新失败", error=str(e), busy=False)
+            _set_progress(
+                phase="error",
+                message="更新失败",
+                error=_format_download_error(e),
+                busy=False,
+            )
         finally:
             prog = get_progress()
             if prog.get("phase") != "restart":

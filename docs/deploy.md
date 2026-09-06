@@ -19,7 +19,7 @@ sudo systemctl start zhange-stats
 ## 更新方式（AstrBot 式，仅管理端）
 
 1. 管理端 → **系统更新** → 检查 / 一键更新
-2. 进程内下载 GitHub Release 源码 zip + 预构建 `static` → pip
+2. 进程内下载 GitHub Release 源码 zip + 预构建 `static` → pip（对端掐流会自动重试并尝试续传）
 3. **先跑 Alembic 迁移**；失败则回滚白名单代码、**不重启**（避免迁移挂死 → 502）
 4. 迁移成功后再 **`os.execv` 同 PID 换码**（无需 `systemctl`、无需 root）
 5. 安装树须属服务用户（`zhange`）可写；勿用 root 手改代码属主
@@ -27,7 +27,7 @@ sudo systemctl start zhange-stats
 应用内更新仅管理员；默认仅 `APP_ENV=production` 允许（可用 `ALLOW_IN_APP_UPDATE` 覆盖）。更新会覆盖白名单路径，不碰 `.env` / `var/` / `data/` / `uploads/` / `.venv`。
 
 应急排障（非常规升级路径）：`sudo systemctl restart zhange-stats`。  
-若迁移半完成 / 历史 **Alembic 双 0056** 导致进程起不来、无法用管理端更新，在主机执行：
+下载被中断、或迁移半完成 / 历史 **Alembic 双 0056** 导致进程起不来、无法用管理端更新时，在主机执行：
 
 ```bash
 # 推荐：拉主干源码（含自愈）+ 最新 Release 的 static
