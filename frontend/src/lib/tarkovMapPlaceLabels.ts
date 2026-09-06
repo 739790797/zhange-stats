@@ -19,6 +19,8 @@ export type TarkovMapPlaceLike = {
   label_z?: number | null;
   size?: number | null;
   floor?: string | null;
+  top?: number | null;
+  bottom?: number | null;
 };
 
 export type ResolvedMapPlace = TarkovDevLabel & {
@@ -42,6 +44,8 @@ export type TarkovMapPlaceImportItem = {
   z2?: number;
   size?: number;
   floor: string;
+  top?: number;
+  bottom?: number;
 };
 
 export type TarkovMapPlaceEditMode = "off" | "point" | "box" | "select";
@@ -62,9 +66,7 @@ export type TarkovMapPlaceEdit = {
 };
 
 /**
- * 地名层：有自定义表的地图完全弃用 tarkov.dev labels，只画这里的中文点。
- * 坐标仍用同一套游戏 xz（与 maps.json 一致），位置按社区图拆点，不跟上游英文名走。
- * 库里有行时以此为准；空库才回退本表。
+ * 一次性快照用的手写表（海岸线社区点）。展示只读库，不再回退本表或上游 labels。
  */
 const CUSTOM_MAP_PLACE_LABELS: Record<string, TarkovDevLabel[]> = {
   shoreline: [
@@ -98,14 +100,10 @@ function mapPlaceKey(layer: Pick<TarkovDevMapLayer, "key" | "normalizedName">): 
 }
 
 export function hasCustomMapPlaceLabels(
-  mapKey: string,
+  _mapKey: string,
   dbPlaces?: readonly unknown[] | null,
 ): boolean {
-  if (dbPlaces && dbPlaces.length > 0) return true;
-  return Object.prototype.hasOwnProperty.call(
-    CUSTOM_MAP_PLACE_LABELS,
-    (mapKey || "").trim().toLowerCase(),
-  );
+  return Boolean(dbPlaces && dbPlaces.length > 0);
 }
 
 export function placeBoxCenter(
@@ -229,12 +227,22 @@ function asKind(raw: string | null | undefined): TarkovMapPlaceKind {
   return raw === "box" ? "box" : "point";
 }
 
+function placeHeightFields(
+  row: Pick<TarkovMapPlaceLike, "top" | "bottom">,
+): Pick<ResolvedMapPlace, "top" | "bottom"> {
+  const out: Pick<ResolvedMapPlace, "top" | "bottom"> = {};
+  if (isFiniteCoord(row.top)) out.top = row.top;
+  if (isFiniteCoord(row.bottom)) out.bottom = row.bottom;
+  return out;
+}
+
 function fromDbPlace(row: TarkovMapPlaceLike): ResolvedMapPlace | null {
   const name = normalizePlaceName(row.name || "");
   if (!name) return null;
   const kind = asKind(row.kind);
   const size = row.size ?? 80;
   const floor = row.floor || "";
+  const height = placeHeightFields(row);
   if (kind === "box" && row.x2 != null && row.z2 != null) {
     const position = placeLabelPosition(row);
     return {
@@ -250,6 +258,7 @@ function fromDbPlace(row: TarkovMapPlaceLike): ResolvedMapPlace | null {
       z2: row.z2,
       label_x: row.label_x ?? undefined,
       label_z: row.label_z ?? undefined,
+      ...height,
     };
   }
   return {
@@ -261,6 +270,7 @@ function fromDbPlace(row: TarkovMapPlaceLike): ResolvedMapPlace | null {
     floor,
     x: row.x,
     z: row.z,
+    ...height,
   };
 }
 
@@ -277,30 +287,20 @@ function fromLabel(label: TarkovDevLabel, id?: number): ResolvedMapPlace | null 
   };
 }
 
-/** 最终画在地图上的地名。库里有行则不读 tarkov.dev / 手写表。 */
-export function resolveMapPlaceLabels(
+/** 历史快照：手写表或上游译名。只给种子脚本 / 测试，不进展示。 */
+export function snapshotUpstreamPlaces(
   layer: Pick<TarkovDevMapLayer, "key" | "normalizedName" | "labels">,
-  dbPlaces?: readonly TarkovMapPlaceLike[] | null,
 ): ResolvedMapPlace[] {
-  if (dbPlaces && dbPlaces.length > 0) {
-    const out: ResolvedMapPlace[] = [];
-    for (const row of dbPlaces) {
-      const place = fromDbPlace(row);
-      if (place) out.push(place);
-    }
-    return out;
-  }
   const key = mapPlaceKey(layer);
   const custom = CUSTOM_MAP_PLACE_LABELS[key];
+  const out: ResolvedMapPlace[] = [];
   if (custom) {
-    const out: ResolvedMapPlace[] = [];
     for (const label of custom) {
       const place = fromLabel(label);
       if (place) out.push(place);
     }
     return out;
   }
-  const out: ResolvedMapPlace[] = [];
   for (const label of layer.labels || []) {
     if (!label.position || label.position.length < 2) continue;
     const place = fromLabel({
@@ -312,11 +312,25 @@ export function resolveMapPlaceLabels(
   return out;
 }
 
-/** 接管空图：把当前回退层（手写表或上游译名）写成入库条目。 */
+/** 最终画在地图上的地名：只读库，空库不画。 */
+export function resolveMapPlaceLabels(
+  _layer: Pick<TarkovDevMapLayer, "key" | "normalizedName" | "labels">,
+  dbPlaces?: readonly TarkovMapPlaceLike[] | null,
+): ResolvedMapPlace[] {
+  if (!dbPlaces || dbPlaces.length === 0) return [];
+  const out: ResolvedMapPlace[] = [];
+  for (const row of dbPlaces) {
+    const place = fromDbPlace(row);
+    if (place) out.push(place);
+  }
+  return out;
+}
+
+/** 把快照层写成入库条目（种子 / 测试）。 */
 export function fallbackPlacesForImport(
   layer: Pick<TarkovDevMapLayer, "key" | "normalizedName" | "labels">,
 ): TarkovMapPlaceImportItem[] {
-  return resolveMapPlaceLabels(layer).map((row) => {
+  return snapshotUpstreamPlaces(layer).map((row) => {
     const item: TarkovMapPlaceImportItem = {
       kind: row.kind,
       name: row.text,
@@ -329,6 +343,8 @@ export function fallbackPlacesForImport(
       item.x2 = row.x2;
       item.z2 = row.z2;
     }
+    if (isFiniteCoord(row.top)) item.top = row.top;
+    if (isFiniteCoord(row.bottom)) item.bottom = row.bottom;
     return item;
   });
 }

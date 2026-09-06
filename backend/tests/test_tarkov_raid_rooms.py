@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base
 from app.core.timeutil import now_naive
+from app.models.tarkov import TarkovRaidRoom
 from app.models.user import User, UserRole
 from app.services.tarkov import raid_rooms as rooms
 
@@ -507,6 +508,24 @@ def test_claim_tasks_batch_dedupes() -> None:
     assert added == 2
     ids = {row["task_id"] for row in snap["claims"]}
     assert ids == {"t1", "t2"}
+
+
+def test_claim_task_second_time_not_added() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    public_id = _seat(db, host, now=now)["public_id"]
+    _, first = rooms.claim_task(db, public_id, host, "t1", now=now)
+    _, second = rooms.claim_task(db, public_id, host, "t1", now=now)
+    assert first is True
+    assert second is False
+    assert rooms._insert_claim(
+        db,
+        db.query(TarkovRaidRoom).filter_by(public_id=public_id).one(),
+        host.id,
+        "t1",
+        now,
+    ) is False
 
 
 def test_marks_undo_and_host_clear() -> None:

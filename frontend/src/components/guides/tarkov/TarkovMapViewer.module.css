@@ -411,7 +411,7 @@
   z-index: 520;
   top: 10px;
   right: 10px;
-  max-width: min(340px, calc(100% - 128px));
+  max-width: min(380px, calc(100% - 128px));
   pointer-events: auto;
 }
 

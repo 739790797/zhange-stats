@@ -11,11 +11,11 @@
   padding: 10px 12px 12px;
 }
 
-.innerFill > * {
+.inner.innerFill > * {
   flex: none;
 }
 
-.innerFill > :last-child {
+.inner.innerFill > :last-child {
   flex: 1;
   min-height: 0;
   display: flex;

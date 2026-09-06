@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { findInteractiveMap } from "./tarkovMapImages";
 import { defaultExtractKindFlags } from "./tarkovMapExtracts";
 import { defaultTarkovMapKindFlags } from "./tarkovMapMarkers";
 import { defaultSpawnKindFlags } from "./tarkovMapSpawns";
 import {
   DEFAULT_TARKOV_MAP_VIEWER_PREFS,
+  mapFocusZoom,
   mapLootLayerTogglesVisible,
   overlayFlagsForMode,
   parseTarkovMapViewerPrefs,
+  defaultShownFloorName,
   resolveMapFloor,
   resolveMapStyle,
   withExtractKind,
@@ -173,6 +176,25 @@ describe("resolveMapFloor", () => {
     expect(resolveMapFloor("2nd Floor", ["2nd Floor"])).toBe("2nd Floor");
     expect(resolveMapFloor("gone", ["2nd Floor"])).toBe("");
   });
+
+  it("opens a map on the shown layer until the user picks ground", () => {
+    expect(defaultShownFloorName([{ name: "2nd Floor", show: true }])).toBe(
+      "2nd Floor",
+    );
+    expect(resolveMapFloor(undefined, ["2nd Floor"], "2nd Floor")).toBe(
+      "2nd Floor",
+    );
+    expect(resolveMapFloor("", ["2nd Floor"], "2nd Floor")).toBe("");
+    expect(defaultShownFloorName(findInteractiveMap("icebreaker")?.layers)).toBe(
+      "Infirmary",
+    );
+    expect(
+      defaultShownFloorName(findInteractiveMap("interchange")?.layers),
+    ).toBe("2nd Floor");
+    expect(
+      defaultShownFloorName(findInteractiveMap("streets-of-tarkov")?.layers),
+    ).toBe("");
+  });
 });
 
 describe("withMapFloor", () => {
@@ -285,5 +307,14 @@ describe("overlayFlagsForMode", () => {
       lootContainerKinds: {},
       lootLooseKinds: {},
     });
+  });
+});
+
+describe("mapFocusZoom", () => {
+  it("zooms closer for a key lock overlay", () => {
+    expect(mapFocusZoom("all", 2, 7, 2)).toBe(3);
+    expect(mapFocusZoom("locks", 2, 7, 2)).toBe(5);
+    expect(mapFocusZoom("locks", 2, 4, 2)).toBe(4);
+    expect(mapFocusZoom("locks", 2, 7, 6)).toBe(6);
   });
 });

@@ -1,5 +1,10 @@
 import type { TarkovItemDetail, TarkovMapLock } from "@/api/guidesApi";
 import { lockTypeLabel } from "@/lib/tarkovKeyPacks";
+import { tarkovMarkerHeightSpan } from "@/lib/tarkovMapMarkers";
+import {
+  overlayFloorForSpan,
+  type RaidPrepFloorBand,
+} from "@/lib/tarkovRaidPrep";
 
 export type TarkovItemKeyLockMap = NonNullable<TarkovItemDetail["locks"]>[number];
 export type TarkovItemKeyLock = NonNullable<TarkovItemKeyLockMap["locks"]>[number];
@@ -27,12 +32,37 @@ export function lockPointLabel(
   lock: TarkovItemKeyLock,
   index: number,
   locks: readonly TarkovItemKeyLock[],
+  floorCaption = "",
 ): string {
   const type = lockTypeLabel(lock.lock_type) || "锁";
   const same = locks.filter((row) => (row.lock_type || "") === (lock.lock_type || ""));
   const ordinal = same.findIndex((row) => row === lock);
   const name = same.length > 1 ? `${type} ${ordinal >= 0 ? ordinal + 1 : index + 1}` : type;
-  return lock.needs_power ? `${name} · 需供电` : name;
+  const base = lock.needs_power ? `${name} · 需供电` : name;
+  return floorCaption ? `${floorCaption} · ${base}` : base;
+}
+
+export function lockOverlayFloor(
+  lock: TarkovItemKeyLock,
+  bands: readonly RaidPrepFloorBand[],
+): string {
+  if (lock.x == null || lock.z == null) return "";
+  return overlayFloorForSpan(tarkovMarkerHeightSpan(lock), bands, {
+    x: lock.x,
+    z: lock.z,
+  });
+}
+
+export function lockFocusPoint(
+  lock: TarkovItemKeyLock,
+): { x: number; z: number; y?: number } | null {
+  if (lock.x == null || lock.z == null) return null;
+  const span = tarkovMarkerHeightSpan(lock);
+  return {
+    x: lock.x,
+    z: lock.z,
+    y: span ? (span.min + span.max) / 2 : lock.y ?? undefined,
+  };
 }
 
 export function itemKeyLocksAsMapLocks(

@@ -186,7 +186,8 @@ export async function fetchTarkovTraderDetail(
 export type TarkovBossCatalog = components["schemas"]["TarkovBossCatalogOut"];
 export type TarkovBossListItem = components["schemas"]["TarkovBossListItemOut"];
 export type TarkovBossDetail = components["schemas"]["TarkovBossDetailOut"];
-export type TarkovBossLoot = components["schemas"]["TarkovBossLootOut"];
+export type TarkovBossGearSlot = components["schemas"]["TarkovBossGearSlotOut"];
+export type TarkovBossGearItem = components["schemas"]["TarkovBossGearItemOut"];
 
 export async function fetchTarkovBosses() {
   const { data } = await client.get<TarkovBossCatalog>("/guides/tarkov/bosses", {
@@ -542,6 +543,14 @@ export async function writeTarkovTaskDones(
         ? { objective_dones: opts.objectiveDones }
         : {}),
     },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function removeTarkovTaskDone(taskId: string) {
+  const { data } = await client.delete<TarkovTaskDones>(
+    `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}`,
     { timeout: 30_000 },
   );
   return data;

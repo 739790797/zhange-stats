@@ -7,12 +7,14 @@ import { TarkovItemsPageShell } from "@/components/guides/tarkov/TarkovItemsPage
 import { TarkovRaidMemberStrip } from "@/components/guides/tarkov/TarkovRaidMemberStrip";
 import { TarkovRaidSessionMap } from "@/components/guides/tarkov/TarkovRaidSessionMap";
 import { TarkovRaidWorkspace } from "@/components/guides/tarkov/TarkovRaidWorkspace";
-import { TARKOV_RAID_PREP_PATH } from "@/lib/tarkovHomeNav";
+import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { isAdminUser } from "@/lib/isAdminUser";
 import type { RaidPrepMapParticipant } from "@/lib/tarkovRaidPrep";
 import {
   PULSE_DEMO_MAP_ID,
   PULSE_DEMO_ROOM_PUBLIC_ID,
-  PULSE_DEMO_TICK_MS,
+  PULSE_DEMO_TICK_MAX_MS,
+  PULSE_DEMO_TICK_MIN_MS,
   PLAYER_FIX_PULSE_MS,
   pulseDemoMembers,
 } from "@/lib/tarkovRaidRooms";
@@ -38,8 +40,8 @@ export default function TarkovRaidPulseDemoPage() {
     [me?.id, selfName],
   );
 
-  if (!import.meta.env.DEV) {
-    return <Navigate to={TARKOV_RAID_PREP_PATH} replace />;
+  if (!isAdminUser(me) && !import.meta.env.DEV) {
+    return <Navigate to={TARKOV_HOME_PATH} replace />;
   }
 
   return (
@@ -50,8 +52,9 @@ export default function TarkovRaidPulseDemoPage() {
         title="找人线演示"
         meta={
           <>
-            海关 · 本地假人 · 约 {PLAYER_FIX_PULSE_MS / 1000} 秒淡出 · 每{" "}
-            {PULSE_DEMO_TICK_MS / 1000} 秒换点
+            海关 · 四个假人 · 约 {PLAYER_FIX_PULSE_MS / 1000} 秒淡出 ·{" "}
+            {PULSE_DEMO_TICK_MIN_MS / 1000}–{PULSE_DEMO_TICK_MAX_MS / 1000}{" "}
+            秒随机换点
           </>
         }
         members={<TarkovRaidMemberStrip members={members} />}
@@ -59,8 +62,8 @@ export default function TarkovRaidPulseDemoPage() {
           <Alert
             type="info"
             showIcon
-            message="开发环境演示房：不写库、不进大厅、不连房间 WebSocket"
-            description="两个假人轮流广播定位。你自己若也有截图定位，线会连到你。生产构建打不开这个地址。"
+            message="测试房间：不写库、不进大厅、不连房间 WebSocket"
+            description="四个假人错开、随机间隔改定位。你有定位时，只和刚更新的那个人连一条线。仅管理员可从顶栏进入。"
           />
         }
         goonMapId={PULSE_DEMO_MAP_ID}

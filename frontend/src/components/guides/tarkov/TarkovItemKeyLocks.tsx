@@ -1,13 +1,19 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { TarkovItemDetail } from "@/api/guidesApi";
 import { tarkovMapHref } from "@/lib/tarkovHomeNav";
 import {
   itemKeyLockMaps,
   itemKeyLocksAsMapLocks,
+  lockFocusPoint,
+  lockOverlayFloor,
   lockPointLabel,
   lockTypeSummary,
+  type TarkovItemKeyLock,
 } from "@/lib/tarkovItemLocks";
+import { findInteractiveMap, floorLabel } from "@/lib/tarkovMapImages";
+import { tarkovLockIconUrl, tarkovMarkerHeightSpan } from "@/lib/tarkovMapMarkers";
+import { mapLayerFloorBands } from "@/lib/tarkovRaidPrep";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { PanelFallback } from "@/components/RouteFallback";
 import styles from "./TarkovItemKeyLocks.module.css";
@@ -22,11 +28,42 @@ type Props = {
   detail: TarkovItemDetail;
 };
 
+function lockFloorCaption(
+  lock: TarkovItemKeyLock,
+  bands: ReturnType<typeof mapLayerFloorBands>,
+): string {
+  if (!bands.length || !tarkovMarkerHeightSpan(lock)) return "";
+  return floorLabel(lockOverlayFloor(lock, bands)) || "地面";
+}
+
 export function TarkovItemKeyLocks({ detail }: Props) {
   const maps = useMemo(() => itemKeyLockMaps(detail), [detail]);
   const [slug, setSlug] = useState(maps[0]?.slug || "");
   const [focus, setFocus] = useState<TarkovMapFocusRequest | null>(null);
   const selected = maps.find((row) => row.slug === slug) ?? maps[0];
+  const floorBands = useMemo(
+    () =>
+      mapLayerFloorBands(
+        findInteractiveMap(
+          selected?.slug || "",
+          selected?.parent_slug || undefined,
+        ),
+      ),
+    [selected?.slug, selected?.parent_slug],
+  );
+
+  const firstLock = (selected?.locks || []).find(
+    (lock) => lock.x != null && lock.z != null,
+  );
+
+  useEffect(() => {
+    const point = firstLock ? lockFocusPoint(firstLock) : null;
+    if (!point) {
+      setFocus(null);
+      return;
+    }
+    setFocus((prev) => ({ ...point, seq: (prev?.seq || 0) + 1 }));
+  }, [firstLock, selected?.slug]);
 
   if (!selected) return null;
 
@@ -34,13 +71,10 @@ export function TarkovItemKeyLocks({ detail }: Props) {
   const summary = lockTypeSummary(locks);
   const viewerLocks = itemKeyLocksAsMapLocks(selected, detail.id, detail.name);
 
-  const focusLock = (x: number, z: number, y?: number | null) => {
-    setFocus((prev) => ({
-      x,
-      z,
-      y: y ?? undefined,
-      seq: (prev?.seq || 0) + 1,
-    }));
+  const focusLock = (lock: TarkovItemKeyLock) => {
+    const point = lockFocusPoint(lock);
+    if (!point) return;
+    setFocus((prev) => ({ ...point, seq: (prev?.seq || 0) + 1 }));
   };
 
   return (
@@ -62,10 +96,7 @@ export function TarkovItemKeyLocks({ detail }: Props) {
                 role="tab"
                 aria-selected={on}
                 className={`${styles.tab} ${on ? styles.tabOn : ""}`}
-                onClick={() => {
-                  setSlug(row.slug);
-                  setFocus(null);
-                }}
+                onClick={() => setSlug(row.slug)}
               >
                 {row.name}
                 <span className={styles.tabCount}>{(row.locks || []).length}</span>
@@ -86,18 +117,27 @@ export function TarkovItemKeyLocks({ detail }: Props) {
             const x = lock.x;
             const z = lock.z;
             if (x == null || z == null) return null;
-            const on =
-              focus != null &&
-              focus.x === x &&
-              focus.z === z;
+            const on = focus != null && focus.x === x && focus.z === z;
             return (
               <button
                 key={lock.id || `${x}-${z}-${index}`}
                 type="button"
                 className={`${styles.point} ${on ? styles.pointOn : ""}`}
-                onClick={() => focusLock(x, z, lock.y)}
+                onClick={() => focusLock(lock)}
               >
-                {lockPointLabel(lock, index, locks)}
+                <img
+                  className={styles.pointIcon}
+                  src={tarkovLockIconUrl()}
+                  alt=""
+                  width={16}
+                  height={16}
+                />
+                {lockPointLabel(
+                  lock,
+                  index,
+                  locks,
+                  lockFloorCaption(lock, floorBands),
+                )}
               </button>
             );
           })}

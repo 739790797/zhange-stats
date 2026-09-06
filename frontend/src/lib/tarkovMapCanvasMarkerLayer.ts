@@ -5,6 +5,7 @@ import { pos } from "./tarkovMapCrs";
 import {
   canvasIconScreenRect,
   canvasIconViewSize,
+  canvasMarkerDrawOpacity,
   hitTestCanvasIcons,
   ICON_CANVAS_PADDING,
   ICON_CANVAS_PANE,
@@ -298,7 +299,7 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
     const cssH = canvas.clientHeight || 1;
     ctx.clearRect(0, 0, cssW, cssH);
     this.hits = [];
-    let hover: TarkovCanvasMarker | null = null;
+    const later: TarkovCanvasMarker[] = [];
     for (const marker of this.markers) {
       const layerPt = map.latLngToLayerPoint(
         L.latLng(pos({ x: marker.x, z: marker.z })),
@@ -318,22 +319,22 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
         zIndex: marker.zIndex ?? 0,
         marker,
       });
-      if (marker.id === this.hoverId) {
-        hover = marker;
+      if (marker.id === this.hoverId || marker.highlight) {
+        later.push(marker);
         continue;
       }
       this.drawIcon(ctx, marker, rect);
     }
-    if (hover) {
+    for (const marker of later) {
       const layerPt = map.latLngToLayerPoint(
-        L.latLng(pos({ x: hover.x, z: hover.z })),
+        L.latLng(pos({ x: marker.x, z: marker.z })),
       );
       const rect = canvasIconScreenRect(
         layerPt,
-        hover.iconSize,
-        hover.iconAnchor,
+        marker.iconSize,
+        marker.iconAnchor,
       );
-      this.drawIcon(ctx, hover, rect, true);
+      this.drawIcon(ctx, marker, rect, true);
     }
   };
 
@@ -344,22 +345,28 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
     highlight = false,
   ) {
     const img = ICON_CACHE.get(marker.iconUrl);
-    if (!img) return;
     const at = layerPointToCanvasPoint(
       { x: rect.left, y: rect.top },
       this.origin,
     );
     const w = marker.iconSize[0];
     const h = marker.iconSize[1];
+    const alpha = highlight ? 1 : canvasMarkerDrawOpacity(marker.opacity);
+    ctx.save();
+    if (alpha < 1) ctx.globalAlpha = alpha;
     if (highlight) {
-      ctx.save();
+      const cx = at.x + w / 2;
+      const cy = at.y + h / 2;
+      const r = Math.max(w, h) / 2 + 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.strokeStyle = "#e8c36a";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(at.x - 1.5, at.y - 1.5, w + 3, h + 3);
-      ctx.restore();
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
     }
-    ctx.drawImage(img, at.x, at.y, w, h);
+    if (img) ctx.drawImage(img, at.x, at.y, w, h);
     if (marker.badge) drawMarkerBadge(ctx, at.x, at.y, w, h, marker.badge);
+    ctx.restore();
   }
 
   private hitFromMouse(event: MouseEvent): TarkovCanvasIconHit | null {

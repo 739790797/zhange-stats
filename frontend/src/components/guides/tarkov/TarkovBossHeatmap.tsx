@@ -6,6 +6,7 @@ import { PanelFallback } from "@/components/RouteFallback";
 import { tarkovBossHref, tarkovMapHref } from "@/lib/tarkovHomeNav";
 import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
 import {
+  bossSpawnOverlay,
   buildBossHeatmap,
   formatHoverAria,
   formatHoverSquadCount,
@@ -190,24 +191,13 @@ export function TarkovBossHeatmap({ bosses, portraits }: Props) {
 }
 
 function overlayBoss(spawn: SpawnPick): TarkovMapBoss {
-  const byName = new Map<string, HeatmapSpawnPoint[]>();
-  for (const row of spawn.points) {
-    const list = byName.get(row.name) || [];
-    list.push(row);
-    byName.set(row.name, list);
-  }
-  return {
+  return bossSpawnOverlay({
     id: spawn.boss.id,
     slug: spawn.boss.slug,
     name: spawn.boss.name,
-    kind: "boss",
-    spawn_chance: Math.round(spawn.chancePct),
-    locations: [...byName.entries()].map(([name, pts]) => ({
-      name,
-      chance: pts[0]?.chance ?? 0,
-      positions: pts.map((point) => ({ x: point.x, y: point.y, z: point.z })),
-    })),
-  };
+    chancePct: spawn.chancePct,
+    points: spawn.points,
+  });
 }
 
 function SpawnMapModal({

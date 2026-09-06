@@ -594,69 +594,205 @@ def test_parse_keeps_duplicate_normalized_names():
     assert "实验室" in by_id["PmcBot"]["maps_label"]
 
 
-def test_unique_loot_keeps_expensive_and_noflea():
+def test_contains_entries_accepts_legacy_ids_and_dump_objects():
+    assert bosses._contains_entries(["ammo-1", {"item": "ammo-2", "count": 30}]) == [
+        {"item": "ammo-1", "count": 1},
+        {"item": "ammo-2", "count": 30},
+    ]
+    slim = bosses._slim_equipment(
+        [
+            {
+                "item": "gun-1",
+                "count": 1,
+                "containsItems": [{"item": "ammo-2", "quantity": 60}],
+            }
+        ]
+    )
+    assert slim == [
+        {
+            "item": "gun-1",
+            "count": 1,
+            "contains": [{"item": "ammo-2", "count": 60}],
+        }
+    ]
+
+
+def test_equipment_slot_prefers_handbook_then_types():
+    assert bosses.equipment_slot_for_item({"types": ["helmet"]}) == (
+        "headwear",
+        "头部装备",
+    )
+    assert bosses.equipment_slot_for_item({"types": ["armor", "rig"]}) == (
+        "armor",
+        "身体护甲",
+    )
+    assert bosses.equipment_slot_for_item({"types": ["rig"]}) == ("rig", "战术胸挂")
+    assert bosses.equipment_slot_for_item(
+        {"types": ["gun"], "handbook_ids": [bosses.HB_PISTOL]}
+    ) == ("pistol", "手枪")
+    assert bosses.equipment_slot_for_item({"types": ["gun"]}) == ("gun", "武器")
+    assert bosses.equipment_slot_for_item(
+        {"handbook_ids": [bosses.HB_FACE]}
+    ) == ("face", "面部装备")
+    assert bosses.equipment_slot_for_item(
+        {
+            "types": ["glasses", "wearable"],
+            "properties_type": "ItemPropertiesArmorAttachment",
+        }
+    ) == ("face", "面部装备")
+    assert bosses.equipment_slot_for_item({"types": ["barter"]}) == (
+        bosses.EQUIPMENT_SLOT_OTHER,
+        bosses.EQUIPMENT_SLOT_OTHER_LABEL,
+    )
+    assert bosses.skip_equipment_slot_item(
+        {"types": ["mods"], "properties_type": "ItemPropertiesMagazine"}
+    )
+    assert bosses.skip_equipment_slot_item({"types": ["ammo"]})
+    assert not bosses.skip_equipment_slot_item(
+        {"types": ["ammo", "grenade"], "properties_type": "ItemPropertiesGrenade"}
+    )
+
+
+def test_build_equipment_slots_groups_nests_and_dedupes():
     row = {
-        "item_ids": ["cheap", "key-g3", "noflea-item"],
-        "equipment": [{"item": "cheap-gun", "contains": []}],
+        "equipment": [
+            {"item": "helm-a", "count": 1, "contains": []},
+            {"item": "helm-b", "contains": []},
+            {"item": "helm-a", "contains": []},
+            {
+                "item": "rpk",
+                "contains": [
+                    {"item": "grip", "count": 1},
+                    {"item": "mag", "count": 1},
+                    {"item": "bp", "count": 60},
+                    {"item": "bp", "count": 30},
+                ],
+            },
+            {
+                "item": "rpk",
+                "contains": ["bt"],
+            },
+            {"item": "korund", "contains": [{"item": "plate"}]},
+            {"item": "mag", "contains": []},
+        ]
     }
     items = {
-        "cheap": {
-            "id": "cheap",
-            "name": "绷带",
-            "types": ["meds"],
-            "avg24h_price": 1000,
-            "last_low_price": 900,
-            "width": 1,
-            "height": 1,
-            "sell_to_trader": [],
+        "helm-a": {
+            "id": "helm-a",
+            "name": "Altyn",
+            "icon_link": "a.png",
+            "types": ["helmet"],
+            "handbook_ids": [bosses.HB_HEADWEAR],
         },
-        "key-g3": {
-            "id": "key-g3",
-            "name": "G-3 舱室钥匙卡",
-            "normalized_name": "g3-cabin-keycard",
-            "types": ["keys"],
-            "avg24h_price": 29_878_900,
-            "last_low_price": 29_878_900,
-            "width": 1,
-            "height": 1,
-            "sell_to_trader": [
-                {
-                    "slug": "therapist",
-                    "name": "Therapist",
-                    "price_rub": 51000,
-                    "currency": "RUB",
-                }
-            ],
+        "helm-b": {
+            "id": "helm-b",
+            "name": "Vulkan-5",
+            "types": ["helmet"],
         },
-        "noflea-item": {
-            "id": "noflea-item",
-            "name": "任务物品",
-            "types": ["noFlea"],
-            "avg24h_price": None,
-            "last_low_price": None,
-            "width": 1,
-            "height": 1,
-            "sell_to_trader": [],
+        "rpk": {
+            "id": "rpk",
+            "name": "RPK-16",
+            "types": ["gun", "preset"],
         },
-        "cheap-gun": {
-            "id": "cheap-gun",
-            "name": "手枪",
-            "types": ["gun"],
-            "avg24h_price": 20000,
-            "last_low_price": 18000,
-            "width": 2,
-            "height": 1,
-            "sell_to_trader": [],
+        "grip": {
+            "id": "grip",
+            "name": "AK grip",
+            "types": ["mods"],
+            "properties_type": "ItemPropertiesWeaponMod",
+        },
+        "mag": {
+            "id": "mag",
+            "name": "60-round mag",
+            "types": ["mods"],
+            "properties_type": "ItemPropertiesMagazine",
+        },
+        "bp": {
+            "id": "bp",
+            "name": "5.45 BP",
+            "types": ["ammo"],
+            "properties_type": "ItemPropertiesAmmo",
+            "properties": {
+                "damage": 46,
+                "penetrationPower": 45,
+                "armorDamage": 57,
+            },
+        },
+        "bt": {
+            "id": "bt",
+            "name": "5.45 BT",
+            "types": ["ammo"],
+        },
+        "korund": {
+            "id": "korund",
+            "name": "Korund-VM",
+            "types": ["armor", "rig"],
+        },
+        "plate": {
+            "id": "plate",
+            "name": "Granit",
+            "types": ["armorPlate"],
         },
     }
-    loot = bosses.build_unique_loot(row, items)
-    ids = [x["item_id"] for x in loot]
-    assert "cheap" not in ids
-    assert "cheap-gun" not in ids
-    assert "noflea-item" in ids
-    key = next(x for x in loot if x["item_id"] == "key-g3")
-    assert key["flea_price"] == 29_878_900
-    assert key["trader_slug"] == "therapist"
-    assert key["trader_price"] == 51000
-    noflea = next(x for x in loot if x["item_id"] == "noflea-item")
-    assert noflea["flea_price"] is None
+    slots = bosses.build_equipment_slots(row, items)
+    by_key = {s["key"]: s for s in slots}
+    assert [s["key"] for s in slots] == ["headwear", "armor", "gun"]
+    assert by_key["headwear"]["label"] == "头部装备"
+    assert [it["item_id"] for it in by_key["headwear"]["items"]] == ["helm-a", "helm-b"]
+    gun = by_key["gun"]["items"][0]
+    assert gun["name"] == "RPK-16"
+    assert [c["item_id"] for c in gun["contains"]] == ["mag", "bp", "bt"]
+    assert gun["contains"][0]["kind"] == "magazine"
+    assert gun["contains"][1]["kind"] == "ammo"
+    assert gun["contains"][1]["count"] == 60
+    assert gun["contains"][1]["damage"] == 46
+    assert gun["contains"][1]["penetration"] == 45
+    assert gun["contains"][1]["armor_damage"] == 57
+    assert gun["contains"][2]["kind"] == "ammo"
+    assert gun["contains"][2]["damage"] is None
+    armor = by_key["armor"]["items"][0]
+    assert armor["name"] == "Korund-VM"
+    assert armor["contains"][0]["item_id"] == "plate"
+    assert armor["contains"][0]["kind"] == "plate"
+
+
+def test_parse_normalizes_dump_equipment_objects():
+    payload = {
+        "maps": {
+            "factory": {
+                "id": "factory",
+                "normalizedName": "factory",
+                "name": "Factory",
+                "bosses": [
+                    {
+                        "mob": "bossTagilla",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Shop", "chance": 1}],
+                        "escorts": [],
+                    }
+                ],
+            }
+        },
+        "mobs": {
+            "bossTagilla": {
+                "id": "bossTagilla",
+                "normalizedName": "tagilla",
+                "equipment": [
+                    {
+                        "item": {"id": "helm-1"},
+                        "containsItems": [{"item": {"id": "ammo-1"}, "count": 20}],
+                    }
+                ],
+                "items": [],
+                "health": [],
+            }
+        },
+        "locale": {"bossTagilla": "Tagilla"},
+    }
+    tagilla = next(r for r in bosses.parse_boss_rows(payload) if r["slug"] == "tagilla")
+    assert tagilla["equipment"] == [
+        {
+            "item": "helm-1",
+            "count": 1,
+            "contains": [{"item": "ammo-1", "count": 20}],
+        }
+    ]

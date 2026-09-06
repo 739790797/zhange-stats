@@ -263,11 +263,9 @@ export function TarkovRaidPrepObjectiveProgress({
         <input
           type="checkbox"
           checked={mineDone}
-          disabled={!onToggle || Boolean(taskDone)}
+          disabled={!onToggle}
           aria-label={`${mineDone ? "取消勾选" : "勾选已完成"} ${objectiveSpokenText(obj, keyLine)}`}
-          onChange={() => {
-            if (!taskDone) onToggle?.(obj.id);
-          }}
+          onChange={() => onToggle?.(obj.id)}
         />
         <span className={lineClass}>
           <ObjectiveStepBody

@@ -17,8 +17,15 @@ export type TarkovCanvasMarker = {
   tooltipHtml: string;
   onClick?: () => void;
   zIndex?: number;
+  opacity?: number;
+  highlight?: boolean;
   badge?: TarkovCanvasMarkerBadge;
 };
+
+export function canvasMarkerDrawOpacity(opacity?: number): number {
+  if (opacity == null || !Number.isFinite(opacity)) return 1;
+  return Math.min(1, Math.max(0, opacity));
+}
 
 export type TarkovCanvasIconHit = {
   id: string;

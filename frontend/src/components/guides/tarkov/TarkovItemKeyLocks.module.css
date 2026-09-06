@@ -71,6 +71,9 @@
 }
 
 .point {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   border: 1px solid #3a3d30;
   background: #101010;
@@ -78,6 +81,12 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.pointIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .point:hover,

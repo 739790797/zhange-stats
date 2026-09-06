@@ -1248,7 +1248,7 @@ export function pruneStalePlayerFixes(
   return current.filter((row) => playerFixIsFresh(row.at, now, ttlMs));
 }
 
-/** 截图定位「找人」提示线：3 秒线性淡出，不进画笔/房间快照。 */
+/** 截图定位「找人」提示线：只连观察者与刚更新的人，3 秒线性淡出。 */
 export const PLAYER_FIX_PULSE_MS = 3_000;
 
 export type RaidRoomPlayerFixPulseMark = {
@@ -1325,37 +1325,33 @@ export function buildPlayerFixPulseLines(opts: {
   updaterId: number;
   now: number;
   seatedCount: number;
+  viewerId?: number;
   floorOf?: (mark: RaidRoomPlayerFixPulseMark) => string;
 }): RaidRoomPlayerFixPulseLine[] {
   if (opts.seatedCount < 2 || opts.updaterId <= 0) return [];
+  const viewerId = opts.viewerId || 0;
+  if (viewerId <= 0 || viewerId === opts.updaterId) return [];
   const updater = opts.marks.find((row) => row.userId === opts.updaterId);
-  if (!updater) return [];
-  const color = colorForUserId(opts.updaterId);
-  const toFloor = (
-    opts.floorOf?.(updater) ||
-    updater.floor ||
-    ""
-  ).trim();
-  const lines: RaidRoomPlayerFixPulseLine[] = [];
-  for (const mark of opts.marks) {
-    if (mark.userId <= 0 || mark.userId === opts.updaterId) continue;
-    const fromFloor = (opts.floorOf?.(mark) || mark.floor || "").trim();
-    lines.push({
-      key: `${opts.updaterId}:${mark.userId}:${opts.now}`,
-      fromUserId: mark.userId,
+  const viewer = opts.marks.find((row) => row.userId === viewerId);
+  if (!updater || !viewer) return [];
+  const fromFloor = (opts.floorOf?.(viewer) || viewer.floor || "").trim();
+  const toFloor = (opts.floorOf?.(updater) || updater.floor || "").trim();
+  return [
+    {
+      key: `${opts.updaterId}:${viewerId}:${opts.now}`,
+      fromUserId: viewerId,
       toUserId: opts.updaterId,
-      x1: mark.x,
-      z1: mark.z,
-      y1: mark.y,
+      x1: viewer.x,
+      z1: viewer.z,
+      y1: viewer.y,
       x2: updater.x,
       z2: updater.z,
       y2: updater.y,
-      color,
+      color: colorForUserId(opts.updaterId),
       crossFloor: playerFixPulseCrossFloor(fromFloor, toFloor),
       bornAt: opts.now,
-    });
-  }
-  return lines;
+    },
+  ];
 }
 
 export function replacePlayerFixPulseLines(
@@ -1416,11 +1412,15 @@ export function retainPlayerFixPulseLines(
 /** 仅开发环境找人线演示：不进大厅、不写库。 */
 export const PULSE_DEMO_ROOM_PUBLIC_ID = "pulse-demo";
 export const PULSE_DEMO_MAP_ID = "customs";
-export const PULSE_DEMO_TICK_MS = 4_000;
+export const PULSE_DEMO_TICK_MIN_MS = 2_200;
+export const PULSE_DEMO_TICK_MAX_MS = 6_500;
+export const PULSE_DEMO_TICK_MS = PULSE_DEMO_TICK_MAX_MS;
 
 export const PULSE_DEMO_BOTS = [
   { userId: 900001, displayName: "假人甲" },
   { userId: 900002, displayName: "假人乙" },
+  { userId: 900003, displayName: "假人丙" },
+  { userId: 900004, displayName: "假人丁" },
 ] as const;
 
 const PULSE_DEMO_PATHS: Record<number, Array<{ x: number; y: number; z: number }>> =
@@ -1437,7 +1437,43 @@ const PULSE_DEMO_PATHS: Record<number, Array<{ x: number; y: number; z: number }
       { x: 250, y: 4, z: 155 },
       { x: 330, y: 0, z: -20 },
     ],
+    900003: [
+      { x: 90, y: 0, z: -70 },
+      { x: 40, y: 0, z: 30 },
+      { x: 150, y: 0, z: -110 },
+      { x: 70, y: 0, z: 95 },
+    ],
+    900004: [
+      { x: 470, y: 0, z: 55 },
+      { x: 520, y: 0, z: -35 },
+      { x: 430, y: 4, z: 130 },
+      { x: 500, y: 0, z: 20 },
+    ],
   };
+
+export function nextPulseDemoWaitMs(rand = Math.random()): number {
+  const t = Number.isFinite(rand) ? Math.min(1, Math.max(0, rand)) : 0;
+  return Math.round(
+    PULSE_DEMO_TICK_MIN_MS +
+      t * (PULSE_DEMO_TICK_MAX_MS - PULSE_DEMO_TICK_MIN_MS),
+  );
+}
+
+/** 一次只换一个人，且不连续点同一个人。 */
+export function nextPulseDemoBotIndex(
+  lastIndex: number,
+  count: number,
+  rand = Math.random(),
+): number {
+  const n = Math.max(1, Math.trunc(count));
+  if (n === 1) return 0;
+  const t = Number.isFinite(rand) ? Math.min(0.999999, Math.max(0, rand)) : 0;
+  if (!Number.isFinite(lastIndex) || lastIndex < 0 || lastIndex >= n) {
+    return Math.floor(t * n);
+  }
+  const skip = Math.floor(t * (n - 1));
+  return skip >= lastIndex ? skip + 1 : skip;
+}
 
 export function isPulseDemoSession(publicId: string): boolean {
   return (publicId || "").trim().toLowerCase() === PULSE_DEMO_ROOM_PUBLIC_ID;

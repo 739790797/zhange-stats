@@ -10192,7 +10192,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Prep State Get",
-        "description": "联机大厅单人准备：当前模式/地图的勾选、目标完成和钥匙声明。",
+        "description": "联机大厅单人准备：当前模式/地图的勾选、目标完成、钥匙声明。",
         "operationId": "guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get",
         "security": [
           {
@@ -10711,7 +10711,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Boss Detail",
-        "description": "BOSS 详情：行为、地图、刷新概率、生命值、特殊战利品。",
+        "description": "BOSS 详情：行为、地图、刷新概率、生命值、配装。",
         "operationId": "guides_tarkov_boss_detail_api_guides_tarkov_bosses__boss_slug__get",
         "security": [
           {
@@ -11116,7 +11116,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Map Places Import",
-        "description": "管理员：把当前画面地名一次写入（仅空图）。",
+        "description": "管理员：空图批量写入地名（不再从上游 overlays 自动接管）。",
         "operationId": "guides_tarkov_map_places_import_api_guides_tarkov_maps__map_slug__places_import_post",
         "security": [
           {
@@ -25856,12 +25856,13 @@
             "type": "array",
             "title": "Escorts"
           },
-          "unique_loot": {
+          "equipment_slots": {
             "items": {
-              "$ref": "#/components/schemas/TarkovBossLootOut"
+              "$ref": "#/components/schemas/TarkovBossGearSlotOut"
             },
             "type": "array",
-            "title": "Unique Loot"
+            "title": "Equipment Slots",
+            "description": "完整配装：按装备栏分组，枪内弹药/配件在 contains"
           },
           "source": {
             "anyOf": [
@@ -25940,6 +25941,157 @@
         },
         "type": "object",
         "title": "TarkovBossEscortOut"
+      },
+      "TarkovBossGearContainedOut": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 1
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "magazine | ammo | plate | other",
+            "default": ""
+          },
+          "damage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage"
+          },
+          "penetration": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Penetration"
+          },
+          "armor_damage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Armor Damage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "name"
+        ],
+        "title": "TarkovBossGearContainedOut"
+      },
+      "TarkovBossGearItemOut": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 1
+          },
+          "contains": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossGearContainedOut"
+            },
+            "type": "array",
+            "title": "Contains"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "name"
+        ],
+        "title": "TarkovBossGearItemOut"
+      },
+      "TarkovBossGearSlotOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovBossGearItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "TarkovBossGearSlotOut"
       },
       "TarkovBossHealthPartOut": {
         "properties": {
@@ -26058,78 +26210,6 @@
           "name"
         ],
         "title": "TarkovBossListItemOut"
-      },
-      "TarkovBossLootOut": {
-        "properties": {
-          "item_id": {
-            "type": "string",
-            "title": "Item Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "short_name": {
-            "type": "string",
-            "title": "Short Name",
-            "default": ""
-          },
-          "icon_link": {
-            "type": "string",
-            "title": "Icon Link",
-            "default": ""
-          },
-          "types": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Types"
-          },
-          "flea_price": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Flea Price"
-          },
-          "trader_slug": {
-            "type": "string",
-            "title": "Trader Slug",
-            "default": ""
-          },
-          "trader_name": {
-            "type": "string",
-            "title": "Trader Name",
-            "default": ""
-          },
-          "trader_price": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trader Price"
-          },
-          "trader_currency": {
-            "type": "string",
-            "title": "Trader Currency",
-            "default": "RUB"
-          }
-        },
-        "type": "object",
-        "required": [
-          "item_id",
-          "name"
-        ],
-        "title": "TarkovBossLootOut"
       },
       "TarkovBossMapOut": {
         "properties": {
@@ -29392,6 +29472,28 @@
             "type": "string",
             "title": "Floor",
             "default": ""
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
           }
         },
         "type": "object",
@@ -29481,6 +29583,28 @@
             "type": "string",
             "title": "Floor",
             "default": ""
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
           },
           "sort_order": {
             "type": "integer",
@@ -29612,6 +29736,28 @@
               }
             ],
             "title": "Floor"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "bottom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom"
           }
         },
         "type": "object",

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Alert, Spin } from "antd";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovMaps } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_MAPS,
-  tarkovMapHref,
+  parseTarkovMaintainMode,
+  tarkovMapMaintainHref,
   tarkovMapSlug,
 } from "@/lib/tarkovHomeNav";
 import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
@@ -49,6 +50,8 @@ function MapThumb({
 }
 
 export function TarkovMapsPanel() {
+  const [searchParams] = useSearchParams();
+  const maintain = parseTarkovMaintainMode(searchParams.get("maintain"));
   const gameMode = useTarkovGameMode();
   const catalogQuery = useQuery({
     queryKey: ["guides-tarkov-maps", gameMode],
@@ -133,7 +136,11 @@ export function TarkovMapsPanel() {
           );
         }
         return (
-          <Link key={home.id} to={tarkovMapHref(home.id)} className={styles.card}>
+          <Link
+            key={home.id}
+            to={tarkovMapMaintainHref(home.id, maintain)}
+            className={styles.card}
+          >
             {body}
           </Link>
         );
@@ -141,7 +148,7 @@ export function TarkovMapsPanel() {
       {extras.map((row) => (
         <Link
           key={row.slug}
-          to={tarkovMapHref(row.slug)}
+          to={tarkovMapMaintainHref(row.slug, maintain)}
           className={styles.card}
         >
           <div className={styles.thumbWrap}>

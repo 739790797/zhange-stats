@@ -1,6 +1,6 @@
 import { Alert, Spin, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addTarkovKeyOwn,
@@ -12,6 +12,7 @@ import {
   fetchTarkovTaskDones,
   writeTarkovTaskDones,
   addTarkovTaskObjectiveDone,
+  removeTarkovTaskDone,
   removeTarkovTaskObjectiveDone,
   putTarkovRaidPrepState,
   removeTarkovKeyOwn,
@@ -19,9 +20,10 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
-import { TARKOV_HOME_PATH, tarkovRaidPulseDemoHref } from "@/lib/tarkovHomeNav";
+import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
+  clipRaidPrepStateObjectiveDones,
   buildRaidPrepOverlays,
   colorForTaskIndex,
   filterRaidPrepRows,
@@ -130,6 +132,7 @@ export function TarkovRaidPrepPanel() {
     objDoneScope,
     objDoneLegacy,
   );
+  const objToggleSeqRef = useRef(0);
   const [keyBringIds, setKeyBringIds] = useState<string[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
   const lastLogPhase = useTarkovLastLogPhase();
@@ -178,9 +181,11 @@ export function TarkovRaidPrepPanel() {
   }, [gameMode, objDone, progressTick, taskDonesQuery.data]);
   const toggleObjDone = useCallback(
     (taskId: string, objectiveId: string) => {
+      const seq = ++objToggleSeqRef.current;
       const plan = planRaidPrepObjectiveToggle({
         localHas: raidPrepSkippedIds(objDone, taskId).has(objectiveId),
         viewHas: raidPrepSkippedIds(objDoneView, taskId).has(objectiveId),
+        taskDone: doneTaskIds.includes(taskId),
       });
       if (plan.toggleLocal) toggleObjDoneLocal(taskId, objectiveId);
       const pairs = commitTaskObjective(
@@ -189,31 +194,56 @@ export function TarkovRaidPrepPanel() {
         objectiveId,
         plan.nextChecked,
       );
+      const progress = plan.reopenTask
+        ? commitTaskStatus(gameMode, taskId, "active")
+        : {
+            done: loadTaskDoneIds(gameMode),
+            started: loadTaskStartedIds(gameMode),
+            objectives: pairs,
+          };
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
         taskProgressQueryData(
-          loadTaskDoneIds(gameMode),
-          loadTaskStartedIds(gameMode),
-          pairs,
+          progress.done,
+          progress.started,
+          progress.objectives,
         ),
       );
-      void (plan.nextChecked
-        ? addTarkovTaskObjectiveDone(taskId, objectiveId)
-        : removeTarkovTaskObjectiveDone(taskId, objectiveId)
-      )
-        .then((data) => {
-          queryClient.setQueryData(
-            ["guides-tarkov-task-dones", gameMode],
-            taskProgressQueryData(
-              data.task_ids || loadTaskDoneIds(gameMode),
-              data.started_ids || loadTaskStartedIds(gameMode),
-              data.objective_dones || pairs,
-            ),
-          );
-        })
-        .catch(() => {});
+      const applyServer = (data: {
+        task_ids?: string[];
+        started_ids?: string[];
+        objective_dones?: typeof pairs;
+      }) => {
+        if (seq !== objToggleSeqRef.current) return;
+        queryClient.setQueryData(
+          ["guides-tarkov-task-dones", gameMode],
+          taskProgressQueryData(
+            data.task_ids || loadTaskDoneIds(gameMode),
+            data.started_ids || loadTaskStartedIds(gameMode),
+            data.objective_dones || pairs,
+          ),
+        );
+      };
+      void (
+        plan.reopenTask
+          ? removeTarkovTaskDone(taskId)
+              .catch(() => null)
+              .then(() => removeTarkovTaskObjectiveDone(taskId, objectiveId))
+              .then(applyServer)
+          : (plan.nextChecked
+              ? addTarkovTaskObjectiveDone(taskId, objectiveId)
+              : removeTarkovTaskObjectiveDone(taskId, objectiveId)
+            ).then(applyServer)
+      ).catch(() => {});
     },
-    [gameMode, objDone, objDoneView, queryClient, toggleObjDoneLocal],
+    [
+      doneTaskIds,
+      gameMode,
+      objDone,
+      objDoneView,
+      queryClient,
+      toggleObjDoneLocal,
+    ],
   );
   const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
   const keyOwns = useMemo(
@@ -379,14 +409,11 @@ export function TarkovRaidPrepPanel() {
             me.id,
           )
         : undefined;
-    const fromAccount = objectivePairsToSkipMap(
-      resolveAccountTaskProgress(taskDonesQuery.data, gameMode).objectives,
-    );
     const local = readRaidPrepObjectiveDoneWithLegacy(
       objDoneScope,
       objDoneLegacy,
     );
-    const merged = mergeRaidPrepSkipMaps(local, fromServer, fromAccount);
+    const merged = mergeRaidPrepSkipMaps(local, fromServer);
     if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
     persistReadyRef.current = true;
     setPersistTick((n) => n + 1);
@@ -414,20 +441,23 @@ export function TarkovRaidPrepPanel() {
     const handle = window.setTimeout(() => {
       void putTarkovRaidPrepState(mapId, {
         selected,
-        objective_dones: skipMapToObjectiveDones(objDone, {
-          userId: me.id,
-          name: myName,
-        }).map((row) => ({
-          task_id: row.task_id,
-          objective_id: row.objective_id,
-        })),
+        objective_dones: clipRaidPrepStateObjectiveDones(
+          skipMapToObjectiveDones(objDone, {
+            userId: me.id,
+            name: myName,
+          }).map((row) => ({
+            task_id: row.task_id,
+            objective_id: row.objective_id,
+          })),
+          catalog.map((row) => row.id),
+        ),
         key_brings: keyBringIds,
       }).catch(() => {
         /* 未登录或网络失败时本机勾选仍可用 */
       });
     }, 700);
     return () => window.clearTimeout(handle);
-  }, [keyBringIds, mapId, me, myName, objDone, persistTick, selected]);
+  }, [catalog, keyBringIds, mapId, me, myName, objDone, persistTick, selected]);
 
   useEffect(() => {
     const onProgress = (event: Event) => {
@@ -796,15 +826,6 @@ export function TarkovRaidPrepPanel() {
       }
       topActions={
         <>
-          {import.meta.env.DEV ? (
-            <Link
-              className={styles.dockChip}
-              to={tarkovRaidPulseDemoHref()}
-              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-            >
-              找人线演示
-            </Link>
-          ) : null}
           <button
             type="button"
             className={styles.dockChip}

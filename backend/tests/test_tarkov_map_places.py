@@ -1,4 +1,4 @@
-"""地图自定义地名：slug 归并、点/框校验、CRUD / 接管。"""
+"""地图自定义地名：slug 归并、点/框校验、CRUD / 批量写入。"""
 
 from __future__ import annotations
 
@@ -162,14 +162,52 @@ def test_shoreline_seed_matches_community_overlay() -> None:
     assert len(svc.SHORELINE_SEED) == 22
 
 
+def test_upstream_seed_covers_interactive_maps() -> None:
+    seed = svc.UPSTREAM_PLACE_SEED
+    assert "shoreline" not in seed
+    assert "streets-of-tarkov" not in seed
+    customs = [row["name"] for row in seed["customs"]]
+    assert "宿舍" in customs
+    assert "大红房" in customs
+    factory = seed["factory"]
+    lockers = next(row for row in factory if row["name"] == "更衣室")
+    assert lockers.get("top") is not None or lockers.get("bottom") is not None
+    rows = svc.place_seed_rows("factory", factory, now=None)
+    assert rows[0]["map_key"] == "factory"
+    assert any(row.get("top") is not None or row.get("bottom") is not None for row in rows)
+
+
+def test_create_keeps_height_span() -> None:
+    db = _session()
+    row = svc.create_place(
+        db,
+        "factory",
+        {
+            "kind": "point",
+            "name": "更衣室",
+            "x": 1,
+            "z": 2,
+            "top": 8.5,
+            "bottom": 3.2,
+        },
+    )
+    assert row["top"] == 8.5
+    assert row["bottom"] == 3.2
+    listed = svc.list_places(db, "night-factory")
+    assert listed[0]["top"] == 8.5
+    assert listed[0]["bottom"] == 3.2
+
+
 def test_streets_seed_matches_dev_overlay() -> None:
     names = [row["name"] for row in svc.STREETS_OF_TARKOV_SEED]
-    assert "红衣主教公寓" in names
+    assert "Cardinal公寓" in names
+    assert "小黄楼" in names
+    assert "显卡房" in names
     assert "Klimov Mall 交易中心" in names
     assert any("滨海大道" in name for name in names)
     assert any("大康科迪亚" in name for name in names)
-    assert len(svc.STREETS_OF_TARKOV_SEED) == 47
+    assert len(svc.STREETS_OF_TARKOV_SEED) == 57
     rows = svc.place_seed_rows("streets-of-tarkov", svc.STREETS_OF_TARKOV_SEED, now=None)
     assert rows[0]["map_key"] == "streets-of-tarkov"
     assert rows[0]["sort_order"] == 1
-    assert rows[-1]["sort_order"] == 47
+    assert rows[-1]["sort_order"] == 57

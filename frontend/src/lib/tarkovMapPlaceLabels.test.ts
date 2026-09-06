@@ -13,6 +13,7 @@ import {
   placeNameLines,
   placeVisibleOnFloor,
   resolveMapPlaceLabels,
+  snapshotUpstreamPlaces,
   translatePlaceByCenter,
   type ResolvedMapPlace,
 } from "./tarkovMapPlaceLabels";
@@ -20,13 +21,14 @@ import {
 function overlayTexts(slug: string): string[] {
   const layer = findInteractiveMap(slug);
   expect(layer).toBeTruthy();
-  return resolveMapPlaceLabels(layer!).map((row) => row.text);
+  return snapshotUpstreamPlaces(layer!).map((row) => row.text);
 }
 
 describe("resolveMapPlaceLabels", () => {
   it("replaces shoreline tarkov.dev labels with the Chinese community overlay", () => {
     const texts = overlayTexts("shoreline");
-    expect(hasCustomMapPlaceLabels("shoreline")).toBe(true);
+    expect(hasCustomMapPlaceLabels("shoreline")).toBe(false);
+    expect(hasCustomMapPlaceLabels("shoreline", [{ id: 1 }])).toBe(true);
     expect(texts).toEqual(
       expect.arrayContaining([
         "疗养院",
@@ -61,7 +63,7 @@ describe("resolveMapPlaceLabels", () => {
   it("splits the two cottages west/east and keeps 蓝铁皮 toward the resort", () => {
     const layer = findInteractiveMap("shoreline");
     const byText = new Map(
-      resolveMapPlaceLabels(layer!).map((row) => [row.text, row.position]),
+      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row.position]),
     );
     const fake = byText.get("假别墅");
     const real = byText.get("真别墅");
@@ -72,12 +74,18 @@ describe("resolveMapPlaceLabels", () => {
     expect(real![0]).toBeGreaterThan(blue![0]);
   });
 
-  it("still translates other maps from tarkov.dev overlay text", () => {
+  it("snapshots other maps from the last upstream overlay text", () => {
     expect(hasCustomMapPlaceLabels("customs")).toBe(false);
     const texts = overlayTexts("customs");
     expect(texts).toContain("宿舍");
     expect(texts).toContain("大红房");
     expect(texts).not.toContain("Dorms");
+  });
+
+  it("does not draw labels when the database list is empty", () => {
+    const layer = findInteractiveMap("customs");
+    expect(resolveMapPlaceLabels(layer!)).toEqual([]);
+    expect(resolveMapPlaceLabels(layer!, [])).toEqual([]);
   });
 
   it("prefers database places and drops upstream labels", () => {
@@ -117,10 +125,9 @@ describe("resolveMapPlaceLabels", () => {
     expect(places.some((row) => row.text === "宿舍")).toBe(false);
   });
 
-  it("empty database list still uses the handwritten shoreline overlay", () => {
+  it("empty database list does not fall back to the handwritten overlay", () => {
     const layer = findInteractiveMap("shoreline");
-    const texts = resolveMapPlaceLabels(layer!, []).map((row) => row.text);
-    expect(texts).toContain("疗养院");
+    expect(resolveMapPlaceLabels(layer!, []).map((row) => row.text)).toEqual([]);
   });
 
   it("computes box center and translates a box by new center", () => {
@@ -169,7 +176,7 @@ describe("resolveMapPlaceLabels", () => {
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
     const byText = new Map(
-      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
     );
     const idea = byText.get("IDEA");
     const goshan = byText.get("好圣");
@@ -203,6 +210,23 @@ describe("resolveMapPlaceLabels", () => {
     expect(items.some((row) => row.name === "真别墅")).toBe(true);
     expect(items.every((row) => row.kind === "point")).toBe(true);
   });
+
+  it("keeps snapshot height when the same rows come back from the database", () => {
+    const layer = findInteractiveMap("factory");
+    const items = fallbackPlacesForImport(layer!);
+    expect(items.some((row) => row.name === "更衣室" && row.bottom != null)).toBe(
+      true,
+    );
+    const places = resolveMapPlaceLabels(
+      layer!,
+      items.map((row, index) => ({ id: index + 1, ...row })),
+    );
+    const bands = mapLayerFloorBands(layer);
+    const lockers = places.find((row) => row.text === "更衣室");
+    expect(lockers).toBeTruthy();
+    expect(placeVisibleOnFloor(lockers!, "", bands)).toBe(false);
+    expect(placeVisibleOnFloor(lockers!, "2nd Floor", bands)).toBe(true);
+  });
 });
 
 function placeXZ(row: ResolvedMapPlace): { x: number; z: number } {
@@ -232,7 +256,7 @@ describe("place labels on every interactive map", () => {
       const layer = findInteractiveMap(group.normalizedName);
       if (!layer) continue;
       const bands = mapLayerFloorBands(layer);
-      const places = resolveMapPlaceLabels(layer);
+      const places = snapshotUpstreamPlaces(layer);
       const floors = selectableFloors(layer);
       for (const floor of floors) {
         const visible = places.filter((row) =>
@@ -270,7 +294,7 @@ describe("place labels on every interactive map", () => {
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
     const byText = new Map(
-      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
     );
     const lockers = byText.get("更衣室");
     const mainOffice = byText.get("主办公区");
@@ -291,7 +315,7 @@ describe("place labels on every interactive map", () => {
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
     const byText = new Map(
-      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
     );
     const vestibule = byText.get("门厅 1");
     const security = byText.get("安保 1");
@@ -313,7 +337,7 @@ describe("place labels on every interactive map", () => {
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
     const byText = new Map(
-      resolveMapPlaceLabels(layer!).map((row) => [row.text, row]),
+      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
     );
     const office = byText.get("科学办公室");
     const winery = byText.get("ASAP 酒庄");
@@ -334,8 +358,9 @@ describe("place labels on every interactive map", () => {
         (row) => Number.isFinite(row.top) || Number.isFinite(row.bottom),
       );
       if (!raw.length) continue;
-      if (hasCustomMapPlaceLabels(group.normalizedName)) continue;
-      const resolved = resolveMapPlaceLabels(layer).filter(placeHasHeight);
+      // 海岸线快照是手写社区点，没有上游高度带。
+      if (group.normalizedName === "shoreline") continue;
+      const resolved = snapshotUpstreamPlaces(layer).filter(placeHasHeight);
       if (!resolved.length) lost.push(group.normalizedName);
     }
     expect(lost).toEqual([]);

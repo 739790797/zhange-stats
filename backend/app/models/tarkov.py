@@ -437,7 +437,7 @@ class TarkovUserRaidLog(Base):
 
 
 class TarkovUserRaidPrep(Base):
-    """联机大厅单人准备：按账号 / 模式 / 地图保存勾选、目标完成和钥匙声明。"""
+    """联机大厅单人准备：按账号 / 模式 / 地图保存勾选、目标完成、钥匙声明。"""
 
     __tablename__ = "tarkov_user_raid_preps"
 
@@ -558,6 +558,8 @@ class TarkovMapPlace(Base):
     label_z: Mapped[float | None] = mapped_column(Float, nullable=True)
     size: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
     floor: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    top: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bottom: Mapped[float | None] = mapped_column(Float, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -569,3 +571,4 @@ class TarkovMapPlace(Base):
         nullable=False,
         server_default=func.now(),
     )
+

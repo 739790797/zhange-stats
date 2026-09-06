@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { TarkovItemDetail } from "@/api/guidesApi";
+import { findInteractiveMap } from "./tarkovMapImages";
+import { mapLayerFloorBands } from "./tarkovRaidPrep";
 import {
   itemKeyLockMaps,
   itemKeyLocksAsMapLocks,
+  lockFocusPoint,
+  lockOverlayFloor,
   lockPointLabel,
   lockTypeSummary,
   type TarkovItemKeyLock,
@@ -95,6 +99,33 @@ describe("lockPointLabel", () => {
     expect(lockPointLabel(customsDoor, 0, locks)).toBe("门");
     expect(lockPointLabel(truck, 1, locks)).toBe("后备箱 · 需供电");
     expect(lockPointLabel(factoryDoor, 0, [factoryDoor, customsDoor])).toBe("门 1");
+    expect(lockPointLabel(factoryDoor, 0, [factoryDoor], "2 层")).toBe("2 层 · 门");
+  });
+});
+
+describe("lockOverlayFloor", () => {
+  it("puts a reserve barracks lock on 2nd floor, not the ground overview", () => {
+    const bands = mapLayerFloorBands(findInteractiveMap("reserve"));
+    const pawn = { id: "rb-ak", lock_type: "door", needs_power: false, x: -120, z: 60, y: -2 };
+    expect(lockOverlayFloor(pawn, bands)).toBe("2nd Floor");
+    expect(lockFocusPoint(pawn)).toEqual({ x: -120, z: 60, y: -2 });
+  });
+
+  it("uses the height span midpoint when focusing", () => {
+    expect(
+      lockFocusPoint({
+        id: "span",
+        lock_type: "door",
+        needs_power: false,
+        x: 1,
+        z: 2,
+        top: 14,
+        bottom: 10,
+      }),
+    ).toEqual({ x: 1, z: 2, y: 12 });
+    expect(
+      lockFocusPoint({ id: "none", lock_type: "door", needs_power: false }),
+    ).toBeNull();
   });
 });
 

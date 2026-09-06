@@ -19,11 +19,12 @@ import type { TarkovLockKeyMode } from "@/lib/tarkovMapMarkers";
 import {
   PLAYER_FIX_PULSE_MS,
   PULSE_DEMO_BOTS,
-  PULSE_DEMO_TICK_MS,
   buildPlayerFixPulseLines,
   collectPlayerFixMarks,
   detectPlayerFixPulseUpdaters,
   isPulseDemoSession,
+  nextPulseDemoBotIndex,
+  nextPulseDemoWaitMs,
   playerFixMatchesRoomMap,
   playerFixPulseLinesEqual,
   pulseDemoFixAt,
@@ -73,6 +74,7 @@ export type TarkovRaidRoomLiveMapProps = {
   lootContainers?: TarkovMapLootContainer[];
   lootLoose?: TarkovMapLootLoose[];
   places?: TarkovMapPlace[];
+  onFloorChange?: (floor: string) => void;
   questOverlays: TarkovRaidPrepOverlay[];
   questObjectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
   questSkippedByTask?: RaidPrepSkipMap;
@@ -176,6 +178,7 @@ export function TarkovRaidRoomLiveMap({
   lootContainers,
   lootLoose,
   places,
+  onFloorChange,
   questOverlays,
   questObjectiveDones,
   questSkippedByTask,
@@ -233,23 +236,30 @@ export function TarkovRaidRoomLiveMap({
     }
     const store = useRaidRoomLiveStore.getState();
     store.bind(publicId);
-    let step = 0;
+    const steps = PULSE_DEMO_BOTS.map(() => 0);
     for (const bot of PULSE_DEMO_BOTS) {
       const fix = pulseDemoFixAt({ userId: bot.userId, step: 0, mapId });
       if (fix) store.upsertFix(fix);
     }
-    const timer = window.setInterval(() => {
-      step += 1;
-      const bot = PULSE_DEMO_BOTS[step % PULSE_DEMO_BOTS.length];
-      if (!bot) return;
-      const fix = pulseDemoFixAt({
-        userId: bot.userId,
-        step,
-        mapId,
-      });
-      if (fix) store.upsertFix(fix);
-    }, PULSE_DEMO_TICK_MS);
-    return () => window.clearInterval(timer);
+    let lastIndex = -1;
+    let timer = 0;
+    const tick = () => {
+      const index = nextPulseDemoBotIndex(lastIndex, PULSE_DEMO_BOTS.length);
+      lastIndex = index;
+      steps[index] = (steps[index] || 0) + 1;
+      const bot = PULSE_DEMO_BOTS[index];
+      if (bot) {
+        const fix = pulseDemoFixAt({
+          userId: bot.userId,
+          step: steps[index]!,
+          mapId,
+        });
+        if (fix) store.upsertFix(fix);
+      }
+      timer = window.setTimeout(tick, nextPulseDemoWaitMs());
+    };
+    timer = window.setTimeout(tick, nextPulseDemoWaitMs());
+    return () => window.clearTimeout(timer);
   }, [mapId, publicId]);
 
   const selfName = useMemo(() => {
@@ -331,7 +341,7 @@ export function TarkovRaidRoomLiveMap({
     const locatedUserIds = new Set(
       displayedPlayerMarks.map((row) => row.userId).filter((id) => id > 0),
     );
-    if (!pulsePrimedRef.current) {
+    if (!pulsePrimedRef.current || pulseSeenRef.current?.size === 0) {
       pulsePrimedRef.current = true;
       pulseSeenRef.current = detectPlayerFixPulseUpdaters(
         null,
@@ -366,6 +376,7 @@ export function TarkovRaidRoomLiveMap({
           buildPlayerFixPulseLines({
             marks: displayedPlayerMarks,
             updaterId,
+            viewerId: authorUserId,
             now,
             seatedCount,
           }),
@@ -374,7 +385,7 @@ export function TarkovRaidRoomLiveMap({
       }
       return playerFixPulseLinesEqual(prev, lines) ? prev : lines;
     });
-  }, [displayedPlayerMarks, mapId, publicId, seatedKey]);
+  }, [authorUserId, displayedPlayerMarks, mapId, publicId, seatedKey]);
 
   useEffect(() => {
     if (!pulseLines.length) return undefined;
@@ -444,6 +455,7 @@ export function TarkovRaidRoomLiveMap({
         lootContainers={lootContainers}
         lootLoose={lootLoose}
         places={places}
+        onFloorChange={onFloorChange}
         questOverlays={questOverlays}
         questObjectiveDones={questObjectiveDones}
         questSkippedByTask={questSkippedByTask}

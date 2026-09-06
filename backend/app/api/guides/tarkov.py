@@ -640,7 +640,7 @@ def guides_tarkov_raid_prep_state_get(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """联机大厅单人准备：当前模式/地图的勾选、目标完成和钥匙声明。"""
+    """联机大厅单人准备：当前模式/地图的勾选、目标完成、钥匙声明。"""
     try:
         data = raid_prep_state_svc.get_state(db, user, map_slug)
     except raid_prep_state_svc.TarkovRaidPrepStateError as exc:
@@ -857,7 +857,7 @@ def guides_tarkov_boss_detail(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """BOSS 详情：行为、地图、刷新概率、生命值、特殊战利品。"""
+    """BOSS 详情：行为、地图、刷新概率、生命值、配装。"""
     _ = user
     try:
         detail = bosses_svc.get_boss_detail(db, boss_slug)
@@ -1062,7 +1062,7 @@ def guides_tarkov_map_places_import(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """管理员：把当前画面地名一次写入（仅空图）。"""
+    """管理员：空图批量写入地名（不再从上游 overlays 自动接管）。"""
     try:
         key = places_svc.place_map_key(map_slug)
         items = places_svc.import_places(

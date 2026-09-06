@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func
@@ -48,56 +50,15 @@ SHORELINE_SEED: list[dict[str, Any]] = [
     {"name": "农场", "x": -622, "z": -202},
 ]
 
-# 开发环境街区手标，迁移种入生产。
-STREETS_OF_TARKOV_SEED: list[dict[str, Any]] = [
-    {"name": "Primorsky Ave.\n滨海大道", "x": 9.0, "z": 104.0},
-    {"name": "Primorsky Ave.\n滨海大道", "x": 9.0, "z": -80.0},
-    {"name": "Klimov大街", "x": 125.0, "z": 10.0},
-    {"name": "Klimov大街", "x": -104.0, "z": 28.0},
-    {"name": "Nikitskaya 大街", "x": -125.0, "z": 210.0},
-    {"name": "Verhnyaya 大街", "x": -112.0, "z": 361.0},
-    {"name": "Kamchatskaya 大街", "x": 233.952, "z": 116.325},
-    {"name": "Klimov Mall 交易中心", "x": -128.0, "z": -35.0, "size": 90},
-    {"name": "Beluga\n白鲸", "x": -41.6687, "z": -45.5751, "size": 90},
-    {"name": "红衣主教公寓", "x": 99.0, "z": -71.0, "size": 90},
-    {"name": "建筑工地", "x": 230.0, "z": 295.0, "size": 90},
-    {"name": "SPARJA\n大绿超", "x": 140.0, "z": 300.0, "size": 90},
-    {"name": "电影院", "x": -175.0, "z": 400.0, "size": 90},
-    {"name": "六点超市", "x": -218.0, "z": 135.0, "size": 90},
-    {"name": "Pinewood Hotel\n松木酒店", "x": -29.2093, "z": 63.5731, "size": 90},
-    {"name": "餐厅", "x": 65.0, "z": 398.0, "size": 70},
-    {"name": "Concordia\n小康科迪亚", "x": 142.151, "z": 373.39, "size": 70},
-    {"name": "红衣主教银行", "x": 89.0, "z": -20.0, "size": 70},
-    {"name": "展\n览\n馆", "x": 239.0, "z": -60.0, "size": 70},
-    {"name": "Sparja Express\n便利店", "x": -64.0, "z": 166.0, "size": 70},
-    {"name": "Burger Spot\n汉堡点", "x": -26.9183, "z": 139.603, "size": 70},
-    {"name": "Post office\n邮局", "x": 42.0, "z": 97.0, "size": 70},
-    {"name": "药房 1", "x": 39.5925, "z": 162.36, "size": 70},
-    {"name": "金融大楼", "x": -173.0, "z": 226.0, "size": 70},
-    {"name": "街角餐厅", "x": -197.0, "z": 340.0, "size": 70},
-    {"name": "药房 2", "x": -43.0, "z": 335.0, "size": 70},
-    {"name": "药房 3", "x": 90.0, "z": -277.0, "size": 70},
-    {"name": "银行", "x": 66.735, "z": 230.046, "size": 70},
-    {"name": "学校", "x": 211.0, "z": 129.0, "size": 70},
-    {"name": "兽医诊所", "x": 222.0, "z": 173.0, "size": 70},
-    {"name": "蜂巢", "x": -210.504, "z": 301.218, "size": 70},
-    {"name": "家庭超市", "x": -222.948, "z": 280.633, "size": 70},
-    {"name": "酒店", "x": -199.228, "z": 254.027, "size": 70},
-    {"name": "南酒店", "x": -175.0, "z": 297.0, "size": 70},
-    {"name": "废弃工厂", "x": -112.171, "z": 277.632, "size": 70},
-    {"name": "餐厅", "x": -80.0, "z": 235.0, "size": 70},
-    {"name": "Primorskij 49\n滨海 49 号", "x": -13.0, "z": 244.0, "size": 70},
-    {"name": "咖啡馆", "x": 41.6687, "z": 232.433, "size": 60},
-    {"name": "Blibo Coffee\n咖啡店", "x": -70.0, "z": 343.0, "size": 60},
-    {"name": "LEXOS\n4S店", "x": 58.2237, "z": 292.306},
-    {"name": "车库", "x": 95.9248, "z": 296.347},
-    {"name": "Concordia\n大康科迪亚", "x": 188.92, "z": 401.604},
-    {"name": "Chekannaya 15\n15号公寓", "x": 121.751, "z": 233.735},
-    {"name": "不动产", "x": -53.3563, "z": 466.134},
-    {"name": "调解室", "x": 150.574, "z": 125.894},
-    {"name": "Primorsky Ave.\n滨海大道", "x": 11.1682, "z": 341.92},
-    {"name": "Nizhnyaya 大街", "x": -108.553, "z": 440.461},
-]
+def _load_json_seed(name: str) -> Any:
+    path = Path(__file__).with_name(name)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+# 生产库街区手标快照（2026-09-03）。已有「小黄楼」的库不再覆盖。
+STREETS_OF_TARKOV_SEED: list[dict[str, Any]] = _load_json_seed(
+    "place_streets_prod.json"
+)
 
 
 def place_seed_rows(
@@ -107,25 +68,34 @@ def place_seed_rows(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for index, item in enumerate(items, start=1):
-        rows.append(
-            {
-                "map_key": map_key,
-                "kind": item.get("kind") or "point",
-                "name": item["name"],
-                "x": item["x"],
-                "z": item["z"],
-                "x2": item.get("x2"),
-                "z2": item.get("z2"),
-                "label_x": item.get("label_x"),
-                "label_z": item.get("label_z"),
-                "size": int(item.get("size") or SIZE_DEFAULT),
-                "floor": item.get("floor") or "",
-                "sort_order": index,
-                "created_at": now,
-                "updated_at": now,
-            }
-        )
+        row = {
+            "map_key": map_key,
+            "kind": item.get("kind") or "point",
+            "name": item["name"],
+            "x": item["x"],
+            "z": item["z"],
+            "x2": item.get("x2"),
+            "z2": item.get("z2"),
+            "label_x": item.get("label_x"),
+            "label_z": item.get("label_z"),
+            "size": int(item.get("size") or SIZE_DEFAULT),
+            "floor": item.get("floor") or "",
+            "sort_order": index,
+            "created_at": now,
+            "updated_at": now,
+        }
+        if "top" in item:
+            row["top"] = item.get("top")
+        if "bottom" in item:
+            row["bottom"] = item.get("bottom")
+        rows.append(row)
     return rows
+
+
+# 一次性快照：海关 / 工厂 / 立交等上游译名。已有行的图（海岸线、街区）不再覆盖。
+UPSTREAM_PLACE_SEED: dict[str, list[dict[str, Any]]] = _load_json_seed(
+    "place_upstream_seed.json"
+)
 
 
 class TarkovMapPlacesError(Exception):
@@ -256,6 +226,8 @@ def _row_out(row: TarkovMapPlace) -> dict[str, Any]:
         "label_z": row.label_z,
         "size": row.size,
         "floor": row.floor,
+        "top": row.top,
+        "bottom": row.bottom,
         "sort_order": row.sort_order,
     }
 
@@ -281,6 +253,8 @@ def _parse_item(raw: dict[str, Any]) -> dict[str, Any]:
         "label_z": label_z,
         "size": _normalize_size(raw.get("size")),
         "floor": _normalize_floor(raw.get("floor")),
+        "top": _as_optional_float(raw.get("top"), "top"),
+        "bottom": _as_optional_float(raw.get("bottom"), "bottom"),
     }
 
 
@@ -346,6 +320,8 @@ def update_place(
         "label_z": raw["label_z"] if "label_z" in raw else row.label_z,
         "size": raw["size"] if "size" in raw else row.size,
         "floor": raw["floor"] if "floor" in raw else row.floor,
+        "top": raw["top"] if "top" in raw else row.top,
+        "bottom": raw["bottom"] if "bottom" in raw else row.bottom,
     }
     item = _parse_item(merged)
     row.kind = item["kind"]
@@ -358,6 +334,8 @@ def update_place(
     row.label_z = item["label_z"]
     row.size = item["size"]
     row.floor = item["floor"]
+    row.top = item["top"]
+    row.bottom = item["bottom"]
     row.updated_at = now_naive()
     db.flush()
     return _row_out(row)
@@ -383,10 +361,10 @@ def import_places(
     if existing is not None:
         raise TarkovMapPlacesError("此地已有自定义地名", 409)
     if len(items) > IMPORT_MAX:
-        raise TarkovMapPlacesError(f"一次最多接管 {IMPORT_MAX} 个地点")
+        raise TarkovMapPlacesError(f"一次最多写入 {IMPORT_MAX} 个地点")
     parsed = [_parse_item(item) for item in items]
     if not parsed:
-        raise TarkovMapPlacesError("没有可接管的地点")
+        raise TarkovMapPlacesError("没有可写入的地点")
     now = now_naive()
     for index, item in enumerate(parsed, start=1):
         db.add(

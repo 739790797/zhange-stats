@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import rawMaps from "@/data/tarkov-dev-maps.json";
 import { findInteractiveMap } from "./tarkovMapImages";
 import { mapLayerFloorBands } from "./tarkovRaidPrep";
 import {
@@ -26,7 +27,12 @@ import {
   tarkovLockTypeLine,
   tarkovStationaryLabel,
   tarkovMarkerHeightSpan,
+  tarkovMarkerFloorDisplay,
   tarkovMarkerVisibleOnFloor,
+  floorBandsNeedStoryRemap,
+  mapLayerMarkerFloorBands,
+  MARKER_ON_FLOOR_Z_BOOST,
+  MARKER_OTHER_FLOOR_OPACITY,
   withKindsForPresent,
 } from "./tarkovMapMarkers";
 
@@ -144,6 +150,38 @@ describe("tarkov map marker helpers", () => {
     ).toBe(true);
   });
 
+  it("fades markers that are not on the selected height", () => {
+    const bands = [
+      { name: "", min: -2, max: 4 },
+      { name: "2nd", min: 10, max: 16 },
+    ];
+    const upstairs = { x: 1, z: 2, top: 14, bottom: 12 };
+    const ground = { x: 1, z: 2, y: 0 };
+    const unknown = { x: 1, z: 2 };
+    expect(tarkovMarkerFloorDisplay(unknown, "2nd", bands)).toEqual({
+      onFloor: true,
+      opacity: 1,
+      zBoost: MARKER_ON_FLOOR_Z_BOOST,
+    });
+    expect(tarkovMarkerFloorDisplay(upstairs, "2nd", bands)).toEqual({
+      onFloor: true,
+      opacity: 1,
+      zBoost: MARKER_ON_FLOOR_Z_BOOST,
+    });
+    expect(tarkovMarkerFloorDisplay(upstairs, "", bands)).toEqual({
+      onFloor: false,
+      opacity: MARKER_OTHER_FLOOR_OPACITY,
+      zBoost: 0,
+    });
+    expect(tarkovMarkerFloorDisplay(ground, "2nd", bands)).toEqual({
+      onFloor: false,
+      opacity: MARKER_OTHER_FLOOR_OPACITY,
+      zBoost: 0,
+    });
+    expect(MARKER_OTHER_FLOOR_OPACITY).toBeGreaterThan(0);
+    expect(MARKER_OTHER_FLOOR_OPACITY).toBeLessThan(1);
+  });
+
   it("uses x/z so customs dorm locks sit on 2nd, not the whole map", () => {
     const bands = mapLayerFloorBands(findInteractiveMap("customs"));
     const dorm = { x: 200, z: 160, y: 4 };
@@ -164,6 +202,65 @@ describe("tarkov map marker helpers", () => {
     expect(tarkovMarkerVisibleOnFloor(westWing, "", bands)).toBe(false);
     expect(tarkovMarkerVisibleOnFloor(road, "Underground", bands)).toBe(false);
     expect(tarkovMarkerVisibleOnFloor(road, "", bands)).toBe(true);
+  });
+
+  it("uses pin y so a tall volume box does not sit on every floor", () => {
+    const bands = [
+      { name: "", min: -6, max: 10 },
+      { name: "2nd Floor", min: 10, max: 15 },
+    ];
+    const pin = { x: 1, z: 2, y: 3, top: 34, bottom: -1 };
+    expect(tarkovMarkerHeightSpan(pin)).toEqual({ min: 3, max: 3 });
+    expect(tarkovMarkerVisibleOnFloor(pin, "", bands)).toBe(true);
+    expect(tarkovMarkerVisibleOnFloor(pin, "2nd Floor", bands)).toBe(false);
+  });
+
+  it("fades streets upstairs icons on the ground story", () => {
+    const layer = findInteractiveMap("streets-of-tarkov");
+    expect(layer).toBeTruthy();
+    const official = mapLayerFloorBands(layer);
+    const bands = mapLayerMarkerFloorBands(layer!);
+    const upstairs = { x: 140, z: 300, y: 6.7 };
+    const street = { x: 9, z: 104, y: 1.2 };
+    expect(official.some((band) => band.name === "2nd Floor" && band.min >= 10)).toBe(
+      true,
+    );
+    expect(tarkovMarkerVisibleOnFloor(upstairs, "", official)).toBe(true);
+    expect(tarkovMarkerFloorDisplay(street, "", bands)).toEqual({
+      onFloor: true,
+      opacity: 1,
+      zBoost: MARKER_ON_FLOOR_Z_BOOST,
+    });
+    expect(tarkovMarkerFloorDisplay(upstairs, "", bands)).toEqual({
+      onFloor: false,
+      opacity: MARKER_OTHER_FLOOR_OPACITY,
+      zBoost: 0,
+    });
+    expect(tarkovMarkerVisibleOnFloor(upstairs, "3rd Floor", bands)).toBe(true);
+    expect(tarkovMarkerVisibleOnFloor(street, "3rd Floor", bands)).toBe(false);
+  });
+
+  it("only remaps streets; other maps already peel upstairs by height or bounds", () => {
+    const slugs = rawMaps
+      .filter((group) =>
+        group.maps.some((layer) => layer.projection === "interactive"),
+      )
+      .map((group) => group.normalizedName);
+    const needRemap = slugs.filter((slug) =>
+      floorBandsNeedStoryRemap(mapLayerFloorBands(findInteractiveMap(slug))),
+    );
+    expect(needRemap).toEqual(["streets-of-tarkov"]);
+    for (const slug of slugs) {
+      const layer = findInteractiveMap(slug);
+      expect(layer).toBeTruthy();
+      const official = mapLayerFloorBands(layer);
+      const marker = mapLayerMarkerFloorBands(layer!);
+      if (slug === "streets-of-tarkov") {
+        expect(floorBandsNeedStoryRemap(marker)).toBe(false);
+        continue;
+      }
+      expect(marker).toEqual(official);
+    }
   });
 });
 

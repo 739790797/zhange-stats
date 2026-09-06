@@ -18,5 +18,8 @@ export const antdAppTheme: ThemeConfig = {
       primaryShadow: "none",
       defaultShadow: "none",
     },
+    Modal: {
+      margin: 12,
+    },
   },
 };

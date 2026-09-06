@@ -4,6 +4,7 @@ import { inventoryThumbUrl } from "./tarkovItemImages";
 import { itemHrefFromTypes } from "./tarkovItemTypes";
 import { lockTypeLabel } from "./tarkovKeyPacks";
 import {
+  mapLayerFloorBands,
   overlayVisibleOnFloor,
   type RaidPrepFloorBand,
   type RaidPrepHeightSpan,
@@ -484,19 +485,79 @@ export function tarkovLooseLootIconUrl(): string {
   return "/tarkov/map-icons/loose_loot.png";
 }
 
+function isFiniteHeight(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** 图标用落点 y 判层；top/bottom 是体积盒，街区炮区会跨整栋楼。 */
 export function tarkovMarkerHeightSpan(
   row: TarkovMapMarkerPoint,
 ): RaidPrepHeightSpan | null {
+  const y = row.y;
+  if (isFiniteHeight(y)) return { min: y, max: y };
   const top = row.top;
   const bottom = row.bottom;
-  const y = row.y;
-  if (top != null || bottom != null) {
-    const lo = bottom ?? top ?? y ?? 0;
-    const hi = top ?? bottom ?? y ?? 0;
-    return { min: Math.min(lo, hi), max: Math.max(lo, hi) };
-  }
-  if (y != null) return { min: y, max: y };
-  return null;
+  if (!isFiniteHeight(top) && !isFiniteHeight(bottom)) return null;
+  const lo = isFiniteHeight(bottom) ? bottom : top!;
+  const hi = isFiniteHeight(top) ? top : bottom!;
+  return { min: Math.min(lo, hi), max: Math.max(lo, hi) };
+}
+
+const STREETS_MAP_KEYS = new Set(["streets-of-tarkov", "streets"]);
+
+/**
+ * 街区 maps.json 地面带到 10、楼上从 10 起；门锁/容器实际多在 0–8。
+ * 图标按楼层故事高度淡化，任务区仍走官方带。
+ */
+export const STREETS_MARKER_STORY_HEIGHT: Readonly<
+  Record<string, { min: number; max: number }>
+> = {
+  "": { min: -6, max: 2.5 },
+  "2nd Floor": { min: 2.5, max: 5.5 },
+  "3rd Floor": { min: 5.5, max: 8.5 },
+  "4th Floor": { min: 8.5, max: 12 },
+  "5th Floor": { min: 12, max: 10_000 },
+  Underground: { min: -10_000, max: -6 },
+};
+
+export function mapLayerMarkerFloorBands(
+  layer: Parameters<typeof mapLayerFloorBands>[0] & {
+    key?: string | null;
+    normalizedName?: string | null;
+  },
+): ReturnType<typeof mapLayerFloorBands> {
+  const bands = mapLayerFloorBands(layer);
+  const key = String(layer?.normalizedName || layer?.key || "")
+    .trim()
+    .toLowerCase();
+  if (!STREETS_MAP_KEYS.has(key)) return bands;
+  return bands.map((band) => {
+    const height = STREETS_MARKER_STORY_HEIGHT[band.name];
+    if (!height) return band;
+    return {
+      ...band,
+      min: height.min,
+      max: height.max,
+      extents: [{ min: height.min, max: height.max }],
+    };
+  });
+}
+
+/** 官方带过宽、楼上从地面带顶开始、又没有建筑框：街上二层会被算进地面。 */
+export function floorBandsNeedStoryRemap(
+  bands: ReturnType<typeof mapLayerFloorBands>,
+): boolean {
+  const ground = bands.find((band) => !band.name);
+  const named = bands.filter((band) => band.name);
+  if (!ground || !named.length) return false;
+  const namedHasBounds = named.some((band) =>
+    (band.extents || []).some((extent) => (extent.bounds?.length ?? 0) > 0),
+  );
+  if (namedHasBounds) return false;
+  if (ground.max - ground.min < 8) return false;
+  return named.some(
+    (band) => band.min >= 8 && Math.abs(band.min - ground.max) <= 0.05,
+  );
 }
 
 function markerFloorAt(
@@ -509,9 +570,7 @@ function markerFloorAt(
   return { x, z };
 }
 
-/** 无高度的点各层都显示；有 top/bottom/y 则按楼层带过滤。
- * 撤离点不走隐藏，用 `tarkovExtractFloorDisplay` 降透明度。
- */
+/** 无高度的点各层都显示；有 top/bottom/y 则按楼层带判定是否「当前层」。 */
 export function tarkovMarkerVisibleOnFloor(
   row: TarkovMapMarkerPoint,
   floor: string,
@@ -520,6 +579,32 @@ export function tarkovMarkerVisibleOnFloor(
   const span = tarkovMarkerHeightSpan(row);
   if (!span) return true;
   return overlayVisibleOnFloor(span, floor, bands, markerFloorAt(row));
+}
+
+/** 非当前高度仍画出，略淡以便和当前层区分。 */
+export const MARKER_OTHER_FLOOR_OPACITY = 0.42;
+
+/** 当前层叠在淡化点之上，避免被挡住。 */
+export const MARKER_ON_FLOOR_Z_BOOST = 80;
+
+export type TarkovMarkerFloorDisplay = {
+  onFloor: boolean;
+  opacity: number;
+  zBoost: number;
+};
+
+/** 无高度或落在当前层：不透明；其它高度：始终显示但降透明度。 */
+export function tarkovMarkerFloorDisplay(
+  row: TarkovMapMarkerPoint,
+  floor: string,
+  bands: readonly RaidPrepFloorBand[],
+): TarkovMarkerFloorDisplay {
+  const onFloor = tarkovMarkerVisibleOnFloor(row, floor, bands);
+  return {
+    onFloor,
+    opacity: onFloor ? 1 : MARKER_OTHER_FLOOR_OPACITY,
+    zBoost: onFloor ? MARKER_ON_FLOOR_Z_BOOST : 0,
+  };
 }
 
 export function parseKindFlags(raw: unknown): TarkovMapKindFlags {

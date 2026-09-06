@@ -31,6 +31,10 @@ alwaysApply: false
 
 禁止：`size="middle"`（省略即可）；同一操作区混用 large/small；业务页原生 `<button>` 充当主操作。
 
+## 弹窗
+
+Ant Design `Modal` 高度由 `frontend/src/index.css` 按视口约束（`100dvh`，标题/底栏固定、正文滚动）。竖屏用户很多，**不要写死** `height` / `maxHeight: 720` / `72vh`。需要近全屏时用 `max-height: calc(100dvh - 24px)`，body `overflow: auto`。`width` 也不要只写像素：全局已有 `max-width: calc(100vw - 24px)`。
+
 ## 例外（勿扩散）
 
 - `QqLoginButton`：官方图

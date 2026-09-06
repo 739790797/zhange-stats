@@ -1,0 +1,301 @@
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.groupHead {
+  margin: 0 0 10px;
+  color: var(--hb-orange, #c8932a);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.slot {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 12px 18px;
+  padding: 14px 0;
+  border-top: 1px solid #2e3026;
+}
+
+.slot:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.slotMeta {
+  padding-top: 18px;
+}
+
+.slotLabel {
+  color: #c8c4b0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.slotCount {
+  display: block;
+  margin-top: 4px;
+  color: #6f7164;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-self: start;
+  border: 1px solid #2e3026;
+  background: #16170f;
+}
+
+.main {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 10px 14px 10px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.main:hover {
+  background: #1c1d14;
+}
+
+.icon {
+  display: flex;
+  flex: 0 0 56px;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: #0c0c0c;
+}
+
+.icon img {
+  display: block;
+  max-width: 52px;
+  max-height: 52px;
+  object-fit: contain;
+}
+
+.name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--hb-orange, #c8932a);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.main:hover .name {
+  color: #e0b45a;
+}
+
+.contains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid #2a2c22;
+  background: #12130c;
+}
+
+.stow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid #2a2c22;
+  background: #12130c;
+}
+
+.stowBlock {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: start;
+}
+
+.stowLabel {
+  padding-top: 12px;
+  color: #9a9684;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.stowBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stowItem,
+.ammoRow {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: 10px 12px;
+  min-height: 44px;
+}
+
+.stowItem {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.ammoRow {
+  grid-template-columns: 40px 88px max-content minmax(0, 1fr);
+}
+
+.stowIcon {
+  display: flex;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #0c0c0c;
+}
+
+.stowIcon img {
+  display: block;
+  max-width: 36px;
+  max-height: 36px;
+  object-fit: contain;
+}
+
+.stowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hb-orange, #c8932a);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+  padding-top: 10px;
+}
+
+.stowName:hover,
+.stowIcon:hover + .stowName,
+.stowItem:hover .stowName,
+.ammoRow:hover .stowName {
+  color: #e0b45a;
+}
+
+.otherChips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ammoStats {
+  display: grid;
+  grid-template-columns: auto max-content;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding-top: 2px;
+  color: #a8a48c;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ammoStats b {
+  color: #eee9d6;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.effects {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 3px;
+  min-width: 0;
+}
+
+.effect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 2px 1px;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.effectClass {
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.effectLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gridArmed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 500px));
+  justify-content: start;
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .slot {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .slotMeta {
+    padding-top: 0;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+  }
+
+  .gridArmed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stowBlock {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .stowLabel {
+    padding-top: 0;
+  }
+
+  .ammoRow {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .ammoStats,
+  .effects {
+    grid-column: 2 / -1;
+  }
+}

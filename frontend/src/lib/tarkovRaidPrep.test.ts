@@ -112,6 +112,8 @@ import {
   raidPrepAllObjectiveIds,
   roomObjectiveMarksForCompletedTasks,
   skipMapToObjectiveDones,
+  clipRaidPrepStateObjectiveDones,
+  RAID_PREP_STATE_OBJECTIVE_MAX,
   raidPrepParticipantNames,
   tarkovReadableName,
   traderFilterLabel,
@@ -1061,14 +1063,20 @@ describe("buildRaidPrepOverlays", () => {
       filterRaidPrepOverlaysForViewer(
         overlays,
         new Map([["t-storage", new Set(["o-key"])]]),
-      ).map((row) => row.subtitle),
-    ).toEqual(["检查兵营南楼白"]);
+      ).map((row) => [row.subtitle, Boolean(row.done)]),
+    ).toEqual([
+      ["检查兵营东楼黑", true],
+      ["检查兵营南楼白", false],
+    ]);
     expect(
       filterRaidPrepOverlaysForViewer(
         overlays,
         new Map([["t-storage", new Set(["o-free"])]]),
-      ).map((row) => row.subtitle),
-    ).toEqual(["检查兵营东楼黑"]);
+      ).map((row) => [row.subtitle, Boolean(row.done)]),
+    ).toEqual([
+      ["检查兵营东楼黑", false],
+      ["检查兵营南楼白", true],
+    ]);
     expect(filterRaidPrepOverlaysForViewer(overlays, new Map())).toHaveLength(2);
     expect(collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-key"]))).toEqual(
       [],
@@ -1155,38 +1163,39 @@ describe("filterRaidPrepOverlaysForSelection", () => {
     expect(shown.map((row) => row.objectiveId)).toEqual(["o-key"]);
   });
 
-  it("hides a point when only the viewer is selected and they finished it", () => {
+  it("keeps a finished point dimmed so the viewer can uncomplete it", () => {
     const overlays = buildRaidPrepOverlays([wealth], "streets");
     const shown = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: new Set(["id:1"]),
       participantsByTask: people,
-      objectiveDones: [
-        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
-      ],
+      skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
-    expect(shown).toEqual([]);
+    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
+      ["o-key", true],
+    ]);
   });
 
-  it("hides a point after every selected person finished it", () => {
+  it("keeps a team-finished point so anyone selected can still cancel", () => {
     const overlays = buildRaidPrepOverlays([wealth], "streets");
     const shown = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: new Set(["id:1", "id:2"]),
       participantsByTask: people,
-      objectiveDones: [
-        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
-        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
-      ],
+      skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
-    expect(shown).toEqual([]);
+    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
+      ["o-key", true],
+    ]);
   });
 
   it("falls back to viewer skip when selectedKeys is null", () => {
     const overlays = buildRaidPrepOverlays([wealth], "streets");
-    const hidden = filterRaidPrepOverlaysForSelection(overlays, {
+    const marked = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: null,
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
-    expect(hidden).toEqual([]);
+    expect(marked.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
+      ["o-key", true],
+    ]);
     const all = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: null,
     });
@@ -1329,6 +1338,14 @@ describe("readable item names", () => {
         objectiveId: "obj-1",
       }),
     ).toEqual(["guide", "complete"]);
+    expect(
+      raidPrepQuestPointMenuActions({
+        canOpenGuide: true,
+        canComplete: true,
+        objectiveId: "obj-1",
+        alreadyDone: true,
+      }),
+    ).toEqual(["guide", "uncomplete"]);
   });
 
   it("skips unresolved key ids on the task card", () => {
@@ -2205,6 +2222,27 @@ describe("raid prep needed items", () => {
     ]);
   });
 
+  it("clips raid-prep state objective dones to catalog and cap", () => {
+    const rows = [
+      { task_id: "t1", objective_id: "o1" },
+      { task_id: "t1", objective_id: "o1" },
+      { task_id: "", objective_id: "o2" },
+      { task_id: "other", objective_id: "ox" },
+      { task_id: "t2", objective_id: "o2" },
+    ];
+    expect(clipRaidPrepStateObjectiveDones(rows, ["t1", "t2"])).toEqual([
+      { task_id: "t1", objective_id: "o1" },
+      { task_id: "t2", objective_id: "o2" },
+    ]);
+    const many = Array.from({ length: RAID_PREP_STATE_OBJECTIVE_MAX + 20 }, (_, i) => ({
+      task_id: "t1",
+      objective_id: `o${i}`,
+    }));
+    expect(clipRaidPrepStateObjectiveDones(many, ["t1"])).toHaveLength(
+      RAID_PREP_STATE_OBJECTIVE_MAX,
+    );
+  });
+
   it("round-trips personal objective-done maps", () => {
     const skipped = toggleRaidPrepObjectiveDone(new Map(), "t1", "o-key");
     expect([...skipped.get("t1")!]).toEqual(["o-key"]);
@@ -2239,13 +2277,20 @@ describe("raid prep needed items", () => {
     ).toEqual(["c1", "s1"]);
     expect(
       planRaidPrepObjectiveToggle({ localHas: false, viewHas: true }),
-    ).toEqual({ nextChecked: false, toggleLocal: false });
+    ).toEqual({ nextChecked: false, toggleLocal: false, reopenTask: false });
     expect(
       planRaidPrepObjectiveToggle({ localHas: true, viewHas: true }),
-    ).toEqual({ nextChecked: false, toggleLocal: true });
+    ).toEqual({ nextChecked: false, toggleLocal: true, reopenTask: false });
     expect(
       planRaidPrepObjectiveToggle({ localHas: false, viewHas: false }),
-    ).toEqual({ nextChecked: true, toggleLocal: true });
+    ).toEqual({ nextChecked: true, toggleLocal: true, reopenTask: false });
+    expect(
+      planRaidPrepObjectiveToggle({
+        localHas: false,
+        viewHas: false,
+        taskDone: true,
+      }),
+    ).toEqual({ nextChecked: false, toggleLocal: false, reopenTask: true });
   });
 
   it("sorts summary rows by participant count descending", () => {
@@ -3101,6 +3146,23 @@ describe("overlay floors", () => {
     expect(overlayFloorForPoint(0, bands)).toBe("");
   });
 
+  it("keeps the default icebreaker deck visible on the unnamed band", () => {
+    const bands = mapLayerFloorBands({
+      heightRange: [18.92, 19.56],
+      layers: [
+        { name: "Infirmary", extents: [{ height: [18.92, 19.56] }] },
+        { name: "Helipad", extents: [{ height: [19.57, 22.1] }] },
+      ],
+    });
+    expect(overlayVisibleOnFloor({ min: 19.2, max: 19.2 }, "", bands)).toBe(
+      true,
+    );
+    expect(overlayVisibleOnFloor({ min: 20, max: 20 }, "", bands)).toBe(false);
+    expect(
+      overlayVisibleOnFloor({ min: 19.2, max: 19.2 }, "Infirmary", bands),
+    ).toBe(true);
+  });
+
   it("does not treat shoreline outdoor lows as underground", () => {
     const bands = mapLayerFloorBands({
       heightRange: [-1000, -1],
@@ -3584,3 +3646,4 @@ describe("raid prep packing and settle", () => {
     expect(formatRaidPrepOverlayKeyLabel([], true)).toBe("不需要钥匙");
   });
 });
+

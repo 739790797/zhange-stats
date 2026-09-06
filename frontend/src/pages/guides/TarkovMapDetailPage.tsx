@@ -1,4 +1,4 @@
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovMapDetail } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
@@ -7,13 +7,17 @@ import {
   MAPS_HREF,
   TARKOV_HOME_PATH,
   TARKOV_MAPS,
+  parseTarkovMaintainMode,
   tarkovMapHref,
+  tarkovMapsMaintainHref,
 } from "@/lib/tarkovHomeNav";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
 
 export default function TarkovMapDetailPage() {
   const { mapSlug = "" } = useParams<{ mapSlug: string }>();
+  const [searchParams] = useSearchParams();
+  const maintain = parseTarkovMaintainMode(searchParams.get("maintain"));
   const gameMode = useTarkovGameMode();
   const known = TARKOV_MAPS.find(
     (item) =>
@@ -38,7 +42,10 @@ export default function TarkovMapDetailPage() {
       <TarkovItemsBreadcrumb
         items={[
           { label: "逃离塔科夫", to: TARKOV_HOME_PATH },
-          { label: "地图", to: MAPS_HREF },
+          {
+            label: maintain ? "地图信息" : "地图",
+            to: maintain ? tarkovMapsMaintainHref() : MAPS_HREF,
+          },
           { label: crumbLabel },
         ]}
       />

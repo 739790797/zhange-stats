@@ -1,10 +1,11 @@
-"""联机大厅单人准备：按账号 / 模式 / 地图保存勾选、目标完成和钥匙声明。"""
+"""联机大厅单人准备：按账号 / 模式 / 地图保存勾选、目标完成、钥匙声明。"""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
@@ -146,17 +147,14 @@ def put_state(
     selected_ids = _id_list(selected, limit=SELECTED_MAX)
     dones = _objective_pairs(objective_dones)
     brings = _id_list(key_brings, limit=KEY_BRING_MAX)
-    row = (
-        db.query(TarkovUserRaidPrep)
-        .filter(
-            TarkovUserRaidPrep.user_id == user.id,
-            TarkovUserRaidPrep.game_mode == mode,
-            TarkovUserRaidPrep.map_slug == slug,
-        )
-        .one_or_none()
+    filters = (
+        TarkovUserRaidPrep.user_id == user.id,
+        TarkovUserRaidPrep.game_mode == mode,
+        TarkovUserRaidPrep.map_slug == slug,
     )
+    row = db.query(TarkovUserRaidPrep).filter(*filters).one_or_none()
     if row is None:
-        row = TarkovUserRaidPrep(
+        created = TarkovUserRaidPrep(
             user_id=user.id,
             game_mode=mode,
             map_slug=slug,
@@ -165,7 +163,18 @@ def put_state(
             key_brings_json=brings,
             updated_at=stamp,
         )
-        db.add(row)
+        db.add(created)
+        try:
+            with db.begin_nested():
+                db.flush()
+            row = created
+        except IntegrityError:
+            db.expunge(created)
+            row = db.query(TarkovUserRaidPrep).filter(*filters).one()
+            row.selected_json = selected_ids
+            row.objective_dones_json = dones
+            row.key_brings_json = brings
+            row.updated_at = stamp
     else:
         row.selected_json = selected_ids
         row.objective_dones_json = dones

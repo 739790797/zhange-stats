@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TarkovAmmoItemOut(BaseModel):
@@ -583,17 +583,36 @@ class TarkovBossSpawnGroupOut(BaseModel):
     show_location_chance: bool = False
 
 
-class TarkovBossLootOut(BaseModel):
+class TarkovBossGearContainedOut(BaseModel):
     item_id: str
     name: str
     short_name: str = ""
     icon_link: str = ""
     types: list[str] = Field(default_factory=list)
-    flea_price: int | None = None
-    trader_slug: str = ""
-    trader_name: str = ""
-    trader_price: int | None = None
-    trader_currency: str = "RUB"
+    count: int = 1
+    kind: str = Field(
+        default="",
+        description="magazine | ammo | plate | other",
+    )
+    damage: int | None = None
+    penetration: int | None = None
+    armor_damage: int | None = None
+
+
+class TarkovBossGearItemOut(BaseModel):
+    item_id: str
+    name: str
+    short_name: str = ""
+    icon_link: str = ""
+    types: list[str] = Field(default_factory=list)
+    count: int = 1
+    contains: list[TarkovBossGearContainedOut] = Field(default_factory=list)
+
+
+class TarkovBossGearSlotOut(BaseModel):
+    key: str
+    label: str
+    items: list[TarkovBossGearItemOut] = Field(default_factory=list)
 
 
 class TarkovBossListItemOut(BaseModel):
@@ -639,7 +658,10 @@ class TarkovBossDetailOut(TarkovBossListItemOut):
     maps: list[TarkovBossMapOut] = Field(default_factory=list)
     spawn_locations: list[TarkovBossSpawnLocationOut] = Field(default_factory=list)
     escorts: list[TarkovBossEscortOut] = Field(default_factory=list)
-    unique_loot: list[TarkovBossLootOut] = Field(default_factory=list)
+    equipment_slots: list[TarkovBossGearSlotOut] = Field(
+        default_factory=list,
+        description="完整配装：按装备栏分组，枪内弹药/配件在 contains",
+    )
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None
@@ -864,6 +886,8 @@ class TarkovMapPlaceOut(BaseModel):
     label_z: float | None = None
     size: int = 80
     floor: str = ""
+    top: float | None = None
+    bottom: float | None = None
     sort_order: int = 0
 
 
@@ -878,6 +902,8 @@ class TarkovMapPlaceIn(BaseModel):
     label_z: float | None = None
     size: int | None = None
     floor: str = ""
+    top: float | None = None
+    bottom: float | None = None
 
 
 class TarkovMapPlacePatchIn(BaseModel):
@@ -891,6 +917,8 @@ class TarkovMapPlacePatchIn(BaseModel):
     label_z: float | None = None
     size: int | None = None
     floor: str | None = None
+    top: float | None = None
+    bottom: float | None = None
 
 
 class TarkovMapPlaceImportIn(BaseModel):
@@ -1476,12 +1504,66 @@ class TarkovRaidRoomObjectiveDonesIn(BaseModel):
     )
 
 
+def _clip_str_ids(value: object, limit: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        text = str(item or "").strip()
+        if not text or text in seen or len(text) > 64:
+            continue
+        seen.add(text)
+        out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
 class TarkovUserRaidPrepStateIn(BaseModel):
     selected: list[str] = Field(default_factory=list, max_length=40)
     objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(
         default_factory=list, max_length=200
     )
     key_brings: list[str] = Field(default_factory=list, max_length=80)
+
+    @field_validator("selected", mode="before")
+    @classmethod
+    def _clip_selected(cls, value: object) -> list[str]:
+        return _clip_str_ids(value, 40)
+
+    @field_validator("key_brings", mode="before")
+    @classmethod
+    def _clip_key_brings(cls, value: object) -> list[str]:
+        return _clip_str_ids(value, 80)
+
+    @field_validator("objective_dones", mode="before")
+    @classmethod
+    def _clip_objective_dones(cls, value: object) -> list[dict[str, str]]:
+        if not isinstance(value, list):
+            return []
+        out: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            task_id = str(item.get("task_id") or "").strip()
+            objective_id = str(item.get("objective_id") or "").strip()
+            if (
+                not task_id
+                or not objective_id
+                or len(task_id) > 64
+                or len(objective_id) > 64
+            ):
+                continue
+            key = (task_id, objective_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"task_id": task_id, "objective_id": objective_id})
+            if len(out) >= 200:
+                break
+        return out
 
 
 class TarkovUserRaidPrepStateOut(BaseModel):

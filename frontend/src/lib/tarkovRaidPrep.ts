@@ -18,6 +18,8 @@ export const MAP_SLUG_EQUIV_GROUPS: readonly (readonly string[])[] = [
 ];
 
 export const RAID_PREP_MAX_SELECTED = 40;
+/** 与后端 TarkovUserRaidPrepStateIn.objective_dones 上限对齐。 */
+export const RAID_PREP_STATE_OBJECTIVE_MAX = 200;
 
 export const RAID_PREP_LIST_SCOPES = [
   "all",
@@ -369,8 +371,10 @@ export type TarkovRaidPrepOverlay = {
   showNoKey: boolean;
   /** 来自目标 optional；可选目标在地图上单独标出。 */
   optional: boolean;
-  /** 该点对应的目标 id；个人勾选后只对自己隐藏。 */
+  /** 该点对应的目标 id；个人勾选后对自己标成已完成，可再取消。 */
   objectiveId: string;
+  /** 当前用户已勾完：地图上淡显示，菜单改为取消完成。 */
+  done?: boolean;
   outline: RaidPrepPoint[];
   points: RaidPrepPoint[];
   height: RaidPrepHeightSpan | null;
@@ -1074,6 +1078,20 @@ function bandContainsSpan(
   );
 }
 
+/** 破冰者医务室：heightRange 就是默认层，不能再当「楼上」把地面图标全淡掉。 */
+function namedBandDuplicatesGround(
+  band: RaidPrepFloorBand,
+  ground: RaidPrepFloorBand,
+): boolean {
+  if (!band.name) return false;
+  const extents = bandExtents(band);
+  if (!extents.length) return false;
+  if (extents.some((extent) => (extent.bounds?.length ?? 0) > 0)) return false;
+  return extents.every(
+    (extent) => extent.min === ground.min && extent.max === ground.max,
+  );
+}
+
 function bandOverlapLen(
   band: RaidPrepFloorBand,
   span: RaidPrepHeightSpan,
@@ -1120,14 +1138,17 @@ export function overlayVisibleOnFloor(
   if (!bands.length) return true;
   if (!floorName) {
     if (!span) return true;
+    const ground = bands.find((band) => !band.name);
     if (
       bands.some(
-        (band) => band.name && bandContainsSpan(band, span, at),
+        (band) =>
+          band.name &&
+          !(ground && namedBandDuplicatesGround(band, ground)) &&
+          bandContainsSpan(band, span, at),
       )
     ) {
       return false;
     }
-    const ground = bands.find((band) => !band.name);
     if (!ground) return true;
     return bandMatchesFloor(ground, span, at);
   }
@@ -2459,6 +2480,34 @@ export function skipMapToObjectiveDones(
   return out;
 }
 
+/** 单人准备落盘：只留本图目录内的步骤，并裁到接口上限。 */
+export function clipRaidPrepStateObjectiveDones(
+  rows: Array<{ task_id?: string; objective_id?: string }>,
+  catalogIds?: ReadonlySet<string> | readonly string[],
+): Array<{ task_id: string; objective_id: string }> {
+  const allow =
+    catalogIds == null
+      ? null
+      : catalogIds instanceof Set
+        ? catalogIds
+        : new Set(catalogIds);
+  const out: Array<{ task_id: string; objective_id: string }> = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const taskId = String(row.task_id || "").trim();
+    const objectiveId = String(row.objective_id || "").trim();
+    if (!taskId || !objectiveId) continue;
+    if (taskId.length > 64 || objectiveId.length > 64) continue;
+    if (allow && !allow.has(taskId)) continue;
+    const key = `${taskId}\t${objectiveId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ task_id: taskId, objective_id: objectiveId });
+    if (out.length >= RAID_PREP_STATE_OBJECTIVE_MAX) break;
+  }
+  return out;
+}
+
 export function collectRaidPrepCompletedUsers(
   tasks: readonly RaidPrepTaskLike[],
   mapSlug: string,
@@ -2629,11 +2678,14 @@ export function raidPrepSkipMapForViewer(
 export function planRaidPrepObjectiveToggle(input: {
   localHas: boolean;
   viewHas: boolean;
-}): { nextChecked: boolean; toggleLocal: boolean } {
-  const nextChecked = !input.viewHas;
+  taskDone?: boolean;
+}): { nextChecked: boolean; toggleLocal: boolean; reopenTask: boolean } {
+  const viewHas = input.viewHas || Boolean(input.taskDone);
+  const nextChecked = !viewHas;
   return {
     nextChecked,
     toggleLocal: input.localHas !== nextChecked,
+    reopenTask: Boolean(input.taskDone) && !nextChecked,
   };
 }
 
@@ -3306,7 +3358,11 @@ export function formatRaidPrepOverlayPointTitle(
   return `${name}（第${index + 1}处）`;
 }
 
-export const RAID_PREP_QUEST_POINT_ACTIONS = ["guide", "complete"] as const;
+export const RAID_PREP_QUEST_POINT_ACTIONS = [
+  "guide",
+  "complete",
+  "uncomplete",
+] as const;
 
 export type RaidPrepQuestPointAction =
   (typeof RAID_PREP_QUEST_POINT_ACTIONS)[number];
@@ -3317,20 +3373,23 @@ export const RAID_PREP_QUEST_POINT_ACTION_LABELS: Record<
 > = {
   guide: "查看攻略",
   complete: "已完成该步骤",
+  uncomplete: "取消完成该步骤",
 };
 
-export const RAID_PREP_QUEST_POINT_MENU_HINT = "点击后可查看攻略或标记完成";
+export const RAID_PREP_QUEST_POINT_MENU_HINT =
+  "点击后可查看攻略，或标记 / 取消完成";
 
 /** 地图步骤点点击菜单：有可勾步骤时出菜单，只有攻略则直接打开。 */
 export function raidPrepQuestPointMenuActions(opts: {
   canOpenGuide?: boolean;
   canComplete?: boolean;
   objectiveId?: string;
+  alreadyDone?: boolean;
 }): RaidPrepQuestPointAction[] {
   const out: RaidPrepQuestPointAction[] = [];
   if (opts.canOpenGuide) out.push("guide");
   if (opts.canComplete && String(opts.objectiveId || "").trim()) {
-    out.push("complete");
+    out.push(opts.alreadyDone ? "uncomplete" : "complete");
   }
   return out;
 }
@@ -3354,19 +3413,22 @@ function distinguishTaskOverlays(
   return overlays;
 }
 
-/** 当前用户已勾掉的步骤：只从自己的地图上拿掉对应点，不影响别人。 */
+function markRaidPrepOverlayDone(
+  row: TarkovRaidPrepOverlay,
+  skippedByTask?: RaidPrepSkipMap,
+): TarkovRaidPrepOverlay {
+  const id = (row.objectiveId || "").trim();
+  const done = Boolean(id && skippedByTask?.get(row.taskId)?.has(id));
+  if (Boolean(row.done) === done) return row;
+  return { ...row, done };
+}
+
+/** 当前用户已勾掉的步骤：自己的地图上淡显示，方便取消完成。 */
 export function filterRaidPrepOverlaysForViewer(
   overlays: readonly TarkovRaidPrepOverlay[],
   skippedByTask?: RaidPrepSkipMap,
 ): TarkovRaidPrepOverlay[] {
-  if (!skippedByTask?.size) return [...overlays];
-  return overlays.filter((row) => {
-    const done = skippedByTask.get(row.taskId);
-    if (!done?.size) return true;
-    const id = (row.objectiveId || "").trim();
-    if (!id) return true;
-    return !done.has(id);
-  });
+  return overlays.map((row) => markRaidPrepOverlayDone(row, skippedByTask));
 }
 
 /**
@@ -3389,27 +3451,14 @@ export function filterRaidPrepOverlaysForSelection(
   if (selectedKeys == null) {
     return filterRaidPrepOverlaysForViewer(overlays, opts.skippedByTask);
   }
-  return overlays.filter((row) => {
-    const people = raidPrepParticipants(
-      opts.participantsByTask?.get(row.taskId),
-    );
-    if (!raidPrepQuestOverlayVisible(people, selectedKeys)) return false;
-    const id = (row.objectiveId || "").trim();
-    if (!id) return true;
-    if (!people.length) return true;
-    const selectedPeople = people.filter((person) =>
-      selectedKeys.has(raidPrepPersonKey(person)),
-    );
-    return selectedPeople.some((person) => {
-      if (person.userId == null) return true;
-      return !userMarkedObjective(
-        opts.objectiveDones,
-        row.taskId,
-        id,
-        person.userId,
+  return overlays
+    .filter((row) => {
+      const people = raidPrepParticipants(
+        opts.participantsByTask?.get(row.taskId),
       );
-    });
-  });
+      return raidPrepQuestOverlayVisible(people, selectedKeys);
+    })
+    .map((row) => markRaidPrepOverlayDone(row, opts.skippedByTask));
 }
 
 /** 地图任务点：按本图几何生成；缺钥匙不藏点。个人勾选由 filterRaidPrepOverlaysForViewer 处理。 */

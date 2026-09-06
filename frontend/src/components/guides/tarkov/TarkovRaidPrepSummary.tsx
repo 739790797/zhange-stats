@@ -383,8 +383,10 @@ export type RaidPrepParticipant = {
 
 function ParticipantChips({
   people,
+  viewerId,
 }: {
   people: readonly RaidPrepParticipant[];
+  viewerId?: number | null;
 }) {
   if (!people.length) {
     return <span className={styles.summaryNone}>—</span>;
@@ -394,7 +396,11 @@ function ParticipantChips({
       {people.map((person, index) => (
         <span
           key={`${person.userId ?? person.name}-${index}`}
-          className={styles.summaryPerson}
+          className={`${styles.summaryPerson}${
+            viewerId != null && person.userId === viewerId
+              ? ` ${styles.summaryPersonMine}`
+              : ""
+          }`}
           title={person.name}
         >
           <span
@@ -590,10 +596,11 @@ function SummaryList({
   viewerId?: number | null;
 }) {
   const doneIdSet = doneTaskIds instanceof Set ? doneTaskIds : new Set(doneTaskIds || []);
-  const bringKit = collectRaidPrepBringKit(
-    rows,
-    raidPrepTaskIdsForParticipant(participantsByTask, viewerId),
+  const mineTaskIds = raidPrepTaskIdsForParticipant(
+    participantsByTask,
+    viewerId,
   );
+  const bringKit = collectRaidPrepBringKit(rows, mineTaskIds);
   if (!rows.length) {
     return <div className={styles.summaryEmpty}>还没勾选任务</div>;
   }
@@ -699,19 +706,22 @@ function SummaryList({
               row.keys,
               availableKeyIds,
             );
+            const mine = Boolean(mineTaskIds?.has(row.taskId));
             return grid.lines.map((line, index) => (
               <tr
                 key={`${row.taskId}-${index}`}
-                className={
-                  index < grid.lines.length - 1
-                    ? styles.summaryTaskCont
-                    : undefined
-                }
+                className={[
+                  index < grid.lines.length - 1 ? styles.summaryTaskCont : "",
+                  mine ? styles.summaryTaskMine : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined}
               >
                 <td>
                   {index === 0 ? (
                     <ParticipantChips
                       people={participantsByTask?.get(row.taskId) || []}
+                      viewerId={viewerId}
                     />
                   ) : (
                     <span className={styles.summaryNone}> </span>
@@ -824,6 +834,7 @@ function SummaryList({
                   {index === 0 ? (
                     <ParticipantChips
                       people={completedByTask?.get(row.taskId) || []}
+                      viewerId={viewerId}
                     />
                   ) : (
                     <span className={styles.summaryNone}> </span>

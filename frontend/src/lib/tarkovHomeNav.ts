@@ -187,6 +187,40 @@ export function tarkovRaidPulseDemoHref(): string {
   return `${TARKOV_RAID_PREP_PATH}/pulse-demo`;
 }
 
+export const TARKOV_MAINTAIN_MODE = "info";
+export type TarkovMaintainMode = typeof TARKOV_MAINTAIN_MODE;
+
+export function parseTarkovMaintainMode(
+  raw: string | null | undefined,
+): TarkovMaintainMode | "" {
+  const key = (raw || "").trim();
+  if (key === "info" || key === "places" || key === "nav") return "info";
+  return "";
+}
+
+export function tarkovMapsMaintainHref(): string {
+  return `${MAPS_HREF}?maintain=${TARKOV_MAINTAIN_MODE}`;
+}
+
+export function tarkovMapMaintainHref(
+  id: string,
+  mode?: TarkovMaintainMode | "",
+): string {
+  const href = tarkovMapHref(id);
+  if (!mode || href === MAPS_HREF) return href;
+  return `${href}?maintain=${TARKOV_MAINTAIN_MODE}`;
+}
+
+export function isTarkovAdminPath(pathname: string, search = ""): boolean {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === tarkovRaidPulseDemoHref()) return true;
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search,
+  );
+  if (!parseTarkovMaintainMode(params.get("maintain"))) return false;
+  return path === MAPS_HREF || path.startsWith(`${MAPS_HREF}/`);
+}
+
 export function tarkovRaidRoomShareUrl(publicId: string, origin: string): string {
   return `${String(origin || "").replace(/\/$/, "")}${tarkovRaidRoomHref(publicId)}`;
 }
@@ -746,6 +780,33 @@ export type TarkovTopNavItem = {
   groups?: TarkovHomeGroup[];
 };
 
+/** 顶栏管理员下拉；不进公开搜索、不进 TARKOV_TOP_NAV。 */
+export const TARKOV_ADMIN_NAV: TarkovTopNavItem = {
+  id: "admin",
+  label: "管理",
+  href: tarkovMapsMaintainHref(),
+  groups: [
+    {
+      id: "admin",
+      label: "维护",
+      items: [
+        {
+          id: "info",
+          label: "地图信息",
+          href: tarkovMapsMaintainHref(),
+          status: "ready",
+        },
+        {
+          id: "pulse-demo",
+          label: "测试房间",
+          href: tarkovRaidPulseDemoHref(),
+          status: "ready",
+        },
+      ],
+    },
+  ],
+};
+
 export const TARKOV_TOP_NAV: TarkovTopNavItem[] = [
   {
     id: "maps",
@@ -1027,8 +1088,15 @@ export function buildSiteSearchSections(
 }
 
 /** 浏览器标签：栏目名；详情页再用物品/任务名覆盖。 */
-export function tarkovPageTitle(pathname: string): string {
+export function tarkovPageTitle(pathname: string, search = ""): string {
   const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === tarkovRaidPulseDemoHref()) return "测试房间";
+  const maintain = parseTarkovMaintainMode(
+    new URLSearchParams(
+      search.startsWith("?") ? search.slice(1) : search,
+    ).get("maintain"),
+  );
+  if (maintain) return "地图信息";
   if (path === "/guides/tarkov") return "逃离塔科夫";
   if (path.startsWith("/guides/tarkov/tasks")) return "任务";
   if (path.startsWith("/guides/tarkov/raid-prep")) return "联机大厅";

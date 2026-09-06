@@ -10,13 +10,19 @@
 }
 
 .hero {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 24px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: var(--hb-panel, #22241a);
+}
+
+.heroTop {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 380px);
   gap: 24px;
   align-items: stretch;
-  padding: 20px 24px 24px;
-  border: 1px solid var(--hb-border, #3a3d30);
-  background: var(--hb-panel, #22241a);
 }
 
 .headRow {
@@ -194,27 +200,6 @@
   color: #d0ccb8;
 }
 
-.traderCell {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.traderAvatar {
-  width: 22px;
-  height: 22px;
-  object-fit: cover;
-  border-radius: 50%;
-  background: #101010;
-}
-
-.itemCell {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
 .section {
   padding: 16px 20px 20px;
   border: 1px solid var(--hb-border, #3a3d30);
@@ -349,6 +334,79 @@
   font-size: 13px;
 }
 
+.spawnMap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spawnMapTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spawnMapTab,
+.spawnMapTabOn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid #3a3d30;
+  background: #1a1b14;
+  color: #d8d4b8;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.spawnMapTab:hover,
+.spawnMapTabOn {
+  border-color: var(--hb-orange, #c8932a);
+  color: #eee9d6;
+}
+
+.spawnMapSolo {
+  color: #d8d4b8;
+  font-size: 13px;
+}
+
+.spawnLocs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spawnLoc,
+.spawnLocOn {
+  padding: 4px 10px;
+  border: 1px solid #3a3d30;
+  background: #101010;
+  color: #d8d4b8;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.spawnLoc:hover,
+.spawnLocOn {
+  border-color: var(--hb-orange, #c8932a);
+  color: #eee9d6;
+}
+
+.spawnMapEmpty {
+  color: #b0ae9a;
+  font-size: 12px;
+}
+
+.spawnMapFrame {
+  display: flex;
+  flex-direction: column;
+  height: min(52vh, 520px);
+  min-height: 360px;
+  overflow: hidden;
+}
+
 .hubNameCell {
   vertical-align: top;
 }
@@ -362,7 +420,7 @@
 }
 
 @media (max-width: 860px) {
-  .hero {
+  .heroTop {
     grid-template-columns: 1fr;
   }
 

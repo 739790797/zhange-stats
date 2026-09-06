@@ -138,16 +138,6 @@ export function TarkovRaidPrepGuideOverview({
 
   return (
     <ConfigProvider getPopupContainer={popupContainer}>
-      <button
-        type="button"
-        className={styles.summary}
-        onClick={() => setOpen(true)}
-      >
-        <span className={styles.summaryBtnText}>
-          <span className={styles.summaryTitle}>任务攻略总览</span>
-        </span>
-        <span className={styles.summaryAction}>查看</span>
-      </button>
       <Modal
         key={overlayRoot ? "fs" : "page"}
         title="任务攻略总览"

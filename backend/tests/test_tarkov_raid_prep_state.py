@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.database import Base
 from app.core.timeutil import now_naive
 from app.models.user import User, UserRole
+from app.api.guides.schemas import TarkovUserRaidPrepStateIn
 from app.services.tarkov import raid_prep_state as prep
 from app.services.tarkov.game_mode import game_mode_scope
 
@@ -82,3 +83,23 @@ def test_invalid_map_rejected() -> None:
     user = _user(db)
     with pytest.raises(prep.TarkovRaidPrepStateError):
         prep.get_state(db, user, "Nope!")
+
+
+def test_state_in_clips_oversize_and_drops_invalid() -> None:
+    body = TarkovUserRaidPrepStateIn.model_validate(
+        {
+            "selected": [f"t{i}" for i in range(50)],
+            "objective_dones": [
+                {"task_id": f"t{i}", "objective_id": f"o{i}"} for i in range(250)
+            ]
+            + [
+                {"task_id": "", "objective_id": "o"},
+                {"task_id": "ok", "objective_id": ""},
+            ],
+            "key_brings": [f"k{i}" for i in range(100)],
+        }
+    )
+    assert len(body.selected) == 40
+    assert len(body.objective_dones) == 200
+    assert len(body.key_brings) == 80
+    assert body.objective_dones[0].task_id == "t0"

@@ -3,6 +3,7 @@ import {
   CANVAS_MARKER_EVENT,
   canvasIconScreenRect,
   canvasIconViewSize,
+  canvasMarkerDrawOpacity,
   hitTestCanvasIcons,
   ICON_CANVAS_PADDING,
   isCanvasMarkerEvent,
@@ -105,6 +106,14 @@ describe("tarkov map canvas markers", () => {
     expect((event as unknown as Record<string, boolean>)[CANVAS_MARKER_EVENT]).toBe(
       true,
     );
+  });
+
+  it("clamps canvas icon opacity for off-height drawing", () => {
+    expect(canvasMarkerDrawOpacity(undefined)).toBe(1);
+    expect(canvasMarkerDrawOpacity(Number.NaN)).toBe(1);
+    expect(canvasMarkerDrawOpacity(0.42)).toBe(0.42);
+    expect(canvasMarkerDrawOpacity(-1)).toBe(0);
+    expect(canvasMarkerDrawOpacity(2)).toBe(1);
   });
 
   it("rejects icons fully outside the padded view", () => {

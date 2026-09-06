@@ -70,7 +70,11 @@ import {
   colorForUserId,
   PULSE_DEMO_BOTS,
   PULSE_DEMO_MAP_ID,
+  PULSE_DEMO_TICK_MAX_MS,
+  PULSE_DEMO_TICK_MIN_MS,
   isPulseDemoSession,
+  nextPulseDemoBotIndex,
+  nextPulseDemoWaitMs,
   pulseDemoFixAt,
   pulseDemoMembers,
   PLAYER_FIX_PULSE_MS,
@@ -895,7 +899,7 @@ describe("raid room helpers", () => {
     expect(pruneStalePlayerFixes([first], 1000 + 60_000)).toEqual([first]);
   });
 
-  it("builds a star of find-teammate pulse lines to the updater", () => {
+  it("builds a find-teammate pulse only from the viewer to the updater", () => {
     const marks = [
       { userId: 1, x: 0, y: 0, z: 0, key: "self", floor: "ground" },
       { userId: 2, x: 10, y: 0, z: 0, key: "u:2", floor: "ground" },
@@ -905,6 +909,7 @@ describe("raid room helpers", () => {
       buildPlayerFixPulseLines({
         marks,
         updaterId: 2,
+        viewerId: 1,
         now: 1000,
         seatedCount: 1,
       }),
@@ -913,6 +918,16 @@ describe("raid room helpers", () => {
       buildPlayerFixPulseLines({
         marks: [marks[1]!],
         updaterId: 2,
+        viewerId: 1,
+        now: 1000,
+        seatedCount: 3,
+      }),
+    ).toEqual([]);
+    expect(
+      buildPlayerFixPulseLines({
+        marks,
+        updaterId: 2,
+        viewerId: 2,
         now: 1000,
         seatedCount: 3,
       }),
@@ -920,18 +935,24 @@ describe("raid room helpers", () => {
     const lines = buildPlayerFixPulseLines({
       marks,
       updaterId: 2,
+      viewerId: 1,
       now: 1000,
       seatedCount: 3,
     });
-    expect(lines.map((row) => `${row.fromUserId}->${row.toUserId}`).sort()).toEqual(
-      ["1->2", "3->2"],
-    );
-    expect(lines.some((row) => row.fromUserId === 2)).toBe(false);
-    expect(new Set(lines.map((row) => row.color))).toEqual(
-      new Set([colorForUserId(2)]),
-    );
-    expect(lines.find((row) => row.fromUserId === 1)?.crossFloor).toBe(false);
-    expect(lines.find((row) => row.fromUserId === 3)?.crossFloor).toBe(true);
+    expect(lines.map((row) => `${row.fromUserId}->${row.toUserId}`)).toEqual([
+      "1->2",
+    ]);
+    expect(lines[0]?.color).toBe(colorForUserId(2));
+    expect(lines[0]?.crossFloor).toBe(false);
+    expect(
+      buildPlayerFixPulseLines({
+        marks,
+        updaterId: 3,
+        viewerId: 1,
+        now: 1000,
+        seatedCount: 3,
+      })[0]?.crossFloor,
+    ).toBe(true);
     expect(playerFixPulseCrossFloor("", "second")).toBe(false);
     expect(playerFixPulseCrossFloor("ground", "second")).toBe(true);
     expect(playerFixPulseOpacity(1000, 1000)).toBe(1);
@@ -945,6 +966,7 @@ describe("raid room helpers", () => {
           { userId: 2, x: 20, y: 0, z: 20, key: "u:2:next" },
         ],
         updaterId: 2,
+        viewerId: 1,
         now: 2000,
         seatedCount: 3,
       }),
@@ -961,12 +983,14 @@ describe("raid room helpers", () => {
     const otherPulse = buildPlayerFixPulseLines({
       marks,
       updaterId: 3,
+      viewerId: 1,
       now: 1500,
       seatedCount: 3,
     });
     const both = replacePlayerFixPulseLines(lines, otherPulse, 3);
-    expect(both.filter((row) => row.toUserId === 2)).toHaveLength(2);
-    expect(both.filter((row) => row.toUserId === 3)).toHaveLength(2);
+    expect(both.map((row) => `${row.fromUserId}->${row.toUserId}`).sort()).toEqual(
+      ["1->2", "1->3"],
+    );
     expect(
       retainPlayerFixPulseLines(lines, { now: 1000, seatedCount: 1 }),
     ).toEqual([]);
@@ -988,8 +1012,8 @@ describe("raid room helpers", () => {
         now: 1000,
         seatedCount: 3,
         locatedUserIds: new Set([2, 3]),
-      }).map((row) => row.fromUserId),
-    ).toEqual([3]);
+      }),
+    ).toEqual([]);
     const hydrated = detectPlayerFixPulseUpdaters(null, marks);
     expect(hydrated.updaterIds).toEqual([]);
     expect(
@@ -1027,13 +1051,18 @@ describe("raid room helpers", () => {
     expect(next?.x).not.toBe(first?.x);
     expect(pulseDemoFixAt({ userId: 7, step: 0 })).toBeNull();
     expect(pulseDemoMembers(null).map((row) => row.user_id)).toEqual([
-      900001, 900002,
+      900001, 900002, 900003, 900004,
     ]);
     expect(
       pulseDemoMembers({ user_id: 12, display_name: "我" }).map(
         (row) => row.user_id,
       ),
-    ).toEqual([12, 900001, 900002]);
+    ).toEqual([12, 900001, 900002, 900003, 900004]);
+    expect(PULSE_DEMO_BOTS).toHaveLength(4);
+    expect(nextPulseDemoWaitMs(0)).toBe(PULSE_DEMO_TICK_MIN_MS);
+    expect(nextPulseDemoWaitMs(1)).toBe(PULSE_DEMO_TICK_MAX_MS);
+    expect(nextPulseDemoBotIndex(1, 4, 0)).not.toBe(1);
+    expect(nextPulseDemoBotIndex(1, 4, 0.99)).not.toBe(1);
   });
 
   it("formats overlap cells and ranks map rows", () => {

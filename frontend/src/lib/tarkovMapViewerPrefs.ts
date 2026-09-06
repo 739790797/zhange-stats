@@ -105,6 +105,18 @@ export function overlayFlagsForMode(
   };
 }
 
+/** 钥匙详情要看得见那一扇门，比任务点再近两级。 */
+export function mapFocusZoom(
+  overlayMode: TarkovMapOverlayMode,
+  minZoom: number,
+  maxZoom: number,
+  currentZoom: number,
+): number {
+  const bump = overlayMode === "locks" ? 3 : 1;
+  const target = Math.min(maxZoom, minZoom + bump);
+  return Math.max(currentZoom, target);
+}
+
 export type TarkovMapViewerStyle = "svg" | "tile";
 
 export type TarkovMapViewerPrefs = {
@@ -317,11 +329,25 @@ export function resolveMapStyle(
   return "tile";
 }
 
+/** maps.json `show: true` 的默认高度层（立交桥 2 层、破冰者医务室）。 */
+export function defaultShownFloorName(
+  layers?: Array<{ name?: string; show?: boolean }> | null,
+): string {
+  const shown = (layers || []).find(
+    (layer) => layer.show && (layer.name || "").trim(),
+  );
+  return (shown?.name || "").trim();
+}
+
 /** `undefined` = 这张图还没选过；空字符串 = 地面 */
 export function resolveMapFloor(
   saved: string | undefined,
   floorNames: string[],
+  fallback = "",
 ): string {
+  if (saved === undefined) {
+    return fallback && floorNames.includes(fallback) ? fallback : "";
+  }
   if (!saved) return "";
   return floorNames.includes(saved) ? saved : "";
 }

@@ -46,7 +46,11 @@ export function TarkovMePanel() {
     <div
       className={`${styles.stack}${tab === "collection" ? ` ${styles.stackFill}` : ""}`}
     >
-      <div className={trade.chipBar} role="tablist" aria-label="个人中心栏目">
+      <div
+        className={`${trade.chipBar} ${styles.tabs}`}
+        role="tablist"
+        aria-label="个人中心栏目"
+      >
         {TABS.map((item) => (
           <button
             key={item.id}

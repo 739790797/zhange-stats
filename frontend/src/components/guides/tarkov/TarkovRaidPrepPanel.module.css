@@ -1488,6 +1488,16 @@
   background: rgba(200, 147, 42, 0.22);
 }
 
+.summaryOn {
+  border-color: var(--hb-orange, #c8932a);
+  background: #22241a;
+}
+
+.summaryOn .summaryAction {
+  border-color: var(--hb-orange, #c8932a);
+  background: rgba(200, 147, 42, 0.22);
+}
+
 .summaryStack {
   display: flex;
   flex-direction: column;
@@ -1903,7 +1913,6 @@
 }
 
 .entryModalBody {
-  max-height: min(72vh, 720px);
   overflow: auto;
 }
 
@@ -2284,6 +2293,18 @@
   border-bottom-right-radius: 4px;
 }
 
+.summaryTable tbody tr.summaryTaskMine td {
+  background: rgba(200, 147, 42, 0.14);
+}
+
+.summaryTable tbody tr.summaryTaskMine td.summaryBringCol {
+  background: rgba(200, 147, 42, 0.2);
+}
+
+.summaryTable tbody tr.summaryTaskMine td:first-child {
+  box-shadow: inset 3px 0 0 var(--hb-orange, #c8932a);
+}
+
 .summaryTask {
   display: flex;
   align-items: center;
@@ -2642,6 +2663,11 @@
   color: #eee9d6;
   font-size: 12px;
   line-height: 1.3;
+}
+
+.summaryPersonMine {
+  border-color: rgba(200, 147, 42, 0.55);
+  background: rgba(200, 147, 42, 0.18);
 }
 
 .summaryPersonName {

@@ -4,6 +4,13 @@
   gap: 20px;
 }
 
+.editBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .status {
   padding: 48px;
   text-align: center;

@@ -16,7 +16,13 @@ import {
   tarkovMeHref,
   tarkovKeyPackHref,
   TARKOV_HOME_PATH,
+  TARKOV_ADMIN_NAV,
   TARKOV_TOP_NAV,
+  isTarkovAdminPath,
+  parseTarkovMaintainMode,
+  tarkovMapMaintainHref,
+  tarkovMapsMaintainHref,
+  tarkovRaidPulseDemoHref,
   TARKOV_TRADERS,
   isTarkovHomePath,
   bossPortraitUrl,
@@ -391,6 +397,36 @@ describe("isTarkovTopNavActive", () => {
   });
 });
 
+describe("TARKOV_ADMIN_NAV", () => {
+  it("keeps maintain links out of the public top nav", () => {
+    expect(TARKOV_TOP_NAV.map((item) => item.id)).not.toContain("admin");
+    expect(TARKOV_ADMIN_NAV).toMatchObject({
+      id: "admin",
+      label: "管理",
+    });
+    expect(TARKOV_ADMIN_NAV.groups?.[0]?.items.map((item) => item.id)).toEqual([
+      "info",
+      "pulse-demo",
+    ]);
+    expect(tarkovMapsMaintainHref()).toBe("/guides/tarkov/maps?maintain=info");
+    expect(tarkovMapMaintainHref("customs", "info")).toBe(
+      "/guides/tarkov/maps/customs?maintain=info",
+    );
+    expect(parseTarkovMaintainMode("info")).toBe("info");
+    expect(parseTarkovMaintainMode("places")).toBe("info");
+    expect(parseTarkovMaintainMode("nope")).toBe("");
+    expect(isTarkovAdminPath("/guides/tarkov/maps", "maintain=info")).toBe(true);
+    expect(
+      isTarkovAdminPath("/guides/tarkov/maps/customs", "maintain=places"),
+    ).toBe(true);
+    expect(isTarkovAdminPath("/guides/tarkov/maps")).toBe(false);
+    expect(isTarkovAdminPath(tarkovRaidPulseDemoHref())).toBe(true);
+    const index = buildHomeSearchIndex();
+    expect(index.some((hit) => hit.label === "地图信息")).toBe(false);
+    expect(index.some((hit) => hit.id === "pulse-demo")).toBe(false);
+  });
+});
+
 describe("TARKOV_TOP_NAV", () => {
   it("nests tasks under progression instead of a top-level item", () => {
     expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("tasks");
@@ -523,6 +559,15 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/items/meds")).toBe("医疗物品");
     expect(tarkovPageTitle("/guides/tarkov/tasks/abc")).toBe("任务");
     expect(tarkovPageTitle("/guides/tarkov/raid-prep")).toBe("联机大厅");
+    expect(tarkovPageTitle("/guides/tarkov/raid-prep/pulse-demo")).toBe(
+      "测试房间",
+    );
+    expect(tarkovPageTitle("/guides/tarkov/maps", "maintain=info")).toBe(
+      "地图信息",
+    );
+    expect(tarkovPageTitle("/guides/tarkov/maps/customs", "maintain=nav")).toBe(
+      "地图信息",
+    );
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
     expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
     expect(tarkovPageTitle("/guides/tarkov/barters")).toBe("商人交易利润");

@@ -1,4 +1,4 @@
-"""逃离塔科夫 BOSS：json.tarkov.dev maps + mobs，读时用物品 raw 填特殊战利品价格。"""
+"""逃离塔科夫 BOSS：json.tarkov.dev maps + mobs，读时用物品 raw 填配装名称/图标。"""
 
 from __future__ import annotations
 
@@ -22,13 +22,11 @@ from app.services.tarkov.game_mode import (
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
-from app.services.tarkov.tasks import TRADER_BY_ID
 
 logger = logging.getLogger(__name__)
 
 BOSSES_JOB_KEY = "tarkov_bosses_sync"
 DOWNLOAD_TIMEOUT = 180
-LOOT_VALUE_CUTOFF = 80_000
 
 TARKOV_JSON_MAPS_URL = "https://json.tarkov.dev/regular/maps"
 TARKOV_JSON_MAPS_LOCALE_URL = "https://json.tarkov.dev/regular/maps_{lang}"
@@ -158,6 +156,100 @@ MAP_ZH: dict[str, str] = {
     "icebreaker": "破冰船",
     "terminal": "码头",
 }
+
+# 手册分类 id 与 frontend TARKOV_HANDBOOK_ROOTS / 子类对齐；dump 无游戏槽位，按手册+types 归栏。
+HB_HEADWEAR = "5b47574386f77428ca22b330"
+HB_FACE = "5b47574386f77428ca22b32f"
+HB_EYEWEAR = "5b47574386f77428ca22b331"
+HB_HEADSET = "5b5f6f3c86f774094242ef87"
+HB_ARMOR = "5b5f701386f774093f2ecf0f"
+HB_RIG = "5b5f6f8786f77447ed563642"
+HB_BACKPACK = "5b5f6f6c86f774093f2ecf0b"
+HB_CONTAINER = "5b5f6fa186f77409407a7eb7"
+HB_SECURE = "5b5f6fd286f774093f2ecf0d"
+HB_ASSAULT = "5b5f78fc86f77409407a7f90"
+HB_SMG = "5b5f796a86f774093f2ed3c0"
+HB_SHOTGUN = "5b5f794b86f77409407a7f92"
+HB_MG = "5b5f79a486f77409407a7f94"
+HB_CARBINE = "5b5f78e986f77447ed5636b1"
+HB_GL = "5b5f79d186f774093f2ed3c2"
+HB_DMR = "5b5f791486f774093f2ed3be"
+HB_BOLT = "5b5f798886f77447ed5636b5"
+HB_SPECIAL_GUN = "5b5f79eb86f77447ed5636b7"
+HB_PISTOL = "5b5f792486f77447ed5636b3"
+HB_MELEE = "5b5f7a0886f77409407a7f96"
+HB_GRENADE = "5b5f7a2386f774093f2ed3c4"
+HB_AMMO = "5b47574386f77428ca22b346"
+HB_AMMO_BOX = "5b47574386f77428ca22b33c"
+HB_AMMO_ROUND = "5b47574386f77428ca22b33b"
+HB_MEDS = "5b47574386f77428ca22b344"
+HB_PROVISIONS = "5b47574386f77428ca22b340"
+HB_KEYS = "5b47574386f77428ca22b342"
+HB_SPECIAL = "5b47574386f77428ca22b345"
+
+EQUIPMENT_SLOT_OTHER = "other"
+EQUIPMENT_SLOT_OTHER_LABEL = "其他"
+
+
+@dataclass(frozen=True)
+class EquipmentSlotDef:
+    key: str
+    label: str
+    handbook_ids: frozenset[str]
+    types: frozenset[str]
+
+
+EQUIPMENT_SLOTS: tuple[EquipmentSlotDef, ...] = (
+    EquipmentSlotDef("headwear", "头部装备", frozenset({HB_HEADWEAR}), frozenset({"helmet"})),
+    EquipmentSlotDef("face", "面部装备", frozenset({HB_FACE}), frozenset()),
+    EquipmentSlotDef("eyewear", "眼部装备", frozenset({HB_EYEWEAR}), frozenset({"glasses"})),
+    EquipmentSlotDef("earpiece", "耳机", frozenset({HB_HEADSET}), frozenset({"headphones"})),
+    EquipmentSlotDef("armor", "身体护甲", frozenset({HB_ARMOR}), frozenset({"armor", "armorplate"})),
+    EquipmentSlotDef("rig", "战术胸挂", frozenset({HB_RIG}), frozenset({"rig"})),
+    EquipmentSlotDef("backpack", "背包", frozenset({HB_BACKPACK}), frozenset({"backpack"})),
+    EquipmentSlotDef(
+        "gun",
+        "武器",
+        frozenset(
+            {
+                HB_ASSAULT,
+                HB_SMG,
+                HB_SHOTGUN,
+                HB_MG,
+                HB_CARBINE,
+                HB_GL,
+                HB_DMR,
+                HB_BOLT,
+                HB_SPECIAL_GUN,
+            }
+        ),
+        frozenset({"gun", "preset"}),
+    ),
+    EquipmentSlotDef("pistol", "手枪", frozenset({HB_PISTOL}), frozenset()),
+    EquipmentSlotDef("melee", "近战武器", frozenset({HB_MELEE}), frozenset({"melee"})),
+    EquipmentSlotDef("grenade", "投掷物", frozenset({HB_GRENADE}), frozenset({"grenade"})),
+    EquipmentSlotDef(
+        "ammo",
+        "弹药",
+        frozenset({HB_AMMO, HB_AMMO_BOX, HB_AMMO_ROUND}),
+        frozenset({"ammo", "ammobox"}),
+    ),
+    EquipmentSlotDef("meds", "医疗物品", frozenset({HB_MEDS}), frozenset({"meds", "injectors"})),
+    EquipmentSlotDef("provisions", "饮食", frozenset({HB_PROVISIONS}), frozenset({"provisions"})),
+    EquipmentSlotDef("keys", "钥匙", frozenset({HB_KEYS}), frozenset({"keys", "key"})),
+    EquipmentSlotDef("special", "特殊装备", frozenset({HB_SPECIAL}), frozenset({"specialslot"})),
+    EquipmentSlotDef(
+        "container",
+        "容器",
+        frozenset({HB_CONTAINER, HB_SECURE}),
+        frozenset({"container"}),
+    ),
+)
+
+EQUIPMENT_SLOT_INDEX: dict[str, int] = {
+    slot.key: index for index, slot in enumerate(EQUIPMENT_SLOTS)
+}
+EQUIPMENT_SLOT_INDEX[EQUIPMENT_SLOT_OTHER] = len(EQUIPMENT_SLOTS)
 
 BOSS_STATIC: dict[str, dict[str, str]] = {
     "rogue": {
@@ -600,6 +692,25 @@ def _slim_item_ids(raw: Any) -> list[str]:
     return out
 
 
+def _contains_entries(raw: Any) -> list[dict[str, Any]]:
+    """兼容旧 slim（纯 id 列表）与 dump（{item, count}）。"""
+    out: list[dict[str, Any]] = []
+    if not isinstance(raw, list):
+        return out
+    for row in raw:
+        ident = ""
+        count = 1
+        if isinstance(row, str):
+            ident = row.strip()
+        elif isinstance(row, dict):
+            ident = _id_of(row.get("item") or row)
+            count = _as_int(row.get("count") or row.get("quantity"), 1) or 1
+        if not ident:
+            continue
+        out.append({"item": ident, "count": max(int(count), 1)})
+    return out
+
+
 def _slim_equipment(raw: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     if not isinstance(raw, list):
@@ -610,14 +721,255 @@ def _slim_equipment(raw: Any) -> list[dict[str, Any]]:
         item_id = _id_of(row.get("item"))
         if not item_id:
             continue
-        contains: list[str] = []
-        blob = row.get("contains") or row.get("containsItems")
-        if isinstance(blob, list):
-            for child in blob:
-                cid = _id_of(child.get("item") if isinstance(child, dict) else child)
-                if cid:
-                    contains.append(cid)
-        out.append({"item": item_id, "contains": contains})
+        count = _as_int(row.get("count") or row.get("quantity"), 1) or 1
+        out.append(
+            {
+                "item": item_id,
+                "count": max(int(count), 1),
+                "contains": _contains_entries(
+                    row.get("contains") or row.get("containsItems")
+                ),
+            }
+        )
+    return out
+
+
+_WEAPON_PART_PROPS = frozenset(
+    {
+        "itempropertiesweaponmod",
+        "itempropertiesbarrel",
+        "itempropertiesscope",
+        "itempropertiessight",
+        "itempropertiesstock",
+        "itempropertieshandguard",
+        "itempropertiespistolgrip",
+        "itempropertiesmagazine",
+    }
+)
+
+
+def _item_types(item: dict[str, Any] | None) -> set[str]:
+    row = item if isinstance(item, dict) else {}
+    return {
+        str(t).strip().lower()
+        for t in (row.get("types") or [])
+        if t is not None and str(t).strip()
+    }
+
+
+def _item_props(item: dict[str, Any] | None) -> str:
+    row = item if isinstance(item, dict) else {}
+    return str(row.get("properties_type") or "").strip().lower()
+
+
+def skip_equipment_slot_item(item: dict[str, Any] | None) -> bool:
+    """枪配件/弹匣不当独立栏位；弹药挂在枪下。投掷物保留。"""
+    types = _item_types(item)
+    pt = _item_props(item)
+    if "grenade" in types or pt == "itempropertiesgrenade":
+        return False
+    if "ammo" in types or "ammobox" in types or pt == "itempropertiesammo":
+        return True
+    if "mods" in types or pt in _WEAPON_PART_PROPS:
+        return True
+    return False
+
+
+def is_stowed_content(item: dict[str, Any] | None) -> bool:
+    """枪里塞的：弹匣 / 弹药；护甲里的插板。"""
+    return contained_kind(item) in {"magazine", "ammo", "plate"}
+
+
+def contained_kind(item: dict[str, Any] | None) -> str:
+    types = _item_types(item)
+    pt = _item_props(item)
+    if pt == "itempropertiesmagazine":
+        return "magazine"
+    if "ammo" in types or "ammobox" in types or pt == "itempropertiesammo":
+        return "ammo"
+    if "armorplate" in types:
+        return "plate"
+    return "other"
+
+
+def _ammo_ballistics(item: dict[str, Any] | None) -> dict[str, int | None]:
+    row = item if isinstance(item, dict) else {}
+    props = row.get("properties") if isinstance(row.get("properties"), dict) else {}
+    damage = props.get("damage", row.get("damage"))
+    penetration = props.get(
+        "penetrationPower",
+        props.get("penetration", row.get("penetration")),
+    )
+    armor_damage = props.get(
+        "armorDamage",
+        props.get("armor_damage", row.get("armor_damage")),
+    )
+    return {
+        "damage": _as_int(damage, None),
+        "penetration": _as_int(penetration, None),
+        "armor_damage": _as_int(armor_damage, None),
+    }
+
+
+def _gear_item_id(gear: dict[str, Any]) -> str:
+    return _id_of(gear.get("item"))
+
+
+def _gear_contains(gear: dict[str, Any]) -> list[dict[str, Any]]:
+    return _contains_entries(gear.get("contains") or gear.get("containsItems"))
+
+
+def equipment_slot_for_item(item: dict[str, Any] | None) -> tuple[str, str]:
+    """按手册子类优先、其次 types，归到装备栏。"""
+    row = item if isinstance(item, dict) else {}
+    types = _item_types(row)
+    pt = _item_props(row)
+    if pt == "itempropertiesarmorattachment":
+        if "armorplate" in types:
+            return "armor", "身体护甲"
+        return "face", "面部装备"
+    if pt == "itempropertiesmelee":
+        return "melee", "近战武器"
+    if pt == "itempropertiesgrenade":
+        return "grenade", "投掷物"
+    handbook = {
+        str(x).strip()
+        for x in (row.get("handbook_ids") or [])
+        if x is not None and str(x).strip()
+    }
+    for slot in EQUIPMENT_SLOTS:
+        if slot.handbook_ids and handbook & slot.handbook_ids:
+            return slot.key, slot.label
+    for slot in EQUIPMENT_SLOTS:
+        if slot.types and types & slot.types:
+            return slot.key, slot.label
+    return EQUIPMENT_SLOT_OTHER, EQUIPMENT_SLOT_OTHER_LABEL
+
+
+def _gear_item_ref(
+    items: dict[str, dict[str, Any]],
+    item_id: str,
+    *,
+    count: int = 1,
+) -> dict[str, Any]:
+    row = items.get(item_id) or {}
+    types = [str(t) for t in (row.get("types") or [])]
+    return {
+        "item_id": str(row.get("id") or item_id),
+        "name": str(row.get("name") or item_id),
+        "short_name": str(row.get("short_name") or ""),
+        "icon_link": str(row.get("icon_link") or ""),
+        "types": types,
+        "count": max(int(count or 1), 1),
+    }
+
+
+def _contained_ref(
+    items: dict[str, dict[str, Any]],
+    item_id: str,
+    *,
+    count: int = 1,
+) -> dict[str, Any]:
+    packed = _gear_item_ref(items, item_id, count=count)
+    catalog = items.get(item_id)
+    kind = contained_kind(catalog)
+    packed["kind"] = kind
+    if kind == "ammo":
+        packed.update(_ammo_ballistics(catalog))
+    return packed
+
+
+def _merge_contained(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    order: list[dict[str, Any]] = []
+    for row in existing:
+        ident = str(row.get("item_id") or "")
+        if not ident or ident in by_id:
+            continue
+        by_id[ident] = row
+        order.append(row)
+    for row in incoming:
+        ident = str(row.get("item_id") or "")
+        if not ident:
+            continue
+        prev = by_id.get(ident)
+        if prev is None:
+            by_id[ident] = row
+            order.append(row)
+            continue
+        prev["count"] = max(int(prev.get("count") or 1), int(row.get("count") or 1))
+    return order
+
+
+def build_equipment_slots(
+    row: dict[str, Any],
+    items: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for gear in row.get("equipment") or []:
+        if not isinstance(gear, dict):
+            continue
+        item_id = _gear_item_id(gear)
+        if not item_id:
+            continue
+        catalog = items.get(item_id)
+        if skip_equipment_slot_item(catalog):
+            continue
+        slot_key, slot_label = equipment_slot_for_item(catalog)
+        packed = _gear_item_ref(
+            items,
+            item_id,
+            count=_as_int(gear.get("count"), 1) or 1,
+        )
+        nested: list[dict[str, Any]] = []
+        for child in _gear_contains(gear):
+            cid = str(child.get("item") or "").strip()
+            if not cid:
+                continue
+            child_row = items.get(cid)
+            if not is_stowed_content(child_row):
+                continue
+            nested.append(
+                _contained_ref(items, cid, count=int(child.get("count") or 1))
+            )
+        packed["contains"] = _merge_contained([], nested)
+        bucket = buckets.get(slot_key)
+        if bucket is None:
+            bucket = {"key": slot_key, "label": slot_label, "items": [], "index": {}}
+            buckets[slot_key] = bucket
+            order.append(slot_key)
+        by_id: dict[str, dict[str, Any]] = bucket["index"]
+        prev = by_id.get(item_id)
+        if prev is None:
+            by_id[item_id] = packed
+            bucket["items"].append(packed)
+            continue
+        prev["count"] = max(int(prev.get("count") or 1), int(packed.get("count") or 1))
+        prev["contains"] = _merge_contained(
+            list(prev.get("contains") or []),
+            nested,
+        )
+    order.sort(key=lambda key: EQUIPMENT_SLOT_INDEX.get(key, 999))
+    out: list[dict[str, Any]] = []
+    for key in order:
+        bucket = buckets[key]
+        items_out = [
+            {
+                "item_id": it.get("item_id") or "",
+                "name": it.get("name") or "",
+                "short_name": it.get("short_name") or "",
+                "icon_link": it.get("icon_link") or "",
+                "types": list(it.get("types") or []),
+                "count": int(it.get("count") or 1),
+                "contains": list(it.get("contains") or []),
+            }
+            for it in bucket["items"]
+        ]
+        out.append({"key": bucket["key"], "label": bucket["label"], "items": items_out})
     return out
 
 
@@ -1198,7 +1550,7 @@ def _project_mob(
         "health": parts,
         "maps": [],
         "item_ids": list(raw.get("items") or []),
-        "equipment": list(raw.get("equipment") or []),
+        "equipment": _slim_equipment(raw.get("equipment")),
         "parent_ids": [],
     }
 
@@ -1301,122 +1653,6 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def _item_slot_value(item: dict[str, Any]) -> float:
-    slots = max(int(item.get("width") or 1) * int(item.get("height") or 1), 1)
-    best = 0
-    for key in ("last_low_price", "avg24h_price"):
-        val = item.get(key)
-        if isinstance(val, int) and val > best:
-            best = val
-    for sell in item.get("sell_to_trader") or []:
-        if not isinstance(sell, dict):
-            continue
-        price = int(sell.get("price_rub") or 0)
-        if price > best:
-            best = price
-    return best / slots
-
-
-def _best_trader_sell(item: dict[str, Any]) -> dict[str, Any] | None:
-    best: dict[str, Any] | None = None
-    best_price = -1
-    for sell in item.get("sell_to_trader") or []:
-        if not isinstance(sell, dict):
-            continue
-        price = int(sell.get("price_rub") or 0)
-        if price > best_price:
-            best_price = price
-            best = sell
-    return best
-
-
-def _is_key_loot(item: dict[str, Any]) -> bool:
-    types = {str(t).lower() for t in (item.get("types") or [])}
-    if "keys" not in types:
-        return False
-    slug = str(item.get("normalized_name") or item.get("name") or "").lower()
-    if "keycard" in slug or "marked" in slug:
-        return False
-    return True
-
-
-def _loot_row(item: dict[str, Any]) -> dict[str, Any]:
-    trader = _best_trader_sell(item)
-    flea = item.get("last_low_price")
-    if flea is None:
-        flea = item.get("avg24h_price")
-    types = [str(t) for t in (item.get("types") or [])]
-    no_flea = "noflea" in {t.lower() for t in types}
-    return {
-        "item_id": item.get("id") or "",
-        "name": item.get("name") or item.get("id") or "",
-        "short_name": item.get("short_name") or "",
-        "icon_link": item.get("icon_link") or "",
-        "types": types,
-        "flea_price": None if no_flea else flea,
-        "trader_slug": str((trader or {}).get("slug") or ""),
-        "trader_name": str((trader or {}).get("name") or ""),
-        "trader_price": int((trader or {}).get("price_rub") or 0) or None,
-        "trader_currency": str((trader or {}).get("currency") or "RUB"),
-    }
-
-
-def build_unique_loot(
-    row: dict[str, Any],
-    items: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    loot: list[dict[str, Any]] = []
-    loot_keys: list[dict[str, Any]] = []
-    seen: set[str] = set()
-
-    def add(item: dict[str, Any], *, as_key: bool = False) -> None:
-        item_id = str(item.get("id") or "")
-        if not item_id or item_id in seen:
-            return
-        seen.add(item_id)
-        packed = {**item, "_slot": _item_slot_value(item)}
-        if as_key:
-            loot_keys.append(packed)
-        else:
-            loot.append(packed)
-
-    for gear in row.get("equipment") or []:
-        if not isinstance(gear, dict):
-            continue
-        parent = items.get(str(gear.get("item") or ""))
-        if not parent:
-            continue
-        types = {str(t).lower() for t in (parent.get("types") or [])}
-        if "noflea" in types or _item_slot_value(parent) > LOOT_VALUE_CUTOFF:
-            add(parent)
-            continue
-        for cid in gear.get("contains") or []:
-            child = items.get(str(cid))
-            if not child:
-                continue
-            child_types = {str(t).lower() for t in (child.get("types") or [])}
-            if "noflea" in child_types or _item_slot_value(child) > LOOT_VALUE_CUTOFF:
-                add(parent)
-                break
-
-    for item_id in row.get("item_ids") or []:
-        item = items.get(str(item_id))
-        if not item:
-            continue
-        types = {str(t).lower() for t in (item.get("types") or [])}
-        if "noflea" in types:
-            add(item)
-            continue
-        if _item_slot_value(item) > LOOT_VALUE_CUTOFF:
-            add(item, as_key=_is_key_loot(item))
-
-    loot.sort(key=lambda it: float(it.get("_slot") or 0), reverse=True)
-    loot_keys.sort(key=lambda it: float(it.get("_slot") or 0), reverse=True)
-    out = [_loot_row(it) for it in loot]
-    out.extend(_loot_row(it) for it in loot_keys[:5])
-    return out
-
-
 def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
     if not item_ids:
         return {}
@@ -1433,40 +1669,11 @@ def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
             if ident not in item_ids:
                 continue
             row = catalog_svc._row_from_raw(ident, raw, locale)
-            if not row:
-                continue
-            sells: list[dict[str, Any]] = []
-            blob = raw.get("sellToTrader")
-            if isinstance(blob, list):
-                for sell in blob:
-                    if not isinstance(sell, dict):
-                        continue
-                    trader_id = _id_of(sell.get("trader"))
-                    slug, name = TRADER_BY_ID.get(trader_id, ("", ""))
-                    if name and "（" in name:
-                        name = name.split("（", 1)[0]
-                    sells.append(
-                        {
-                            "trader_id": trader_id,
-                            "slug": slug,
-                            "name": name or slug,
-                            "price": _as_int(sell.get("price"), 0) or 0,
-                            "price_rub": _as_int(sell.get("priceRUB"), 0) or 0,
-                            "currency": str(sell.get("currency") or "RUB"),
-                        }
-                    )
-            out[ident] = {
-                **row,
-                "normalized_name": str(raw.get("normalizedName") or ""),
-                "avg24h_price": _as_int(raw.get("avg24hPrice"), None),
-                "last_low_price": _as_int(raw.get("lastLowPrice"), None),
-                "width": _as_int(raw.get("width"), 1) or 1,
-                "height": _as_int(raw.get("height"), 1) or 1,
-                "sell_to_trader": sells,
-            }
+            if row:
+                out[ident] = row
         return out
     except Exception:  # noqa: BLE001
-        logger.warning("boss unique loot: items catalog unavailable", exc_info=True)
+        logger.warning("boss equipment: items catalog unavailable", exc_info=True)
         return {}
 
 
@@ -1641,16 +1848,19 @@ def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
     row = _find_boss_row(rows, slug)
     if row is None:
         raise TarkovBossesError(f"未找到 BOSS: {slug}")
-    needed: set[str] = set(str(x) for x in (row.get("item_ids") or []))
+    needed: set[str] = set()
     for gear in row.get("equipment") or []:
         if not isinstance(gear, dict):
             continue
-        if gear.get("item"):
-            needed.add(str(gear["item"]))
-        for cid in gear.get("contains") or []:
-            needed.add(str(cid))
+        ident = _gear_item_id(gear)
+        if ident:
+            needed.add(ident)
+        for entry in _gear_contains(gear):
+            cid = str(entry.get("item") or "")
+            if cid:
+                needed.add(cid)
     items = _lookup_items(db, needed)
-    loot = build_unique_loot(row, items)
+    equipment_slots = build_equipment_slots(row, items)
     return {
         **_public_summary(row),
         "description": row.get("description") or "",
@@ -1669,7 +1879,7 @@ def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
         ],
         "spawn_locations": row.get("spawn_locations") or [],
         "escorts": row.get("escorts") or [],
-        "unique_loot": loot,
+        "equipment_slots": equipment_slots,
         "source": source,
         "synced_at": synced_at,
         "note": note,

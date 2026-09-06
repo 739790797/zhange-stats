@@ -3187,7 +3187,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Prep State Get
-         * @description 联机大厅单人准备：当前模式/地图的勾选、目标完成和钥匙声明。
+         * @description 联机大厅单人准备：当前模式/地图的勾选、目标完成、钥匙声明。
          */
         get: operations["guides_tarkov_raid_prep_state_get_api_guides_tarkov_raid_prep_state_get"];
         /** Guides Tarkov Raid Prep State Put */
@@ -3328,7 +3328,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Boss Detail
-         * @description BOSS 详情：行为、地图、刷新概率、生命值、特殊战利品。
+         * @description BOSS 详情：行为、地图、刷新概率、生命值、配装。
          */
         get: operations["guides_tarkov_boss_detail_api_guides_tarkov_bosses__boss_slug__get"];
         put?: never;
@@ -3434,7 +3434,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Map Places Import
-         * @description 管理员：把当前画面地名一次写入（仅空图）。
+         * @description 管理员：空图批量写入地名（不再从上游 overlays 自动接管）。
          */
         post: operations["guides_tarkov_map_places_import_api_guides_tarkov_maps__map_slug__places_import_post"];
         delete?: never;
@@ -9593,8 +9593,11 @@ export interface components {
             spawn_locations?: components["schemas"]["TarkovBossSpawnLocationOut"][];
             /** Escorts */
             escorts?: components["schemas"]["TarkovBossEscortOut"][];
-            /** Unique Loot */
-            unique_loot?: components["schemas"]["TarkovBossLootOut"][];
+            /**
+             * Equipment Slots
+             * @description 完整配装：按装备栏分组，枪内弹药/配件在 contains
+             */
+            equipment_slots?: components["schemas"]["TarkovBossGearSlotOut"][];
             /** Source */
             source?: string | null;
             /** Synced At */
@@ -9634,6 +9637,77 @@ export interface components {
              * @default
              */
             map_slug: string;
+        };
+        /** TarkovBossGearContainedOut */
+        TarkovBossGearContainedOut: {
+            /** Item Id */
+            item_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /** Types */
+            types?: string[];
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /**
+             * Kind
+             * @description magazine | ammo | plate | other
+             * @default
+             */
+            kind: string;
+            /** Damage */
+            damage?: number | null;
+            /** Penetration */
+            penetration?: number | null;
+            /** Armor Damage */
+            armor_damage?: number | null;
+        };
+        /** TarkovBossGearItemOut */
+        TarkovBossGearItemOut: {
+            /** Item Id */
+            item_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /** Types */
+            types?: string[];
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /** Contains */
+            contains?: components["schemas"]["TarkovBossGearContainedOut"][];
+        };
+        /** TarkovBossGearSlotOut */
+        TarkovBossGearSlotOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Items */
+            items?: components["schemas"]["TarkovBossGearItemOut"][];
         };
         /** TarkovBossHealthPartOut */
         TarkovBossHealthPartOut: {
@@ -9721,44 +9795,6 @@ export interface components {
              * @description 同一套刷法（随从+落地）合并多图；地点横向、随从只写一次
              */
             spawn_groups?: components["schemas"]["TarkovBossSpawnGroupOut"][];
-        };
-        /** TarkovBossLootOut */
-        TarkovBossLootOut: {
-            /** Item Id */
-            item_id: string;
-            /** Name */
-            name: string;
-            /**
-             * Short Name
-             * @default
-             */
-            short_name: string;
-            /**
-             * Icon Link
-             * @default
-             */
-            icon_link: string;
-            /** Types */
-            types?: string[];
-            /** Flea Price */
-            flea_price?: number | null;
-            /**
-             * Trader Slug
-             * @default
-             */
-            trader_slug: string;
-            /**
-             * Trader Name
-             * @default
-             */
-            trader_name: string;
-            /** Trader Price */
-            trader_price?: number | null;
-            /**
-             * Trader Currency
-             * @default RUB
-             */
-            trader_currency: string;
         };
         /** TarkovBossMapOut */
         TarkovBossMapOut: {
@@ -11351,6 +11387,10 @@ export interface components {
              * @default
              */
             floor: string;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovMapPlaceOut */
         TarkovMapPlaceOut: {
@@ -11384,6 +11424,10 @@ export interface components {
              * @default
              */
             floor: string;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
             /**
              * Sort Order
              * @default 0
@@ -11412,6 +11456,10 @@ export interface components {
             size?: number | null;
             /** Floor */
             floor?: string | null;
+            /** Top */
+            top?: number | null;
+            /** Bottom */
+            bottom?: number | null;
         };
         /** TarkovMapPlacesOut */
         TarkovMapPlacesOut: {

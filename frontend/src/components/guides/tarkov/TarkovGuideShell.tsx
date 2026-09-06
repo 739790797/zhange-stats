@@ -9,15 +9,20 @@ import {
 } from "@/lib/tarkovBossKinds";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
+  TARKOV_ADMIN_NAV,
   TARKOV_HOME_PATH,
   TARKOV_ME_PATH,
   TARKOV_TOP_NAV,
+  isTarkovAdminPath,
+  parseTarkovMaintainMode,
   resolveTarkovMeTab,
   isTarkovTopNavActive,
   tarkovBossHref,
   tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
+import { isAdminUser } from "@/lib/isAdminUser";
+import { useAuthStore } from "@/stores/authStore";
 import { TarkovThemed } from "@/components/guides/tarkov/TarkovThemed";
 import { TarkovMeHeaderLink } from "@/components/guides/tarkov/TarkovMeHeaderLink";
 import { TarkovRaidRoomHeaderLink } from "@/components/guides/tarkov/TarkovRaidRoomHeaderLink";
@@ -190,6 +195,10 @@ export function TarkovGuideShell({ children }: Props) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const me = useAuthStore((s) => s.user);
+  const isAdmin = isAdminUser(me);
+  const maintainMode = parseTarkovMaintainMode(searchParams.get("maintain"));
+  const adminActive = isTarkovAdminPath(pathname, searchParams.toString());
   const qParam = (searchParams.get("q") || "").trim();
   const [draft, setDraft] = useState(
     pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`
@@ -198,7 +207,7 @@ export function TarkovGuideShell({ children }: Props) {
   );
   const searchRef = useRef<HTMLInputElement>(null);
   const gameMode = useTarkovGameMode();
-  useTarkovDocumentTitle(tarkovPageTitle(pathname));
+  useTarkovDocumentTitle(tarkovPageTitle(pathname, searchParams.toString()));
   useEffect(() => {
     if (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`) {
       setDraft(qParam);
@@ -294,11 +303,10 @@ export function TarkovGuideShell({ children }: Props) {
               const extraHrefs = (item.groups ?? []).flatMap((g) =>
                 g.items.map((link) => link.href),
               );
-              const active = isTarkovTopNavActive(
-                item.href,
-                pathname,
-                extraHrefs,
-              );
+              const active =
+                item.id === "maps" && maintainMode
+                  ? false
+                  : isTarkovTopNavActive(item.href, pathname, extraHrefs);
               const bossMenu = item.id === "bosses";
               return (
                 <div key={item.id} className={styles.navItem}>
@@ -351,6 +359,36 @@ export function TarkovGuideShell({ children }: Props) {
                 </div>
               );
             })}
+            {isAdmin ? (
+              <div className={styles.navItem}>
+                <Link
+                  to={TARKOV_ADMIN_NAV.href}
+                  className={`${styles.navLink} ${adminActive ? styles.navLinkActive : ""}`}
+                  aria-current={adminActive ? "page" : undefined}
+                  aria-haspopup="menu"
+                >
+                  {TARKOV_ADMIN_NAV.label}
+                  <NavCaret />
+                </Link>
+                <div className={styles.dropdown} role="menu">
+                  {(TARKOV_ADMIN_NAV.groups ?? []).map((group) => (
+                    <div key={group.id} className={styles.dropCol}>
+                      <p className={styles.dropHead}>{group.label}</p>
+                      {group.items.map((link) => (
+                        <Link
+                          key={link.id}
+                          to={link.href}
+                          className={styles.dropLink}
+                          role="menuitem"
+                        >
+                          {link.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </nav>
           <div className={styles.topRight}>
             <TarkovGameModeSwitch />

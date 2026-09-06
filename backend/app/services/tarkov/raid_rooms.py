@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import exists, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
@@ -1726,43 +1727,7 @@ def claim_task(
         belongs = None
     if belongs is False:
         raise RaidRoomError("任务不属于本地图")
-    existing = (
-        db.query(TarkovRaidRoomTaskClaim)
-        .filter(
-            TarkovRaidRoomTaskClaim.room_id == room.id,
-            TarkovRaidRoomTaskClaim.task_id == tid,
-            TarkovRaidRoomTaskClaim.user_id == user.id,
-        )
-        .first()
-    )
-    added = False
-    if existing is None:
-        unique = int(
-            db.query(func.count(func.distinct(TarkovRaidRoomTaskClaim.task_id)))
-            .filter(TarkovRaidRoomTaskClaim.room_id == room.id)
-            .scalar()
-            or 0
-        )
-        task_taken = (
-            db.query(TarkovRaidRoomTaskClaim)
-            .filter(
-                TarkovRaidRoomTaskClaim.room_id == room.id,
-                TarkovRaidRoomTaskClaim.task_id == tid,
-            )
-            .first()
-        )
-        if task_taken is None and unique >= MAX_UNIQUE_TASKS:
-            raise RaidRoomError("本房任务已满", 409)
-        db.add(
-            TarkovRaidRoomTaskClaim(
-                room_id=room.id,
-                task_id=tid,
-                user_id=user.id,
-                created_at=stamp,
-            )
-        )
-        db.flush()
-        added = True
+    added = _insert_claim(db, room, user.id, tid, stamp)
     return serialize_room(db, room, viewer=user), added
 
 
@@ -1850,15 +1815,19 @@ def _insert_claim(
     )
     if task_taken is None and unique >= MAX_UNIQUE_TASKS:
         raise RaidRoomError("本房任务已满", 409)
-    db.add(
-        TarkovRaidRoomTaskClaim(
-            room_id=room.id,
-            task_id=tid,
-            user_id=user_id,
-            created_at=stamp,
-        )
-    )
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.add(
+                TarkovRaidRoomTaskClaim(
+                    room_id=room.id,
+                    task_id=tid,
+                    user_id=user_id,
+                    created_at=stamp,
+                )
+            )
+            db.flush()
+    except IntegrityError:
+        return False
     return True
 
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  bossSpawnOverlay,
   buildBossHeatmap,
   buildBossPortraitIndex,
+  buildBossSpawnMapViews,
   formatHoverAria,
   formatHoverSquadSizes,
   heatmapCellHoverBlocks,
@@ -415,6 +417,79 @@ describe("heatmap spawn map helpers", () => {
     );
     expect(heatmapSpawnLocationOptions(points)).toHaveLength(2);
     expect(points).toHaveLength(6);
+  });
+
+  it("builds one embed view per map and stacks coordinates", () => {
+    const views = buildBossSpawnMapViews({
+      id: "bossKilla",
+      slug: "killa",
+      name: "Killa",
+      spawn_groups: [
+        group({
+          maps: [{ slug: "interchange", name: "立交桥", spawn_chance: "45%" }],
+          shared_spawn_chance: "45%",
+          locations: [
+            {
+              map: "立交桥",
+              map_slug: "interchange",
+              name: "Center",
+              chance: 0.4,
+              positions: [{ x: 1, y: 0, z: 2 }],
+            },
+            {
+              map: "立交桥",
+              map_slug: "interchange",
+              name: "OLI",
+              chance: 0.2,
+              positions: [{ x: 3, y: 1, z: 4 }],
+            },
+          ],
+        }),
+        group({
+          maps: [{ slug: "terminal", name: "码头", spawn_chance: "20%" }],
+          shared_spawn_chance: "20%",
+          locations: [
+            {
+              map: "码头",
+              map_slug: "terminal",
+              name: "Dock",
+              chance: 1,
+              positions: [{ x: 9, y: 2, z: 8 }],
+            },
+          ],
+        }),
+      ],
+    });
+    expect(views.map((row) => row.slug)).toEqual(["interchange", "terminal"]);
+    expect(views[0]?.points).toHaveLength(2);
+    expect(views[0]?.chancePct).toBe(45);
+    expect(views[1]?.points).toEqual([
+      { name: "Dock", chance: 1, x: 9, y: 2, z: 8 },
+    ]);
+  });
+
+  it("groups overlay locations by name", () => {
+    const overlay = bossSpawnOverlay({
+      id: "bossKilla",
+      slug: "killa",
+      name: "Killa",
+      chancePct: 45,
+      points: [
+        { name: "Center", chance: 0.4, x: 1, y: 0, z: 2 },
+        { name: "Center", chance: 0.4, x: 3, y: 0, z: 4 },
+      ],
+    });
+    expect(overlay.spawn_chance).toBe(45);
+    expect(overlay.locations).toEqual([
+      {
+        name: "Center",
+        chance: 0.4,
+        positions: [
+          { x: 1, y: 0, z: 2 },
+          { x: 3, y: 0, z: 4 },
+        ],
+      },
+    ]);
   });
 });
 

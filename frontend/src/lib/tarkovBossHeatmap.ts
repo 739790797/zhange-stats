@@ -655,6 +655,100 @@ export function heatmapSpawnLocationOptions(
   });
 }
 
+export type BossSpawnMapView = {
+  slug: string;
+  name: string;
+  chance: string;
+  chancePct: number;
+  points: HeatmapSpawnPoint[];
+};
+
+export type BossSpawnOverlay = {
+  id: string;
+  slug: string;
+  name: string;
+  kind: "boss";
+  spawn_chance: number;
+  locations: {
+    name: string;
+    chance: number;
+    positions: { x: number; y: number; z: number }[];
+  }[];
+};
+
+/** 详情页内嵌刷点：按图合并坐标，多套刷法叠在同一张底图上。 */
+export function buildBossSpawnMapViews(
+  input: HeatmapBossInput,
+): BossSpawnMapView[] {
+  const groups = resolveBossSpawnGroups(input);
+  const byKey = new Map<string, BossSpawnMapView>();
+  const order: string[] = [];
+  for (const group of groups) {
+    for (const map of group.maps) {
+      const slug = (map.slug || "").trim();
+      const name = (map.name || slug).trim();
+      const key = mapKey(slug, name);
+      if (!key) continue;
+      const chance = map.spawnChance || group.sharedSpawnChance || "";
+      const points = collectSpawnPoints(
+        mapLocationRows(group, map.slug, map.name),
+      );
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, {
+          slug,
+          name,
+          chance,
+          chancePct: parseChancePct(chance),
+          points,
+        });
+        order.push(key);
+        continue;
+      }
+      existing.points = uniqueSpawnPoints([...existing.points, ...points]);
+      existing.chance = recipeLabel(
+        [existing.chance, chance].filter(Boolean),
+      );
+      existing.chancePct = parseChancePct(existing.chance);
+    }
+  }
+  return order
+    .map((key) => byKey.get(key))
+    .filter((row): row is BossSpawnMapView => Boolean(row))
+    .sort(
+      (a, b) =>
+        mapOrder(a.slug, a.name) - mapOrder(b.slug, b.name) ||
+        a.name.localeCompare(b.name, "zh"),
+    );
+}
+
+export function bossSpawnOverlay(args: {
+  id: string;
+  slug: string;
+  name: string;
+  chancePct: number;
+  points: readonly HeatmapSpawnPoint[];
+}): BossSpawnOverlay {
+  const byName = new Map<string, HeatmapSpawnPoint[]>();
+  for (const row of args.points) {
+    const list = byName.get(row.name) || [];
+    list.push(row);
+    byName.set(row.name, list);
+  }
+  return {
+    id: args.id,
+    slug: args.slug,
+    name: args.name,
+    kind: "boss",
+    spawn_chance: Math.round(args.chancePct),
+    locations: [...byName.entries()].map(([name, pts]) => ({
+      name,
+      chance: pts[0]?.chance ?? 0,
+      positions: pts.map((point) => ({ x: point.x, y: point.y, z: point.z })),
+    })),
+  };
+}
+
 type Placement = {
   boss: HeatmapBoss;
   slug: string;

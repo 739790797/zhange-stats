@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   createTarkovMapPlace,
   deleteTarkovMapPlace,
-  importTarkovMapPlaces,
   patchTarkovMapPlace,
   type TarkovMapDetail,
   type TarkovMapPlace,
@@ -12,9 +11,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { isAdminUser } from "@/lib/isAdminUser";
-import { findInteractiveMap, type TarkovDevMapLayer } from "@/lib/tarkovMapImages";
 import {
-  fallbackPlacesForImport,
   normalizePlaceName,
   placeLabelMovePatch,
   type TarkovMapPlaceEdit,
@@ -40,15 +37,18 @@ type Args = {
   parentSlug?: string;
   places: TarkovMapPlace[];
   floor: string;
+  onEditingChange?: (on: boolean) => void;
 };
 
 export function useTarkovMapPlaceEditor({
   slug,
-  parentSlug,
   places,
   floor,
+  onEditingChange,
 }: Args): {
   isAdmin: boolean;
+  editing: boolean;
+  setEditing: (on: boolean) => void;
   bar: ReactNode;
   modal: ReactNode;
   placeEdit?: TarkovMapPlaceEdit;
@@ -61,10 +61,6 @@ export function useTarkovMapPlaceEditor({
   const [mode, setMode] = useState<TarkovMapPlaceEditMode>("select");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const layer = useMemo(
-    () => findInteractiveMap(slug, parentSlug),
-    [slug, parentSlug],
-  );
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({
@@ -137,20 +133,6 @@ export function useTarkovMapPlaceEditor({
     onError: (exc) => fail(exc, "删除地点失败"),
   });
 
-  const importMut = useMutation({
-    mutationFn: (layerArg: TarkovDevMapLayer) =>
-      importTarkovMapPlaces(slug, fallbackPlacesForImport(layerArg)),
-    onSuccess: () => {
-      message.success("已接管此地，可以改名或加框");
-      setEditing(true);
-      setMode("select");
-      invalidate();
-    },
-    onError: (exc) => fail(exc, "接管失败"),
-  });
-
-  const hasDb = places.length > 0;
-
   const placeEdit = useMemo<TarkovMapPlaceEdit | undefined>(() => {
     if (!isAdmin || !editing) return undefined;
     return {
@@ -222,43 +204,39 @@ export function useTarkovMapPlaceEditor({
     createMut.mutate({ ...draft, name });
   };
 
+  const stopEditing = (on: boolean) => {
+    setEditing(on);
+    setDraft(null);
+    setSelectedId(null);
+    setMode("select");
+    onEditingChange?.(on);
+  };
+
   if (!isAdmin) {
-    return { isAdmin, bar: null, modal: null, placeEdit: undefined };
+    return {
+      isAdmin,
+      editing: false,
+      setEditing: () => {},
+      bar: null,
+      modal: null,
+      placeEdit: undefined,
+    };
   }
 
   const busy =
     createMut.isPending ||
     patchMut.isPending ||
-    deleteMut.isPending ||
-    importMut.isPending;
+    deleteMut.isPending;
 
   const bar = (
     <div className={styles.bar}>
-      <Button
-        type="primary"
-        onClick={() => {
-          setEditing((on) => !on);
-          setDraft(null);
-          setSelectedId(null);
-          setMode("select");
-        }}
+      <button
+        type="button"
+        className={`${styles.pageBtn} ${editing ? styles.on : ""}`}
+        onClick={() => stopEditing(!editing)}
       >
-        {editing ? "完成编辑" : "编辑地点"}
-      </Button>
-      {!hasDb ? (
-        <Button
-          onClick={() => {
-            if (!layer) {
-              message.error("这张图没有互动层，无法接管");
-              return;
-            }
-            importMut.mutate(layer);
-          }}
-          loading={importMut.isPending}
-        >
-          接管此地
-        </Button>
-      ) : null}
+        {editing ? "完成地点" : "编辑地点"}
+      </button>
       {editing ? (
         <div className={styles.tools}>
           {(
@@ -268,28 +246,17 @@ export function useTarkovMapPlaceEditor({
               ["box", "框"],
             ] as const
           ).map(([value, label]) => (
-            <Button
+            <button
               key={value}
-              size="small"
-              type={mode === value ? "primary" : undefined}
+              type="button"
+              className={`${styles.chip} ${mode === value ? styles.on : ""}`}
               onClick={() => setMode(value)}
             >
               {label}
-            </Button>
+            </button>
           ))}
         </div>
       ) : null}
-      <span className={styles.hint}>
-        {!hasDb
-          ? "尚未接管：加点会整表替换上游译名，建议先接管再改。"
-          : editing
-            ? mode === "point"
-              ? "点击地图放置地点。"
-              : mode === "box"
-                ? "拖一个矩形圈出区域。"
-                : "拖文字挪标注位置；点一下改名或删除。"
-            : "全站玩家都会看到这里的社区叫法。"}
-      </span>
     </div>
   );
 
@@ -329,13 +296,9 @@ export function useTarkovMapPlaceEditor({
             <Button danger>删除</Button>
           </Popconfirm>
         </div>
-      ) : !hasDb ? (
-        <p className={`${styles.hint} ${styles.modalExtra}`}>
-          这张图还没有社区地名，保存后将只显示你加的地点。
-        </p>
       ) : null}
     </Modal>
   );
 
-  return { isAdmin, bar, modal, placeEdit };
+  return { isAdmin, editing, setEditing: stopEditing, bar, modal, placeEdit };
 }
