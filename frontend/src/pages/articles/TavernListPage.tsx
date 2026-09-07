@@ -20,8 +20,13 @@ import {
   fetchMineArticles,
 } from "@/api/articlesApi";
 import { FeatureUnavailablePage } from "@/components/FeatureUnavailablePage";
+import { ArticleVersionsModal } from "@/components/articles/ArticleVersionsModal";
 import styles from "@/components/articles/TavernHome.module.css";
 import { apiError, isApiForbidden } from "@/lib/apiError";
+import {
+  articleCategoryChipColor,
+  articleCategoryChipHex,
+} from "@/lib/articleCategory";
 import {
   articleStatusColor,
   articleStatusLabel,
@@ -45,6 +50,10 @@ export default function TavernListPage() {
   const qParam = (params.get("q") || "").trim();
   const mine = params.get("mine") === "1";
   const [qDraft, setQDraft] = useState(qParam);
+  const [versionRow, setVersionRow] = useState<{
+    id: number;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     setQDraft(qParam);
@@ -182,7 +191,16 @@ export default function TavernListPage() {
                     size="small"
                     onClick={() => navigate(tavernEditPath(row.id))}
                   >
-                    {row.status === "deleted" ? "版本" : "编辑"}
+                    编辑
+                  </Button>
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() =>
+                      setVersionRow({ id: row.id, title: row.title })
+                    }
+                  >
+                    版本
                   </Button>
                   {row.status === "published" ? (
                     <Link to={tavernArticlePath(row.slug)}>
@@ -191,16 +209,14 @@ export default function TavernListPage() {
                       </Button>
                     </Link>
                   ) : null}
-                  {row.status !== "deleted" ? (
-                    <Popconfirm
-                      title="删除这篇文章？"
-                      onConfirm={() => delMut.mutate(row.id)}
-                    >
-                      <Button type="link" size="small" danger>
-                        删除
-                      </Button>
-                    </Popconfirm>
-                  ) : null}
+                  <Popconfirm
+                    title="删除这篇文章？删除后无法恢复。"
+                    onConfirm={() => delMut.mutate(row.id)}
+                  >
+                    <Button type="link" size="small" danger>
+                      删除
+                    </Button>
+                  </Popconfirm>
                 </Space>
               </div>
             ))}
@@ -253,7 +269,7 @@ export default function TavernListPage() {
                         {cat ? (
                           <Tag
                             className={styles.cardCat}
-                            color="processing"
+                            color={articleCategoryChipColor(cat)}
                             onClick={() => setCategory(cat.slug)}
                           >
                             {cat.name}
@@ -309,23 +325,36 @@ export default function TavernListPage() {
                   >
                     全部
                   </Button>
-                  {cats.map((cat) => (
-                    <Button
-                      key={cat.id}
-                      type="text"
-                      block
-                      className={`${styles.catItem} ${category === cat.slug ? styles.catItemActive : ""}`}
-                      onClick={() => setCategory(cat.slug)}
-                    >
-                      {cat.name}
-                    </Button>
-                  ))}
+                  {cats.map((cat) => {
+                    const hex = articleCategoryChipHex(cat);
+                    return (
+                      <Button
+                        key={cat.id}
+                        type="text"
+                        block
+                        className={`${styles.catItem} ${category === cat.slug ? styles.catItemActive : ""}`}
+                        onClick={() => setCategory(cat.slug)}
+                      >
+                        <span
+                          className={styles.catDot}
+                          style={hex ? { background: hex } : undefined}
+                        />
+                        {cat.name}
+                      </Button>
+                    );
+                  })}
                 </div>
               </section>
             </aside>
           </div>
         </>
       )}
+      <ArticleVersionsModal
+        articleId={versionRow?.id ?? null}
+        title={versionRow?.title}
+        open={versionRow != null}
+        onClose={() => setVersionRow(null)}
+      />
     </div>
   );
 }

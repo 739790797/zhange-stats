@@ -61,6 +61,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_full",
     },
     {
+        "id": "texteller_model_sync",
+        "name": "公式识别模型更新",
+        "description": "对照 hf-mirror 上的 OleehyO/TexTeller 更新本地公式识别权重（var/data/texteller）",
+        "kind": "cron",
+        "platform": "tavern",
+    },
+    {
         "id": "taygedo_checkin",
         "name": "塔吉多每日签到",
         "description": "按用户自设时间巡检签到",

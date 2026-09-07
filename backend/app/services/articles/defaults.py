@@ -2,19 +2,30 @@
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
 from app.models.articles import ArticleCategory, article_category_links
 
+
+class DefaultCategory(NamedTuple):
+    slug: str
+    name: str
+    sort_order: int
+    admin_only: bool = False
+    chip_color: str | None = None
+
+
 # 适合战鸽数据：公告、攻略、技术、开黑、闲聊、圈子。
-DEFAULT_CATEGORIES: tuple[tuple[str, str, int], ...] = (
-    ("notice", "站点公告", 10),
-    ("guides", "游戏攻略", 20),
-    ("tech", "技术分享", 30),
-    ("raid", "联机开黑", 40),
-    ("casual", "闲聊随笔", 50),
-    ("circle", "圈子动态", 60),
+DEFAULT_CATEGORIES: tuple[DefaultCategory, ...] = (
+    DefaultCategory("notice", "站点公告", 10, True, "#c41d7f"),
+    DefaultCategory("guides", "游戏攻略", 20, False, "#1677ff"),
+    DefaultCategory("tech", "技术分享", 30, False, "#722ed1"),
+    DefaultCategory("raid", "联机开黑", 40, False, "#d46b08"),
+    DefaultCategory("casual", "闲聊随笔", 50, False, "#389e0d"),
+    DefaultCategory("circle", "圈子动态", 60, False, "#13c2c2"),
 )
 
 _RENAME_IF = {
@@ -51,22 +62,24 @@ def drop_legacy_empty_categories(db: Session) -> None:
 def ensure_default_categories(db: Session) -> dict[str, ArticleCategory]:
     """按 slug 补齐默认分类；已有同 slug 不改管理员自定义名（旧「公告」除外）。"""
     found: dict[str, ArticleCategory] = {}
-    for slug, name, sort_order in DEFAULT_CATEGORIES:
-        row = db.query(ArticleCategory).filter(ArticleCategory.slug == slug).first()
+    for spec in DEFAULT_CATEGORIES:
+        row = db.query(ArticleCategory).filter(ArticleCategory.slug == spec.slug).first()
         if row is None:
             row = ArticleCategory(
-                slug=slug,
-                name=name,
-                sort_order=sort_order,
+                slug=spec.slug,
+                name=spec.name,
+                sort_order=spec.sort_order,
+                admin_only=spec.admin_only,
+                chip_color=spec.chip_color,
                 created_at=now_naive(),
             )
             db.add(row)
             db.flush()
-        elif slug in _RENAME_IF and row.name == _RENAME_IF[slug]:
-            row.name = name
+        elif spec.slug in _RENAME_IF and row.name == _RENAME_IF[spec.slug]:
+            row.name = spec.name
             if row.sort_order == 0:
-                row.sort_order = sort_order
-        found[slug] = row
+                row.sort_order = spec.sort_order
+        found[spec.slug] = row
     db.commit()
     drop_legacy_empty_categories(db)
     return found

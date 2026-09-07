@@ -148,6 +148,8 @@ class Settings(BaseSettings):
     APP_LOG_FILE_BACKUP_COUNT: int = 5
     # 头像等本地上传目录（相对安装根或绝对路径，默认 var/uploads）
     UPLOAD_DIR: str = DEFAULT_UPLOAD_DIR
+    # 公式识别模型源。默认 hf-mirror，避免国内直连 huggingface.co
+    HF_ENDPOINT: str = "https://hf-mirror.com"
 
     # 邮件（不配置则默认拒绝发码；本地可开 ALLOW_EMAIL_CODE_LOG 把验证码打到日志）
     SMTP_HOST: str = ""

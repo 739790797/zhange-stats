@@ -4531,6 +4531,23 @@ export interface paths {
         patch: operations["patch_tag_api_articles_tags__tag_id__patch"];
         trace?: never;
     };
+    "/api/articles/math/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recognize Math */
+        post: operations["recognize_math_api_articles_math_recognize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/articles/assets": {
         parameters: {
             query?: never;
@@ -5305,6 +5322,13 @@ export interface components {
              * @default 0
              */
             sort_order: number;
+            /**
+             * Admin Only
+             * @default false
+             */
+            admin_only: boolean;
+            /** Chip Color */
+            chip_color?: string | null;
         };
         /** ArticleCategoryWriteIn */
         ArticleCategoryWriteIn: {
@@ -5317,6 +5341,13 @@ export interface components {
              * @default 0
              */
             sort_order: number;
+            /**
+             * Admin Only
+             * @default false
+             */
+            admin_only: boolean;
+            /** Chip Color */
+            chip_color?: string | null;
         };
         /** ArticleCommentCreateIn */
         ArticleCommentCreateIn: {
@@ -5376,7 +5407,7 @@ export interface components {
             comment_count: number;
             author: components["schemas"]["ArticleAuthorOut"];
             /** Categories */
-            categories?: components["schemas"]["ArticleTermOut"][];
+            categories?: components["schemas"]["ArticleCategoryOut"][];
             /** Tags */
             tags?: components["schemas"]["ArticleTermOut"][];
             /**
@@ -5423,7 +5454,7 @@ export interface components {
             comment_count: number;
             author: components["schemas"]["ArticleAuthorOut"];
             /** Categories */
-            categories?: components["schemas"]["ArticleTermOut"][];
+            categories?: components["schemas"]["ArticleCategoryOut"][];
             /** Tags */
             tags?: components["schemas"]["ArticleTermOut"][];
         };
@@ -5437,6 +5468,11 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /** ArticleMathRecognizeOut */
+        ArticleMathRecognizeOut: {
+            /** Latex */
+            latex: string;
         };
         /** ArticlePatchIn */
         ArticlePatchIn: {
@@ -5663,6 +5699,11 @@ export interface components {
              * @default /
              */
             directory: string;
+            /** File */
+            file: string;
+        };
+        /** Body_recognize_math_api_articles_math_recognize_post */
+        Body_recognize_math_api_articles_math_recognize_post: {
             /** File */
             file: string;
         };
@@ -24496,6 +24537,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArticleTermOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recognize_math_api_articles_math_recognize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_recognize_math_api_articles_math_recognize_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleMathRecognizeOut"];
                 };
             };
             /** @description Validation Error */

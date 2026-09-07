@@ -15490,6 +15490,52 @@
         }
       }
     },
+    "/api/articles/math/recognize": {
+      "post": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Recognize Math",
+        "operationId": "recognize_math_api_articles_math_recognize_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_recognize_math_api_articles_math_recognize_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleMathRecognizeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/articles/assets": {
       "post": {
         "tags": [
@@ -17207,6 +17253,22 @@
             "type": "integer",
             "title": "Sort Order",
             "default": 0
+          },
+          "admin_only": {
+            "type": "boolean",
+            "title": "Admin Only",
+            "default": false
+          },
+          "chip_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chip Color"
           }
         },
         "type": "object",
@@ -17238,6 +17300,22 @@
             "type": "integer",
             "title": "Sort Order",
             "default": 0
+          },
+          "admin_only": {
+            "type": "boolean",
+            "title": "Admin Only",
+            "default": false
+          },
+          "chip_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chip Color"
           }
         },
         "type": "object",
@@ -17375,7 +17453,7 @@
           },
           "categories": {
             "items": {
-              "$ref": "#/components/schemas/ArticleTermOut"
+              "$ref": "#/components/schemas/ArticleCategoryOut"
             },
             "type": "array",
             "title": "Categories"
@@ -17483,7 +17561,7 @@
           },
           "categories": {
             "items": {
-              "$ref": "#/components/schemas/ArticleTermOut"
+              "$ref": "#/components/schemas/ArticleCategoryOut"
             },
             "type": "array",
             "title": "Categories"
@@ -17537,6 +17615,19 @@
           "page_size"
         ],
         "title": "ArticleListOut"
+      },
+      "ArticleMathRecognizeOut": {
+        "properties": {
+          "latex": {
+            "type": "string",
+            "title": "Latex"
+          }
+        },
+        "type": "object",
+        "required": [
+          "latex"
+        ],
+        "title": "ArticleMathRecognizeOut"
       },
       "ArticlePatchIn": {
         "properties": {
@@ -18100,6 +18191,20 @@
           "file"
         ],
         "title": "Body_minecraft_files_upload_api_guides_minecraft_files_upload_post"
+      },
+      "Body_recognize_math_api_articles_math_recognize_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_recognize_math_api_articles_math_recognize_post"
       },
       "Body_upload_asset_api_articles_assets_post": {
         "properties": {

@@ -17,6 +17,8 @@ export type ArticleAuthor = components["schemas"]["ArticleAuthorOut"];
 export type ArticleVersionListItem = components["schemas"]["ArticleVersionListItemOut"];
 export type ArticleVersionDetail = components["schemas"]["ArticleVersionDetailOut"];
 export type ArticleAuthorsPutIn = components["schemas"]["ArticleAuthorsPutIn"];
+export type ArticleMathRecognizeOut =
+  components["schemas"]["ArticleMathRecognizeOut"];
 
 export async function fetchArticles(params?: {
   page?: number;
@@ -106,8 +108,19 @@ export async function uploadArticleAsset(file: File) {
   const form = new FormData();
   form.append("file", file);
   const { data } = await client.post<{ url: string }>("/articles/assets", form, {
-    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 30000,
   });
+  return data;
+}
+
+export async function recognizeArticleMath(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await client.post<ArticleMathRecognizeOut>(
+    "/articles/math/recognize",
+    form,
+    { timeout: 120000 },
+  );
   return data;
 }
 

@@ -25,6 +25,7 @@ JOB_IDS = (
     "kujiequ_checkin",
     "mihoyo_checkin",
     "tarkov_full_sync",
+    "texteller_model_sync",
     "job_runs_prune",
 )
 
@@ -94,6 +95,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(getattr(s, "TARKOV_FULL_SYNC_ENABLED", True)),
             "hour": _clamp_hour(getattr(s, "TARKOV_FULL_SYNC_HOUR", 4)),
             "minute": _clamp_minute(getattr(s, "TARKOV_FULL_SYNC_MINUTE", 25)),
+        },
+        "texteller_model_sync": {
+            "enabled": True,
+            "hour": 4,
+            "minute": 50,
         },
         "taygedo_checkin": {
             "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),

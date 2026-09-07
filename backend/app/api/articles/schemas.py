@@ -21,6 +21,8 @@ class ArticleTermOut(BaseModel):
 
 class ArticleCategoryOut(ArticleTermOut):
     sort_order: int = 0
+    admin_only: bool = False
+    chip_color: str | None = None
 
 
 class ArticleListItemOut(BaseModel):
@@ -35,7 +37,7 @@ class ArticleListItemOut(BaseModel):
     updated_at: datetime | None = None
     comment_count: int = 0
     author: ArticleAuthorOut
-    categories: list[ArticleTermOut] = Field(default_factory=list)
+    categories: list[ArticleCategoryOut] = Field(default_factory=list)
     tags: list[ArticleTermOut] = Field(default_factory=list)
 
 
@@ -106,6 +108,10 @@ class ArticleAssetOut(BaseModel):
     url: str
 
 
+class ArticleMathRecognizeOut(BaseModel):
+    latex: str
+
+
 class ArticleCommentOut(BaseModel):
     id: int
     body: str
@@ -123,6 +129,8 @@ class ArticleCategoryWriteIn(BaseModel):
     name: str
     slug: str | None = None
     sort_order: int = 0
+    admin_only: bool = False
+    chip_color: str | None = None
 
 
 class ArticleTagWriteIn(BaseModel):

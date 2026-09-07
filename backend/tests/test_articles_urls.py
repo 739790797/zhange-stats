@@ -13,6 +13,7 @@ def test_halo_rel_key_strips_host_and_query() -> None:
     assert halo_rel_key("/upload/foo/bar.jpg") == "foo/bar.jpg"
     assert halo_rel_key("upload/foo.png") == "foo.png"
     assert halo_rel_key("https://cdn.example/img.png") is None
+    assert halo_rel_key("/upload/%E5%9B%BE%E7%89%87.png") == "图片.png"
 
 
 def test_rewrite_markdown_and_html_src() -> None:

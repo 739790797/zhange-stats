@@ -18,7 +18,7 @@ alwaysApply: false
 
 - `PrivateRoute` 需登录；`AdminRoute` 看 `role === admin`（`is_admin` 仅派生展示）
 - `PlatformRoute` 受 `platform_features` 控制；未登录可读的页用 `allowGuest`，避免去打需 JWT 的 `/platform-features/effective`
-- 战鸽酒馆列表/详情走 `AppLayout`（与工作台同一套侧栏 / 移动端顶栏）；`/tavern`、`/tavern/:slug` 在 `PrivateRoute` 外以便未登录可读。写文章 `/tavern/write` 须登录作者；`/tavern/admin` 酒馆管理在社区组、仅管理员
+- 战鸽酒馆列表/详情走 `AppLayout`（与工作台同一套侧栏 / 移动端顶栏）；`/` 重定向到 `/tavern`，与 `/tavern/:slug` 同在 `PrivateRoute` 外以便未登录可读。写文章 `/tavern/write` 须登录作者；`/tavern/admin` 酒馆管理在社区组、仅管理员
 
 ## 数据与 UI
 

@@ -81,7 +81,7 @@ export default function TavernAdminPage() {
       render: (_, row) => (
         <Space>
           <Button type="link" size="small" onClick={() => navigate(tavernEditPath(row.id))}>
-            {row.status === "deleted" ? "版本" : "编辑"}
+            编辑
           </Button>
           {row.status === "published" ? (
             <Link to={tavernArticlePath(row.slug)}>
@@ -90,13 +90,14 @@ export default function TavernAdminPage() {
               </Button>
             </Link>
           ) : null}
-          {row.status !== "deleted" ? (
-            <Popconfirm title="删除这篇文章？" onConfirm={() => delMut.mutate(row.id)}>
-              <Button type="link" size="small" danger>
-                删除
-              </Button>
-            </Popconfirm>
-          ) : null}
+          <Popconfirm
+            title="删除这篇文章？删除后无法恢复。"
+            onConfirm={() => delMut.mutate(row.id)}
+          >
+            <Button type="link" size="small" danger>
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -106,7 +107,7 @@ export default function TavernAdminPage() {
     <div>
       <PageHeader
         title="酒馆管理"
-        subtitle="分类、作者名单，以及全部文章（含已删除）。"
+        subtitle="分类、作者名单，以及全部文章。"
       />
       <Tabs
         items={[
@@ -124,7 +125,6 @@ export default function TavernAdminPage() {
                   options={[
                     { value: "draft", label: "草稿" },
                     { value: "published", label: "已发布" },
-                    { value: "deleted", label: "已删除" },
                   ]}
                 />
                 <Table

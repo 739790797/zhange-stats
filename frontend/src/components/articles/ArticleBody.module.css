@@ -6,7 +6,10 @@
 }
 
 .body :global(h2),
-.body :global(h3) {
+.body :global(h3),
+.body :global(h4),
+.body :global(h5),
+.body :global(h6) {
   font-family:
     "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
   font-weight: 600;
@@ -18,13 +21,35 @@
   font-size: 1.35em;
 }
 
+.body :global(h4) {
+  font-size: 1.1em;
+}
+
 .body :global(p) {
   margin: 0 0 1em;
 }
 
 .body :global(img) {
+  display: block;
   max-width: 100%;
   height: auto;
+  margin: 1.2em auto;
+  border-radius: 6px;
+}
+
+.body :global(figure) {
+  margin: 1.4em 0;
+  text-align: center;
+}
+
+.body :global(figure img) {
+  margin: 0 auto;
+}
+
+.body :global(figcaption) {
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(26, 35, 50, 0.55);
 }
 
 .body :global(pre) {
@@ -39,6 +64,50 @@
   padding-left: 12px;
   border-left: 3px solid #d9d9d9;
   color: rgba(0, 0, 0, 0.55);
+}
+
+.body :global(ul),
+.body :global(ol) {
+  margin: 0 0 1em;
+  padding-left: 1.4em;
+}
+
+.body :global(li + li) {
+  margin-top: 0.25em;
+}
+
+.body :global(a) {
+  color: #1677ff;
+  text-decoration: underline;
+}
+
+.body :global(a:hover) {
+  color: #4096ff;
+}
+
+.body :global(hr) {
+  border: 0;
+  border-top: 1px solid rgba(26, 35, 50, 0.12);
+  margin: 1.6em 0;
+}
+
+.body :global(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.body :global(th),
+.body :global(td) {
+  border: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+.body :global(th) {
+  background: #f6f7f9;
+  font-weight: 600;
 }
 
 .empty {

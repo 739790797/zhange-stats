@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from html import unescape
 from typing import Any
 
 from app.core.timeutil import BEIJING
@@ -37,6 +39,15 @@ class ParsedComment:
     owner_key: str | None
     parent_source_id: str | None
     created_at: datetime | None
+
+
+_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def strip_html_text(value: str) -> str:
+    text = (value or "").replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+    text = _HTML_TAG.sub("", text)
+    return unescape(text).strip()
 
 
 def detect_halo_version(table_names: set[str]) -> str:
@@ -184,6 +195,84 @@ def _decode_extension_blob(data: Any) -> dict[str, Any]:
     return {}
 
 
+def _snapshot_text_field(spec: dict[str, Any]) -> str:
+    for key in ("raw", "content", "rawPatch", "contentPatch"):
+        val = spec.get(key)
+        if isinstance(val, dict):
+            val = val.get("content") or val.get("raw") or ""
+        if val:
+            return str(val)
+    return ""
+
+
+def apply_halo2_line_patch(original: str, patch_raw: str) -> str:
+    """应用 Halo 2 快照补丁（java-diff-utils：整行 CHANGE/INSERT/DELETE）。"""
+    text = patch_raw or ""
+    stripped = text.lstrip()
+    if not stripped:
+        return original
+    if not stripped.startswith("["):
+        return text
+    try:
+        deltas = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    if not isinstance(deltas, list):
+        return original
+    if not deltas:
+        return original
+    lines = original.split("\n") if original else []
+    for delta in reversed(deltas):
+        if not isinstance(delta, dict):
+            continue
+        typ = str(delta.get("type") or "CHANGE").upper()
+        source = delta.get("source") if isinstance(delta.get("source"), dict) else {}
+        target = delta.get("target") if isinstance(delta.get("target"), dict) else {}
+        src_pos = int(source.get("position") or 0)
+        src_n = len(source.get("lines") or [])
+        tgt_lines = [str(item) for item in (target.get("lines") or [])]
+        if typ == "INSERT":
+            pos = target.get("position")
+            insert_at = int(pos) if pos is not None else src_pos
+            lines[insert_at:insert_at] = tgt_lines
+        elif typ == "DELETE":
+            del lines[src_pos : src_pos + src_n]
+        else:
+            lines[src_pos : src_pos + src_n] = tgt_lines
+    return "\n".join(lines)
+
+
+def resolve_halo2_snapshot_body(
+    snap_name: str,
+    snapshots: dict[str, dict[str, Any]],
+    cache: dict[str, str] | None = None,
+    stack: set[str] | None = None,
+) -> str:
+    """沿 parentSnapshotName 还原发布快照正文。"""
+    name = str(snap_name)
+    memo = cache if cache is not None else {}
+    if name in memo:
+        return memo[name]
+    visiting = stack if stack is not None else set()
+    if name in visiting:
+        return ""
+    snap = snapshots.get(name)
+    if not snap:
+        return ""
+    spec = snap.get("spec") or {}
+    parent = str(spec.get("parentSnapshotName") or "").strip()
+    patch = _snapshot_text_field(spec)
+    visiting.add(name)
+    if parent and parent in snapshots:
+        base = resolve_halo2_snapshot_body(parent, snapshots, memo, visiting)
+        body = apply_halo2_line_patch(base, patch)
+    else:
+        body = apply_halo2_line_patch("", patch)
+    visiting.discard(name)
+    memo[name] = body
+    return body
+
+
 def _halo2_body_from_snapshot(snap: dict[str, Any]) -> tuple[str, str]:
     spec = snap.get("spec") or {}
     raw_type = str(spec.get("rawType") or spec.get("raw_type") or "markdown").lower()
@@ -192,6 +281,8 @@ def _halo2_body_from_snapshot(snap: dict[str, Any]) -> tuple[str, str]:
         raw = raw.get("content") or raw.get("raw") or ""
     body = str(raw or "")
     html = str(spec.get("content") or "")
+    if not body and not html:
+        body = apply_halo2_line_patch("", _snapshot_text_field(spec))
     if "html" in raw_type or raw_type == "richtext":
         return (body or html, FORMAT_HTML)
     return (body or html, FORMAT_MARKDOWN)
@@ -251,7 +342,20 @@ def parse_halo2(
         body = str(spec.get("content") or "")
         body_format = FORMAT_MARKDOWN
         if snap_name and str(snap_name) in snapshots:
-            body, body_format = _halo2_body_from_snapshot(snapshots[str(snap_name)])
+            resolved = resolve_halo2_snapshot_body(str(snap_name), snapshots)
+            if resolved:
+                raw_type = str(
+                    (snapshots[str(snap_name)].get("spec") or {}).get("rawType")
+                    or "markdown"
+                ).lower()
+                body = resolved
+                body_format = (
+                    FORMAT_HTML
+                    if ("html" in raw_type or raw_type == "richtext")
+                    else FORMAT_MARKDOWN
+                )
+            else:
+                body, body_format = _halo2_body_from_snapshot(snapshots[str(snap_name)])
         phase = str(status.get("phase") or "")
         published = bool(spec.get("publish")) or phase.upper() == "PUBLISHED"
         owner = spec.get("owner")
@@ -304,7 +408,7 @@ def parse_halo2(
             ParsedComment(
                 source_id=f"halo2:comment:{meta}",
                 post_source_id=f"halo2:post:{post_name}",
-                body=str(spec.get("content") or spec.get("raw") or "").strip(),
+                body=strip_html_text(str(spec.get("content") or spec.get("raw") or "")),
                 guest_name=display or None,
                 owner_key=owner_key,
                 parent_source_id=(

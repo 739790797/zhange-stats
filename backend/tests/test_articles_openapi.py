@@ -51,6 +51,21 @@ def test_article_list_query_has_search_and_sort() -> None:
         .get("properties", {})
     )
     assert "comment_count" in props
+    cats = props.get("categories") or {}
+    ref = (cats.get("items") or {}).get("$ref", "")
+    assert ref.endswith("ArticleCategoryOut")
+
+
+def test_article_category_schema_has_admin_and_chip() -> None:
+    schema = app.openapi()
+    props = (
+        (schema.get("components") or {})
+        .get("schemas", {})
+        .get("ArticleCategoryOut", {})
+        .get("properties", {})
+    )
+    assert "admin_only" in props
+    assert "chip_color" in props
 
 
 def test_article_mine_and_authors_require_security() -> None:
@@ -64,3 +79,5 @@ def test_article_mine_and_authors_require_security() -> None:
     assert mine and mine.get("security")
     assert authors and authors.get("security")
     assert restore and restore.get("security")
+    recognize = (paths.get("/api/articles/math/recognize") or {}).get("post")
+    assert recognize and recognize.get("security")

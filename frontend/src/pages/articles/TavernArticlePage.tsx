@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, Spin } from "antd";
+import { Button, Spin, Tag } from "antd";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { fetchArticle, fetchArticleCapabilities } from "@/api/articlesApi";
 import { ArticleBody } from "@/components/articles/ArticleBody";
 import { ArticleComments } from "@/components/articles/ArticleComments";
 import { FeatureUnavailablePage } from "@/components/FeatureUnavailablePage";
+import "@/components/articles/articleRichtext.css";
 import styles from "@/components/articles/TavernReading.module.css";
 import { apiError, isApiForbidden } from "@/lib/apiError";
+import { articleCategoryChipColor } from "@/lib/articleCategory";
 import {
   TAVERN_ADMIN_PATH,
   TAVERN_FEATURE_ID,
@@ -98,7 +100,7 @@ export default function TavernArticlePage() {
                   key={cat.id}
                   to={`${TAVERN_PATH}?category=${encodeURIComponent(cat.slug)}`}
                 >
-                  {cat.name}
+                  <Tag color={articleCategoryChipColor(cat)}>{cat.name}</Tag>
                 </Link>
               ))}
               {(article.tags || []).map((tag) => (
@@ -109,6 +111,9 @@ export default function TavernArticlePage() {
         </div>
       </header>
       <div className={styles.paper}>
+        {article.cover_url ? (
+          <img className={styles.cover} src={article.cover_url} alt="" />
+        ) : null}
         <ArticleBody body={article.body} format={article.body_format} />
         <div className={styles.comments}>
           <ArticleComments slug={article.slug} />

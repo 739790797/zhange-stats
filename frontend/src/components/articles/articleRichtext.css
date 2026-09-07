@@ -1,0 +1,150 @@
+@import "katex/dist/katex.min.css";
+
+:root {
+  --tavern-article-col-width: 86%;
+  --tavern-article-col-max: 1100px;
+  --tavern-article-paper-pad-x: 40px;
+  --tavern-article-paper-pad: 32px var(--tavern-article-paper-pad-x) 48px;
+  --tavern-article-title-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+
+@media (max-width: 900px) {
+  :root {
+    --tavern-article-col-width: 92%;
+    --tavern-article-paper-pad-x: 20px;
+    --tavern-article-paper-pad: 24px var(--tavern-article-paper-pad-x) 36px;
+  }
+}
+
+.ProseMirror a,
+.tiptap a {
+  color: #1677ff;
+  text-decoration: underline;
+}
+
+.article-align-left {
+  text-align: left;
+}
+
+.article-align-center {
+  text-align: center;
+}
+
+.article-align-right {
+  text-align: right;
+}
+
+.article-indent-1 {
+  margin-left: 1.6em;
+}
+
+.article-indent-2 {
+  margin-left: 3.2em;
+}
+
+.article-indent-3 {
+  margin-left: 4.8em;
+}
+
+.article-indent-4 {
+  margin-left: 6.4em;
+}
+
+.article-color-red {
+  color: #cf1322;
+}
+
+.article-color-orange {
+  color: #d46b08;
+}
+
+.article-color-gold {
+  color: #d48806;
+}
+
+.article-color-green {
+  color: #389e0d;
+}
+
+.article-color-blue {
+  color: #1677ff;
+}
+
+.article-color-purple {
+  color: #531dab;
+}
+
+.article-color-gray {
+  color: #595959;
+}
+
+.article-mark-yellow {
+  background: #fff1b8;
+}
+
+.article-mark-green {
+  background: #d9f7be;
+}
+
+.article-mark-red {
+  background: #ffccc7;
+}
+
+.article-mark-blue {
+  background: #bae0ff;
+}
+
+.article-mark-yellow,
+.article-mark-green,
+.article-mark-red,
+.article-mark-blue {
+  padding: 0 0.16em;
+  border-radius: 2px;
+}
+
+.article-math {
+  display: inline-block;
+  padding: 0 0.12em;
+}
+
+.article-math-block {
+  display: block;
+  margin: 1em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.ProseMirror .article-math,
+.ProseMirror .article-math-block {
+  cursor: pointer;
+}
+
+.ProseMirror .article-math .katex,
+.ProseMirror .article-math-block .katex {
+  pointer-events: none;
+}
+
+.article-math-error {
+  color: #cf1322;
+  background: #fff1f0;
+  padding: 0 0.2em;
+  border-radius: 2px;
+}
+
+.article-drag-handle {
+  display: none;
+  position: absolute;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 24px;
+  color: rgba(26, 35, 50, 0.35);
+  cursor: grab;
+  user-select: none;
+  z-index: 5;
+  touch-action: none;
+}
+
+.article-drag-handle:active {
+  cursor: grabbing;
+}

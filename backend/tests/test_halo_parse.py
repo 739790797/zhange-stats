@@ -1,4 +1,11 @@
-from app.services.articles.halo_parse import detect_halo_version, parse_halo1_posts, parse_halo2
+from app.services.articles.halo_parse import (
+    apply_halo2_line_patch,
+    detect_halo_version,
+    parse_halo1_posts,
+    parse_halo2,
+    resolve_halo2_snapshot_body,
+    strip_html_text,
+)
 from app.services.articles.service import FORMAT_HTML, FORMAT_MARKDOWN, STATUS_PUBLISHED
 
 
@@ -123,3 +130,65 @@ def test_parse_halo2_html_snapshot() -> None:
     articles, _ = parse_halo2(extensions)
     assert articles[0].body_format == FORMAT_HTML
     assert articles[0].body == "<p>hi</p>"
+
+
+def test_apply_halo2_line_patch_change_and_html_base() -> None:
+    assert apply_halo2_line_patch("", "<p>full</p>") == "<p>full</p>"
+    patched = apply_halo2_line_patch(
+        "line-a\nline-b",
+        '[{"type":"CHANGE","source":{"position":1,"lines":["line-b"]},'
+        '"target":{"position":1,"lines":["line-b","line-c"]}}]',
+    )
+    assert patched == "line-a\nline-b\nline-c"
+
+
+def test_parse_halo2_applies_parent_snapshot_patch() -> None:
+    extensions = [
+        (
+            "/registry/content.halo.run/posts/p1",
+            {
+                "kind": "Post",
+                "metadata": {"name": "p1"},
+                "spec": {
+                    "title": "补丁文",
+                    "slug": "patched",
+                    "publish": True,
+                    "releaseSnapshot": "child",
+                    "owner": "739790797",
+                },
+                "status": {"phase": "PUBLISHED"},
+            },
+        ),
+        (
+            "/registry/content.halo.run/snapshots/parent",
+            {
+                "kind": "Snapshot",
+                "metadata": {"name": "parent"},
+                "spec": {"rawType": "HTML", "rawPatch": "<p>one</p>\n<p>two</p>"},
+            },
+        ),
+        (
+            "/registry/content.halo.run/snapshots/child",
+            {
+                "kind": "Snapshot",
+                "metadata": {"name": "child"},
+                "spec": {
+                    "rawType": "HTML",
+                    "parentSnapshotName": "parent",
+                    "rawPatch": (
+                        '[{"type":"CHANGE","source":{"position":1,"lines":["<p>two</p>"]},'
+                        '"target":{"position":1,"lines":["<p>two</p>","<img src=\\"/upload/a.png\\">"]}}]'
+                    ),
+                },
+            },
+        ),
+    ]
+    articles, _ = parse_halo2(extensions)
+    assert articles[0].body_format == FORMAT_HTML
+    assert articles[0].body == '<p>one</p>\n<p>two</p>\n<img src="/upload/a.png">'
+    assert resolve_halo2_snapshot_body("child", {}) == ""
+
+
+def test_strip_html_text() -> None:
+    assert strip_html_text("<p>说啥呢在这</p>") == "说啥呢在这"
+    assert strip_html_text("a<br/>b") == "a\nb"

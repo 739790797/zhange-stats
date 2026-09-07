@@ -43,6 +43,13 @@ from app.services.articles.urls import copy_halo_uploads, rewrite_body_urls
 
 logger = logging.getLogger("zhange.halo_import")
 
+# Halo 分类 slug → 酒馆已有分类（名称, slug）
+_HALO_CATEGORY_ALIASES: dict[str, tuple[str, str]] = {
+    "ji-shu-bi-ji": ("技术分享", "tech"),
+    "you-xi-yu-le": ("游戏攻略", "guides"),
+    "sheng-huo-sui-bi": ("闲聊随笔", "casual"),
+}
+
 
 def _load_author_map(raw: str | None) -> dict[str, int]:
     if not raw:
@@ -166,7 +173,11 @@ def _upsert_article(
         db.query(Article).filter(Article.halo_source_id == parsed.source_id).first()
     )
     cats = [
-        articles_svc.ensure_category_by_slug(db, name=n, slug=s)
+        articles_svc.ensure_category_by_slug(
+            db, name=alias[0], slug=alias[1]
+        )
+        if (alias := _HALO_CATEGORY_ALIASES.get(s))
+        else articles_svc.ensure_category_by_slug(db, name=n, slug=s)
         for n, s in parsed.categories
     ]
     tags = [

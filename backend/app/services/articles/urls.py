@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import unquote
 
 _MD_OR_HTML_URL = re.compile(
     r"""(?P<prefix>(?:src|href)\s*=\s*["']|!\[[^\]]*\]\()(?P<url>[^"')\s]+)(?P<suffix>["')])""",
@@ -26,13 +27,13 @@ def halo_rel_key(url: str) -> str | None:
     for marker in ("/upload/", "/uploads/"):
         idx = lower.find(marker)
         if idx >= 0:
-            rel = normalized[idx + len(marker) :]
+            rel = unquote(normalized[idx + len(marker) :])
             return rel or None
     stripped = normalized.lstrip("/")
     if stripped.lower().startswith("upload/"):
-        return stripped[7:] or None
+        return unquote(stripped[7:]) or None
     if stripped.lower().startswith("uploads/"):
-        return stripped[8:] or None
+        return unquote(stripped[8:]) or None
     return None
 
 

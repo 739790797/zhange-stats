@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Descriptions, Modal, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Descriptions, Modal, Progress, Space, Spin, Tag, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { fetchJobRuns } from "@/api/client";
 import { apiError } from "@/lib/apiError";
@@ -10,6 +10,7 @@ import {
   jobRunFreshnessSummary,
   jobRunFreshnessText,
   jobRunStatEntries,
+  jobRunProgressPercent,
   jobRunStatusLabel,
   jobRunSummaryText,
   jobRunWatchPollMs,
@@ -79,7 +80,10 @@ export function JobRunResultModal({
   const finished = isJobRunFinished(run?.status);
   const parsed = parseJobRunMessage(run?.message);
   const stats = jobRunStatEntries(run?.stats);
-  const waiting = open && !finished && !timedOut;
+  const percent = jobRunProgressPercent(run?.stats);
+  const running = run?.status === "running";
+  const stalled = timedOut && !finished && !running;
+  const waiting = open && !finished && !stalled;
 
   return (
     <Modal
@@ -104,18 +108,18 @@ export function JobRunResultModal({
           ) : null}
           <Alert
             type={
-              timedOut && !finished
+              stalled
                 ? "warning"
                 : jobRunAlertType(run?.status || "running")
             }
             showIcon
             message={
-              timedOut && !finished
+              stalled
                 ? "仍未拿到结束记录"
                 : jobRunSummaryText(run, watch.acceptedMessage)
             }
             description={
-              timedOut && !finished
+              stalled
                 ? "任务可能还在跑，或这次没有写入执行记录。可稍后刷新任务配置再看。"
                 : run
                   ? [
@@ -129,7 +133,10 @@ export function JobRunResultModal({
                   : "已接收执行，正在等待任务开始…"
             }
           />
-          {waiting ? (
+          {waiting && percent != null ? (
+            <Progress percent={percent} status="active" />
+          ) : null}
+          {waiting && percent == null ? (
             <div style={{ textAlign: "center", padding: "16px 0" }}>
               <Spin />
             </div>

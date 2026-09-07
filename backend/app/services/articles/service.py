@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -21,11 +23,10 @@ from app.services.articles.slug import ensure_slug, is_reserved_slug, slugify
 
 STATUS_PUBLISHED = "published"
 STATUS_DRAFT = "draft"
-STATUS_DELETED = "deleted"
 FORMAT_MARKDOWN = "markdown"
 FORMAT_HTML = "html"
 ALLOWED_WRITE_STATUS = frozenset({STATUS_PUBLISHED, STATUS_DRAFT})
-ALLOWED_LIST_STATUS = frozenset({STATUS_PUBLISHED, STATUS_DRAFT, STATUS_DELETED})
+ALLOWED_LIST_STATUS = ALLOWED_WRITE_STATUS
 ALLOWED_FORMAT = frozenset({FORMAT_MARKDOWN, FORMAT_HTML})
 MAX_TITLE = 200
 MAX_SUMMARY = 512
@@ -36,6 +37,7 @@ DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 50
 MAX_SEARCH_Q = 80
 ALLOWED_SORT = frozenset({"latest", "hot"})
+_CHIP_HEX = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 def _raise(status: int, message: str) -> None:
@@ -112,6 +114,8 @@ def append_version_if_changed(
     note: str = "",
     force: bool = False,
 ) -> ArticleVersion | None:
+    if row.status != STATUS_PUBLISHED:
+        return None
     payload = _version_payload(row)
     last = (
         db.query(ArticleVersion)
@@ -179,6 +183,43 @@ def _load_terms(
     return rows
 
 
+def normalize_chip_color(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    if not _CHIP_HEX.fullmatch(raw):
+        _raise(400, "芯片颜色须为 #RGB 或 #RRGGBB")
+    if len(raw) == 4:
+        raw = "#" + "".join(ch * 2 for ch in raw[1:])
+    return raw.lower()
+
+
+def category_to_out(row: ArticleCategory) -> dict:
+    return {
+        "id": row.id,
+        "slug": row.slug,
+        "name": row.name,
+        "sort_order": row.sort_order,
+        "admin_only": bool(row.admin_only),
+        "chip_color": row.chip_color or None,
+    }
+
+
+def _assign_categories(
+    db: Session,
+    ids: list[int] | None,
+    *,
+    actor: User,
+) -> list[ArticleCategory]:
+    rows = _load_terms(db, ArticleCategory, ids)
+    if actor.is_admin_user:
+        return rows
+    locked = next((row for row in rows if row.admin_only), None)
+    if locked is not None:
+        _raise(403, f"分类「{locked.name}」仅管理员可用")
+    return rows
+
+
 def _author_payload(user: User | None) -> dict:
     if user is None:
         return {"user_id": None, "display_name": "已注销", "avatar_url": None}
@@ -210,9 +251,7 @@ def article_to_list_item(row: Article, *, comment_count: int = 0) -> dict:
         "updated_at": row.updated_at,
         "comment_count": int(comment_count),
         "author": _author_payload(row.author),
-        "categories": [
-            {"id": c.id, "slug": c.slug, "name": c.name} for c in row.categories
-        ],
+        "categories": [category_to_out(c) for c in row.categories],
         "tags": [{"id": t.id, "slug": t.slug, "name": t.name} for t in row.tags],
     }
 
@@ -444,7 +483,7 @@ def create_article(
         updated_at=now,
     )
     _apply_publish_fields(row, status)
-    row.categories = _load_terms(db, ArticleCategory, category_ids)
+    row.categories = _assign_categories(db, category_ids, actor=author)
     row.tags = _load_terms(db, ArticleTag, tag_ids)
     db.add(row)
     db.flush()
@@ -470,8 +509,6 @@ def update_article(
 ) -> Article:
     row = get_by_id(db, article_id)
     ensure_can_edit(db, actor, row)
-    if row.status == STATUS_DELETED:
-        _raise(409, "已删除的文章请先从版本恢复")
     if title is not None:
         title = title.strip()
         if not title:
@@ -506,7 +543,7 @@ def update_article(
             _raise(400, "状态无效")
         _apply_publish_fields(row, status)
     if category_ids is not None:
-        row.categories = _load_terms(db, ArticleCategory, category_ids)
+        row.categories = _assign_categories(db, category_ids, actor=actor)
     if tag_ids is not None:
         row.tags = _load_terms(db, ArticleTag, tag_ids)
     row.updated_at = now_naive()
@@ -521,10 +558,7 @@ def delete_article(db: Session, article_id: int, *, actor: User) -> None:
     if row is None:
         _raise(404, "文章不存在")
     ensure_can_edit(db, actor, row)
-    if row.status == STATUS_DELETED:
-        return
-    row.status = STATUS_DELETED
-    row.updated_at = now_naive()
+    db.delete(row)
     db.commit()
 
 
@@ -638,8 +672,6 @@ def restore_version(
         article.cover_url = normalize_cover_url(ver.cover_url)
     except ArticleError:
         article.cover_url = None
-    if article.status == STATUS_DELETED:
-        article.status = STATUS_DRAFT
     article.updated_at = now_naive()
     db.flush()
     append_version_if_changed(
@@ -695,10 +727,7 @@ def list_categories(db: Session) -> list[dict]:
         .order_by(ArticleCategory.sort_order.asc(), ArticleCategory.id.asc())
         .all()
     )
-    return [
-        {"id": r.id, "slug": r.slug, "name": r.name, "sort_order": r.sort_order}
-        for r in rows
-    ]
+    return [category_to_out(r) for r in rows]
 
 
 def list_tags(db: Session) -> list[dict]:
@@ -713,6 +742,8 @@ def upsert_category(
     name: str,
     slug: str | None = None,
     sort_order: int = 0,
+    admin_only: bool = False,
+    chip_color: str | None = None,
 ) -> ArticleCategory:
     name = (name or "").strip()
     if not name:
@@ -720,6 +751,7 @@ def upsert_category(
     base = ensure_slug(name, slug)
     if is_reserved_slug(base):
         _raise(400, "该短链为系统保留，请换一个")
+    color = normalize_chip_color(chip_color)
     q = db.query(ArticleCategory).filter(ArticleCategory.slug == base)
     if category_id is not None:
         q = q.filter(ArticleCategory.id != category_id)
@@ -730,6 +762,8 @@ def upsert_category(
             name=name,
             slug=base,
             sort_order=sort_order,
+            admin_only=bool(admin_only),
+            chip_color=color,
             created_at=now_naive(),
         )
         db.add(row)
@@ -740,6 +774,8 @@ def upsert_category(
         row.name = name
         row.slug = base
         row.sort_order = sort_order
+        row.admin_only = bool(admin_only)
+        row.chip_color = color
     db.commit()
     db.refresh(row)
     return row
@@ -863,7 +899,14 @@ def ensure_category_by_slug(db: Session, *, name: str, slug: str) -> ArticleCate
     row = db.query(ArticleCategory).filter(ArticleCategory.slug == slug).first()
     if row:
         return row
-    row = ArticleCategory(name=name.strip() or slug, slug=slug, sort_order=0)
+    row = ArticleCategory(
+        name=name.strip() or slug,
+        slug=slug,
+        sort_order=0,
+        admin_only=False,
+        chip_color=None,
+        created_at=now_naive(),
+    )
     db.add(row)
     db.flush()
     return row
@@ -874,7 +917,7 @@ def ensure_tag_by_slug(db: Session, *, name: str, slug: str) -> ArticleTag:
     row = db.query(ArticleTag).filter(ArticleTag.slug == slug).first()
     if row:
         return row
-    row = ArticleTag(name=name.strip() or slug, slug=slug)
+    row = ArticleTag(name=name.strip() or slug, slug=slug, created_at=now_naive())
     db.add(row)
     db.flush()
     return row

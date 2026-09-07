@@ -42,7 +42,9 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 发版：推送到 `main` 时 CI 按根目录 `VERSION` 创建/更新 GitHub Release（tag `v{VERSION}`），并上传 `zhange-stats-{VERSION}-static.tar.gz`。
 
-持久化目录：`var/data/`（含 `.secret_key` 与日志）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
+持久化目录：`var/data/`（含 `.secret_key` 与日志、TexTeller 公式识别权重 `var/data/texteller/`）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
+
+公式识别用 [TexTeller](https://github.com/OleehyO/TexTeller) 的 ONNX 权重，推理走 `onnxruntime`（主依赖），不必再装官方 `texteller`（torch）。权重可更新：启动时若本地没有会后台补齐；之后由任务配置「公式识别模型更新」对照镜像上的 `OleehyO/TexTeller` 定时同步。默认走 `https://hf-mirror.com`。
 
 健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。数据库探测结果进程内缓存 1 秒，避免探针打满连接池。管理端「平台日志」的运行时健康另含 `APP_ENV`、Redis、`TRUST_X_FORWARDED_FOR`、SMTP，公开引流前应在该页核对。
 

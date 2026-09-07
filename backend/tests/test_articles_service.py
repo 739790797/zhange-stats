@@ -1,4 +1,4 @@
-"""酒馆作者权限、软删除、版本恢复。"""
+"""酒馆作者权限、物理删除、版本恢复。"""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def test_non_author_cannot_create() -> None:
     assert exc.value.status_code == 403
 
 
-def test_listed_author_create_publish_and_soft_delete() -> None:
+def test_listed_author_create_publish_and_hard_delete() -> None:
     db = _session()
     admin = _user(db, "admin", admin=True)
     author = _user(db, "ann")
@@ -51,20 +51,20 @@ def test_listed_author_create_publish_and_soft_delete() -> None:
         body="v1",
         status=articles_svc.STATUS_PUBLISHED,
     )
+    article_id = row.id
     assert row.status == articles_svc.STATUS_PUBLISHED
     pub = articles_svc.list_published(db)
     assert pub["total"] == 1
-    articles_svc.delete_article(db, row.id, actor=author)
+    articles_svc.delete_article(db, article_id, actor=author)
     db.expire_all()
     gone = articles_svc.list_published(db)
     assert gone["total"] == 0
     listed = articles_svc.list_admin(db)
-    assert listed["total"] == 1
-    assert listed["items"][0]["status"] == articles_svc.STATUS_DELETED
-    still = db.query(Article).filter(Article.id == row.id).one()
-    assert still.status == articles_svc.STATUS_DELETED
-    admin_list = articles_svc.list_admin(db, status=articles_svc.STATUS_DELETED)
-    assert admin_list["total"] == 1
+    assert listed["total"] == 0
+    assert db.query(Article).filter(Article.id == article_id).first() is None
+    with pytest.raises(ArticleError) as exc:
+        articles_svc.list_admin(db, status="deleted")
+    assert exc.value.status_code == 400
     assert admin.is_admin_user
 
 
@@ -79,20 +79,75 @@ def test_author_cannot_edit_others() -> None:
     assert exc.value.status_code == 403
 
 
-def test_restore_version_and_undelete() -> None:
+def test_draft_has_no_versions_until_publish() -> None:
     db = _session()
     author = _user(db, "ann")
     articles_svc.set_authors(db, [author.id])
     row = articles_svc.create_article(db, author=author, title="T1", body="body-1")
+    assert row.status == articles_svc.STATUS_DRAFT
+    assert articles_svc.list_versions(db, row.id, author) == []
+    articles_svc.update_article(db, row.id, actor=author, title="T2", body="body-2")
+    assert articles_svc.list_versions(db, row.id, author) == []
+    published = articles_svc.update_article(
+        db,
+        row.id,
+        actor=author,
+        status=articles_svc.STATUS_PUBLISHED,
+    )
+    vers = articles_svc.list_versions(db, published.id, author)
+    assert [v["version_no"] for v in vers] == [1]
+    assert vers[0]["title"] == "T2"
+    articles_svc.update_article(db, published.id, actor=author, body="body-3")
+    assert [v["version_no"] for v in articles_svc.list_versions(db, published.id, author)] == [
+        2,
+        1,
+    ]
+    articles_svc.update_article(
+        db, published.id, actor=author, status=articles_svc.STATUS_DRAFT
+    )
+    assert [v["version_no"] for v in articles_svc.list_versions(db, published.id, author)] == [
+        2,
+        1,
+    ]
+
+
+def test_restore_version() -> None:
+    db = _session()
+    author = _user(db, "ann")
+    articles_svc.set_authors(db, [author.id])
+    row = articles_svc.create_article(
+        db,
+        author=author,
+        title="T1",
+        body="body-1",
+        status=articles_svc.STATUS_PUBLISHED,
+    )
     articles_svc.update_article(db, row.id, actor=author, title="T2", body="body-2")
     vers = articles_svc.list_versions(db, row.id, author)
     assert [v["version_no"] for v in vers] == [2, 1]
     first_id = next(v["id"] for v in vers if v["version_no"] == 1)
-    articles_svc.delete_article(db, row.id, actor=author)
     restored = articles_svc.restore_version(db, row.id, first_id, author)
-    assert restored.status == articles_svc.STATUS_DRAFT
+    assert restored.status == articles_svc.STATUS_PUBLISHED
     assert restored.title == "T1"
     assert restored.body == "body-1"
+    assert [v["version_no"] for v in articles_svc.list_versions(db, row.id, author)] == [
+        3,
+        2,
+        1,
+    ]
+
+
+def test_deleted_article_is_gone() -> None:
+    db = _session()
+    author = _user(db, "ann")
+    articles_svc.set_authors(db, [author.id])
+    row = articles_svc.create_article(db, author=author, title="Draft", body="x")
+    article_id = row.id
+    articles_svc.delete_article(db, article_id, actor=author)
+    assert db.query(Article).filter(Article.id == article_id).first() is None
+    with pytest.raises(ArticleError) as exc:
+        articles_svc.update_article(db, article_id, actor=author, title="Nope")
+    assert exc.value.status_code == 404
 
 
 def test_admin_can_write_without_author_row() -> None:
@@ -208,7 +263,87 @@ def test_default_categories_idempotent() -> None:
 
     db = _session()
     first = ensure_default_categories(db)
-    assert set(first) == {slug for slug, _, _ in DEFAULT_CATEGORIES}
+    assert set(first) == {spec.slug for spec in DEFAULT_CATEGORIES}
     assert db.query(ArticleCategory).count() == len(DEFAULT_CATEGORIES)
+    notice = first["notice"]
+    assert notice.admin_only is True
+    assert notice.chip_color == "#c41d7f"
+    assert first["guides"].admin_only is False
     ensure_default_categories(db)
     assert db.query(ArticleCategory).count() == len(DEFAULT_CATEGORIES)
+
+
+def test_normalize_chip_color() -> None:
+    assert articles_svc.normalize_chip_color(None) is None
+    assert articles_svc.normalize_chip_color("  ") is None
+    assert articles_svc.normalize_chip_color("#C41") == "#cc4411"
+    assert articles_svc.normalize_chip_color("#C41D7F") == "#c41d7f"
+    with pytest.raises(ArticleError) as exc:
+        articles_svc.normalize_chip_color("red")
+    assert exc.value.status_code == 400
+
+
+def test_author_cannot_assign_admin_only_category() -> None:
+    from app.services.articles.defaults import ensure_default_categories
+
+    db = _session()
+    admin = _user(db, "root", admin=True)
+    author = _user(db, "ann")
+    articles_svc.set_authors(db, [author.id])
+    cats = ensure_default_categories(db)
+    notice_id = cats["notice"].id
+    guides_id = cats["guides"].id
+    with pytest.raises(ArticleError) as exc:
+        articles_svc.create_article(
+            db,
+            author=author,
+            title="Oops",
+            body="x",
+            category_ids=[notice_id],
+        )
+    assert exc.value.status_code == 403
+    posted = articles_svc.create_article(
+        db,
+        author=admin,
+        title="站点公告",
+        body="x",
+        category_ids=[notice_id],
+    )
+    assert [row.slug for row in posted.categories] == ["notice"]
+    listed = articles_svc.article_to_list_item(posted)
+    assert listed["categories"][0]["admin_only"] is True
+    assert listed["categories"][0]["chip_color"] == "#c41d7f"
+    row = articles_svc.create_article(
+        db, author=author, title="攻略", body="x", category_ids=[guides_id]
+    )
+    with pytest.raises(ArticleError) as exc:
+        articles_svc.update_article(
+            db, row.id, actor=author, category_ids=[notice_id]
+        )
+    assert exc.value.status_code == 403
+
+
+def test_upsert_category_admin_only_and_chip() -> None:
+    db = _session()
+    row = articles_svc.upsert_category(
+        db,
+        name="内部",
+        slug="internal",
+        admin_only=True,
+        chip_color="#C41D7F",
+    )
+    assert row.admin_only is True
+    assert row.chip_color == "#c41d7f"
+    listed = articles_svc.list_categories(db)
+    assert listed[0]["admin_only"] is True
+    assert listed[0]["chip_color"] == "#c41d7f"
+    cleared = articles_svc.upsert_category(
+        db,
+        category_id=row.id,
+        name="内部",
+        slug="internal",
+        admin_only=False,
+        chip_color="",
+    )
+    assert cleared.admin_only is False
+    assert cleared.chip_color is None

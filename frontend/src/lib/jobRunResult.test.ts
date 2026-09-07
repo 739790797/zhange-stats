@@ -7,12 +7,14 @@ import {
   jobRunDomainLabel,
   jobRunFreshnessSummary,
   jobRunFreshnessText,
+  jobRunProgressPercent,
   jobRunStatEntries,
   jobRunStatusLabel,
   jobRunSummaryText,
   jobRunWatchPollMs,
   parseJobRunMessage,
   pickWatchedJobRun,
+  formatJobRunBytes,
 } from "./jobRunResult";
 
 describe("jobRunResult", () => {
@@ -100,6 +102,12 @@ describe("jobRunResult", () => {
       jobRunSummaryText({ id: 1, status: "running" }, "已提交执行"),
     ).toBe("已提交执行");
     expect(
+      jobRunSummaryText(
+        { id: 1, status: "running", message: "正在下载 encoder_model.onnx（2/8）" },
+        "已提交执行",
+      ),
+    ).toBe("正在下载 encoder_model.onnx（2/8）");
+    expect(
       jobRunSummaryText({
         id: 1,
         status: "ok",
@@ -133,6 +141,13 @@ describe("jobRunResult", () => {
     expect(
       jobRunWatchPollMs({
         run: { id: 1, status: "running" },
+        startedAt: 0,
+        now: 11 * 60 * 1000,
+      }),
+    ).toBe(JOB_RUN_WATCH_POLL_MS);
+    expect(
+      jobRunWatchPollMs({
+        run: null,
         startedAt: 0,
         now: 11 * 60 * 1000,
       }),
@@ -180,5 +195,21 @@ describe("jobRunResult", () => {
       { key: "ok", label: "成功", value: "2" },
       { key: "failed", label: "失败", value: "1" },
     ]);
+    expect(
+      jobRunStatEntries({
+        percent: 40,
+        phase: "download",
+        file: "encoder_model.onnx",
+        bytes: 1572864,
+        updated: true,
+      }),
+    ).toEqual([
+      { key: "file", label: "当前文件", value: "encoder_model.onnx" },
+      { key: "bytes", label: "已下载", value: "1.5 MB" },
+      { key: "updated", label: "已更新", value: "是" },
+    ]);
+    expect(formatJobRunBytes(512)).toBe("512 B");
+    expect(jobRunProgressPercent({ percent: 40.2 })).toBe(40);
+    expect(jobRunProgressPercent({ percent: "x" })).toBeNull();
   });
 });

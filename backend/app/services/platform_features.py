@@ -29,6 +29,15 @@ FEATURE_TREE: list[dict[str, Any]] = [
         "id": "tavern",
         "name": "战鸽酒馆",
         "kind": "platform",
+        "children": [
+            {
+                "id": "tavern.texteller_sync",
+                "name": "公式识别模型更新",
+                "kind": "job",
+                "job_id": "texteller_model_sync",
+                "schedule": "cron",
+            },
+        ],
     },
     {
         "id": "steam",
@@ -269,6 +278,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_full_sync": "guides.tarkov.full_sync",
+    "texteller_model_sync": "tavern.texteller_sync",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {

@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -152,6 +153,19 @@ async def lifespan(_: FastAPI):
         scheduler.running,
         (cfg.STATIC_DIR or "").strip() or "(unset)",
     )
+    from app.services.articles.texteller import ensure_texteller_models
+
+    def _ensure_texteller() -> None:
+        try:
+            ensure_texteller_models()
+        except Exception:
+            logger.exception("texteller model ensure failed")
+
+    threading.Thread(
+        target=_ensure_texteller,
+        name="texteller-ensure",
+        daemon=True,
+    ).start()
     from app.services.tarkov import goon_tracker as goon_tracker_svc
     from app.services.tarkov.goon_tracker_hub import hub as goon_hub
 

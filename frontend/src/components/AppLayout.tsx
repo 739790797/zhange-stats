@@ -268,7 +268,9 @@ export function AppLayout() {
     if (location.pathname.startsWith(TAVERN_ADMIN_PATH)) {
       return TAVERN_ADMIN_PATH;
     }
-    if (location.pathname.startsWith(TAVERN_PATH)) return TAVERN_PATH;
+    if (location.pathname === "/" || location.pathname.startsWith(TAVERN_PATH)) {
+      return TAVERN_PATH;
+    }
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/guides/")) {
@@ -456,7 +458,7 @@ export function AppLayout() {
     profileQuery.data?.avatar_url || user?.avatar_url || undefined;
   const roleLabel = isAdmin ? "管理员" : null;
 
-  const homeHref = loggedIn ? "/" : TAVERN_PATH;
+  const homeHref = TAVERN_PATH;
 
   const onLogout = () => {
     logout();
@@ -707,7 +709,11 @@ export function AppLayout() {
                   overflowY: "scroll",
                   scrollbarGutter: "stable",
                   ...(contentShell === "flush"
-                    ? { background: token.colorBgLayout }
+                    ? {
+                        background: token.colorBgLayout,
+                        display: "flex",
+                        flexDirection: "column",
+                      }
                     : {}),
                 }
           }
@@ -729,7 +735,11 @@ export function AppLayout() {
                       background: "transparent",
                       padding: 0,
                       boxShadow: "none",
-                      minHeight: 0,
+                      minHeight: "100%",
+                      flex: "1 0 auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      width: "100%",
                     }
                   : contentShell
                     ? { background: token.colorBgContainer }

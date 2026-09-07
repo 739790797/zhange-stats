@@ -37,11 +37,11 @@ articles ── * article_versions
 | 表 | 用途 |
 |---|---|
 | `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin` |
-| `article_categories` | 战鸽酒馆文章分类；`slug` 唯一 |
+| `article_categories` | 战鸽酒馆文章分类；`slug` 唯一；`admin_only` 仅管理员能把文章标到该分类；`chip_color` 为文章卡片芯片色（`#RGB` / `#RRGGBB`，空则前端用默认蓝） |
 | `article_tags` | 战鸽酒馆文章标签；`slug` 唯一 |
-| `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft` / `deleted`，删除为逻辑删除）、`author_user_id` ON DELETE SET NULL、`halo_source_id` 可空唯一（导入幂等） |
-| `article_authors` | 酒馆作者白名单；主键 `user_id` ON DELETE CASCADE。站点管理员不必入表即可发文；被勾选的普通用户可发文、编辑/删除（软删）自己的文章 |
-| `article_versions` | 文章内容版本；唯一 `(article_id, version_no)`；恢复某一版会写回正文并再追加一条版本。`article_id` ON DELETE CASCADE，`created_by_user_id` ON DELETE SET NULL |
+| `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft`）、`author_user_id` ON DELETE SET NULL、`halo_source_id` 可空唯一（导入幂等）。删除为物理删除（评论 / 版本 / 分类标签关联 CASCADE） |
+| `article_authors` | 酒馆作者白名单；主键 `user_id` ON DELETE CASCADE。站点管理员不必入表即可发文；被勾选的普通用户可发文、编辑/删除自己的文章 |
+| `article_versions` | 只记**已发布**正文快照；草稿保存不写版本。唯一 `(article_id, version_no)`；恢复某一版会写回正文，若当前仍是已发布再追加一条。`article_id` ON DELETE CASCADE，`created_by_user_id` ON DELETE SET NULL |
 | `article_category_links` / `article_tag_links` | 文章与分类/标签多对多 |
 | `article_comments` | 酒馆评论（一层回复 `parent_id`）；`user_id` 可空（导入游客评用 `guest_name`）；ON DELETE CASCADE 随文章 |
 | `members` | 档案、站内头像/昵称、Steam 绑定（含 `steam_persona_name` / `steam_avatar_url`）、QQ 互联（`qq_openid` 等）；`user_id` ON DELETE CASCADE |

@@ -28,14 +28,15 @@ describe("adminContentShell", () => {
     expect(adminContentShell("/guides/minecraft/extra")).toBe("wide");
   });
 
-  it("uses flush shell for tavern feed and posts", () => {
+  it("uses flush shell for tavern feed, posts, and editor", () => {
+    expect(adminContentShell("/")).toBe("flush");
     expect(adminContentShell("/tavern")).toBe("flush");
     expect(adminContentShell("/tavern/welcome")).toBe("flush");
+    expect(adminContentShell("/tavern/write")).toBe("flush");
+    expect(adminContentShell("/tavern/write/3")).toBe("flush");
   });
 
-  it("uses wide width for tavern admin and default card for editor", () => {
+  it("uses wide width for tavern admin", () => {
     expect(adminContentShell("/tavern/admin")).toBe("wide");
-    expect(adminContentShell("/tavern/write")).toBeNull();
-    expect(adminContentShell("/tavern/write/3")).toBeNull();
   });
 });

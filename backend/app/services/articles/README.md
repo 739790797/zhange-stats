@@ -16,6 +16,7 @@ python -m app.services.articles.halo_import \
 去掉 `--dry-run` 才真正写入战鸽库。`--author-map` 也可以是 JSON 文件路径。对照表缺省的作者会落到 `--default-author-id`，并打 warning。
 
 - 自动探测 Halo 1.x（`posts`）或 2.x（`extensions`）
+- Halo 2 正文沿 `parentSnapshotName` 还原 `rawPatch` / `contentPatch`（不是 `raw`/`content` 字段）
 - `halo_source_id` 保证可重复跑
 - `--uploads` 指向 Halo 的 `upload/`（或附件目录）；复制到 `var/uploads/articles/halo/` 并改写正文 URL
 - **只有 SQL、没有附件目录时，文能进来，图会裂**

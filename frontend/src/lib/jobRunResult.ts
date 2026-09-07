@@ -48,7 +48,16 @@ const STAT_LABELS: Record<string, string> = {
   opened: "开局",
   continued: "续局",
   closed: "收局",
+  file: "当前文件",
+  bytes: "已下载",
+  total_bytes: "总大小",
+  files_done: "已完成文件",
+  files_total: "文件数",
+  revision: "版本",
+  updated: "已更新",
 };
+
+const HIDDEN_STAT_KEYS = new Set(["percent", "phase"]);
 
 export type JobRunDomainRow = {
   id: string;
@@ -195,10 +204,29 @@ export function jobRunWatchPollMs(args: {
   timeoutMs?: number;
 }): number | false {
   if (args.run && isJobRunFinished(args.run.status)) return false;
+  if (args.run?.status === "running") return JOB_RUN_WATCH_POLL_MS;
   const now = args.now ?? Date.now();
   const timeout = args.timeoutMs ?? JOB_RUN_WATCH_TIMEOUT_MS;
   if (now - args.startedAt >= timeout) return false;
   return JOB_RUN_WATCH_POLL_MS;
+}
+
+export function formatJobRunBytes(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return "";
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function jobRunProgressPercent(
+  stats: Record<string, unknown> | null | undefined,
+): number | null {
+  if (!stats || stats.percent == null || stats.percent === "") return null;
+  const n = Number(stats.percent);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -262,8 +290,9 @@ export function jobRunSummaryText(
   run: JobRunLike | null,
   acceptedMessage?: string,
 ): string {
-  if (!run || run.status === "running") {
-    return acceptedMessage || "已提交执行，正在运行…";
+  if (!run) return acceptedMessage || "已提交执行，正在运行…";
+  if (run.status === "running") {
+    return run.message || acceptedMessage || "已提交执行，正在运行…";
   }
   const parsed = parseJobRunMessage(run.message);
   if (parsed?.kind === "text") return parsed.text;
@@ -280,10 +309,23 @@ export function jobRunStatEntries(
 ): Array<{ key: string; label: string; value: string }> {
   if (!stats) return [];
   return Object.entries(stats)
-    .filter(([, value]) => value != null && typeof value !== "object")
-    .map(([key, value]) => ({
-      key,
-      label: STAT_LABELS[key] || key,
-      value: String(value),
-    }));
+    .filter(
+      ([key, value]) =>
+        !HIDDEN_STAT_KEYS.has(key) &&
+        value != null &&
+        typeof value !== "object",
+    )
+    .map(([key, value]) => {
+      let text = String(value);
+      if (key === "bytes" || key === "total_bytes") {
+        text = formatJobRunBytes(value) || text;
+      } else if (key === "updated") {
+        text = value === true || value === "true" ? "是" : "否";
+      }
+      return {
+        key,
+        label: STAT_LABELS[key] || key,
+        value: text,
+      };
+    });
 }

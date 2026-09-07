@@ -40,3 +40,5 @@ Ant Design `Modal` 高度由 `frontend/src/index.css` 按视口约束（`100dvh`
 - `QqLoginButton`：官方图
 - 塔科夫 CSS 模块 / Minecraft 向导自绘控件
 - `ExchangeGoodsCard.buttonColor`：仅兑换底栏平台色
+- 酒馆写页可用 TipTap 引擎，工具栏必须 antd（勿引入编辑器自带皮）
+- 酒馆正文用 KaTeX 渲染公式，只存 `article-math` LaTeX；写页公式弹窗走 TexTeller 识别（手写/图片 → LaTeX），不引入公式编辑器皮

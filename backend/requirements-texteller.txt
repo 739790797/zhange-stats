@@ -1,0 +1,2 @@
+# 官方 TexTeller Python 包（torch，体积大）。识别已走本地 ONNX，一般不用装。
+# texteller==1.0.2

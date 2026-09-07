@@ -18,6 +18,7 @@ from app.api.articles.schemas import (
     ArticleCommentOut,
     ArticleDetailOut,
     ArticleListOut,
+    ArticleMathRecognizeOut,
     ArticlePatchIn,
     ArticleTermOut,
     ArticleTagWriteIn,
@@ -32,7 +33,8 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.models.user import User
 from app.services.articles import service as articles_svc
 from app.services.articles.errors import ArticleError
-from app.services.articles.store import save_article_image
+from app.services.articles.store import save_article_asset
+from app.services.articles.texteller import MAX_RECOGNIZE_BYTES, recognize_image_bytes
 
 router = APIRouter(
     prefix="/articles",
@@ -157,13 +159,16 @@ def create_category(
 ) -> ArticleCategoryOut:
     try:
         row = articles_svc.upsert_category(
-            db, name=body.name, slug=body.slug, sort_order=body.sort_order
+            db,
+            name=body.name,
+            slug=body.slug,
+            sort_order=body.sort_order,
+            admin_only=body.admin_only,
+            chip_color=body.chip_color,
         )
     except ArticleError as exc:
         _raise(exc)
-    return ArticleCategoryOut(
-        id=row.id, slug=row.slug, name=row.name, sort_order=row.sort_order
-    )
+    return articles_svc.category_to_out(row)
 
 
 @router.patch("/categories/{category_id}", response_model=ArticleCategoryOut)
@@ -180,12 +185,12 @@ def patch_category(
             name=body.name,
             slug=body.slug,
             sort_order=body.sort_order,
+            admin_only=body.admin_only,
+            chip_color=body.chip_color,
         )
     except ArticleError as exc:
         _raise(exc)
-    return ArticleCategoryOut(
-        id=row.id, slug=row.slug, name=row.name, sort_order=row.sort_order
-    )
+    return articles_svc.category_to_out(row)
 
 
 @router.delete("/categories/{category_id}", status_code=204)
@@ -244,6 +249,22 @@ def remove_tag(
         _raise(exc)
 
 
+@router.post("/math/recognize", response_model=ArticleMathRecognizeOut)
+async def recognize_math(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_tavern_writer),
+) -> ArticleMathRecognizeOut:
+    ip = client_ip(request)
+    platform_limiter.hit(f"articles-math:ip:{ip}", limit=10, window_sec=600)
+    platform_limiter.hit(f"articles-math:uid:{user.id}", limit=6, window_sec=600)
+    raw = await file.read(MAX_RECOGNIZE_BYTES + 1)
+    try:
+        return ArticleMathRecognizeOut(latex=recognize_image_bytes(raw))
+    except ArticleError as exc:
+        _raise(exc)
+
+
 @router.post("/assets", response_model=ArticleAssetOut)
 async def upload_asset(
     request: Request,
@@ -251,7 +272,7 @@ async def upload_asset(
     user: User = Depends(require_tavern_writer),
 ) -> ArticleAssetOut:
     _hit_article_write_limit(request, user)
-    url = await save_article_image(file)
+    url = await save_article_asset(file)
     return ArticleAssetOut(url=url)
 
 

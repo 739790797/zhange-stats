@@ -17,12 +17,12 @@
 公开页 `/tavern`、`/tavern/:slug`（未登录可看列表、正文、评论；页面走工作台 `AppLayout` 侧栏/顶栏）。写文章须酒馆作者或管理员；发表评论须登录。
 
 - **读权限**：`GET /api/articles` 与分类/标签/**已发布**详情/评论不要求 JWT
-- **写权限**：发改删文章、上传配图、版本恢复：酒馆作者（只动自己的稿）或管理员；删评与作者名单、全量文章列表走管理员；`POST .../comments` 须登录
-- **删除**：文章为逻辑删除（`status=deleted`），管理页仍可见
-- **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：评论 20/IP/10 分钟、10/账号/10 分钟；发稿 / 改稿 / 配图 40/IP/10 分钟、20/账号/10 分钟
-- **正文**：`body_format=html` 入库前经 `nh3` 消毒（去 script / 事件 / `javascript:`）；Markdown 仍由前端 `rehype-sanitize` 渲染
+- **写权限**：发改删文章、上传配图/附件、公式识别、版本恢复：酒馆作者（只动自己的稿）或管理员；删评与作者名单、全量文章列表走管理员；`POST .../comments` 须登录
+- **删除**：文章为物理删除（行与评论 / 版本一并去掉），不可恢复
+- **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：评论 20/IP/10 分钟、10/账号/10 分钟；发稿 / 改稿 / 配图与附件 40/IP/10 分钟、20/账号/10 分钟；公式识别 10/IP/10 分钟、6/账号/10 分钟
+- **正文**：`body_format=html` 入库前经 `nh3` 消毒（去 script / 事件 / `javascript:`），并只保留文章排版 class（对齐 / 缩进 / 调色板 / 高亮 / 公式源）；Markdown 仍由前端 `rehype-sanitize` 渲染。公式只存 LaTeX（`article-math` / `article-math-block`），阅读页再用 KaTeX（`trust: false`）渲染，不入库 KaTeX HTML。识别图只进内存，不落 `uploads/`
 - **封面**：只允许 `http(s)` 或站内 `/uploads/...`
-- **配图**：只挂载 `/uploads/articles`（与头像一样，不暴露整个 upload 根目录）
+- **配图 / 附件**：只挂载 `/uploads/articles`（与头像一样，不暴露整个 upload 根目录）。图片按内容识别 JPG/PNG/WebP/GIF（≤5MB）；附件只收白名单扩展（文档/压缩包等，≤10MB）且校验魔数，拒绝 exe / html / svg
 - 功能开关 `tavern`（管理端「战鸽酒馆」）；关闭后公开 API 403、侧栏「社区」隐藏
 
 ## 塔科夫联机

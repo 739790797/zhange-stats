@@ -1,4 +1,4 @@
-"""酒馆文章配图落盘。"""
+"""酒馆文章配图与附件落盘。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,37 @@ ALLOWED_CONTENT_TYPES = {
     "image/gif",
 }
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 20_000_000
+
+ALLOWED_ATTACHMENT_EXTS = {
+    ".pdf",
+    ".txt",
+    ".md",
+    ".csv",
+    ".rtf",
+    ".json",
+    ".lml",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".odt",
+    ".ods",
+    ".odp",
+    ".zip",
+    ".7z",
+    ".rar",
+    ".tar",
+    ".gz",
+    ".tgz",
+}
+_ZIP_EXTS = {".zip", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp"}
+_OLE_EXTS = {".doc", ".xls", ".ppt"}
+_TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".lml"}
+_HTMLISH = (b"<html", b"<!doctype", b"<script", b"<svg")
 
 _EXT = {
     "JPEG": ".jpg",
@@ -42,28 +72,137 @@ def public_asset_url(rel: str) -> str:
     return f"/uploads/articles/{rel.lstrip('/')}"
 
 
-async def save_article_image(file: UploadFile) -> str:
-    content_type = (file.content_type or "").lower()
-    if content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
-
-    raw = await file.read()
+def sniff_article_image_ext(raw: bytes) -> str:
+    """用文件内容判断扩展名；粘贴/拖拽时常没有可靠 Content-Type。"""
     if not raw:
         raise HTTPException(status_code=400, detail="文件为空")
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="图片不能超过 5MB")
-
     try:
         img = Image.open(io.BytesIO(raw))
         img.load()
     except UnidentifiedImageError as exc:
         raise HTTPException(status_code=400, detail="无法识别的图片文件") from exc
+    except Image.DecompressionBombError as exc:
+        raise HTTPException(status_code=400, detail="图片尺寸过大") from exc
+    fmt = (img.format or "").upper()
+    ext = _EXT.get(fmt)
+    if ext is None:
+        raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
+    return ext
 
-    fmt = (img.format or "JPEG").upper()
-    ext = _EXT.get(fmt, ".jpg")
+
+def write_article_image(raw: bytes) -> str:
+    ext = sniff_article_image_ext(raw)
+    return _write_asset(raw, ext)
+
+
+def attachment_ext_from_name(filename: str) -> str:
+    name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if name.endswith(".tar.gz"):
+        return ".tgz"
+    return Path(name).suffix.lower()
+
+
+def looks_like_article_image(raw: bytes) -> bool:
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return True
+    if raw.startswith(b"\xff\xd8\xff"):
+        return True
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return True
+    return len(raw) >= 12 and raw.startswith(b"RIFF") and raw[8:12] == b"WEBP"
+
+
+def _looks_like_htmlish(raw: bytes) -> bool:
+    head = raw.lstrip()[:256].lower()
+    return head.startswith(_HTMLISH)
+
+
+def _looks_like_text(raw: bytes) -> bool:
+    sample = raw[:8192]
+    if b"\x00" in sample or _looks_like_htmlish(sample):
+        return False
+    return True
+
+
+def attachment_magic_matches(raw: bytes, ext: str) -> bool:
+    if raw.startswith(b"MZ"):
+        return False
+    if ext == ".pdf":
+        return raw.startswith(b"%PDF")
+    if ext in _ZIP_EXTS:
+        return raw.startswith(b"PK")
+    if ext == ".7z":
+        return raw.startswith(b"7z\xbc\xaf'\x1c")
+    if ext == ".rar":
+        return raw.startswith(b"Rar!")
+    if ext in {".gz", ".tgz"}:
+        return raw.startswith(b"\x1f\x8b")
+    if ext == ".tar":
+        return raw[257:262] == b"ustar"
+    if ext in _OLE_EXTS:
+        return raw.startswith(b"\xd0\xcf\x11\xe0")
+    if ext == ".rtf":
+        return raw.lstrip().startswith(b"{\\rtf")
+    if ext == ".json":
+        head = raw.lstrip()[:1]
+        return head in {b"{", b"["} and _looks_like_text(raw)
+    if ext in _TEXT_EXTS:
+        return _looks_like_text(raw)
+    return False
+
+
+def sniff_article_attachment_ext(raw: bytes, filename: str) -> str:
+    if not raw:
+        raise HTTPException(status_code=400, detail="文件为空")
+    if len(raw) > MAX_ATTACHMENT_BYTES:
+        raise HTTPException(status_code=400, detail="附件不能超过 10MB")
+    ext = attachment_ext_from_name(filename)
+    if ext not in ALLOWED_ATTACHMENT_EXTS:
+        raise HTTPException(status_code=400, detail="不支持的附件类型")
+    if not attachment_magic_matches(raw, ext):
+        raise HTTPException(status_code=400, detail="附件内容与扩展名不符")
+    return ext
+
+
+def write_article_attachment(raw: bytes, filename: str) -> str:
+    ext = sniff_article_attachment_ext(raw, filename)
+    return _write_asset(raw, ext)
+
+
+def _write_asset(raw: bytes, ext: str) -> str:
     stamp: datetime = now_naive()
     rel = f"{stamp.year:04d}/{stamp.month:02d}/{uuid.uuid4().hex}{ext}"
     dest = articles_dir() / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(raw)
     return public_asset_url(rel)
+
+
+def is_rejected_image_content_type(content_type: str) -> bool:
+    declared = (content_type or "").lower()
+    if not declared or declared == "application/octet-stream":
+        return False
+    return declared not in ALLOWED_CONTENT_TYPES
+
+
+async def save_article_image(file: UploadFile) -> str:
+    if is_rejected_image_content_type(file.content_type or ""):
+        raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
+    return write_article_image(await file.read())
+
+
+def save_article_bytes(raw: bytes, filename: str = "") -> str:
+    if not raw:
+        raise HTTPException(status_code=400, detail="文件为空")
+    name = filename or ""
+    if name.lower().endswith(".svg") or _looks_like_htmlish(raw):
+        raise HTTPException(status_code=400, detail="不支持的文件类型")
+    if looks_like_article_image(raw):
+        return write_article_image(raw)
+    return write_article_attachment(raw, name)
+
+
+async def save_article_asset(file: UploadFile) -> str:
+    return save_article_bytes(await file.read(), file.filename or "")

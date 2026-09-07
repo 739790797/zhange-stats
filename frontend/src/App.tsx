@@ -155,6 +155,7 @@ export default function App() {
                   </TarkovGameModeProvider>
                 }
               >
+                <Route path="/" element={<HomeRedirect />} />
                 <Route
                   path="/tavern"
                   element={
@@ -214,7 +215,6 @@ export default function App() {
                   }
                 />
                 <Route element={<PrivateRoute />}>
-                <Route path="/" element={<HomeRedirect />} />
                 <Route
                   path="/steam"
                   element={

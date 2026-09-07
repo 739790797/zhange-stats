@@ -204,6 +204,9 @@
 }
 
 .catItem {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start !important;
   text-align: left !important;
   height: auto !important;
   padding: 8px 12px !important;
@@ -213,6 +216,16 @@
 .catItemActive {
   font-weight: 600;
   background: rgba(26, 35, 50, 0.06) !important;
+}
+
+.catDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ant-color-primary);
+  vertical-align: middle;
 }
 
 .widgetItem {
@@ -292,6 +305,12 @@
 
 .mineMeta {
   margin-top: 6px;
+  font-size: 13px;
+  color: rgba(26, 35, 50, 0.45);
+}
+
+.versionsHint {
+  margin: 0 0 12px;
   font-size: 13px;
   color: rgba(26, 35, 50, 0.45);
 }

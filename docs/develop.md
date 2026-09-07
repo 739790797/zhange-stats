@@ -40,6 +40,8 @@ cd backend && python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
+# 酒馆公式识别：主依赖已含 onnxruntime / tokenizers；权重在 var/data/texteller
+# 启动会后台补权重；也可到任务配置跑「公式识别模型更新」。默认 hf-mirror.com
 uvicorn app.main:app --reload --host 127.0.0.1 --port 6130
 
 # 前端（另开终端）

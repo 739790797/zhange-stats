@@ -1,0 +1,444 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  box-sizing: border-box;
+  min-height: 100%;
+  min-height: 100dvh;
+  color: inherit;
+}
+
+.stickyStack {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f5f6f8;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.08);
+}
+
+.crumb {
+  font-size: 13px;
+  color: rgba(26, 35, 50, 0.5);
+  text-decoration: none;
+}
+
+.crumb:hover {
+  color: inherit;
+}
+
+.crumbNow {
+  color: rgba(26, 35, 50, 0.78);
+}
+
+.topbarActions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.belowBar {
+  position: relative;
+}
+
+.mutedHint {
+  font-size: 12px;
+  color: rgba(26, 35, 50, 0.4);
+}
+
+.saveHint {
+  position: absolute;
+  top: 8px;
+  right: 20px;
+  z-index: 2;
+  margin: 0;
+  font-size: 12px;
+  color: rgba(26, 35, 50, 0.4);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.belowBar:has(.saveHint) .formatbar {
+  padding-top: 28px;
+}
+
+.sheet {
+  flex: 1 1 auto;
+  width: var(--tavern-article-col-width, 86%);
+  max-width: var(--tavern-article-col-max, 1100px);
+  margin-inline: auto;
+  margin-top: 16px;
+  margin-bottom: 0;
+  padding: var(--tavern-article-paper-pad, 32px 40px 48px);
+  background: #fff;
+  border: 1px solid rgba(26, 35, 50, 0.08);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  box-shadow: none;
+}
+
+.sheetAttached {
+  margin-top: 8px;
+}
+
+.titleItem {
+  margin-bottom: 0 !important;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(26, 35, 50, 0.08);
+}
+
+.titleItem :global(.ant-form-item-explain) {
+  padding-bottom: 8px;
+}
+
+.titleInput,
+.titleInput:focus,
+.titleInput:hover {
+  padding: 0 0 8px !important;
+  font-family:
+    "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-size: var(--tavern-article-title-size, clamp(1.8rem, 4vw, 2.6rem));
+  font-weight: 600;
+  line-height: 1.3;
+  box-shadow: none !important;
+}
+
+.titleInput::placeholder {
+  color: rgba(26, 35, 50, 0.28);
+  font-weight: 600;
+}
+
+.bodyItem {
+  margin-bottom: 0 !important;
+}
+
+.settingsForm :global(.ant-form-item) {
+  margin-bottom: 20px;
+}
+
+.settingsForm :global(.ant-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.settingsForm :global(.ant-form-item-row) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.settingsForm :global(.ant-form-item-label) {
+  padding: 0 0 8px;
+  text-align: left;
+}
+
+.settingsForm :global(.ant-form-item-label > label) {
+  height: auto;
+}
+
+.settingsForm :global(.ant-form-item-control) {
+  width: 100%;
+  max-width: none;
+}
+
+.settingsForm :global(.ant-form-item-extra) {
+  margin-top: 6px;
+  min-height: 0;
+}
+
+.settingsForm :global(.ant-select),
+.settingsForm :global(.ant-input-textarea),
+.settingsForm :global(textarea.ant-input) {
+  width: 100%;
+}
+
+.formatbar {
+  display: flex;
+  justify-content: center;
+  padding: 10px 16px 4px;
+}
+
+.formatbarInner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: calc(100% - 8px);
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid rgba(26, 35, 50, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(26, 35, 50, 0.08);
+}
+
+.toolSplit {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: rgba(26, 35, 50, 0.1);
+}
+
+.toolActive {
+  color: #1677ff !important;
+  background: rgba(22, 119, 255, 0.08) !important;
+}
+
+.swatchRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch,
+.swatchMark {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(26, 35, 50, 0.16);
+}
+
+.composer {
+  position: relative;
+  min-height: 28vh;
+  padding: 16px 0 8px;
+  font-size: 1.125rem;
+  line-height: 1.85;
+  color: rgba(26, 35, 50, 0.88);
+  outline: none;
+  overflow-wrap: anywhere;
+}
+
+.composerSurface,
+.composer :global(.tiptap),
+.composer :global(.ProseMirror) {
+  min-height: 28vh;
+  outline: none;
+}
+
+.composer :global(.is-empty::before),
+.composer :global(.is-editor-empty::before) {
+  color: rgba(26, 35, 50, 0.32);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.composer :global(a) {
+  color: #1677ff;
+  text-decoration: underline;
+}
+
+.mathDialog {
+  width: 100%;
+}
+
+.mathDialogBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mathPadWrap {
+  position: relative;
+  width: 100%;
+}
+
+.mathPad {
+  display: block;
+  width: 100%;
+  height: 220px;
+  cursor: crosshair;
+  touch-action: none;
+  background: #fff;
+  border: 1px solid rgba(26, 35, 50, 0.12);
+  border-radius: 8px;
+}
+
+.mathPadHint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: rgba(26, 35, 50, 0.35);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.mathPreview {
+  min-height: 64px;
+  padding: 12px;
+  overflow-x: auto;
+  text-align: center;
+  background: #f6f7f9;
+  border-radius: 8px;
+}
+
+.mathPreviewError {
+  color: #cf1322;
+  font-size: 13px;
+}
+
+.fileInput {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.composer :global(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.2em auto;
+  border-radius: 6px;
+}
+
+.composer :global(figure) {
+  margin: 1.4em 0;
+  text-align: center;
+}
+
+.composer :global(figure img) {
+  margin: 0 auto;
+}
+
+.composer :global(figcaption) {
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(26, 35, 50, 0.55);
+}
+
+.composer :global(h2),
+.composer :global(h3),
+.composer :global(h4) {
+  font-family:
+    "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 1.4em 0 0.6em;
+}
+
+.composer :global(blockquote) {
+  margin: 0 0 1em;
+  padding-left: 12px;
+  border-left: 3px solid #d9d9d9;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.composer :global(pre) {
+  overflow: auto;
+  padding: 12px;
+  background: #f6f7f9;
+  border-radius: 6px;
+}
+
+.composer :global(hr) {
+  border: 0;
+  border-top: 1px solid rgba(26, 35, 50, 0.12);
+  margin: 1.6em 0;
+}
+
+.composer :global(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.composer :global(th),
+.composer :global(td) {
+  border: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+.composer :global(th) {
+  background: #f6f7f9;
+  font-weight: 600;
+}
+
+.slash,
+.slashEmpty,
+.bubble {
+  min-width: 160px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid rgba(26, 35, 50, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(26, 35, 50, 0.12);
+}
+
+.slashEmpty {
+  color: rgba(26, 35, 50, 0.45);
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.slashItem,
+.slashItemActive {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.slashItemActive,
+.slashItem:hover {
+  background: rgba(26, 35, 50, 0.06);
+}
+
+.bubble {
+  display: flex;
+  min-width: 0;
+  padding: 4px;
+}
+
+.loading,
+.guard {
+  padding: 72px 20px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .sheet {
+    margin-top: 12px;
+  }
+
+  .formatbar {
+    padding-inline: 12px;
+  }
+
+  .saveHint {
+    right: 12px;
+  }
+
+  .topbarActions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+}
