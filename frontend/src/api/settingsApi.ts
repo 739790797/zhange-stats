@@ -19,6 +19,8 @@ export type IntegrationsStatus = components["schemas"]["IntegrationsStatusOut"];
 export type AuthSettings = components["schemas"]["AuthSettingsOut"];
 export type AuthSettingsUpdate = components["schemas"]["AuthSettingsUpdate"];
 export type AuthAdminBrief = components["schemas"]["AuthAdminBrief"];
+export type SiteSettings = components["schemas"]["SiteSettingsOut"];
+export type SiteSettingsUpdate = components["schemas"]["SiteSettingsUpdate"];
 export type PelicanTestRequest = components["schemas"]["PelicanTestRequest"];
 export type PelicanTestResponse = components["schemas"]["PelicanTestResponse"];
 export type MinecraftRconTestRequest =
@@ -156,6 +158,21 @@ export async function fetchAuthSettings(params?: { check_weak?: boolean }) {
 
 export async function updateAuthSettings(payload: AuthSettingsUpdate) {
   const { data } = await client.put<AuthSettings>("/settings/auth", payload);
+  return data;
+}
+
+export async function fetchSitePublic() {
+  const { data } = await client.get<SiteSettings>("/settings/site/public");
+  return data;
+}
+
+export async function fetchSiteSettings() {
+  const { data } = await client.get<SiteSettings>("/settings/site");
+  return data;
+}
+
+export async function updateSiteSettings(payload: SiteSettingsUpdate) {
+  const { data } = await client.put<SiteSettings>("/settings/site", payload);
   return data;
 }
 

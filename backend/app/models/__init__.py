@@ -57,6 +57,14 @@ from app.models.tarkov import (
     TarkovRaidRoomMark,
     TarkovMapPlace,
 )
+from app.models.articles import (
+    Article,
+    ArticleAuthor,
+    ArticleCategory,
+    ArticleComment,
+    ArticleTag,
+    ArticleVersion,
+)
 from app.models.user import User
 
 __all__ = [
@@ -124,4 +132,10 @@ __all__ = [
     "MinecraftPerfSample",
     "MinecraftPerfRollup",
     "MinecraftPresenceSegment",
+    "Article",
+    "ArticleAuthor",
+    "ArticleCategory",
+    "ArticleTag",
+    "ArticleComment",
+    "ArticleVersion",
 ]

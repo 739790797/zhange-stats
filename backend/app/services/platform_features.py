@@ -26,6 +26,11 @@ _cache_lock = threading.Lock()
 # reserved=True：预留节点，UI 可展示但暂无独立门控，保存时忽略。
 FEATURE_TREE: list[dict[str, Any]] = [
     {
+        "id": "tavern",
+        "name": "战鸽酒馆",
+        "kind": "platform",
+    },
+    {
         "id": "steam",
         "name": "Steam",
         "kind": "platform",
@@ -284,6 +289,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "arknights_box": "干员练度更新",
     "arknights_schedule": "明日方舟活动日历",
     "endfield_schedule": "终末地活动日历",
+    "tavern": "战鸽酒馆",
     "guides": "游戏",
     "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",

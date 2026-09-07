@@ -1,12 +1,12 @@
 # 战鸽数据 · 文档目录
 
-仓库里全部 Markdown / Cursor 规则的**索引**。正文不复制。根 [`README.md`](../README.md) 只介绍产品功能。
+仓库里全部 Markdown / Cursor 规则的**索引**。正文不复制。根 [`README.md`](../README.md) 介绍站点性质与致谢；开发与部署不写在那里。
 
 ## 为什么不全搬进 `docs/`
 
 | 必须留在原位 | 原因 |
 |---|---|
-| 根 [`README.md`](../README.md) | GitHub / 克隆后的落地页（产品介绍） |
+| 根 [`README.md`](../README.md) | GitHub / 克隆后的落地页（站点性质与致谢） |
 | 根 [`AGENTS.md`](../AGENTS.md) | Agent 总入口（Cursor / 其他工具默认读仓库根） |
 | [`.cursor/rules/*.mdc`](../.cursor/rules/) | Cursor 按路径加载；`alwaysApply` 与 glob 只对这个目录生效 |
 | 各子目录 `README.md` | 打开该目录就能看到「这是干什么的」 |
@@ -35,7 +35,7 @@
 
 ### [`README.md`](../README.md)
 
-产品介绍：账号、Steam、签到平台、塔科夫 / Minecraft、管理端。开发与部署不写在这里。
+开源项目落地页：站点性质、功能概要、致谢引用的开源项目。开发与部署不写在这里。
 
 ### [`AGENTS.md`](../AGENTS.md)
 

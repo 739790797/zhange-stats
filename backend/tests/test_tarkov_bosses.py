@@ -381,6 +381,49 @@ def test_generic_normalized_name_uses_mob_id_slug():
     assert rows[0]["name"] == "俄军"
 
 
+def test_generic_norm_escorts_use_assigned_slug():
+    payload = {
+        "maps": {
+            "terminal": {
+                "id": "terminal",
+                "name": "Terminal",
+                "normalizedName": "terminal",
+                "bosses": [
+                    {
+                        "mob": "vsRF",
+                        "spawnChance": 1,
+                        "spawnLocations": [],
+                        "escorts": [
+                            {
+                                "mob": "vsRF",
+                                "amount": [{"chance": 1, "count": 1}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        "mobs": {
+            "vsRF": {
+                "id": "vsRF",
+                "name": "vsRF",
+                "normalizedName": "af",
+                "health": [],
+                "items": [],
+                "equipment": [],
+            }
+        },
+        "locale": {"vsRF": "俄军"},
+    }
+    rows = bosses.parse_boss_rows(payload)
+    assert len(rows) == 1
+    escorts = rows[0]["escorts"]
+    assert escorts[0]["slug"] == "vs-rf"
+    assert escorts[0]["name"] == "俄军"
+    group = rows[0]["spawn_groups"][0]
+    assert group["escorts"][0]["slug"] == "vs-rf"
+
+
 def test_pve_pmc_bear_is_not_the_terminal_vsrf():
     payload = {
         "maps": {
@@ -594,6 +637,13 @@ def test_parse_keeps_duplicate_normalized_names():
     assert "实验室" in by_id["PmcBot"]["maps_label"]
 
 
+def test_armor_class_reads_plate_properties():
+    assert bosses._armor_class({"properties": {"class": 4}}) == 4
+    assert bosses._armor_class({"properties": {"armorClass": 6}}) == 6
+    assert bosses._armor_class({"properties": {"class": 0}}) is None
+    assert bosses._armor_class({}) is None
+
+
 def test_contains_entries_accepts_legacy_ids_and_dump_objects():
     assert bosses._contains_entries(["ammo-1", {"item": "ammo-2", "count": 30}]) == [
         {"item": "ammo-1", "count": 1},
@@ -615,6 +665,22 @@ def test_contains_entries_accepts_legacy_ids_and_dump_objects():
             "contains": [{"item": "ammo-2", "count": 60}],
         }
     ]
+    with_slot = bosses._slim_equipment(
+        [
+            {
+                "item": "korund",
+                "attributes": {"slot": "ArmorVest"},
+            },
+            {
+                "item": "plate",
+                "attributes": {"slot": "Front_plate"},
+            },
+        ]
+    )
+    assert with_slot == [
+        {"item": "korund", "count": 1, "contains": [], "slot": "ArmorVest"},
+        {"item": "plate", "count": 1, "contains": [], "slot": "Front_plate"},
+    ]
 
 
 def test_equipment_slot_prefers_handbook_then_types():
@@ -626,6 +692,16 @@ def test_equipment_slot_prefers_handbook_then_types():
         "armor",
         "身体护甲",
     )
+    assert bosses.equipment_slot_for_item({"types": ["armorPlate"]}) == (
+        "armor",
+        "身体护甲",
+    )
+    assert bosses.equipment_slot_for_item(
+        {
+            "types": ["armorPlate"],
+            "properties_type": "ItemPropertiesArmorAttachment",
+        }
+    ) == ("armor", "身体护甲")
     assert bosses.equipment_slot_for_item({"types": ["rig"]}) == ("rig", "战术胸挂")
     assert bosses.equipment_slot_for_item(
         {"types": ["gun"], "handbook_ids": [bosses.HB_PISTOL]}
@@ -673,6 +749,7 @@ def test_build_equipment_slots_groups_nests_and_dedupes():
                 "contains": ["bt"],
             },
             {"item": "korund", "contains": [{"item": "plate"}]},
+            {"item": "plate", "contains": []},
             {"item": "mag", "contains": []},
         ]
     }
@@ -731,11 +808,13 @@ def test_build_equipment_slots_groups_nests_and_dedupes():
             "id": "plate",
             "name": "Granit",
             "types": ["armorPlate"],
+            "properties": {"class": 5},
         },
     }
     slots = bosses.build_equipment_slots(row, items)
     by_key = {s["key"]: s for s in slots}
     assert [s["key"] for s in slots] == ["headwear", "armor", "gun"]
+    assert by_key["armor"]["label"] == "身体护甲"
     assert by_key["headwear"]["label"] == "头部装备"
     assert [it["item_id"] for it in by_key["headwear"]["items"]] == ["helm-a", "helm-b"]
     gun = by_key["gun"]["items"][0]
@@ -753,6 +832,121 @@ def test_build_equipment_slots_groups_nests_and_dedupes():
     assert armor["name"] == "Korund-VM"
     assert armor["contains"][0]["item_id"] == "plate"
     assert armor["contains"][0]["kind"] == "plate"
+    assert armor["contains"][0]["armor_class"] == 5
+    assert [it["item_id"] for it in by_key["armor"]["items"]] == ["korund"]
+
+
+def _gear_catalog() -> dict:
+    return {
+        "korund": {
+            "id": "korund",
+            "name": "Korund-VM",
+            "types": ["armor"],
+        },
+        "avs": {
+            "id": "avs",
+            "name": "AVS",
+            "types": ["rig"],
+        },
+        "front": {
+            "id": "front",
+            "name": "Granit Br4",
+            "types": ["armorPlate"],
+            "properties": {"class": 4},
+        },
+        "back": {
+            "id": "back",
+            "name": "Granit Br5",
+            "types": ["armorPlate"],
+            "properties": {"class": 5},
+        },
+        "gun": {
+            "id": "gun",
+            "name": "RPK",
+            "types": ["gun"],
+        },
+    }
+
+
+def test_build_equipment_slots_nests_dump_plate_slots_under_armor():
+    items = _gear_catalog()
+    slots = bosses.build_equipment_slots(
+        {
+            "equipment": [
+                {
+                    "item": "avs",
+                    "slot": "TacticalVest",
+                    "contains": [],
+                },
+                {"item": "gun", "slot": "FirstPrimaryWeapon", "contains": []},
+                {
+                    "item": "korund",
+                    "slot": "ArmorVest",
+                    "contains": [],
+                },
+                {
+                    "item": "front",
+                    "slot": "Front_plate",
+                    "contains": [],
+                },
+                {
+                    "item": "back",
+                    "slot": "Back_plate",
+                    "contains": [],
+                },
+            ]
+        },
+        items,
+    )
+    by_key = {s["key"]: s for s in slots}
+    assert [it["item_id"] for it in by_key["armor"]["items"]] == ["korund"]
+    assert [c["item_id"] for c in by_key["armor"]["items"][0]["contains"]] == [
+        "front",
+        "back",
+    ]
+    assert by_key["armor"]["items"][0]["contains"][0]["kind"] == "plate"
+    assert by_key["armor"]["items"][0]["contains"][0]["armor_class"] == 4
+    assert by_key["rig"]["items"][0]["contains"] == []
+    assert "armorPlate" not in [s["key"] for s in slots]
+
+
+def test_build_equipment_slots_nests_plates_under_tactical_vest():
+    items = _gear_catalog()
+    slots = bosses.build_equipment_slots(
+        {
+            "equipment": [
+                {
+                    "item": "avs",
+                    "attributes": {"slot": "TacticalVest"},
+                    "contains": [],
+                },
+                {
+                    "item": "front",
+                    "attributes": {"slot": "front_plate"},
+                    "contains": [],
+                },
+            ]
+        },
+        items,
+    )
+    by_key = {s["key"]: s for s in slots}
+    assert list(by_key) == ["rig"]
+    assert [c["item_id"] for c in by_key["rig"]["items"][0]["contains"]] == ["front"]
+
+
+def test_build_equipment_slots_keeps_orphan_plates_top_level():
+    items = _gear_catalog()
+    slots = bosses.build_equipment_slots(
+        {
+            "equipment": [
+                {"item": "front", "slot": "Front_plate", "contains": []},
+            ]
+        },
+        items,
+    )
+    by_key = {s["key"]: s for s in slots}
+    assert [it["item_id"] for it in by_key["armor"]["items"]] == ["front"]
+    assert by_key["armor"]["items"][0]["contains"] == []
 
 
 def test_parse_normalizes_dump_equipment_objects():
@@ -796,3 +990,19 @@ def test_parse_normalizes_dump_equipment_objects():
             "contains": [{"item": "ammo-1", "count": 20}],
         }
     ]
+
+
+def test_mob_loot_item_ids_includes_items_and_contains() -> None:
+    ids = bosses.mob_loot_item_ids(
+        {
+            "item_ids": ["gun", {"id": "helmet"}],
+            "equipment": [
+                {
+                    "item": "armor",
+                    "contains": [{"item": "plate", "count": 1}, "extra"],
+                }
+            ],
+        }
+    )
+    assert ids == {"gun", "helmet", "armor", "plate", "extra"}
+    assert bosses.mob_loot_item_ids(None) == set()

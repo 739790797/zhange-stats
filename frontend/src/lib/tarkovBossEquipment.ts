@@ -38,6 +38,41 @@ export type BossGearSlotGroup<T> = {
   slots: T[];
 };
 
+export function mergeBossArmorSlots<
+  T extends {
+    key?: string | null;
+    label?: string | null;
+    items?: U[];
+  },
+  U,
+>(slots: readonly T[]): T[] {
+  const armorItems: U[] = [];
+  let armorTemplate: T | null = null;
+  let armorIndex = -1;
+  const rest: T[] = [];
+  for (const slot of slots) {
+    const key = String(slot.key || "");
+    if (key === "armor" || key === "armorPlate") {
+      if (!armorTemplate) {
+        armorTemplate = slot;
+        armorIndex = rest.length;
+      }
+      armorItems.push(...(slot.items || []));
+      continue;
+    }
+    rest.push(slot);
+  }
+  if (!armorTemplate) return [...slots];
+  const combined = {
+    ...armorTemplate,
+    key: "armor",
+    label: "身体护甲",
+    items: armorItems,
+  };
+  rest.splice(Math.max(0, armorIndex), 0, combined);
+  return rest;
+}
+
 export function groupBossGearSlots<T extends { key?: string | null }>(
   slots: readonly T[],
 ): BossGearSlotGroup<T>[] {
@@ -59,6 +94,21 @@ export function groupBossGearSlots<T extends { key?: string | null }>(
   }
   groups.push({ id: "carry", label: "携带", slots: [...rest] });
   return groups;
+}
+
+export function bossGearArmorClass(item: {
+  armor_class?: number | null;
+}): number | null {
+  const n = Number(item.armor_class);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n);
+}
+
+export function bossGearArmorClassLabel(item: {
+  armor_class?: number | null;
+}): string {
+  const cls = bossGearArmorClass(item);
+  return cls == null ? "" : `${cls}级`;
 }
 
 export function bossGearItemLabel(

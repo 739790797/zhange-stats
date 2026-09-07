@@ -6,28 +6,35 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovItemDetail } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { tarkovTraderHref, traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { inspectImageUrl } from "@/lib/tarkovItemImages";
 import {
   extractContentLines,
-  extractGridPockets,
   extractPlateSlots,
   extractRefItemId,
-  formatMoney,
   formatPropertyList,
   isBareTarkovId,
-  parseVendorOffers,
-  formatOfferPrice,
-  itemHasFlea,
+  namedTraderOffers,
+  numProp,
+  parseItemBuyOffers,
+  parseItemSellOffers,
+  splitVendorOffers,
   type FormattedPropLink,
-  type GridPocket,
   type VendorOffer,
 } from "@/lib/tarkovItemFormat";
+import {
+  gridOccupancyCaption,
+  resolveItemGridLayout,
+  type GridLayoutKind,
+  type GridPocket,
+} from "@/lib/tarkovItemGrids";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { itemKeyLockMaps } from "@/lib/tarkovItemLocks";
+import { buildItemFleaQuote } from "@/lib/tarkovItemSources";
 import { TarkovItemRefGrid } from "@/components/guides/tarkov/TarkovGuideItemCell";
 import { TarkovItemKeyLocks } from "@/components/guides/tarkov/TarkovItemKeyLocks";
+import { TarkovItemSources } from "@/components/guides/tarkov/TarkovItemSources";
+import { TarkovItemUses } from "@/components/guides/tarkov/TarkovItemUses";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovItemDetailPanel.module.css";
 
@@ -50,23 +57,89 @@ function itemRefLinks(links: FormattedPropLink[]) {
     }));
 }
 
-function GridPreview({ pockets }: { pockets: GridPocket[] }) {
-  if (!pockets.length) return null;
+const GRID_CELL = 22;
+const GRID_GAP = 2;
+
+function pocketPixels(pocket: GridPocket) {
+  return {
+    left: pocket.col * (GRID_CELL + GRID_GAP),
+    top: pocket.row * (GRID_CELL + GRID_GAP),
+    width: pocket.width * GRID_CELL + Math.max(0, pocket.width - 1) * GRID_GAP,
+    height: pocket.height * GRID_CELL + Math.max(0, pocket.height - 1) * GRID_GAP,
+  };
+}
+
+function GridPocketCells({ pocket }: { pocket: GridPocket }) {
+  const count = pocket.width * pocket.height;
   return (
-    <div className={styles.gridPreview} aria-hidden>
-      {pockets.map((pocket, index) => (
-        <div
-          key={`${pocket.col}-${pocket.row}-${index}`}
-          className={styles.gridPocket}
-          style={{
-            gridTemplateColumns: `repeat(${pocket.width}, 20px)`,
-          }}
-        >
-          {Array.from({ length: pocket.width * pocket.height }, (_, cell) => (
-            <span key={cell} className={styles.gridCell} />
+    <div
+      className={styles.gridPocket}
+      style={{ gridTemplateColumns: `repeat(${pocket.width}, ${GRID_CELL}px)` }}
+    >
+      {Array.from({ length: count }, (_, cell) => (
+        <span key={cell} className={styles.gridCellOn} />
+      ))}
+    </div>
+  );
+}
+
+function GridPocketsView({
+  pockets,
+  kind,
+  caption,
+}: {
+  pockets: GridPocket[];
+  kind: GridLayoutKind;
+  caption: string;
+}) {
+  if (!pockets.length) return null;
+  if (kind === "stacked") {
+    return (
+      <div className={styles.gridBlock}>
+        <div className={styles.gridPockets} role="img" aria-label={caption}>
+          {pockets.map((pocket, index) => (
+            <GridPocketCells
+              key={`${pocket.width}x${pocket.height}-${index}`}
+              pocket={pocket}
+            />
           ))}
         </div>
-      ))}
+        {caption ? <span className={styles.gridCaption}>{caption}</span> : null}
+      </div>
+    );
+  }
+  let stageW = 0;
+  let stageH = 0;
+  const placed = pockets.map((pocket, index) => {
+    const box = pocketPixels(pocket);
+    stageW = Math.max(stageW, box.left + box.width);
+    stageH = Math.max(stageH, box.top + box.height);
+    return { pocket, box, index };
+  });
+  return (
+    <div className={styles.gridBlock}>
+      <div
+        className={styles.gridStage}
+        style={{ width: stageW, height: stageH }}
+        role="img"
+        aria-label={caption}
+      >
+        {placed.map(({ pocket, box, index }) => (
+          <div
+            key={`${pocket.col}-${pocket.row}-${index}`}
+            className={styles.gridPlaced}
+            style={{
+              left: box.left,
+              top: box.top,
+              width: box.width,
+              height: box.height,
+            }}
+          >
+            <GridPocketCells pocket={pocket} />
+          </div>
+        ))}
+      </div>
+      {caption ? <span className={styles.gridCaption}>{caption}</span> : null}
     </div>
   );
 }
@@ -88,57 +161,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-}
-
-function vendorIcon(offer: VendorOffer): string {
-  const key = offer.vendor;
-  if (!key || key === "flea-market" || key === "fleaMarket") return "";
-  return traderPortraitUrl(key);
-}
-
-function vendorHref(offer: VendorOffer): string | null {
-  const key = offer.vendor;
-  if (!key || key === "flea-market" || key === "fleaMarket") return null;
-  return tarkovTraderHref(key);
-}
-
-function OfferCard({
-  offer,
-  best,
-}: {
-  offer: VendorOffer;
-  best?: boolean;
-}) {
-  const href = vendorHref(offer);
-  const icon = vendorIcon(offer);
-  const inner = (
-    <>
-      <span className={styles.offerIcon}>
-        {icon ? (
-          <img className={styles.offerImg} src={icon} alt="" />
-        ) : (
-          <span className={styles.offerFlea}>跳蚤</span>
-        )}
-        {offer.minLevel ? (
-          <span className={styles.offerLevel}>{offer.minLevel}</span>
-        ) : null}
-      </span>
-      <span className={styles.offerPrice}>{formatOfferPrice(offer)}</span>
-    </>
-  );
-  const className = `${styles.offer} ${best ? styles.offerBest : ""}`;
-  if (href) {
-    return (
-      <Link className={className} to={href} title={offer.vendorName}>
-        {inner}
-      </Link>
-    );
-  }
-  return (
-    <span className={className} title={offer.vendorName}>
-      {inner}
-    </span>
-  );
 }
 
 function containedRows(item: Record<string, unknown>): Array<{
@@ -195,15 +217,24 @@ function softArmorRows(props: Record<string, unknown>): ArmorSlotRow[] {
         : String(row.name || "—");
       return {
         key: `${index}-${zones}`,
-        zones,
         class: row.class != null ? String(row.class) : "—",
         durability: String(durability),
+        zones,
       };
     })
     .filter((row): row is ArmorSlotRow => Boolean(row));
 }
 
-/** 对齐 tarkov.dev 物品页：大标题 + 右图 + 买卖价 + 属性卡。 */
+function bestTraderOffer(offers: VendorOffer[]): VendorOffer | null {
+  return offers.reduce<VendorOffer | null>((best, offer) => {
+    const price = offer.priceRub ?? offer.price ?? 0;
+    const current = best?.priceRub ?? best?.price ?? 0;
+    if (!best || price > current) return offer;
+    return best;
+  }, null);
+}
+
+/** 常规排版：基础信息 → 属性 → 来源 → 用途；机匣是关联物品，放在四段之后。 */
 export function TarkovItemDetailPanel({
   itemId,
   variant = "full",
@@ -240,26 +271,41 @@ export function TarkovItemDetailPanel({
 
   const item = (detail.item || {}) as Record<string, unknown>;
   const properties = (detail.properties || {}) as Record<string, unknown>;
+  const { baseItem: baseItemProp, ...restProperties } = properties;
   const handbookCats = item.handbookCategories;
   const categoryList =
     Array.isArray(handbookCats) && handbookCats.length
       ? handbookCats
       : item.categories;
-  const image = inspectImageUrl(item);
+  const image = inspectImageUrl(item, detail.id);
   const wiki = String(item.wikiLink || "").trim();
-  const sellFor = parseVendorOffers(item.sellFor ?? item.sell_for);
-  const buyFor = parseVendorOffers(item.buyFor ?? item.buy_for);
-  const bestSell = sellFor.reduce<VendorOffer | null>((best, offer) => {
-    const price = offer.priceRub ?? offer.price ?? 0;
-    const current = best?.priceRub ?? best?.price ?? 0;
-    if (!best || price > current) return offer;
-    return best;
-  }, null);
-  const avg24 = Number(item.avg24hPrice);
-  const lastLow = Number(item.lastLowPrice);
-  const change48 = Number(item.changeLast48h);
-  const change48p = Number(item.changeLast48hPercent);
+  const description =
+    (detail.description || "").trim() ||
+    String(item.description || "").trim();
+  const buyOffers = parseItemBuyOffers(item);
+  const sellOffers = parseItemSellOffers(item);
+  const buySplit = splitVendorOffers(buyOffers);
+  const sellSplit = splitVendorOffers(sellOffers);
+  const traderBuys = namedTraderOffers(buyOffers);
+  const traderSells = namedTraderOffers(sellOffers);
+  const bestSell = bestTraderOffer(traderSells);
+  const fleaBuy = buildItemFleaQuote(item, { fallbackOffers: buySplit.flea });
+  const fleaSell = buildItemFleaQuote(item, {
+    withChange: true,
+    fallbackOffers: sellSplit.flea,
+  });
   const lockMaps = itemKeyLockMaps(detail);
+  const itemTypes = Array.isArray(item.types)
+    ? item.types.map(String)
+    : [];
+  const receiverId =
+    extractRefItemId(baseItemProp) || extractRefItemId(item.baseItem);
+  const embed = variant === "embed";
+  const showReceiverWiki =
+    !embed &&
+    itemTypes.includes("preset") &&
+    Boolean(receiverId) &&
+    receiverId !== itemId;
   const mergedProps: Record<string, unknown> = {
     weight: item.weight,
     size:
@@ -269,34 +315,112 @@ export function TarkovItemDetailPanel({
     categories: categoryList,
     conflictingItems: item.conflictingItems,
     conflictingCategories: item.conflictingCategories,
-    ...properties,
+    ...restProperties,
+    ...(showReceiverWiki ? {} : { baseItem: baseItemProp ?? item.baseItem }),
     usedOnMaps: lockMaps.length
       ? undefined
-      : properties.usedOnMaps ?? item.usedOnMaps,
+      : restProperties.usedOnMaps ?? item.usedOnMaps,
   };
   const propRows = formatPropertyList(mergedProps);
   const contained = containedRows(item);
   const armorRows = softArmorRows(properties);
   const plateGroups = extractPlateSlots(properties);
-  const pockets = extractGridPockets(properties);
+  const gridLayout = resolveItemGridLayout(properties, detail.id);
+  const pockets = gridLayout.pockets;
+  const hasGrid = pockets.length > 0;
+  const gridCaption = hasGrid
+    ? gridOccupancyCaption(pockets, numProp(properties, "capacity"))
+    : "";
   const contentLines = extractContentLines(properties);
-  const showFlea = itemHasFlea(item);
   const armorColumns: ColumnsType<ArmorSlotRow> = [
     { title: "部位", dataIndex: "zones", key: "zones" },
     { title: "等级", dataIndex: "class", key: "class", width: 72 },
     { title: "耐久", dataIndex: "durability", key: "durability", width: 80 },
   ];
-  const itemTypes = Array.isArray(item.types)
-    ? item.types.map(String)
-    : [];
-  const receiverId =
-    extractRefItemId(properties.baseItem) || extractRefItemId(item.baseItem);
-  const showReceiverWiki =
-    variant === "full" &&
-    itemTypes.includes("preset") &&
-    Boolean(receiverId) &&
-    receiverId !== itemId;
-  const embed = variant === "embed";
+  const hasAttrCards = propRows.length > 0 || hasGrid;
+  const hasAttrExtras = Boolean(
+    lockMaps.length ||
+      armorRows.length ||
+      plateGroups.length ||
+      contained.length ||
+      contentLines.length,
+  );
+  const showAttrs = hasAttrCards || hasAttrExtras;
+  const gridVisual = hasGrid ? (
+    <div className={`${styles.prop} ${styles.propLarge}`}>
+      <span className={styles.propKey}>格仓</span>
+      <GridPocketsView
+        pockets={pockets}
+        kind={gridLayout.kind}
+        caption={gridCaption}
+      />
+    </div>
+  ) : null;
+  const otherPropRows = hasGrid
+    ? propRows.filter((row) => row.key !== "grids")
+    : propRows;
+
+  const attrCards = hasAttrCards ? (
+    <div className={styles.props}>
+      {gridVisual}
+      {otherPropRows.map((row) => {
+        const chips = row.links ? itemRefLinks(row.links) : [];
+        const isAllowedAmmo = row.key === "allowedAmmo";
+        const ammoIds = isAllowedAmmo
+          ? chips.map((chip) => chip.id).filter(Boolean)
+          : [];
+        const defaultAmmoId = isAllowedAmmo
+          ? chips.find((chip) => chip.badge === "默认")?.id
+          : undefined;
+        return (
+          <div
+            key={row.key}
+            className={`${styles.prop} ${row.large ? styles.propLarge : ""}`}
+          >
+            <span className={styles.propKey}>{row.label}</span>
+            {isAllowedAmmo && ammoIds.length ? (
+              <Suspense
+                fallback={
+                  <div className={styles.ammoScatterFallback}>
+                    <Spin size="small" />
+                  </div>
+                }
+              >
+                <TarkovAllowedAmmoScatter
+                  ammoIds={ammoIds}
+                  defaultAmmoId={defaultAmmoId}
+                  fallbackItems={chips}
+                  note={row.note}
+                />
+              </Suspense>
+            ) : (
+              <span className={styles.propValue}>
+                {chips.length ? (
+                  <TarkovItemRefGrid items={chips} />
+                ) : row.links?.length ? (
+                  row.links.map((link, index) => (
+                    <span key={`${link.href}-${index}`}>
+                      {index ? " · " : null}
+                      <Link className={styles.propLink} to={link.href}>
+                        {link.label}
+                      </Link>
+                    </span>
+                  ))
+                ) : (
+                  row.value
+                )}
+                {row.note ? (
+                  <span className={styles.propNote}>{row.note}</span>
+                ) : null}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ) : embed && !hasAttrExtras ? (
+    <div className={styles.fleaMeta}>暂无属性</div>
+  ) : null;
 
   return (
     <div className={embed ? styles.embedStack : styles.stack}>
@@ -312,220 +436,124 @@ export function TarkovItemDetailPanel({
           ) : null}
         </div>
       ) : (
-      <div className={styles.hero}>
-        <div className={styles.copy}>
-          <h1 className={styles.name}>{detail.name}</h1>
-          {detail.short_name ? (
-            <cite className={styles.shortName}>{detail.short_name}</cite>
-          ) : null}
-          {wiki ? (
-            <a
-              className={styles.wiki}
-              href={wiki}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Wiki
-            </a>
-          ) : null}
-        </div>
-        <div className={styles.visuals}>
-          <GridPreview pockets={pockets} />
-          {image ? (
-            <div className={styles.imageWrap}>
-              <Image
-                src={image}
-                alt=""
-                className={styles.image}
-                preview={{ mask: false }}
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
-      )}
-
-      {!embed && (sellFor.length || buyFor.length) ? (
-        <div className={styles.traders}>
-          {sellFor.length ? (
-            <div className={styles.traderCol}>
-              <h2 className={styles.sectionTitle}>出售给</h2>
-              <div className={styles.offerRow}>
-                {sellFor.map((offer, index) => (
-                  <OfferCard
-                    key={`${offer.vendor}-${index}`}
-                    offer={offer}
-                    best={
-                      bestSell != null &&
-                      offer.vendor === bestSell.vendor &&
-                      offer.priceRub === bestSell.priceRub
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {buyFor.length ? (
-            <div className={styles.traderColBuy}>
-              <h2 className={styles.sectionTitle}>购买自</h2>
-              <div className={`${styles.offerRow} ${styles.offerRowBuy}`}>
-                {buyFor.map((offer, index) => (
-                  <OfferCard key={`${offer.vendor}-${index}`} offer={offer} />
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {!embed && showFlea && (Number.isFinite(avg24) || Number.isFinite(lastLow)) ? (
-        <div className={styles.fleaMeta}>
-          {Number.isFinite(lastLow) ? (
-            <span>最近低价 {formatMoney(lastLow)}</span>
-          ) : null}
-          {Number.isFinite(avg24) ? (
-            <span>24h 均价 {formatMoney(avg24)}</span>
-          ) : null}
-          {Number.isFinite(change48) ? (
-            <span>
-              较昨日 {change48 > 0 ? "+" : ""}
-              {Math.round(change48).toLocaleString("zh-CN")} ₽
-              {Number.isFinite(change48p) ? ` / ${change48p}%` : ""}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
-      {embed ? null : <h2 className={styles.sectionTitle}>属性</h2>}
-      {propRows.length ? (
-        <div className={styles.props}>
-          {propRows.map((row) => {
-            const chips = row.links ? itemRefLinks(row.links) : [];
-            const isAllowedAmmo = row.key === "allowedAmmo";
-            const ammoIds = isAllowedAmmo
-              ? chips.map((chip) => chip.id).filter(Boolean)
-              : [];
-            const defaultAmmoId = isAllowedAmmo
-              ? chips.find((chip) => chip.badge === "默认")?.id
-              : undefined;
-            return (
-              <div
-                key={row.key}
-                className={`${styles.prop} ${row.large ? styles.propLarge : ""}`}
+        <div className={styles.hero}>
+          <div className={styles.copy}>
+            <h1 className={styles.name}>{detail.name}</h1>
+            {detail.short_name ? (
+              <cite className={styles.shortName}>{detail.short_name}</cite>
+            ) : null}
+            {wiki ? (
+              <a
+                className={styles.wiki}
+                href={wiki}
+                target="_blank"
+                rel="noreferrer"
               >
-                <span className={styles.propKey}>{row.label}</span>
-                {isAllowedAmmo && ammoIds.length ? (
-                  <>
-                    <Suspense
-                      fallback={
-                        <div className={styles.ammoScatterFallback}>
-                          <Spin size="small" />
-                        </div>
-                      }
-                    >
-                      <TarkovAllowedAmmoScatter
-                        ammoIds={ammoIds}
-                        defaultAmmoId={defaultAmmoId}
-                        fallbackItems={chips}
-                        note={row.note}
-                      />
-                    </Suspense>
-                  </>
-                ) : (
-                  <span className={styles.propValue}>
-                    {chips.length ? (
-                      <TarkovItemRefGrid items={chips} />
-                    ) : row.links?.length ? (
-                      row.links.map((link, index) => (
-                        <span key={`${link.href}-${index}`}>
-                          {index ? " · " : null}
-                          <Link className={styles.propLink} to={link.href}>
-                            {link.label}
-                          </Link>
-                        </span>
-                      ))
-                    ) : (
-                      row.value
-                    )}
-                    {row.note ? (
-                      <span className={styles.propNote}>{row.note}</span>
-                    ) : null}
-                  </span>
-                )}
+                Wiki
+              </a>
+            ) : null}
+            {description ? (
+              <p className={styles.heroDesc}>{description}</p>
+            ) : null}
+          </div>
+          {image ? (
+            <div className={styles.visuals}>
+              <div className={styles.imageWrap}>
+                <Image
+                  src={image}
+                  alt={detail.name}
+                  className={styles.image}
+                  preview={{ mask: false }}
+                />
               </div>
-            );
-          })}
+            </div>
+          ) : null}
         </div>
-      ) : (
-        <div className={styles.fleaMeta}>暂无属性</div>
       )}
 
-      {!embed && lockMaps.length ? <TarkovItemKeyLocks detail={detail} /> : null}
+      {showAttrs ? (
+        <section className={styles.attrs}>
+          {embed ? null : <h2 className={styles.sectionTitle}>属性</h2>}
+          {attrCards}
 
-      {armorRows.length ? (
-        <>
-          <h2 className={styles.sectionTitle}>软甲槽</h2>
-          <Table<ArmorSlotRow>
-            className={tableStyles.table}
-            size="small"
-            rowKey="key"
-            columns={armorColumns}
-            dataSource={armorRows}
-            pagination={false}
-          />
-        </>
-      ) : null}
+          {lockMaps.length ? <TarkovItemKeyLocks detail={detail} /> : null}
 
-      {plateGroups.length ? (
-        <>
-          <h2 className={styles.sectionTitle}>兼容护甲板</h2>
-          {plateGroups.map((group) => (
-            <div key={group.key} className={styles.plateGroup}>
-              <h3 className={styles.plateHead}>{group.name}</h3>
+          {armorRows.length ? (
+            <>
+              <h3 className={styles.attrSub}>软甲槽</h3>
+              <Table<ArmorSlotRow>
+                className={tableStyles.table}
+                size="small"
+                rowKey="key"
+                columns={armorColumns}
+                dataSource={armorRows}
+                pagination={false}
+              />
+            </>
+          ) : null}
+
+          {plateGroups.length ? (
+            <>
+              <h3 className={styles.attrSub}>兼容护甲板</h3>
+              {plateGroups.map((group) => (
+                <div key={group.key} className={styles.plateGroup}>
+                  <h4 className={styles.plateHead}>{group.name}</h4>
+                  <TarkovItemRefGrid
+                    items={group.plates.map((plate) => ({
+                      id: plate.id,
+                      name: plate.name,
+                      icon_link: plate.icon,
+                      types: plate.types,
+                    }))}
+                  />
+                </div>
+              ))}
+            </>
+          ) : null}
+
+          {contained.length ? (
+            <>
+              <h3 className={styles.attrSub}>内含物品</h3>
               <TarkovItemRefGrid
-                items={group.plates.map((plate) => ({
-                  id: plate.id,
-                  name: plate.name,
-                  icon_link: plate.icon,
-                  types: plate.types,
+                showCount
+                items={contained.map((row) => ({
+                  id: row.id,
+                  name: row.name,
+                  icon_link: row.icon,
+                  types: row.types,
+                  count: row.count,
                 }))}
               />
-            </div>
-          ))}
-        </>
+            </>
+          ) : null}
+
+          {contentLines.length ? (
+            <>
+              <h3 className={styles.attrSub}>内容</h3>
+              <div className={styles.contentBox}>
+                {contentLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </section>
       ) : null}
 
-      {contained.length ? (
-        <>
-          <h2 className={styles.sectionTitle}>
-            {detail.name ? `${detail.name} 内含物品` : "内含物品"}
-          </h2>
-          <TarkovItemRefGrid
-            showCount
-            items={contained.map((row) => ({
-              id: row.id,
-              name: row.name,
-              icon_link: row.icon,
-              types: row.types,
-              count: row.count,
-            }))}
-          />
-        </>
+      {!embed ? (
+        <TarkovItemSources
+          detail={detail}
+          flea={fleaBuy}
+          traderBuys={traderBuys}
+        />
       ) : null}
-
-      {contentLines.length ? (
-        <>
-          <h2 className={styles.sectionTitle}>内容</h2>
-          <div className={styles.contentBox}>
-            {contentLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      {detail.description ? (
-        <p className={styles.desc}>{detail.description}</p>
+      {!embed ? (
+        <TarkovItemUses
+          detail={detail}
+          flea={fleaSell}
+          traderSells={traderSells}
+          bestSell={bestSell}
+        />
       ) : null}
 
       {showReceiverWiki ? (

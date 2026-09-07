@@ -5,6 +5,7 @@ import type { TarkovMapBoss } from "@/api/guidesApi";
 import { PanelFallback } from "@/components/RouteFallback";
 import { tarkovBossHref, tarkovMapHref } from "@/lib/tarkovHomeNav";
 import { tarkovMapLabel } from "@/lib/tarkovMapLabelsZh";
+import { formatEscortMember } from "@/lib/tarkovBossSpawnGroups";
 import {
   bossSpawnOverlay,
   buildBossHeatmap,
@@ -21,6 +22,7 @@ import {
   type HeatmapBoss,
   type HeatmapBossInput,
   type HeatmapHoverBlock,
+  type HeatmapHoverEscort,
   type HeatmapRecipe,
   type HeatmapSpawnPoint,
   type HoverEscortScheme,
@@ -117,7 +119,7 @@ export function TarkovBossHeatmap({ bosses, portraits }: Props) {
                           />
                         }
                         mouseEnterDelay={0.08}
-                        mouseLeaveDelay={0.08}
+                        mouseLeaveDelay={0.2}
                         placement="top"
                         trigger={["hover"]}
                         {...(spawn ? { open: false } : {})}
@@ -389,7 +391,7 @@ function EscortHoverTip({
                           ) : (
                             <span className={styles.tipAvatar} />
                           )}
-                          <span className={styles.tipName}>{row.name}</span>
+                          <HoverEscortName row={row} />
                           <span className={styles.tipCount}>×{row.count}</span>
                         </li>
                       );
@@ -443,6 +445,16 @@ function SquadSizeLines({
   );
 }
 
+function HoverEscortName({ row }: { row: HeatmapHoverEscort }) {
+  const href = row.slug ? tarkovBossHref(row.slug) : "";
+  if (!href) return <span className={styles.tipName}>{row.name}</span>;
+  return (
+    <Link className={styles.tipLink} to={href} title={`查看 ${row.name}`}>
+      {row.name}
+    </Link>
+  );
+}
+
 function SchemeLine({
   row,
   portraits,
@@ -466,7 +478,24 @@ function SchemeLine({
         <img className={styles.tipAvatar} src={portrait} alt="" width={22} height={22} />
       ) : null}
       <span>
-        {row.line}
+        {row.escorts.length
+          ? row.escorts.map((escort, index) => (
+              <span key={`${escort.slug}-${escort.count}-${index}`}>
+                {index > 0 ? "、" : null}
+                {escort.slug ? (
+                  <Link
+                    className={styles.tipLink}
+                    to={tarkovBossHref(escort.slug)}
+                    title={`查看 ${escort.name}`}
+                  >
+                    {formatEscortMember(escort)}
+                  </Link>
+                ) : (
+                  formatEscortMember(escort)
+                )}
+              </span>
+            ))
+          : row.line}
         {land}
       </span>
     </div>

@@ -40,6 +40,12 @@ from app.services.platform_features import (
 from app.services.qq_oauth import qq_redirect_uri
 from app.services.scheduler_config import save_scheduler_config
 from app.services.scheduler_runtime import register_scheduler_jobs
+from app.services.site_config import (
+    ICP_BEIAN_HREF,
+    load_site_config,
+    public_site_config,
+    save_site_config,
+)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -149,6 +155,15 @@ class AuthSettingsUpdate(BaseModel):
     min_password_length: int | None = Field(default=None, ge=6, le=72)
     reject_weak_admin_password: bool | None = None
     enforce_single_admin: bool | None = None
+
+
+class SiteSettingsOut(BaseModel):
+    icp_beian_no: str = ""
+    icp_beian_href: str = ICP_BEIAN_HREF
+
+
+class SiteSettingsUpdate(BaseModel):
+    icp_beian_no: str = Field(default="", max_length=64)
 
 
 def _integrations_out(db: Session, request: Request) -> dict:
@@ -387,6 +402,30 @@ def update_auth_settings(
         enforce_single_admin_if_needed(db, keep_user_id=current.id)
         db.commit()
     return public_auth_config(saved, db=db, check_weak_passwords=False)
+
+
+@router.get("/site/public", response_model=SiteSettingsOut)
+def get_site_public(db: Session = Depends(get_db)) -> dict:
+    """页脚备案号等公开站点信息（未登录可读）。"""
+    return public_site_config(load_site_config(db))
+
+
+@router.get("/site", response_model=SiteSettingsOut)
+def get_site_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> dict:
+    return public_site_config(load_site_config(db))
+
+
+@router.put("/site", response_model=SiteSettingsOut)
+def update_site_settings(
+    body: SiteSettingsUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> dict:
+    saved = save_site_config(db, body.model_dump())
+    return public_site_config(saved)
 
 
 class PlatformFeatureNodeOut(BaseModel):

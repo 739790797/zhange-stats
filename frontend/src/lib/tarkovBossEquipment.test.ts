@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   bossGearAmmoStats,
+  bossGearArmorClassLabel,
   bossGearItemLabel,
   groupBossGearSlots,
+  mergeBossArmorSlots,
   splitBossGearContains,
 } from "./tarkovBossEquipment";
 
@@ -49,6 +51,63 @@ describe("bossGearItemLabel", () => {
     expect(
       bossGearItemLabel({ name: "F-1", short_name: "F-1", count: 3 }),
     ).toBe("3× F-1");
+  });
+});
+
+describe("mergeBossArmorSlots", () => {
+  it("keeps vests and plates in one 身体护甲 slot", () => {
+    expect(
+      mergeBossArmorSlots([
+        {
+          key: "armor",
+          label: "防弹衣",
+          items: [{ item_id: "vest", types: ["armor"] }],
+        },
+        {
+          key: "armorPlate",
+          label: "防弹插板",
+          items: [{ item_id: "plate", types: ["armorPlate"] }],
+        },
+        { key: "rig", label: "战术胸挂", items: [{ item_id: "av", types: ["rig"] }] },
+      ]),
+    ).toEqual([
+      {
+        key: "armor",
+        label: "身体护甲",
+        items: [
+          { item_id: "vest", types: ["armor"] },
+          { item_id: "plate", types: ["armorPlate"] },
+        ],
+      },
+      { key: "rig", label: "战术胸挂", items: [{ item_id: "av", types: ["rig"] }] },
+    ]);
+  });
+
+  it("renames a plate-only slot back to 身体护甲", () => {
+    expect(
+      mergeBossArmorSlots([
+        {
+          key: "armorPlate",
+          label: "防弹插板",
+          items: [{ item_id: "plate", types: ["armorPlate"] }],
+        },
+      ]),
+    ).toEqual([
+      {
+        key: "armor",
+        label: "身体护甲",
+        items: [{ item_id: "plate", types: ["armorPlate"] }],
+      },
+    ]);
+  });
+});
+
+describe("bossGearArmorClassLabel", () => {
+  it("formats plate class under the name", () => {
+    expect(bossGearArmorClassLabel({ armor_class: 4 })).toBe("4级");
+    expect(bossGearArmorClassLabel({ armor_class: 5.2 })).toBe("5级");
+    expect(bossGearArmorClassLabel({})).toBe("");
+    expect(bossGearArmorClassLabel({ armor_class: 0 })).toBe("");
   });
 });
 

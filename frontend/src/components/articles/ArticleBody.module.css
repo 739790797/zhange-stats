@@ -1,0 +1,46 @@
+.body {
+  font-size: 1.125rem;
+  line-height: 1.85;
+  color: rgba(26, 35, 50, 0.88);
+  overflow-wrap: anywhere;
+}
+
+.body :global(h2),
+.body :global(h3) {
+  font-family:
+    "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 1.6em 0 0.6em;
+}
+
+.body :global(h2) {
+  font-size: 1.35em;
+}
+
+.body :global(p) {
+  margin: 0 0 1em;
+}
+
+.body :global(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.body :global(pre) {
+  overflow: auto;
+  padding: 12px;
+  background: #f6f7f9;
+  border-radius: 6px;
+}
+
+.body :global(blockquote) {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid #d9d9d9;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.empty {
+  color: rgba(0, 0, 0, 0.45);
+}

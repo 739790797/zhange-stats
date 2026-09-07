@@ -47,11 +47,20 @@ export function collectionItemImageUrl(
   return `${TARKOV_ITEM_CDN}/${id}-512.webp`;
 }
 
-/** 详情大图：优先 512，再 grid / inspect / base */
+/** 游戏手册分类图标（tarkov.dev handbookCategories.imageLink）。 */
+export function handbookCategoryIconUrl(
+  id: string | null | undefined,
+): string {
+  const key = (id || "").trim();
+  if (!ITEM_ID_RE.test(key)) return "";
+  return `${TARKOV_ITEM_CDN}/handbook-category-${key}-icon.webp`;
+}
+
+/** 详情大图：优先 512，再 grid / inspect / base；缺链接时用物品 id 回退 CDN。 */
 export function inspectImageUrl(
   item: Record<string, unknown> | undefined,
+  itemId?: string | null,
 ): string {
-  if (!item) return "";
   const keys = [
     "image512pxLink",
     "inspectImageLink",
@@ -60,8 +69,10 @@ export function inspectImageUrl(
     "iconLink",
   ];
   for (const key of keys) {
-    const url = String(item[key] || "").trim();
+    const url = String(item?.[key] || "").trim();
     if (url) return hdPreviewUrl(url) || url;
   }
-  return "";
+  const id = String(item?.id || itemId || "").trim();
+  if (!ITEM_ID_RE.test(id)) return "";
+  return `${TARKOV_ITEM_CDN}/${id}-512.webp`;
 }

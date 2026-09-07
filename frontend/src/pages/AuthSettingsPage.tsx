@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Form,
+  Input,
   InputNumber,
   Select,
   Space,
@@ -15,8 +16,9 @@ import {
 } from "antd";
 import { Link } from "react-router-dom";
 import { useEffect } from "react";
-import { fetchAuthSettings, updateAuthSettings } from "@/api/client";
+import { fetchAuthSettings, fetchSiteSettings, updateAuthSettings, updateSiteSettings } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
+import { SITE_PUBLIC_QUERY_KEY } from "@/hooks/useSitePublic";
 import { apiError } from "@/lib/apiError";
 
 type SessionForm = {
@@ -29,15 +31,25 @@ type PolicyForm = {
   enforce_single_admin: boolean;
 };
 
+type SiteForm = {
+  icp_beian_no: string;
+};
+
 export default function AuthSettingsPage() {
   const queryClient = useQueryClient();
   const { token } = theme.useToken();
   const [sessionForm] = Form.useForm<SessionForm>();
   const [policyForm] = Form.useForm<PolicyForm>();
+  const [siteForm] = Form.useForm<SiteForm>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-settings"],
     queryFn: () => fetchAuthSettings(),
+  });
+
+  const siteQuery = useQuery({
+    queryKey: ["site-settings"],
+    queryFn: fetchSiteSettings,
   });
 
   const weakCheck = useQuery({
@@ -67,6 +79,13 @@ export default function AuthSettingsPage() {
     });
   }, [data, sessionForm, policyForm]);
 
+  useEffect(() => {
+    if (!siteQuery.data) return;
+    siteForm.setFieldsValue({
+      icp_beian_no: siteQuery.data.icp_beian_no || "",
+    });
+  }, [siteQuery.data, siteForm]);
+
   const saveSession = useMutation({
     mutationFn: updateAuthSettings,
     onSuccess: () => {
@@ -81,6 +100,16 @@ export default function AuthSettingsPage() {
     onSuccess: () => {
       message.success("口令策略已保存");
       queryClient.invalidateQueries({ queryKey: ["auth-settings"] });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  });
+
+  const saveSite = useMutation({
+    mutationFn: updateSiteSettings,
+    onSuccess: () => {
+      message.success("备案号已保存");
+      queryClient.invalidateQueries({ queryKey: ["site-settings"] });
+      queryClient.invalidateQueries({ queryKey: SITE_PUBLIC_QUERY_KEY });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
@@ -112,7 +141,7 @@ export default function AuthSettingsPage() {
     <div>
       <PageHeader
         title="安全设置"
-        subtitle="登录会话、口令策略与管理员安全状态。改密请到个人中心。"
+        subtitle="登录会话、口令策略、页脚备案号与管理员安全状态。改密请到个人中心。"
       />
 
       {weakChecked && weakAdmins.length > 0 ? (
@@ -237,6 +266,39 @@ export default function AuthSettingsPage() {
             loading={savePolicy.isPending}
           >
             保存策略
+          </Button>
+        </Form>
+      </Card>
+
+      <Card title="ICP 备案" size="small" style={cardStyle}>
+        <Form
+          form={siteForm}
+          layout="vertical"
+          disabled={siteQuery.isLoading}
+          onFinish={(values) => {
+            saveSite.mutate({
+              icp_beian_no: (values.icp_beian_no || "").trim(),
+            });
+          }}
+        >
+          <Form.Item
+            name="icp_beian_no"
+            label="备案号"
+            extra="展示在全站页脚（登录页与工作台各页），点进工信部查询页。留空则不展示。自托管请填本站自己的号。"
+            rules={[{ max: 64, message: "最多 64 字" }]}
+          >
+            <Input
+              placeholder="例如 浙ICP备xxxxxxxx号"
+              maxLength={64}
+              allowClear
+            />
+          </Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={saveSite.isPending}
+          >
+            保存备案号
           </Button>
         </Form>
       </Card>

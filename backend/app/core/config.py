@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     # 可选手动覆盖 OAuth 回调基址；留空则从请求 Host / Origin / X-Forwarded-* 推断
     PUBLIC_BACKEND_URL: str = ""
     PUBLIC_FRONTEND_URL: str = ""
+    # 页脚 ICP 备案号；也可在管理端「安全设置」覆盖。留空不展示。
+    ICP_BEIAN_NO: str = ""
 
     # QQ 互联（个人中心绑定；审核中仅调试 QQ 号可用）
     QQ_APP_ID: str = ""
@@ -116,6 +118,10 @@ class Settings(BaseSettings):
     TARKOV_GUN_SYNC_ENABLED: bool = True
     TARKOV_GUN_SYNC_HOUR: int = 4
     TARKOV_GUN_SYNC_MINUTE: int = 40
+    # 工作台第三方出图默认关；工作台中间叠配件图标。仅排障才 true
+    TARKOV_WORKBENCH_IMAGE_GEN: bool = False
+    # 必须无头，避免给用户弹出第三方出图站。仅排障可设 false
+    TARKOV_WORKBENCH_IMAGE_HEADLESS: bool = True
     # 塔吉多每日签到（异环）
     TAYGEDO_CHECKIN_ENABLED: bool = True
     TAYGEDO_CHECKIN_HOUR: int = 0

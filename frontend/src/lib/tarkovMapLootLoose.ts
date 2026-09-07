@@ -1,6 +1,6 @@
 /** 对齐 tarkov.dev map/index.jsx：散落物按物品 handbookCategories 分子图层。 */
 
-import { inventoryThumbUrl } from "./tarkovItemImages";
+import { handbookCategoryIconUrl, inventoryThumbUrl } from "./tarkovItemImages";
 import { TARKOV_HANDBOOK_ROOTS } from "./tarkovItemTypes";
 import {
   tarkovLooseLootIconUrl,
@@ -26,13 +26,9 @@ export const LOOT_LOOSE_KIND_ORDER = [
   "5b47574386f77428ca22b345", // 特殊装备
 ] as const;
 
-const HANDBOOK_KIND_ID = /^[0-9a-f]{24}$/i;
-
 /** tarkov.dev map 图层用 handbookCategories.imageLink。 */
 export function tarkovLooseLootKindIconUrl(kind: string): string {
-  const id = (kind || "").trim();
-  if (!HANDBOOK_KIND_ID.test(id)) return tarkovLooseLootIconUrl();
-  return `https://assets.tarkov.dev/handbook-category-${id}-icon.webp`;
+  return handbookCategoryIconUrl(kind) || tarkovLooseLootIconUrl();
 }
 
 const HANDBOOK_LABEL_BY_ID: Record<string, string> = {};
@@ -45,6 +41,13 @@ for (const root of TARKOV_HANDBOOK_ROOTS) {
   for (const child of root.children) {
     HANDBOOK_LABEL_BY_ID[child.id] = child.label;
     HANDBOOK_CHILD_IDS.add(child.id);
+    const stack = [...(child.children || [])];
+    while (stack.length) {
+      const node = stack.pop();
+      if (!node) continue;
+      HANDBOOK_LABEL_BY_ID[node.id] = node.label;
+      stack.push(...(node.children || []));
+    }
   }
 }
 

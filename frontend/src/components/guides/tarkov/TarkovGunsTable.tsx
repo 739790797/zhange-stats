@@ -1,13 +1,13 @@
 import { Image, Input, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { TarkovGunItem } from "@/api/guidesApi";
 import {
   formatCaliberLabel,
   formatWeaponClass,
 } from "@/lib/tarkovGunCategories";
-import { itemDetailHref } from "@/lib/tarkovItemTypes";
+import { itemDetailHref, ITEMS_BASE_PATH } from "@/lib/tarkovItemTypes";
 import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
 import tableStyles from "./TarkovDarkTable.module.css";
 
@@ -17,6 +17,10 @@ type Props = {
   ammoFilterId?: string | null;
   /** URL ?caliber= 口径筛选（原始口径 id） */
   caliberFilterParam?: string | null;
+  /** 点枪名 / 整行跳转；不传则进图鉴物品详情 */
+  pickHref?: (gunId: string) => string;
+  /** 口径筛链接；不传则留在图鉴枪支表 */
+  caliberHref?: (caliber: string) => string;
 };
 
 type SortKey =
@@ -43,7 +47,10 @@ export function TarkovGunsTable({
   data,
   ammoFilterId = null,
   caliberFilterParam = null,
+  pickHref,
+  caliberHref,
 }: Props) {
+  const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>("ergonomics");
   const [sortOrder, setSortOrder] = useState<"ascend" | "descend">("descend");
   const [caliberFilter, setCaliberFilter] = useState<string[] | null>(null);
@@ -176,9 +183,12 @@ export function TarkovGunsTable({
         const label = formatCaliberLabel(caliber);
         const raw = (caliber || "").trim();
         if (!raw) return label;
+        const href = caliberHref
+          ? caliberHref(raw)
+          : `${ITEMS_BASE_PATH}/guns?caliber=${encodeURIComponent(raw)}`;
         return (
           <Link
-            to={`/guides/tarkov/items/guns?caliber=${encodeURIComponent(raw)}`}
+            to={href}
             title={`筛选口径 ${label}`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -197,19 +207,21 @@ export function TarkovGunsTable({
         const thumb = transparentThumbUrl(src);
         const hd = hdPreviewUrl(src) || thumb;
         return thumb ? (
-          <Image
-            src={thumb}
-            alt=""
-            width={36}
-            height={36}
-            preview={{ src: hd, mask: false }}
-            style={{
-              objectFit: "contain",
-              display: "block",
-              margin: "0 auto",
-              cursor: "zoom-in",
-            }}
-          />
+          <span onClick={(e) => e.stopPropagation()}>
+            <Image
+              src={thumb}
+              alt=""
+              width={36}
+              height={36}
+              preview={{ src: hd, mask: false }}
+              style={{
+                objectFit: "contain",
+                display: "block",
+                margin: "0 auto",
+                cursor: "zoom-in",
+              }}
+            />
+          </span>
         ) : (
           <span style={{ color: "#8a8a8a" }}>—</span>
         );
@@ -242,8 +254,8 @@ export function TarkovGunsTable({
       ellipsis: true,
       render: (_: unknown, row) => (
         <Link
-          to={itemDetailHref("guns", row.id)}
-          title="查看枪械详情"
+          to={pickHref ? pickHref(row.id) : itemDetailHref("guns", row.id)}
+          title={pickHref ? "进入改枪" : "查看枪械详情"}
           onClick={(e) => e.stopPropagation()}
         >
           {row.name || row.short_name || row.id}
@@ -322,6 +334,14 @@ export function TarkovGunsTable({
       }}
       scroll={{ x: 1100 }}
       onChange={onTableChange}
+      onRow={
+        pickHref
+          ? (row) => ({
+              onClick: () => navigate(pickHref(row.id)),
+              style: { cursor: "pointer" },
+            })
+          : undefined
+      }
       locale={{ emptyText: "当前筛选下无枪械" }}
     />
   );

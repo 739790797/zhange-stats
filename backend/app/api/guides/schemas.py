@@ -104,6 +104,99 @@ class TarkovGunSyncOut(BaseModel):
     message: str = Field(default="ok")
 
 
+class TarkovWorkbenchPartOut(BaseModel):
+    id: str
+    name: str
+    short_name: str = ""
+    icon_link: str = ""
+    ergonomics: float = 0
+    recoil_modifier: float = 0
+    weight: float = 0
+    price_rub: int | None = None
+    sighting_range: int | None = None
+    mag_capacity: int | None = None
+    conflicting_ids: list[str] = Field(default_factory=list)
+
+
+class TarkovWorkbenchPairOut(BaseModel):
+    slot_id: str
+    item_id: str
+
+
+class TarkovWorkbenchSlotNodeOut(BaseModel):
+    id: str
+    name: str
+    name_id: str = ""
+    required: bool = False
+    parent_item_id: str = ""
+    installed: TarkovWorkbenchPartOut | None = None
+    children: list["TarkovWorkbenchSlotNodeOut"] = Field(default_factory=list)
+
+
+class TarkovWorkbenchStatsOut(BaseModel):
+    ergonomics: float = 0
+    recoil_vertical: int = 0
+    recoil_horizontal: int = 0
+    weight: float = 0
+    sighting_range: int | None = None
+    mag_capacity: int | None = None
+    price_rub: int | None = None
+    conflicts: list[str] = Field(default_factory=list)
+    overswing: bool = False
+    ammo_id: str | None = None
+
+
+class TarkovWorkbenchGunOut(BaseModel):
+    id: str
+    name: str
+    short_name: str = ""
+    icon_link: str = ""
+    image_link: str = ""
+    preset_image_link: str = ""
+    caliber: str = ""
+    slots: list[TarkovWorkbenchSlotNodeOut] = Field(default_factory=list)
+    factory_pairs: list[TarkovWorkbenchPairOut] = Field(default_factory=list)
+    ammo: list[TarkovWorkbenchPartOut] = Field(default_factory=list)
+    default_ammo_id: str = ""
+    stats: TarkovWorkbenchStatsOut
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovWorkbenchAllowedIn(BaseModel):
+    slot_ids: list[str] = Field(default_factory=list)
+
+
+class TarkovWorkbenchAllowedOut(BaseModel):
+    slots: dict[str, list[TarkovWorkbenchPartOut]] = Field(default_factory=dict)
+
+
+class TarkovWorkbenchCalculateIn(BaseModel):
+    gun_id: str
+    pairs: list[TarkovWorkbenchPairOut] = Field(default_factory=list)
+    ammo_id: str | None = None
+
+
+class TarkovWorkbenchCalculateOut(BaseModel):
+    slots: list[TarkovWorkbenchSlotNodeOut] = Field(default_factory=list)
+    stats: TarkovWorkbenchStatsOut
+
+
+class TarkovWorkbenchImageStatusOut(BaseModel):
+    enabled: bool = True
+    busy: bool = False
+    message: str | None = None
+
+
+class TarkovWorkbenchImageOut(BaseModel):
+    kind: str
+    image_url: str | None = None
+    busy: bool = False
+    message: str | None = None
+    enabled: bool = True
+
+
 class TarkovCatalogItemOut(BaseModel):
     id: str
     name: str
@@ -161,6 +254,8 @@ class TarkovItemDetailOut(BaseModel):
     item: dict = Field(default_factory=dict)
     properties: dict = Field(default_factory=dict)
     locks: list[TarkovItemKeyLockMapOut] = Field(default_factory=list)
+    sources: "TarkovItemSourcesOut" = Field(default_factory=dict)
+    uses: "TarkovItemUsesOut" = Field(default_factory=dict)
 
 
 class TarkovTaskNamedRefOut(BaseModel):
@@ -597,6 +692,10 @@ class TarkovBossGearContainedOut(BaseModel):
     damage: int | None = None
     penetration: int | None = None
     armor_damage: int | None = None
+    armor_class: int | None = Field(
+        default=None,
+        description="防弹插板护甲等级（1–6）",
+    )
 
 
 class TarkovBossGearItemOut(BaseModel):
@@ -606,6 +705,10 @@ class TarkovBossGearItemOut(BaseModel):
     icon_link: str = ""
     types: list[str] = Field(default_factory=list)
     count: int = 1
+    armor_class: int | None = Field(
+        default=None,
+        description="防弹插板护甲等级（1–6）",
+    )
     contains: list[TarkovBossGearContainedOut] = Field(default_factory=list)
 
 
@@ -1061,6 +1164,70 @@ class TarkovCraftOut(BaseModel):
     duration: int = 0
     required_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
     product_item: TarkovGuideItemRefOut
+
+
+class TarkovItemQuestRewardOut(BaseModel):
+    id: str
+    name: str = ""
+    trader_id: str = ""
+    trader_slug: str = ""
+    trader_name: str = ""
+    kind: str = "finish"
+    count: float = 1
+
+
+class TarkovItemDropSourceOut(BaseModel):
+    """maps/mobs 配装反查：会掉这件物品的 Boss 或非 Boss。"""
+
+    id: str
+    slug: str = ""
+    name: str = ""
+    kind: str = Field(
+        default="boss",
+        description="boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵",
+    )
+    maps_label: str = ""
+    portrait_link: str = ""
+    parent_ids: list[str] = Field(default_factory=list)
+
+
+class TarkovItemSourcesOut(BaseModel):
+    """物品获取途径：从 barters / crafts / tasks / maps.mobs dump 反查，items dump 本身没有这些字段。"""
+
+    barters: list[TarkovBarterOut] = Field(default_factory=list)
+    crafts: list[TarkovCraftOut] = Field(default_factory=list)
+    quest_rewards: list[TarkovItemQuestRewardOut] = Field(default_factory=list)
+    drops: list[TarkovItemDropSourceOut] = Field(default_factory=list)
+
+
+class TarkovItemHideoutUseOut(BaseModel):
+    station_id: str = ""
+    station_slug: str = ""
+    station_name: str = ""
+    level: int = 0
+    count: float = 1
+
+
+class TarkovItemTaskUseOut(BaseModel):
+    id: str
+    name: str = ""
+    trader_id: str = ""
+    trader_slug: str = ""
+    trader_name: str = ""
+    notes: list[str] = Field(default_factory=list)
+    count: float | None = None
+
+
+class TarkovItemUsesOut(BaseModel):
+    """物品用途：从交换材料 / 制作材料 / 藏身处建造 / 任务目标反查。"""
+
+    barters: list[TarkovBarterOut] = Field(default_factory=list)
+    crafts: list[TarkovCraftOut] = Field(default_factory=list)
+    hideout: list[TarkovItemHideoutUseOut] = Field(default_factory=list)
+    tasks: list[TarkovItemTaskUseOut] = Field(default_factory=list)
+
+
+TarkovItemDetailOut.model_rebuild()
 
 
 class TarkovStationChipOut(BaseModel):

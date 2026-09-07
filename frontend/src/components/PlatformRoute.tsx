@@ -5,19 +5,27 @@ import { fetchPlatformFeaturesEffective } from "@/api/client";
 import { FeatureUnavailablePage } from "@/components/FeatureUnavailablePage";
 import { isFeatureOn } from "@/lib/platformFeatures";
 import { LOCAL_QUERY_STALE_MS, isInitialQueryPending } from "@/lib/queryCache";
+import { useAuthStore } from "@/stores/authStore";
 
 export function PlatformRoute({
   featureId,
   children,
+  allowGuest = false,
 }: {
   featureId: string;
   children: ReactNode;
+  allowGuest?: boolean;
 }) {
+  const token = useAuthStore((s) => s.token);
+  const skipGate = allowGuest && !token;
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
     staleTime: LOCAL_QUERY_STALE_MS,
+    enabled: !skipGate,
   });
+
+  if (skipGate) return <>{children}</>;
 
   if (isInitialQueryPending(featuresQuery)) {
     return (

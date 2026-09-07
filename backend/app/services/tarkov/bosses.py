@@ -711,6 +711,86 @@ def _contains_entries(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+# maps dump 把插板列为顶层 equipment，attributes.slot=Front_plate 等，没有 parentItemId。
+# 挂到同一套配装里最近的 ArmorVest / TacticalVest（顺序上紧跟其后）。
+ARMOR_PLATE_SLOTS = frozenset(
+    {
+        "front_plate",
+        "back_plate",
+        "left_side_plate",
+        "right_side_plate",
+    }
+)
+ARMOR_CARRIER_SLOTS = frozenset({"armorvest", "tacticalvest"})
+
+
+def _normalize_equip_slot(value: Any) -> str:
+    return str(value or "").strip().lower().replace(" ", "_")
+
+
+def _attribute_map(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, list):
+        return {}
+    out: dict[str, Any] = {}
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or row.get("key") or "").strip()
+        if name and name not in out:
+            out[name] = row.get("value")
+    return out
+
+
+def equipment_slot_name(row: dict[str, Any] | None) -> str:
+    """dump attributes.slot，或已 slim 的 slot 字段。"""
+    if not isinstance(row, dict):
+        return ""
+    direct = str(row.get("slot") or "").strip()
+    if direct:
+        return direct
+    attrs = _attribute_map(row.get("attributes"))
+    return str(attrs.get("slot") or attrs.get("slotNameId") or "").strip()
+
+
+def _is_armor_plate_row(
+    slot: str,
+    catalog: dict[str, Any] | None,
+    *,
+    has_carrier: bool,
+) -> bool:
+    if _normalize_equip_slot(slot) in ARMOR_PLATE_SLOTS:
+        return True
+    if slot:
+        return False
+    return has_carrier and "armorplate" in _item_types(catalog)
+
+
+def _is_armor_carrier_row(slot: str, catalog: dict[str, Any] | None) -> bool:
+    if _normalize_equip_slot(slot) in ARMOR_CARRIER_SLOTS:
+        return True
+    if slot:
+        return False
+    types = _item_types(catalog)
+    if "armorplate" in types:
+        return False
+    return "armor" in types or "rig" in types
+
+
+def _find_equipped_item(
+    buckets: dict[str, dict[str, Any]],
+    item_id: str,
+) -> dict[str, Any] | None:
+    if not item_id:
+        return None
+    for bucket in buckets.values():
+        hit = bucket["index"].get(item_id)
+        if hit is not None:
+            return hit
+    return None
+
+
 def _slim_equipment(raw: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     if not isinstance(raw, list):
@@ -722,16 +802,38 @@ def _slim_equipment(raw: Any) -> list[dict[str, Any]]:
         if not item_id:
             continue
         count = _as_int(row.get("count") or row.get("quantity"), 1) or 1
-        out.append(
-            {
-                "item": item_id,
-                "count": max(int(count), 1),
-                "contains": _contains_entries(
-                    row.get("contains") or row.get("containsItems")
-                ),
-            }
-        )
+        packed: dict[str, Any] = {
+            "item": item_id,
+            "count": max(int(count), 1),
+            "contains": _contains_entries(
+                row.get("contains") or row.get("containsItems")
+            ),
+        }
+        slot = equipment_slot_name(row)
+        if slot:
+            packed["slot"] = slot
+        out.append(packed)
     return out
+
+
+def mob_loot_item_ids(row: dict[str, Any] | None) -> set[str]:
+    """该 mob 配装里可能掉出的物品：items 列表 + equipment 及内含。"""
+    ids: set[str] = set()
+    if not isinstance(row, dict):
+        return ids
+    for ident in _slim_item_ids(row.get("item_ids") or row.get("items")):
+        ids.add(ident)
+    for gear in row.get("equipment") or []:
+        if not isinstance(gear, dict):
+            continue
+        ident = _gear_item_id(gear)
+        if ident:
+            ids.add(ident)
+        for entry in _gear_contains(gear):
+            nested = str(entry.get("item") or "").strip()
+            if nested:
+                ids.add(nested)
+    return ids
 
 
 _WEAPON_PART_PROPS = frozenset(
@@ -792,6 +894,16 @@ def contained_kind(item: dict[str, Any] | None) -> str:
     return "other"
 
 
+def _armor_class(item: dict[str, Any] | None) -> int | None:
+    row = item if isinstance(item, dict) else {}
+    props = row.get("properties") if isinstance(row.get("properties"), dict) else {}
+    value = props.get("class", props.get("armorClass", row.get("class")))
+    n = _as_int(value, None)
+    if n is None or n <= 0:
+        return None
+    return n
+
+
 def _ammo_ballistics(item: dict[str, Any] | None) -> dict[str, int | None]:
     row = item if isinstance(item, dict) else {}
     props = row.get("properties") if isinstance(row.get("properties"), dict) else {}
@@ -824,9 +936,9 @@ def equipment_slot_for_item(item: dict[str, Any] | None) -> tuple[str, str]:
     row = item if isinstance(item, dict) else {}
     types = _item_types(row)
     pt = _item_props(row)
+    if "armorplate" in types:
+        return "armor", "身体护甲"
     if pt == "itempropertiesarmorattachment":
-        if "armorplate" in types:
-            return "armor", "身体护甲"
         return "face", "面部装备"
     if pt == "itempropertiesmelee":
         return "melee", "近战武器"
@@ -854,7 +966,7 @@ def _gear_item_ref(
 ) -> dict[str, Any]:
     row = items.get(item_id) or {}
     types = [str(t) for t in (row.get("types") or [])]
-    return {
+    packed: dict[str, Any] = {
         "item_id": str(row.get("id") or item_id),
         "name": str(row.get("name") or item_id),
         "short_name": str(row.get("short_name") or ""),
@@ -862,6 +974,9 @@ def _gear_item_ref(
         "types": types,
         "count": max(int(count or 1), 1),
     }
+    if contained_kind(row) == "plate":
+        packed["armor_class"] = _armor_class(row)
+    return packed
 
 
 def _contained_ref(
@@ -910,6 +1025,7 @@ def build_equipment_slots(
 ) -> list[dict[str, Any]]:
     buckets: dict[str, dict[str, Any]] = {}
     order: list[str] = []
+    last_carrier_id = ""
     for gear in row.get("equipment") or []:
         if not isinstance(gear, dict):
             continue
@@ -917,6 +1033,25 @@ def build_equipment_slots(
         if not item_id:
             continue
         catalog = items.get(item_id)
+        dump_slot = equipment_slot_name(gear)
+        if _is_armor_plate_row(
+            dump_slot,
+            catalog,
+            has_carrier=bool(last_carrier_id),
+        ):
+            parent = _find_equipped_item(buckets, last_carrier_id)
+            if parent is not None:
+                parent["contains"] = _merge_contained(
+                    list(parent.get("contains") or []),
+                    [
+                        _contained_ref(
+                            items,
+                            item_id,
+                            count=_as_int(gear.get("count"), 1) or 1,
+                        )
+                    ],
+                )
+                continue
         if skip_equipment_slot_item(catalog):
             continue
         slot_key, slot_label = equipment_slot_for_item(catalog)
@@ -947,12 +1082,14 @@ def build_equipment_slots(
         if prev is None:
             by_id[item_id] = packed
             bucket["items"].append(packed)
-            continue
-        prev["count"] = max(int(prev.get("count") or 1), int(packed.get("count") or 1))
-        prev["contains"] = _merge_contained(
-            list(prev.get("contains") or []),
-            nested,
-        )
+        else:
+            prev["count"] = max(int(prev.get("count") or 1), int(packed.get("count") or 1))
+            prev["contains"] = _merge_contained(
+                list(prev.get("contains") or []),
+                nested,
+            )
+        if _is_armor_carrier_row(dump_slot, catalog):
+            last_carrier_id = item_id
     order.sort(key=lambda key: EQUIPMENT_SLOT_INDEX.get(key, 999))
     out: list[dict[str, Any]] = []
     for key in order:
@@ -965,6 +1102,7 @@ def build_equipment_slots(
                 "icon_link": it.get("icon_link") or "",
                 "types": list(it.get("types") or []),
                 "count": int(it.get("count") or 1),
+                "armor_class": it.get("armor_class"),
                 "contains": list(it.get("contains") or []),
             }
             for it in bucket["items"]
@@ -1321,6 +1459,22 @@ def _escort_recipe_key(escorts: list[dict[str, Any]]) -> tuple[tuple[str, int, f
     )
 
 
+def _escort_slug(
+    mob_id: str,
+    raw: dict[str, Any] | None,
+    slugs: dict[str, str] | None,
+) -> str:
+    """随从跳转用 assign_boss_slugs 的结果，避免 af 这种占位 normalizedName。"""
+    assigned = str((slugs or {}).get(mob_id) or "").strip()
+    if assigned:
+        return assigned
+    row = raw if isinstance(raw, dict) else {}
+    norm = str(row.get("normalizedName") or "").strip()
+    if norm and norm.lower() not in GENERIC_MOB_NORMS:
+        return norm
+    return _kebab_id(mob_id) if mob_id else ""
+
+
 def _wave_escorts(
     spawn: dict[str, Any],
     mobs: dict[str, dict[str, Any]],
@@ -1328,6 +1482,7 @@ def _wave_escorts(
     *,
     map_name: str,
     map_slug: str,
+    slugs: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     escorts: list[dict[str, Any]] = []
     for esc in spawn.get("escorts") or []:
@@ -1335,7 +1490,7 @@ def _wave_escorts(
             continue
         esc_mob_id = str(esc.get("mob") or "").strip()
         esc_mob = mobs.get(esc_mob_id) if isinstance(mobs.get(esc_mob_id), dict) else {}
-        esc_slug = str((esc_mob or {}).get("normalizedName") or "").strip()
+        esc_slug = _escort_slug(esc_mob_id, esc_mob, slugs)
         esc_name = (
             _mob_name(esc_mob_id, esc_mob, locale) if esc_mob else esc_mob_id
         )
@@ -1595,6 +1750,7 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 locale,
                 map_name=map_name,
                 map_slug=map_slug,
+                slugs=slugs,
             )
             locations = spawn.get("spawnLocations") or []
             spawn_time = _as_int(spawn.get("spawnTime"), -1)

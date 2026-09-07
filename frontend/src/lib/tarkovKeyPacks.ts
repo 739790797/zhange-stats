@@ -1,7 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
 import {
-  TARKOV_BARTERS_PATH,
-  TARKOV_CRAFTS_PATH,
   TARKOV_MAPS,
   tarkovHideoutHref,
   tarkovMapSlug,
@@ -261,7 +259,6 @@ export function isPlaceholderTaskName(name: string | undefined): boolean {
 
 export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[] {
   const sources = key.sources;
-  const q = encodeURIComponent(key.name || key.short_name || key.id);
   const tags: TarkovKeySourceTag[] = [];
   const barters = sources?.barters || [];
   if (barters.length) {
@@ -278,7 +275,6 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
           return level > 0 ? `${name} ${level}级` : name;
         }),
       ),
-      href: `${TARKOV_BARTERS_PATH}?q=${q}`,
     });
   }
   const crafts = sources?.crafts || [];
@@ -296,7 +292,7 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
       ),
       href: first?.station_slug
         ? tarkovHideoutHref(first.station_slug)
-        : `${TARKOV_CRAFTS_PATH}?q=${q}`,
+        : undefined,
     });
   }
   const tasks = sources?.tasks || [];

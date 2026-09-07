@@ -39,6 +39,7 @@ uploads/
 **/.secret_key
 
 # Local scratch
+frontend/scripts/ocr-keybox-samples/
 .dev/
 _tmp_*/
 frontend/public/brand/_preview/

@@ -244,33 +244,71 @@
   font-variant-numeric: tabular-nums;
 }
 
+.spawnTableWrap {
+  overflow-x: auto;
+}
+
+.spawnTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.spawnTable th,
+.spawnTable td {
+  border: 1px solid #2a2a2a;
+  padding: 10px 12px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.spawnTable th {
+  background: #161616;
+  color: #c8c8c8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.spawnTable td {
+  background: #1a1b14;
+  color: #eee9d6;
+}
+
+.spawnTable th:nth-child(1),
+.spawnTable td:nth-child(1) {
+  min-width: 148px;
+  width: 22%;
+}
+
+.spawnTable th:nth-child(2),
+.spawnTable td:nth-child(2) {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.spawnTable th:nth-child(4),
+.spawnTable td:nth-child(4) {
+  min-width: 220px;
+  width: 34%;
+}
+
+.spawnEmpty {
+  color: #8a8c78;
+}
+
+.spawnLand {
+  color: #eee9d6;
+  white-space: nowrap;
+}
+
 .mapChipLink {
   color: inherit;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.mapChipLink:hover .mapChip,
-.mapChipLink:hover .escortChip {
+.mapChipLink:hover .mapChip {
   color: var(--hb-orange, #c8932a);
-}
-
-.spawnGroups {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.spawnGroup {
-  padding: 12px 14px 14px;
-  border: 1px solid var(--hb-border, #3a3d30);
-  background: #1a1b14;
-}
-
-.spawnCombo {
-  color: var(--hb-orange, #c8932a);
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 8px;
 }
 
 .spawnMaps {
@@ -280,42 +318,78 @@
   gap: 6px 16px;
 }
 
-.spawnRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px 14px;
-  margin-top: 10px;
-}
-
-.spawnRowLabel {
-  flex: none;
-  width: 36px;
-  color: #8a8c78;
+.spawnCombo {
+  color: var(--hb-orange, #c8932a);
   font-size: 12px;
-  line-height: 22px;
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 
-.spawnRowBody {
+.locList {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
+  gap: 6px;
   min-width: 0;
 }
 
-.schemeList {
+.escortList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.schemeLine {
+.escortPerson {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.escortPerson {
+  cursor: pointer;
+}
+
+a.escortPerson:hover .escortName {
+  color: var(--hb-orange, #c8932a);
+}
+
+.escortAvatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  object-fit: cover;
+  object-position: top center;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+}
+
+.escortName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #eee9d6;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
-.locChip,
-.escortChip {
+.escortCombo {
+  color: var(--hb-orange, #c8932a);
+  font-weight: 600;
+}
+
+.escortQty {
+  flex: none;
+  color: var(--hb-orange, #c8932a);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.locChip {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -323,15 +397,6 @@
   color: #d8d4b8;
   font-size: 13px;
   line-height: 1.4;
-}
-
-.escortChip {
-  color: #eee9d6;
-}
-
-.landValue {
-  color: #eee9d6;
-  font-size: 13px;
 }
 
 .spawnMap {

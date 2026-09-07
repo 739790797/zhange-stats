@@ -10,13 +10,24 @@ import {
   formatPropertyList,
   innerSlots,
   itemHasFlea,
+  namedTraderOffers,
+  parseItemBuyOffers,
   parseVendorOffers,
+  splitVendorOffers,
 } from "./tarkovItemFormat";
 
 describe("catalogColumnsForSlug", () => {
   it("uses backpacks / armor presets and falls back", () => {
     expect(catalogColumnsForSlug("backpacks")).toContain("slots");
     expect(catalogColumnsForSlug("armors")).toContain("class");
+    expect(catalogColumnsForSlug("ammo-packs")).toContain("slots");
+    expect(catalogColumnsForSlug("melee")).toEqual([
+      "name",
+      "slashDamage",
+      "stabDamage",
+      "weight",
+      "price",
+    ]);
     expect(catalogColumnsForSlug("unknown-cat")).toEqual([
       "name",
       "grid",
@@ -190,6 +201,15 @@ describe("formatPropertyList links", () => {
     expect(rows.find((r) => r.key === "categories")).toBeUndefined();
   });
 
+  it("hides unlabeled dump keys", () => {
+    const rows = formatPropertyList({
+      weight: 1.2,
+      someInternalFlag: true,
+      mysteryObject: { id: "x" },
+    });
+    expect(rows.map((r) => r.key)).toEqual(["weight"]);
+  });
+
   it("hides preset default flag", () => {
     const rows = formatPropertyList({
       default: true,
@@ -226,10 +246,147 @@ describe("parseVendorOffers", () => {
     ]);
     expect(offers[0]?.minLevel).toBe(3);
   });
+
+  it("reads json dump buyFromTrader rows", () => {
+    const offers = parseVendorOffers([
+      {
+        trader: { id: "abc", normalizedName: "prapor", name: "Prapor" },
+        price: 49222,
+        priceRUB: 49222,
+        currency: "RUB",
+        minTraderLevel: 2,
+      },
+    ]);
+    expect(offers[0]).toMatchObject({
+      vendor: "prapor",
+      vendorName: "Prapor",
+      priceRub: 49222,
+      minLevel: 2,
+    });
+  });
+
+  it("maps dump sellToTrader trader ids to slugs", () => {
+    const offers = parseVendorOffers([
+      {
+        trader: "54cb57776803fa99248b456e",
+        price: 40800,
+        priceRUB: 40800,
+        currency: "RUB",
+      },
+    ]);
+    expect(offers[0]).toMatchObject({
+      vendor: "therapist",
+      vendorName: "Therapist",
+      priceRub: 40800,
+    });
+  });
+});
+
+describe("parseItemBuyOffers", () => {
+  it("merges buyFor and buyFromTrader, first vendor wins", () => {
+    const offers = parseItemBuyOffers({
+      buyFor: [
+        {
+          price: 100,
+          currency: "RUB",
+          priceRUB: 100,
+          vendor: { name: "Prapor", normalizedName: "prapor" },
+        },
+      ],
+      buyFromTrader: [
+        {
+          price: 200,
+          currency: "RUB",
+          priceRUB: 200,
+          trader: { name: "Prapor", normalizedName: "prapor" },
+        },
+        {
+          price: 50,
+          currency: "RUB",
+          priceRUB: 50,
+          trader: { name: "Therapist", normalizedName: "therapist" },
+        },
+      ],
+    });
+    expect(offers.map((row) => [row.vendor, row.priceRub])).toEqual([
+      ["prapor", 100],
+      ["therapist", 50],
+    ]);
+  });
+});
+
+describe("splitVendorOffers", () => {
+  it("separates flea from traders", () => {
+    const { flea, traders } = splitVendorOffers([
+      {
+        vendor: "flea-market",
+        vendorName: "Flea",
+        price: 1,
+        currency: "RUB",
+        priceRub: 1,
+        minLevel: null,
+      },
+      {
+        vendor: "prapor",
+        vendorName: "Prapor",
+        price: 2,
+        currency: "RUB",
+        priceRub: 2,
+        minLevel: 1,
+      },
+    ]);
+    expect(flea.map((row) => row.vendor)).toEqual(["flea-market"]);
+    expect(traders.map((row) => row.vendor)).toEqual(["prapor"]);
+  });
+
+  it("namedTraderOffers drops flea and empty vendors", () => {
+    expect(
+      namedTraderOffers([
+        {
+          vendor: "flea-market",
+          vendorName: "Flea",
+          price: 1,
+          currency: "RUB",
+          priceRub: 1,
+          minLevel: null,
+        },
+        {
+          vendor: "",
+          vendorName: "—",
+          price: 2,
+          currency: "RUB",
+          priceRub: 2,
+          minLevel: null,
+        },
+        {
+          vendor: "prapor",
+          vendorName: "Prapor",
+          price: 3,
+          currency: "RUB",
+          priceRub: 3,
+          minLevel: 1,
+        },
+      ]).map((row) => row.vendor),
+    ).toEqual(["prapor"]);
+  });
 });
 
 describe("extractGridPockets", () => {
-  it("reads width/height and optional col/row", () => {
+  it("uses dump coordinates when every pocket has them", () => {
+    expect(
+      extractGridPockets({
+        grids: [
+          { width: 4, height: 5, col: 0, row: 0 },
+          { width: 1, height: 2, col: 4, row: 0 },
+        ],
+      }),
+    ).toEqual([
+      { width: 4, height: 5, col: 0, row: 0 },
+      { width: 1, height: 2, col: 4, row: 0 },
+    ]);
+  });
+
+  it("packs pockets without overlapping when coordinates are missing", () => {
     expect(
       extractGridPockets({
         grids: [
@@ -239,7 +396,7 @@ describe("extractGridPockets", () => {
       }),
     ).toEqual([
       { width: 4, height: 5, col: 0, row: 0 },
-      { width: 1, height: 2, col: 1, row: 0 },
+      { width: 1, height: 2, col: 4, row: 0 },
     ]);
   });
 });

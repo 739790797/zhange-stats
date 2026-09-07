@@ -10,7 +10,7 @@ export default function TarkovProgressionPage() {
       title="进度"
       crumbs={[]}
       sectionLabel="进度"
-      subtitle="任务、藏身处与战利品等级已开放。成就 / 声望仍待上游数据。"
+      subtitle="任务与藏身处已开放。成就 / 声望仍待上游数据。"
     >
       <div className={shell.hubGrid}>
         {TARKOV_PROGRESSION.map((item) =>

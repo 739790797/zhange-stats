@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   escortChipLabel,
+  escortQtyLabel,
   formatEscortComposition,
   groupBossSpawnWaves,
   isSameMobCountVariants,
@@ -120,6 +121,8 @@ describe("groupBossSpawnWaves", () => {
     expect(groups[0].escorts.map((row) => row.count)).toEqual([2, 3]);
     expect(escortChipLabel(groups[0].escorts[0])).toBe("Shturman guard ×2（50%）");
     expect(escortChipLabel(groups[0].escorts[1])).toBe("Shturman guard ×3（50%）");
+    expect(escortQtyLabel(groups[0].escorts[0])).toBe("×2（50%）");
+    expect(escortQtyLabel(groups[0].escorts[1])).toBe("×3（50%）");
   });
 
   it("prefixes location names that collide across maps", () => {
@@ -181,6 +184,7 @@ describe("escort combo labels", () => {
     ).toBe(true);
     expect(isSameMobCountVariants([pipe, bird])).toBe(false);
     expect(formatEscortComposition([pipe, bird])).toBe("Big Pipe ×1、Birdeye ×1");
+    expect(escortQtyLabel(pipe)).toBe("×1");
   });
 
   it("numbers spawn groups that share a map", () => {

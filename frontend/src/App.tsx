@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { ConfigProvider } from "antd";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { NotFoundPage } from "@/components/NotFoundPage";
@@ -9,6 +9,7 @@ import { RouteFallback } from "@/components/RouteFallback";
 import { SetupGate } from "@/components/SetupGate";
 import { antdLocale } from "@/locales/zhCN";
 import { TarkovGameModeProvider } from "@/lib/tarkovGameModeProvider";
+import { TAVERN_ADMIN_PATH, TAVERN_WRITE_PATH, tavernEditPath } from "@/lib/tavernNav";
 import { antdAppTheme } from "@/theme/antdApp";
 
 const AppLayout = lazy(() =>
@@ -78,19 +79,8 @@ const TarkovHideoutPage = lazy(() => import("@/pages/guides/TarkovHideoutPage"))
 const TarkovHideoutDetailPage = lazy(
   () => import("@/pages/guides/TarkovHideoutDetailPage"),
 );
-const TarkovBartersPage = lazy(() => import("@/pages/guides/TarkovBartersPage"));
-const TarkovCraftsPage = lazy(() => import("@/pages/guides/TarkovCraftsPage"));
-const TarkovLootTiersPage = lazy(
-  () => import("@/pages/guides/TarkovLootTiersPage"),
-);
-const TarkovHideoutCostPage = lazy(
-  () => import("@/pages/guides/TarkovHideoutCostPage"),
-);
-const TarkovWipeLengthPage = lazy(
-  () => import("@/pages/guides/TarkovWipeLengthPage"),
-);
-const TarkovBitcoinFarmPage = lazy(
-  () => import("@/pages/guides/TarkovBitcoinFarmPage"),
+const TarkovWorkbenchPage = lazy(
+  () => import("@/pages/guides/TarkovWorkbenchPage"),
 );
 const TarkovMePage = lazy(() => import("@/pages/guides/TarkovMePage"));
 const TarkovKeyPacksPage = lazy(
@@ -106,9 +96,21 @@ const TarkovProgressionPage = lazy(
   () => import("@/pages/guides/TarkovProgressionPage"),
 );
 const MinecraftPage = lazy(() => import("@/pages/guides/MinecraftPage"));
+const TavernListPage = lazy(() => import("@/pages/articles/TavernListPage"));
+const TavernArticlePage = lazy(() => import("@/pages/articles/TavernArticlePage"));
+const TavernAdminPage = lazy(() => import("@/pages/articles/TavernAdminPage"));
+const TavernEditPage = lazy(() => import("@/pages/articles/TavernEditPage"));
 
 function AdminPage({ children }: { children: ReactNode }) {
   return <AdminRoute>{children}</AdminRoute>;
+}
+
+function RedirectTavernManageEdit() {
+  const { articleId } = useParams();
+  if (!articleId || articleId === "new") {
+    return <Navigate to={TAVERN_WRITE_PATH} replace />;
+  }
+  return <Navigate to={tavernEditPath(Number(articleId))} replace />;
 }
 
 export default function App() {
@@ -146,15 +148,72 @@ export default function App() {
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route
                 element={
-                  <PrivateRoute>
-                    <TarkovGameModeProvider>
-                      <Suspense fallback={<RouteFallback />}>
-                        <AppLayout />
-                      </Suspense>
-                    </TarkovGameModeProvider>
-                  </PrivateRoute>
+                  <TarkovGameModeProvider>
+                    <Suspense fallback={<RouteFallback />}>
+                      <AppLayout />
+                    </Suspense>
+                  </TarkovGameModeProvider>
                 }
               >
+                <Route
+                  path="/tavern"
+                  element={
+                    <PlatformRoute featureId="tavern" allowGuest>
+                      <TavernListPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route
+                  path="/tavern/write"
+                  element={
+                    <PrivateRoute>
+                      <PlatformRoute featureId="tavern">
+                        <TavernEditPage />
+                      </PlatformRoute>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/tavern/write/:articleId"
+                  element={
+                    <PrivateRoute>
+                      <PlatformRoute featureId="tavern">
+                        <TavernEditPage />
+                      </PlatformRoute>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/tavern/admin"
+                  element={
+                    <AdminPage>
+                      <PlatformRoute featureId="tavern">
+                        <TavernAdminPage />
+                      </PlatformRoute>
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/tavern/manage"
+                  element={<Navigate to={TAVERN_ADMIN_PATH} replace />}
+                />
+                <Route
+                  path="/tavern/manage/new"
+                  element={<Navigate to={TAVERN_WRITE_PATH} replace />}
+                />
+                <Route
+                  path="/tavern/manage/:articleId"
+                  element={<RedirectTavernManageEdit />}
+                />
+                <Route
+                  path="/tavern/:slug"
+                  element={
+                    <PlatformRoute featureId="tavern" allowGuest>
+                      <TavernArticlePage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route element={<PrivateRoute />}>
                 <Route path="/" element={<HomeRedirect />} />
                 <Route
                   path="/steam"
@@ -260,20 +319,34 @@ export default function App() {
                     path="hideout/:stationSlug"
                     element={<TarkovHideoutDetailPage />}
                   />
-                  <Route path="barters" element={<TarkovBartersPage />} />
-                  <Route path="crafts" element={<TarkovCraftsPage />} />
-                  <Route path="loot-tiers" element={<TarkovLootTiersPage />} />
+                  <Route path="workbench" element={<TarkovWorkbenchPage />} />
+                  <Route
+                    path="workbench/:gunId"
+                    element={<TarkovWorkbenchPage />}
+                  />
+                  <Route
+                    path="barters"
+                    element={<Navigate to="/guides/tarkov" replace />}
+                  />
+                  <Route
+                    path="crafts"
+                    element={<Navigate to="/guides/tarkov" replace />}
+                  />
+                  <Route
+                    path="loot-tiers"
+                    element={<Navigate to="/guides/tarkov" replace />}
+                  />
                   <Route
                     path="hideout-cost"
-                    element={<TarkovHideoutCostPage />}
+                    element={<Navigate to="/guides/tarkov" replace />}
                   />
                   <Route
                     path="wipe-length"
-                    element={<TarkovWipeLengthPage />}
+                    element={<Navigate to="/guides/tarkov" replace />}
                   />
                   <Route
                     path="bitcoin-farm"
-                    element={<TarkovBitcoinFarmPage />}
+                    element={<Navigate to="/guides/tarkov" replace />}
                   />
                   <Route path="me" element={<TarkovMePage />} />
                   <Route
@@ -379,6 +452,7 @@ export default function App() {
                   }
                 />
                 <Route path="*" element={<NotFoundPage />} />
+                </Route>
               </Route>
             </Routes>
           </Suspense>

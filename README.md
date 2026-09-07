@@ -1,43 +1,42 @@
 # 战鸽数据
 
-圈子成员站：把日常签到、Steam 游玩记录，以及塔科夫 / Minecraft 攻略收在同一处。
+开源的圈子成员站：把多平台签到与养成盒、Steam 游玩统计，以及塔科夫图鉴、Minecraft 单服代操收在同一处。公开的 **战鸽酒馆** 可以读文章，登录后可以评论。
 
-绑定各平台账号后可以手动签到，也可以按角色定时自动签到；部分平台还能兑换奖励、查看养成盒。圈子成员之间可以互看 Steam 时间轴和热力日历。
+本仓库与任何游戏厂商、发行商或官方社区无关，是自用圈子的非官方第三方工具。图鉴与攻略数据来自社区开源项目，可能滞后或不完整。逃离塔科夫相关能力只做查阅与队友协作勾任务 / 标点，不提供作弊。
 
-## 账号
+可自托管。本地开发见 [`docs/develop.md`](docs/develop.md)，生产部署见 [`docs/deploy.md`](docs/deploy.md)；文档总目录在 [`docs/`](docs/README.md)。
 
-邮箱注册 / 登录，也支持 QQ 互联一键开号（无邮箱可稍后完善）。注册即同意站内服务条款与隐私说明（`/legal/terms`、`/legal/privacy`）。站内头像、昵称与 Steam 资料分开。权限分管理员与普通用户。页脚展示 ICP 备案号：[浙ICP备2025147006号](https://beian.miit.gov.cn/)。
+## 能做什么
 
-## Steam
+- **账号**：邮箱注册 / 登录，或 QQ 互联；站内头像、昵称与 Steam 资料分开。
+- **Steam**：绑定后记录游戏中会话；按日看时间轴，按周 / 月 / 年看热力日历。圈子成员可互看。
+- **我的日常**：已加入本站的各平台签到任务与今日奖励。
+- **战鸽酒馆**：公开文章站。未登录可读；登录后可评论。
+- **签到平台**：森空岛、塔吉多、库街区、米游社、追放。绑定后可手动签到或按角色定时自动签到；部分平台支持兑换与养成盒。
+- **逃离塔科夫**：物品、任务、商人、BOSS、地图等社区图鉴；联机房间供队友协作勾任务、标点、声明钥匙。游戏日志在浏览器本机解析，服务器只存摘要。
+- **Minecraft**：圈子单服代操（服况、启停、文件与模组工具）。
 
-绑定 Steam 后记录游戏中会话：按日看在线时间轴，按周 / 月 / 年看热力日历。圈子成员可互看。站内资料与 Steam 头像 / 昵称分离，统计页用后者。隐私设置过严时，本轮状态可能被跳过。
+管理员可配置用户、任务、调度、集成密钥与站点设置。
 
-## 我的日常
+## 致谢
 
-汇总已加入本站的各平台签到任务与今日奖励，一处查看。
+图鉴、日历与部分上游协议对齐下列开源项目。没有它们，这些功能做不出来。
 
-## 签到平台
+**逃离塔科夫**
 
-绑定后支持手动签到与定时自动签到。可按角色选择是否加入本站、是否自动签到。管理员可按平台 / 游戏 / 任务开关可用性。
+- [tarkov.dev](https://tarkov.dev)（[the-hideout/tarkov-dev](https://github.com/the-hideout/tarkov-dev)）— json dump 图鉴数据
+- [the-hideout/tarkov-dev-svg-maps](https://github.com/the-hideout/tarkov-dev-svg-maps) — 互动地图底图
+- [tarkovtracker-org/tarkov-data-overlay](https://github.com/tarkovtracker-org/tarkov-data-overlay) — 社区 overlay
 
-**森空岛** — 明日方舟、明日方舟：终末地。扫码 / 短信 / 密码绑定。签到日历、干员盒子对比、终末地养成盒、活动日程。不要在森空岛 App 里退出登录，以免凭证失效。
+**明日方舟 / 终末地**
 
-**塔吉多** — 社区 + 异环 / 幻塔。手机号验证码或密码登录。每日任务（浏览 / 点赞 / 分享）与兑换；异环养成盒。
+- [yuanyan3060/ArknightsGameResource](https://github.com/yuanyan3060/ArknightsGameResource) — 干员 `character_table`
+- [jacket-sikaha/game-schedule](https://github.com/jacket-sikaha/game-schedule) — 活动日历
 
-**库街区** — 社区 + 鸣潮 / 战双。短信验证码绑定。兑换、鸣潮资料卡。
+**签到上游对齐**
 
-**米游社** — 社区 + 原神 / 崩坏3 / 崩坏2 / 星铁 / 绝区零。兑换。
+- [Womsxd/MihoyoBBSTools](https://github.com/Womsxd/MihoyoBBSTools) — 米游社签到协议
+- [Ljzd-PRO/nonebot-plugin-mystool](https://github.com/Ljzd-PRO/nonebot-plugin-mystool) — 米游币商城接口
+- [TomyJan/Kuro-API-Collection](https://github.com/TomyJan/Kuro-API-Collection) — 库街区接口整理
 
-**追放** — 社区签到、每日任务与兑换。
-
-## 游戏
-
-**逃离塔科夫** — 非官方第三方图鉴（数据来自 tarkov.dev）：物品、任务、商人、BOSS、地图；弹药与枪械表；藏身处 / 以物易物 / 制作。联机房间供队友协作勾任务、标点、声明钥匙，不是作弊工具。游戏日志在浏览器本机解析，服务器只存摘要。
-
-**Minecraft** — 圈子单服代操：服况、启停、文件与模组工具。
-
-## 管理
-
-用户、任务配置、任务调度、集成密钥、邮箱、安全设置、系统更新、平台日志。
-
-开发、部署与约定见 [`docs/`](docs/README.md)。
+游戏内容与商标归各权利方所有。

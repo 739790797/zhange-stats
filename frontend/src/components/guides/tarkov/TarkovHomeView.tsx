@@ -22,7 +22,6 @@ import {
   LEGAL_TERMS_PATH,
   TARKOV_PUBLIC_DISCLAIMER,
 } from "@/lib/legalDocs";
-import { IcpBeianLink } from "@/components/IcpBeianLink";
 import { TarkovHomeToolRail } from "@/components/guides/tarkov/TarkovHomeToolRail";
 import {
   TarkovRaidPrepEntryModal,
@@ -392,7 +391,6 @@ export function TarkovHomeView() {
           <div className={styles.footerRow}>
             <span>非官方第三方 · 数据来源 tarkov.dev</span>
             <div className={styles.footerLinks}>
-              <IcpBeianLink />
               <Link to={LEGAL_TERMS_PATH}>服务条款</Link>
               <Link to={LEGAL_PRIVACY_PATH}>隐私说明</Link>
               <a

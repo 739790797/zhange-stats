@@ -57,6 +57,7 @@ export type {
   IntegrationsSettings,
   IntegrationsStatus,
   AuthSettings,
+  SiteSettings,
 } from "./settingsApi";
 
 export {
@@ -76,6 +77,9 @@ export {
   testMinecraftRconConnection,
   fetchAuthSettings,
   updateAuthSettings,
+  fetchSitePublic,
+  fetchSiteSettings,
+  updateSiteSettings,
   updateEmailSettings,
   testEmailSettings,
 } from "./settingsApi";

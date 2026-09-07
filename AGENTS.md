@@ -23,7 +23,7 @@
 | [`.cursor/rules/directory-layout.mdc`](.cursor/rules/directory-layout.mdc) | 新平台进 `services/<域>` / `components/<域>` |
 | [`docs/directory-layout.md`](docs/directory-layout.md) | 目录结构全文（`var/`、分包映射） |
 | [`docs/agent-governance-plan.md`](docs/agent-governance-plan.md) | 治理方案（已落地） |
-| 根 [`README.md`](README.md) | 产品功能介绍 |
+| 根 [`README.md`](README.md) | 站点性质、功能概要、致谢 |
 | [`docs/develop.md`](docs/develop.md) | 本地开发 |
 | [`docs/deploy.md`](docs/deploy.md) | 生产部署 |
 | [`docs/database.md`](docs/database.md) | 表结构总览 |

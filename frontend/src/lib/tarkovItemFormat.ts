@@ -1,5 +1,9 @@
 import { formatCaliberLabel } from "@/lib/tarkovAmmoCategories";
 import {
+  resolveTraderSlug,
+  traderDisplayName,
+} from "@/lib/tarkovHomeNav";
+import {
   handbookHrefFromCategoryId,
   isGenericItemCategoryId,
   itemHrefFromTypes,
@@ -41,6 +45,8 @@ export type CatalogColumnId =
   | "recoil"
   | "loudness"
   | "hp"
+  | "slashDamage"
+  | "stabDamage"
   | "price";
 
 const DEFAULT_COLUMNS: CatalogColumnId[] = [
@@ -73,6 +79,8 @@ const COLUMN_PRESETS: Record<string, CatalogColumnId[]> = {
   barter: ["name", "grid", "weight", "price"],
   meds: ["name", "hp", "useTime", "price"],
   "weapon-mods": ["name", "ergo", "recoil", "price"],
+  "ammo-packs": ["name", "grid", "slots", "weight", "slotRatio", "pricePerSlot", "price"],
+  melee: ["name", "slashDamage", "stabDamage", "weight", "price"],
   "pistol-grips": ["name", "ergo", "price"],
   suppressors: ["name", "ergo", "recoil", "loudness", "price"],
   gear: ["name", "grid", "weight", "price"],
@@ -111,6 +119,8 @@ export const CATALOG_COLUMN_LABELS: Record<CatalogColumnId, string> = {
   recoil: "后座",
   loudness: "响度",
   hp: "生命",
+  slashDamage: "劈砍",
+  stabDamage: "刺击",
   price: "价格",
 };
 
@@ -573,11 +583,8 @@ export function formatPropertyList(
   const preferred = Object.keys(PROP_LABELS).filter(
     (key) => key in properties && !SKIP_PROP_KEYS.has(key),
   );
-  const rest = Object.keys(properties)
-    .filter((key) => !PROP_LABELS[key] && !SKIP_PROP_KEYS.has(key))
-    .sort();
   const rows: FormattedProp[] = [];
-  for (const key of [...preferred, ...rest]) {
+  for (const key of preferred) {
     const value = formatPropValue(key, properties[key]);
     if (value == null) continue;
     const links = extractPropLinks(key, properties[key]);
@@ -586,7 +593,11 @@ export function formatPropertyList(
       key,
       label: PROP_LABELS[key] || key,
       value,
-      large: itemChips > 1 || value.length >= 40 || links.length > 4,
+      large:
+        key === "grids" ||
+        itemChips > 1 ||
+        value.length >= 40 ||
+        links.length > 4,
       links: links.length ? links : undefined,
     });
   }
@@ -742,31 +753,116 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+export function isFleaVendor(vendor: string): boolean {
+  const key = vendor.trim().toLowerCase().replace(/\s+/g, "-");
+  return key === "flea-market" || key === "fleamarket" || key === "flea";
+}
+
+export function splitVendorOffers(offers: VendorOffer[]): {
+  flea: VendorOffer[];
+  traders: VendorOffer[];
+} {
+  const flea: VendorOffer[] = [];
+  const traders: VendorOffer[] = [];
+  for (const offer of offers) {
+    if (isFleaVendor(offer.vendor) || isFleaVendor(offer.vendorName)) {
+      flea.push(offer);
+    } else {
+      traders.push(offer);
+    }
+  }
+  return { flea, traders };
+}
+
+/** 商人报价：去掉跳蚤和无 vendor 的空行。 */
+export function namedTraderOffers(offers: VendorOffer[]): VendorOffer[] {
+  return splitVendorOffers(offers).traders.filter((offer) => {
+    const key = offer.vendor.trim();
+    return Boolean(key) && key !== "—";
+  });
+}
+
+function vendorFromOffer(offer: Record<string, unknown>): {
+  key: string;
+  name: string;
+  minLevel: number | null;
+} {
+  const raw = offer.vendor ?? offer.trader;
+  const vendor = asRecord(raw);
+  if (vendor) {
+    const ident = String(vendor.id || vendor._id || "").trim();
+    const named = String(
+      vendor.normalizedName || vendor.name || "",
+    ).trim();
+    const fromId = isBareTarkovId(ident) ? resolveTraderSlug(ident) : "";
+    const key = fromId || resolveTraderSlug(named) || named || ident;
+    const min = Number(vendor.minTraderLevel ?? vendor.min_trader_level);
+    return {
+      key,
+      name: traderDisplayName(key, named || key || "—"),
+      minLevel: Number.isFinite(min) ? min : null,
+    };
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const ident = raw.trim();
+    const key = resolveTraderSlug(ident) || ident;
+    return {
+      key,
+      name: traderDisplayName(key, ident),
+      minLevel: null,
+    };
+  }
+  return { key: "", name: "—", minLevel: null };
+}
+
 export function parseVendorOffers(value: unknown): VendorOffer[] {
   if (!Array.isArray(value)) return [];
   const out: VendorOffer[] = [];
   for (const row of value) {
     const offer = asRecord(row);
     if (!offer) continue;
-    const vendor = asRecord(offer.vendor) || {};
-    const vendorKey = String(
-      vendor.normalizedName || vendor.name || "",
-    ).trim();
+    const vendor = vendorFromOffer(offer);
     const price = Number(offer.price);
     const priceRub = Number(offer.priceRUB ?? offer.price);
+    const rowLevel = Number(offer.minTraderLevel ?? offer.min_trader_level);
     out.push({
-      vendor: vendorKey,
-      vendorName: String(vendor.name || vendorKey || "—"),
+      vendor: vendor.key,
+      vendorName: vendor.name,
       price: Number.isFinite(price) ? price : null,
       currency: String(offer.currency || "RUB"),
       priceRub: Number.isFinite(priceRub) ? priceRub : null,
-      minLevel:
-        Number.isFinite(Number(vendor.minTraderLevel))
-          ? Number(vendor.minTraderLevel)
-          : loyaltyLevel(offer),
+      minLevel: Number.isFinite(rowLevel)
+        ? rowLevel
+        : vendor.minLevel ?? loyaltyLevel(offer),
     });
   }
   return out;
+}
+
+function mergeVendorOffers(...lists: VendorOffer[][]): VendorOffer[] {
+  const byVendor = new Map<string, VendorOffer>();
+  for (const list of lists) {
+    for (const offer of list) {
+      const key = offer.vendor || offer.vendorName;
+      if (!key || byVendor.has(key)) continue;
+      byVendor.set(key, offer);
+    }
+  }
+  return [...byVendor.values()];
+}
+
+export function parseItemBuyOffers(item: Record<string, unknown>): VendorOffer[] {
+  return mergeVendorOffers(
+    parseVendorOffers(item.buyFor ?? item.buy_for),
+    parseVendorOffers(item.buyFromTrader ?? item.buy_from_trader),
+  );
+}
+
+export function parseItemSellOffers(item: Record<string, unknown>): VendorOffer[] {
+  return mergeVendorOffers(
+    parseVendorOffers(item.sellFor ?? item.sell_for),
+    parseVendorOffers(item.sellToTrader ?? item.sell_to_trader),
+  );
 }
 
 function loyaltyLevel(offer: Record<string, unknown>): number | null {
@@ -816,38 +912,19 @@ function linkedItem(value: unknown): LinkedItemRef | null {
   };
 }
 
-export type GridPocket = {
-  width: number;
-  height: number;
-  col: number;
-  row: number;
-};
-
-export function extractGridPockets(
-  properties: Record<string, unknown> | undefined,
-): GridPocket[] {
-  const grids = properties?.grids;
-  if (!Array.isArray(grids)) return [];
-  const pockets: GridPocket[] = [];
-  grids.forEach((grid, index) => {
-    const row = asRecord(grid);
-    if (!row) return;
-    const width = Number(row.width);
-    const height = Number(row.height);
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-      return;
-    }
-    const col = Number(row.col);
-    const pocketRow = Number(row.row);
-    pockets.push({
-      width,
-      height,
-      col: Number.isFinite(col) ? col : index,
-      row: Number.isFinite(pocketRow) ? pocketRow : 0,
-    });
-  });
-  return pockets;
-}
+export type {
+  GridLayoutKind,
+  GridPocket,
+  GridOccupancy,
+  ItemGridLayout,
+} from "./tarkovItemGrids";
+export {
+  composeGridOccupancy,
+  extractGridPockets,
+  gridOccupancyCaption,
+  packGridPockets,
+  resolveItemGridLayout,
+} from "./tarkovItemGrids";
 
 export type PlateSlotGroup = {
   key: string;

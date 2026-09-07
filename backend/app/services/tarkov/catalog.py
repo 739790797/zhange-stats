@@ -18,6 +18,7 @@ from app.services.tarkov import items as items_svc
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
 from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.items import GRAPHQL_SPLIT_FORMAT, TarkovItemsError
+from app.services.tarkov.item_sources import attach_item_sources
 
 logger = logging.getLogger(__name__)
 
@@ -972,4 +973,5 @@ def get_item_detail(db: Session, item_id: str) -> dict[str, Any]:
         raise TarkovItemsError(f"未找到物品: {item_id}")
     detail["source"] = source
     attach_item_key_locks(db, detail)
+    attach_item_sources(db, detail)
     return detail

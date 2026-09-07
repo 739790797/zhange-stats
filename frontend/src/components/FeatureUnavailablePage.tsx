@@ -6,6 +6,7 @@ import { PLATFORM_NAV } from "@/lib/platformFeatures";
 function featureLabel(featureId: string): string {
   const platform = PLATFORM_NAV.find((item) => item.featureId === featureId);
   if (platform) return platform.label;
+  if (featureId === "tavern") return "战鸽酒馆";
   const guide = flattenGuideLeaves(GUIDE_NAV).find(
     (item) => item.featureId === featureId,
   );

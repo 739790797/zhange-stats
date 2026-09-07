@@ -221,12 +221,32 @@
   border: 1px solid #2a2a2a;
 }
 
-.tipName {
+.tipName,
+.tipLink {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tipLink {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: #5c5e48;
+}
+
+.tipLink:hover {
+  color: var(--hb-orange, #c8932a);
+  text-decoration-color: var(--hb-orange, #c8932a);
+}
+
+.tipScheme .tipLink {
+  flex: none;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
 }
 
 .tipCount {

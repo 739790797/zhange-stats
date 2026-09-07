@@ -1,6 +1,6 @@
 /**
  * 仓库/手册搜索侧栏一级分类（BSG handbook.Categories，ParentId 为空，按 Order 升序）。
- * 子类为 ParentId=一级 的直接下级（再下一级配件细分不在此展开）。
+ * 子类为 ParentId=一级 的直接下级；配件再展开到手册小类（瞄具 / 枪口等）。
  */
 
 export type TarkovHandbookStatus = "ready" | "soon";
@@ -9,6 +9,7 @@ export type TarkovHandbookChild = {
   id: string;
   order: number;
   label: string;
+  children?: TarkovHandbookChild[];
 };
 
 export type TarkovHandbookRoot = {
@@ -155,9 +156,73 @@ export const TARKOV_HANDBOOK_ROOTS: TarkovHandbookRoot[] = [
     slug: "weapon-mods",
     status: "ready",
     children: [
-      { id: "5b5f750686f774093e6cb503", order: 100, label: "装备配件" },
-      { id: "5b5f71b386f774093f2ecf11", order: 100, label: "功能模块" },
-      { id: "5b5f75b986f77447ec5d7710", order: 100, label: "基础部件" },
+      {
+        id: "5b5f750686f774093e6cb503",
+        order: 100,
+        label: "装备配件",
+        children: [
+          { id: "5b5f754a86f774094242f19b", order: 100, label: "弹匣" },
+          { id: "5b5f757486f774093e6cb507", order: 110, label: "枪托" },
+          { id: "5b5f761f86f774094242f1a1", order: 120, label: "手枪式握把" },
+          { id: "5b5f755f86f77447ec5d770e", order: 130, label: "导轨" },
+          { id: "5b5f751486f77447ec5d770c", order: 140, label: "拉机柄" },
+          { id: "5b5f752e86f774093e6cb505", order: 150, label: "榴弹发射器" },
+        ],
+      },
+      {
+        id: "5b5f71b386f774093f2ecf11",
+        order: 110,
+        label: "功能模块",
+        children: [
+          {
+            id: "5b5f73ec86f774093e6cb4fd",
+            order: 100,
+            label: "瞄具",
+            children: [
+              { id: "5b5f740a86f77447ec5d7706", order: 100, label: "突击瞄准镜" },
+              { id: "5b5f742686f774093e6cb4ff", order: 110, label: "反射式瞄具" },
+              { id: "5b5f744786f774094242f197", order: 120, label: "小型反射式瞄具" },
+              { id: "5b5f746686f77447ec5d7708", order: 130, label: "机械瞄具" },
+              { id: "5b5f748386f774093e6cb501", order: 140, label: "光学瞄具" },
+              { id: "5b5f749986f774094242f199", order: 150, label: "特殊瞄具" },
+            ],
+          },
+          {
+            id: "5b5f724186f77447ed5636ad",
+            order: 110,
+            label: "枪口装置",
+            children: [
+              { id: "5b5f724c86f774093f2ecf15", order: 100, label: "消焰器及制退器" },
+              { id: "5b5f72f786f77447ec5d7702", order: 110, label: "枪口转接器" },
+              { id: "5b5f731a86f774093e6cb4f9", order: 120, label: "消音器" },
+            ],
+          },
+          {
+            id: "5b5f736886f774094242f193",
+            order: 120,
+            label: "照明激光设备",
+            children: [
+              { id: "5b5f73ab86f774094242f195", order: 100, label: "手电筒" },
+              { id: "5b5f73c486f77447ec5d7704", order: 110, label: "激光瞄准模块" },
+            ],
+          },
+          { id: "5b5f737886f774093e6cb4fb", order: 130, label: "战术组合设备" },
+          { id: "5b5f71de86f774093f2ecf13", order: 140, label: "前握把" },
+          { id: "5b5f71c186f77409407a7ec0", order: 150, label: "两脚架" },
+          { id: "5b5f74cc86f77447ec5d770a", order: 160, label: "辅助零件" },
+        ],
+      },
+      {
+        id: "5b5f75b986f77447ec5d7710",
+        order: 120,
+        label: "基础部件",
+        children: [
+          { id: "5b5f75c686f774094242f19f", order: 100, label: "枪管" },
+          { id: "5b5f75e486f77447ec5d7712", order: 110, label: "护木" },
+          { id: "5b5f760586f774093e6cb509", order: 120, label: "导气箍" },
+          { id: "5b5f764186f77447ec5d7714", order: 130, label: "机匣和套筒" },
+        ],
+      },
     ],
   },
   {
@@ -247,16 +312,69 @@ export type TarkovItemPage = {
   children: TarkovHandbookChild[];
 };
 
+export function walkHandbookChildren(
+  nodes: readonly TarkovHandbookChild[] | undefined,
+  visit: (node: TarkovHandbookChild, depth: number) => void,
+  depth = 1,
+): void {
+  for (const node of nodes || []) {
+    visit(node, depth);
+    if (node.children?.length) {
+      walkHandbookChildren(node.children, visit, depth + 1);
+    }
+  }
+}
+
+export function findHandbookChild(
+  nodes: readonly TarkovHandbookChild[] | undefined,
+  id: string,
+): TarkovHandbookChild | undefined {
+  const key = (id || "").trim();
+  if (!key) return undefined;
+  for (const node of nodes || []) {
+    if (node.id === key) return node;
+    const nested = findHandbookChild(node.children, key);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+export function handbookChildLabels(
+  nodes: readonly TarkovHandbookChild[] | undefined,
+): string[] {
+  const labels: string[] = [];
+  walkHandbookChildren(nodes, (node) => {
+    labels.push(node.label);
+  });
+  return labels;
+}
+
+export function handbookNodeCategoryIds(node: TarkovHandbookChild): string[] {
+  const ids = [node.id];
+  walkHandbookChildren(node.children, (child) => {
+    ids.push(child.id);
+  });
+  return ids;
+}
+
 function handbookChildId(rootSlug: string, childLabel: string): string {
   const root = TARKOV_HANDBOOK_ROOTS.find((r) => r.slug === rootSlug);
-  return root?.children.find((c) => c.label === childLabel)?.id || "";
+  let found = "";
+  walkHandbookChildren(root?.children, (node) => {
+    if (!found && node.label === childLabel) found = node.id;
+  });
+  return found;
 }
 
 function handbookCategoryIds(root: TarkovHandbookRoot): string[] {
-  return [root.id, ...root.children.map((c) => c.id)];
+  const ids = [root.id];
+  walkHandbookChildren(root.children, (node) => {
+    ids.push(node.id);
+  });
+  return ids;
 }
 
-/** 顶栏叶子入口（比手册一级更细）。 */
+/** 手册一级之下的分类页（顶栏只挂装备/枪支等常用入口，握把/消音器走配件）。 */
 export const TARKOV_ITEM_LEAVES: TarkovItemPage[] = [
   {
     slug: "headsets",
@@ -322,6 +440,15 @@ export const TARKOV_ITEM_LEAVES: TarkovItemPage[] = [
     children: [],
   },
   {
+    slug: "ammo-packs",
+    label: "弹药包",
+    panel: "catalog",
+    parentSlug: "ammo",
+    categoryIds: [handbookChildId("ammo", "弹药包")].filter(Boolean),
+    types: ["ammoBox"],
+    children: [],
+  },
+  {
     slug: "grenades",
     label: "手榴弹",
     panel: "catalog",
@@ -331,11 +458,20 @@ export const TARKOV_ITEM_LEAVES: TarkovItemPage[] = [
     children: [],
   },
   {
+    slug: "melee",
+    label: "近战",
+    panel: "catalog",
+    parentSlug: "guns",
+    categoryIds: [handbookChildId("guns", "近战武器")].filter(Boolean),
+    types: ["melee"],
+    children: [],
+  },
+  {
     slug: "pistol-grips",
     label: "手枪式握把",
     panel: "catalog",
     parentSlug: "weapon-mods",
-    categoryIds: [],
+    categoryIds: [handbookChildId("weapon-mods", "手枪式握把")].filter(Boolean),
     types: ["pistolGrip"],
     children: [],
   },
@@ -344,7 +480,7 @@ export const TARKOV_ITEM_LEAVES: TarkovItemPage[] = [
     label: "消音器",
     panel: "catalog",
     parentSlug: "weapon-mods",
-    categoryIds: [],
+    categoryIds: [handbookChildId("weapon-mods", "消音器")].filter(Boolean),
     types: ["suppressor"],
     children: [],
   },
@@ -387,8 +523,9 @@ export function itemDetailHref(typeSlug: string, itemId: string): string {
 
 const TYPE_TO_ITEM_SLUG: [string, string][] = [
   ["ammo", "ammo"],
-  ["ammoBox", "ammo"],
+  ["ammoBox", "ammo-packs"],
   ["gun", "guns"],
+  ["melee", "melee"],
   ["preset", "guns"],
   ["keys", "keys"],
   ["key", "keys"],
@@ -461,7 +598,7 @@ export type HandbookCategoryHit = {
   order: number;
 };
 
-/** 手册 id 取最细分类：子类优先，否则一级。 */
+/** 手册 id 取最细分类：更深的子类优先，否则一级。 */
 export function handbookCategoryFromIds(
   ids: readonly string[] | null | undefined,
 ): HandbookCategoryHit | null {
@@ -470,6 +607,7 @@ export function handbookCategoryFromIds(
   );
   if (!set.size) return null;
   let childHit: HandbookCategoryHit | null = null;
+  let childDepth = -1;
   let rootHit: HandbookCategoryHit | null = null;
   for (const root of TARKOV_HANDBOOK_ROOTS) {
     if (set.has(root.id)) {
@@ -481,16 +619,25 @@ export function handbookCategoryFromIds(
       if (!rootHit || hit.order < rootHit.order) rootHit = hit;
     }
     for (const [index, child] of root.children.entries()) {
-      if (!set.has(child.id)) continue;
-      const hit = {
-        id: child.id,
-        label: child.label,
-        order: root.order * 1000 + index,
-      };
-      if (!childHit || hit.order < childHit.order) childHit = hit;
+      walkHandbookChildren([child], (node, depth) => {
+        if (!set.has(node.id)) return;
+        const hit = {
+          id: node.id,
+          label: node.label,
+          order: root.order * 1000 + index,
+        };
+        if (
+          !childHit ||
+          depth > childDepth ||
+          (depth === childDepth && hit.order < childHit.order)
+        ) {
+          childHit = hit;
+          childDepth = depth;
+        }
+      });
     }
   }
-  return childHit || rootHit;
+  return childHit ?? rootHit;
 }
 
 /** 手册分类 id → 本站分类页；泛 Item 节点不链。 */
@@ -499,12 +646,15 @@ export function handbookHrefFromCategoryId(id: string): string | null {
   if (!key || IGNORE_CATEGORY_IDS.has(key)) return null;
   for (const root of TARKOV_HANDBOOK_ROOTS) {
     if (root.id === key) return handbookHref(root);
+    if (!findHandbookChild(root.children, key)) continue;
+    const leaf = TARKOV_ITEM_LEAVES.find((page) =>
+      page.categoryIds.includes(key),
+    );
+    if (leaf) return itemTypeHref(leaf.slug);
     if (root.children.some((child) => child.id === key)) {
-      const leaf = TARKOV_ITEM_LEAVES.find((page) =>
-        page.categoryIds.includes(key),
-      );
-      return leaf ? itemTypeHref(leaf.slug) : handbookHref(root);
+      return handbookHref(root);
     }
+    return `${handbookHref(root)}?child=${encodeURIComponent(key)}`;
   }
   return null;
 }

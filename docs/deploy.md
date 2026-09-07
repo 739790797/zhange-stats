@@ -46,9 +46,11 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。数据库探测结果进程内缓存 1 秒，避免探针打满连接池。管理端「平台日志」的运行时健康另含 `APP_ENV`、Redis、`TRUST_X_FORWARDED_FOR`、SMTP，公开引流前应在该页核对。
 
+塔科夫工作台中间用 dump 枪图做底板，在图上点槽位换配件，默认不依赖本机 Chrome。`patchright` 钉死在 `requirements.txt` 里，仅当显式打开 `TARKOV_WORKBENCH_IMAGE_GEN=true` 时才会拉浏览器做出图代理。
+
 ## 公开运营检查
 
-对外宣传（例如 B 站）前核对这些项。ICP 备案号在页脚展示，应用不探测备案状态。
+对外宣传（例如 B 站）前核对这些项。应用不探测备案状态。
 
 | 项 | 期望 |
 |----|------|
@@ -57,7 +59,7 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 | `TRUST_X_FORWARDED_FOR` | **仅**在受信反代之后设 `true`；直接暴露 uvicorn 时保持默认 `false` |
 | SMTP | 邮箱注册要能发出验证码；管理端「邮件」里 `configured` |
 | 条款 | 站内 `/legal/terms`、`/legal/privacy`；片尾写明非官方、非作弊 |
-| ICP 备案 | 页脚展示 [浙ICP备2025147006号](https://beian.miit.gov.cn/)（登录页、主布局、塔科夫首页） |
+| ICP 备案 | 国内公开站点在管理端「安全设置」或 `ICP_BEIAN_NO` 填写备案号；留空则全站页脚不展示 |
 | 管理端核对 | 「平台日志」运行时健康：`app` / `mysql` / `redis` / `scheduler` / `app_env` / `xff` / `smtp`。生产未配 Redis 或 SMTP 会标降级 |
 
 联机大厅为单进程内存 WebSocket，不要承诺可水平扩展。宣传口径走「队友协作勾任务 / 标点」，不要把截图同步说成实时雷达。限流数字见 [`security.md`](security.md)「塔科夫联机」。

@@ -105,6 +105,26 @@
   line-height: 1.35;
 }
 
+.mainText {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mainText .name {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.armorClass {
+  color: #9a9684;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .main:hover .name {
   color: #e0b45a;
 }
@@ -163,7 +183,30 @@
 }
 
 .ammoRow {
-  grid-template-columns: 40px 88px max-content minmax(0, 1fr);
+  --ammo-stats-width: calc(2.5em + 8px + 3ch);
+  grid-template-columns: 40px 88px var(--ammo-stats-width) minmax(0, 1fr);
+  font-size: 12px;
+}
+
+.ammoStats {
+  display: grid;
+  grid-template-columns: max-content 3ch;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+  width: var(--ammo-stats-width);
+  padding-top: 2px;
+  color: #a8a48c;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ammoStats b {
+  min-width: 3ch;
+  color: #eee9d6;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .stowIcon {
@@ -197,34 +240,31 @@
 }
 
 .stowName:hover,
-.stowIcon:hover + .stowName,
 .stowItem:hover .stowName,
 .ammoRow:hover .stowName {
   color: #e0b45a;
+}
+
+.stowText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 4px;
+}
+
+.stowText .stowName {
+  padding-top: 0;
+}
+
+.stowText .armorClass {
+  padding-left: 0;
 }
 
 .otherChips {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.ammoStats {
-  display: grid;
-  grid-template-columns: auto max-content;
-  align-items: baseline;
-  column-gap: 8px;
-  row-gap: 2px;
-  padding-top: 2px;
-  color: #a8a48c;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.ammoStats b {
-  color: #eee9d6;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 .effects {

@@ -28,11 +28,22 @@ tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_clai
 tarkov_map_places
 tarkov_user_key_owns · tarkov_user_collection_owns · tarkov_user_collection_layouts · tarkov_user_collection_placements · tarkov_user_task_dones · tarkov_user_task_starteds · tarkov_user_task_objective_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
+users ── * articles ── * article_comments
+users ── * article_authors（酒馆作者白名单）
+articles * ── * article_categories / article_tags（链接表 article_category_links / article_tag_links）
+articles ── * article_versions
 ```
 
 | 表 | 用途 |
 |---|---|
 | `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin` |
+| `article_categories` | 战鸽酒馆文章分类；`slug` 唯一 |
+| `article_tags` | 战鸽酒馆文章标签；`slug` 唯一 |
+| `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft` / `deleted`，删除为逻辑删除）、`author_user_id` ON DELETE SET NULL、`halo_source_id` 可空唯一（导入幂等） |
+| `article_authors` | 酒馆作者白名单；主键 `user_id` ON DELETE CASCADE。站点管理员不必入表即可发文；被勾选的普通用户可发文、编辑/删除（软删）自己的文章 |
+| `article_versions` | 文章内容版本；唯一 `(article_id, version_no)`；恢复某一版会写回正文并再追加一条版本。`article_id` ON DELETE CASCADE，`created_by_user_id` ON DELETE SET NULL |
+| `article_category_links` / `article_tag_links` | 文章与分类/标签多对多 |
+| `article_comments` | 酒馆评论（一层回复 `parent_id`）；`user_id` 可空（导入游客评用 `guest_name`）；ON DELETE CASCADE 随文章 |
 | `members` | 档案、站内头像/昵称、Steam 绑定（含 `steam_persona_name` / `steam_avatar_url`）、QQ 互联（`qq_openid` 等）；`user_id` ON DELETE CASCADE |
 | `play_sessions` | 游戏中会话（热力）；索引含 `(member_id, started_at)` / `(member_id, ended_at)` / `(source, started_at)` / `last_seen_at`（复合最左前缀覆盖 member_id，无单列 member_id）；`member_id` ON DELETE CASCADE |
 | `presence_segments` | 离线/在线/游戏中（日时间轴）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
@@ -93,7 +104,7 @@ minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups ·
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档。索引含 `(job_key, started_at)` |
-| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度等） |
+| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`site` 页脚备案号等） |
 | `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset`；`expires_at` 有索引 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |

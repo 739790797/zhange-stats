@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   ICP_BEIAN_HREF,
-  ICP_BEIAN_NO,
   LEGAL_DOCS,
   LEGAL_PRIVACY_PATH,
   LEGAL_TERMS_PATH,
   RAID_ROOM_TITLE_POLICY,
   TARKOV_PUBLIC_DISCLAIMER,
   legalDoc,
+  siteIcpBeianNo,
+  termsTailParagraph,
 } from "./legalDocs";
 
 describe("legal docs", () => {
@@ -16,10 +17,15 @@ describe("legal docs", () => {
     expect(LEGAL_PRIVACY_PATH).toBe("/legal/privacy");
   });
 
-  it("exposes the ICP filing number for the site footer", () => {
-    expect(ICP_BEIAN_NO).toBe("浙ICP备2025147006号");
+  it("keeps the MIIT lookup URL and omits a baked-in filing number", () => {
     expect(ICP_BEIAN_HREF).toBe("https://beian.miit.gov.cn/");
-    expect(legalDoc("terms").paragraphs.join("\n")).toContain(ICP_BEIAN_NO);
+    expect(LEGAL_DOCS.terms.paragraphs.join("\n")).not.toMatch(/ICP备/);
+    expect(siteIcpBeianNo("  浙ICP备1号  ")).toBe("浙ICP备1号");
+    expect(termsTailParagraph("")).not.toMatch(/ICP 备案/);
+    expect(termsTailParagraph("浙ICP备1号")).toContain("浙ICP备1号");
+    expect(legalDoc("terms", "京ICP备2号").paragraphs.join("\n")).toContain(
+      "京ICP备2号",
+    );
   });
 
   it("states unofficial, no-cheat, and room title rules", () => {

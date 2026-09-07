@@ -11,8 +11,10 @@ import {
 } from "@/lib/tarkovAmmoArmorEffect";
 import {
   bossGearAmmoStats,
+  bossGearArmorClassLabel,
   bossGearItemLabel,
   groupBossGearSlots,
+  mergeBossArmorSlots,
   splitBossGearContains,
 } from "@/lib/tarkovBossEquipment";
 import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
@@ -35,6 +37,7 @@ function GearCard({ item }: { item: TarkovBossGearItem }) {
   const thumb = thumbOf(item);
   const nested = item.contains || [];
   const stowed = splitBossGearContains(nested);
+  const classLabel = bossGearArmorClassLabel(item);
   const hasStow =
     stowed.magazines.length > 0 ||
     stowed.ammo.length > 0 ||
@@ -49,7 +52,14 @@ function GearCard({ item }: { item: TarkovBossGearItem }) {
         <span className={styles.icon}>
           {thumb ? <img src={thumb} alt="" /> : null}
         </span>
-        <span className={styles.name}>{text}</span>
+        {classLabel ? (
+          <span className={styles.mainText}>
+            <span className={styles.name}>{text}</span>
+            <span className={styles.armorClass}>{classLabel}</span>
+          </span>
+        ) : (
+          <span className={styles.name}>{text}</span>
+        )}
       </Link>
       {hasStow ? (
         <div className={styles.stow}>
@@ -113,14 +123,25 @@ function StowItem({ item }: { item: GearContained }) {
   const thumb = thumbOf(item);
   const href = itemHrefFromTypes(item.item_id, item.types);
   const title = bossGearItemLabel(item);
+  const classLabel = bossGearArmorClassLabel(item);
+  const nameLink = (
+    <Link className={styles.stowName} to={href} title={title}>
+      {text}
+    </Link>
+  );
   return (
     <div className={styles.stowItem}>
       <Link className={styles.stowIcon} to={href} title={title}>
         {thumb ? <img src={thumb} alt="" /> : null}
       </Link>
-      <Link className={styles.stowName} to={href} title={title}>
-        {text}
-      </Link>
+      {classLabel ? (
+        <span className={styles.stowText}>
+          {nameLink}
+          <span className={styles.armorClass}>{classLabel}</span>
+        </span>
+      ) : (
+        nameLink
+      )}
     </div>
   );
 }
@@ -202,7 +223,7 @@ export function TarkovBossEquipment({
 }: {
   slots: TarkovBossGearSlot[];
 }) {
-  const groups = groupBossGearSlots(slots);
+  const groups = groupBossGearSlots(mergeBossArmorSlots(slots));
   if (!groups.length) return null;
   return (
     <section className={panel.section}>

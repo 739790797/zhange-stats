@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   collectionItemImageUrl,
+  handbookCategoryIconUrl,
   hdPreviewUrl,
+  inspectImageUrl,
   inventoryThumbUrl,
   transparentThumbUrl,
 } from "./tarkovItemImages";
@@ -28,6 +30,18 @@ describe("tarkov item image urls", () => {
     expect(inventoryThumbUrl("")).toBe("");
   });
 
+  it("inspectImageUrl prefers 512 then falls back to item id", () => {
+    expect(
+      inspectImageUrl({
+        iconLink: "https://assets.tarkov.dev/abc-icon.webp",
+      }),
+    ).toBe("https://assets.tarkov.dev/abc-512.webp");
+    expect(inspectImageUrl({}, "5910922b86f7747d96753483")).toBe(
+      "https://assets.tarkov.dev/5910922b86f7747d96753483-512.webp",
+    );
+    expect(inspectImageUrl({})).toBe("");
+  });
+
   it("uses 512px assets for collection tiles", () => {
     expect(
       collectionItemImageUrl("https://assets.tarkov.dev/abc-icon.webp"),
@@ -36,5 +50,13 @@ describe("tarkov item image urls", () => {
       "https://assets.tarkov.dev/5910922b86f7747d96753483-512.webp",
     );
     expect(collectionItemImageUrl("", "not-an-id")).toBe("");
+  });
+
+  it("builds handbook category icon urls", () => {
+    expect(handbookCategoryIconUrl("5b5f731a86f774093e6cb4f9")).toBe(
+      "https://assets.tarkov.dev/handbook-category-5b5f731a86f774093e6cb4f9-icon.webp",
+    );
+    expect(handbookCategoryIconUrl("not-an-id")).toBe("");
+    expect(handbookCategoryIconUrl("")).toBe("");
   });
 });

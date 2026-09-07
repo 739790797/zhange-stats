@@ -742,6 +742,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/site/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Site Public
+         * @description 页脚备案号等公开站点信息（未登录可读）。
+         */
+        get: operations["get_site_public_api_settings_site_public_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Site Settings */
+        get: operations["get_site_settings_api_settings_site_get"];
+        /** Update Site Settings */
+        put: operations["update_site_settings_api_settings_site_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/platform-features": {
         parameters: {
             query?: never;
@@ -3118,6 +3156,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/workbench/guns/{gun_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Workbench Gun
+         * @description 工作台：枪槽位树、工厂预设 pairs、弹药候选与当前属性。
+         */
+        get: operations["guides_tarkov_workbench_gun_api_guides_tarkov_workbench_guns__gun_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/workbench/slots/allowed-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Workbench Allowed
+         * @description 工作台：批量解析槽位允许配件。
+         */
+        post: operations["guides_tarkov_workbench_allowed_api_guides_tarkov_workbench_slots_allowed_items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/workbench/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Workbench Calculate
+         * @description 工作台：按已装 pairs 算属性与槽位树。
+         */
+        post: operations["guides_tarkov_workbench_calculate_api_guides_tarkov_workbench_calculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/workbench/build-image/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Workbench Image Status
+         * @description 工作台出图代理是否开启、是否正在生成。
+         */
+        get: operations["guides_tarkov_workbench_image_status_api_guides_tarkov_workbench_build_image_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/workbench/build-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Workbench Build Image
+         * @description 改装预览图：工厂/裸枪回 dump 静图；自定义组合代理第三方出图。
+         */
+        post: operations["guides_tarkov_workbench_build_image_api_guides_tarkov_workbench_build_image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/tasks/sync": {
         parameters: {
             query?: never;
@@ -4234,6 +4372,304 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Articles */
+        get: operations["list_articles_api_articles_get"];
+        put?: never;
+        /** Create Article */
+        post: operations["create_article_api_articles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Articles Admin */
+        get: operations["list_articles_admin_api_articles_admin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Capabilities */
+        get: operations["get_capabilities_api_articles_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List My Articles */
+        get: operations["list_my_articles_api_articles_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/authors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Authors */
+        get: operations["get_authors_api_articles_authors_get"];
+        /** Put Authors */
+        put: operations["put_authors_api_articles_authors_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Categories */
+        get: operations["list_categories_api_articles_categories_get"];
+        put?: never;
+        /** Create Category */
+        post: operations["create_category_api_articles_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Category */
+        delete: operations["remove_category_api_articles_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Category */
+        patch: operations["patch_category_api_articles_categories__category_id__patch"];
+        trace?: never;
+    };
+    "/api/articles/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tags */
+        get: operations["list_tags_api_articles_tags_get"];
+        put?: never;
+        /** Create Tag */
+        post: operations["create_tag_api_articles_tags_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/tags/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Tag */
+        delete: operations["remove_tag_api_articles_tags__tag_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Tag */
+        patch: operations["patch_tag_api_articles_tags__tag_id__patch"];
+        trace?: never;
+    };
+    "/api/articles/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Asset */
+        post: operations["upload_asset_api_articles_assets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/id/{article_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Article Editor */
+        get: operations["get_article_editor_api_articles_id__article_id__get"];
+        put?: never;
+        post?: never;
+        /** Remove Article */
+        delete: operations["remove_article_api_articles_id__article_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Article */
+        patch: operations["patch_article_api_articles_id__article_id__patch"];
+        trace?: never;
+    };
+    "/api/articles/id/{article_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Article Versions */
+        get: operations["get_article_versions_api_articles_id__article_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/id/{article_id}/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Article Version */
+        get: operations["get_article_version_api_articles_id__article_id__versions__version_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/id/{article_id}/versions/{version_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Article Version */
+        post: operations["restore_article_version_api_articles_id__article_id__versions__version_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Article */
+        get: operations["get_article_api_articles__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/{slug}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Comments */
+        get: operations["get_comments_api_articles__slug__comments_get"];
+        put?: never;
+        /** Post Comment */
+        post: operations["post_comment_api_articles__slug__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/articles/{slug}/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Comment */
+        delete: operations["remove_comment_api_articles__slug__comments__comment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -4825,6 +5261,315 @@ export interface components {
             /** Pic */
             pic?: string | null;
         };
+        /** ArticleAssetOut */
+        ArticleAssetOut: {
+            /** Url */
+            url: string;
+        };
+        /** ArticleAuthorOut */
+        ArticleAuthorOut: {
+            /** User Id */
+            user_id?: number | null;
+            /** Display Name */
+            display_name: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
+        };
+        /** ArticleAuthorsPutIn */
+        ArticleAuthorsPutIn: {
+            /** User Ids */
+            user_ids?: number[];
+        };
+        /** ArticleCapabilityOut */
+        ArticleCapabilityOut: {
+            /** Can Write */
+            can_write: boolean;
+            /** Can Admin */
+            can_admin: boolean;
+            /**
+             * Is Author
+             * @default false
+             */
+            is_author: boolean;
+        };
+        /** ArticleCategoryOut */
+        ArticleCategoryOut: {
+            /** Id */
+            id: number;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** ArticleCategoryWriteIn */
+        ArticleCategoryWriteIn: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug?: string | null;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** ArticleCommentCreateIn */
+        ArticleCommentCreateIn: {
+            /** Body */
+            body: string;
+            /** Parent Id */
+            parent_id?: number | null;
+        };
+        /** ArticleCommentOut */
+        ArticleCommentOut: {
+            /** Id */
+            id: number;
+            /** Body */
+            body: string;
+            /** Parent Id */
+            parent_id?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            author: components["schemas"]["ArticleAuthorOut"];
+        };
+        /** ArticleDetailOut */
+        ArticleDetailOut: {
+            /** Id */
+            id: number;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Cover Url */
+            cover_url?: string | null;
+            /** Status */
+            status: string;
+            /** Published At */
+            published_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Comment Count
+             * @default 0
+             */
+            comment_count: number;
+            author: components["schemas"]["ArticleAuthorOut"];
+            /** Categories */
+            categories?: components["schemas"]["ArticleTermOut"][];
+            /** Tags */
+            tags?: components["schemas"]["ArticleTermOut"][];
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Body Format
+             * @default markdown
+             */
+            body_format: string;
+        };
+        /** ArticleListItemOut */
+        ArticleListItemOut: {
+            /** Id */
+            id: number;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Cover Url */
+            cover_url?: string | null;
+            /** Status */
+            status: string;
+            /** Published At */
+            published_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Comment Count
+             * @default 0
+             */
+            comment_count: number;
+            author: components["schemas"]["ArticleAuthorOut"];
+            /** Categories */
+            categories?: components["schemas"]["ArticleTermOut"][];
+            /** Tags */
+            tags?: components["schemas"]["ArticleTermOut"][];
+        };
+        /** ArticleListOut */
+        ArticleListOut: {
+            /** Items */
+            items: components["schemas"]["ArticleListItemOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** ArticlePatchIn */
+        ArticlePatchIn: {
+            /** Title */
+            title?: string | null;
+            /** Body */
+            body?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Body Format */
+            body_format?: string | null;
+            /** Cover Url */
+            cover_url?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Category Ids */
+            category_ids?: number[] | null;
+            /** Tag Ids */
+            tag_ids?: number[] | null;
+        };
+        /** ArticleTagWriteIn */
+        ArticleTagWriteIn: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug?: string | null;
+        };
+        /** ArticleTermOut */
+        ArticleTermOut: {
+            /** Id */
+            id: number;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+        };
+        /** ArticleVersionDetailOut */
+        ArticleVersionDetailOut: {
+            /** Id */
+            id: number;
+            /** Version No */
+            version_no: number;
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["ArticleAuthorOut"];
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Body Format
+             * @default markdown
+             */
+            body_format: string;
+            /** Cover Url */
+            cover_url?: string | null;
+        };
+        /** ArticleVersionListItemOut */
+        ArticleVersionListItemOut: {
+            /** Id */
+            id: number;
+            /** Version No */
+            version_no: number;
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["ArticleAuthorOut"];
+        };
+        /** ArticleWriteIn */
+        ArticleWriteIn: {
+            /** Title */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Slug */
+            slug?: string | null;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Body Format
+             * @default markdown
+             */
+            body_format: string;
+            /** Cover Url */
+            cover_url?: string | null;
+            /**
+             * Status
+             * @default draft
+             */
+            status: string;
+            /** Category Ids */
+            category_ids?: number[];
+            /** Tag Ids */
+            tag_ids?: number[];
+        };
         /** AuthAdminBrief */
         AuthAdminBrief: {
             /** Id */
@@ -4918,6 +5663,11 @@ export interface components {
              * @default /
              */
             directory: string;
+            /** File */
+            file: string;
+        };
+        /** Body_upload_asset_api_articles_assets_post */
+        Body_upload_asset_api_articles_assets_post: {
             /** File */
             file: string;
         };
@@ -8868,6 +9618,27 @@ export interface components {
              */
             min_password_length: number;
         };
+        /** SiteSettingsOut */
+        SiteSettingsOut: {
+            /**
+             * Icp Beian No
+             * @default
+             */
+            icp_beian_no: string;
+            /**
+             * Icp Beian Href
+             * @default https://beian.miit.gov.cn/
+             */
+            icp_beian_href: string;
+        };
+        /** SiteSettingsUpdate */
+        SiteSettingsUpdate: {
+            /**
+             * Icp Beian No
+             * @default
+             */
+            icp_beian_no: string;
+        };
         /** SklandBindPasswordRequest */
         SklandBindPasswordRequest: {
             /** Phone */
@@ -9673,6 +10444,11 @@ export interface components {
             penetration?: number | null;
             /** Armor Damage */
             armor_damage?: number | null;
+            /**
+             * Armor Class
+             * @description 防弹插板护甲等级（1–6）
+             */
+            armor_class?: number | null;
         };
         /** TarkovBossGearItemOut */
         TarkovBossGearItemOut: {
@@ -9697,6 +10473,11 @@ export interface components {
              * @default 1
              */
             count: number;
+            /**
+             * Armor Class
+             * @description 防弹插板护甲等级（1–6）
+             */
+            armor_class?: number | null;
             /** Contains */
             contains?: components["schemas"]["TarkovBossGearContainedOut"][];
         };
@@ -10602,6 +11383,72 @@ export interface components {
             };
             /** Locks */
             locks?: components["schemas"]["TarkovItemKeyLockMapOut"][];
+            sources?: components["schemas"]["TarkovItemSourcesOut"];
+            uses?: components["schemas"]["TarkovItemUsesOut"];
+        };
+        /**
+         * TarkovItemDropSourceOut
+         * @description maps/mobs 配装反查：会掉这件物品的 Boss 或非 Boss。
+         */
+        TarkovItemDropSourceOut: {
+            /** Id */
+            id: string;
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Kind
+             * @description boss=具名 BOSS；elite=掠夺者/游荡者/邪教徒等；soldier=BEAR/USEC/守军等小兵
+             * @default boss
+             */
+            kind: string;
+            /**
+             * Maps Label
+             * @default
+             */
+            maps_label: string;
+            /**
+             * Portrait Link
+             * @default
+             */
+            portrait_link: string;
+            /** Parent Ids */
+            parent_ids?: string[];
+        };
+        /** TarkovItemHideoutUseOut */
+        TarkovItemHideoutUseOut: {
+            /**
+             * Station Id
+             * @default
+             */
+            station_id: string;
+            /**
+             * Station Slug
+             * @default
+             */
+            station_slug: string;
+            /**
+             * Station Name
+             * @default
+             */
+            station_name: string;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
         };
         /** TarkovItemKeyLockMapOut */
         TarkovItemKeyLockMapOut: {
@@ -10649,6 +11496,98 @@ export interface components {
             top?: number | null;
             /** Bottom */
             bottom?: number | null;
+        };
+        /** TarkovItemQuestRewardOut */
+        TarkovItemQuestRewardOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Trader Id
+             * @default
+             */
+            trader_id: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+            /**
+             * Kind
+             * @default finish
+             */
+            kind: string;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+        };
+        /**
+         * TarkovItemSourcesOut
+         * @description 物品获取途径：从 barters / crafts / tasks / maps.mobs dump 反查，items dump 本身没有这些字段。
+         */
+        TarkovItemSourcesOut: {
+            /** Barters */
+            barters?: components["schemas"]["TarkovBarterOut"][];
+            /** Crafts */
+            crafts?: components["schemas"]["TarkovCraftOut"][];
+            /** Quest Rewards */
+            quest_rewards?: components["schemas"]["TarkovItemQuestRewardOut"][];
+            /** Drops */
+            drops?: components["schemas"]["TarkovItemDropSourceOut"][];
+        };
+        /** TarkovItemTaskUseOut */
+        TarkovItemTaskUseOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Trader Id
+             * @default
+             */
+            trader_id: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+            /** Notes */
+            notes?: string[];
+            /** Count */
+            count?: number | null;
+        };
+        /**
+         * TarkovItemUsesOut
+         * @description 物品用途：从交换材料 / 制作材料 / 藏身处建造 / 任务目标反查。
+         */
+        TarkovItemUsesOut: {
+            /** Barters */
+            barters?: components["schemas"]["TarkovBarterOut"][];
+            /** Crafts */
+            crafts?: components["schemas"]["TarkovCraftOut"][];
+            /** Hideout */
+            hideout?: components["schemas"]["TarkovItemHideoutUseOut"][];
+            /** Tasks */
+            tasks?: components["schemas"]["TarkovItemTaskUseOut"][];
         };
         /** TarkovItemsSyncOut */
         TarkovItemsSyncOut: {
@@ -13493,6 +14432,227 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
+        /** TarkovWorkbenchAllowedIn */
+        TarkovWorkbenchAllowedIn: {
+            /** Slot Ids */
+            slot_ids?: string[];
+        };
+        /** TarkovWorkbenchAllowedOut */
+        TarkovWorkbenchAllowedOut: {
+            /** Slots */
+            slots?: {
+                [key: string]: components["schemas"]["TarkovWorkbenchPartOut"][];
+            };
+        };
+        /** TarkovWorkbenchCalculateIn */
+        TarkovWorkbenchCalculateIn: {
+            /** Gun Id */
+            gun_id: string;
+            /** Pairs */
+            pairs?: components["schemas"]["TarkovWorkbenchPairOut"][];
+            /** Ammo Id */
+            ammo_id?: string | null;
+        };
+        /** TarkovWorkbenchCalculateOut */
+        TarkovWorkbenchCalculateOut: {
+            /** Slots */
+            slots?: components["schemas"]["TarkovWorkbenchSlotNodeOut"][];
+            stats: components["schemas"]["TarkovWorkbenchStatsOut"];
+        };
+        /** TarkovWorkbenchGunOut */
+        TarkovWorkbenchGunOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /**
+             * Image Link
+             * @default
+             */
+            image_link: string;
+            /**
+             * Preset Image Link
+             * @default
+             */
+            preset_image_link: string;
+            /**
+             * Caliber
+             * @default
+             */
+            caliber: string;
+            /** Slots */
+            slots?: components["schemas"]["TarkovWorkbenchSlotNodeOut"][];
+            /** Factory Pairs */
+            factory_pairs?: components["schemas"]["TarkovWorkbenchPairOut"][];
+            /** Ammo */
+            ammo?: components["schemas"]["TarkovWorkbenchPartOut"][];
+            /**
+             * Default Ammo Id
+             * @default
+             */
+            default_ammo_id: string;
+            stats: components["schemas"]["TarkovWorkbenchStatsOut"];
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** TarkovWorkbenchImageOut */
+        TarkovWorkbenchImageOut: {
+            /** Kind */
+            kind: string;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Busy
+             * @default false
+             */
+            busy: boolean;
+            /** Message */
+            message?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        };
+        /** TarkovWorkbenchImageStatusOut */
+        TarkovWorkbenchImageStatusOut: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Busy
+             * @default false
+             */
+            busy: boolean;
+            /** Message */
+            message?: string | null;
+        };
+        /** TarkovWorkbenchPairOut */
+        TarkovWorkbenchPairOut: {
+            /** Slot Id */
+            slot_id: string;
+            /** Item Id */
+            item_id: string;
+        };
+        /** TarkovWorkbenchPartOut */
+        TarkovWorkbenchPartOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /**
+             * Ergonomics
+             * @default 0
+             */
+            ergonomics: number;
+            /**
+             * Recoil Modifier
+             * @default 0
+             */
+            recoil_modifier: number;
+            /**
+             * Weight
+             * @default 0
+             */
+            weight: number;
+            /** Price Rub */
+            price_rub?: number | null;
+            /** Sighting Range */
+            sighting_range?: number | null;
+            /** Mag Capacity */
+            mag_capacity?: number | null;
+            /** Conflicting Ids */
+            conflicting_ids?: string[];
+        };
+        /** TarkovWorkbenchSlotNodeOut */
+        TarkovWorkbenchSlotNodeOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Name Id
+             * @default
+             */
+            name_id: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Parent Item Id
+             * @default
+             */
+            parent_item_id: string;
+            installed?: components["schemas"]["TarkovWorkbenchPartOut"] | null;
+            /** Children */
+            children?: components["schemas"]["TarkovWorkbenchSlotNodeOut"][];
+        };
+        /** TarkovWorkbenchStatsOut */
+        TarkovWorkbenchStatsOut: {
+            /**
+             * Ergonomics
+             * @default 0
+             */
+            ergonomics: number;
+            /**
+             * Recoil Vertical
+             * @default 0
+             */
+            recoil_vertical: number;
+            /**
+             * Recoil Horizontal
+             * @default 0
+             */
+            recoil_horizontal: number;
+            /**
+             * Weight
+             * @default 0
+             */
+            weight: number;
+            /** Sighting Range */
+            sighting_range?: number | null;
+            /** Mag Capacity */
+            mag_capacity?: number | null;
+            /** Price Rub */
+            price_rub?: number | null;
+            /** Conflicts */
+            conflicts?: string[];
+            /**
+             * Overswing
+             * @default false
+             */
+            overswing: boolean;
+            /** Ammo Id */
+            ammo_id?: string | null;
+        };
         /** TaygedoAttendanceCalendarOut */
         TaygedoAttendanceCalendarOut: {
             /** Game Code */
@@ -15653,6 +16813,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_site_public_api_settings_site_public_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSettingsOut"];
+                };
+            };
+        };
+    };
+    get_site_settings_api_settings_site_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSettingsOut"];
+                };
+            };
+        };
+    };
+    update_site_settings_api_settings_site_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteSettingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -20203,6 +21436,180 @@ export interface operations {
             };
         };
     };
+    guides_tarkov_workbench_gun_api_guides_tarkov_workbench_guns__gun_id__get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                gun_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchGunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_workbench_allowed_api_guides_tarkov_workbench_slots_allowed_items_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovWorkbenchAllowedIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchAllowedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_workbench_calculate_api_guides_tarkov_workbench_calculate_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovWorkbenchCalculateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchCalculateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_workbench_image_status_api_guides_tarkov_workbench_build_image_status_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchImageStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_workbench_build_image_api_guides_tarkov_workbench_build_image_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovWorkbenchCalculateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchImageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post: {
         parameters: {
             query?: {
@@ -22648,6 +24055,798 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MinecraftModToolPresetApplyOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_articles_api_articles_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                category?: string | null;
+                tag?: string | null;
+                q?: string | null;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_article_api_articles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_articles_admin_api_articles_admin_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_capabilities_api_articles_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleCapabilityOut"];
+                };
+            };
+        };
+    };
+    list_my_articles_api_articles_mine_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_authors_api_articles_authors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleAuthorOut"][];
+                };
+            };
+        };
+    };
+    put_authors_api_articles_authors_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleAuthorsPutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleAuthorOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_categories_api_articles_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleCategoryOut"][];
+                };
+            };
+        };
+    };
+    create_category_api_articles_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleCategoryWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleCategoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_category_api_articles_categories__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_category_api_articles_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleCategoryWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleCategoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tags_api_articles_tags_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleTermOut"][];
+                };
+            };
+        };
+    };
+    create_tag_api_articles_tags_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleTagWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleTermOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_tag_api_articles_tags__tag_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_tag_api_articles_tags__tag_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleTagWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleTermOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_asset_api_articles_assets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_asset_api_articles_assets_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_editor_api_articles_id__article_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_article_api_articles_id__article_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_article_api_articles_id__article_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticlePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_versions_api_articles_id__article_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleVersionListItemOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_version_api_articles_id__article_id__versions__version_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleVersionDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_article_version_api_articles_id__article_id__versions__version_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                article_id: number;
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_api_articles__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_comments_api_articles__slug__comments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleCommentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_comment_api_articles__slug__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleCommentCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleCommentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_comment_api_articles__slug__comments__comment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                comment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

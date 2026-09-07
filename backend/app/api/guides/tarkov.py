@@ -14,6 +14,13 @@ from app.api.guides.schemas import (
     TarkovGunCatalogOut,
     TarkovGunItemOut,
     TarkovGunSyncOut,
+    TarkovWorkbenchAllowedIn,
+    TarkovWorkbenchAllowedOut,
+    TarkovWorkbenchCalculateIn,
+    TarkovWorkbenchCalculateOut,
+    TarkovWorkbenchImageOut,
+    TarkovWorkbenchImageStatusOut,
+    TarkovWorkbenchGunOut,
     TarkovItemDetailOut,
     TarkovItemsSyncOut,
     TarkovFullSyncOut,
@@ -60,6 +67,7 @@ from app.api.guides.schemas import (
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
+from app.core.rate_limit import client_ip, platform_limiter
 from app.core.http_cache import catalog_freshness, set_catalog_cache_headers
 from app.core.platform_deps import require_feature
 from app.models.user import User
@@ -69,6 +77,8 @@ from app.services.tarkov import catalog as catalog_svc
 from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import guns as gun_svc
 from app.services.tarkov import items as items_svc
+from app.services.tarkov import workbench as workbench_svc
+from app.services.tarkov import workbench_image as workbench_image_svc
 from app.services.tarkov import key_owns as key_owns_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
@@ -305,6 +315,12 @@ def guides_tarkov_item_detail(
             else {}
         ),
         locks=detail.get("locks") if isinstance(detail.get("locks"), list) else [],
+        sources=(
+            detail.get("sources")
+            if isinstance(detail.get("sources"), dict)
+            else {}
+        ),
+        uses=detail.get("uses") if isinstance(detail.get("uses"), dict) else {},
     )
 
 
@@ -489,6 +505,114 @@ def guides_tarkov_guns_sync(
         synced_at=result.get("synced_at"),
         message="ok",
     )
+
+
+def _workbench_http(exc: Exception) -> HTTPException:
+    msg = str(exc)
+    code = getattr(exc, "status_code", None)
+    if isinstance(code, int) and code != 502:
+        return HTTPException(status_code=code, detail=msg)
+    if msg.startswith("未找到"):
+        return HTTPException(status_code=404, detail=msg)
+    return HTTPException(status_code=502, detail=msg)
+
+
+@router.get(
+    "/workbench/guns/{gun_id}",
+    response_model=TarkovWorkbenchGunOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_gun(
+    gun_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工作台：枪槽位树、工厂预设 pairs、弹药候选与当前属性。"""
+    _ = user
+    try:
+        data = workbench_svc.get_gun(db, gun_id)
+    except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchGunOut.model_validate(data)
+
+
+@router.post(
+    "/workbench/slots/allowed-items",
+    response_model=TarkovWorkbenchAllowedOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_allowed(
+    body: TarkovWorkbenchAllowedIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工作台：批量解析槽位允许配件。"""
+    _ = user
+    try:
+        slots = workbench_svc.allowed_items_for_slots(db, body.slot_ids)
+    except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchAllowedOut(slots=slots)
+
+
+@router.post(
+    "/workbench/calculate",
+    response_model=TarkovWorkbenchCalculateOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_calculate(
+    body: TarkovWorkbenchCalculateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工作台：按已装 pairs 算属性与槽位树。"""
+    _ = user
+    pairs = [(row.slot_id, row.item_id) for row in body.pairs]
+    try:
+        data = workbench_svc.calculate(db, body.gun_id, pairs, body.ammo_id)
+    except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchCalculateOut.model_validate(data)
+
+
+@router.get(
+    "/workbench/build-image/status",
+    response_model=TarkovWorkbenchImageStatusOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_image_status(
+    user: User = Depends(get_current_user),
+):
+    """工作台出图代理是否开启、是否正在生成。"""
+    _ = user
+    return TarkovWorkbenchImageStatusOut.model_validate(
+        workbench_image_svc.image_status()
+    )
+
+
+@router.post(
+    "/workbench/build-image",
+    response_model=TarkovWorkbenchImageOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_build_image(
+    request: Request,
+    body: TarkovWorkbenchCalculateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """改装预览图：工厂/裸枪回 dump 静图；自定义组合代理第三方出图。"""
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-workbench-img:ip:{ip}", limit=40, window_sec=600)
+    platform_limiter.hit(
+        f"tarkov-workbench-img:uid:{user.id}", limit=20, window_sec=600
+    )
+    pairs = [(row.slot_id, row.item_id) for row in body.pairs]
+    try:
+        data = workbench_image_svc.render_build_image(db, body.gun_id, pairs)
+    except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchImageOut.model_validate(data)
 
 
 def _sync_tasks(db: Session) -> dict:

@@ -102,12 +102,22 @@ function roundedChance(chance: number): number {
   return Math.round((Number(chance) || 0) * 1000);
 }
 
+function escortChanceSuffix(chance: number): string {
+  const showPct = Number.isFinite(chance) && chance > 0 && chance < 0.995;
+  return showPct ? `（${Math.round(chance * 100)}%）` : "";
+}
+
 export function escortChipLabel(row: BossSpawnEscortChip): string {
   const name = (row.name || row.slug || "").trim() || "随从";
   const qty = row.count > 0 ? `×${row.count}` : "";
-  const showPct = Number.isFinite(row.chance) && row.chance > 0 && row.chance < 0.995;
-  const pct = showPct ? `（${Math.round(row.chance * 100)}%）` : "";
-  return [name, qty].filter(Boolean).join(" ") + pct;
+  return [name, qty].filter(Boolean).join(" ") + escortChanceSuffix(row.chance);
+}
+
+export function escortQtyLabel(
+  row: Pick<BossSpawnEscortChip, "count" | "chance">,
+): string {
+  const qty = row.count > 0 ? `×${row.count}` : "";
+  return `${qty}${escortChanceSuffix(row.chance)}`;
 }
 
 function escortMobKey(row: { slug?: string | null; name?: string | null }): string {

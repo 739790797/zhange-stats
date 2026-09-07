@@ -4,10 +4,12 @@ import {
   tarkovMapHref,
   tarkovMapMarkByName,
 } from "@/lib/tarkovHomeNav";
+import { lookupEscortPortrait } from "@/lib/tarkovBossHeatmap";
 import {
-  escortChipLabel,
+  escortQtyLabel,
   isSameMobCountVariants,
   locationChipLabel,
+  type BossSpawnEscortChip,
   type BossSpawnGroup,
   type BossSpawnMapChip,
 } from "@/lib/tarkovBossSpawnGroups";
@@ -63,7 +65,7 @@ export function TarkovBossMapChip({
 }
 
 export function TarkovBossMapChips({ group }: { group: BossSpawnGroup }) {
-  if (!group.maps.length) return <span>—</span>;
+  if (!group.maps.length) return <span className={styles.spawnEmpty}>—</span>;
   return (
     <span className={styles.spawnMaps}>
       {group.maps.map((row) => (
@@ -78,9 +80,9 @@ export function TarkovBossMapChips({ group }: { group: BossSpawnGroup }) {
 }
 
 export function TarkovBossLocationChips({ group }: { group: BossSpawnGroup }) {
-  if (!group.locations.length) return <span>—</span>;
+  if (!group.locations.length) return <span className={styles.spawnEmpty}>—</span>;
   return (
-    <span className={styles.spawnRowBody}>
+    <span className={styles.locList}>
       {group.locations.map((row, index) => (
         <span
           key={`${row.mapSlug}-${row.name}-${index}`}
@@ -94,37 +96,74 @@ export function TarkovBossLocationChips({ group }: { group: BossSpawnGroup }) {
   );
 }
 
-export function TarkovBossEscortChips({ group }: { group: BossSpawnGroup }) {
-  if (!group.escorts.length) return <span>—</span>;
-  if (isSameMobCountVariants(group.escorts)) {
-    return (
-      <span className={styles.schemeList}>
-        {group.escorts.map((row, index) => (
-          <span key={`${row.slug}-${row.count}-${index}`} className={styles.schemeLine}>
-            组合{index + 1}：{escortChipLabel(row)}
-          </span>
-        ))}
+function escortHref(slug: string | undefined): string {
+  const key = (slug || "").trim();
+  return key ? tarkovBossHref(key) : "";
+}
+
+function EscortPerson({
+  row,
+  portraits,
+  combo,
+}: {
+  row: BossSpawnEscortChip;
+  portraits?: ReadonlyMap<string, string>;
+  combo?: number;
+}) {
+  const href = escortHref(row.slug);
+  const portrait = portraits ? lookupEscortPortrait(row, portraits) : "";
+  const name = (row.name || row.slug || "随从").trim() || "随从";
+  const qty = escortQtyLabel(row);
+  const title = `查看 ${name}`;
+  const body = (
+    <>
+      {portrait ? (
+        <img
+          className={styles.escortAvatar}
+          src={portrait}
+          alt=""
+          width={32}
+          height={32}
+        />
+      ) : (
+        <span className={styles.escortAvatar} />
+      )}
+      <span className={styles.escortName}>
+        {combo ? <span className={styles.escortCombo}>组合{combo} </span> : null}
+        {name}
       </span>
-    );
+      {qty ? <span className={styles.escortQty}>{qty}</span> : null}
+    </>
+  );
+  if (!href) {
+    return <span className={styles.escortPerson}>{body}</span>;
   }
   return (
-    <span className={styles.spawnRowBody}>
-      {group.escorts.map((row, index) => {
-        const label = escortChipLabel(row);
-        const href = row.slug ? tarkovBossHref(row.slug) : "";
-        const chip = <span className={styles.escortChip}>{label}</span>;
-        return href ? (
-          <Link
-            key={`${row.slug}-${row.count}-${index}`}
-            to={href}
-            className={styles.mapChipLink}
-          >
-            {chip}
-          </Link>
-        ) : (
-          <span key={`${row.name}-${row.count}-${index}`}>{chip}</span>
-        );
-      })}
-    </span>
+    <Link to={href} className={styles.escortPerson} title={title}>
+      {body}
+    </Link>
+  );
+}
+
+export function TarkovBossEscortChips({
+  group,
+  portraits,
+}: {
+  group: BossSpawnGroup;
+  portraits?: ReadonlyMap<string, string>;
+}) {
+  if (!group.escorts.length) return <span className={styles.spawnEmpty}>—</span>;
+  const variants = isSameMobCountVariants(group.escorts);
+  return (
+    <div className={styles.escortList}>
+      {group.escorts.map((row, index) => (
+        <EscortPerson
+          key={`${row.slug}-${row.count}-${index}`}
+          row={row}
+          portraits={portraits}
+          combo={variants ? index + 1 : undefined}
+        />
+      ))}
+    </div>
   );
 }

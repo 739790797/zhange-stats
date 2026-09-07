@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   EnvironmentOutlined,
   EyeOutlined,
@@ -6,11 +7,12 @@ import {
 } from "@ant-design/icons";
 import { Alert, Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTarkovBossDetail } from "@/api/guidesApi";
+import { fetchTarkovBossDetail, fetchTarkovBosses } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { normalizeBossKind, TARKOV_BOSS_KIND_LABELS } from "@/lib/tarkovBossKinds";
+import { buildBossPortraitIndex } from "@/lib/tarkovBossHeatmap";
 import { resolveBossSpawnGroups, spawnGroupComboNumbers } from "@/lib/tarkovBossSpawnGroups";
 import styles from "./TarkovBossPanel.module.css";
 import {
@@ -34,6 +36,15 @@ export function TarkovBossPanel({ slug }: Props) {
     retry: 1,
     enabled: Boolean(slug),
   });
+  const catalogQuery = useQuery({
+    queryKey: ["guides-tarkov-bosses", gameMode],
+    queryFn: fetchTarkovBosses,
+    staleTime: 5 * 60_000,
+  });
+  const portraits = useMemo(
+    () => buildBossPortraitIndex(catalogQuery.data?.items ?? []),
+    [catalogQuery.data?.items],
+  );
   useTarkovDocumentTitle(detailQuery.data?.name || "");
 
   if (detailQuery.isLoading) {
@@ -149,38 +160,48 @@ export function TarkovBossPanel({ slug }: Props) {
       {spawnGroups.length ? (
         <section className={styles.section}>
           <div className={styles.lootHead}>刷新</div>
-          <div className={styles.spawnGroups}>
-            {spawnGroups.map((group, index) => (
-              <article
-                key={group.maps.map((row) => row.slug || row.name).join("|") + index}
-                className={styles.spawnGroup}
-              >
-                {comboNumbers[index] ? (
-                  <div className={styles.spawnCombo}>组合{comboNumbers[index]}</div>
-                ) : null}
-                <div className={styles.spawnMaps}>
-                  <TarkovBossMapChips group={group} />
-                </div>
-                {group.landLabel ? (
-                  <div className={styles.spawnRow}>
-                    <div className={styles.spawnRowLabel}>落地</div>
-                    <div className={styles.landValue}>{group.landLabel}</div>
-                  </div>
-                ) : null}
-                {group.locations.length ? (
-                  <div className={styles.spawnRow}>
-                    <div className={styles.spawnRowLabel}>区域</div>
-                    <TarkovBossLocationChips group={group} />
-                  </div>
-                ) : null}
-                {group.escorts.length ? (
-                  <div className={styles.spawnRow}>
-                    <div className={styles.spawnRowLabel}>随从</div>
-                    <TarkovBossEscortChips group={group} />
-                  </div>
-                ) : null}
-              </article>
-            ))}
+          <div className={styles.spawnTableWrap}>
+            <table className={styles.spawnTable}>
+              <thead>
+                <tr>
+                  <th>地图</th>
+                  <th>落地</th>
+                  <th>区域</th>
+                  <th>随从</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spawnGroups.map((group, index) => (
+                  <tr
+                    key={
+                      group.maps.map((row) => row.slug || row.name).join("|") +
+                      index
+                    }
+                  >
+                    <td>
+                      {comboNumbers[index] ? (
+                        <div className={styles.spawnCombo}>
+                          组合{comboNumbers[index]}
+                        </div>
+                      ) : null}
+                      <TarkovBossMapChips group={group} />
+                    </td>
+                    <td className={styles.spawnLand}>
+                      {group.landLabel || "—"}
+                    </td>
+                    <td>
+                      <TarkovBossLocationChips group={group} />
+                    </td>
+                    <td>
+                      <TarkovBossEscortChips
+                        group={group}
+                        portraits={portraits}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       ) : null}

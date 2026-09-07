@@ -16,6 +16,11 @@ import styles from "./TarkovGunsPanel.module.css";
 
 const EMPTY_ITEMS: TarkovGunItem[] = [];
 
+type Props = {
+  pickHref?: (gunId: string) => string;
+  caliberHref?: (caliber: string) => string;
+};
+
 const GUN_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
   "json.tarkov.dev": {
     label: "json.tarkov.dev/regular/items",
@@ -42,7 +47,7 @@ function renderGunSource(source: string | null | undefined) {
   );
 }
 
-export function TarkovGunsPanel() {
+export function TarkovGunsPanel({ pickHref, caliberHref }: Props = {}) {
   const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const ammoFilterId = (searchParams.get("ammo") || "").trim() || null;
@@ -139,6 +144,8 @@ export function TarkovGunsPanel() {
           data={items}
           ammoFilterId={ammoFilterId}
           caliberFilterParam={caliberFilterParam}
+          pickHref={pickHref}
+          caliberHref={caliberHref}
         />
       </div>
     </div>

@@ -20,20 +20,20 @@ zhange-stats/
     pages/                  # 路由页（攻略已在 pages/guides/）
     components/             # 根上只留跨平台外壳
       skland/ arknights/ endfield/ mihoyo/ kujiequ/ taygedo/ exilium/
-      steam/ profile/ guides/tarkov/ guides/minecraft/
+      steam/ profile/ guides/tarkov/ guides/minecraft/ articles/
     api/                    # *Api.ts + generated/
     data/                   # 源码资源，不是运行时
   backend/app/
     api/                    # 已成包的保持；单文件平台 API 胀大再升包
     services/
-      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/
+      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ articles/
       （横切仍留根上，见下表）
     models/ schemas/ core/
 ```
 
 `components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AuthGuestShell`、`LegalDocView` / `LegalLinks` / `IcpBeianLink` 等跨平台外壳。
 
-`services/` 根上只留横切：`app_updator`、`avatar_store`、`auth_config`、`email*`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`job_runs_prune`、`game_schedule`、`box_role_cache`。
+`services/` 根上只留横切：`app_updator`、`avatar_store`、`auth_config`、`email*`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。
 
 ## 后端 `services/` 映射
 

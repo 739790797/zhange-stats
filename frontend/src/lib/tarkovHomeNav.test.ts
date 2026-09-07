@@ -54,6 +54,42 @@ describe("filterHomeSearch", () => {
     );
   });
 
+  it("finds gunsmith workbench", () => {
+    expect(filterHomeSearch("改枪", index).some((h) => h.id === "workbench")).toBe(
+      true,
+    );
+    expect(
+      filterHomeSearch("gunsmith", index).some((h) => h.id === "workbench"),
+    ).toBe(true);
+  });
+
+  it("finds bullets, ammo packs and melee in weaponry", () => {
+    expect(filterHomeSearch("子弹", index).some((h) => h.id === "ammo")).toBe(
+      true,
+    );
+    expect(
+      filterHomeSearch("弹药包", index).some((h) => h.id === "ammo-packs"),
+    ).toBe(true);
+    expect(filterHomeSearch("近战", index).some((h) => h.id === "melee")).toBe(
+      true,
+    );
+  });
+
+  it("sends pistol grips and suppressors to weapon mods", () => {
+    expect(
+      filterHomeSearch("手枪式握把", index).some((h) => h.id === "mods"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("消音器", index).some((h) => h.id === "mods"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("suppressor", index).some((h) => h.id === "mods"),
+    ).toBe(true);
+    expect(filterHomeSearch("消音器", index).some((h) => h.id === "suppressors")).toBe(
+      false,
+    );
+  });
+
   it("finds customs by chinese or english", () => {
     expect(filterHomeSearch("海关", index).some((h) => h.id === "customs")).toBe(
       true,
@@ -270,6 +306,13 @@ describe("trader image urls", () => {
     expect(traderPortraitUrl("prapor")).toBe(
       "https://tarkov.dev/images/traders/prapor-portrait.png",
     );
+    expect(traderPortraitUrl("54cb50c76803fa8b248b4571")).toBe(
+      "https://tarkov.dev/images/traders/prapor-portrait.png",
+    );
+    expect(traderPortraitUrl("Prapor")).toBe(
+      "https://tarkov.dev/images/traders/prapor-portrait.png",
+    );
+    expect(traderPortraitUrl("aaaaaaaaaaaaaaaaaaaaaaaa")).toBe("");
   });
 });
 
@@ -351,7 +394,7 @@ describe("TARKOV_HOME_ITEMS", () => {
     ]);
     expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.items.map((i) => i.id))).toEqual([
       ["headsets", "helmets", "glasses", "armors", "rigs", "backpacks", "meds"],
-      ["ammo", "guns", "mods", "pistol-grips", "suppressors"],
+      ["ammo", "ammo-packs", "guns", "melee", "mods"],
       ["grenades", "containers", "barter-items", "keys", "provisions"],
     ]);
     expect(TARKOV_HOME_ITEMS.map((i) => i.id)).toEqual(
@@ -430,6 +473,10 @@ describe("TARKOV_ADMIN_NAV", () => {
 describe("TARKOV_TOP_NAV", () => {
   it("nests tasks under progression instead of a top-level item", () => {
     expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("tasks");
+    expect(TARKOV_TOP_NAV.map((i) => i.id)).toContain("workbench");
+    expect(TARKOV_TOP_NAV.find((i) => i.id === "workbench")?.href).toBe(
+      "/guides/tarkov/workbench",
+    );
     expect(TARKOV_TOP_NAV.find((i) => i.id === "progression")?.href).toBe(
       "/guides/tarkov/tasks",
     );
@@ -444,10 +491,7 @@ describe("TARKOV_TOP_NAV", () => {
       status: "ready",
     });
     expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toBeUndefined();
-    expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toMatchObject({
-      href: "/guides/tarkov/loot-tiers",
-      status: "ready",
-    });
+    expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toBeUndefined();
   });
 });
 
@@ -521,34 +565,16 @@ describe("TARKOV_TOOLS", () => {
       href: "/guides/tarkov/me?tab=tasks",
       status: "ready",
     });
-  });
-
-  it("opens barter, craft, loot, hideout cost, wipe, and bitcoin tools", () => {
-    const byId = Object.fromEntries(TARKOV_TOOLS.map((t) => [t.id, t]));
-    expect(byId["barter-profit"]).toMatchObject({
-      href: "/guides/tarkov/barters",
+    expect(TARKOV_TOOLS[1]).toMatchObject({
+      id: "workbench",
+      label: "枪械工作台",
+      href: "/guides/tarkov/workbench",
       status: "ready",
     });
-    expect(byId["craft-profit"]).toMatchObject({
-      href: "/guides/tarkov/crafts",
-      status: "ready",
-    });
-    expect(byId["loot-tier-rank"]).toMatchObject({
-      href: "/guides/tarkov/loot-tiers",
-      status: "ready",
-    });
-    expect(byId["hideout-cost"]).toMatchObject({
-      href: "/guides/tarkov/hideout-cost",
-      status: "ready",
-    });
-    expect(byId["wipe-length"]).toMatchObject({
-      href: "/guides/tarkov/wipe-length",
-      status: "ready",
-    });
-    expect(byId["btc-farm"]).toMatchObject({
-      href: "/guides/tarkov/bitcoin-farm",
-      status: "ready",
-    });
+    expect(TARKOV_TOOLS.map((item) => item.id)).toEqual([
+      "ammo-chart",
+      "workbench",
+    ]);
   });
 });
 
@@ -570,10 +596,8 @@ describe("tarkovPageTitle", () => {
     );
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
     expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
-    expect(tarkovPageTitle("/guides/tarkov/barters")).toBe("商人交易利润");
-    expect(tarkovPageTitle("/guides/tarkov/hideout-cost")).toBe(
-      "藏身处建造成本",
-    );
+    expect(tarkovPageTitle("/guides/tarkov/workbench")).toBe("枪械工作台");
+    expect(tarkovPageTitle("/guides/tarkov/workbench/abc")).toBe("枪械工作台");
     expect(tarkovPageTitle("/guides/tarkov/me")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/key-packs")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/game-logs")).toBe("个人中心");

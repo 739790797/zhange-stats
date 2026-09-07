@@ -1,15 +1,16 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { ForbiddenPage } from "@/components/ForbiddenPage";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 
-export function PrivateRoute({ children }: { children: React.ReactNode }) {
+export function PrivateRoute({ children }: { children?: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
   const location = useLocation();
   if (!token) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
-  return <>{children}</>;
+  if (children) return <>{children}</>;
+  return <Outlet />;
 }
 
 export function AdminRoute({ children }: { children: React.ReactNode }) {

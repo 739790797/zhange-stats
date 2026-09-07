@@ -2,6 +2,7 @@ import { TARKOV_ITEM_ICON_PATHS } from "@/lib/tarkovItemIcons";
 import {
   ITEMS_BASE_PATH,
   TARKOV_HANDBOOK_ROOTS,
+  handbookChildLabels,
   handbookHref,
   itemHrefFromTypes,
   itemPageBySlug,
@@ -43,20 +44,51 @@ export type TarkovTraderCard = TarkovHomeLink & {
   accent: string;
 };
 
+/** BSG 商人 MongoId → tarkov.dev slug。json dump 的 sellToTrader/buyFromTrader 只给 id。 */
+export const TARKOV_TRADER_BY_ID: Record<string, string> = {
+  "54cb50c76803fa8b248b4571": "prapor",
+  "54cb57776803fa99248b456e": "therapist",
+  "579dc571d53a0658a154fbec": "fence",
+  "58330581ace78e27b8b10cee": "skier",
+  "5935c25fb3acc3127c3d8cd9": "peacekeeper",
+  "5a7c2eca46aef81a7ca2145d": "mechanic",
+  "5ac3b934156ae10c4430e83c": "ragman",
+  "5c0647fdd443bc2504c2d371": "jaeger",
+  "638f541a29ffd1183d187f57": "lightkeeper",
+  "6617beeaa9cfa777ca915b7c": "ref",
+  "656f0f98d80a697f855d34b1": "btr-driver",
+};
+
+const TRADER_MONGO_ID_RE = /^[a-f0-9]{24}$/i;
+
+/** 商人 id / 英文名 / slug → 头像文件名用的小写 slug。 */
+export function resolveTraderSlug(value: string): string {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+  if (TRADER_MONGO_ID_RE.test(raw)) {
+    return TARKOV_TRADER_BY_ID[raw.toLowerCase()] || "";
+  }
+  return raw.toLowerCase();
+}
+
 export function traderPortraitUrl(id: string): string {
-  return `https://tarkov.dev/images/traders/${id}-portrait.png`;
+  const slug = resolveTraderSlug(id);
+  if (!slug) return "";
+  return `https://tarkov.dev/images/traders/${slug}-portrait.png`;
 }
 
 /** tarkov.dev 任务表 / 筛选条用的商人小图标。 */
 export function traderIconUrl(id: string): string {
-  return `https://tarkov.dev/images/traders/${id}-icon.jpg`;
+  const slug = resolveTraderSlug(id);
+  if (!slug) return "";
+  return `https://tarkov.dev/images/traders/${slug}-icon.jpg`;
 }
 
 const TRADER_NICK_RE = /\s*[（(][^）)]+[）)]\s*$/;
 
 /** 全站商人展示名：英文。旧「Name（昵称）」回退时剥掉括号。 */
 export function traderDisplayName(slug = "", fallback = ""): string {
-  const key = slug.trim();
+  const key = resolveTraderSlug(slug) || slug.trim();
   const known = TARKOV_TRADERS.find((item) => item.id === key);
   if (known?.english) return known.english;
   const raw = fallback.trim();
@@ -103,12 +135,7 @@ export const MAPS_HREF = "/guides/tarkov/maps";
 export const TARKOV_TRADERS_PATH = "/guides/tarkov/traders";
 export const TARKOV_BOSSES_PATH = "/guides/tarkov/bosses";
 export const TARKOV_HIDEOUT_PATH = "/guides/tarkov/hideout";
-export const TARKOV_BARTERS_PATH = "/guides/tarkov/barters";
-export const TARKOV_CRAFTS_PATH = "/guides/tarkov/crafts";
-export const TARKOV_LOOT_TIERS_PATH = "/guides/tarkov/loot-tiers";
-export const TARKOV_HIDEOUT_COST_PATH = "/guides/tarkov/hideout-cost";
-export const TARKOV_WIPE_LENGTH_PATH = "/guides/tarkov/wipe-length";
-export const TARKOV_BITCOIN_FARM_PATH = "/guides/tarkov/bitcoin-farm";
+export const TARKOV_WORKBENCH_PATH = "/guides/tarkov/workbench";
 export const TARKOV_KEY_PACKS_PATH = "/guides/tarkov/key-packs";
 export const TARKOV_GAME_LOGS_PATH = "/guides/tarkov/game-logs";
 export const TARKOV_COLLECTION_PATH = "/guides/tarkov/collection";
@@ -170,6 +197,11 @@ export function tarkovHideoutHref(slug: string): string {
   return `${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(slug)}`;
 }
 
+export function tarkovWorkbenchHref(gunId?: string): string {
+  if (!gunId) return TARKOV_WORKBENCH_PATH;
+  return `${TARKOV_WORKBENCH_PATH}/${encodeURIComponent(gunId)}`;
+}
+
 export function tarkovTaskHref(taskId: string): string {
   return `${TARKOV_TASKS_PATH}/${encodeURIComponent(taskId)}`;
 }
@@ -226,7 +258,8 @@ export function tarkovRaidRoomShareUrl(publicId: string, origin: string): string
 }
 
 export function tarkovTraderHref(slug: string): string {
-  return `${TARKOV_TRADERS_PATH}/${encodeURIComponent(slug)}`;
+  const id = resolveTraderSlug(slug) || slug.trim();
+  return `${TARKOV_TRADERS_PATH}/${encodeURIComponent(id)}`;
 }
 
 /** 首页 The Goons / 邪教徒 对应 tarkov.dev 的 knight / cultist-priest。 */
@@ -617,13 +650,6 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   },
   { id: "achievements", label: "成就", href: PROGRESSION_HREF, status: "soon" },
   { id: "prestige", label: "声望", href: PROGRESSION_HREF, status: "soon" },
-  {
-    id: "loot-tiers",
-    label: "战利品等级",
-    href: TARKOV_LOOT_TIERS_PATH,
-    status: "ready",
-    keywords: ["loot", "战利品"],
-  },
 ];
 
 /** 塔科夫个人中心：任务 / 钥匙 / 3×4收集 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
@@ -682,52 +708,12 @@ export const TARKOV_TOOLS: TarkovHomeLink[] = [
     keywords: ["弹药对照", "穿透", "散点", "ammo", "筛选"],
   },
   {
-    id: "barter-profit",
-    label: "商人交易利润",
-    href: TARKOV_BARTERS_PATH,
+    id: "workbench",
+    label: "枪械工作台",
+    href: TARKOV_WORKBENCH_PATH,
     status: "ready",
-    icon: "⇌",
-    keywords: ["barter", "以物易物"],
-  },
-  {
-    id: "craft-profit",
-    label: "藏身处制作利润",
-    href: TARKOV_CRAFTS_PATH,
-    status: "ready",
-    icon: "⚙",
-    keywords: ["crafts", "制作"],
-  },
-  {
-    id: "loot-tier-rank",
-    label: "战利品等级排名",
-    href: TARKOV_LOOT_TIERS_PATH,
-    status: "ready",
-    icon: "◈",
-    keywords: ["loot", "战利品"],
-  },
-  {
-    id: "hideout-cost",
-    label: "藏身处建造成本",
-    href: TARKOV_HIDEOUT_COST_PATH,
-    status: "ready",
-    icon: "⌂",
-    keywords: ["hideout", "建造"],
-  },
-  {
-    id: "wipe-length",
-    label: "平均删档周期",
-    href: TARKOV_WIPE_LENGTH_PATH,
-    status: "ready",
-    icon: "◷",
-    keywords: ["wipe", "删档"],
-  },
-  {
-    id: "btc-farm",
-    label: "比特币矿场利润",
-    href: TARKOV_BITCOIN_FARM_PATH,
-    status: "ready",
-    icon: "₿",
-    keywords: ["bitcoin", "btc", "矿场"],
+    icon: "⚒",
+    keywords: ["改枪", "改装", "gunsmith", "workbench", "配件"],
   },
 ];
 
@@ -752,11 +738,41 @@ export const TARKOV_ITEM_MENU_GROUPS: TarkovHomeGroup[] = [
     label: "武器",
     en: "Weapons",
     items: [
-      { id: "ammo", label: "弹药", href: `${ITEMS_BASE_PATH}/ammo`, status: "ready" },
+      {
+        id: "ammo",
+        label: "子弹",
+        href: `${ITEMS_BASE_PATH}/ammo`,
+        status: "ready",
+        keywords: ["弹药", "ammo"],
+      },
+      {
+        id: "ammo-packs",
+        label: "弹药包",
+        href: `${ITEMS_BASE_PATH}/ammo-packs`,
+        status: "ready",
+        keywords: ["弹药箱", "ammo box", "ammobox"],
+      },
       { id: "guns", label: "枪支", href: `${ITEMS_BASE_PATH}/guns`, status: "ready" },
-      { id: "mods", label: "配件", href: `${ITEMS_BASE_PATH}/weapon-mods`, status: "ready" },
-      { id: "pistol-grips", label: "手枪式握把", href: `${ITEMS_BASE_PATH}/pistol-grips`, status: "ready" },
-      { id: "suppressors", label: "消音器", href: `${ITEMS_BASE_PATH}/suppressors`, status: "ready" },
+      {
+        id: "melee",
+        label: "近战",
+        href: `${ITEMS_BASE_PATH}/melee`,
+        status: "ready",
+        keywords: ["近战武器", "刀具", "melee", "knife"],
+      },
+      {
+        id: "mods",
+        label: "配件",
+        href: `${ITEMS_BASE_PATH}/weapon-mods`,
+        status: "ready",
+        keywords: [
+          "手枪式握把",
+          "消音器",
+          "pistol grip",
+          "suppressor",
+          "silencer",
+        ],
+      },
     ],
   },
   {
@@ -819,6 +835,11 @@ export const TARKOV_TOP_NAV: TarkovTopNavItem[] = [
     label: "物品",
     href: ITEMS_BASE_PATH,
     groups: TARKOV_ITEM_MENU_GROUPS,
+  },
+  {
+    id: "workbench",
+    label: "工作台",
+    href: TARKOV_WORKBENCH_PATH,
   },
   {
     id: "traders",
@@ -930,7 +951,7 @@ export function buildHomeSearchIndex(): TarkovSearchHit[] {
       label: root.label,
       href: handbookHref(root),
       status: root.status,
-      keywords: [root.slug, ...root.children.map((c) => c.label)],
+      keywords: [root.slug, ...handbookChildLabels(root.children)],
       group: "手册分类",
     });
   }
@@ -1103,13 +1124,8 @@ export function tarkovPageTitle(pathname: string, search = ""): string {
   if (path.startsWith("/guides/tarkov/traders")) return "商人";
   if (path.startsWith("/guides/tarkov/bosses")) return "BOSS";
   if (path.startsWith("/guides/tarkov/maps")) return "地图";
-  if (path.startsWith("/guides/tarkov/hideout-cost")) return "藏身处建造成本";
   if (path.startsWith("/guides/tarkov/hideout")) return "藏身处";
-  if (path.startsWith("/guides/tarkov/barters")) return "商人交易利润";
-  if (path.startsWith("/guides/tarkov/crafts")) return "藏身处制作利润";
-  if (path.startsWith("/guides/tarkov/loot-tiers")) return "战利品等级";
-  if (path.startsWith("/guides/tarkov/wipe-length")) return "平均删档周期";
-  if (path.startsWith("/guides/tarkov/bitcoin-farm")) return "比特币矿场利润";
+  if (path.startsWith(TARKOV_WORKBENCH_PATH)) return "枪械工作台";
   if (path.startsWith(TARKOV_ME_PATH)) return "个人中心";
   if (path.startsWith(TARKOV_KEY_PACKS_PATH)) return "个人中心";
   if (path.startsWith(TARKOV_GAME_LOGS_PATH)) return "个人中心";

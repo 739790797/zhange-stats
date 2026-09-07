@@ -1,9 +1,12 @@
 import {
+  AuditOutlined,
   CalendarOutlined,
+  CoffeeOutlined,
   CloudDownloadOutlined,
   FileTextOutlined,
   KeyOutlined,
   LockOutlined,
+  LoginOutlined,
   LogoutOutlined,
   MailOutlined,
   MenuFoldOutlined,
@@ -35,12 +38,14 @@ import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/c
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { IcpBeianLink } from "@/components/IcpBeianLink";
+import { useSitePublic } from "@/hooks/useSitePublic";
 import { RouteFallback } from "@/components/RouteFallback";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
 import { shouldPromptCompleteProfile } from "@/lib/completeProfile";
 import { isAdminUser } from "@/lib/isAdminUser";
+import { siteIcpBeianNo } from "@/lib/legalDocs";
 import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/lib/guideNav";
 import {
   PLATFORM_NAV,
@@ -52,6 +57,7 @@ import {
   saveAppSiderCollapsed,
 } from "@/lib/appSiderPrefs";
 import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
+import { TAVERN_ADMIN_PATH, TAVERN_FEATURE_ID, TAVERN_PATH } from "@/lib/tavernNav";
 import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
@@ -85,6 +91,8 @@ const leafKeys = [
   "/exilium",
   "/daily",
   "/profile",
+  TAVERN_PATH,
+  TAVERN_ADMIN_PATH,
 ];
 
 function buildAdminMenuItems(): MenuProps["items"] {
@@ -152,6 +160,8 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
+  const authToken = useAuthStore((s) => s.token);
+  const loggedIn = Boolean(authToken);
   const { token } = theme.useToken();
   const [completeOpen, setCompleteOpen] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
@@ -161,23 +171,28 @@ export function AppLayout() {
   const isMobile = screens.md === false;
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const contentShell = adminContentShell(location.pathname);
+  const sitePublic = useSitePublic();
+  const showIcpBeian = Boolean(siteIcpBeianNo(sitePublic.data?.icp_beian_no));
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
     queryFn: fetchPlatformFeaturesEffective,
     staleTime: LOCAL_QUERY_STALE_MS,
+    enabled: loggedIn,
   });
 
   const meQuery = useQuery({
     queryKey: ["auth-me"],
     queryFn: fetchMe,
     staleTime: LOCAL_QUERY_STALE_MS,
+    enabled: loggedIn,
   });
 
   const profileQuery = useQuery({
     queryKey: ["profile-me"],
     queryFn: fetchMyProfile,
     staleTime: LOCAL_QUERY_STALE_MS,
+    enabled: loggedIn,
   });
 
   useEffect(() => {
@@ -209,7 +224,7 @@ export function AppLayout() {
 
   useEffect(() => {
     // 等 /auth/me 返回后再判断，避免 zustand 水合 / 首屏时 email 暂空误弹「完善账号」
-    if (!meQuery.isSuccess) {
+    if (!loggedIn || !meQuery.isSuccess) {
       return;
     }
     const state = location.state as { promptCompleteProfile?: boolean } | null;
@@ -231,6 +246,7 @@ export function AppLayout() {
     meQuery.data,
     meQuery.isSuccess,
     navigate,
+    loggedIn,
     user?.email,
   ]);
 
@@ -249,6 +265,10 @@ export function AppLayout() {
       );
       if (hit) return hit;
     }
+    if (location.pathname.startsWith(TAVERN_ADMIN_PATH)) {
+      return TAVERN_ADMIN_PATH;
+    }
+    if (location.pathname.startsWith(TAVERN_PATH)) return TAVERN_PATH;
     if (location.pathname.startsWith("/profile")) return "/profile";
     if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/guides/")) {
@@ -287,7 +307,7 @@ export function AppLayout() {
     setOpenKeys((prev) => Array.from(new Set([...prev, ...next])));
   }, [selected]);
 
-  const isAdmin = isAdminUser(user);
+  const isAdmin = loggedIn && isAdminUser(user);
   const features = featuresQuery.data;
 
   const appUpdateQuery = useQuery({
@@ -336,6 +356,27 @@ export function AppLayout() {
     );
   }, [features]);
 
+  const communityItems = [
+    ...(!loggedIn || isFeatureOn(features, TAVERN_FEATURE_ID)
+      ? [
+          {
+            key: TAVERN_PATH,
+            icon: <CoffeeOutlined />,
+            label: <Link to={TAVERN_PATH}>战鸽酒馆</Link>,
+          },
+        ]
+      : []),
+    ...(loggedIn && isAdmin && isFeatureOn(features, TAVERN_FEATURE_ID)
+      ? [
+          {
+            key: TAVERN_ADMIN_PATH,
+            icon: <AuditOutlined />,
+            label: <Link to={TAVERN_ADMIN_PATH}>酒馆管理</Link>,
+          },
+        ]
+      : []),
+  ];
+
   const mineItems = [
     {
       key: "/daily",
@@ -349,10 +390,15 @@ export function AppLayout() {
     },
   ];
 
-  const adminMenuItems = buildAdminMenuItems();
+  const adminMenuItems = buildAdminMenuItems() || [];
 
   const menuItems = [
-    { type: "group" as const, label: "我的", children: mineItems },
+    ...(communityItems.length
+      ? [{ type: "group" as const, label: "社区", children: communityItems }]
+      : []),
+    ...(loggedIn
+      ? [{ type: "group" as const, label: "我的", children: mineItems }]
+      : []),
     ...(platformItems.length
       ? [{ type: "group" as const, label: "平台", children: platformItems }]
       : []),
@@ -371,7 +417,7 @@ export function AppLayout() {
   ];
 
   useEffect(() => {
-    if (featuresQuery.isLoading) return;
+    if (!loggedIn || featuresQuery.isLoading) return;
     if (/^\/members\/\d+\/profile/.test(location.pathname)) return;
     const hit = PLATFORM_NAV.find(
       (item) =>
@@ -395,6 +441,7 @@ export function AppLayout() {
     features,
     featuresQuery.isError,
     featuresQuery.isLoading,
+    loggedIn,
     location.pathname,
     navigate,
   ]);
@@ -408,6 +455,8 @@ export function AppLayout() {
   const avatarUrl =
     profileQuery.data?.avatar_url || user?.avatar_url || undefined;
   const roleLabel = isAdmin ? "管理员" : null;
+
+  const homeHref = loggedIn ? "/" : TAVERN_PATH;
 
   const onLogout = () => {
     logout();
@@ -439,7 +488,7 @@ export function AppLayout() {
     >
       <div className="app-sider-brand">
         <div className="app-sider-brand-top">
-          <Link to="/" className="app-sider-brand-link">
+          <Link to={homeHref} className="app-sider-brand-link">
             <BrandLogo size={32} color="#e8b86d" />
             <Typography.Text
               strong
@@ -487,7 +536,7 @@ export function AppLayout() {
           flexShrink: 0,
         }}
       >
-        <div style={{ padding: "4px 10px 4px" }}>
+        <div style={{ padding: "4px 10px 12px" }}>
           <div
             style={{
               display: "flex",
@@ -497,52 +546,68 @@ export function AppLayout() {
               borderRadius: 8,
             }}
           >
-            <Avatar size={36} src={avatarUrl}>
-              {displayName?.[0] || "?"}
-            </Avatar>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  lineHeight: 1.3,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+            {loggedIn ? (
+              <>
+                <Avatar size={36} src={avatarUrl}>
+                  {displayName?.[0] || "?"}
+                </Avatar>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      color: "#fff",
+                      fontWeight: 600,
+                      fontSize: 14,
+                      lineHeight: 1.3,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                  {roleLabel ? (
+                    <Tag
+                      style={{
+                        marginTop: 4,
+                        marginInlineEnd: 0,
+                        fontSize: 11,
+                        lineHeight: "18px",
+                        borderColor: "rgba(255,255,255,0.2)",
+                        background: "rgba(255,255,255,0.06)",
+                        color: "rgba(255,255,255,0.75)",
+                      }}
+                    >
+                      {roleLabel}
+                    </Tag>
+                  ) : null}
+                </div>
+                <Tooltip title="退出登录">
+                  <Button
+                    type="text"
+                    size="small"
+                    className="sider-logout-btn"
+                    icon={<LogoutOutlined />}
+                    aria-label="退出登录"
+                    onClick={onLogout}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                state={{ from: location }}
+                style={{ display: "block", width: "100%" }}
               >
-                {displayName}
-              </div>
-              {roleLabel ? (
-                <Tag
-                  style={{
-                    marginTop: 4,
-                    marginInlineEnd: 0,
-                    fontSize: 11,
-                    lineHeight: "18px",
-                    borderColor: "rgba(255,255,255,0.2)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "rgba(255,255,255,0.75)",
-                  }}
+                <Button
+                  type="primary"
+                  block
+                  size="small"
+                  icon={<LoginOutlined />}
                 >
-                  {roleLabel}
-                </Tag>
-              ) : null}
-            </div>
-            <Tooltip title="退出登录">
-              <Button
-                type="text"
-                size="small"
-                className="sider-logout-btn"
-                icon={<LogoutOutlined />}
-                aria-label="退出登录"
-                onClick={onLogout}
-              />
-            </Tooltip>
-          </div>
-          <div className="app-sider-beian">
-            <IcpBeianLink light />
+                  登录
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -585,6 +650,7 @@ export function AppLayout() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          background: isTarkovGuide ? "#161710" : undefined,
         }}
       >
         {isMobile ? (
@@ -608,7 +674,7 @@ export function AppLayout() {
               onClick={() => setDrawerOpen(true)}
               style={{ color: "#fff" }}
             />
-            <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link to={homeHref} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <BrandLogo size={22} color="#e8b86d" />
               <Typography.Text strong style={{ color: "#e8b86d" }}>
                 战鸽数据
@@ -636,10 +702,13 @@ export function AppLayout() {
                   flex: 1,
                   minWidth: 0,
                   minHeight: 0,
-                  margin: isMobile ? 12 : 24,
+                  margin: contentShell === "flush" ? 0 : isMobile ? 12 : 24,
                   overflowX: "hidden",
                   overflowY: "scroll",
                   scrollbarGutter: "stable",
+                  ...(contentShell === "flush"
+                    ? { background: token.colorBgLayout }
+                    : {}),
                 }
           }
         >
@@ -655,14 +724,21 @@ export function AppLayout() {
                   : undefined
               }
               style={
-                contentShell
-                  ? { background: token.colorBgContainer }
-                  : {
-                      background: token.colorBgContainer,
-                      padding: 24,
-                      borderRadius: 8,
-                      minHeight: 360,
+                contentShell === "flush"
+                  ? {
+                      background: "transparent",
+                      padding: 0,
+                      boxShadow: "none",
+                      minHeight: 0,
                     }
+                  : contentShell
+                    ? { background: token.colorBgContainer }
+                    : {
+                        background: token.colorBgContainer,
+                        padding: 24,
+                        borderRadius: 8,
+                        minHeight: 360,
+                      }
               }
             >
               <Suspense fallback={<RouteFallback />}>
@@ -671,7 +747,7 @@ export function AppLayout() {
             </div>
           )}
         </Content>
-        {isMobile || (!siderCollapsed && !isTarkovGuide) ? (
+        {showIcpBeian ? (
           <div
             style={{
               flexShrink: 0,
@@ -679,10 +755,19 @@ export function AppLayout() {
               padding: "6px 12px 10px",
               fontSize: 12,
               lineHeight: 1.4,
+              ...(isTarkovGuide
+                ? {
+                    background: "#161710",
+                    borderTop: "1px solid #3a3d30",
+                  }
+                : {}),
             }}
           >
             <IcpBeianLink
-              style={{ color: token.colorTextTertiary, justifyContent: "center" }}
+              style={{
+                justifyContent: "center",
+                color: isTarkovGuide ? "#6a6c58" : token.colorTextTertiary,
+              }}
             />
           </div>
         ) : null}

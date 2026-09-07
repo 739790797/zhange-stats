@@ -5,6 +5,13 @@ export type TarkovAmmoCatalog = components["schemas"]["TarkovAmmoCatalogOut"];
 export type TarkovAmmoItem = components["schemas"]["TarkovAmmoItemOut"];
 export type TarkovGunCatalog = components["schemas"]["TarkovGunCatalogOut"];
 export type TarkovGunItem = components["schemas"]["TarkovGunItemOut"];
+export type TarkovWorkbenchGun = components["schemas"]["TarkovWorkbenchGunOut"];
+export type TarkovWorkbenchCalculate = components["schemas"]["TarkovWorkbenchCalculateOut"];
+export type TarkovWorkbenchAllowed = components["schemas"]["TarkovWorkbenchAllowedOut"];
+export type TarkovWorkbenchPair = components["schemas"]["TarkovWorkbenchPairOut"];
+export type TarkovWorkbenchSlotNode = components["schemas"]["TarkovWorkbenchSlotNodeOut"];
+export type TarkovWorkbenchPart = components["schemas"]["TarkovWorkbenchPartOut"];
+export type TarkovWorkbenchStats = components["schemas"]["TarkovWorkbenchStatsOut"];
 export type TarkovCatalog = components["schemas"]["TarkovCatalogOut"];
 export type TarkovCatalogItem = components["schemas"]["TarkovCatalogItemOut"];
 export type TarkovItemDetail = components["schemas"]["TarkovItemDetailOut"];
@@ -23,6 +30,67 @@ export async function fetchTarkovGuns() {
   const { data } = await client.get<TarkovGunCatalog>("/guides/tarkov/guns", {
     timeout: 120_000,
   });
+  return data;
+}
+
+export async function fetchTarkovWorkbenchGun(gunId: string) {
+  const { data } = await client.get<TarkovWorkbenchGun>(
+    `/guides/tarkov/workbench/guns/${encodeURIComponent(gunId)}`,
+    { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovWorkbenchAllowed(slotIds: string[]) {
+  const { data } = await client.post<TarkovWorkbenchAllowed>(
+    "/guides/tarkov/workbench/slots/allowed-items",
+    { slot_ids: slotIds },
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovWorkbenchCalculate(opts: {
+  gunId: string;
+  pairs: TarkovWorkbenchPair[];
+  ammoId?: string | null;
+}) {
+  const { data } = await client.post<TarkovWorkbenchCalculate>(
+    "/guides/tarkov/workbench/calculate",
+    {
+      gun_id: opts.gunId,
+      pairs: opts.pairs,
+      ammo_id: opts.ammoId || null,
+    },
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
+export type TarkovWorkbenchImage = components["schemas"]["TarkovWorkbenchImageOut"];
+export type TarkovWorkbenchImageStatus =
+  components["schemas"]["TarkovWorkbenchImageStatusOut"];
+
+export async function fetchTarkovWorkbenchImageStatus() {
+  const { data } = await client.get<TarkovWorkbenchImageStatus>(
+    "/guides/tarkov/workbench/build-image/status",
+  );
+  return data;
+}
+
+export async function fetchTarkovWorkbenchImage(opts: {
+  gunId: string;
+  pairs: TarkovWorkbenchPair[];
+  signal?: AbortSignal;
+}) {
+  const { data } = await client.post<TarkovWorkbenchImage>(
+    "/guides/tarkov/workbench/build-image",
+    {
+      gun_id: opts.gunId,
+      pairs: opts.pairs,
+    },
+    { timeout: 120_000, signal: opts.signal },
+  );
   return data;
 }
 
@@ -228,12 +296,8 @@ export type TarkovHideoutCatalog = components["schemas"]["TarkovHideoutCatalogOu
 export type TarkovHideoutStation = components["schemas"]["TarkovHideoutStationOut"];
 export type TarkovHideoutLevel = components["schemas"]["TarkovHideoutLevelOut"];
 export type TarkovHideoutDetail = components["schemas"]["TarkovHideoutDetailOut"];
-export type TarkovBarterCatalog = components["schemas"]["TarkovBarterCatalogOut"];
 export type TarkovBarter = components["schemas"]["TarkovBarterOut"];
-export type TarkovCraftCatalog = components["schemas"]["TarkovCraftCatalogOut"];
 export type TarkovCraft = components["schemas"]["TarkovCraftOut"];
-export type TarkovLootTierCatalog = components["schemas"]["TarkovLootTierCatalogOut"];
-export type TarkovLootTierItem = components["schemas"]["TarkovLootTierItemOut"];
 export type TarkovKeyPacks = components["schemas"]["TarkovKeyPacksOut"];
 export type TarkovKeyPackMap = components["schemas"]["TarkovKeyPackMapOut"];
 export type TarkovKeyPackKey = components["schemas"]["TarkovKeyPackKeyOut"];
@@ -347,69 +411,6 @@ export async function fetchTarkovHideoutStation(slug: string) {
   const { data } = await client.get<TarkovHideoutDetail>(
     `/guides/tarkov/hideout/${encodeURIComponent(slug)}`,
     { timeout: 180_000 },
-  );
-  return data;
-}
-
-export async function fetchTarkovBarters(opts: {
-  q?: string;
-  trader?: string;
-  page?: number;
-  pageSize?: number;
-} = {}) {
-  const q = (opts.q || "").trim();
-  const trader = (opts.trader || "").trim();
-  const { data } = await client.get<TarkovBarterCatalog>("/guides/tarkov/barters", {
-    params: {
-      ...(q ? { q } : {}),
-      ...(trader ? { trader } : {}),
-      page: opts.page ?? 1,
-      page_size: opts.pageSize ?? 50,
-    },
-    timeout: 180_000,
-  });
-  return data;
-}
-
-export async function fetchTarkovCrafts(opts: {
-  q?: string;
-  station?: string;
-  page?: number;
-  pageSize?: number;
-} = {}) {
-  const q = (opts.q || "").trim();
-  const station = (opts.station || "").trim();
-  const { data } = await client.get<TarkovCraftCatalog>("/guides/tarkov/crafts", {
-    params: {
-      ...(q ? { q } : {}),
-      ...(station ? { station } : {}),
-      page: opts.page ?? 1,
-      page_size: opts.pageSize ?? 50,
-    },
-    timeout: 180_000,
-  });
-  return data;
-}
-
-export async function fetchTarkovLootTiers(opts: {
-  q?: string;
-  tier?: string;
-  page?: number;
-  pageSize?: number;
-} = {}) {
-  const q = (opts.q || "").trim();
-  const tier = (opts.tier || "").trim();
-  const { data } = await client.get<TarkovLootTierCatalog>(
-    "/guides/tarkov/loot-tiers",
-    {
-      params: {
-        ...(q ? { q } : {}),
-        ...(tier ? { tier } : {}),
-        page: opts.page ?? 1,
-        page_size: opts.pageSize ?? 100,
-      },
-      timeout: 180_000,
-    },
   );
   return data;
 }

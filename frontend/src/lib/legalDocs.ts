@@ -1,7 +1,7 @@
 export const LEGAL_TERMS_PATH = "/legal/terms";
 export const LEGAL_PRIVACY_PATH = "/legal/privacy";
 
-export const ICP_BEIAN_NO = "浙ICP备2025147006号";
+/** 工信部备案查询页；号码本身由站点配置下发。 */
 export const ICP_BEIAN_HREF = "https://beian.miit.gov.cn/";
 
 export const TARKOV_PUBLIC_DISCLAIMER =
@@ -9,6 +9,9 @@ export const TARKOV_PUBLIC_DISCLAIMER =
 
 export const RAID_ROOM_TITLE_POLICY =
   "房间名禁止违法、骚扰、歧视或广告内容。";
+
+const TERMS_TAIL_LAW =
+  "请同时遵守《逃离塔科夫》用户协议、B 站等平台规范，以及你所在地的法律。";
 
 export type LegalDocId = "terms" | "privacy";
 
@@ -32,7 +35,7 @@ export const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
         "运营者可删除违规房间或限制账号。禁止利用本站从事违法活动或干扰他人游戏。",
       "图鉴数据来自 tarkov.dev 等社区来源，可能滞后或不准确。游戏本身及其商标归 Battlestate Games 所有。",
       "服务按现状提供。公开引流时容量为单机部署，高峰可能降级或暂停联机房间。我们可随时调整功能或下线模块。",
-      `请同时遵守《逃离塔科夫》用户协议、B 站等平台规范，以及你所在地的法律。本站已办理 ICP 备案（${ICP_BEIAN_NO}）。`,
+      TERMS_TAIL_LAW,
     ],
   },
   privacy: {
@@ -50,6 +53,20 @@ export const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
   },
 };
 
-export function legalDoc(id: LegalDocId): LegalDoc {
-  return LEGAL_DOCS[id];
+export function siteIcpBeianNo(raw: string | null | undefined): string {
+  return (raw || "").trim();
+}
+
+export function termsTailParagraph(icpBeianNo = ""): string {
+  const no = siteIcpBeianNo(icpBeianNo);
+  if (!no) return TERMS_TAIL_LAW;
+  return `${TERMS_TAIL_LAW}本站已办理 ICP 备案（${no}）。`;
+}
+
+export function legalDoc(id: LegalDocId, icpBeianNo = ""): LegalDoc {
+  const doc = LEGAL_DOCS[id];
+  if (id !== "terms") return doc;
+  const paragraphs = [...doc.paragraphs];
+  paragraphs[paragraphs.length - 1] = termsTailParagraph(icpBeianNo);
+  return { ...doc, paragraphs };
 }

@@ -13,6 +13,7 @@ import {
   TARKOV_HOME_PATH,
   TARKOV_ME_PATH,
   TARKOV_TOP_NAV,
+  TARKOV_WORKBENCH_PATH,
   isTarkovAdminPath,
   parseTarkovMaintainMode,
   resolveTarkovMeTab,
@@ -423,8 +424,9 @@ export function TarkovGuideShell({ children }: Props) {
       </header>
       <div
         className={`${styles.body}${
-          pathname === TARKOV_ME_PATH &&
-          resolveTarkovMeTab(searchParams.get("tab")) === "collection"
+          (pathname === TARKOV_ME_PATH &&
+            resolveTarkovMeTab(searchParams.get("tab")) === "collection") ||
+          pathname.startsWith(`${TARKOV_WORKBENCH_PATH}/`)
             ? ` ${styles.bodyFill}`
             : ""
         }`}
