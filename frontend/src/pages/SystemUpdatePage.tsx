@@ -19,7 +19,7 @@ import {
 import type { AppUpdateStatus } from "@/api/appUpdateApi";
 import { PageHeader } from "@/components/PageHeader";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { adminCanStepUp } from "@/lib/adminCanStepUp";
+import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -27,7 +27,7 @@ export default function SystemUpdatePage() {
   const queryClient = useQueryClient();
   const [waitingRestart, setWaitingRestart] = useState(false);
   const [stepUpOpen, setStepUpOpen] = useState(false);
-  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
+  const user = useAuthStore((s) => s.user);
 
   const statusQuery = useQuery({
     queryKey: ["app-update-status"],
@@ -149,14 +149,15 @@ export default function SystemUpdatePage() {
                 loading={updateMutation.isPending || waitingRestart}
                 disabled={!status?.update_allowed || busy}
                 onClick={() => {
-                  if (!canStepUp) {
-                    message.warning("请先在个人中心绑定并验证邮箱");
-                    return;
-                  }
+                  if (!status?.update_allowed || busy) return;
                   if (!status?.has_new_version) {
                     message.info("未检测到新版本，仍将尝试更新到 latest");
                   }
-                  setStepUpOpen(true);
+                  requestAdminStepUp(user, {
+                    onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+                    onNeedCode: () => setStepUpOpen(true),
+                    onSkip: () => updateMutation.mutate(""),
+                  });
                 }}
               >
                 一键更新

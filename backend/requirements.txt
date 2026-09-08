@@ -21,3 +21,7 @@ onnxruntime>=1.17.0
 tokenizers>=0.15.0
 nh3>=0.2.18
 patchright==1.62.3
+opencv-python-headless>=4.8.0
+rapidocr>=3.2.0
+easyocr>=1.7.2
+pytesseract>=0.3.10

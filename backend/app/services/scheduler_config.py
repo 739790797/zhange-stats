@@ -25,6 +25,7 @@ JOB_IDS = (
     "kujiequ_checkin",
     "mihoyo_checkin",
     "tarkov_full_sync",
+    "ocr_model_sync",
     "texteller_model_sync",
     "job_runs_prune",
 )
@@ -95,6 +96,11 @@ def _env_defaults() -> dict[str, dict[str, Any]]:
             "enabled": bool(getattr(s, "TARKOV_FULL_SYNC_ENABLED", True)),
             "hour": _clamp_hour(getattr(s, "TARKOV_FULL_SYNC_HOUR", 4)),
             "minute": _clamp_minute(getattr(s, "TARKOV_FULL_SYNC_MINUTE", 25)),
+        },
+        "ocr_model_sync": {
+            "enabled": True,
+            "hour": 5,
+            "minute": 10,
         },
         "texteller_model_sync": {
             "enabled": True,
@@ -184,6 +190,10 @@ def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
             "game_schedule_endfield_sync",
         ):
             legacy = stored.get("game_schedule_sync")
+            if isinstance(legacy, dict):
+                item = legacy
+        if not isinstance(item, dict) and jid == "ocr_model_sync":
+            legacy = stored.get("tarkov_key_ocr_sync")
             if isinstance(legacy, dict):
                 item = legacy
         if isinstance(item, dict):

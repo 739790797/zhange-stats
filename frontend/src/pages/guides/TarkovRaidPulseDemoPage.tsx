@@ -9,7 +9,6 @@ import { TarkovRaidSessionMap } from "@/components/guides/tarkov/TarkovRaidSessi
 import { TarkovRaidWorkspace } from "@/components/guides/tarkov/TarkovRaidWorkspace";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import { isAdminUser } from "@/lib/isAdminUser";
-import type { RaidPrepMapParticipant } from "@/lib/tarkovRaidPrep";
 import {
   PULSE_DEMO_MAP_ID,
   PULSE_DEMO_ROOM_PUBLIC_ID,
@@ -17,6 +16,8 @@ import {
   PULSE_DEMO_TICK_MIN_MS,
   PLAYER_FIX_PULSE_MS,
   pulseDemoMembers,
+  pulseDemoQuestPreview,
+  pulseDemoSelfUserId,
 } from "@/lib/tarkovRaidRooms";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -37,6 +38,14 @@ export default function TarkovRaidPulseDemoPage() {
             }
           : null,
       ),
+    [me?.id, selfName],
+  );
+  const questPreview = useMemo(
+    () =>
+      pulseDemoQuestPreview({
+        userId: me?.id,
+        name: selfName,
+      }),
     [me?.id, selfName],
   );
 
@@ -63,7 +72,7 @@ export default function TarkovRaidPulseDemoPage() {
             type="info"
             showIcon
             message="测试房间：不写库、不进大厅、不连房间 WebSocket"
-            description="四个假人错开、随机间隔改定位。你有定位时，只和刚更新的那个人连一条线。仅管理员可从顶栏进入。"
+            description="彩色标点是你还要做的任务；灰色虚线带「帮」是你已完成、留给假人甲的。四个假人会错开换定位。左侧请保持「任务」勾上。仅管理员可从顶栏进入。"
           />
         }
         goonMapId={PULSE_DEMO_MAP_ID}
@@ -74,24 +83,22 @@ export default function TarkovRaidPulseDemoPage() {
             detail={mapQuery.data}
             loading={mapQuery.isLoading}
             error={mapQuery.isError ? mapQuery.error : undefined}
-            questOverlays={[]}
+            questOverlays={questPreview.overlays}
+            questObjectiveDones={questPreview.objectiveDones}
+            questSkippedByTask={questPreview.skippedByTask}
+            questParticipantsByTask={questPreview.participantsByTask}
+            questPeopleStartOn="all"
             focusRequest={null}
             highlightTaskId=""
             suppressLocalFix={false}
-            authorUserId={me?.id || 0}
+            authorUserId={pulseDemoSelfUserId(me?.id)}
             authorDisplayName={selfName}
             members={members}
             canEdit={false}
             onQuestLabelClick={() => {}}
-            questParticipantsByTask={EMPTY_PARTICIPANTS}
           />
         }
       />
     </TarkovItemsPageShell>
   );
 }
-
-const EMPTY_PARTICIPANTS = new Map<
-  string,
-  readonly RaidPrepMapParticipant[]
->();

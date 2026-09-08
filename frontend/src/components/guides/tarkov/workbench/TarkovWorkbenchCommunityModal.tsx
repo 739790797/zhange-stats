@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Input, Modal, Spin, Table } from "antd";
+import { Alert, Button, Modal, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   fetchTarkovWorkbenchCommunityBuilds,
   type TarkovWorkbenchCommunityBuild,
@@ -10,8 +10,6 @@ import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { formatMoney } from "@/lib/tarkovItemFormat";
 import {
-  communityTagLabel,
-  communityTagsInList,
   compareCommunityBuilds,
   filterCommunityBuilds,
   formatCommunityErgo,
@@ -21,6 +19,11 @@ import {
 } from "@/lib/tarkovCommunityBuilds";
 import tableStyles from "@/components/guides/tarkov/TarkovDarkTable.module.css";
 import styles from "./TarkovWorkbenchBuild.module.css";
+
+/** 列宽合计，供弹窗按表格内容定宽。 */
+const COMMUNITY_TABLE_PX =
+  320 + 108 + 80 + 88 + 124 + 100 + 100 + 56 + 88 + 64;
+const COMMUNITY_MODAL_BODY_PAD_X = 28;
 
 type Props = {
   gunId: string;
@@ -36,35 +39,6 @@ function sorterOf(key: CommunitySortKey) {
     compareCommunityBuilds(a, b, key);
 }
 
-function CommunityTagChip({
-  tag,
-  active,
-  onClick,
-}: {
-  tag: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const label = communityTagLabel(tag);
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        className={`${styles.communityChip}${active ? ` ${styles.communityChipActive}` : ""}`}
-        data-tag={tag}
-        onClick={onClick}
-      >
-        {label}
-      </button>
-    );
-  }
-  return (
-    <span className={styles.communityChip} data-tag={tag}>
-      {label}
-    </span>
-  );
-}
-
 export function TarkovWorkbenchCommunityModal({
   gunId,
   open,
@@ -72,8 +46,6 @@ export function TarkovWorkbenchCommunityModal({
   onPick,
 }: Props) {
   const gameMode = useTarkovGameMode();
-  const [query, setQuery] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
 
   const listQuery = useQuery({
     queryKey: ["guides-tarkov-workbench-community", gameMode, gunId],
@@ -84,10 +56,9 @@ export function TarkovWorkbenchCommunityModal({
   });
 
   const builds = listQuery.data?.builds;
-  const tagOptions = useMemo(() => communityTagsInList(builds), [builds]);
   const rows = useMemo(
-    () => filterCommunityBuilds(builds, query, tags),
-    [builds, query, tags],
+    () => filterCommunityBuilds(builds, "", []),
+    [builds],
   );
 
   const columns = useMemo<ColumnsType<TarkovWorkbenchCommunityBuild>>(
@@ -99,18 +70,15 @@ export function TarkovWorkbenchCommunityModal({
         align: "left",
         width: 320,
         render: (_value, build) => (
-          <div className={styles.communityNameCell}>
-            <div className={styles.communityNameRow}>
-              {build.featured ? <CommunityTagChip tag="featured" /> : null}
-              <span className={styles.communityName}>{build.name}</span>
-              {build.tags?.length ? (
-                <span className={styles.communityCardTags}>
-                  {build.tags.map((tag) => (
-                    <CommunityTagChip key={tag} tag={tag} />
-                  ))}
-                </span>
-              ) : null}
-            </div>
+          <div
+            className={`${styles.communityNameCell}${
+              build.featured ? ` ${styles.communityNameCellFeatured}` : ""
+            }`}
+          >
+            {build.featured ? (
+              <span className={styles.communityFeaturedMark}>精选</span>
+            ) : null}
+            <span className={styles.communityName}>{build.name}</span>
             <span className={styles.communityMeta}>{build.author || "匿名"}</span>
             {build.dropped_pair_count ? (
               <span className={styles.communityDrop}>
@@ -230,12 +198,6 @@ export function TarkovWorkbenchCommunityModal({
     [onPick],
   );
 
-  const toggleTag = (tag: string) => {
-    setTags((current) =>
-      current.includes(tag) ? current.filter((row) => row !== tag) : [...current, tag],
-    );
-  };
-
   return (
     <Modal
       open={open}
@@ -247,37 +209,14 @@ export function TarkovWorkbenchCommunityModal({
       }
       destroyOnClose
       centered
-      width="min(1180px, calc(100vw - 48px))"
+      width={`min(${COMMUNITY_TABLE_PX + COMMUNITY_MODAL_BODY_PAD_X}px, calc(100vw - 24px))`}
       className={`${styles.gunPickModal} ${styles.communityModal}`}
       classNames={{
         body: styles.communityModalBody,
         content: styles.communityModalContent,
       }}
       onCancel={onCancel}
-      afterClose={() => {
-        setQuery("");
-        setTags([]);
-      }}
     >
-      <Input
-        allowClear
-        size="small"
-        placeholder="搜索方案或作者"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-      />
-      {tagOptions.length ? (
-        <div className={styles.communityTags}>
-          {tagOptions.map((tag) => (
-            <CommunityTagChip
-              key={tag}
-              tag={tag}
-              active={tags.includes(tag)}
-              onClick={() => toggleTag(tag)}
-            />
-          ))}
-        </div>
-      ) : null}
       {listQuery.isLoading ? (
         <div className={styles.communityStatus}>
           <Spin tip="加载社区方案…" />

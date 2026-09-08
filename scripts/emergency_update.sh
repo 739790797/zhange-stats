@@ -112,6 +112,8 @@ tar -xzf "${TMP}/${ASSET}" -C "${STATIC_DIR}"
 
 log "pip install…"
 "${INSTALL_DIR}/backend/.venv/bin/python" -m pip install -r "${INSTALL_DIR}/backend/requirements.txt"
+"${INSTALL_DIR}/backend/.venv/bin/python" -m pip uninstall -y opencv-python >/dev/null 2>&1 || true
+"${INSTALL_DIR}/backend/.venv/bin/python" -m pip install -q --force-reinstall --no-deps "opencv-python-headless>=4.8.0"
 
 if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   log "校正属主 ${SERVICE_USER}…"

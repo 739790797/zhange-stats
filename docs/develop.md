@@ -22,7 +22,7 @@ CREATE DATABASE zhange_stats_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 cp .env.example .env   # 至少填 DATABASE_URL；JWT 密钥自动生成
 ```
 
-首次打开站点会进入 **安装向导** 创建管理员。邮件 SMTP、Steam/QQ 密钥、登录有效期 / 口令策略、签到与轮询调度：登录后在侧栏 **管理** 配置（写入 `system_configs`）。CI 可用 `ALLOW_ENV_ADMIN_SEED=true` + `ADMIN_*` 跳过向导。
+首次打开站点会进入 **安装向导** 创建管理员。邮件 SMTP、Steam/QQ 密钥、登录有效期 / 口令策略、签到与轮询调度：登录后在侧栏 **管理** 配置（写入 `system_configs`）。本地 `APP_ENV=development` 下管理端保存不要求邮箱验证码（生产仍要）。CI 可用 `ALLOW_ENV_ADMIN_SEED=true` + `ADMIN_*` 跳过向导。
 
 推荐用脚本（热重载）：
 
@@ -41,7 +41,10 @@ cd backend && python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 # 酒馆公式识别：主依赖已含 onnxruntime / tokenizers；权重在 var/data/texteller
-# 启动会后台补权重；也可到任务配置跑「公式识别模型更新」。默认 hf-mirror.com
+# 钥匙管理截图识别：rapidocr + easyocr（torch）+ opencv-python-headless；权重在 var/data/rapidocr 与 var/data/easyocr。
+# 到系统管理「文字识别」选引擎/档位，再到任务配置跑「识别模型更新」预拉权重；识别时不再下载。
+# 可选第三路 Tesseract：Windows 装 UB Mannheim 安装包（勾 chi_sim+eng，加入 PATH）后重启后端；Linux：apt install tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng
+# 公式识别权重：启动会后台补齐；也可到任务配置跑「公式识别模型更新」。默认 hf-mirror.com
 uvicorn app.main:app --reload --host 127.0.0.1 --port 6130
 
 # 前端（另开终端）

@@ -19,7 +19,7 @@ import {
 } from "@/api/client";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
 import { PageHeader } from "@/components/PageHeader";
-import { adminCanStepUp } from "@/lib/adminCanStepUp";
+import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -54,7 +54,7 @@ export default function EmailSettingsPage() {
   const [form] = Form.useForm<FormValues>();
   const [testOpen, setTestOpen] = useState(false);
   const [testTo, setTestTo] = useState("");
-  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
+  const user = useAuthStore((s) => s.user);
   const [pending, setPending] = useState<{
     kind: "save" | "test";
     payload: ReturnType<typeof toPayload>;
@@ -129,11 +129,12 @@ export default function EmailSettingsPage() {
         requiredMark
         disabled={isLoading}
         onFinish={(values) => {
-          if (!canStepUp) {
-            message.warning("请先在个人中心绑定并验证邮箱");
-            return;
-          }
-          setPending({ kind: "save", payload: toPayload(values) });
+          const payload = toPayload(values);
+          requestAdminStepUp(user, {
+            onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+            onNeedCode: () => setPending({ kind: "save", payload }),
+            onSkip: () => save.mutate({ payload, code: "" }),
+          });
         }}
         initialValues={{
           enabled: false,
@@ -281,15 +282,22 @@ export default function EmailSettingsPage() {
             message.error("请填写收件邮箱");
             return;
           }
-          if (!canStepUp) {
-            message.warning("请先在个人中心绑定并验证邮箱");
-            return;
-          }
           void form.validateFields().then((values) => {
-            setPending({
-              kind: "test",
-              payload: toPayload(values),
-              to: testTo.trim(),
+            const payload = toPayload(values);
+            requestAdminStepUp(user, {
+              onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+              onNeedCode: () =>
+                setPending({
+                  kind: "test",
+                  payload,
+                  to: testTo.trim(),
+                }),
+              onSkip: () =>
+                test.mutate({
+                  payload,
+                  code: "",
+                  to: testTo.trim(),
+                }),
             });
           });
         }}

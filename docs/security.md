@@ -7,7 +7,7 @@
 - 新签发的 JWT：`sub` 为 **user_id**（数字字符串），另带 `username`。旧票 `sub` 仍是用户名，解码时按是否纯数字区分
 - 浏览器会话：登录 / 注册 / QQ 换票 / 安装向导 `Set-Cookie` `zhange_access`（HttpOnly、`SameSite=Lax`、生产 `Secure`、`Path=/`）。前端 **不** 把 JWT 写入 localStorage，axios **不** 塞 `Authorization`。可变方法须带 `X-CSRF-Token`（与可读 Cookie `zhange_csrf` Double Submit）。脚本 / OpenAPI 仍可用 `Authorization: Bearer`（此时免 CSRF）。`POST /api/auth/logout` 清 Cookie。QQ 回调仍只带 ticket
 - 生产 CORS：同域部署一般不必放行；若跨源，用 `CORS_ORIGIN_REGEX` 收紧，不要沿用默认 localhost/Tauri 正则
-- 管理员高危操作（系统更新、删除用户、保存集成密钥、保存功能开关、保存 SMTP、开启「仅一名管理员」、升管理员或重置他人密码）须邮箱验证码步进（`X-Step-Up-Code`）；无验证邮箱的管理员须先完善账号。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`
+- 管理员高危操作（系统更新、删除用户、保存集成密钥、保存功能开关、保存 SMTP、保存文字识别配置、开启「仅一名管理员」、升管理员或重置他人密码）在 **生产** 须邮箱验证码步进（`X-Step-Up-Code`）；无验证邮箱的管理员须先完善账号。`APP_ENV=development` 跳过该步进，方便本地改配置。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。发码限流 10/IP、5/账号、5/邮箱 / 10 分钟；校验失败再限 12/账号、12/邮箱 / 10 分钟
 - 注销账号：个人中心邮箱验证码；**anonymize** 保留 `users.id`（联机房间历史外键不炸），清空邮箱/口令/显示名，解绑平台与头像，删酒馆草稿。管理员代删同一套 service，写 `job_runs`
 - 平台凭证 Fernet 加密存库。QQ 回调不要把 JWT 放进 URL
 - 请求 ID：中间件生成或转发 `X-Request-ID`，写入日志上下文并回写响应头
@@ -39,6 +39,14 @@
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：创建 20/IP/10 分钟、10/账号/10 分钟；加入（含密码错误）10/IP+房间/10 分钟、10/账号+房间/10 分钟；大厅列表 40/IP/分钟、40/账号/分钟
 - **大厅查询**：只加载当前顶栏模式、`listed` 且无密码、仍有人在座的房；过期座位按 `last_seen` 定向回收，不把全部房间扫进内存
 - **日志**：客户端本机解析；库表 `tarkov_user_raid_logs` 只存摘要。截图坐标只广播数字，不传图片；最近一次坐标留在进程内存，供同房间晚加入的入座成员（含同一账号的其他设备）从 WS snapshot 拿到，不落库
+
+## 文字识别
+
+引擎、权重与场景选择是站点能力（`system_configs.ocr`，管理端「系统管理 → 文字识别」）。生产保存配置须步进验证码；开发环境跳过。**没有**对外 `POST /api/ocr/recognize`；业务只走内部 Python 接口。权重在 `var/data/rapidocr` 与 `var/data/easyocr`，由任务配置「识别模型更新」（`ocr_model_sync`）按当前 Paddle 档位预拉；识别时不现场下载。未就绪返回 503。公式识别（TexTeller）仍独立，不并进这套引擎。
+
+## 塔科夫钥匙截图识别
+
+钥匙管理「截图识别」把用户粘贴的钥匙箱截图 `POST` 到本站，按 360–640（最佳约 540）正方形切块，按「文字识别」里为场景 `tarkov_keys` 勾选的引擎读格子 **shortName**（默认熊猫 OCR + EasyOCR，可选本机 Tesseract）。每族另走反色补召回；模糊匹配须两个不同模型族同时读到，才放宽阈值。切块与闭集匹配仍在塔科夫业务里。响应只带回文本框坐标供覆盖层，原图与切块只进内存，不落 `uploads/`、不入库。确认后才 `merge` 到 `tarkov_user_key_owns`。限流：8/IP/10 分钟、6/账号/10 分钟；进程内同时只跑 1 路识别，客户端断开后工作线程在下一刀切块前退出。
 
 ## 塔科夫工作台出图
 

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.timeutil import now_naive, to_naive
 from app.models.register_challenge import RegisterChallenge
 from app.models.user import User, UserRole
@@ -150,6 +151,7 @@ def _user_out(user: User) -> UserOut:
         role=user.role.value if isinstance(user.role, UserRole) else str(user.role),
         is_admin=user.is_admin_user,
         email_verified=bool(user.email_verified),
+        admin_step_up_required=get_settings().is_production,
         avatar_url=member.avatar_url if member else None,
         steam_id=member.steam_id if member else None,
         created_at=user.created_at,

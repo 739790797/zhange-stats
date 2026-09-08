@@ -61,6 +61,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_full",
     },
     {
+        "id": "ocr_model_sync",
+        "name": "识别模型更新",
+        "description": "按系统「文字识别」档位预下载/更新 Paddle RapidOCR 与 EasyOCR 权重到 var/data，识别时不再现场拉大包",
+        "kind": "cron",
+        "platform": "ocr",
+    },
+    {
         "id": "texteller_model_sync",
         "name": "公式识别模型更新",
         "description": "对照 hf-mirror 上的 OleehyO/TexTeller 更新本地公式识别权重（var/data/texteller）",

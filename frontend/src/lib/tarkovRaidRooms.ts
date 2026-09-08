@@ -2,12 +2,17 @@ import { formatRequestError } from "@/lib/formatRequestError";
 import { logMapLabel } from "@/lib/tarkovGameLogs";
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
 import {
+  colorForTaskIndex,
   colorForUserId,
   isRaidPrepAutoMapKind,
   mapSlugKeys,
   normalizeRaidPrepMapId,
   raidPrepAutoSwitchMapId,
   raidPrepMapsEquivalent,
+  type RaidPrepMapParticipant,
+  type RaidPrepObjectiveDoneLike,
+  type RaidPrepSkipMap,
+  type TarkovRaidPrepOverlay,
 } from "@/lib/tarkovRaidPrep";
 
 export const RAID_ROOM_TITLE_MAX = 40;
@@ -1457,6 +1462,14 @@ export const PULSE_DEMO_MAP_ID = "customs";
 export const PULSE_DEMO_TICK_MIN_MS = 2_200;
 export const PULSE_DEMO_TICK_MAX_MS = 6_500;
 export const PULSE_DEMO_TICK_MS = PULSE_DEMO_TICK_MAX_MS;
+/** 未登录看演示时，任务「我」与地图 author 共用这个正数 id。 */
+export const PULSE_DEMO_SELF_ID = 900000;
+
+export function pulseDemoSelfUserId(userId?: number | null): number {
+  return userId != null && Number.isFinite(userId) && userId > 0
+    ? userId
+    : PULSE_DEMO_SELF_ID;
+}
 
 export const PULSE_DEMO_BOTS = [
   { userId: 900001, displayName: "假人甲" },
@@ -1571,6 +1584,146 @@ export function pulseDemoMembers(self?: {
     },
     ...bots,
   ];
+}
+
+const PULSE_DEMO_QUESTS = [
+  {
+    taskId: "demo-prep",
+    title: "准备专家",
+    objectiveId: "o-own-1",
+    traderSlug: "mechanic",
+    kind: "zone" as const,
+    x: 280,
+    z: -20,
+    help: false,
+    colorIndex: 0,
+  },
+  {
+    taskId: "demo-wet",
+    title: "湿活",
+    objectiveId: "o-own-2",
+    traderSlug: "prapor",
+    kind: "spawn" as const,
+    x: 90,
+    z: -70,
+    help: false,
+    colorIndex: 1,
+  },
+  {
+    taskId: "demo-tower",
+    title: "检查站哨塔",
+    objectiveId: "o-own-3",
+    traderSlug: "skier",
+    kind: "zone" as const,
+    x: 50,
+    z: 40,
+    help: false,
+    colorIndex: 2,
+  },
+  {
+    taskId: "demo-pipe",
+    title: "加热管道",
+    objectiveId: "o-help-1",
+    traderSlug: "mechanic",
+    kind: "zone" as const,
+    x: 400,
+    z: 20,
+    help: true,
+    colorIndex: 3,
+  },
+  {
+    taskId: "demo-wall",
+    title: "山边围墙缺口",
+    objectiveId: "o-help-2",
+    traderSlug: "prapor",
+    kind: "spawn" as const,
+    x: 470,
+    z: 55,
+    help: true,
+    colorIndex: 4,
+  },
+  {
+    taskId: "demo-sewer",
+    title: "下水道枪修孔",
+    objectiveId: "o-help-3",
+    traderSlug: "skier",
+    kind: "zone" as const,
+    x: 210,
+    z: 155,
+    help: true,
+    colorIndex: 5,
+  },
+];
+
+function pulseDemoQuestSquare(x: number, z: number, half = 14) {
+  return [
+    { x: x - half, z: z - half },
+    { x: x + half, z: z - half },
+    { x: x + half, z: z + half },
+    { x: x - half, z: z + half },
+  ];
+}
+
+/** 测试房地图：几条自己要做的任务 + 几条已完成、留给假人的「帮」。 */
+export function pulseDemoQuestPreview(self?: {
+  userId?: number | null;
+  name?: string | null;
+} | null): {
+  overlays: TarkovRaidPrepOverlay[];
+  participantsByTask: Map<string, RaidPrepMapParticipant[]>;
+  skippedByTask: RaidPrepSkipMap;
+  objectiveDones: RaidPrepObjectiveDoneLike[];
+} {
+  const selfId = pulseDemoSelfUserId(self?.userId);
+  const selfName = (self?.name || "").trim() || "我";
+  const mate: RaidPrepMapParticipant = {
+    name: PULSE_DEMO_BOTS[0].displayName,
+    userId: PULSE_DEMO_BOTS[0].userId,
+  };
+  const me: RaidPrepMapParticipant = { name: selfName, userId: selfId };
+  const people = [me, mate];
+  const overlays: TarkovRaidPrepOverlay[] = PULSE_DEMO_QUESTS.map((row) => {
+    const at = { x: row.x, z: row.z };
+    return {
+      key: `${row.taskId}:${row.objectiveId}`,
+      taskId: row.taskId,
+      kind: row.kind,
+      color: colorForTaskIndex(row.colorIndex),
+      title: row.title,
+      subtitle: row.help ? "帮队友完成该步骤" : "你还要做的步骤",
+      steps: [
+        {
+          id: row.objectiveId,
+          text: row.help ? "帮队友完成该步骤" : "你还要做的步骤",
+          optional: false,
+          active: true,
+        },
+      ],
+      traderSlug: row.traderSlug,
+      keyNames: [],
+      showNoKey: false,
+      optional: false,
+      objectiveId: row.objectiveId,
+      outline: row.kind === "zone" ? pulseDemoQuestSquare(row.x, row.z) : [],
+      points: [at],
+      height: null,
+    };
+  });
+  const participantsByTask = new Map<string, RaidPrepMapParticipant[]>();
+  const skippedByTask = new Map<string, Set<string>>();
+  const objectiveDones: RaidPrepObjectiveDoneLike[] = [];
+  for (const row of PULSE_DEMO_QUESTS) {
+    participantsByTask.set(row.taskId, people);
+    if (!row.help) continue;
+    skippedByTask.set(row.taskId, new Set([row.objectiveId]));
+    objectiveDones.push({
+      task_id: row.taskId,
+      objective_id: row.objectiveId,
+      user_id: selfId,
+      display_name: selfName,
+    });
+  }
+  return { overlays, participantsByTask, skippedByTask, objectiveDones };
 }
 
 export function mergeBoardMarks(

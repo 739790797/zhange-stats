@@ -1757,9 +1757,51 @@
   gap: 8px;
 }
 
+.ocrProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.ocrProgressRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ocrProgressRow .ocrMeta {
+  margin: 0;
+  min-width: 0;
+}
+
+.ocrProgressPct {
+  flex: 0 0 auto;
+  color: var(--hb-orange, #c8932a);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.ocrProgressTrack {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--hb-panel, #22241a);
+  border: 1px solid var(--hb-border, #3a3d30);
+}
+
+.ocrProgressFill {
+  height: 100%;
+  background: var(--hb-orange, #c8932a);
+  transition: width 0.2s ease-out;
+}
+
 .ocrOverlay {
   width: 100%;
   min-width: 0;
+  max-height: min(42vh, 420px);
+  overflow: auto;
 }
 
 .ocrOverlayCanvas {
@@ -1860,6 +1902,10 @@
   gap: 4px;
   max-height: min(48vh, 360px);
   overflow: auto;
+}
+
+.ocrResult:has(.ocrOverlay) .ocrList {
+  max-height: min(32vh, 280px);
 }
 
 .ocrItem {

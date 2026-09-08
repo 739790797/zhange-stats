@@ -12,6 +12,7 @@ describe("adminContentShell", () => {
     expect(adminContentShell("/settings/auth")).toBe("form");
     expect(adminContentShell("/settings/integrations")).toBe("form");
     expect(adminContentShell("/settings/email")).toBe("form");
+    expect(adminContentShell("/settings/ocr")).toBe("form");
     expect(adminContentShell("/settings/system")).toBe("form");
   });
 

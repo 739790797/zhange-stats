@@ -1500,6 +1500,38 @@ class TarkovKeyOwnsIn(BaseModel):
     item_ids: list[str] = Field(default_factory=list, max_length=400)
 
 
+class TarkovKeyOcrMatchOut(BaseModel):
+    id: str
+    name: str = ""
+    short_name: str = ""
+    icon_link: str = ""
+    ocr_text: str = ""
+    confidence: str = "fuzzy"
+
+
+class TarkovKeyOcrBoxOut(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+    label: str = ""
+    item_id: str = ""
+    kind: str = "miss"
+
+
+class TarkovKeyOcrOverlayOut(BaseModel):
+    width: int
+    height: int
+    boxes: list[TarkovKeyOcrBoxOut] = Field(default_factory=list)
+
+
+class TarkovKeyOcrOut(BaseModel):
+    matches: list[TarkovKeyOcrMatchOut] = Field(default_factory=list)
+    tile_count: int = 0
+    overlay: TarkovKeyOcrOverlayOut | None = None
+    engines: list[str] = Field(default_factory=list)
+
+
 class TarkovCollectionTaskOut(BaseModel):
     id: str
     name: str = ""

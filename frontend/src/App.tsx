@@ -38,6 +38,7 @@ const IntegrationsSettingsPage = lazy(
 );
 const AuthSettingsPage = lazy(() => import("@/pages/AuthSettingsPage"));
 const EmailSettingsPage = lazy(() => import("@/pages/EmailSettingsPage"));
+const OcrSettingsPage = lazy(() => import("@/pages/OcrSettingsPage"));
 const TaskConfigPage = lazy(() => import("@/pages/TaskConfigPage"));
 const ScheduledJobsPage = lazy(() => import("@/pages/ScheduledJobsPage"));
 const PlatformLogsPage = lazy(() => import("@/pages/PlatformLogsPage"));
@@ -429,6 +430,14 @@ export default function App() {
                   element={
                     <AdminPage>
                       <EmailSettingsPage />
+                    </AdminPage>
+                  }
+                />
+                <Route
+                  path="/settings/ocr"
+                  element={
+                    <AdminPage>
+                      <OcrSettingsPage />
                     </AdminPage>
                   }
                 />

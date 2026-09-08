@@ -22,7 +22,7 @@ import {
 } from "@/api/client";
 import { JobRunResultModal } from "@/components/JobRunResultModal";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { adminCanStepUp } from "@/lib/adminCanStepUp";
+import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { featureIconName } from "@/lib/platformIcons";
@@ -258,7 +258,7 @@ export default function TaskConfigPage() {
   const [pendingSave, setPendingSave] = useState<PlatformFeaturesUpdate | null>(
     null,
   );
-  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
+  const user = useAuthStore((s) => s.user);
 
   const query = useQuery({
     queryKey: ["platform-features-admin"],
@@ -360,16 +360,17 @@ export default function TaskConfigPage() {
               disabled={!flags || !jobs}
               onClick={() => {
                 if (!flags || !jobs || !query.data?.tree) return;
-                if (!canStepUp) {
-                  message.warning("请先在个人中心绑定并验证邮箱");
-                  return;
-                }
                 const reserved = collectReservedIds(query.data.tree);
                 const features: DraftFlags = {};
                 for (const [id, on] of Object.entries(flags)) {
                   if (!reserved.has(id)) features[id] = on;
                 }
-                setPendingSave({ features, jobs });
+                const payload = { features, jobs };
+                requestAdminStepUp(user, {
+                  onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+                  onNeedCode: () => setPendingSave(payload),
+                  onSkip: () => save.mutate({ payload, code: "" }),
+                });
               }}
             >
               保存并应用

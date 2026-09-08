@@ -71,7 +71,7 @@ articles ── * article_versions
 | `tarkov_raid_rooms` | 联机大厅房间：登录用户 `POST /raid-rooms` 创建（`public_id` 为 8 位 hex，兼容仍在库里的旧公开桌 `1`…`5` / `pve-1`…`pve-5`）。`listed=1` 且无密码的房出现在大厅分页列表（当前顶栏 `game_mode`、仍有人在座）；私密房 `listed=0` 且必须有密码，大厅不列出，凭房间码加入。`password_hash` 可空（bcrypt）；公开房禁止带密码。房主设密码会下架（变私密），清密码会上架（变公开）。API 只回 `has_password` / `listed`，不回哈希。加入有密码的桌须在 join 带明文；已在座者再 join 不用。**未入座者 GET 房间只看到标题 / 地图 / 人数 / 是否要密码**，不含人员名单、房主 id、认领、标点、钥匙、目标完成与进度；公开大厅条目仍带在座昵称。写操作须入座；房间 WS 须已入座。join / 大厅列表 / 创建有限流（见 `docs/security.md`「塔科夫联机」）。大厅列表按 listed+无密码+有人在座过滤，过期座位定向回收，不全表加载。最后一人离开、房主清空、或断线超过 2 分钟被收回座位后删行（含成员/画板/勾选/钥匙/目标完成/密码）。第一位加入者成为房主；房主离开则转给最早在座者。房主可改模式、移除成员。换图清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
 | `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开或被房主移除则删行。`last_seen_at` 入座、WS 连接/断开与 WS ping 时刷新；HTTP 拉房间不算心跳。WebSocket 在线集合里的人不踢；不在线且 `last_seen_at` 超过 **2 分钟**则收回座位。`left_at` 列为旧兼容，新写入不再使用。`started_task_ids_json` 为入座后上传的「进行中」任务 id（已去掉完成项），`task_progress_at` 为空表示尚未上传。`room_id` / `user_id` ON DELETE CASCADE |
 | `tarkov_raid_room_task_claims` | 房间任务勾选并集署名；复合主键 `(room_id, task_id, user_id)`。同一任务可多人勾选。ON DELETE CASCADE |
-| `tarkov_user_key_owns` | 用户仓库钥匙拥有（账号级）；复合主键 `(user_id, item_id)`。钥匙分类速查勾选「我有」；准备总结按在座成员展示谁拥有。截图识别只合并这些 id，不存图。ON DELETE CASCADE |
+| `tarkov_user_key_owns` | 用户仓库钥匙拥有（账号级）；复合主键 `(user_id, item_id)`。钥匙分类速查勾选「我有」；准备总结按在座成员展示谁拥有。截图识别只合并这些 id；识别用的截图只进内存，不存图。ON DELETE CASCADE |
 | `tarkov_user_collection_owns` | 用户 3×4 收集勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。个人中心「3×4收集」标记已获得的收集者道具；写入摆放账时按格子里的道具整表对齐。ON DELETE CASCADE |
 | `tarkov_user_collection_layouts` | 用户 3×4 收集摆放过账号（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode)`。清空格子也会写这一行，GET 带 `saved`，避免空网被本机旧缓存盖回去。ON DELETE CASCADE |
 | `tarkov_user_collection_placements` | 用户 3×4 收集摆放（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。`col`/`row`/`rotated` 为格子坐标。个人中心改格子即覆盖写入。ON DELETE CASCADE |
@@ -104,7 +104,7 @@ articles ── * article_versions
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档。索引含 `(job_key, started_at)` |
-| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`site` 页脚备案号等） |
+| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`site` 页脚备案号、`ocr` 文字识别引擎/档位/场景等） |
 | `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete` / `admin_stepup`；`expires_at` 有索引 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |

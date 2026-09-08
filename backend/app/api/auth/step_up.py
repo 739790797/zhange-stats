@@ -14,6 +14,7 @@ from app.api.auth.helpers import (
     _upsert_register_challenge,
 )
 from app.api.auth.schemas import RegisterResponse
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import require_admin
 from app.core.rate_limit import auth_limiter, client_ip
@@ -22,12 +23,25 @@ from app.models.user import User
 router = APIRouter()
 
 
+def admin_step_up_required() -> bool:
+    """生产才校验邮箱验证码；本地 development 跳过，避免无 SMTP 时卡死管理端。"""
+    return get_settings().is_production
+
+
 def consume_admin_step_up(db: Session, user: User, code: str | None) -> None:
+    if not admin_step_up_required():
+        return
     if not user.email or not user.email_verified:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="请先在个人中心绑定并验证邮箱",
         )
+    uid = getattr(user, "id", None)
+    email = str(user.email).strip().lower()
+    if uid is not None:
+        auth_limiter.hit(f"step-up-verify:uid:{uid}", limit=12, window_sec=600)
+    if email:
+        auth_limiter.hit(f"step-up-verify:email:{email}", limit=12, window_sec=600)
     raw = (code or "").strip()
     if not raw:
         raise HTTPException(

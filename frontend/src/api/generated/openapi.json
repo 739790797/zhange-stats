@@ -2068,6 +2068,94 @@
         ]
       }
     },
+    "/api/settings/ocr": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Ocr Settings",
+        "operationId": "get_ocr_settings_api_settings_ocr_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrSettingsOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update Ocr Settings",
+        "operationId": "update_ocr_settings_api_settings_ocr_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrSettingsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/integrations/status": {
       "get": {
         "tags": [
@@ -12684,6 +12772,68 @@
         }
       }
     },
+    "/api/guides/tarkov/key-owns/recognize": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Key Owns Recognize",
+        "description": "钥匙箱截图识别短名；图只进内存。多引擎交叉验证后返回命中与文本框坐标，确认后才合并拥有。",
+        "operationId": "guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovKeyOcrOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/key-owns/{item_id}": {
       "put": {
         "tags": [
@@ -18567,6 +18717,20 @@
           "user"
         ],
         "title": "BindEmailResponse"
+      },
+      "Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"
       },
       "Body_minecraft_files_upload_api_guides_minecraft_files_upload_post": {
         "properties": {
@@ -25920,6 +26084,145 @@
         ],
         "title": "MinecraftStatusOut"
       },
+      "OcrEngineStatusOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed"
+          },
+          "models_ready": {
+            "type": "boolean",
+            "title": "Models Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "installed",
+          "models_ready"
+        ],
+        "title": "OcrEngineStatusOut"
+      },
+      "OcrOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "OcrOptionOut"
+      },
+      "OcrSettingsOut": {
+        "properties": {
+          "paddle_profile": {
+            "type": "string",
+            "title": "Paddle Profile"
+          },
+          "engines": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Engines"
+          },
+          "use_cases": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Use Cases"
+          },
+          "engine_status": {
+            "items": {
+              "$ref": "#/components/schemas/OcrEngineStatusOut"
+            },
+            "type": "array",
+            "title": "Engine Status"
+          },
+          "paddle_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/OcrOptionOut"
+            },
+            "type": "array",
+            "title": "Paddle Profiles"
+          },
+          "use_case_meta": {
+            "items": {
+              "$ref": "#/components/schemas/OcrOptionOut"
+            },
+            "type": "array",
+            "title": "Use Case Meta"
+          },
+          "engine_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Engine Labels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paddle_profile",
+          "engines",
+          "use_cases"
+        ],
+        "title": "OcrSettingsOut"
+      },
+      "OcrSettingsUpdate": {
+        "properties": {
+          "paddle_profile": {
+            "type": "string",
+            "title": "Paddle Profile",
+            "default": "v5_server"
+          },
+          "engines": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Engines"
+          },
+          "use_cases": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Use Cases"
+          }
+        },
+        "type": "object",
+        "title": "OcrSettingsUpdate"
+      },
       "PasswordPolicyOut": {
         "properties": {
           "min_password_length": {
@@ -31239,6 +31542,147 @@
           "gun_count"
         ],
         "title": "TarkovItemsSyncOut"
+      },
+      "TarkovKeyOcrBoxOut": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "item_id": {
+            "type": "string",
+            "title": "Item Id",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "miss"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "TarkovKeyOcrBoxOut"
+      },
+      "TarkovKeyOcrMatchOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "default": ""
+          },
+          "icon_link": {
+            "type": "string",
+            "title": "Icon Link",
+            "default": ""
+          },
+          "ocr_text": {
+            "type": "string",
+            "title": "Ocr Text",
+            "default": ""
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence",
+            "default": "fuzzy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovKeyOcrMatchOut"
+      },
+      "TarkovKeyOcrOut": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyOcrMatchOut"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "tile_count": {
+            "type": "integer",
+            "title": "Tile Count",
+            "default": 0
+          },
+          "overlay": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovKeyOcrOverlayOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Engines"
+          }
+        },
+        "type": "object",
+        "title": "TarkovKeyOcrOut"
+      },
+      "TarkovKeyOcrOverlayOut": {
+        "properties": {
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovKeyOcrBoxOut"
+            },
+            "type": "array",
+            "title": "Boxes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "TarkovKeyOcrOverlayOut"
       },
       "TarkovKeyOwnOut": {
         "properties": {
@@ -39018,6 +39462,11 @@
             "type": "boolean",
             "title": "Email Verified",
             "default": false
+          },
+          "admin_step_up_required": {
+            "type": "boolean",
+            "title": "Admin Step Up Required",
+            "default": true
           },
           "avatar_url": {
             "anyOf": [

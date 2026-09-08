@@ -4,11 +4,12 @@ import { TAVERN_ADMIN_PATH, TAVERN_PATH } from "@/lib/tavernNav";
 
 export type AdminContentShell = "form" | "wide" | "reading" | "flush";
 
-/** 系统管理（安全 / 集成 / 邮箱 / 更新）：约 960px，贴近常见 SaaS 设置栏。 */
+/** 系统管理（安全 / 集成 / 邮箱 / 文字识别 / 更新）：约 960px，贴近常见 SaaS 设置栏。 */
 const FORM_PATHS = new Set([
   "/settings/auth",
   "/settings/integrations",
   "/settings/email",
+  "/settings/ocr",
   "/settings/system",
 ]);
 

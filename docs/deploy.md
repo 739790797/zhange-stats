@@ -42,9 +42,11 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 发版：推送到 `main` 时 CI 按根目录 `VERSION` 创建/更新 GitHub Release（tag `v{VERSION}`），并上传 `zhange-stats-{VERSION}-static.tar.gz`。
 
-持久化目录：`var/data/`（含 `.secret_key` 与日志、TexTeller 公式识别权重 `var/data/texteller/`）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
+持久化目录：`var/data/`（含 `.secret_key` 与日志、TexTeller 公式识别权重 `var/data/texteller/`、钥匙截图识别 RapidOCR 权重 `var/data/rapidocr/` 与 EasyOCR 权重 `var/data/easyocr/`）、`var/uploads/`、`.env`（更新白名单不会覆盖）。已有生产若仍用安装根 `data/`、`uploads/`，保持 `.env` 原值即可。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
 
 公式识别用 [TexTeller](https://github.com/OleehyO/TexTeller) 的 ONNX 权重，推理走 `onnxruntime`（主依赖），不必再装官方 `texteller`（torch）。权重可更新：启动时若本地没有会后台补齐；之后由任务配置「公式识别模型更新」对照镜像上的 `OleehyO/TexTeller` 定时同步。默认走 `https://hf-mirror.com`。
+
+钥匙管理截图识别走站内共享 OCR：[RapidOCR](https://github.com/RapidAI/RapidOCR)（默认 **PP-OCRv5 server**，可在系统管理「文字识别」改 PP-OCRv6 small/medium）和 [EasyOCR](https://github.com/JaidedAI/EasyOCR) 交叉验证，低频场景优先准。依赖在 `requirements.txt`（`rapidocr` + `easyocr` / torch + `opencv-python-headless`）。权重由任务配置「识别模型更新」落到 `var/data/rapidocr` 与 `var/data/easyocr`（Paddle 走 ModelScope，EasyOCR 走 GitHub Release）；识别时不现场下载，未就绪会 503。EasyOCR 常驻大约多占 1–2GB 内存。LXC 若同时装上了 `opencv-python`（带 GUI）可能缺 libGL，可 `pip uninstall -y opencv-python` 只留 headless。可选第三路：`apt install tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng`，有二进制才会启用。不对外提供通用识别 HTTP。
 
 健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；数据库不通时为 `degraded` 且 **HTTP 503**。数据库探测结果进程内缓存 1 秒，避免探针打满连接池。管理端「平台日志」的运行时健康另含 `APP_ENV`、Redis、`TRUST_X_FORWARDED_FOR`、SMTP，公开引流前应在该页核对。
 
@@ -105,6 +107,8 @@ location / {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
+    proxy_read_timeout 360s;
+    proxy_send_timeout 360s;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header X-Frame-Options "DENY" always;

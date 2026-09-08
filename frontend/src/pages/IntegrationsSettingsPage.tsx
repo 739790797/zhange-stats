@@ -24,7 +24,7 @@ import {
 } from "@/api/client";
 import type { IntegrationsUpdate } from "@/api/settingsApi";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { adminCanStepUp } from "@/lib/adminCanStepUp";
+import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
@@ -116,8 +116,8 @@ function IntegrationBlock({
 export default function IntegrationsSettingsPage() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<FormValues>();
+  const user = useAuthStore((s) => s.user);
   const [pending, setPending] = useState<IntegrationsUpdate | null>(null);
-  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
 
   const { data, isLoading } = useQuery({
     queryKey: ["integrations-settings"],
@@ -213,16 +213,12 @@ export default function IntegrationsSettingsPage() {
         style={{ maxWidth: 960, margin: "0 auto" }}
         disabled={isLoading}
         onFinish={(values) => {
-        if (!canStepUp) {
-          message.warning("请先在个人中心绑定并验证邮箱");
-          return;
-        }
         const steam = values.steam_api_key?.trim() || "";
         const qqKey = values.qq_app_key?.trim() || "";
         const githubToken = values.github_token?.trim() || "";
         const pelicanToken = values.pelican_client_token?.trim() || "";
         const rconPassword = values.minecraft_rcon_password?.trim() || "";
-        setPending({
+        const payload: IntegrationsUpdate = {
           steam_api_key: steam || null,
           qq_app_id: values.qq_app_id ?? "",
           qq_app_key: qqKey || null,
@@ -240,6 +236,11 @@ export default function IntegrationsSettingsPage() {
           clear_minecraft_rcon_password: !rconPassword,
           minecraft_public_host: values.minecraft_public_host ?? "",
           minecraft_public_port: values.minecraft_public_port || 25565,
+        };
+        requestAdminStepUp(user, {
+          onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+          onNeedCode: () => setPending(payload),
+          onSkip: () => save.mutate({ payload, code: "" }),
         });
       }}
     >

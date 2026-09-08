@@ -110,6 +110,7 @@ export type TarkovRaidRoomLiveMapProps = {
   lockKeyMode?: TarkovLockKeyMode;
   lockKeyOwns?: readonly RaidRoomKeyBringLike[] | null;
   lockKeyBrings?: readonly RaidRoomKeyBringLike[] | null;
+  questPeopleStartOn?: "self" | "all";
 };
 
 function RaidRoomFixRelay({
@@ -205,6 +206,7 @@ export function TarkovRaidRoomLiveMap({
   lockKeyMode = "party",
   lockKeyOwns,
   lockKeyBrings,
+  questPeopleStartOn = "self",
 }: TarkovRaidRoomLiveMapProps) {
   const drafts = useRaidRoomLiveStore((state) => state.drafts);
   const fixes = useRaidRoomLiveStore((state) => state.fixes);
@@ -480,6 +482,7 @@ export function TarkovRaidRoomLiveMap({
         onQuestLabelClick={onQuestLabelClick}
         onQuestCompleteObjective={onQuestCompleteObjective}
         questParticipantsByTask={questParticipantsByTask}
+        questPeopleStartOn={questPeopleStartOn}
         topRight={topRight}
         toolbar={toolbar}
         lockKeyMode={lockKeyMode}

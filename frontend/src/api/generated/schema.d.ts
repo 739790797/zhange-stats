@@ -723,6 +723,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/ocr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ocr Settings */
+        get: operations["get_ocr_settings_api_settings_ocr_get"];
+        /** Update Ocr Settings */
+        put: operations["update_ocr_settings_api_settings_ocr_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/integrations/status": {
         parameters: {
             query?: never;
@@ -3857,6 +3875,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/key-owns/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Key Owns Recognize
+         * @description 钥匙箱截图识别短名；图只进内存。多引擎交叉验证后返回命中与文本框坐标，确认后才合并拥有。
+         */
+        post: operations["guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/key-owns/{item_id}": {
         parameters: {
             query?: never;
@@ -5830,6 +5868,11 @@ export interface components {
             /** Message */
             message: string;
             user: components["schemas"]["UserOut"];
+        };
+        /** Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post */
+        Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post: {
+            /** File */
+            file: string;
         };
         /** Body_minecraft_files_upload_api_guides_minecraft_files_upload_post */
         Body_minecraft_files_upload_api_guides_minecraft_files_upload_post: {
@@ -9385,6 +9428,71 @@ export interface components {
             /** Roster */
             roster?: components["schemas"]["MinecraftRosterPlayerOut"][];
         };
+        /** OcrEngineStatusOut */
+        OcrEngineStatusOut: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Installed */
+            installed: boolean;
+            /** Models Ready */
+            models_ready: boolean;
+        };
+        /** OcrOptionOut */
+        OcrOptionOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
+        };
+        /** OcrSettingsOut */
+        OcrSettingsOut: {
+            /** Paddle Profile */
+            paddle_profile: string;
+            /** Engines */
+            engines: {
+                [key: string]: boolean;
+            };
+            /** Use Cases */
+            use_cases: {
+                [key: string]: string[];
+            };
+            /** Engine Status */
+            engine_status?: components["schemas"]["OcrEngineStatusOut"][];
+            /** Paddle Profiles */
+            paddle_profiles?: components["schemas"]["OcrOptionOut"][];
+            /** Use Case Meta */
+            use_case_meta?: components["schemas"]["OcrOptionOut"][];
+            /** Engine Labels */
+            engine_labels?: {
+                [key: string]: string;
+            };
+        };
+        /** OcrSettingsUpdate */
+        OcrSettingsUpdate: {
+            /**
+             * Paddle Profile
+             * @default v5_server
+             */
+            paddle_profile: string;
+            /** Engines */
+            engines?: {
+                [key: string]: boolean;
+            };
+            /** Use Cases */
+            use_cases?: {
+                [key: string]: string[];
+            };
+        };
         /** PasswordPolicyOut */
         PasswordPolicyOut: {
             /**
@@ -11811,6 +11919,84 @@ export interface components {
              * @default ok
              */
             message: string;
+        };
+        /** TarkovKeyOcrBoxOut */
+        TarkovKeyOcrBoxOut: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Item Id
+             * @default
+             */
+            item_id: string;
+            /**
+             * Kind
+             * @default miss
+             */
+            kind: string;
+        };
+        /** TarkovKeyOcrMatchOut */
+        TarkovKeyOcrMatchOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Short Name
+             * @default
+             */
+            short_name: string;
+            /**
+             * Icon Link
+             * @default
+             */
+            icon_link: string;
+            /**
+             * Ocr Text
+             * @default
+             */
+            ocr_text: string;
+            /**
+             * Confidence
+             * @default fuzzy
+             */
+            confidence: string;
+        };
+        /** TarkovKeyOcrOut */
+        TarkovKeyOcrOut: {
+            /** Matches */
+            matches?: components["schemas"]["TarkovKeyOcrMatchOut"][];
+            /**
+             * Tile Count
+             * @default 0
+             */
+            tile_count: number;
+            overlay?: components["schemas"]["TarkovKeyOcrOverlayOut"] | null;
+            /** Engines */
+            engines?: string[];
+        };
+        /** TarkovKeyOcrOverlayOut */
+        TarkovKeyOcrOverlayOut: {
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Boxes */
+            boxes?: components["schemas"]["TarkovKeyOcrBoxOut"][];
         };
         /** TarkovKeyOwnOut */
         TarkovKeyOwnOut: {
@@ -15405,6 +15591,11 @@ export interface components {
              * @default false
              */
             email_verified: boolean;
+            /**
+             * Admin Step Up Required
+             * @default true
+             */
+            admin_step_up_required: boolean;
             /** Avatar Url */
             avatar_url?: string | null;
             /** Steam Id */
@@ -17003,6 +17194,61 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ocr_settings_api_settings_ocr_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrSettingsOut"];
+                };
+            };
+        };
+    };
+    update_ocr_settings_api_settings_ocr_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OcrSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrSettingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -23037,6 +23283,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovKeyOwnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovKeyOcrOut"];
                 };
             };
             /** @description Validation Error */

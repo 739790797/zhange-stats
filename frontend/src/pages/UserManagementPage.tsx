@@ -22,7 +22,7 @@ import {
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { adminCanStepUp } from "@/lib/adminCanStepUp";
+import { ADMIN_STEP_UP_BLOCKED, adminCanStepUp, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
@@ -299,11 +299,24 @@ export default function UserManagementPage() {
                         : "请先在个人中心绑定并验证邮箱"
                     }
                     onClick={() => {
-                      if (!canStepUp) {
-                        message.warning("请先在个人中心绑定并验证邮箱");
-                        return;
-                      }
-                      setDeleteTarget(row.id);
+                      requestAdminStepUp(currentUser, {
+                        onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+                        onNeedCode: () => setDeleteTarget(row.id),
+                        onSkip: () => {
+                          Modal.confirm({
+                            title: "确定注销该用户？",
+                            content: "此操作不可撤销。",
+                            okText: "注销",
+                            okButtonProps: { danger: true },
+                            cancelText: "取消",
+                            onOk: () =>
+                              removeUser.mutateAsync({
+                                id: row.id,
+                                code: "",
+                              }),
+                          });
+                        },
+                      });
                     }}
                   >
                     删除
@@ -385,11 +398,12 @@ export default function UserManagementPage() {
               (values.role === "admin") !== isAdminUser(editing);
             const passwordSet = Boolean(values.password?.trim());
             if (roleChanging || passwordSet) {
-              if (!canStepUp) {
-                message.warning("请先在个人中心绑定并验证邮箱");
-                return;
-              }
-              setPendingSave({ id: editing.id, values });
+              requestAdminStepUp(currentUser, {
+                onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+                onNeedCode: () => setPendingSave({ id: editing.id, values }),
+                onSkip: () =>
+                  saveUser.mutate({ id: editing.id, values, code: "" }),
+              });
               return;
             }
             saveUser.mutate({ id: editing.id, values });
@@ -420,7 +434,7 @@ export default function UserManagementPage() {
               {
                 validator: async (_, value) => {
                   if (!value || !String(value).trim()) return;
-                  if (String(value).trim().length < 6) {
+                  if (String(value).trim().length < 8) {
                     throw new Error("密码至少 8 位");
                   }
                 },

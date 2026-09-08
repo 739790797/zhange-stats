@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatKeyOcrEngines,
   formatOcrProgress,
   mergeOcrSelection,
   newOcrIds,
@@ -17,6 +18,15 @@ describe("formatOcrProgress", () => {
     );
     expect(formatOcrProgress("recognizing text", 0.4)).toBe("正在识别文字… 40%");
     expect(formatOcrProgress("matching icons", 0.2)).toBe("正在比对钥匙图标… 20%");
+  });
+});
+
+describe("formatKeyOcrEngines", () => {
+  it("labels paddle / easyocr / tess", () => {
+    expect(formatKeyOcrEngines(["paddle", "easyocr", "tess"])).toBe(
+      "熊猫 OCR / EasyOCR / Tesseract",
+    );
+    expect(formatKeyOcrEngines([])).toBe("");
   });
 });
 

@@ -1,6 +1,11 @@
+import asyncio
 import json
+import logging
+import queue
+import threading
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.guides import tarkov_goons, tarkov_raid_rooms
@@ -53,6 +58,7 @@ from app.api.guides.schemas import (
     TarkovKeyPacksOut,
     TarkovKeyOwnsIn,
     TarkovKeyOwnsOut,
+    TarkovKeyOcrOut,
     TarkovCollectionOut,
     TarkovCollectionOwnsIn,
     TarkovCollectionOwnsOut,
@@ -72,6 +78,7 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.core.http_cache import catalog_freshness, set_catalog_cache_headers
 from app.core.platform_deps import require_feature
 from app.models.user import User
+from app.services.ocr.types import OcrError
 from app.services.tarkov import ammo as ammo_svc
 from app.services.tarkov import bosses as bosses_svc
 from app.services.tarkov import catalog as catalog_svc
@@ -82,6 +89,7 @@ from app.services.tarkov import workbench as workbench_svc
 from app.services.tarkov import workbench_image as workbench_image_svc
 from app.services.tarkov import community as community_svc
 from app.services.tarkov import key_owns as key_owns_svc
+from app.services.tarkov import key_ocr as key_ocr_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import collection as collection_svc
@@ -104,6 +112,7 @@ from app.services.tarkov.game_mode import (
 from app.services.tarkov.upstream import raw_row_header
 
 router = APIRouter(prefix="/tarkov")
+_log = logging.getLogger(__name__)
 
 
 async def tarkov_game_mode(
@@ -1560,6 +1569,137 @@ def guides_tarkov_key_owns_merge(
     db.commit()
     rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
+
+
+def _key_ocr_ndjson_response(request: Request, image, catalog, recognizers) -> StreamingResponse:
+    """识别在工作线程跑；请求线程只读队列，避免 Session 进线程。"""
+    events: queue.Queue[dict | None] = queue.Queue()
+    cancel = threading.Event()
+    empty = object()
+
+    def on_progress(message: str, stats: dict) -> None:
+        events.put(key_ocr_svc.progress_payload(message, stats))
+
+    def work() -> None:
+        try:
+            result = key_ocr_svc.recognize_image(
+                image,
+                catalog,
+                recognizers=recognizers,
+                progress=on_progress,
+                cancel=cancel,
+            )
+            events.put(
+                {
+                    "event": "done",
+                    "result": TarkovKeyOcrOut.model_validate(result).model_dump(
+                        mode="json"
+                    ),
+                }
+            )
+        except key_ocr_svc.RecognizeCancelled:
+            pass
+        except OcrError as exc:
+            events.put(
+                {
+                    "event": "error",
+                    "status_code": exc.status_code,
+                    "detail": exc.message,
+                }
+            )
+        except Exception:
+            _log.exception("tarkov key ocr stream failed")
+            events.put(
+                {
+                    "event": "error",
+                    "status_code": 500,
+                    "detail": "识别失败，请重试",
+                }
+            )
+        finally:
+            key_ocr_svc.end_recognize()
+            events.put(None)
+
+    def pull():
+        try:
+            return events.get(timeout=0.35)
+        except queue.Empty:
+            return empty
+
+    threading.Thread(target=work, name="tarkov-key-ocr", daemon=True).start()
+
+    async def agen():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    cancel.set()
+                    break
+                item = await asyncio.to_thread(pull)
+                if item is empty:
+                    continue
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+        except asyncio.CancelledError:
+            cancel.set()
+            raise
+
+    return StreamingResponse(
+        agen(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post(
+    "/key-owns/recognize",
+    response_model=TarkovKeyOcrOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+async def guides_tarkov_key_owns_recognize(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """钥匙箱截图识别短名；图只进内存。多引擎交叉验证后返回命中与文本框坐标，确认后才合并拥有。"""
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-key-ocr:ip:{ip}", limit=8, window_sec=600)
+    platform_limiter.hit(f"tarkov-key-ocr:uid:{user.id}", limit=6, window_sec=600)
+    raw = await file.read(key_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
+    try:
+        packs = key_packs_svc.list_key_packs(db)
+    except key_packs_svc.TarkovKeyPacksError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    catalog = key_ocr_svc.flatten_key_catalog(packs)
+    try:
+        image = key_ocr_svc.load_image(raw)
+        recognizers = key_ocr_svc.resolve_recognizers(db=db)
+    except OcrError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    if not key_ocr_svc.try_begin_recognize():
+        raise HTTPException(
+            status_code=429,
+            detail="已有识别任务在运行，请稍后再试",
+        )
+    streaming = key_ocr_svc.wants_progress_stream(
+        request.headers.get("accept") or "",
+        request.headers.get("x-recognize-progress") or "",
+    )
+    if not streaming:
+        try:
+            result = key_ocr_svc.recognize_image(
+                image, catalog, recognizers=recognizers
+            )
+        except OcrError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        finally:
+            key_ocr_svc.end_recognize()
+        return TarkovKeyOcrOut.model_validate(result)
+    return _key_ocr_ndjson_response(request, image, catalog, recognizers)
 
 
 @router.put(

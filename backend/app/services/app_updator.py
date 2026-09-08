@@ -876,6 +876,17 @@ def pip_install_requirements(install_dir: Path) -> None:
     cmd = [str(python), "-m", "pip", "install", "-r", str(req)]
     logger.info("pip install: %s", " ".join(cmd))
     subprocess.run(cmd, check=True, cwd=str(backend))
+    # RapidOCR / EasyOCR 可能拉来带 GUI 的 opencv-python；LXC 只留 headless
+    subprocess.run(
+        [str(python), "-m", "pip", "uninstall", "-y", "opencv-python"],
+        check=False,
+        cwd=str(backend),
+    )
+    subprocess.run(
+        [str(python), "-m", "pip", "install", "--force-reinstall", "--no-deps", "opencv-python-headless>=4.8.0"],
+        check=True,
+        cwd=str(backend),
+    )
 
 
 _EMERGENCY_UPDATE_HINT = (

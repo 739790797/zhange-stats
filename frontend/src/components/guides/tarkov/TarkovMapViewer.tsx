@@ -75,6 +75,9 @@ import {
   overlayFloorForSpan,
   overlayVisibleOnFloor,
   RAID_PREP_LABEL_CLUSTER_PX,
+  RAID_PREP_QUEST_HELP_HINT,
+  RAID_PREP_QUEST_HELP_LABEL,
+  raidPrepQuestPaintColor,
   RAID_PREP_QUEST_POINT_ACTION_LABELS,
   RAID_PREP_QUEST_POINT_MENU_HINT,
   raidPrepParticipants,
@@ -283,6 +286,8 @@ type Props = {
   questObjectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
   /** 无人树时回退：当前用户已勾掉的步骤 */
   questSkippedByTask?: RaidPrepSkipMap;
+  /** 侧栏任务人：self=默认只勾自己；all=全开（测试房要看到「帮」点） */
+  questPeopleStartOn?: "self" | "all";
   highlightTaskId?: string;
   overlayMode?: TarkovMapOverlayMode;
   layerChrome?: "full" | "floors";
@@ -1066,10 +1071,12 @@ type QuestBubbleRow = {
   height?: RaidPrepHeightSpan | null;
   at?: RaidPrepPoint;
   participants?: readonly RaidPrepMapParticipant[];
+  done?: boolean;
 };
 
 function questParticipantChipsHtml(
   people: readonly RaidPrepMapParticipant[] | undefined,
+  help = false,
 ): string {
   const list = raidPrepParticipants(people);
   if (!list.length) return "";
@@ -1082,7 +1089,10 @@ function questParticipantChipsHtml(
       return `<span class="${styles.questTipChip}"><span class="${styles.questTipDot}" style="background:${escapeHtml(color)}"></span>${escapeHtml(person.name)}</span>`;
     })
     .join("");
-  return `<span class="${styles.questTipPeople}">${chips}</span>`;
+  const lead = help
+    ? `<span class="${styles.questTipPeopleLead}">还需</span>`
+    : "";
+  return `<span class="${styles.questTipPeople}">${lead}${chips}</span>`;
 }
 
 function overlayBubbleStepsHtml(row: QuestBubbleRow): string {
@@ -1101,7 +1111,7 @@ function overlayBubbleStepsHtml(row: QuestBubbleRow): string {
     .map((step) => {
       const on = step.active ? ` ${styles.questTipStepOn}` : "";
       const color = step.active
-        ? ` style="color:${escapeHtml(row.color)}"`
+        ? ` style="color:${escapeHtml(raidPrepQuestPaintColor(row.color, row.done))}"`
         : "";
       return `<span class="${styles.questTipStep}${on}"${color}>${escapeHtml(step.text)}</span>`;
     })
@@ -1125,6 +1135,9 @@ function overlayBubbleHtml(
   const hint = extras?.hint
     ? `<span class="${styles.questTipHint}">${escapeHtml(extras.hint)}</span>`
     : "";
+  const help = row.done
+    ? `<span class="${styles.questTipHelp}">${escapeHtml(RAID_PREP_QUEST_HELP_HINT)}</span>`
+    : "";
   const actions = extras?.actions?.length
     ? `<span class="${styles.questTipActions}">${extras.actions
         .map(
@@ -1133,7 +1146,8 @@ function overlayBubbleHtml(
         )
         .join("")}</span>`
     : "";
-  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${row.color}">${escapeHtml(row.title)}</span></span>${overlayBubbleStepsHtml(row)}${keyRow}${questParticipantChipsHtml(row.participants)}${hint}${actions}</span>`;
+  const paint = raidPrepQuestPaintColor(row.color, row.done);
+  return `<span class="${styles.questTip}"><span class="${styles.questTipRow}">${questTraderImgHtml(row.traderSlug)}<span class="${styles.questTipName}" style="color:${paint}">${escapeHtml(row.title)}</span></span>${overlayBubbleStepsHtml(row)}${keyRow}${help}${questParticipantChipsHtml(row.participants, Boolean(row.done))}${hint}${actions}</span>`;
 }
 
 function traderSlugForIcon(slug: string): string {
@@ -1157,8 +1171,12 @@ function questLabelLineHtml(
   const keyMark = item.keyNames.length
     ? `<span class="${styles.questLabelKey}">${escapeHtml(formatRaidPrepOverlayKeyLabel(item.keyNames, item.showNoKey) || "钥匙")}</span>`
     : "";
-  const dim = offFloor || done ? ` ${styles.questLabelOff}` : "";
-  return `<span class="${styles.questLabelRow}${dim}" data-task-id="${escapeHtml(item.taskId)}">${questTraderImgHtml(item.traderSlug)}<span class="${styles.questName}" style="color:${item.color}">${escapeHtml(title)}</span>${keyMark}</span>`;
+  const help = done
+    ? `<span class="${styles.questLabelHelp}">${escapeHtml(RAID_PREP_QUEST_HELP_LABEL)}</span>`
+    : "";
+  const paint = raidPrepQuestPaintColor(item.color, done);
+  const dim = offFloor ? ` ${styles.questLabelOff}` : "";
+  return `<span class="${styles.questLabelRow}${dim}" data-task-id="${escapeHtml(item.taskId)}">${questTraderImgHtml(item.traderSlug)}<span class="${styles.questName}" style="color:${paint}">${escapeHtml(title)}</span>${help}${keyMark}</span>`;
 }
 
 function applyQuestLabelHighlight(
@@ -1313,7 +1331,10 @@ function questBubbleFromOverlay(
     kind: row.kind,
     height: row.height,
     at: overlayFloorAt(row),
-    participants: raidPrepParticipants(namesByTask?.get(row.taskId)),
+    participants: row.neededBy
+      ? raidPrepParticipants(row.neededBy)
+      : raidPrepParticipants(namesByTask?.get(row.taskId)),
+    done: Boolean(row.done),
   };
 }
 
@@ -1335,17 +1356,17 @@ function addQuestOverlays(
       floorBands,
       overlayFloorAt(row),
     );
-    const fade =
-      (onFloor ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY) *
-      (row.done ? 0.42 : 1);
+    const fade = onFloor ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY;
+    const dashed = row.optional || row.done;
+    const paint = raidPrepQuestPaintColor(row.color, row.done);
     if (row.outline.length >= 3) {
       const polygon = L.polygon(
         row.outline.map((point) => pos({ x: point.x, z: point.z })),
         {
-          color: row.color,
+          color: paint,
           weight: 2,
-          dashArray: row.optional ? "5 4" : undefined,
-          fillColor: row.color,
+          dashArray: dashed ? "5 4" : undefined,
+          fillColor: paint,
           opacity: fade,
           fillOpacity: (row.optional ? 0.1 : 0.18) * fade,
           className: styles.questHit,
@@ -1359,8 +1380,8 @@ function addQuestOverlays(
         radius: row.kind === "spawn" ? 5 : 7,
         color: "#111",
         weight: 1,
-        dashArray: row.optional ? "3 2" : undefined,
-        fillColor: row.color,
+        dashArray: dashed ? "3 2" : undefined,
+        fillColor: paint,
         opacity: fade,
         fillOpacity: (row.optional ? 0.55 : 0.92) * fade,
         className: styles.questHit,
@@ -1417,7 +1438,7 @@ function addQuestLabels(
       const marker = L.marker(pos({ x: label.x, z: label.z }), {
         icon: L.divIcon({
           className: styles.questIcon,
-          html: `<span class="${styles.questLabelStack}">${questLabelLineHtml(item, offFloor, Boolean(source?.done))}</span>`,
+          html: `<span class="${styles.questLabelStack}">${questLabelLineHtml(item, offFloor, Boolean(item.done || source?.done))}</span>`,
           iconSize: [1, 1],
           iconAnchor: [0, -index * lineH],
         }),
@@ -1440,7 +1461,10 @@ function addQuestLabels(
           optional: item.optional,
           height: item.height,
           at,
-          participants: raidPrepParticipants(namesByTask?.get(item.taskId)),
+          participants: raidPrepParticipants(
+            source?.neededBy ?? namesByTask?.get(item.taskId),
+          ),
+          done: Boolean(source?.done ?? item.done),
         },
         onLabelClick,
         menuHint,
@@ -1944,6 +1968,7 @@ export function TarkovMapViewer({
   questParticipantsByTask,
   questObjectiveDones,
   questSkippedByTask,
+  questPeopleStartOn = "self",
   highlightTaskId = "",
   overlayMode = "all",
   layerChrome = "full",
@@ -2070,11 +2095,15 @@ export function TarkovMapViewer({
   );
   useEffect(() => {
     if (questPersonSeededRef.current) return;
+    if (questPeopleStartOn === "all") {
+      questPersonSeededRef.current = true;
+      return;
+    }
     const off = defaultQuestPersonOffKeys(questPeople, authorUserId);
     if (off == null) return;
     questPersonSeededRef.current = true;
     setQuestPersonOff(new Set(off));
-  }, [questPeople, authorUserId]);
+  }, [questPeople, authorUserId, questPeopleStartOn]);
   const questTree = questOverlays.length > 0;
   const selectedQuestKeys = useMemo(() => {
     if (!questTree) return null;
@@ -2091,6 +2120,7 @@ export function TarkovMapViewer({
         participantsByTask: questParticipantsByTask,
         objectiveDones: questObjectiveDones,
         skippedByTask: questSkippedByTask,
+        selfUserId: authorUserId,
       }),
     [
       questOverlays,
@@ -2098,6 +2128,7 @@ export function TarkovMapViewer({
       questObjectiveDones,
       questSkippedByTask,
       selectedQuestKeys,
+      authorUserId,
     ],
   );
   const displayedParticipantsByTask = useMemo(() => {
@@ -2119,9 +2150,11 @@ export function TarkovMapViewer({
     () =>
       displayedQuestOverlays
         .map((row) => {
-          const people = raidPrepParticipants(
-            displayedParticipantsByTask?.get(row.taskId),
-          );
+          const people = row.neededBy
+            ? raidPrepParticipants(row.neededBy)
+            : raidPrepParticipants(
+                displayedParticipantsByTask?.get(row.taskId),
+              );
           const sig = people
             .map((person) => `${person.userId ?? ""}:${person.name}`)
             .join(",");

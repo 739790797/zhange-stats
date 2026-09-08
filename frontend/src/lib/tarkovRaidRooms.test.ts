@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tarkovRaidRoomHref, tarkovRaidRoomShareUrl } from "./tarkovHomeNav";
+import { filterRaidPrepOverlaysForSelection } from "./tarkovRaidPrep";
 import {
   applyRoomWsEvent,
   keepRaidRoomPresence,
@@ -73,6 +74,7 @@ import {
   colorForUserId,
   PULSE_DEMO_BOTS,
   PULSE_DEMO_MAP_ID,
+  PULSE_DEMO_SELF_ID,
   PULSE_DEMO_TICK_MAX_MS,
   PULSE_DEMO_TICK_MIN_MS,
   isPulseDemoSession,
@@ -80,6 +82,7 @@ import {
   nextPulseDemoWaitMs,
   pulseDemoFixAt,
   pulseDemoMembers,
+  pulseDemoQuestPreview,
   PLAYER_FIX_PULSE_MS,
   buildPlayerFixPulseLines,
   detectPlayerFixPulseUpdaters,
@@ -1111,6 +1114,37 @@ describe("raid room helpers", () => {
     expect(nextPulseDemoWaitMs(1)).toBe(PULSE_DEMO_TICK_MAX_MS);
     expect(nextPulseDemoBotIndex(1, 4, 0)).not.toBe(1);
     expect(nextPulseDemoBotIndex(1, 4, 0.99)).not.toBe(1);
+  });
+
+  it("previews own quest colors and help-gray steps on the pulse-demo map", () => {
+    const sample = pulseDemoQuestPreview({ userId: 12, name: "我" });
+    const shown = filterRaidPrepOverlaysForSelection(sample.overlays, {
+      selectedKeys: new Set(["id:12", "id:900001"]),
+      participantsByTask: sample.participantsByTask,
+      objectiveDones: sample.objectiveDones,
+      skippedByTask: sample.skippedByTask,
+      selfUserId: 12,
+    });
+    expect(
+      shown
+        .filter((row) => row.done)
+        .map((row) => row.title)
+        .sort(),
+    ).toEqual(["加热管道", "山边围墙缺口", "下水道枪修孔"].sort());
+    expect(
+      shown
+        .filter((row) => !row.done)
+        .map((row) => row.title)
+        .sort(),
+    ).toEqual(["准备专家", "湿活", "检查站哨塔"].sort());
+  });
+
+  it("uses a stable fallback self id when the viewer is not logged in", () => {
+    const sample = pulseDemoQuestPreview();
+    expect(sample.objectiveDones.every((row) => row.user_id === PULSE_DEMO_SELF_ID)).toBe(
+      true,
+    );
+    expect(sample.skippedByTask.size).toBeGreaterThan(0);
   });
 
   it("formats overlap cells and ranks map rows", () => {

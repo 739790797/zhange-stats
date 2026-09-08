@@ -27,6 +27,19 @@ export function formatOcrProgress(status: string, progress?: number): string {
   return "识别中…";
 }
 
+const KEY_OCR_ENGINE_LABELS: Record<string, string> = {
+  paddle: "熊猫 OCR",
+  easyocr: "EasyOCR",
+  tess: "Tesseract",
+};
+
+export function formatKeyOcrEngines(engines?: string[] | null): string {
+  const names = (engines || [])
+    .map((id) => KEY_OCR_ENGINE_LABELS[id] || id.trim())
+    .filter(Boolean);
+  return [...new Set(names)].join(" / ");
+}
+
 /** 与后端 search.compact_text 对齐，便于 OCR「医疗隐私-5」对目录「医疗隐私 - Part 5」。 */
 export function compactOcrText(text: string): string {
   return (text || "")

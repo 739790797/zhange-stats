@@ -4,6 +4,7 @@ import {
   CoffeeOutlined,
   CloudDownloadOutlined,
   FileTextOutlined,
+  FontSizeOutlined,
   KeyOutlined,
   LockOutlined,
   LoginOutlined,
@@ -67,6 +68,7 @@ const SYSTEM_CHILD_KEYS = [
   "/settings/auth",
   "/settings/integrations",
   "/settings/email",
+  "/settings/ocr",
   "/settings/system",
 ] as const;
 
@@ -117,6 +119,11 @@ function buildAdminMenuItems(): MenuProps["items"] {
           key: "/settings/email",
           icon: <MailOutlined />,
           label: <Link to="/settings/email">邮箱设置</Link>,
+        },
+        {
+          key: "/settings/ocr",
+          icon: <FontSizeOutlined />,
+          label: <Link to="/settings/ocr">文字识别</Link>,
         },
         {
           key: "/settings/system",

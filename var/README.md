@@ -4,7 +4,7 @@
 
 | 子目录 | 用途 |
 |--------|------|
-| `data/` | `DATA_DIR`：`.secret_key`、应用 JSONL 日志、更新锁、更新临时包 |
+| `data/` | `DATA_DIR`：`.secret_key`、应用 JSONL 日志、更新锁、更新临时包、TexTeller / RapidOCR / EasyOCR 权重（`ocr_REVISION`；旧戳 `key_ocr_REVISION` 仍可读） |
 | `uploads/` | `UPLOAD_DIR`：站内头像 |
 | `dev/` | `scripts/dev.ps1` 的 pid / stdout |
 | `cache/` | pytest / Vite / `PYTHONPYCACHEPREFIX` |

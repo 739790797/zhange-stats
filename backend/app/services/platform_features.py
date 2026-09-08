@@ -40,6 +40,20 @@ FEATURE_TREE: list[dict[str, Any]] = [
         ],
     },
     {
+        "id": "ocr",
+        "name": "文字识别",
+        "kind": "platform",
+        "children": [
+            {
+                "id": "ocr.model_sync",
+                "name": "识别模型更新",
+                "kind": "job",
+                "job_id": "ocr_model_sync",
+                "schedule": "cron",
+            },
+        ],
+    },
+    {
         "id": "steam",
         "name": "Steam",
         "kind": "platform",
@@ -278,6 +292,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_full_sync": "guides.tarkov.full_sync",
+    "ocr_model_sync": "ocr.model_sync",
     "texteller_model_sync": "tavern.texteller_sync",
 }
 
@@ -303,6 +318,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "guides": "游戏",
     "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
+    "ocr": "文字识别",
 }
 
 

@@ -21,7 +21,7 @@ import type { AuthSettingsUpdate } from "@/api/settingsApi";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
 import { PageHeader } from "@/components/PageHeader";
 import { SITE_PUBLIC_QUERY_KEY } from "@/hooks/useSitePublic";
-import { adminCanStepUp } from "@/lib/adminCanStepUp";
+import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -45,7 +45,7 @@ export default function AuthSettingsPage() {
   const [sessionForm] = Form.useForm<SessionForm>();
   const [policyForm] = Form.useForm<PolicyForm>();
   const [siteForm] = Form.useForm<SiteForm>();
-  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
+  const user = useAuthStore((s) => s.user);
   const [pendingPolicy, setPendingPolicy] = useState<AuthSettingsUpdate | null>(
     null,
   );
@@ -226,14 +226,22 @@ export default function AuthSettingsPage() {
               values.reject_mode === "follow"
                 ? null
                 : values.reject_mode === "reject";
-            if (!canStepUp) {
-              message.warning("请先在个人中心绑定并验证邮箱");
-              return;
-            }
-            setPendingPolicy({
+            const payload: AuthSettingsUpdate = {
               min_password_length: values.min_password_length,
               reject_weak_admin_password: reject,
               enforce_single_admin: values.enforce_single_admin,
+            };
+            const singleAdminChanging =
+              Boolean(values.enforce_single_admin) !==
+              Boolean(data?.enforce_single_admin);
+            if (!singleAdminChanging) {
+              savePolicy.mutate({ payload, code: "" });
+              return;
+            }
+            requestAdminStepUp(user, {
+              onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
+              onNeedCode: () => setPendingPolicy(payload),
+              onSkip: () => savePolicy.mutate({ payload, code: "" }),
             });
           }}
         >

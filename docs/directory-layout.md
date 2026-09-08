@@ -26,14 +26,14 @@ zhange-stats/
   backend/app/
     api/                    # 已成包的保持；单文件平台 API 胀大再升包
     services/
-      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ articles/
+      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ articles/ ocr/
       （横切仍留根上，见下表）
     models/ schemas/ core/
 ```
 
 `components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AuthGuestShell`、`LegalDocView` / `LegalLinks` / `IcpBeianLink` 等跨平台外壳。
 
-`services/` 根上只留横切：`app_updator`、`avatar_store`、`auth_config`、`email*`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。
+`services/` 根上只留横切：`app_updator`、`avatar_store`、`auth_config`、`email*`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。OCR 进包 `ocr/`，不要在根上加 `ocr_*.py`。
 
 ## 后端 `services/` 映射
 
@@ -74,6 +74,10 @@ zhange-stats/
 ### steam/ · tarkov/
 
 去掉前缀：`steam_bind.py` → `steam.bind`，`tarkov_items.py` → `tarkov.items`，其余同理。
+
+### ocr/
+
+站点共享文字识别（引擎、权重、`system_configs.ocr`）。业务后处理（切块 / 闭集匹配）留在各域，例如 `tarkov/key_ocr.py`。不要对外加通用识别 HTTP。
 
 ### minecraft/
 

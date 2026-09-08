@@ -121,7 +121,9 @@ import {
   type RaidPrepTaskLike,
   type TarkovRaidPrepOverlay,
   RAID_PREP_MAX_SELECTED,
+  RAID_PREP_QUEST_HELP_COLOR,
   RAID_PREP_TASK_COLORS,
+  raidPrepQuestPaintColor,
 } from "./tarkovRaidPrep";
 
 describe("raid prep map keys", () => {
@@ -1063,20 +1065,14 @@ describe("buildRaidPrepOverlays", () => {
       filterRaidPrepOverlaysForViewer(
         overlays,
         new Map([["t-storage", new Set(["o-key"])]]),
-      ).map((row) => [row.subtitle, Boolean(row.done)]),
-    ).toEqual([
-      ["检查兵营东楼黑", true],
-      ["检查兵营南楼白", false],
-    ]);
+      ).map((row) => row.subtitle),
+    ).toEqual(["检查兵营南楼白"]);
     expect(
       filterRaidPrepOverlaysForViewer(
         overlays,
         new Map([["t-storage", new Set(["o-free"])]]),
-      ).map((row) => [row.subtitle, Boolean(row.done)]),
-    ).toEqual([
-      ["检查兵营东楼黑", false],
-      ["检查兵营南楼白", true],
-    ]);
+      ).map((row) => row.subtitle),
+    ).toEqual(["检查兵营东楼黑"]);
     expect(filterRaidPrepOverlaysForViewer(overlays, new Map())).toHaveLength(2);
     expect(collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-key"]))).toEqual(
       [],
@@ -1155,47 +1151,90 @@ describe("filterRaidPrepOverlaysForSelection", () => {
     const shown = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: new Set(["id:2"]),
       participantsByTask: people,
+      selfUserId: 1,
       objectiveDones: [
         { task_id: "wealth", objective_id: "o-key", user_id: 1 },
       ],
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
     expect(shown.map((row) => row.objectiveId)).toEqual(["o-key"]);
+    expect(shown.map((row) => Boolean(row.done))).toEqual([true]);
+    expect(shown[0]?.neededBy).toEqual([{ name: "队友", userId: 2 }]);
   });
 
-  it("keeps a finished point dimmed so the viewer can uncomplete it", () => {
+  it("hides a finished point from the viewer's own selection", () => {
     const overlays = buildRaidPrepOverlays([wealth], "streets");
     const shown = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: new Set(["id:1"]),
       participantsByTask: people,
+      selfUserId: 1,
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
-    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
-      ["o-key", true],
-    ]);
+    expect(shown).toEqual([]);
   });
 
-  it("keeps a team-finished point so anyone selected can still cancel", () => {
+  it("hides a point after every selected person finished it", () => {
     const overlays = buildRaidPrepOverlays([wealth], "streets");
     const shown = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: new Set(["id:1", "id:2"]),
       participantsByTask: people,
+      selfUserId: 1,
+      objectiveDones: [
+        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
+      ],
+      skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
+    });
+    expect(shown).toEqual([]);
+  });
+
+  it("keeps a point when viewing others who have not finished it", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const shown = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: new Set(["id:1", "id:2"]),
+      participantsByTask: people,
+      selfUserId: 1,
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
     expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
       ["o-key", true],
     ]);
+    expect(shown[0]?.neededBy).toEqual([{ name: "队友", userId: 2 }]);
+  });
+
+  it("does not mark a point as help when the viewer still needs it", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const shown = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: new Set(["id:1", "id:2"]),
+      participantsByTask: people,
+      selfUserId: 1,
+    });
+    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
+      ["o-key", false],
+    ]);
+    expect(shown[0]?.neededBy?.map((person) => person.userId)).toEqual([1, 2]);
+  });
+
+  it("hides a teammate's finished point even if the viewer has not done it", () => {
+    const overlays = buildRaidPrepOverlays([wealth], "streets");
+    const shown = filterRaidPrepOverlaysForSelection(overlays, {
+      selectedKeys: new Set(["id:2"]),
+      participantsByTask: people,
+      selfUserId: 1,
+      objectiveDones: [
+        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
+      ],
+    });
+    expect(shown).toEqual([]);
   });
 
   it("falls back to viewer skip when selectedKeys is null", () => {
     const overlays = buildRaidPrepOverlays([wealth], "streets");
-    const marked = filterRaidPrepOverlaysForSelection(overlays, {
+    const hidden = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: null,
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
-    expect(marked.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
-      ["o-key", true],
-    ]);
+    expect(hidden).toEqual([]);
     const all = filterRaidPrepOverlaysForSelection(overlays, {
       selectedKeys: null,
     });
@@ -2830,6 +2869,13 @@ describe("clusterRaidPrepOverlayLabels", () => {
     expect(labels[0].z).toBe(200);
   });
 
+  it("keeps a help mark on clustered labels", () => {
+    const labels = clusterRaidPrepOverlayLabels([
+      overlay("湿活", [{ x: 1, z: 1 }], { done: true }),
+    ]);
+    expect(labels[0]?.items[0]?.done).toBe(true);
+  });
+
   it("keeps far-apart locations of the same task as separate labels", () => {
     const labels = clusterRaidPrepOverlayLabels(
       [
@@ -3295,6 +3341,15 @@ describe("colorForTaskIndex", () => {
     expect(colorForTaskIndex(RAID_PREP_TASK_COLORS.length)).toBe(
       RAID_PREP_TASK_COLORS[0],
     );
+  });
+});
+
+describe("raidPrepQuestPaintColor", () => {
+  it("uses the shared gray for help overlays", () => {
+    expect(raidPrepQuestPaintColor("#e8c36a", true)).toBe(
+      RAID_PREP_QUEST_HELP_COLOR,
+    );
+    expect(raidPrepQuestPaintColor("#e8c36a", false)).toBe("#e8c36a");
   });
 });
 

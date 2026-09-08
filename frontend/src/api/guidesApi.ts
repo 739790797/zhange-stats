@@ -1,4 +1,10 @@
-import { client } from "./http";
+import { getTarkovGameMode } from "@/lib/tarkovGameMode";
+import { readCsrfToken } from "@/lib/csrfCookie";
+import {
+  parseKeyOcrNdjsonLine,
+  type KeyOcrProgress,
+} from "@/lib/tarkovKeyOcrProgress";
+import { client, notifyUnauthorized } from "./http";
 import type { components } from "./generated/schema";
 
 export type TarkovAmmoCatalog = components["schemas"]["TarkovAmmoCatalogOut"];
@@ -315,6 +321,10 @@ export type TarkovKeyPackMap = components["schemas"]["TarkovKeyPackMapOut"];
 export type TarkovKeyPackKey = components["schemas"]["TarkovKeyPackKeyOut"];
 export type TarkovKeyOwns = components["schemas"]["TarkovKeyOwnsOut"];
 export type TarkovKeyOwn = components["schemas"]["TarkovKeyOwnOut"];
+export type TarkovKeyOcr = components["schemas"]["TarkovKeyOcrOut"];
+export type TarkovKeyOcrMatch = components["schemas"]["TarkovKeyOcrMatchOut"];
+export type TarkovKeyOcrOverlay = components["schemas"]["TarkovKeyOcrOverlayOut"];
+export type TarkovKeyOcrBox = components["schemas"]["TarkovKeyOcrBoxOut"];
 export type TarkovCollection = components["schemas"]["TarkovCollectionOut"];
 export type TarkovCollectionOwns = components["schemas"]["TarkovCollectionOwnsOut"];
 export type TarkovCollectionLayout = components["schemas"]["TarkovCollectionLayoutOut"];
@@ -448,6 +458,151 @@ export async function mergeTarkovKeyOwns(itemIds: string[]) {
     { timeout: 30_000 },
   );
   return data;
+}
+
+const KEY_OCR_TIMEOUT_MS = 300_000;
+
+export async function recognizeTarkovKeyOwns(
+  file: Blob,
+  options?: {
+    onProgress?: (progress: KeyOcrProgress) => void;
+    signal?: AbortSignal;
+  },
+) {
+  const form = new FormData();
+  form.append("file", file, "keybox.png");
+  const path = "/guides/tarkov/key-owns/recognize";
+  const url = `/api${path}?game_mode=${encodeURIComponent(getTarkovGameMode())}`;
+  // axios 会缓冲整段响应；进度必须走 fetch 读 NDJSON。凭证 / CSRF 与 client 拦截器对齐。
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  options?.signal?.addEventListener("abort", onAbort);
+  let timedOut = false;
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, KEY_OCR_TIMEOUT_MS);
+  const headers: Record<string, string> = {
+    Accept: "application/x-ndjson",
+    "X-Recognize-Progress": "1",
+  };
+  const csrf = readCsrfToken();
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      body: form,
+      credentials: "include",
+      headers,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw await keyOcrHttpError(res, path);
+    }
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (ctype.includes("application/json") && !ctype.includes("ndjson")) {
+      return (await res.json()) as TarkovKeyOcr;
+    }
+    return await readKeyOcrNdjson(res, path, options?.onProgress);
+  } catch (err) {
+    if (timedOut) {
+      throw { code: "ECONNABORTED", message: "timeout" };
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+    options?.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+async function readKeyOcrNdjson(
+  res: Response,
+  path: string,
+  onProgress?: (progress: KeyOcrProgress) => void,
+): Promise<TarkovKeyOcr> {
+  if (!res.body) {
+    const text = await res.text();
+    return finishKeyOcrNdjson(text, path, onProgress);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    const finished = takeKeyOcrNdjsonLines(lines, path, onProgress);
+    if (finished) {
+      await reader.cancel().catch(() => undefined);
+      return finished;
+    }
+  }
+  buf += decoder.decode();
+  return finishKeyOcrNdjson(buf, path, onProgress);
+}
+
+function finishKeyOcrNdjson(
+  text: string,
+  path: string,
+  onProgress?: (progress: KeyOcrProgress) => void,
+): TarkovKeyOcr {
+  const finished = takeKeyOcrNdjsonLines(text.split("\n"), path, onProgress);
+  if (finished) return finished;
+  throw {
+    response: { status: 502, data: { detail: "识别未完成，请重试" } },
+  };
+}
+
+function takeKeyOcrNdjsonLines(
+  lines: string[],
+  path: string,
+  onProgress?: (progress: KeyOcrProgress) => void,
+): TarkovKeyOcr | null {
+  for (const line of lines) {
+    const event = parseKeyOcrNdjsonLine(line);
+    if (!event) continue;
+    if (event.event === "progress") {
+      onProgress?.({
+        message: event.message,
+        percent: event.percent,
+        phase: event.phase,
+      });
+      continue;
+    }
+    if (event.event === "done") {
+      return event.result as TarkovKeyOcr;
+    }
+    notifyUnauthorized(event.status_code, path);
+    throw {
+      response: {
+        status: event.status_code,
+        data: { detail: event.detail },
+      },
+    };
+  }
+  return null;
+}
+
+async function keyOcrHttpError(res: Response, path: string) {
+  notifyUnauthorized(res.status, path);
+  let detail = `识别失败（${res.status}）`;
+  const ctype = (res.headers.get("content-type") || "").toLowerCase();
+  try {
+    if (ctype.includes("application/json")) {
+      const body = (await res.json()) as { detail?: unknown };
+      if (typeof body.detail === "string" && body.detail.trim()) {
+        detail = body.detail.trim();
+      }
+    } else {
+      const text = (await res.text()).trim();
+      if (text) detail = text;
+    }
+  } catch {
+    /* 保持状态码兜底 */
+  }
+  return { response: { status: res.status, data: { detail } } };
 }
 
 export async function addTarkovKeyOwn(itemId: string) {

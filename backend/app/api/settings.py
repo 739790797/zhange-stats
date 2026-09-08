@@ -232,6 +232,67 @@ def test_email_settings(
     return {"ok": False, "message": "发送失败，请检查 SMTP 配置"}
 
 
+class OcrEngineStatusOut(BaseModel):
+    id: str
+    label: str = ""
+    installed: bool
+    models_ready: bool
+
+
+class OcrOptionOut(BaseModel):
+    id: str
+    label: str
+    hint: str = ""
+
+
+class OcrSettingsOut(BaseModel):
+    paddle_profile: str
+    engines: dict[str, bool]
+    use_cases: dict[str, list[str]]
+    engine_status: list[OcrEngineStatusOut] = Field(default_factory=list)
+    paddle_profiles: list[OcrOptionOut] = Field(default_factory=list)
+    use_case_meta: list[OcrOptionOut] = Field(default_factory=list)
+    engine_labels: dict[str, str] = Field(default_factory=dict)
+
+
+class OcrSettingsUpdate(BaseModel):
+    paddle_profile: str = "v5_server"
+    engines: dict[str, bool] = Field(default_factory=dict)
+    use_cases: dict[str, list[str]] = Field(default_factory=dict)
+
+
+def _ocr_settings_out(db: Session) -> dict[str, Any]:
+    from app.services.ocr.config import load_ocr_config, public_ocr_config
+    from app.services.ocr.runtime import engine_status
+
+    cfg = load_ocr_config(db)
+    return public_ocr_config(cfg, engine_status=engine_status(cfg.get("paddle_profile")))
+
+
+@router.get("/ocr", response_model=OcrSettingsOut)
+def get_ocr_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> dict[str, Any]:
+    return _ocr_settings_out(db)
+
+
+@router.put("/ocr", response_model=OcrSettingsOut)
+def update_ocr_settings(
+    body: OcrSettingsUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_step_up),
+) -> dict[str, Any]:
+    from app.services.ocr.config import public_ocr_config, save_ocr_config
+    from app.services.ocr.runtime import engine_status
+
+    saved = save_ocr_config(db, body.model_dump())
+    return public_ocr_config(
+        saved,
+        engine_status=engine_status(saved.get("paddle_profile")),
+    )
+
+
 class IntegrationsStatusOut(BaseModel):
     """登录用户可见：仅布尔就绪态，不含密钥。"""
 

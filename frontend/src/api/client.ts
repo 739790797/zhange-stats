@@ -63,6 +63,7 @@ export type {
   IntegrationsStatus,
   AuthSettings,
   SiteSettings,
+  OcrSettings,
 } from "./settingsApi";
 
 export {
@@ -87,6 +88,8 @@ export {
   updateSiteSettings,
   updateEmailSettings,
   testEmailSettings,
+  fetchOcrSettings,
+  updateOcrSettings,
 } from "./settingsApi";
 
 export {

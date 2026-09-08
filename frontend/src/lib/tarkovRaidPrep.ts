@@ -371,10 +371,12 @@ export type TarkovRaidPrepOverlay = {
   showNoKey: boolean;
   /** 来自目标 optional；可选目标在地图上单独标出。 */
   optional: boolean;
-  /** 该点对应的目标 id；个人勾选后对自己标成已完成，可再取消。 */
+  /** 该点对应的目标 id；当前用户勾完后从自己的地图上拿掉。 */
   objectiveId: string;
-  /** 当前用户已勾完：地图上淡显示，菜单改为取消完成。 */
+  /** 当前用户已勾完、仍因队友未完成而画出：地图上标「帮」。 */
   done?: boolean;
+  /** 当前勾选的人里，还没做完该步骤的。 */
+  neededBy?: RaidPrepMapParticipant[];
   outline: RaidPrepPoint[];
   points: RaidPrepPoint[];
   height: RaidPrepHeightSpan | null;
@@ -390,6 +392,8 @@ export type RaidPrepOverlayLabelItem = {
   showNoKey: boolean;
   count: number;
   optional: boolean;
+  /** 当前用户已完成、标签上标「帮」。 */
+  done?: boolean;
   height: RaidPrepHeightSpan | null;
 };
 
@@ -3379,6 +3383,19 @@ export const RAID_PREP_QUEST_POINT_ACTION_LABELS: Record<
 export const RAID_PREP_QUEST_POINT_MENU_HINT =
   "点击后可查看攻略，或标记 / 取消完成";
 
+/** 自己已勾完、地图上只因为队友没勾才留下。 */
+export const RAID_PREP_QUEST_HELP_LABEL = "帮";
+
+export const RAID_PREP_QUEST_HELP_HINT =
+  "你已完成，地图上留给还没勾的队友";
+
+/** 「帮」步骤统一色：和自己还要做的任务色分开。 */
+export const RAID_PREP_QUEST_HELP_COLOR = "#8a8878";
+
+export function raidPrepQuestPaintColor(color: string, help?: boolean): string {
+  return help ? RAID_PREP_QUEST_HELP_COLOR : color;
+}
+
 /** 地图步骤点点击菜单：有可勾步骤时出菜单，只有攻略则直接打开。 */
 export function raidPrepQuestPointMenuActions(opts: {
   canOpenGuide?: boolean;
@@ -3413,26 +3430,151 @@ function distinguishTaskOverlays(
   return overlays;
 }
 
-function markRaidPrepOverlayDone(
-  row: TarkovRaidPrepOverlay,
-  skippedByTask?: RaidPrepSkipMap,
-): TarkovRaidPrepOverlay {
-  const id = (row.objectiveId || "").trim();
-  const done = Boolean(id && skippedByTask?.get(row.taskId)?.has(id));
-  if (Boolean(row.done) === done) return row;
-  return { ...row, done };
+function raidPrepSelfUserId(
+  userId: number | null | undefined,
+): number | undefined {
+  if (userId == null || !Number.isFinite(userId) || userId <= 0) return undefined;
+  return userId;
 }
 
-/** 当前用户已勾掉的步骤：自己的地图上淡显示，方便取消完成。 */
+function raidPrepViewerSkippedObjective(
+  skippedByTask: RaidPrepSkipMap | undefined,
+  taskId: string,
+  objectiveId: string,
+): boolean {
+  const id = String(objectiveId || "").trim();
+  return Boolean(id && skippedByTask?.get(taskId)?.has(id));
+}
+
+/** 勾选的人是否已做完该步骤：自己看 skip，别人看房间/准备里的 objective_dones。 */
+function raidPrepSelectedPersonFinishedObjective(
+  person: RaidPrepMapParticipant,
+  taskId: string,
+  objectiveId: string,
+  opts: {
+    objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+    skippedByTask?: RaidPrepSkipMap;
+    selfUserId?: number | null;
+  },
+): boolean {
+  const objId = String(objectiveId || "").trim();
+  if (!objId) return false;
+  if (person.userId != null) {
+    if (userMarkedObjective(opts.objectiveDones, taskId, objId, person.userId)) {
+      return true;
+    }
+    const selfId = raidPrepSelfUserId(opts.selfUserId);
+    if (selfId != null && person.userId === selfId) {
+      return raidPrepViewerSkippedObjective(opts.skippedByTask, taskId, objId);
+    }
+    return false;
+  }
+  return raidPrepViewerSkippedObjective(opts.skippedByTask, taskId, objId);
+}
+
+function raidPrepOverlayViewerFinished(
+  row: Pick<TarkovRaidPrepOverlay, "taskId" | "objectiveId">,
+  opts: {
+    objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+    skippedByTask?: RaidPrepSkipMap;
+    selfUserId?: number | null;
+  },
+): boolean {
+  const objId = (row.objectiveId || "").trim();
+  if (!objId) return false;
+  if (raidPrepViewerSkippedObjective(opts.skippedByTask, row.taskId, objId)) {
+    return true;
+  }
+  const selfId = raidPrepSelfUserId(opts.selfUserId);
+  return (
+    selfId != null &&
+    userMarkedObjective(opts.objectiveDones, row.taskId, objId, selfId)
+  );
+}
+
+function raidPrepSelectedStillNeeded(
+  people: readonly RaidPrepMapParticipant[],
+  selectedKeys: ReadonlySet<string>,
+  row: Pick<TarkovRaidPrepOverlay, "taskId" | "objectiveId">,
+  opts: {
+    objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+    skippedByTask?: RaidPrepSkipMap;
+    selfUserId?: number | null;
+  },
+): RaidPrepMapParticipant[] {
+  return people.filter(
+    (person) =>
+      selectedKeys.has(raidPrepPersonKey(person)) &&
+      !raidPrepSelectedPersonFinishedObjective(
+        person,
+        row.taskId,
+        row.objectiveId,
+        opts,
+      ),
+  );
+}
+
+function raidPrepQuestOverlayNeededBySelection(
+  row: TarkovRaidPrepOverlay,
+  people: readonly RaidPrepMapParticipant[],
+  selectedKeys: ReadonlySet<string>,
+  opts: {
+    objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+    skippedByTask?: RaidPrepSkipMap;
+    selfUserId?: number | null;
+  },
+): boolean {
+  if (!raidPrepQuestOverlayVisible(people, selectedKeys)) return false;
+  const objId = (row.objectiveId || "").trim();
+  if (!objId) return true;
+  const selected = people.filter((person) =>
+    selectedKeys.has(raidPrepPersonKey(person)),
+  );
+  if (!selected.length) {
+    return !raidPrepViewerSkippedObjective(
+      opts.skippedByTask,
+      row.taskId,
+      objId,
+    );
+  }
+  return raidPrepSelectedStillNeeded(people, selectedKeys, row, opts).length > 0;
+}
+
+function annotateRaidPrepQuestOverlay(
+  row: TarkovRaidPrepOverlay,
+  people: readonly RaidPrepMapParticipant[],
+  selectedKeys: ReadonlySet<string>,
+  opts: {
+    objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
+    skippedByTask?: RaidPrepSkipMap;
+    selfUserId?: number | null;
+  },
+): TarkovRaidPrepOverlay {
+  return {
+    ...row,
+    done: raidPrepOverlayViewerFinished(row, opts),
+    neededBy: raidPrepSelectedStillNeeded(people, selectedKeys, row, opts),
+  };
+}
+
+/** 当前用户已勾掉的步骤：自己的地图上不再展示。 */
 export function filterRaidPrepOverlaysForViewer(
   overlays: readonly TarkovRaidPrepOverlay[],
   skippedByTask?: RaidPrepSkipMap,
 ): TarkovRaidPrepOverlay[] {
-  return overlays.map((row) => markRaidPrepOverlayDone(row, skippedByTask));
+  return overlays.filter(
+    (row) =>
+      !raidPrepViewerSkippedObjective(
+        skippedByTask,
+        row.taskId,
+        row.objectiveId,
+      ),
+  );
 }
 
 /**
  * 勾上谁，就按谁还没做完来留点。
+ * 本用户已完成的步骤默认隐藏；勾选查看其他用户时，仅当对方尚未完成才展示。
  * selectedKeys 为 null（无人树）时回退个人 skip。
  */
 export function filterRaidPrepOverlaysForSelection(
@@ -3445,6 +3587,7 @@ export function filterRaidPrepOverlaysForSelection(
     >;
     objectiveDones?: readonly RaidPrepObjectiveDoneLike[] | null;
     skippedByTask?: RaidPrepSkipMap;
+    selfUserId?: number | null;
   },
 ): TarkovRaidPrepOverlay[] {
   const selectedKeys = opts.selectedKeys ?? null;
@@ -3456,9 +3599,21 @@ export function filterRaidPrepOverlaysForSelection(
       const people = raidPrepParticipants(
         opts.participantsByTask?.get(row.taskId),
       );
-      return raidPrepQuestOverlayVisible(people, selectedKeys);
+      return raidPrepQuestOverlayNeededBySelection(
+        row,
+        people,
+        selectedKeys,
+        opts,
+      );
     })
-    .map((row) => markRaidPrepOverlayDone(row, opts.skippedByTask));
+    .map((row) =>
+      annotateRaidPrepQuestOverlay(
+        row,
+        raidPrepParticipants(opts.participantsByTask?.get(row.taskId)),
+        selectedKeys,
+        opts,
+      ),
+    );
 }
 
 /** 地图任务点：按本图几何生成；缺钥匙不藏点。个人勾选由 filterRaidPrepOverlaysForViewer 处理。 */
@@ -3733,6 +3888,7 @@ type OverlayLabelSeed = RaidPrepPoint & {
   keyNames: string[];
   showNoKey: boolean;
   optional: boolean;
+  done?: boolean;
   height: RaidPrepHeightSpan | null;
 };
 
@@ -3755,6 +3911,7 @@ function collectOverlayLabelSeeds(
         keyNames: row.keyNames || [],
         showNoKey: Boolean(row.showNoKey),
         optional: row.optional,
+        done: Boolean(row.done),
         height: row.height,
       });
     }
@@ -3886,6 +4043,7 @@ export function clusterRaidPrepOverlayLabels(
       const item = byTask.get(bucket);
       if (item) {
         item.count += 1;
+        item.done = item.done && seed.done ? true : undefined;
         continue;
       }
       byTask.set(bucket, {
@@ -3898,6 +4056,7 @@ export function clusterRaidPrepOverlayLabels(
         showNoKey: seed.showNoKey,
         count: 1,
         optional: seed.optional,
+        ...(seed.done ? { done: true } : {}),
         height: seed.height,
       });
     }

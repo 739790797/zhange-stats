@@ -43,6 +43,8 @@ describe("legal docs", () => {
     expect(privacy).toContain("HttpOnly Cookie");
     expect(privacy).toContain("不保存游戏日志原文");
     expect(privacy).toContain("不落库");
+    expect(privacy).toContain("钥匙管理的截图识别");
+    expect(privacy).toContain("不落盘");
     expect(privacy).toContain("未入座者看不到棋盘、钥匙与人员名单");
   });
 

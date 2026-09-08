@@ -75,7 +75,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 | 对象 | 路径 / 命令 |
 |------|----------------|
 | MySQL | `mysqldump`（含例行 `--single-transaction`）；库名来自 `DATABASE_URL` |
-| 运行时 | `var/data/`（含 `.secret_key`、日志、TexTeller 权重）、`var/uploads/` |
+| 运行时 | `var/data/`（含 `.secret_key`、日志、TexTeller 权重、钥匙 OCR RapidOCR / EasyOCR 权重）、`var/uploads/` |
 | 配置 | 安装根 `.env`（**不要**进 Git；备份目录权限仅 root/zhange） |
 
 建议：
