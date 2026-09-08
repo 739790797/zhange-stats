@@ -55,6 +55,8 @@ NICKNAMES: dict[str, str] = {
 MOB_DISPLAY_NAMES: dict[str, str] = {
     "vsRF": "俄军",
     "vsRFSniper": "俄军狙击",
+    # 1.1.5 灯塔游荡者改驻山地别墅，dump id 从 ExUsec 拆出 exUsecFree。
+    "exUsecFree": "游荡者",
 }
 
 # json.tarkov.dev maps.bosses = 游戏 BossLocationSpawn，含具名 BOSS、精英小队、普通阵营兵。
@@ -372,6 +374,9 @@ BOSS_I18N: dict[str, dict[str, str]] = {
     },
     "rogue": {
         "description": "游荡者守卫着灯塔地图的污水处理厂及周边区域。主要行为是巡逻，但常会在屋顶占据防御位置并使用固定武器。他们会攻击所有进入区域的玩家，但对 Scav 和 USEC 阵营的 PMC 稍显宽容。游荡者因高生命值、激光般精准的枪法及超远射程而极度危险。受伤时，他们会跑向掩体并使用医疗物品。",
+    },
+    "exusecfree": {
+        "description": "1.1.5 灯塔重做后，游荡者离开污水处理厂，改在山地别墅与岩石区活动。仍是精英小队，不是具名 Boss。",
     },
     "sanitar": {
         "bio": "前医生与科学家，曾为 TerraGroup 工作。他在实验室领导多个项目，包括开发新型精神活性物质。研究领域涵盖各种条件对人体影响至神经刺激素研发。除 TerraGroup 实验室外，他在蔚蓝海岸疗养院设有私人办公室，亦在此进行研究——尤其是在全面撤离前的最后数周。他常随医疗队前往热点地区出差，为企业工作后定期巡视非洲及其他办事处督导研发。在同事中享有毋庸置疑的权威与尊敬。",
@@ -1268,6 +1273,12 @@ def _kebab_id(mob_id: str) -> str:
     return text or mob_id.lower()
 
 
+def _exusec_family(mob_id: str, slug: str = "") -> bool:
+    ident = (mob_id or "").strip().lower()
+    sl = (slug or "").strip().lower()
+    return ident.startswith("exusec") or sl.startswith("exusec")
+
+
 def classify_boss_kind(mob_id: str, slug: str = "") -> str:
     """区分具名 BOSS、精英小队、地图 dump 里的阵营小兵。"""
     ident = (mob_id or "").strip().lower()
@@ -1279,6 +1290,7 @@ def classify_boss_kind(mob_id: str, slug: str = "") -> str:
         or sl in ELITE_SLUGS
         or ident.startswith("sectant")
         or ident.startswith("arenafighter")
+        or _exusec_family(mob_id, slug)
     ):
         return BOSS_KIND_ELITE
     return BOSS_KIND_BOSS
@@ -1680,6 +1692,9 @@ def _project_mob(
     norm = str(raw.get("normalizedName") or "").strip()
     static = BOSS_STATIC.get(slug) or BOSS_STATIC.get(norm) or BOSS_STATIC.get(mob_id) or {}
     i18n = BOSS_I18N.get(slug) or BOSS_I18N.get(norm) or {}
+    if _exusec_family(mob_id, slug):
+        static = static or BOSS_STATIC.get("rogue") or {}
+        i18n = i18n or BOSS_I18N.get("rogue") or {}
     behavior = str(static.get("behavior") or "").strip()
     wiki = str(static.get("wiki") or "").strip()
     if not wiki and slug:

@@ -38,7 +38,7 @@ export default function TarkovMapDetailPage() {
   }
 
   return (
-    <div className={styles.inner}>
+    <div className={`${styles.inner} ${styles.innerFill}`}>
       <TarkovItemsBreadcrumb
         items={[
           { label: "逃离塔科夫", to: TARKOV_HOME_PATH },

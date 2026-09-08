@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ITEMS_BASE_PATH } from "./tarkovItemTypes";
 import {
   TARKOV_BOSSES,
+  TARKOV_OTHER_MOBS,
   TARKOV_HOME_BOSSES,
+  buildTarkovBossNavGroups,
   TARKOV_HOME_ITEMS,
   TARKOV_HOME_ITEM_GROUPS,
   TARKOV_HOME_TRADERS,
@@ -245,6 +247,28 @@ describe("buildSiteSearchSections", () => {
   });
 });
 
+describe("buildTarkovBossNavGroups", () => {
+  it("keeps a 非 Boss column in the static fallback and from catalog rows", () => {
+    const fallback = buildTarkovBossNavGroups();
+    expect(fallback.map((row) => row.id)).toEqual(["boss", "other"]);
+    expect(fallback[1]?.items.map((row) => row.id)).toContain("exusecfree");
+    const live = buildTarkovBossNavGroups([
+      { id: "bossKilla", slug: "killa", name: "Killa" },
+      { id: "exUsecFree", slug: "exusecfree", name: "游荡者", maps_label: "灯塔" },
+      { id: "ExUsec", slug: "rogue", name: "游荡者", maps_label: "破冰者" },
+      { id: "vsRF", slug: "vs-rf", name: "俄军" },
+      { id: "followerBigPipe", slug: "big-pipe", name: "Big Pipe", parent_ids: ["bossKnight"] },
+    ]);
+    expect(live.map((row) => row.id)).toEqual(["boss", "other"]);
+    expect(live[0]?.items.map((row) => row.id)).toEqual(["bossKilla"]);
+    expect(live[1]?.items.map((row) => row.label)).toEqual([
+      "游荡者（灯塔）",
+      "游荡者（破冰者）",
+      "俄军",
+    ]);
+  });
+});
+
 describe("TARKOV_BOSSES", () => {
   it("uses tarkov.dev PvP spawn rates and includes Kollontay", () => {
     const byId = Object.fromEntries(TARKOV_BOSSES.map((b) => [b.id, b]));
@@ -474,10 +498,7 @@ describe("TARKOV_ADMIN_NAV", () => {
 describe("TARKOV_TOP_NAV", () => {
   it("nests tasks under progression instead of a top-level item", () => {
     expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("tasks");
-    expect(TARKOV_TOP_NAV.map((i) => i.id)).toContain("workbench");
-    expect(TARKOV_TOP_NAV.find((i) => i.id === "workbench")?.href).toBe(
-      "/guides/tarkov/workbench",
-    );
+    expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("workbench");
     expect(TARKOV_TOP_NAV.find((i) => i.id === "progression")?.href).toBe(
       "/guides/tarkov/tasks",
     );
@@ -492,6 +513,14 @@ describe("TARKOV_TOP_NAV", () => {
       status: "ready",
     });
     expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toBeUndefined();
+    expect(TARKOV_TOP_NAV.find((i) => i.id === "bosses")?.groups?.map((g) => g.id)).toEqual(
+      ["boss", "other"],
+    );
+    expect(TARKOV_OTHER_MOBS.map((row) => row.id)).toEqual([
+      "rogue",
+      "exusecfree",
+      "raider",
+    ]);
     expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toBeUndefined();
   });
 });
@@ -619,7 +648,8 @@ describe("tarkovGuideShellFills", () => {
     expect(tarkovGuideShellFills("/guides/tarkov/workbench/ak74")).toBe(true);
     expect(tarkovGuideShellFills("/guides/tarkov/me", "collection")).toBe(true);
     expect(tarkovGuideShellFills("/guides/tarkov/me", "tasks")).toBe(false);
-    expect(tarkovGuideShellFills("/guides/tarkov/maps/customs")).toBe(false);
+    expect(tarkovGuideShellFills("/guides/tarkov/maps")).toBe(false);
+    expect(tarkovGuideShellFills("/guides/tarkov/maps/customs")).toBe(true);
   });
 });
 

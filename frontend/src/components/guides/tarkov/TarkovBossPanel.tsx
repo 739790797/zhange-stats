@@ -11,7 +11,7 @@ import { fetchTarkovBossDetail, fetchTarkovBosses } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
-import { normalizeBossKind, TARKOV_BOSS_KIND_LABELS } from "@/lib/tarkovBossKinds";
+import { showBossKindBadge, TARKOV_BOSS_KIND_LABELS } from "@/lib/tarkovBossKinds";
 import { buildBossPortraitIndex } from "@/lib/tarkovBossHeatmap";
 import { resolveBossSpawnGroups, spawnGroupComboNumbers } from "@/lib/tarkovBossSpawnGroups";
 import styles from "./TarkovBossPanel.module.css";
@@ -78,9 +78,9 @@ export function TarkovBossPanel({ slug }: Props) {
         <div className={styles.heroTop}>
           <div>
             <div className={styles.headRow}>
-              <span className={styles.badge}>
-                {TARKOV_BOSS_KIND_LABELS[normalizeBossKind(detail.kind)]}
-              </span>
+              {showBossKindBadge(detail.id, detail.parent_ids) ? (
+                <span className={styles.badge}>{TARKOV_BOSS_KIND_LABELS.boss}</span>
+              ) : null}
               <h2 className={styles.name}>{detail.name}</h2>
               {detail.wiki_link ? (
                 <a

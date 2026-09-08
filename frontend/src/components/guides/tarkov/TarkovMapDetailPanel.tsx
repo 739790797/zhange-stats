@@ -114,24 +114,28 @@ function TarkovMapDetailReady({
   });
   const variantHref = (id: string) =>
     maintain ? tarkovMapMaintainHref(id, maintain) : tarkovMapHref(id);
+  const showPlaceEditor = Boolean(maintain);
 
   return (
-    <div className={styles.stack}>
-      {editor.bar ? (
+    <div className={`${styles.stack} ${styles.stackFill}`}>
+      {showPlaceEditor && editor.bar ? (
         <div className={styles.editBar}>
           {editor.bar}
         </div>
       ) : null}
-      <Suspense fallback={<PanelFallback tip="加载地图…" />}>
-        <TarkovMapViewer
-          key={slug}
-          slug={slug}
-          {...tarkovMapViewerLayerProps(detail)}
-          placeEdit={editor.placeEdit}
-          onFloorChange={setFloor}
-        />
-      </Suspense>
-      {editor.modal}
+      <div className={styles.mapSlot}>
+        <Suspense fallback={<PanelFallback tip="加载地图…" />}>
+          <TarkovMapViewer
+            key={slug}
+            slug={slug}
+            fill
+            {...tarkovMapViewerLayerProps(detail)}
+            placeEdit={showPlaceEditor ? editor.placeEdit : undefined}
+            onFloorChange={setFloor}
+          />
+        </Suspense>
+      </div>
+      {showPlaceEditor ? editor.modal : null}
 
       {detail.variants?.length ? (
         <div>

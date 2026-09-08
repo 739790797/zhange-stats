@@ -78,6 +78,38 @@ export function isHangableUnderNamedBoss(
   return isFollowerMobId(id) || isNamedBossId(id);
 }
 
+/** 与热力 / 导航一致：只有具名 boss* 进 Boss，游荡者等进非 Boss。 */
+export function bossHubSectionForRow(
+  id: string | undefined | null,
+  parentIds?: readonly (string | null | undefined)[] | null,
+): TarkovBossHubSection {
+  const self = String(id || "").trim();
+  if (!self) return "boss";
+  if (isTopLevelNamedBoss(self, parentIds) || isHangableUnderNamedBoss(self, parentIds)) {
+    return "boss";
+  }
+  return "other";
+}
+
+/** 详情页角标：只有顶行具名 Boss 才打 Boss；非 Boss 不打 Elite/Soldier。 */
+export function showBossKindBadge(
+  id: string | undefined | null,
+  parentIds?: readonly (string | null | undefined)[] | null,
+): boolean {
+  return isTopLevelNamedBoss(id, parentIds);
+}
+
+/** 非 Boss 列表：除挂在具名 Boss 下的随从外，其余都进这一栏。 */
+export function selectOtherBosses<
+  T extends { id?: string | null; parent_ids?: string[] | null },
+>(items: readonly T[]): T[] {
+  return items.filter(
+    (row) =>
+      !isTopLevelNamedBoss(row.id, row.parent_ids) &&
+      !isHangableUnderNamedBoss(row.id, row.parent_ids),
+  );
+}
+
 export function isCatalogBossKind(kind: string | undefined | null): boolean {
   const key = normalizeBossKind(kind);
   return key === "boss" || key === "elite";

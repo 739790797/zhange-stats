@@ -8,6 +8,11 @@ import {
   itemPageBySlug,
 } from "@/lib/tarkovItemTypes";
 import { TARKOV_MAP_ICON_PATHS } from "@/lib/tarkovMapIcons";
+import {
+  selectOtherBosses,
+  selectTopLevelNamedBosses,
+  TARKOV_BOSS_HUB_SECTION_LABELS,
+} from "@/lib/tarkovBossKinds";
 
 export type TarkovNavStatus = "ready" | "soon";
 
@@ -225,7 +230,7 @@ function pathIsOrUnder(pathname: string, base: string): boolean {
 
 /**
  * 攻略壳 main 是否吃满剩余高度（overflow hidden）。
- * 联机大厅 / 工作台 / 收集仓依赖这条链，Leaflet 才能在确定高度里 fitBounds。
+ * 联机大厅 / 工作台 / 收集仓 / 地图详情依赖这条链，Leaflet 才能在确定高度里 fitBounds。
  */
 export function tarkovGuideShellFills(
   pathname: string,
@@ -233,6 +238,7 @@ export function tarkovGuideShellFills(
 ): boolean {
   if (pathIsOrUnder(pathname, TARKOV_RAID_PREP_PATH)) return true;
   if (pathIsOrUnder(pathname, TARKOV_WORKBENCH_PATH)) return true;
+  if (pathname.startsWith(`${MAPS_HREF}/`)) return true;
   return (
     pathname === TARKOV_ME_PATH && resolveTarkovMeTab(meTab) === "collection"
   );
@@ -652,6 +658,91 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
 /** 首页 BOSS 表与 Hub / 顶栏同一集合。 */
 export const TARKOV_HOME_BOSSES: TarkovBossRow[] = TARKOV_BOSSES;
 
+/** 顶栏 / 搜索兜底：游荡者、掠夺者等不进具名 Boss 列。 */
+export const TARKOV_OTHER_MOBS: TarkovHomeLink[] = [
+  {
+    id: "rogue",
+    label: "游荡者",
+    href: tarkovBossHref("rogue"),
+    status: "ready",
+    keywords: ["exusec", "rogue"],
+  },
+  {
+    id: "exusecfree",
+    label: "游荡者（灯塔）",
+    href: tarkovBossHref("exusecfree"),
+    status: "ready",
+    keywords: ["exusefree", "exUsecFree", "灯塔游荡者"],
+  },
+  {
+    id: "raider",
+    label: "掠夺者",
+    href: tarkovBossHref("raider"),
+    status: "ready",
+    keywords: ["pmcbot", "raider"],
+  },
+];
+
+type BossNavRow = {
+  id?: string | null;
+  slug?: string | null;
+  name?: string | null;
+  maps_label?: string | null;
+  parent_ids?: string[] | null;
+};
+
+function bossNavLink(row: BossNavRow, siblings: readonly BossNavRow[]): TarkovHomeLink {
+  const slug = String(row.slug || row.id || "").trim();
+  const name = String(row.name || slug).trim() || "未命名";
+  const sameName = siblings.filter(
+    (other) => String(other.name || other.slug || "").trim() === name,
+  ).length;
+  const map = String(row.maps_label || "").trim();
+  return {
+    id: String(row.id || slug),
+    label: sameName > 1 && map ? `${name}（${map}）` : name,
+    href: tarkovBossHref(slug),
+    status: "ready",
+  };
+}
+
+/** 顶栏 BOSS 下拉：有目录用热力同一套 Boss / 非 Boss；否则静态兜底。 */
+export function buildTarkovBossNavGroups(
+  items?: readonly BossNavRow[] | null,
+): TarkovHomeGroup[] {
+  const fallback: TarkovHomeGroup[] = [
+    {
+      id: "boss",
+      label: TARKOV_BOSS_HUB_SECTION_LABELS.boss,
+      items: TARKOV_BOSSES,
+    },
+    {
+      id: "other",
+      label: TARKOV_BOSS_HUB_SECTION_LABELS.other,
+      items: TARKOV_OTHER_MOBS,
+    },
+  ];
+  if (!items?.length) return fallback;
+  const named = selectTopLevelNamedBosses(items);
+  const others = selectOtherBosses(items);
+  const groups: TarkovHomeGroup[] = [];
+  if (named.length) {
+    groups.push({
+      id: "boss",
+      label: TARKOV_BOSS_HUB_SECTION_LABELS.boss,
+      items: named.map((row) => bossNavLink(row, named)),
+    });
+  }
+  if (others.length) {
+    groups.push({
+      id: "other",
+      label: TARKOV_BOSS_HUB_SECTION_LABELS.other,
+      items: others.map((row) => bossNavLink(row, others)),
+    });
+  }
+  return groups.length ? groups : fallback;
+}
+
 export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   {
     id: "tasks",
@@ -856,11 +947,6 @@ export const TARKOV_TOP_NAV: TarkovTopNavItem[] = [
     groups: TARKOV_ITEM_MENU_GROUPS,
   },
   {
-    id: "workbench",
-    label: "工作台",
-    href: TARKOV_WORKBENCH_PATH,
-  },
-  {
     id: "traders",
     label: "商人",
     href: TARKOV_TRADERS_PATH,
@@ -870,7 +956,7 @@ export const TARKOV_TOP_NAV: TarkovTopNavItem[] = [
     id: "bosses",
     label: "BOSS",
     href: TARKOV_BOSSES_PATH,
-    groups: [{ id: "bosses", label: "BOSS", items: TARKOV_BOSSES }],
+    groups: buildTarkovBossNavGroups(),
   },
   {
     id: "progression",
@@ -960,6 +1046,7 @@ export function buildHomeSearchIndex(): TarkovSearchHit[] {
   push("地图", TARKOV_MAPS);
   push("商人", TARKOV_TRADERS);
   push("BOSS", TARKOV_BOSSES);
+  push("非 Boss", TARKOV_OTHER_MOBS);
   push("进度", TARKOV_PROGRESSION);
   for (const group of TARKOV_ITEM_MENU_GROUPS) {
     push(`物品 · ${group.label}`, group.items);

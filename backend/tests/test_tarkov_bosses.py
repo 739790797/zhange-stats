@@ -338,12 +338,57 @@ def test_classify_boss_kind_splits_soldiers_and_elites():
     assert bosses.classify_boss_kind("blackDivision", "black-div") == "boss"
     assert bosses.classify_boss_kind("PmcBot", "raider") == "elite"
     assert bosses.classify_boss_kind("exUsec", "rogue") == "elite"
+    assert bosses.classify_boss_kind("ExUsec", "rogue") == "elite"
+    assert bosses.classify_boss_kind("exUsecFree", "exusecfree") == "elite"
     assert bosses.classify_boss_kind("sectantPriest", "cultist-priest") == "elite"
     assert bosses.classify_boss_kind("vsRF", "vs-rf") == "soldier"
     assert bosses.classify_boss_kind("vsRFSniper", "vs-rf-sniper") == "soldier"
     assert bosses.classify_boss_kind("Sentry", "sentry") == "soldier"
     assert bosses.classify_boss_kind("pmcBEAR", "bear") == "soldier"
     assert bosses.classify_boss_kind("pmcUSEC", "usec") == "soldier"
+
+
+def test_exusec_free_is_elite_rogue_not_named_boss():
+    payload = {
+        "maps": {
+            "lighthouse": {
+                "id": "lighthouse",
+                "name": "Lighthouse",
+                "normalizedName": "lighthouse",
+                "bosses": [
+                    {
+                        "mob": "exUsecFree",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Zone_Chalet", "chance": 1}],
+                        "escorts": [
+                            {
+                                "mob": "exUsecFree",
+                                "amount": [{"chance": 1, "count": 2}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        "mobs": {
+            "exUsecFree": {
+                "id": "exUsecFree",
+                "name": "exUsecFree",
+                "normalizedName": "exusecfree",
+                "health": [],
+                "items": [],
+                "equipment": [],
+            }
+        },
+    }
+    rows = bosses.parse_boss_rows(payload)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["id"] == "exUsecFree"
+    assert row["kind"] == "elite"
+    assert row["name"] == "游荡者"
+    assert row["slug"] == "exusecfree"
+    assert row["wiki_link"] == "https://escapefromtarkov.fandom.com/wiki/Rogues"
 
 
 def test_generic_normalized_name_uses_mob_id_slug():

@@ -4,8 +4,7 @@ import {
   tarkovBossHref,
 } from "@/lib/tarkovHomeNav";
 import {
-  isHangableUnderNamedBoss,
-  isTopLevelNamedBoss,
+  bossHubSectionForRow,
   TARKOV_BOSS_HUB_SECTION_LABELS,
   type TarkovBossHubSection,
 } from "@/lib/tarkovBossKinds";
@@ -20,9 +19,7 @@ export type TarkovItemDropSource = NonNullable<
 export function itemDropSection(
   row: Pick<TarkovItemDropSource, "id" | "parent_ids">,
 ): TarkovBossHubSection {
-  if (isTopLevelNamedBoss(row.id, row.parent_ids)) return "boss";
-  if (isHangableUnderNamedBoss(row.id, row.parent_ids)) return "boss";
-  return "other";
+  return bossHubSectionForRow(row.id, row.parent_ids);
 }
 
 export function splitItemDropSources(

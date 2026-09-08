@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  bossHubSectionForRow,
+  selectOtherBosses,
+  showBossKindBadge,
   filterCatalogBosses,
   groupBossCatalogTree,
   groupBossesByKind,
@@ -116,5 +119,32 @@ describe("tarkovBossKinds", () => {
       "blackDivision",
       "PmcBot",
     ]);
+  });
+
+  it("puts exUsecFree on the 非 Boss crumb even if kind is still missing", () => {
+    expect(bossHubSectionForRow("bossKilla")).toBe("boss");
+    expect(bossHubSectionForRow("followerBigPipe", ["bossKnight"])).toBe("boss");
+    expect(bossHubSectionForRow("exUsecFree")).toBe("other");
+    expect(bossHubSectionForRow("exUsecFree", ["exUsecFree"])).toBe("other");
+    expect(bossHubSectionForRow("")).toBe("boss");
+  });
+
+  it("only badges top-level named bosses and lists everyone else under 非 Boss", () => {
+    expect(showBossKindBadge("bossKilla")).toBe(true);
+    expect(showBossKindBadge("exUsecFree")).toBe(false);
+    expect(showBossKindBadge("blackDivision")).toBe(false);
+    expect(showBossKindBadge("vsRF")).toBe(false);
+    expect(showBossKindBadge("followerBigPipe", ["bossKnight"])).toBe(false);
+    expect(showBossKindBadge("bossBoarSniper", ["bossBoar"])).toBe(false);
+    expect(
+      selectOtherBosses([
+        { id: "bossKilla", parent_ids: [] },
+        { id: "exUsecFree", parent_ids: ["exUsecFree"] },
+        { id: "vsRF", parent_ids: [] },
+        { id: "blackDivision", parent_ids: [] },
+        { id: "followerBigPipe", parent_ids: ["bossKnight"] },
+        { id: "bossBoarSniper", parent_ids: ["bossBoar"] },
+      ]).map((row) => row.id),
+    ).toEqual(["exUsecFree", "vsRF", "blackDivision"]);
   });
 });

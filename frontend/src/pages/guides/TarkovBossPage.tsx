@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBossDetail, fetchTarkovBosses } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TarkovBossPanel } from "@/components/guides/tarkov/TarkovBossPanel";
-import { namedBossParentId } from "@/lib/tarkovBossKinds";
+import {
+  bossHubSectionForRow,
+  namedBossParentId,
+  TARKOV_BOSS_HUB_SECTION_LABELS,
+} from "@/lib/tarkovBossKinds";
 import {
   TARKOV_BOSSES,
   TARKOV_BOSSES_PATH,
@@ -29,6 +33,10 @@ export default function TarkovBossPage() {
     enabled: Boolean(bossSlug),
   });
   const crumbLabel = detailQuery.data?.name || known?.label || bossSlug;
+  const hubSection = bossHubSectionForRow(
+    detailQuery.data?.id,
+    detailQuery.data?.parent_ids,
+  );
   const parentId = namedBossParentId(detailQuery.data?.parent_ids);
   const catalogQuery = useQuery({
     queryKey: ["guides-tarkov-bosses", gameMode],
@@ -47,7 +55,7 @@ export default function TarkovBossPage() {
       <TarkovItemsBreadcrumb
         items={[
           { label: "逃离塔科夫", to: TARKOV_HOME_PATH },
-          { label: "BOSS", to: TARKOV_BOSSES_PATH },
+          { label: TARKOV_BOSS_HUB_SECTION_LABELS[hubSection], to: TARKOV_BOSSES_PATH },
           ...(parent?.slug
             ? [{ label: parent.name || parent.slug, to: tarkovBossHref(parent.slug) }]
             : []),

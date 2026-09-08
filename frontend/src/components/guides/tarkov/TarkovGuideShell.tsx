@@ -3,19 +3,15 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
-import {
-  groupBossCatalogTree,
-  TARKOV_BOSS_HUB_SECTION_LABELS,
-} from "@/lib/tarkovBossKinds";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
   TARKOV_ADMIN_NAV,
   TARKOV_HOME_PATH,
   TARKOV_TOP_NAV,
+  buildTarkovBossNavGroups,
   isTarkovAdminPath,
   parseTarkovMaintainMode,
   isTarkovTopNavActive,
-  tarkovBossHref,
   tarkovGuideShellFills,
   tarkovPageTitle,
   type TarkovNavStatus,
@@ -253,37 +249,10 @@ export function TarkovGuideShell({ children }: Props) {
     retry: 1,
   });
   const navItems = useMemo(() => {
-    const bosses = bossesQuery.data?.items;
-    if (!bosses?.length) return TARKOV_TOP_NAV;
-    const grouped = groupBossCatalogTree(bosses);
-    return TARKOV_TOP_NAV.map((item) => {
-      if (item.id !== "bosses") return item;
-      const sections: Array<{
-        id: "boss" | "other";
-        rows: typeof grouped.bosses;
-      }> = [
-        { id: "boss", rows: grouped.bosses },
-        { id: "other", rows: grouped.others },
-      ];
-      return {
-        ...item,
-        groups: sections.flatMap((section) => {
-          if (!section.rows.length) return [];
-          return [
-            {
-              id: section.id,
-              label: TARKOV_BOSS_HUB_SECTION_LABELS[section.id],
-              items: section.rows.map((boss) => ({
-                id: boss.id || boss.slug,
-                label: boss.name,
-                href: tarkovBossHref(boss.slug),
-                status: "ready" as const,
-              })),
-            },
-          ];
-        }),
-      };
-    });
+    const groups = buildTarkovBossNavGroups(bossesQuery.data?.items);
+    return TARKOV_TOP_NAV.map((item) =>
+      item.id === "bosses" ? { ...item, groups } : item,
+    );
   }, [bossesQuery.data]);
 
   const fills = tarkovGuideShellFills(pathname, searchParams.get("tab"));
@@ -335,9 +304,7 @@ export function TarkovGuideShell({ children }: Props) {
                         <div
                           key={group.id}
                           className={`${styles.dropCol} ${
-                            bossMenu && group.id === "boss"
-                              ? styles.dropColBosses
-                              : ""
+                            bossMenu ? styles.dropColBosses : ""
                           }`}
                         >
                           <p className={styles.dropHead}>{group.label}</p>

@@ -4,6 +4,24 @@
   gap: 20px;
 }
 
+.stackFill {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mapSlot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mapSlot > * {
+  flex: 1;
+  min-height: 0;
+}
+
 .editBar {
   display: flex;
   flex-wrap: wrap;

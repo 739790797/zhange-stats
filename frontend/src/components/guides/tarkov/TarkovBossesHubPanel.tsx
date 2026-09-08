@@ -4,12 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import {
+  selectOtherBosses,
   selectTopLevelNamedBosses,
   TARKOV_BOSS_HUB_SECTION_LABELS,
   TARKOV_BOSS_HUB_SECTIONS,
 } from "@/lib/tarkovBossKinds";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { selectIndependentOtherBosses } from "@/lib/tarkovBossHubRows";
 import { buildBossPortraitIndex } from "@/lib/tarkovBossHeatmap";
 import catalogStyles from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovBossPanel.module.css";
@@ -29,7 +29,7 @@ export function TarkovBossesHubPanel() {
     [items],
   );
   const others = useMemo(
-    () => selectIndependentOtherBosses(items ?? []),
+    () => selectOtherBosses(items ?? []),
     [items],
   );
   const portraits = useMemo(() => buildBossPortraitIndex(items ?? []), [items]);
