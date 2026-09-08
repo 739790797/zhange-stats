@@ -11,14 +11,12 @@ import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
   TARKOV_ADMIN_NAV,
   TARKOV_HOME_PATH,
-  TARKOV_ME_PATH,
   TARKOV_TOP_NAV,
-  TARKOV_WORKBENCH_PATH,
   isTarkovAdminPath,
   parseTarkovMaintainMode,
-  resolveTarkovMeTab,
   isTarkovTopNavActive,
   tarkovBossHref,
+  tarkovGuideShellFills,
   tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
@@ -435,10 +433,7 @@ export function TarkovGuideShell({ children }: Props) {
         id="tarkov-main"
         tabIndex={-1}
         className={`${styles.body}${
-          (pathname === TARKOV_ME_PATH &&
-            resolveTarkovMeTab(searchParams.get("tab")) === "collection") ||
-          pathname === TARKOV_WORKBENCH_PATH ||
-          pathname.startsWith(`${TARKOV_WORKBENCH_PATH}/`)
+          tarkovGuideShellFills(pathname, searchParams.get("tab"))
             ? ` ${styles.bodyFill}`
             : ""
         }`}

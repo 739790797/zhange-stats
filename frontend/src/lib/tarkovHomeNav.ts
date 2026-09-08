@@ -219,6 +219,25 @@ export function tarkovRaidPulseDemoHref(): string {
   return `${TARKOV_RAID_PREP_PATH}/pulse-demo`;
 }
 
+function pathIsOrUnder(pathname: string, base: string): boolean {
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+/**
+ * 攻略壳 main 是否吃满剩余高度（overflow hidden）。
+ * 联机大厅 / 工作台 / 收集仓依赖这条链，Leaflet 才能在确定高度里 fitBounds。
+ */
+export function tarkovGuideShellFills(
+  pathname: string,
+  meTab?: string | null,
+): boolean {
+  if (pathIsOrUnder(pathname, TARKOV_RAID_PREP_PATH)) return true;
+  if (pathIsOrUnder(pathname, TARKOV_WORKBENCH_PATH)) return true;
+  return (
+    pathname === TARKOV_ME_PATH && resolveTarkovMeTab(meTab) === "collection"
+  );
+}
+
 export const TARKOV_MAINTAIN_MODE = "info";
 export type TarkovMaintainMode = typeof TARKOV_MAINTAIN_MODE;
 

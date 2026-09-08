@@ -299,6 +299,7 @@ type Props = {
 
 type MapRuntime = {
   map: L.Map;
+  fitBox?: L.LatLngBounds;
   svgOverlay?: L.SVGOverlay;
   tileLayer?: L.TileLayer;
   floorTiles: Map<string, L.TileLayer>;
@@ -2664,6 +2665,7 @@ export function TarkovMapViewer({
       runtime.remote.addTo(map);
       runtime.player.addTo(map);
       runtime.pulse.addTo(map);
+      runtime.fitBox = bounds;
       map.fitBounds(bounds, { animate: false });
       const detachPanPerf = attachPanPerfGuards(
         map,
@@ -2695,6 +2697,7 @@ export function TarkovMapViewer({
       attachZoomControl(map);
       const bounds = L.latLngBounds([0, 0], [img.height, img.width]);
       L.imageOverlay(url, bounds).addTo(map);
+      runtime.fitBox = bounds;
       map.fitBounds(bounds, { animate: false });
     };
 
@@ -3154,13 +3157,22 @@ export function TarkovMapViewer({
     const wrap = wrapElRef.current;
     if (!wrap) return undefined;
     let timer = 0;
+    let lastH = 0;
     const refresh = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        const map = runtimeRef.current?.map;
+        const runtime = runtimeRef.current;
+        const map = runtime?.map;
         if (!map) return;
-        if (wrap.clientWidth < 2 || wrap.clientHeight < 2) return;
+        const width = wrap.clientWidth;
+        const height = wrap.clientHeight;
+        if (width < 2 || height < 2) return;
+        const grewFromTiny = lastH < 48 && height >= 48;
+        lastH = height;
         map.invalidateSize({ animate: false });
+        if (grewFromTiny && runtime.fitBox) {
+          map.fitBounds(runtime.fitBox, { animate: false });
+        }
       }, 80);
     };
     refresh();

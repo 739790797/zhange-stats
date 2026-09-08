@@ -34,6 +34,7 @@ import {
   isTarkovTopNavActive,
   tarkovMapMarkByName,
   tarkovPageTitle,
+  tarkovGuideShellFills,
   textMatchesQuery,
   traderDisplayName,
 } from "./tarkovHomeNav";
@@ -602,6 +603,23 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/key-packs")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/game-logs")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/collection")).toBe("个人中心");
+  });
+});
+
+describe("tarkovGuideShellFills", () => {
+  it("fills raid-prep rooms so the map has a definite height", () => {
+    expect(tarkovGuideShellFills("/guides/tarkov/raid-prep")).toBe(true);
+    expect(
+      tarkovGuideShellFills("/guides/tarkov/raid-prep/rooms/cv4i6efn"),
+    ).toBe(true);
+    expect(tarkovGuideShellFills("/guides/tarkov/raid-prep/pulse-demo")).toBe(
+      true,
+    );
+    expect(tarkovGuideShellFills("/guides/tarkov/workbench")).toBe(true);
+    expect(tarkovGuideShellFills("/guides/tarkov/workbench/ak74")).toBe(true);
+    expect(tarkovGuideShellFills("/guides/tarkov/me", "collection")).toBe(true);
+    expect(tarkovGuideShellFills("/guides/tarkov/me", "tasks")).toBe(false);
+    expect(tarkovGuideShellFills("/guides/tarkov/maps/customs")).toBe(false);
   });
 });
 
