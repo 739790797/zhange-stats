@@ -20,11 +20,6 @@ import {
 import tableStyles from "@/components/guides/tarkov/TarkovDarkTable.module.css";
 import styles from "./TarkovWorkbenchBuild.module.css";
 
-/** 列宽合计，供弹窗按表格内容定宽。 */
-const COMMUNITY_TABLE_PX =
-  320 + 108 + 80 + 88 + 124 + 100 + 100 + 56 + 88 + 64;
-const COMMUNITY_MODAL_BODY_PAD_X = 28;
-
 type Props = {
   gunId: string;
   open: boolean;
@@ -181,7 +176,7 @@ export function TarkovWorkbenchCommunityModal({
         title: "操作",
         key: "action",
         align: "left",
-        width: 64,
+        width: 72,
         render: (_value, build) => (
           <Button
             type="link"
@@ -209,7 +204,7 @@ export function TarkovWorkbenchCommunityModal({
       }
       destroyOnClose
       centered
-      width={`min(${COMMUNITY_TABLE_PX + COMMUNITY_MODAL_BODY_PAD_X}px, calc(100vw - 24px))`}
+      width="max-content"
       className={`${styles.gunPickModal} ${styles.communityModal}`}
       classNames={{
         body: styles.communityModalBody,
@@ -240,7 +235,7 @@ export function TarkovWorkbenchCommunityModal({
             showSizeChanger: true,
             pageSizeOptions: ["20", "50", "100"],
           }}
-          tableLayout="fixed"
+          tableLayout="auto"
           locale={{
             emptyText: builds?.length ? "没有匹配的方案" : "这把枪还没有公开方案",
           }}

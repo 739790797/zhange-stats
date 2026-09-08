@@ -653,7 +653,7 @@
   padding: 10px 14px;
 }
 
-.communityModal :global(.ant-modal) {
+.communityModal {
   max-width: calc(100vw - 24px);
 }
 
@@ -666,14 +666,11 @@
   padding: 8px 14px;
 }
 
-.communityModal :global(.ant-modal-body) {
-  overflow-x: hidden !important;
-}
-
 .communityModalContent {
   display: flex;
   flex-direction: column;
-  max-width: 100%;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   max-height: calc(100dvh - 24px);
   background: #22241a;
   color: #eee9d6;
@@ -685,8 +682,11 @@
   align-items: stretch;
   gap: 8px;
   flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 10px 14px !important;
   text-align: left;
@@ -694,7 +694,7 @@
 
 .communityTable {
   flex: none;
-  width: 100%;
+  width: max-content;
 }
 
 .communityTable :global(.ant-table-wrapper),
@@ -704,18 +704,10 @@
 .communityTable :global(.ant-table-container),
 .communityTable :global(.ant-table-content),
 .communityTable :global(table) {
-  width: 100% !important;
+  width: max-content !important;
 }
 
-.communityTable :global(table) {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.communityTable :global(.ant-table-container),
-.communityTable :global(.ant-table-content) {
-  overflow-x: hidden !important;
-  overflow-y: visible !important;
+.communityTable :global(.ant-table-container) {
   border-inline-start: 0 !important;
   border-top: 0 !important;
 }
@@ -746,6 +738,25 @@
   position: relative;
   white-space: normal;
   overflow: hidden;
+}
+
+.communityTable :global(.ant-table-thead > tr > th:last-child),
+.communityTable :global(.ant-table-tbody > tr > td:last-child) {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: #22241a;
+  overflow: visible;
+  box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.45);
+}
+
+.communityTable :global(.ant-table-thead > tr > th:last-child) {
+  top: 0;
+  z-index: 4;
+}
+
+.communityTable :global(.ant-table-tbody > tr.ant-table-row:hover > td:last-child) {
+  background: #2a2d22;
 }
 
 .communityTable :global(.ant-pagination) {
