@@ -8,6 +8,22 @@ alwaysApply: false
 
 唯一框架：Ant Design 5。不引入第二套组件库。主题只走 `antdAppTheme`（`App.tsx`）；塔科夫只在 `TarkovGuideShell` 套一层 `TarkovThemed`（`TARKOV_ANTD_DARK`），详情页不要再包。
 
+## 动效
+
+全站进出场走 CSS（`app-motion-page` / `app-motion-in`）+ antd 自带 `rc-motion`，不引入第二套组件库或根上 AutoAnimate / Motion。
+
+- 页面：`PageMotion` 挂在 `Outlet` 上（主栏按 pathname；塔科夫嵌套在 `TarkovGuidesOutlet`）
+- 组件：antd Modal/Drawer/Collapse 用自带动画；Tab 进入用全局 CSS；自绘开关继续 CSS；其余挂载用 `MotionIn`
+- 系统「减少动态效果」时：`token.motion = false` + CSS `animation: none`
+
+## 全站壳行为
+
+- 换页：`AppLayout` 主栏与塔科夫 `.body` 按 **pathname** 滚回顶部（query 变化不滚）
+- 标签标题：`PageHeader` / `AuthGuestShell` / 酒馆无 Header 的页走 `useDocumentTitle`；塔科夫仍 `useTarkovDocumentTitle`
+- 提示：`ConfigProvider` 内包 antd `App`，静态 `message` 仍可用
+- 渲染失败：`Outlet`（及认证壳表单）外包 `RouteErrorBoundary`，Result + 重试；侧栏/攻略顶栏保留
+- 无障碍：`AppLayout` 顶部「跳到正文」→ `#app-main`（`main`/`Content` 带 `tabIndex={-1}`，换页 `focus({ preventScroll: true })`）；侧栏 `nav aria-label="站点"`。塔科夫壳用 `#tarkov-main`，跳转在攻略顶栏前
+
 ## 按钮角色
 
 | 角色 | 写法 | size |
@@ -42,3 +58,7 @@ Ant Design `Modal` 高度由 `frontend/src/index.css` 按视口约束（`100dvh`
 - `ExchangeGoodsCard.buttonColor`：仅兑换底栏平台色
 - 酒馆写页可用 TipTap 引擎，工具栏必须 antd（勿引入编辑器自带皮）
 - 酒馆正文用 KaTeX 渲染公式，只存 `article-math` LaTeX；写页公式弹窗走 TexTeller 识别（手写/图片 → LaTeX），不引入公式编辑器皮
+
+## 塔科夫滚动条
+
+只走 `tarkovScrollbar.css`：`TarkovThemed` 在 `html` 上挂 `tarkov-ui`，覆盖壳内和挂到 body 的 Modal / Table / Select。不要再在 CSS 模块里复制 `::-webkit-scrollbar`。要藏条用 `TARKOV_SCROLLBAR_HIDE_CLASS`。

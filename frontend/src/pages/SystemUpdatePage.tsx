@@ -18,11 +18,16 @@ import {
 } from "@/api/appUpdateApi";
 import type { AppUpdateStatus } from "@/api/appUpdateApi";
 import { PageHeader } from "@/components/PageHeader";
+import { AdminStepUpModal } from "@/components/AdminStepUpModal";
+import { adminCanStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
+import { useAuthStore } from "@/stores/authStore";
 
 export default function SystemUpdatePage() {
   const queryClient = useQueryClient();
   const [waitingRestart, setWaitingRestart] = useState(false);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
 
   const statusQuery = useQuery({
     queryKey: ["app-update-status"],
@@ -45,10 +50,11 @@ export default function SystemUpdatePage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (stepUpCode: string) =>
       doAppUpdate({
         version: "latest",
         reboot: true,
+        stepUpCode,
       }),
     onSuccess: async (data) => {
       message.success(data.message);
@@ -143,10 +149,14 @@ export default function SystemUpdatePage() {
                 loading={updateMutation.isPending || waitingRestart}
                 disabled={!status?.update_allowed || busy}
                 onClick={() => {
+                  if (!canStepUp) {
+                    message.warning("请先在个人中心绑定并验证邮箱");
+                    return;
+                  }
                   if (!status?.has_new_version) {
                     message.info("未检测到新版本，仍将尝试更新到 latest");
                   }
-                  updateMutation.mutate();
+                  setStepUpOpen(true);
                 }}
               >
                 一键更新
@@ -168,6 +178,16 @@ export default function SystemUpdatePage() {
           ) : null}
         </Space>
       </Card>
+      <AdminStepUpModal
+        open={stepUpOpen}
+        title="系统更新需邮箱验证码"
+        confirmLoading={updateMutation.isPending}
+        onCancel={() => setStepUpOpen(false)}
+        onConfirm={(code) => {
+          setStepUpOpen(false);
+          updateMutation.mutate(code);
+        }}
+      />
     </div>
   );
 }

@@ -55,7 +55,7 @@ def send_reset_password_code(
     _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_RESET)
     msg = _FUZZY_SEND_MSG
     if delivery["mode"] == "log":
-        msg = "验证码已输出到服务端日志（邮件未配置或发送失败）"
+        msg = "验证码已输出到服务端日志（邮件未配置）"
     return ResetPasswordResponse(message=msg, email=email, delivery=delivery["mode"])
 
 

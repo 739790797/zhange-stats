@@ -53,6 +53,8 @@ def sync_users_and_members(db: Session) -> dict[str, int]:
 
     users = db.query(User).all()
     for user in users:
+        if user.anonymized_at is not None:
+            continue
         before = db.query(Member).filter(Member.user_id == user.id).first()
         member = ensure_user_member(db, user)
         if before is None:

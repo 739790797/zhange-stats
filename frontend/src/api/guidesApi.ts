@@ -70,6 +70,10 @@ export async function fetchTarkovWorkbenchCalculate(opts: {
 export type TarkovWorkbenchImage = components["schemas"]["TarkovWorkbenchImageOut"];
 export type TarkovWorkbenchImageStatus =
   components["schemas"]["TarkovWorkbenchImageStatusOut"];
+export type TarkovWorkbenchCommunityBuilds =
+  components["schemas"]["TarkovWorkbenchCommunityBuildsOut"];
+export type TarkovWorkbenchCommunityBuild =
+  components["schemas"]["TarkovWorkbenchCommunityBuildOut"];
 
 export async function fetchTarkovWorkbenchImageStatus() {
   const { data } = await client.get<TarkovWorkbenchImageStatus>(
@@ -90,6 +94,14 @@ export async function fetchTarkovWorkbenchImage(opts: {
       pairs: opts.pairs,
     },
     { timeout: 120_000, signal: opts.signal },
+  );
+  return data;
+}
+
+export async function fetchTarkovWorkbenchCommunityBuilds(gunId: string) {
+  const { data } = await client.get<TarkovWorkbenchCommunityBuilds>(
+    "/guides/tarkov/workbench/community-builds",
+    { params: { gun_id: gunId }, timeout: 30_000 },
   );
   return data;
 }

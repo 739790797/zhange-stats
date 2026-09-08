@@ -17,6 +17,11 @@ export {
   changeOwnUsername,
   startQqOAuthLogin,
   exchangeQqTicket,
+  logoutRequest,
+  sendDeleteAccountCode,
+  deleteOwnAccount,
+  sendStepUpCode,
+  stepUpHeaders,
 } from "./authApi";
 
 export {

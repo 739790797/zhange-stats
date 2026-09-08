@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import hash_password, verify_password
+from app.core.session_cookies import issue_session
 from app.models.user import User
 from app.services.auth_config import get_min_password_length
 from app.services.password_policy import (
@@ -57,6 +58,8 @@ def get_password_policy(
 @router.post("/change-password")
 def change_password(
     body: ChangePasswordBody,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ) -> dict:
@@ -75,12 +78,15 @@ def change_password(
     invalidate_weak_password_cache(current.password_hash)
     current.password_hash = hash_password(new_password)
     db.commit()
+    issue_session(response, request, current)
     return {"ok": True, "message": "密码已更新"}
 
 
 @router.post("/change-username")
 def change_username(
     body: ChangeUsernameBody,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ) -> dict:
@@ -98,7 +104,7 @@ def change_username(
         raise HTTPException(status_code=400, detail="该用户名已被占用")
     current.username = new_username
     db.commit()
-    token = create_access_token(current.username, user_id=current.id)
+    token = issue_session(response, request, current)
     return {
         "ok": True,
         "message": "用户名已更新",

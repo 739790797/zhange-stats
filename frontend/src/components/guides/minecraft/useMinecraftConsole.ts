@@ -63,7 +63,7 @@ function closeReason(code: number) {
 
 export function useMinecraftConsole(enabled: boolean) {
   const queryClient = useQueryClient();
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const preRef = useRef<HTMLPreElement>(null);
   const textRef = useRef("");
   const wsRef = useRef<WebSocket | null>(null);
@@ -112,7 +112,7 @@ export function useMinecraftConsole(enabled: boolean) {
         attempt = 0;
         prevNet.current = null;
         setHistory([]);
-        ws.send(JSON.stringify({ event: "auth", token }));
+        ws.send(JSON.stringify({ event: "auth" }));
       };
       ws.onmessage = (ev) => {
         let data: Record<string, unknown>;

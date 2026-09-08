@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.security import decode_access_token
+from app.core.session_cookies import access_token_from_websocket
 from app.models.user import User
 from app.services.minecraft import pelican as pelican
 from app.services.integrations_config import get_pelican_credentials
@@ -137,6 +138,8 @@ def _load_console_session(token: str) -> tuple[str, str, str]:
             user = db.query(User).filter(User.username == principal.username).first()
         if user is None:
             raise PermissionError("unauth")
+        if user.anonymized_at is not None:
+            raise PermissionError("unauth")
         if not user.is_admin_user:
             raise PermissionError("forbidden")
         base, client_token, uuid = get_pelican_credentials(db)
@@ -162,7 +165,7 @@ async def run_console_session(client: WebSocket) -> None:
     if not isinstance(first, dict) or str(first.get("event") or "") != "auth":
         await client.close(code=CLOSE_UNAUTHORIZED)
         return
-    jwt = str(first.get("token") or "").strip()
+    jwt = access_token_from_websocket(client, first)
     try:
         panel_base, client_token, server_uuid = await asyncio.to_thread(
             _load_console_session, jwt

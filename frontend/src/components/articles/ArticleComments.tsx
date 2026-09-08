@@ -23,7 +23,7 @@ import { formatBeijing } from "@/lib/time";
 import { useAuthStore } from "@/stores/authStore";
 
 export function ArticleComments({ slug }: { slug: string }) {
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
   const queryClient = useQueryClient();

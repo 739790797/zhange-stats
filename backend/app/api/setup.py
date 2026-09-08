@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.session_cookies import attach_session_cookies
 from app.services.auth_config import get_min_password_length
 from app.services.setup import SetupError, complete_initial_admin, needs_setup
 
@@ -41,6 +42,8 @@ def get_setup_status(db: Session = Depends(get_db)) -> SetupStatusOut:
 @router.post("/admin", response_model=SetupAdminResponse)
 def post_setup_admin(
     body: SetupAdminRequest,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> SetupAdminResponse:
     try:
@@ -52,6 +55,7 @@ def post_setup_admin(
         )
     except SetupError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    attach_session_cookies(response, token, request)
     return SetupAdminResponse(
         message="初始化完成，已创建管理员账号",
         access_token=token,

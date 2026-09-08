@@ -17,12 +17,13 @@ import {
   tavernEditPath,
 } from "@/lib/tavernNav";
 import { formatBeijing } from "@/lib/time";
+import { useDocumentTitle } from "@/lib/documentTitle";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function TavernArticlePage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const user = useAuthStore((s) => s.user);
   const reserved =
     slug === "admin" || slug === "manage" || slug === "write" || slug === "new";
@@ -36,6 +37,7 @@ export default function TavernArticlePage() {
     queryFn: fetchArticleCapabilities,
     enabled: Boolean(token) && !reserved,
   });
+  useDocumentTitle(query.data?.title || "战鸽酒馆");
 
   if (slug === "admin" || slug === "manage") {
     return <Navigate to={TAVERN_ADMIN_PATH} replace />;

@@ -47,6 +47,36 @@ def test_production_ignores_allow_log_in_send(monkeypatch) -> None:
     assert out["mode"] == "unavailable"
 
 
+def test_smtp_exception_is_smtp_error_not_log(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("ALLOW_EMAIL_CODE_LOG", "false")
+    get_settings.cache_clear()
+
+    class _Boom:
+        def __init__(self, *_a, **_k):
+            raise OSError("smtp down")
+
+    monkeypatch.setattr("app.services.email.smtplib.SMTP_SSL", _Boom)
+    out = _send_with_config(
+        {
+            "enabled": True,
+            "smtp_host": "smtp.example.com",
+            "smtp_port": 465,
+            "smtp_user": "u@example.com",
+            "smtp_from": "u@example.com",
+            "smtp_password": "secret",
+            "encryption": "SSL",
+            "code_expire_minutes": 15,
+        },
+        "a@b.com",
+        "111111",
+    )
+    get_settings.cache_clear()
+    assert out["sent"] is False
+    assert out["mode"] == "smtp_error"
+
+
 def test_production_rejects_allow_email_code_log_at_boot(monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.setenv("APP_ENV", "production")

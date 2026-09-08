@@ -47,10 +47,14 @@ export async function fetchPlatformFeaturesAdmin() {
   return data;
 }
 
-export async function updatePlatformFeatures(payload: PlatformFeaturesUpdate) {
+export async function updatePlatformFeatures(
+  payload: PlatformFeaturesUpdate,
+  stepUpCode: string,
+) {
   const { data } = await client.put<PlatformFeaturesResponse>(
     "/settings/platform-features",
     payload,
+    { headers: { "X-Step-Up-Code": stepUpCode } },
   );
   return data;
 }
@@ -121,10 +125,14 @@ export async function fetchIntegrationsStatus() {
   return data;
 }
 
-export async function updateIntegrationsSettings(payload: IntegrationsUpdate) {
+export async function updateIntegrationsSettings(
+  payload: IntegrationsUpdate,
+  stepUpCode: string,
+) {
   const { data } = await client.put<IntegrationsSettings>(
     "/settings/integrations",
     payload,
+    { headers: { "X-Step-Up-Code": stepUpCode } },
   );
   return data;
 }
@@ -156,8 +164,13 @@ export async function fetchAuthSettings(params?: { check_weak?: boolean }) {
   return data;
 }
 
-export async function updateAuthSettings(payload: AuthSettingsUpdate) {
-  const { data } = await client.put<AuthSettings>("/settings/auth", payload);
+export async function updateAuthSettings(
+  payload: AuthSettingsUpdate,
+  stepUpCode?: string,
+) {
+  const { data } = await client.put<AuthSettings>("/settings/auth", payload, {
+    headers: stepUpCode ? { "X-Step-Up-Code": stepUpCode } : undefined,
+  });
   return data;
 }
 
@@ -176,8 +189,13 @@ export async function updateSiteSettings(payload: SiteSettingsUpdate) {
   return data;
 }
 
-export async function updateEmailSettings(payload: EmailSettingsUpdate) {
-  const { data } = await client.put<EmailSettings>("/settings/email", payload);
+export async function updateEmailSettings(
+  payload: EmailSettingsUpdate,
+  stepUpCode: string,
+) {
+  const { data } = await client.put<EmailSettings>("/settings/email", payload, {
+    headers: { "X-Step-Up-Code": stepUpCode },
+  });
   return data;
 }
 

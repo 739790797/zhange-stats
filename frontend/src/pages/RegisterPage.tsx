@@ -11,8 +11,8 @@ import { useAuthStore } from "@/stores/authStore";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const token = useAuthStore((s) => s.token);
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -25,7 +25,7 @@ export default function RegisterPage() {
     return () => window.clearTimeout(t);
   }, [countdown]);
 
-  if (token) {
+  if (user) {
     return <Navigate to="/" replace />;
   }
 
@@ -59,14 +59,8 @@ export default function RegisterPage() {
         password: values.password,
         code: values.code,
       });
-      if (!res.access_token) {
-        message.success(res.message || "注册成功，请登录");
-        navigate("/login", { replace: true });
-        return;
-      }
-      useAuthStore.setState({ token: res.access_token });
-      const user = await fetchMe();
-      setAuth(res.access_token, user);
+      const me = await fetchMe();
+      setUser(me);
       message.success(res.message || "注册成功");
       navigate("/", { replace: true });
     } catch (e: unknown) {

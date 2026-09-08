@@ -15,11 +15,15 @@ import {
   theme,
 } from "antd";
 import { Link } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { fetchAuthSettings, fetchSiteSettings, updateAuthSettings, updateSiteSettings } from "@/api/client";
+import type { AuthSettingsUpdate } from "@/api/settingsApi";
+import { AdminStepUpModal } from "@/components/AdminStepUpModal";
 import { PageHeader } from "@/components/PageHeader";
 import { SITE_PUBLIC_QUERY_KEY } from "@/hooks/useSitePublic";
+import { adminCanStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
+import { useAuthStore } from "@/stores/authStore";
 
 type SessionForm = {
   access_token_expire_days: number;
@@ -41,6 +45,10 @@ export default function AuthSettingsPage() {
   const [sessionForm] = Form.useForm<SessionForm>();
   const [policyForm] = Form.useForm<PolicyForm>();
   const [siteForm] = Form.useForm<SiteForm>();
+  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
+  const [pendingPolicy, setPendingPolicy] = useState<AuthSettingsUpdate | null>(
+    null,
+  );
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-settings"],
@@ -87,7 +95,7 @@ export default function AuthSettingsPage() {
   }, [siteQuery.data, siteForm]);
 
   const saveSession = useMutation({
-    mutationFn: updateAuthSettings,
+    mutationFn: (payload: AuthSettingsUpdate) => updateAuthSettings(payload),
     onSuccess: () => {
       message.success("登录有效期已保存（仅影响之后新登录的 token）");
       queryClient.invalidateQueries({ queryKey: ["auth-settings"] });
@@ -96,9 +104,16 @@ export default function AuthSettingsPage() {
   });
 
   const savePolicy = useMutation({
-    mutationFn: updateAuthSettings,
+    mutationFn: ({
+      payload,
+      code,
+    }: {
+      payload: AuthSettingsUpdate;
+      code: string;
+    }) => updateAuthSettings(payload, code),
     onSuccess: () => {
       message.success("口令策略已保存");
+      setPendingPolicy(null);
       queryClient.invalidateQueries({ queryKey: ["auth-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
@@ -211,7 +226,11 @@ export default function AuthSettingsPage() {
               values.reject_mode === "follow"
                 ? null
                 : values.reject_mode === "reject";
-            savePolicy.mutate({
+            if (!canStepUp) {
+              message.warning("请先在个人中心绑定并验证邮箱");
+              return;
+            }
+            setPendingPolicy({
               min_password_length: values.min_password_length,
               reject_weak_admin_password: reject,
               enforce_single_admin: values.enforce_single_admin,
@@ -357,6 +376,16 @@ export default function AuthSettingsPage() {
           ) : null}
         </Space>
       </Card>
+      <AdminStepUpModal
+        open={pendingPolicy != null}
+        title="保存口令策略需邮箱验证码"
+        confirmLoading={savePolicy.isPending}
+        onCancel={() => setPendingPolicy(null)}
+        onConfirm={(code) => {
+          if (!pendingPolicy) return;
+          savePolicy.mutate({ payload: pendingPolicy, code });
+        }}
+      />
     </div>
   );
 }

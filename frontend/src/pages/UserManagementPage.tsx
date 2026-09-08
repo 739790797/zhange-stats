@@ -5,7 +5,6 @@ import {
   Form,
   Input,
   Modal,
-  Popconfirm,
   Select,
   Space,
   Table,
@@ -22,6 +21,8 @@ import {
   updateUser,
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
+import { AdminStepUpModal } from "@/components/AdminStepUpModal";
+import { adminCanStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
@@ -121,8 +122,14 @@ export default function UserManagementPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
+  const canStepUp = adminCanStepUp(currentUser);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserBrief | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [pendingSave, setPendingSave] = useState<{
+    id: number;
+    values: UserFormValues;
+  } | null>(null);
   const [createForm] = Form.useForm<UserFormValues>();
   const [editForm] = Form.useForm<UserFormValues>();
 
@@ -169,9 +176,11 @@ export default function UserManagementPage() {
     mutationFn: ({
       id,
       values,
+      code,
     }: {
       id: number;
       values: UserFormValues;
+      code?: string;
     }) => {
       const payload: {
         email?: string;
@@ -186,11 +195,12 @@ export default function UserManagementPage() {
       if (values.password?.trim()) {
         payload.password = values.password.trim();
       }
-      return updateUser(id, payload);
+      return updateUser(id, payload, code);
     },
     onSuccess: () => {
       message.success("用户已更新");
       setEditing(null);
+      setPendingSave(null);
       editForm.resetFields();
       invalidate();
     },
@@ -198,9 +208,11 @@ export default function UserManagementPage() {
   });
 
   const removeUser = useMutation({
-    mutationFn: (id: number) => deleteUser(id),
+    mutationFn: ({ id, code }: { id: number; code: string }) =>
+      deleteUser(id, code),
     onSuccess: () => {
-      message.success("用户已删除");
+      message.success("用户已注销");
+      setDeleteTarget(null);
       invalidate();
     },
     onError: (e: unknown) => message.error(apiError(e, "删除失败")),
@@ -276,18 +288,26 @@ export default function UserManagementPage() {
                       资料
                     </Button>
                   ) : null}
-                  <Popconfirm
-                    title="确认删除该用户？"
-                    description="将同步删除对应成员及其游玩记录"
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
                     disabled={isSelf || isAdmin}
-                    okText="确定"
-                    cancelText="取消"
-                    onConfirm={() => removeUser.mutate(row.id)}
+                    title={
+                      canStepUp
+                        ? undefined
+                        : "请先在个人中心绑定并验证邮箱"
+                    }
+                    onClick={() => {
+                      if (!canStepUp) {
+                        message.warning("请先在个人中心绑定并验证邮箱");
+                        return;
+                      }
+                      setDeleteTarget(row.id);
+                    }}
                   >
-                    <Button type="link" size="small" danger disabled={isSelf || isAdmin}>
-                      删除
-                    </Button>
-                  </Popconfirm>
+                    删除
+                  </Button>
                 </Space>
               );
             },
@@ -361,6 +381,17 @@ export default function UserManagementPage() {
           layout="vertical"
           onFinish={(values) => {
             if (!editing) return;
+            const roleChanging =
+              (values.role === "admin") !== isAdminUser(editing);
+            const passwordSet = Boolean(values.password?.trim());
+            if (roleChanging || passwordSet) {
+              if (!canStepUp) {
+                message.warning("请先在个人中心绑定并验证邮箱");
+                return;
+              }
+              setPendingSave({ id: editing.id, values });
+              return;
+            }
             saveUser.mutate({ id: editing.id, values });
           }}
         >
@@ -420,6 +451,26 @@ export default function UserManagementPage() {
           </Form.Item>
         </Form>
       </Modal>
+      <AdminStepUpModal
+        open={deleteTarget != null}
+        title="注销用户需邮箱验证码"
+        confirmLoading={removeUser.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={(code) => {
+          if (deleteTarget == null) return;
+          removeUser.mutate({ id: deleteTarget, code });
+        }}
+      />
+      <AdminStepUpModal
+        open={pendingSave != null}
+        title="改角色或重置密码需邮箱验证码"
+        confirmLoading={saveUser.isPending}
+        onCancel={() => setPendingSave(null)}
+        onConfirm={(code) => {
+          if (!pendingSave) return;
+          saveUser.mutate({ ...pendingSave, code });
+        }}
+      />
     </div>
   );
 }

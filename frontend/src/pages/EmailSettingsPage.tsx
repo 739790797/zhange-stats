@@ -17,8 +17,11 @@ import {
   testEmailSettings,
   updateEmailSettings,
 } from "@/api/client";
+import { AdminStepUpModal } from "@/components/AdminStepUpModal";
 import { PageHeader } from "@/components/PageHeader";
+import { adminCanStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
+import { useAuthStore } from "@/stores/authStore";
 
 type FormValues = {
   enabled: boolean;
@@ -51,6 +54,12 @@ export default function EmailSettingsPage() {
   const [form] = Form.useForm<FormValues>();
   const [testOpen, setTestOpen] = useState(false);
   const [testTo, setTestTo] = useState("");
+  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
+  const [pending, setPending] = useState<{
+    kind: "save" | "test";
+    payload: ReturnType<typeof toPayload>;
+    to?: string;
+  } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["email-settings"],
@@ -73,22 +82,37 @@ export default function EmailSettingsPage() {
   }, [data, form]);
 
   const save = useMutation({
-    mutationFn: updateEmailSettings,
+    mutationFn: ({
+      payload,
+      code,
+    }: {
+      payload: ReturnType<typeof toPayload>;
+      code: string;
+    }) => updateEmailSettings(payload, code),
     onSuccess: () => {
       message.success("邮箱设置已保存");
+      setPending(null);
       queryClient.invalidateQueries({ queryKey: ["email-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   const test = useMutation({
-    mutationFn: async (to: string) => {
-      const values = await form.validateFields();
-      await updateEmailSettings(toPayload(values));
+    mutationFn: async ({
+      payload,
+      code,
+      to,
+    }: {
+      payload: ReturnType<typeof toPayload>;
+      code: string;
+      to: string;
+    }) => {
+      await updateEmailSettings(payload, code);
       return testEmailSettings(to);
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["email-settings"] });
+      setPending(null);
       if (res.ok) message.success(res.message);
       else message.warning(res.message);
       setTestOpen(false);
@@ -104,7 +128,13 @@ export default function EmailSettingsPage() {
         layout="vertical"
         requiredMark
         disabled={isLoading}
-        onFinish={(values) => save.mutate(toPayload(values))}
+        onFinish={(values) => {
+          if (!canStepUp) {
+            message.warning("请先在个人中心绑定并验证邮箱");
+            return;
+          }
+          setPending({ kind: "save", payload: toPayload(values) });
+        }}
         initialValues={{
           enabled: false,
           encryption: "SSL",
@@ -251,7 +281,17 @@ export default function EmailSettingsPage() {
             message.error("请填写收件邮箱");
             return;
           }
-          test.mutate(testTo.trim());
+          if (!canStepUp) {
+            message.warning("请先在个人中心绑定并验证邮箱");
+            return;
+          }
+          void form.validateFields().then((values) => {
+            setPending({
+              kind: "test",
+              payload: toPayload(values),
+              to: testTo.trim(),
+            });
+          });
         }}
         confirmLoading={test.isPending}
         okText="发送测试"
@@ -266,6 +306,24 @@ export default function EmailSettingsPage() {
           placeholder="收件邮箱"
         />
       </Modal>
+      <AdminStepUpModal
+        open={pending != null}
+        title="保存 SMTP 配置需邮箱验证码"
+        confirmLoading={save.isPending || test.isPending}
+        onCancel={() => setPending(null)}
+        onConfirm={(code) => {
+          if (!pending) return;
+          if (pending.kind === "test") {
+            test.mutate({
+              payload: pending.payload,
+              code,
+              to: pending.to || "",
+            });
+            return;
+          }
+          save.mutate({ payload: pending.payload, code });
+        }}
+      />
     </div>
   );
 }

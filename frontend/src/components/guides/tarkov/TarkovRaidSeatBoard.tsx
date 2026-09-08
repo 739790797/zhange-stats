@@ -50,7 +50,7 @@ export function TarkovRaidSeatBoard({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const gameMode = useTarkovGameMode();
-  const loggedIn = Boolean(useAuthStore((s) => s.token));
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const mapOptions = useMemo(() => raidPrepMapOptions(), []);
   const labelById = useMemo(() => {
     const map = new Map<string, string>();

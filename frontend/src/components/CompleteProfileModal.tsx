@@ -16,7 +16,6 @@ type Props = {
 };
 
 export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
-  const setAuth = useAuthStore((s) => s.setAuth);
   const setUser = useAuthStore((s) => s.setUser);
   const [bindForm] = Form.useForm();
   const [linkForm] = Form.useForm();
@@ -86,7 +85,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
         email: values.email,
         password: values.password,
       });
-      setAuth(res.access_token, res.user);
+      setUser(res.user);
       message.success(res.message || "已合并到已有账号");
       sessionStorage.removeItem(COMPLETE_PROFILE_SKIP_KEY);
       onCompleted();

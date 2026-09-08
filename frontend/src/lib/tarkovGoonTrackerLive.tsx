@@ -29,7 +29,7 @@ function applyBundle(
 }
 
 export function TarkovGoonTrackerProvider({ children }: { children: ReactNode }) {
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const queryClient = useQueryClient();
   const [live, setLive] = useState(false);
 
@@ -49,7 +49,7 @@ export function TarkovGoonTrackerProvider({ children }: { children: ReactNode })
       ws = new WebSocket(tarkovGoonsWsUrl());
       ws.onopen = () => {
         retry = 0;
-        ws?.send(JSON.stringify({ event: "auth", token }));
+        ws?.send(JSON.stringify({ event: "auth" }));
       };
       ws.onmessage = (event) => {
         let payload: WsBundle;

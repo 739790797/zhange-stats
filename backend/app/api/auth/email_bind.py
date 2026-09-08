@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.auth.helpers import (
     PURPOSE_BIND,
     _consume_register_challenge,
+    _delivery_user_message,
     _upsert_register_challenge,
     _user_out,
 )
@@ -20,9 +21,11 @@ from app.api.auth.schemas import (
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import auth_limiter, client_ip
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import hash_password, verify_password
+from app.core.session_cookies import issue_session
 from app.models.member import Member
 from app.models.user import User
+from app.services.account_anonymize import user_is_anonymized
 from app.services.member_sync import delete_user_with_member, ensure_user_member
 
 router = APIRouter()
@@ -53,9 +56,11 @@ def send_bind_email_code(
         raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
 
     _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_BIND)
-    msg = "验证码已发送"
-    if delivery["mode"] == "log":
-        msg = "验证码已输出到服务端日志（邮件未配置或发送失败）"
+    msg = _delivery_user_message(
+        delivery,
+        sent="验证码已发送",
+        logged="验证码已输出到服务端日志（邮件未配置）",
+    )
     return RegisterResponse(message=msg, email=email, delivery=delivery["mode"])
 
 
@@ -100,6 +105,7 @@ def bind_email(
 def link_existing_account(
     body: LinkExistingAccountRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> LinkExistingAccountResponse:
@@ -144,7 +150,11 @@ def link_existing_account(
         )
 
     target = db.query(User).filter(User.email == email).first()
-    if not target or not verify_password(body.password, target.password_hash):
+    if (
+        not target
+        or user_is_anonymized(target)
+        or not verify_password(body.password, target.password_hash)
+    ):
         raise HTTPException(status_code=401, detail="邮箱或密码错误")
     if target.id == user.id:
         raise HTTPException(status_code=400, detail="不能与当前账号合并")
@@ -193,7 +203,7 @@ def link_existing_account(
     db.refresh(target_member)
     target.member = target_member
 
-    token = create_access_token(target.username, user_id=target.id)
+    token = issue_session(response, request, target)
     return LinkExistingAccountResponse(
         message="已合并到已有账号，可用 QQ 登录",
         access_token=token,

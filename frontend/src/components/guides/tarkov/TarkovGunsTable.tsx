@@ -19,8 +19,14 @@ type Props = {
   caliberFilterParam?: string | null;
   /** 点枪名 / 整行跳转；不传则进图鉴物品详情 */
   pickHref?: (gunId: string) => string;
+  /** 点枪名 / 整行回调；优先于 pickHref */
+  onPick?: (gunId: string) => void;
   /** 口径筛链接；不传则留在图鉴枪支表 */
   caliberHref?: (caliber: string) => string;
+  /** 口径列是否做成链接，默认 true */
+  linkCaliber?: boolean;
+  /** 选枪弹窗：口径 / 图片 / 名称 / 类型 */
+  pickColumns?: boolean;
 };
 
 type SortKey =
@@ -48,7 +54,10 @@ export function TarkovGunsTable({
   ammoFilterId = null,
   caliberFilterParam = null,
   pickHref,
+  onPick,
   caliberHref,
+  linkCaliber = true,
+  pickColumns = false,
 }: Props) {
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>("ergonomics");
@@ -107,6 +116,12 @@ export function TarkovGunsTable({
         "zh",
       );
       if (byCaliber !== 0) return byCaliber;
+      if (pickColumns) {
+        return (a.name || a.short_name || "").localeCompare(
+          b.name || b.short_name || "",
+          "zh",
+        );
+      }
       const delta = Number(a[sortKey]) - Number(b[sortKey]);
       return sortOrder === "ascend" ? delta : -delta;
     });
@@ -117,11 +132,19 @@ export function TarkovGunsTable({
     classFilter,
     data,
     nameKeyword,
+    pickColumns,
     sortKey,
     sortOrder,
   ]);
 
   const caliberRowSpan = useMemo(() => buildCaliberRowSpan(rows), [rows]);
+  const caliberGroupStartIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (let i = 1; i < rows.length; i += 1) {
+      if (rows[i].caliber !== rows[i - 1].caliber) ids.add(rows[i].id);
+    }
+    return ids;
+  }, [rows]);
 
   const onTableChange: TableProps<TarkovGunItem>["onChange"] = (
     _pagination,
@@ -164,8 +187,8 @@ export function TarkovGunsTable({
       title: "口径",
       dataIndex: "caliber",
       key: "caliber",
-      width: 88,
-      fixed: "left",
+      width: pickColumns ? 128 : 88,
+      fixed: pickColumns ? undefined : "left",
       filters: caliberFilters,
       filteredValue: caliberFilterParam
         ? [caliberFilterParam]
@@ -182,7 +205,7 @@ export function TarkovGunsTable({
       render: (caliber: string) => {
         const label = formatCaliberLabel(caliber);
         const raw = (caliber || "").trim();
-        if (!raw) return label;
+        if (!raw || !linkCaliber) return label;
         const href = caliberHref
           ? caliberHref(raw)
           : `${ITEMS_BASE_PATH}/guns?caliber=${encodeURIComponent(raw)}`;
@@ -201,18 +224,22 @@ export function TarkovGunsTable({
       title: "图片",
       dataIndex: "icon_link",
       key: "icon",
-      width: 56,
+      width: pickColumns ? 148 : 56,
       align: "center",
       render: (src: string) => {
         const thumb = transparentThumbUrl(src);
         const hd = hdPreviewUrl(src) || thumb;
+        const size = pickColumns ? { width: 128, height: 56 } : { width: 36, height: 36 };
         return thumb ? (
-          <span onClick={(e) => e.stopPropagation()}>
+          <span
+            className={pickColumns ? tableStyles.pickThumb : undefined}
+            onClick={(e) => e.stopPropagation()}
+          >
             <Image
               src={thumb}
               alt=""
-              width={36}
-              height={36}
+              width={size.width}
+              height={size.height}
               preview={{ src: hd, mask: false }}
               style={{
                 objectFit: "contain",
@@ -244,29 +271,48 @@ export function TarkovGunsTable({
             value={nameKeyword}
             onChange={(e) => setNameKeyword(e.target.value)}
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 140 }}
+            style={{ width: pickColumns ? 180 : 140 }}
           />
         </div>
       ),
       dataIndex: "name",
       key: "name",
-      width: 260,
       ellipsis: true,
-      render: (_: unknown, row) => (
-        <Link
-          to={pickHref ? pickHref(row.id) : itemDetailHref("guns", row.id)}
-          title={pickHref ? "进入改枪" : "查看枪械详情"}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {row.name || row.short_name || row.id}
-        </Link>
-      ),
+      ...(pickColumns ? {} : { width: 260 }),
+      render: (_: unknown, row) => {
+        const label = row.name || row.short_name || row.id;
+        const picking = Boolean(onPick || pickHref);
+        if (onPick) {
+          return (
+            <button
+              type="button"
+              className={tableStyles.namePick}
+              title="进入改枪"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPick(row.id);
+              }}
+            >
+              {label}
+            </button>
+          );
+        }
+        return (
+          <Link
+            to={pickHref ? pickHref(row.id) : itemDetailHref("guns", row.id)}
+            title={picking ? "进入改枪" : "查看枪械详情"}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {label}
+          </Link>
+        );
+      },
     },
     {
       title: "类型",
       dataIndex: "weapon_class",
       key: "weapon_class",
-      width: 140,
+      width: pickColumns ? 160 : 140,
       filters: classFilters,
       filteredValue: classFilter,
       filterSearch: true,
@@ -320,24 +366,42 @@ export function TarkovGunsTable({
     },
   ];
 
+  const visibleColumns = pickColumns
+    ? columns.filter((column) => {
+        const key = String(column.key || "");
+        return (
+          key === "caliber" ||
+          key === "icon" ||
+          key === "name" ||
+          key === "weapon_class"
+        );
+      })
+    : columns;
+
   return (
     <Table<TarkovGunItem>
-      className={tableStyles.table}
+      className={`${tableStyles.table}${pickColumns ? ` ${tableStyles.pick}` : ""}`}
       size="small"
       rowKey="id"
-      columns={columns}
+      columns={visibleColumns}
       dataSource={rows}
       pagination={{
         pageSize: 50,
         showSizeChanger: true,
         pageSizeOptions: ["20", "50", "100"],
       }}
-      scroll={{ x: 1100 }}
+      scroll={pickColumns ? { y: "calc(100dvh - 260px)" } : { x: 1100 }}
       onChange={onTableChange}
+      rowClassName={(row) =>
+        caliberGroupStartIds.has(row.id) ? tableStyles.caliberStart : ""
+      }
       onRow={
-        pickHref
+        onPick || pickHref
           ? (row) => ({
-              onClick: () => navigate(pickHref(row.id)),
+              onClick: () => {
+                if (onPick) onPick(row.id);
+                else if (pickHref) navigate(pickHref(row.id));
+              },
               style: { cursor: "pointer" },
             })
           : undefined

@@ -7,7 +7,7 @@ from app.core.database import Base
 
 
 class RegisterChallenge(Base):
-    """邮箱验证码挑战（注册 / 绑定 / 找回密码按 purpose 隔离）。"""
+    """邮箱验证码挑战（注册 / 绑定 / 找回密码 / 注销 / 管理员步进按 purpose 隔离）。"""
 
     __tablename__ = "register_challenges"
 

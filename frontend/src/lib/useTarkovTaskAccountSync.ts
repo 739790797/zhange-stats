@@ -22,7 +22,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 
 export function useTarkovTaskAccountSync() {
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
   const hydrateKeyRef = useRef("");

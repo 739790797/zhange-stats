@@ -57,12 +57,15 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 | 项 | 期望 |
 |----|------|
 | `APP_ENV=production` | 弱管理员口令拒绝启动；关闭 Swagger；禁止 `ALLOW_EMAIL_CODE_LOG` |
+| 安全头 / HSTS | 反代（及应用中间件）有 `X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options DENY`、`Permissions-Policy`；HTTPS 下 HSTS |
+| 最近一次成功备份 | `scripts/backup.sh` 产出日期；演练 restore 的日期记在运维笔记即可 |
 | `REDIS_URL` | 生产应配置；否则限流与短时 KV 只在本进程内存，重启即丢 |
 | `TRUST_X_FORWARDED_FOR` | **仅**在受信反代之后设 `true`；直接暴露 uvicorn 时保持默认 `false` |
 | SMTP | 邮箱注册要能发出验证码；管理端「邮件」里 `configured` |
 | 条款 | 站内 `/legal/terms`、`/legal/privacy`；片尾写明非官方、非作弊 |
 | ICP 备案 | 国内公开站点在管理端「安全设置」或 `ICP_BEIAN_NO` 填写备案号；留空则全站页脚不展示 |
 | 管理端核对 | 「平台日志」运行时健康：`app` / `mysql` / `redis` / `scheduler` / `app_env` / `xff` / `smtp`。生产未配 Redis 或 SMTP 会标降级 |
+| 规范对齐 | 安全头、备份、Cookie/CSRF、CSP 等见 [`hardening-roadmap.md`](hardening-roadmap.md)（已落地） |
 
 联机大厅为单进程内存 WebSocket，不要承诺可水平扩展。宣传口径走「队友协作勾任务 / 标点」，不要把截图同步说成实时雷达。限流数字见 [`security.md`](security.md)「塔科夫联机」。
 
@@ -70,16 +73,28 @@ curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/scripts
 
 推荐在 uvicorn 前面放 nginx / Caddy：gzip（或 brotli）压缩 JSON API 与 `text/html`、`text/css`、`application/javascript`；`/assets/`（Vite hashed 文件名）长缓存 `Cache-Control: public, max-age=31536000, immutable`；`index.html` 用 `no-cache`。应用进程也会给 `/assets` 加 immutable 头，无反代时仍可命中浏览器缓存。
 
-示例（nginx）：
+示例（nginx）。`add_header` 在有 `location` 时不继承，每个会返回用户响应的 location 都要写：
 
 ```nginx
 gzip on;
 gzip_types text/plain text/css application/json application/javascript text/xml image/svg+xml;
 
+# 安全头（1 期）；CSP 先 Report-Only（7 期）。HSTS 仅 HTTPS。
+map $scheme $hsts_header {
+    https "max-age=31536000; includeSubDomains";
+    default "";
+}
+
 location /assets/ {
     alias /opt/zhange-stats/static/assets/;
     expires 1y;
     add_header Cache-Control "public, immutable";
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Strict-Transport-Security $hsts_header always;
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' https://static.geetest.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; font-src 'self'; frame-src 'self' https://static.geetest.com https://gcaptcha4.geetest.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp-report" always;
 }
 
 location / {
@@ -90,8 +105,42 @@ location / {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Strict-Transport-Security $hsts_header always;
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' https://static.geetest.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; font-src 'self'; frame-src 'self' https://static.geetest.com https://gcaptcha4.geetest.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp-report" always;
 }
 ```
+
+应用进程也会发同一套头与 `X-Request-ID`（无反代时仍可用）。把 `CSP_ENFORCE=true` 后，应用改发 `Content-Security-Policy`；nginx 把上面的 `Report-Only` 换成 enforce 名。观察 `zhange.csp` 日志无误杀联机 WS / 地图 / KaTeX / 极验 / OCR worker 后再 enforce。策略须放行 `static.geetest.com` 脚本与 iframe，以及 `worker-src 'self' blob:`（塔科夫 OCR）。
+
+## 备份与恢复
+
+对象：MySQL（`mysqldump --single-transaction`）、`var/data/`（含 `.secret_key`）、`var/uploads/`、安装根 `.env`（不要进 Git）。
+
+- 备份：`sudo ./scripts/backup.sh`（读 `.env` 的 `DATABASE_URL`，默认写到 `/var/backups/zhange/zhange-时间戳.tar.gz`，保留 14 天）。可用 `ZHANGE_BACKUP_DIR`、`ZHANGE_BACKUP_KEEP_DAYS` 覆盖。
+- 恢复：`sudo ZHANGE_RESTORE_CONFIRM=YES ZHANGE_RESTORE_ARCHIVE=/var/backups/zhange/zhange-时间戳.tar.gz ./scripts/restore.sh`（停 `zhange-stats.service` → 导库 → 解压 `var/` 与 `.env` → 启动）。
+- systemd timer 示例（每日 03:15）：
+
+```ini
+# /etc/systemd/system/zhange-backup.service
+[Service]
+Type=oneshot
+ExecStart=/opt/zhange-stats/scripts/backup.sh
+
+# /etc/systemd/system/zhange-backup.timer
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+演练：在非生产或停机窗口 restore 到临时库，确认能登录；把成功日期记在运维笔记即可，不必把备份文件提交进仓库。
+
+请求排障：响应头 `X-Request-ID` 与 journal / 平台日志同一编号。前端白屏会 `POST /api/client-errors`（需登录，限流），写入运行时日志。
 
 ## Minecraft / Pelican
 

@@ -15,16 +15,20 @@ import {
   message,
   theme,
 } from "antd";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   fetchIntegrationsSettings,
   testPelicanConnection,
   testMinecraftRconConnection,
   updateIntegrationsSettings,
 } from "@/api/client";
+import type { IntegrationsUpdate } from "@/api/settingsApi";
+import { AdminStepUpModal } from "@/components/AdminStepUpModal";
+import { adminCanStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
+import { useAuthStore } from "@/stores/authStore";
 
 type FormValues = {
   steam_api_key?: string;
@@ -112,6 +116,8 @@ function IntegrationBlock({
 export default function IntegrationsSettingsPage() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<FormValues>();
+  const [pending, setPending] = useState<IntegrationsUpdate | null>(null);
+  const canStepUp = adminCanStepUp(useAuthStore((s) => s.user));
 
   const { data, isLoading } = useQuery({
     queryKey: ["integrations-settings"],
@@ -137,9 +143,16 @@ export default function IntegrationsSettingsPage() {
   }, [data, form]);
 
   const save = useMutation({
-    mutationFn: updateIntegrationsSettings,
+    mutationFn: ({
+      payload,
+      code,
+    }: {
+      payload: IntegrationsUpdate;
+      code: string;
+    }) => updateIntegrationsSettings(payload, code),
     onSuccess: () => {
       message.success("集成密钥已保存");
+      setPending(null);
       queryClient.invalidateQueries({ queryKey: ["integrations-settings"] });
       queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
@@ -200,12 +213,16 @@ export default function IntegrationsSettingsPage() {
         style={{ maxWidth: 960, margin: "0 auto" }}
         disabled={isLoading}
         onFinish={(values) => {
+        if (!canStepUp) {
+          message.warning("请先在个人中心绑定并验证邮箱");
+          return;
+        }
         const steam = values.steam_api_key?.trim() || "";
         const qqKey = values.qq_app_key?.trim() || "";
         const githubToken = values.github_token?.trim() || "";
         const pelicanToken = values.pelican_client_token?.trim() || "";
         const rconPassword = values.minecraft_rcon_password?.trim() || "";
-        save.mutate({
+        setPending({
           steam_api_key: steam || null,
           qq_app_id: values.qq_app_id ?? "",
           qq_app_key: qqKey || null,
@@ -420,6 +437,16 @@ export default function IntegrationsSettingsPage() {
         </Form.Item>
       </IntegrationBlock>
     </Form>
+    <AdminStepUpModal
+      open={pending != null}
+      title="保存集成密钥需邮箱验证码"
+      confirmLoading={save.isPending}
+      onCancel={() => setPending(null)}
+      onConfirm={(code) => {
+        if (!pending) return;
+        save.mutate({ payload: pending, code });
+      }}
+    />
     </ConfigProvider>
   );
 }

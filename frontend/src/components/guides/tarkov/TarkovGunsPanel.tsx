@@ -18,7 +18,10 @@ const EMPTY_ITEMS: TarkovGunItem[] = [];
 
 type Props = {
   pickHref?: (gunId: string) => string;
+  onPick?: (gunId: string) => void;
   caliberHref?: (caliber: string) => string;
+  /** 弹窗内嵌：不读 URL 筛选、不链口径、去掉页头来源 */
+  compact?: boolean;
 };
 
 const GUN_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
@@ -47,12 +50,20 @@ function renderGunSource(source: string | null | undefined) {
   );
 }
 
-export function TarkovGunsPanel({ pickHref, caliberHref }: Props = {}) {
+export function TarkovGunsPanel({
+  pickHref,
+  onPick,
+  caliberHref,
+  compact = false,
+}: Props = {}) {
   const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
-  const ammoFilterId = (searchParams.get("ammo") || "").trim() || null;
-  const caliberFilterParam =
-    (searchParams.get("caliber") || "").trim() || null;
+  const ammoFilterId = compact
+    ? null
+    : (searchParams.get("ammo") || "").trim() || null;
+  const caliberFilterParam = compact
+    ? null
+    : (searchParams.get("caliber") || "").trim() || null;
 
   const gunsQuery = useQuery({
     queryKey: ["guides-tarkov-guns", gameMode],
@@ -112,16 +123,18 @@ export function TarkovGunsPanel({ pickHref, caliberHref }: Props = {}) {
   const meta = gunsQuery.data;
 
   return (
-    <div className={styles.stack}>
-      <div className={styles.meta}>
-        <div>数据来源：{renderGunSource(meta?.source)}</div>
-        <div>
-          更新时间：{formatSyncedAt(meta?.synced_at)}
-          {typeof meta?.gun_count === "number"
-            ? ` · 共 ${meta.gun_count} 把`
-            : null}
+    <div className={compact ? `${styles.stack} ${styles.compact}` : styles.stack}>
+      {compact ? null : (
+        <div className={styles.meta}>
+          <div>数据来源：{renderGunSource(meta?.source)}</div>
+          <div>
+            更新时间：{formatSyncedAt(meta?.synced_at)}
+            {typeof meta?.gun_count === "number"
+              ? ` · 共 ${meta.gun_count} 把`
+              : null}
+          </div>
         </div>
-      </div>
+      )}
 
       {ammoFilterId || caliberFilterParam ? (
         <div className={styles.filters}>
@@ -139,13 +152,16 @@ export function TarkovGunsPanel({ pickHref, caliberHref }: Props = {}) {
         </div>
       ) : null}
 
-      <div className={styles.panel}>
+      <div className={compact ? undefined : styles.panel}>
         <TarkovGunsTable
           data={items}
           ammoFilterId={ammoFilterId}
           caliberFilterParam={caliberFilterParam}
           pickHref={pickHref}
+          onPick={onPick}
           caliberHref={caliberHref}
+          linkCaliber={!compact}
+          pickColumns={compact}
         />
       </div>
     </div>

@@ -37,6 +37,9 @@ describe("legal docs", () => {
     expect(terms).toContain("透视");
     expect(terms).toContain(RAID_ROOM_TITLE_POLICY);
     const privacy = legalDoc("privacy").paragraphs.join("\n");
+    expect(privacy).toContain("个人中心申请注销");
+    expect(privacy).toContain("15 日");
+    expect(privacy).toContain("HttpOnly Cookie");
     expect(privacy).toContain("不保存游戏日志原文");
     expect(privacy).toContain("未入座者看不到棋盘、钥匙与人员名单");
   });

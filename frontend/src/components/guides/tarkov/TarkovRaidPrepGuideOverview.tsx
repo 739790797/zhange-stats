@@ -25,6 +25,7 @@ import {
 import { TarkovRaidPrepObjectiveProgress } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { traderDisplayName } from "@/lib/tarkovHomeNav";
+import { TARKOV_SCROLLBAR_HIDE_CLASS } from "@/lib/tarkovUi";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 export type RaidPrepGuideTask = {
@@ -150,7 +151,7 @@ export function TarkovRaidPrepGuideOverview({
         getContainer={() => overlayRoot || document.body}
         className={styles.guideModal}
         classNames={{
-          body: styles.guideModalBody,
+          body: `${styles.guideModalBody} ${TARKOV_SCROLLBAR_HIDE_CLASS}`,
           content: styles.guideModalContent,
         }}
         styles={{

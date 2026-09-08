@@ -1,8 +1,11 @@
 import { Card, Typography } from "antd";
 import type { ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { IcpBeianLink } from "@/components/IcpBeianLink";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
 type Props = {
   /** 默认 420；安装向导 440 */
@@ -29,6 +32,8 @@ export function AuthGuestShell({
   showVersion = true,
   children,
 }: Props) {
+  const { pathname } = useLocation();
+  useDocumentTitle(title || (brand ? "登录" : "战鸽数据"));
   return (
     <div
       style={{
@@ -42,6 +47,7 @@ export function AuthGuestShell({
       }}
     >
       <Card
+        className="app-motion-in"
         style={{
           width,
           maxWidth: "100%",
@@ -93,7 +99,7 @@ export function AuthGuestShell({
             </Typography.Paragraph>
           ) : null}
         </div>
-        {children}
+        <RouteErrorBoundary resetKey={pathname}>{children}</RouteErrorBoundary>
       </Card>
       <div
         style={{

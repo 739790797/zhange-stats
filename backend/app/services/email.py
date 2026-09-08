@@ -20,6 +20,8 @@ _PURPOSE_LABEL = {
     "register": "注册",
     "bind": "绑定邮箱",
     "reset": "找回密码",
+    "delete": "注销账号",
+    "admin_stepup": "管理员确认",
 }
 
 
@@ -105,7 +107,7 @@ def _send_with_config(
         logger.warning(
             "[email-fallback] %s → %s（已脱敏）", to_email, _mask_code(code)
         )
-        return {"sent": False, "mode": "log"}
+        return {"sent": False, "mode": "smtp_error"}
 
 
 def send_verification_email(
@@ -117,7 +119,7 @@ def send_verification_email(
 ) -> dict:
     """
     发送验证码。
-    返回 {"sent": bool, "mode": "smtp"|"log"|"unavailable"}
+    返回 {"sent": bool, "mode": "smtp"|"log"|"unavailable"|"smtp_error"}
     """
     own_session = False
     if db is None:

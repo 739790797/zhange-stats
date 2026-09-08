@@ -17,6 +17,8 @@ from app.services.email import send_verification_email
 PURPOSE_REGISTER = "register"
 PURPOSE_BIND = "bind"
 PURPOSE_RESET = "reset"
+PURPOSE_DELETE = "delete"
+PURPOSE_STEPUP = "admin_stepup"
 
 
 def _utcnow() -> datetime:
@@ -71,7 +73,7 @@ def _upsert_register_challenge(
         )
     db.commit()
     delivery = send_verification_email(email, code, db=db, purpose=purpose)
-    if delivery.get("mode") == "unavailable":
+    if delivery.get("mode") in ("unavailable", "smtp_error"):
         row = (
             db.query(RegisterChallenge)
             .filter(
@@ -83,11 +85,33 @@ def _upsert_register_challenge(
         if row:
             db.delete(row)
             db.commit()
+        if delivery.get("mode") == "smtp_error":
+            raise HTTPException(
+                status_code=503,
+                detail="邮件发送失败，请稍后重试",
+            )
         raise HTTPException(
             status_code=503,
             detail="邮件服务未配置，无法发送验证码。请配置 SMTP，或本地调试时设置 ALLOW_EMAIL_CODE_LOG=true",
         )
     return code, delivery
+
+
+def _delete_challenges_for_email(db: Session, email: str) -> None:
+    ident = (email or "").strip().lower()
+    if not ident:
+        return
+    (
+        db.query(RegisterChallenge)
+        .filter(RegisterChallenge.email == ident)
+        .delete(synchronize_session=False)
+    )
+
+
+def _delivery_user_message(delivery: dict, *, sent: str, logged: str) -> str:
+    if delivery.get("mode") == "log":
+        return logged
+    return sent
 
 
 def _consume_register_challenge(

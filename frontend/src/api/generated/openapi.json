@@ -276,6 +276,29 @@
         }
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Logout Api Auth Logout Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/qq/oauth/start": {
       "get": {
         "tags": [
@@ -304,7 +327,7 @@
           "auth"
         ],
         "summary": "Qq Oauth Exchange",
-        "description": "用回调 URL 中的一次性 ticket 换取 JWT（不把 access_token 放进 query）。",
+        "description": "用回调 URL 中的一次性 ticket 换取会话（不把 access_token 放进 query）。",
         "operationId": "qq_oauth_exchange_api_auth_qq_exchange_post",
         "requestBody": {
           "content": {
@@ -711,6 +734,106 @@
         }
       }
     },
+    "/api/auth/step-up/send": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Send Step Up Code",
+        "operationId": "send_step_up_code_api_auth_step_up_send_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/account/delete-code": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Send Delete Account Code",
+        "operationId": "send_delete_account_code_api_auth_account_delete_code_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/account/delete": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete Own Account",
+        "operationId": "delete_own_account_api_auth_account_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Delete Own Account Api Auth Account Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/members": {
       "get": {
         "tags": [
@@ -887,6 +1010,22 @@
               "type": "integer",
               "title": "User Id"
             }
+          },
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
           }
         ],
         "requestBody": {
@@ -942,6 +1081,22 @@
             "schema": {
               "type": "integer",
               "title": "User Id"
+            }
+          },
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
             }
           }
         ],
@@ -1784,6 +1939,11 @@
         ],
         "summary": "Get Email Settings",
         "operationId": "get_email_settings_api_settings_email_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1795,12 +1955,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "put": {
         "tags": [
@@ -1808,15 +1963,38 @@
         ],
         "summary": "Update Email Settings",
         "operationId": "update_email_settings_api_settings_email_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EmailSettingsUpdate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1839,12 +2017,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/settings/email/test": {
@@ -1928,6 +2101,11 @@
         ],
         "summary": "Get Integrations",
         "operationId": "get_integrations_api_settings_integrations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1939,12 +2117,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "put": {
         "tags": [
@@ -1952,15 +2125,38 @@
         ],
         "summary": "Update Integrations",
         "operationId": "update_integrations_api_settings_integrations_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/IntegrationsUpdate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1983,12 +2179,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/settings/integrations/pelican-test": {
@@ -2141,6 +2332,24 @@
             "HTTPBearer": []
           }
         ],
+        "parameters": [
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2275,6 +2484,11 @@
         "summary": "Get Platform Features Admin",
         "description": "管理端：完整树 + raw / effective 开关。",
         "operationId": "get_platform_features_admin_api_settings_platform_features_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2286,12 +2500,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "put": {
         "tags": [
@@ -2299,15 +2508,38 @@
         ],
         "summary": "Update Platform Features",
         "operationId": "update_platform_features_api_settings_platform_features_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PlatformFeaturesUpdate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2330,12 +2562,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/settings/platform-features/effective": {
@@ -2458,15 +2685,38 @@
         ],
         "summary": "Do App Update",
         "operationId": "do_app_update_api_settings_app_update_do_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Step-Up-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Step-Up-Code"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AppUpdateDoIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2489,12 +2739,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/settings/runtime-logs": {
@@ -10241,6 +10486,69 @@
         }
       }
     },
+    "/api/guides/tarkov/workbench/community-builds": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Workbench Community Builds",
+        "description": "工作台：按枪读取 EFTForge 公开社区方案（不落库、不代投票）。",
+        "operationId": "guides_tarkov_workbench_community_builds_api_guides_tarkov_workbench_community_builds_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gun_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Gun Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovWorkbenchCommunityBuildsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/tasks/sync": {
       "post": {
         "tags": [
@@ -16077,6 +16385,93 @@
         }
       }
     },
+    "/api/client-errors": {
+      "post": {
+        "tags": [
+          "observability"
+        ],
+        "summary": "Post Client Error",
+        "operationId": "post_client_error_api_client_errors_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientErrorIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Post Client Error Api Client Errors Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/csp-report": {
+      "post": {
+        "tags": [
+          "observability"
+        ],
+        "summary": "Post Csp Report",
+        "operationId": "post_csp_report_api_csp_report_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Post Csp Report Api Csp Report Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/robots.txt": {
+      "get": {
+        "summary": "Robots Txt",
+        "operationId": "robots_txt_robots_txt_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -18888,6 +19283,69 @@
           "role_uid"
         ],
         "title": "CheckinRolePrefUpdate"
+      },
+      "ClientErrorIn": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Message",
+            "default": ""
+          },
+          "component_stack": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Component Stack",
+            "default": ""
+          },
+          "pathname": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Pathname",
+            "default": ""
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "app_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Version"
+          }
+        },
+        "type": "object",
+        "title": "ClientErrorIn"
+      },
+      "DeleteAccountRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 4,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "DeleteAccountRequest"
       },
       "EmailSettingsOut": {
         "properties": {
@@ -36686,6 +37144,7 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Slot Ids"
           }
         },
@@ -36712,6 +37171,7 @@
         "properties": {
           "gun_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Gun Id"
           },
           "pairs": {
@@ -36719,12 +37179,14 @@
               "$ref": "#/components/schemas/TarkovWorkbenchPairOut"
             },
             "type": "array",
+            "maxItems": 200,
             "title": "Pairs"
           },
           "ammo_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 64
               },
               {
                 "type": "null"
@@ -36757,6 +37219,202 @@
           "stats"
         ],
         "title": "TarkovWorkbenchCalculateOut"
+      },
+      "TarkovWorkbenchCommunityBuildOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author",
+            "default": ""
+          },
+          "featured": {
+            "type": "boolean",
+            "title": "Featured",
+            "default": false
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "load_count": {
+            "type": "integer",
+            "title": "Load Count",
+            "default": 0
+          },
+          "ammo_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ammo Id"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovWorkbenchPairOut"
+            },
+            "type": "array",
+            "title": "Pairs"
+          },
+          "loadable": {
+            "type": "boolean",
+            "title": "Loadable",
+            "default": false
+          },
+          "dropped_pair_count": {
+            "type": "integer",
+            "title": "Dropped Pair Count",
+            "default": 0
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovWorkbenchCommunityPreviewOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TarkovWorkbenchCommunityBuildOut"
+      },
+      "TarkovWorkbenchCommunityBuildsOut": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "gun_id": {
+            "type": "string",
+            "title": "Gun Id"
+          },
+          "builds": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovWorkbenchCommunityBuildOut"
+            },
+            "type": "array",
+            "title": "Builds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "source_url",
+          "gun_id"
+        ],
+        "title": "TarkovWorkbenchCommunityBuildsOut"
+      },
+      "TarkovWorkbenchCommunityPreviewOut": {
+        "properties": {
+          "ergonomics": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ergonomics"
+          },
+          "evo_ergo_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evo Ergo Delta"
+          },
+          "recoil_vertical": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recoil Vertical"
+          },
+          "recoil_horizontal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recoil Horizontal"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "price_rub": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Rub"
+          },
+          "overswing": {
+            "type": "boolean",
+            "title": "Overswing",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TarkovWorkbenchCommunityPreviewOut"
       },
       "TarkovWorkbenchGunOut": {
         "properties": {
@@ -36940,10 +37598,12 @@
         "properties": {
           "slot_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Slot Id"
           },
           "item_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Item Id"
           }
         },
@@ -37164,6 +37824,44 @@
               }
             ],
             "title": "Ammo Id"
+          },
+          "accuracy_moa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy Moa"
+          },
+          "muzzle_velocity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Muzzle Velocity"
+          },
+          "arm_stamina": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arm Stamina"
+          },
+          "evo_ergo_delta": {
+            "type": "number",
+            "title": "Evo Ergo Delta",
+            "default": 0
           }
         },
         "type": "object",

@@ -24,8 +24,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const token = useAuthStore((s) => s.token);
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qqCompleting, setQqCompleting] = useState(false);
@@ -68,12 +68,11 @@ export default function LoginPage() {
       setQqCompleting(true);
       void (async () => {
         try {
-          const { access_token } = await exchangeQqTicket(ticket);
-          useAuthStore.setState({ token: access_token });
-          const user = await fetchMe();
-          setAuth(access_token, user);
+          await exchangeQqTicket(ticket);
+          const me = await fetchMe();
+          setUser(me);
           message.success(name ? `欢迎，${name}` : "QQ 登录成功");
-          const needComplete = needCompleteFlag || !user.email;
+          const needComplete = needCompleteFlag || !me.email;
           goHome(needComplete ? { promptCompleteProfile: true } : undefined);
         } catch (e: unknown) {
           useAuthStore.getState().logout();
@@ -85,10 +84,10 @@ export default function LoginPage() {
     }
 
     setError(detail || "QQ 登录失败");
-  }, [goHome, navigate, searchParams, setAuth, setSearchParams]);
+  }, [goHome, navigate, searchParams, setUser, setSearchParams]);
 
   const loggedInDest = useRef<string | null>(null);
-  if (token && !qqCompleting && !searchParams.get("qq_login")) {
+  if (user && !qqCompleting && !searchParams.get("qq_login")) {
     if (loggedInDest.current == null) {
       loggedInDest.current = consumePostLoginPath() || postLoginPath(from);
     }
@@ -99,12 +98,11 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const { access_token } = await login(values.username, values.password);
-      useAuthStore.setState({ token: access_token });
-      const user = await fetchMe();
-      setAuth(access_token, user);
+      await login(values.username, values.password);
+      const me = await fetchMe();
+      setUser(me);
       message.success("登录成功");
-      goHome(!user.email ? { promptCompleteProfile: true } : undefined);
+      goHome(!me.email ? { promptCompleteProfile: true } : undefined);
     } catch (e: unknown) {
       setError(apiError(e, "账号或密码错误"));
     } finally {

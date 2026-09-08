@@ -1,5 +1,6 @@
 import { Typography } from "antd";
 import type { ReactNode } from "react";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
 interface PageHeaderProps {
   title: string;
@@ -8,6 +9,7 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, subtitle, extra }: PageHeaderProps) {
+  useDocumentTitle(title);
   return (
     <div
       style={{

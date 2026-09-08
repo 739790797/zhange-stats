@@ -60,18 +60,20 @@ def http_request(
     json: Any | None = None,
     timeout: float | int | None = None,
     params: dict[str, Any] | None = None,
+    follow_redirects: bool | None = None,
 ) -> httpx.Response:
     """发请求；4xx/5xx 仍返回 Response，不 raise。"""
+    kwargs: dict[str, Any] = {
+        "headers": headers,
+        "content": content,
+        "json": json,
+        "params": params,
+        "timeout": _timeout(timeout),
+    }
+    if follow_redirects is not None:
+        kwargs["follow_redirects"] = follow_redirects
     try:
-        return get_http_client().request(
-            method.upper(),
-            url,
-            headers=headers,
-            content=content,
-            json=json,
-            params=params,
-            timeout=_timeout(timeout),
-        )
+        return get_http_client().request(method.upper(), url, **kwargs)
     except httpx.TimeoutException as exc:
         raise HttpRequestError(f"请求超时：{exc}") from exc
     except httpx.RequestError as exc:

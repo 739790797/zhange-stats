@@ -11,19 +11,19 @@ alwaysApply: false
 - `pages/`：路由页；`components/`：可复用 UI。根上只留跨平台外壳（`CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton` 等）；平台面板进 `components/<platform>/`，攻略进 `guides/`
 - `src/data/`：源码资源（如塔科夫地图 JSON）；运行时/缓存在仓库根 `var/`，勿往 `frontend/data` 写
 - `api/`：`http.ts` + 域 `*Api.ts`；`client.ts` 再导出
-- `stores/authStore.ts`：仅 JWT + 用户（localStorage）
+- `stores/authStore.ts`：只持久化 `user`（登录态以 HttpOnly Cookie 为准）
 - `lib/apiError.ts`：用户可见错误文案
 
 ## 权限与路由
 
 - `PrivateRoute` 需登录；`AdminRoute` 看 `role === admin`（`is_admin` 仅派生展示）
-- `PlatformRoute` 受 `platform_features` 控制；未登录可读的页用 `allowGuest`，避免去打需 JWT 的 `/platform-features/effective`
+- `PlatformRoute` 受 `platform_features` 控制；未登录可读的页用 `allowGuest`，避免去打需登录的 `/platform-features/effective`
 - 战鸽酒馆列表/详情走 `AppLayout`（与工作台同一套侧栏 / 移动端顶栏）；`/` 重定向到 `/tavern`，与 `/tavern/:slug` 同在 `PrivateRoute` 外以便未登录可读。写文章 `/tavern/write` 须登录作者；`/tavern/admin` 酒馆管理在社区组、仅管理员
 
 ## 数据与 UI
 
 - 远端状态用 TanStack Query；勿把服务端列表塞进 zustand
-- 路由页一律 `React.lazy`，`AppLayout` 的 Outlet 外包 `Suspense`；禁止把页面静态引进 `App.tsx`
+- 路由页一律 `React.lazy`，`Outlet` 外包 `Suspense` + `RouteErrorBoundary`；非塔科夫主栏再包 `PageMotion`，塔科夫嵌套在 `TarkovGuidesOutlet`。禁止把页面静态引进 `App.tsx`
 - 平台 `PlatformFeatureTabsPage` 保持 `destroyInactiveTabPane`；盒子 / 兑换 / 养成 Tab 按需 lazy
 - UI：Ant Design 5 + `antdAppTheme`；按钮角色/尺寸见 `frontend-ui.mdc`
 - **新签到内容**套 `CheckinPageTemplate`（`contentOnly` 嵌入平台 Tabs）

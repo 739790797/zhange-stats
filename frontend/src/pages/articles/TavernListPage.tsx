@@ -38,12 +38,14 @@ import {
   tavernEditPath,
 } from "@/lib/tavernNav";
 import { formatBeijing } from "@/lib/time";
+import { useDocumentTitle } from "@/lib/documentTitle";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function TavernListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const token = useAuthStore((s) => s.token);
+  useDocumentTitle("战鸽酒馆");
+  const token = Boolean(useAuthStore((s) => s.user));
   const [params, setParams] = useSearchParams();
   const page = Number(params.get("page") || "1") || 1;
   const category = params.get("category") || undefined;

@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.auth.step_up import require_admin_step_up
 from app.core.deps import require_admin
 from app.models.user import User
 from app.services import app_updator
@@ -127,7 +128,7 @@ async def check_app_update(_: User = Depends(require_admin)) -> AppUpdateCheckOu
 @router.post("/do", response_model=AppUpdateDoOut)
 async def do_app_update(
     body: AppUpdateDoIn,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_step_up),
 ) -> AppUpdateDoOut:
     allowed, reason = app_updator.update_allowed()
     if not allowed:

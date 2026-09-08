@@ -20,6 +20,7 @@ from app.api.guides.schemas import (
     TarkovWorkbenchCalculateOut,
     TarkovWorkbenchImageOut,
     TarkovWorkbenchImageStatusOut,
+    TarkovWorkbenchCommunityBuildsOut,
     TarkovWorkbenchGunOut,
     TarkovItemDetailOut,
     TarkovItemsSyncOut,
@@ -79,6 +80,7 @@ from app.services.tarkov import guns as gun_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import workbench as workbench_svc
 from app.services.tarkov import workbench_image as workbench_image_svc
+from app.services.tarkov import community as community_svc
 from app.services.tarkov import key_owns as key_owns_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
@@ -542,12 +544,17 @@ def guides_tarkov_workbench_gun(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_workbench_allowed(
+    request: Request,
     body: TarkovWorkbenchAllowedIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """工作台：批量解析槽位允许配件。"""
-    _ = user
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-workbench-allowed:ip:{ip}", limit=60, window_sec=60)
+    platform_limiter.hit(
+        f"tarkov-workbench-allowed:uid:{user.id}", limit=60, window_sec=60
+    )
     try:
         slots = workbench_svc.allowed_items_for_slots(db, body.slot_ids)
     except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
@@ -561,12 +568,17 @@ def guides_tarkov_workbench_allowed(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_workbench_calculate(
+    request: Request,
     body: TarkovWorkbenchCalculateIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """工作台：按已装 pairs 算属性与槽位树。"""
-    _ = user
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-workbench-calc:ip:{ip}", limit=60, window_sec=60)
+    platform_limiter.hit(
+        f"tarkov-workbench-calc:uid:{user.id}", limit=60, window_sec=60
+    )
     pairs = [(row.slot_id, row.item_id) for row in body.pairs]
     try:
         data = workbench_svc.calculate(db, body.gun_id, pairs, body.ammo_id)
@@ -613,6 +625,34 @@ def guides_tarkov_workbench_build_image(
     except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
         raise _workbench_http(exc) from exc
     return TarkovWorkbenchImageOut.model_validate(data)
+
+
+@router.get(
+    "/workbench/community-builds",
+    response_model=TarkovWorkbenchCommunityBuildsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_community_builds(
+    request: Request,
+    gun_id: str = Query(..., min_length=1, max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工作台：按枪读取 EFTForge 公开社区方案（不落库、不代投票）。"""
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-community:ip:{ip}", limit=30, window_sec=600)
+    platform_limiter.hit(
+        f"tarkov-community:uid:{user.id}", limit=20, window_sec=600
+    )
+    try:
+        data = community_svc.list_public_builds(db, gun_id)
+    except (
+        workbench_svc.TarkovWorkbenchError,
+        items_svc.TarkovItemsError,
+        community_svc.TarkovCommunityError,
+    ) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchCommunityBuildsOut.model_validate(data)
 
 
 def _sync_tasks(db: Session) -> dict:

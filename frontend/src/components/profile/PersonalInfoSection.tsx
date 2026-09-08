@@ -18,8 +18,10 @@ import { useState } from "react";
 import {
   changeOwnPassword,
   changeOwnUsername,
+  deleteOwnAccount,
   fetchMe,
   fetchPasswordPolicy,
+  sendDeleteAccountCode,
 } from "@/api/client";
 import type { MemberProfile } from "@/api/types";
 import { apiError } from "@/lib/apiError";
@@ -63,15 +65,19 @@ export function PersonalInfoSection({
   showAccountActions = false,
   onUsernameChanged,
 }: PersonalInfoSectionProps) {
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const setUser = useAuthStore((s) => s.setUser);
   const authUser = useAuthStore((s) => s.user);
   const username = data?.username || authUser?.username || "";
   const showUsername = Boolean(username) && !isAutoUsername(username);
 
   const [pwdOpen, setPwdOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteSending, setDeleteSending] = useState(false);
   const [pwdForm] = Form.useForm<PasswordForm>();
   const [userForm] = Form.useForm<UsernameForm>();
+  const [deleteForm] = Form.useForm<{ code: string }>();
+  const logout = useAuthStore((s) => s.logout);
 
   const policyQuery = useQuery({
     queryKey: ["password-policy"],
@@ -97,10 +103,10 @@ export function PersonalInfoSection({
       message.success(res.message || "用户名已更新");
       try {
         const me = await fetchMe();
-        setAuth(res.access_token, me);
+        setUser(me);
       } catch {
         if (authUser) {
-          setAuth(res.access_token, { ...authUser, username: res.username });
+          setUser({ ...authUser, username: res.username });
         }
       }
       userForm.resetFields();
@@ -109,6 +115,19 @@ export function PersonalInfoSection({
     },
     onError: (e: unknown) => message.error(apiError(e, "修改失败")),
   });
+
+  const deleteAccount = useMutation({
+    mutationFn: (code: string) => deleteOwnAccount(code),
+    onSuccess: (res) => {
+      message.success(res.message || "账号已注销");
+      logout();
+      window.location.assign("/login");
+    },
+    onError: (e: unknown) => message.error(apiError(e, "注销失败")),
+  });
+
+  const me = useAuthStore((s) => s.user);
+  const canDelete = Boolean(me?.email && me?.email_verified);
 
   return (
     <Card title="个人信息" loading={isLoading} style={{ marginBottom: 24 }}>
@@ -187,6 +206,16 @@ export function PersonalInfoSection({
                 }}
               >
                 修改密码
+              </Button>
+              <Button
+                danger
+                disabled={!!errMsg || !data}
+                onClick={() => {
+                  deleteForm.resetFields();
+                  setDeleteOpen(true);
+                }}
+              >
+                注销账号
               </Button>
             </Space>
           ) : null}
@@ -295,6 +324,62 @@ export function PersonalInfoSection({
                 <Input.Password autoComplete="new-password" />
               </Form.Item>
             </Form>
+          </Modal>
+
+          <Modal
+            title="注销账号"
+            open={deleteOpen}
+            onCancel={() => setDeleteOpen(false)}
+            okText="确认注销"
+            okButtonProps={{ danger: true, disabled: !canDelete }}
+            confirmLoading={deleteAccount.isPending}
+            destroyOnClose
+            onOk={() => deleteForm.submit()}
+          >
+            {!canDelete ? (
+              <Typography.Paragraph>
+                请先绑定并验证邮箱，才能申请注销。处理即时完成；已发布的酒馆文章会保留，作者显示为「已注销用户」。
+              </Typography.Paragraph>
+            ) : (
+              <>
+                <Typography.Paragraph>
+                  注销后无法用原邮箱登录，平台绑定会解除。已发布的酒馆文章会保留并显示「已注销用户」，草稿会删除。通常即时完成（不超过 15 日）。
+                </Typography.Paragraph>
+                <Form
+                  form={deleteForm}
+                  layout="vertical"
+                  onFinish={(values) => deleteAccount.mutate(values.code.trim())}
+                >
+                  <Form.Item label="邮箱验证码" required>
+                    <Space.Compact style={{ width: "100%" }}>
+                      <Form.Item
+                        name="code"
+                        noStyle
+                        rules={[{ required: true, message: "请输入验证码" }]}
+                      >
+                        <Input maxLength={16} autoComplete="one-time-code" />
+                      </Form.Item>
+                      <Button
+                        loading={deleteSending}
+                        onClick={async () => {
+                          setDeleteSending(true);
+                          try {
+                            const res = await sendDeleteAccountCode();
+                            message.success(res.message);
+                          } catch (e: unknown) {
+                            message.error(apiError(e, "发送失败"));
+                          } finally {
+                            setDeleteSending(false);
+                          }
+                        }}
+                      >
+                        发送验证码
+                      </Button>
+                    </Space.Compact>
+                  </Form.Item>
+                </Form>
+              </>
+            )}
           </Modal>
         </>
       ) : null}

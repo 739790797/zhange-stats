@@ -20,6 +20,10 @@
   color: #f2f2f2;
 }
 
+.caliberStart :global(td) {
+  border-top: 1px solid #4a4e40 !important;
+}
+
 .table :global(.ant-table-cell-fix-left),
 .table :global(.ant-table-cell-fix-right) {
   background: #141414;
@@ -40,6 +44,21 @@
 }
 
 .table :global(a:hover) {
+  color: #e0b45a;
+}
+
+.namePick {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #c8932a;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.namePick:hover {
   color: #e0b45a;
 }
 
@@ -68,4 +87,21 @@
 
 .table :global(.ant-pagination-total-text) {
   color: #8a8878;
+}
+
+.pick :global(.ant-table-container) {
+  border-inline-start: 0 !important;
+}
+
+.pickThumb {
+  display: block;
+}
+
+.pickThumb :global(.ant-image),
+.pickThumb :global(.ant-image-img) {
+  background: transparent;
+}
+
+.pickThumb :global(.ant-image-img) {
+  mix-blend-mode: lighten;
 }

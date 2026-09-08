@@ -9,7 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const initialEmail = useMemo(
     () => params.get("email") || "",
     [params],
@@ -19,7 +19,7 @@ export default function VerifyEmailPage() {
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
-  if (token) {
+  if (user) {
     return <Navigate to="/" replace />;
   }
 

@@ -4,7 +4,8 @@
 
 html,
 body,
-#root {
+#root,
+.ant-app {
   margin: 0;
   height: 100%;
 }
@@ -17,6 +18,28 @@ body {
 
 a {
   color: inherit;
+}
+
+.skip-to-main {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: #fff;
+  color: #1a2332;
+  border: 1px solid #1a2332;
+  border-radius: 6px;
+  transform: translateY(-200%);
+}
+
+.skip-to-main:focus {
+  transform: none;
+}
+
+.skip-to-main:focus-visible {
+  outline: 2px solid #1a2332;
+  outline-offset: 2px;
 }
 
 /* 侧栏菜单：统一底色，选中项浅色；滚动条贴合深色侧栏 */
@@ -58,6 +81,15 @@ a {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(26, 35, 50, 0.28) transparent;
+}
+
+.app-main-scroll:focus {
+  outline: none;
+}
+
+.app-main-scroll:focus-visible {
+  outline: 2px solid #1a2332;
+  outline-offset: -2px;
 }
 
 .app-main-scroll::-webkit-scrollbar {
@@ -322,3 +354,43 @@ a {
 .ant-table-wrapper tr.jobs-user-group-row > td.ant-table-cell-fix-sticky {
   background: rgba(26, 35, 50, 0.04) !important;
 }
+
+/* 全站进出场：只做进入淡入，不用 transform，避免打断 sticky / 地图 / 表格固定列。 */
+:root {
+  --app-motion-duration: 0.2s;
+}
+
+@keyframes app-motion-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.app-motion-page,
+.app-motion-in {
+  animation: app-motion-in var(--app-motion-duration) ease-out both;
+}
+
+.app-page-shell--flush > .app-motion-page {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+}
+
+.ant-tabs-tabpane.ant-tabs-tabpane-active {
+  animation: app-motion-in var(--app-motion-duration) ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-motion-page,
+  .app-motion-in,
+  .ant-tabs-tabpane.ant-tabs-tabpane-active {
+    animation: none;
+  }
+}
+

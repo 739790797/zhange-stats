@@ -1,7 +1,9 @@
 import { Button, Result } from "antd";
 import { Link } from "react-router-dom";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
 export function ForbiddenPage() {
+  useDocumentTitle("没有权限");
   return (
     <Result
       status="403"

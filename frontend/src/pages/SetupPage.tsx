@@ -15,7 +15,7 @@ type FormValues = {
 
 export default function SetupPage() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const setUser = useAuthStore((s) => s.setUser);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [minLen, setMinLen] = useState(8);
@@ -50,14 +50,13 @@ export default function SetupPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await completeSetupAdmin({
+      await completeSetupAdmin({
         email: values.email,
         display_name: values.display_name,
         password: values.password,
       });
-      useAuthStore.setState({ token: res.access_token });
       const user = await fetchMe();
-      setAuth(res.access_token, user);
+      setUser(user);
       message.success("初始化完成");
       navigate("/", { replace: true });
     } catch (e: unknown) {
@@ -73,6 +72,7 @@ export default function SetupPage() {
       brand
       brandTitleSize={32}
       headerMarginBottom={28}
+      title="安装"
       subtitle="首次安装 · 创建管理员账号"
     >
         {error ? (

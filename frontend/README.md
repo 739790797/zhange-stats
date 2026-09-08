@@ -21,7 +21,7 @@ npm run gen:api             # 生成 src/api/generated/schema.d.ts
 - `src/data`：源码资源（塔科夫地图 JSON 等）；运行时/缓存在仓库根 `var/`
 - `src/api`：axios + 按域 `*Api`；业务类型几乎均从 `generated/schema.d.ts` 派生；`formatDuration` 等工具仍在 `types.ts`
 - `src/lib/apiError` / `formatRequestError`：统一错误文案；`npm run test`（vitest）覆盖 `lib/` 与组件旁纯函数（见 `testing.mdc`）
-- `src/stores/authStore.ts`：仅存 JWT + 用户（localStorage）
+- `src/stores/authStore.ts`：只持久化 `user`（登录态以 HttpOnly Cookie 为准）
 - 约定：仓库根 `AGENTS.md`；Cursor 规则 `frontend-conventions` / `frontend-api-errors` / `testing`
 
 ## 权限

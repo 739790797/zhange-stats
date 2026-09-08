@@ -31,15 +31,17 @@ import {
   theme,
 } from "antd";
 import type { MenuProps } from "antd";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
-import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective } from "@/api/client";
+import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective, logoutRequest } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { IcpBeianLink } from "@/components/IcpBeianLink";
 import { useSitePublic } from "@/hooks/useSitePublic";
 import { RouteFallback } from "@/components/RouteFallback";
+import { PageMotion } from "@/components/PageMotion";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
@@ -160,8 +162,7 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
-  const authToken = useAuthStore((s) => s.token);
-  const loggedIn = Boolean(authToken);
+  const loggedIn = Boolean(user);
   const { token } = theme.useToken();
   const [completeOpen, setCompleteOpen] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
@@ -171,6 +172,7 @@ export function AppLayout() {
   const isMobile = screens.md === false;
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const contentShell = adminContentShell(location.pathname);
+  const mainRef = useRef<HTMLElement>(null);
   const sitePublic = useSitePublic();
   const showIcpBeian = Boolean(siteIcpBeianNo(sitePublic.data?.icp_beian_no));
 
@@ -249,6 +251,13 @@ export function AppLayout() {
     loggedIn,
     user?.email,
   ]);
+
+  useLayoutEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+    if (!isTarkovGuide) {
+      mainRef.current?.focus({ preventScroll: true });
+    }
+  }, [location.pathname, isTarkovGuide]);
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -461,6 +470,7 @@ export function AppLayout() {
   const homeHref = TAVERN_PATH;
 
   const onLogout = () => {
+    void logoutRequest().catch(() => undefined);
     logout();
     navigate("/login");
   };
@@ -515,6 +525,15 @@ export function AppLayout() {
           )}
         </div>
       </div>
+      <nav
+        aria-label="站点"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
       <Menu
         theme="dark"
         mode="inline"
@@ -532,6 +551,7 @@ export function AppLayout() {
           paddingTop: 8,
         }}
       />
+      </nav>
       <div
         style={{
           borderTop: "1px solid rgba(255,255,255,0.08)",
@@ -618,6 +638,11 @@ export function AppLayout() {
 
   return (
     <Layout style={{ height: "100vh", overflow: "hidden" }}>
+      {isTarkovGuide ? null : (
+        <a className="skip-to-main" href="#app-main">
+          跳到正文
+        </a>
+      )}
       {isMobile ? (
         <Drawer
           placement="left"
@@ -691,6 +716,10 @@ export function AppLayout() {
           </Header>
         ) : null}
         <Content
+          ref={mainRef}
+          id={isTarkovGuide ? undefined : "app-main"}
+          role={isTarkovGuide ? undefined : "main"}
+          tabIndex={isTarkovGuide ? undefined : -1}
           className={[
             isTarkovGuide ? "app-main-tarkov" : "app-main-scroll",
             !isMobile && siderCollapsed ? "app-main--sider-collapsed" : "",
@@ -720,7 +749,9 @@ export function AppLayout() {
         >
           {isTarkovGuide ? (
             <Suspense fallback={<RouteFallback />}>
-              <Outlet />
+              <RouteErrorBoundary resetKey="/guides/tarkov">
+                <Outlet />
+              </RouteErrorBoundary>
             </Suspense>
           ) : (
             <div
@@ -752,7 +783,11 @@ export function AppLayout() {
               }
             >
               <Suspense fallback={<RouteFallback />}>
-                <Outlet />
+                <RouteErrorBoundary resetKey={location.pathname}>
+                  <PageMotion motionKey={location.pathname}>
+                    <Outlet />
+                  </PageMotion>
+                </RouteErrorBoundary>
               </Suspense>
             </div>
           )}

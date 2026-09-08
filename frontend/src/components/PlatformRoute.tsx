@@ -16,7 +16,7 @@ export function PlatformRoute({
   children: ReactNode;
   allowGuest?: boolean;
 }) {
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const skipGate = allowGuest && !token;
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],

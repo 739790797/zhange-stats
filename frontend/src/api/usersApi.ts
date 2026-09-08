@@ -26,13 +26,18 @@ export async function updateUser(
     role?: "admin" | "user";
     is_admin?: boolean;
   },
+  stepUpCode?: string,
 ) {
-  const { data } = await client.patch<UserBrief>(`/users/${userId}`, payload);
+  const { data } = await client.patch<UserBrief>(`/users/${userId}`, payload, {
+    headers: stepUpCode ? { "X-Step-Up-Code": stepUpCode } : undefined,
+  });
   return data;
 }
 
-export async function deleteUser(userId: number) {
-  await client.delete(`/users/${userId}`);
+export async function deleteUser(userId: number, stepUpCode: string) {
+  await client.delete(`/users/${userId}`, {
+    headers: { "X-Step-Up-Code": stepUpCode },
+  });
 }
 
 export async function fetchMyProfile() {

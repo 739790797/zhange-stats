@@ -2,6 +2,7 @@ import { Button, Result } from "antd";
 import { Link } from "react-router-dom";
 import { GUIDE_NAV, flattenGuideLeaves } from "@/lib/guideNav";
 import { PLATFORM_NAV } from "@/lib/platformFeatures";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
 function featureLabel(featureId: string): string {
   const platform = PLATFORM_NAV.find((item) => item.featureId === featureId);
@@ -21,6 +22,9 @@ export function FeatureUnavailablePage({
   loadError?: boolean;
 }) {
   const name = featureLabel(featureId);
+  useDocumentTitle(
+    loadError ? "暂时无法确认功能开关" : `${name}未启用`,
+  );
   return (
     <Result
       status={loadError ? "warning" : "info"}

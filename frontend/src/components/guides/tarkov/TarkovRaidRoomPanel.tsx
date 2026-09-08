@@ -147,7 +147,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const gameMode = useTarkovGameMode();
   const { setMode } = useTarkovGameModeControls();
   const navigate = useNavigate();
-  const token = useAuthStore((s) => s.token);
+  const token = Boolean(useAuthStore((s) => s.user));
   const queryClient = useQueryClient();
   const me = useAuthStore((s) => s.user);
   const [room, setRoom] = useState<TarkovRaidRoomDetail | null>(null);
@@ -283,7 +283,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       wsRef.current = ws;
       ws.onopen = () => {
         retry = 0;
-        ws?.send(JSON.stringify({ event: "auth", token }));
+        ws?.send(JSON.stringify({ event: "auth" }));
       };
       ws.onmessage = (event) => {
         let payload: RaidRoomWsEvent<TarkovRaidRoomDetail> & {

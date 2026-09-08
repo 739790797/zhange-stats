@@ -8,6 +8,12 @@ import {
   tarkovCatalogCacheKey,
 } from "@/lib/tarkovCatalogHttp";
 import { getTarkovGameMode } from "@/lib/tarkovGameMode";
+import { isUnsafeHttpMethod, readCsrfToken } from "@/lib/csrfCookie";
+import {
+  resetLogoutOnce,
+  shouldLogoutOn401,
+  takeLogoutOnce,
+} from "@/lib/shouldLogoutOn401";
 import {
   loadAllMapFileEtags,
   loadMapFile,
@@ -18,6 +24,7 @@ import { useAuthStore } from "@/stores/authStore";
 export const client = axios.create({
   baseURL: "/api",
   timeout: 15000,
+  withCredentials: true,
 });
 
 const catalogBodies = new Map<string, unknown>();
@@ -53,9 +60,11 @@ function hydrateMapFileCache(): Promise<void> {
 }
 
 client.interceptors.request.use(async (config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (isUnsafeHttpMethod(config.method)) {
+    const csrf = readCsrfToken();
+    if (csrf) {
+      config.headers["X-CSRF-Token"] = csrf;
+    }
   }
   const url = String(config.url || "");
   if (url.includes("/guides/tarkov")) {
@@ -126,8 +135,14 @@ client.interceptors.response.use(
     return res;
   },
   (error) => {
+    const headers = error.response?.headers as
+      | Record<string, string | undefined>
+      | undefined;
+    const rid = headers?.["x-request-id"] || headers?.["X-Request-ID"];
+    if (rid && error && typeof error === "object") {
+      (error as { requestId?: string }).requestId = String(rid);
+    }
     const url = String(error.config?.url || "");
-    const isLoginAttempt = url.includes("/auth/login");
     const status = error.response?.status;
     const code = error.response?.data?.code;
     if (status === 503 && code === "SETUP_REQUIRED") {
@@ -136,8 +151,24 @@ client.interceptors.response.use(
       }
       return Promise.reject(error);
     }
-    if (status === 401 && !isLoginAttempt) {
-      useAuthStore.getState().logout();
+    const hasSession = Boolean(useAuthStore.getState().user);
+    if (
+      shouldLogoutOn401({
+        status: Number(status || 0),
+        url,
+        hasSession,
+      }) &&
+      takeLogoutOnce()
+    ) {
+      void import("./authApi")
+        .then((m) => m.logoutRequest())
+        .catch(() => {
+          /* 会话已失效时 logout 仍可能 401/403，本地照样清掉 */
+        })
+        .finally(() => {
+          useAuthStore.getState().logout();
+        });
+      window.setTimeout(() => resetLogoutOnce(), 1500);
     }
     return Promise.reject(error);
   },

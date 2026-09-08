@@ -23,3 +23,14 @@ export const antdAppTheme: ThemeConfig = {
     },
   },
 };
+
+/** 系统减动时关掉 antd 进出场（Modal / Drawer / Collapse 等）。 */
+export function antdThemeWithMotion(enableMotion: boolean): ThemeConfig {
+  return {
+    ...antdAppTheme,
+    token: {
+      ...antdAppTheme.token,
+      motion: enableMotion,
+    },
+  };
+}

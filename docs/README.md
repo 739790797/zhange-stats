@@ -23,8 +23,9 @@
 | 克隆后跑起来 | [`develop.md`](develop.md) |
 | 上生产 / 一键更新 | [`deploy.md`](deploy.md) |
 | 查某张表、改表 | [`database.md`](database.md) + [`backend/alembic/README.md`](../backend/alembic/README.md) |
-| 安全 / JWT / Redis / 弱口令 / 塔科夫联机 | [`security.md`](security.md) |
+| 安全 / JWT Cookie / CSRF / Redis / 弱口令 / 塔科夫联机 | [`security.md`](security.md) |
 | 对外宣传前核对 | [`deploy.md`](deploy.md)「公开运营检查」 |
+| 规范对齐分期（安全头 / 备份 / 删号 / Cookie） | [`hardening-roadmap.md`](hardening-roadmap.md) |
 | 改代码、加平台、改签到 | [`AGENTS.md`](../AGENTS.md) → [架构索引](../.cursor/rules/zhange-architecture.mdc) |
 | 查目录该怎么分包 | [`directory-layout.md`](directory-layout.md) |
 | 看约定是怎么定下来的 | [`agent-governance-plan.md`](agent-governance-plan.md)（已落地，归档备查） |
@@ -50,7 +51,8 @@
 | [`develop.md`](develop.md) | 技术栈、Windows 本地开发、工程 / CI、目录树 |
 | [`deploy.md`](deploy.md) | LXC 安装、管理端更新、部署形态、公开运营检查、Minecraft / Pelican |
 | [`database.md`](database.md) | 表结构总览（改模型必须同步本文） |
-| [`security.md`](security.md) | JWT、弱口令、Redis、塔科夫联机读权限/限流、条款页、ICP 备案号、邮件验证码日志、密钥 |
+| [`security.md`](security.md) | Cookie/CSRF、步进、请求 ID、CSP、弱口令、Redis、塔科夫联机读权限/限流、条款页、ICP 备案号、邮件验证码日志、密钥 |
+| [`hardening-roadmap.md`](hardening-roadmap.md) | 公开站点规范对齐（1～8 期 + 附件已落地） |
 | [`directory-layout.md`](directory-layout.md) | `var/` 与 services/components 分包映射（已落地） |
 | [`agent-governance-plan.md`](agent-governance-plan.md) | 治理方案原文（已落地，归档） |
 

@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   collectSlotIds,
   findSlotNode,
   filterWorkbenchParts,
   formatSignedStat,
+  formatWorkbenchErgo,
   pairsFromTree,
   partConflictsWith,
   pairsSignature,
@@ -11,6 +12,22 @@ import {
   replaceSlotInstalled,
   sortWorkbenchParts,
   toggleWorkbenchPartSort,
+  workbenchEvoErgoDelta,
+  workbenchArmStaminaSeconds,
+  workbenchEquipErgoModifier,
+  workbenchOverswing,
+  clampWorkbenchStrengthLevel,
+  clampWorkbenchEquipErgoPenaltyPct,
+  formatWorkbenchAccuracyMoa,
+  formatWorkbenchArmStamina,
+  formatWorkbenchEed,
+  formatWorkbenchMuzzleVelocity,
+  loadWorkbenchStrengthLevel,
+  saveWorkbenchStrengthLevel,
+  loadWorkbenchEquipErgoPenaltyPct,
+  saveWorkbenchEquipErgoPenaltyPct,
+  WORKBENCH_STRENGTH_STORAGE_KEY,
+  WORKBENCH_EQUIP_ERGO_PENALTY_STORAGE_KEY,
 } from "./tarkovWorkbench";
 
 describe("tarkovWorkbench", () => {
@@ -187,5 +204,67 @@ describe("tarkovWorkbench", () => {
     expect(
       sortWorkbenchParts(parts, { key: "recoil", dir: "asc" }).map((row) => row.id),
     ).toEqual(["b", "a"]);
+  });
+
+  it("computes evo ergo delta with the same cap as overswing", () => {
+    expect(workbenchEvoErgoDelta(0, 0)).toBe(43.7);
+    expect(workbenchEvoErgoDelta(55, 3.179)).toBe(52.9);
+    expect(workbenchEvoErgoDelta(10, 20)).toBeLessThan(0);
+    expect(workbenchOverswing(10, 20)).toBe(true);
+    expect(workbenchOverswing(55, 3.179)).toBe(false);
+    expect(workbenchEvoErgoDelta(55, 3.179, -0.15)).toBe(40.0);
+    expect(formatWorkbenchErgo(55)).toBe("55");
+    expect(formatWorkbenchErgo(67.9)).toBe("67.9");
+    expect(formatWorkbenchAccuracyMoa(1.82)).toBe("1.82 MOA");
+    expect(formatWorkbenchAccuracyMoa(null)).toBe("—");
+    expect(formatWorkbenchArmStamina(35)).toBe("35.0s");
+    expect(formatWorkbenchEed(52.9)).toBe("+52.9");
+    expect(formatWorkbenchEed(-1.2)).toBe("-1.2");
+    expect(formatWorkbenchMuzzleVelocity(900)).toBe("900 m/s");
+    expect(formatWorkbenchMuzzleVelocity(null)).toBe("—");
+  });
+
+  it("recomputes arm stamina from strength and equipment ergo", () => {
+    expect(workbenchArmStaminaSeconds(3.179, 55)).toBe(35.0);
+    expect(workbenchArmStaminaSeconds(3.179, 55, 0)).toBe(33.7);
+    expect(workbenchArmStaminaSeconds(3.179, 55, 51)).toBe(40.6);
+    expect(workbenchArmStaminaSeconds(3.179, 55, 10, -0.15)).toBe(34.8);
+    expect(clampWorkbenchStrengthLevel(-4)).toBe(0);
+    expect(clampWorkbenchStrengthLevel(99)).toBe(51);
+    expect(clampWorkbenchStrengthLevel("nope")).toBe(10);
+    expect(clampWorkbenchEquipErgoPenaltyPct(150)).toBe(100);
+    expect(workbenchEquipErgoModifier(15)).toBe(-0.15);
+  });
+});
+
+describe("tarkovWorkbench player prefs", () => {
+  const mem = new Map<string, string>();
+
+  beforeEach(() => {
+    mem.clear();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => mem.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        mem.set(key, value);
+      },
+      removeItem: (key: string) => {
+        mem.delete(key);
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("remembers strength and equipment ergo penalty", () => {
+    expect(loadWorkbenchStrengthLevel()).toBe(10);
+    expect(loadWorkbenchEquipErgoPenaltyPct()).toBe(0);
+    saveWorkbenchStrengthLevel(22);
+    saveWorkbenchEquipErgoPenaltyPct(15);
+    expect(mem.get(WORKBENCH_STRENGTH_STORAGE_KEY)).toBe("22");
+    expect(mem.get(WORKBENCH_EQUIP_ERGO_PENALTY_STORAGE_KEY)).toBe("15");
+    expect(loadWorkbenchStrengthLevel()).toBe(22);
+    expect(loadWorkbenchEquipErgoPenaltyPct()).toBe(15);
   });
 });

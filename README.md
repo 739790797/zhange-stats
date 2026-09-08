@@ -39,4 +39,9 @@
 - [Ljzd-PRO/nonebot-plugin-mystool](https://github.com/Ljzd-PRO/nonebot-plugin-mystool) — 米游币商城接口
 - [TomyJan/Kuro-API-Collection](https://github.com/TomyJan/Kuro-API-Collection) — 库街区接口整理
 
+**字体（SIL Open Font License 1.1）**
+
+- [IBM Plex Sans / Mono](https://github.com/IBM/plex) — 塔科夫壳拉丁字重
+- [Rajdhani](https://github.com/itfoundry/rajdhani) — 塔科夫壳标题字重
+
 游戏内容与商标归各权利方所有。

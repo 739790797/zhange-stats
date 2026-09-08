@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     PUBLIC_FRONTEND_URL: str = ""
     # 页脚 ICP 备案号；也可在管理端「安全设置」覆盖。留空不展示。
     ICP_BEIAN_NO: str = ""
+    # 为 true 时发 Content-Security-Policy；默认 Report-Only（见 hardening-roadmap 7 期）
+    CSP_ENFORCE: bool = False
 
     # QQ 互联（个人中心绑定；审核中仅调试 QQ 号可用）
     QQ_APP_ID: str = ""
@@ -120,6 +122,9 @@ class Settings(BaseSettings):
     TARKOV_GUN_SYNC_MINUTE: int = 40
     # 工作台第三方出图默认关；工作台中间叠配件图标。仅排障才 true
     TARKOV_WORKBENCH_IMAGE_GEN: bool = False
+    # 工作台社区方案：按枪按需 GET EFTForge 公开列表，不落库
+    TARKOV_WORKBENCH_COMMUNITY: bool = True
+    EFTFORGE_BASE_URL: str = "https://eftforge.com"
     # 必须无头，避免给用户弹出第三方出图站。仅排障可设 false
     TARKOV_WORKBENCH_IMAGE_HEADLESS: bool = True
     # 塔吉多每日签到（异环）

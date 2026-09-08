@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-# 本地 Vite 任意端口；Tauri 2 Windows 生产源 https://tauri.localhost，
-# Linux/macOS 常见 tauri://localhost。可用 CORS_ORIGIN_REGEX 整段覆盖。
+# 本地 Vite 任意端口；可用 CORS_ORIGIN_REGEX 整段覆盖。生产同域一般不必 CORS。
 DEFAULT_CORS_ORIGIN_REGEX = (
     r"(https?://(localhost|127\.0\.0\.1)(:\d+)?|"
     r"https?://tauri\.localhost|"
@@ -11,6 +10,14 @@ DEFAULT_CORS_ORIGIN_REGEX = (
 )
 
 
-def resolve_cors_origin_regex(override: str | None = None) -> str:
+def resolve_cors_origin_regex(
+    override: str | None = None,
+    *,
+    production: bool = False,
+) -> str | None:
     text = (override or "").strip()
-    return text or DEFAULT_CORS_ORIGIN_REGEX
+    if text:
+        return text
+    if production:
+        return None
+    return DEFAULT_CORS_ORIGIN_REGEX

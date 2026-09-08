@@ -1,6 +1,9 @@
 """枪械工作台：从 items dump 索引槽位 / 允许件 / 冲突，计算人机后坐。
 
 不新建派生表；读 catalog 已加载的 json.tarkov.dev items raw。
+精确度 / 膛口初速 / 手臂耐力的字段与合成式对齐 EFTForge 对同一 dump 的投影
+（centerOfImpact、properties.accuracyModifier、顶栏 velocity、弹药 initialSpeed），
+不为补字段打 GraphQL。
 """
 
 from __future__ import annotations
@@ -38,6 +41,49 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _optional_prop_float(props: dict[str, Any] | None, key: str) -> float | None:
+    if not props or key not in props or props.get(key) in (None, ""):
+        return None
+    return _as_float(props.get(key))
+
+
+# dump 的 COI 为 100m 处米制散布；合成 MOA 用 34.36（与 EFTForge stats.py 同一常数）。
+_COI_TO_MOA = 34.36
+# 手臂耐力默认力量 10 级，与 EFTForge 前端/接口默认一致；/1.04 与 10×0.004 相消。
+_ARM_STAMINA_STRENGTH = 10
+
+
+def evo_ergo_delta(ergo: float, weight: float, equip_ergo: float = 0.0) -> float:
+    """Evo 人机 Delta：-15 × (重量 − 人机重量上限)。正值未过摆。"""
+    adjusted = ergo * (1 + equip_ergo)
+    cap = 0.0007556 * (adjusted**2) + 0.02736 * adjusted + 2.9159
+    return round(-15.0 * (weight - cap), 2)
+
+
+def arm_stamina_seconds(
+    weight: float,
+    ergo: float,
+    strength_level: int = _ARM_STAMINA_STRENGTH,
+    equip_ergo: float = 0.0,
+) -> float:
+    """站立开镜手臂耐力耗尽秒数。"""
+    safe_weight = weight if weight > 0 else 0.0
+    bonus = 1 + equip_ergo / 2
+    return round(
+        ((85.5 / (safe_weight + 0.65)) + 9.15 + 0.06477 * ergo * bonus)
+        / 1.04
+        * (1 + strength_level * 0.004),
+        1,
+    )
+
+
+def accuracy_moa(base_coi: float | None, accuracy_pct: float) -> float | None:
+    """枪管 COI 覆盖枪身；其余配件精度修正按百分点求和后一次叠上。"""
+    if base_coi is None or base_coi <= 0:
+        return None
+    return round(_COI_TO_MOA * base_coi * (1 - accuracy_pct / 100), 2)
 
 
 def _as_int(value: Any, default: int | None = None) -> int | None:
@@ -187,6 +233,10 @@ class WbItem:
     preset_image_link: str = ""
     base_item_id: str = ""
     default_preset_id: str = ""
+    center_of_impact: float | None = None
+    velocity_mod: float = 0.0
+    accuracy_mod: float = 0.0
+    initial_speed: float = 0.0
 
 
 @dataclass
@@ -285,6 +335,11 @@ def build_index(source: str, payload: dict[str, Any]) -> WorkbenchIndex:
             ergo = _as_float(props.get("ergonomics"))
         if is_weapon:
             ergo = _as_float(props.get("ergonomics"))
+        accuracy_mod = 0.0
+        if not is_weapon and not is_ammo:
+            acc = props.get("accuracyModifier")
+            if acc not in (None, ""):
+                accuracy_mod = _as_float(acc)
         wb = WbItem(
             id=item_id,
             name=name,
@@ -314,6 +369,10 @@ def build_index(source: str, payload: dict[str, Any]) -> WorkbenchIndex:
             preset_image_link=preset_image,
             base_item_id=base_item_id,
             default_preset_id=preset_id if not is_preset else "",
+            center_of_impact=_optional_prop_float(props, "centerOfImpact"),
+            velocity_mod=_as_float(raw.get("velocity")),
+            accuracy_mod=accuracy_mod,
+            initial_speed=_optional_prop_float(props, "initialSpeed") or 0.0,
         )
         items[item_id] = wb
         for slot in item_slots:
@@ -489,10 +548,13 @@ def calculate_stats(
     ergo = gun.ergo
     weight = gun.weight
     recoil_mod = 0.0
+    velocity_pct = gun.velocity_mod
     sighting = gun.sighting_range
     mag_capacity = 0
     price = gun.price_rub or 0
     priced = 1 if gun.price_rub else 0
+    barrel_coi: float | None = None
+    accuracy_pct = 0.0
     for mod_id in mod_ids:
         mod = index.items.get(mod_id)
         if not mod:
@@ -500,6 +562,11 @@ def calculate_stats(
         ergo += mod.ergo
         weight += mod.weight
         recoil_mod += mod.recoil_mod
+        velocity_pct += mod.velocity_mod
+        if not mod.is_weapon and mod.center_of_impact is not None:
+            barrel_coi = mod.center_of_impact
+        else:
+            accuracy_pct += mod.accuracy_mod * 100
         if mod.sighting_range > sighting:
             sighting = mod.sighting_range
         if mod.mag_capacity > mag_capacity:
@@ -517,6 +584,10 @@ def calculate_stats(
             priced += 1
     eed_kg = 0.0007556 * (ergo**2) + 0.02736 * ergo + 2.9159
     evo_weight = weight - eed_kg
+    muzzle_velocity = None
+    if ammo and ammo.is_ammo and ammo.initial_speed > 0:
+        muzzle_velocity = round(ammo.initial_speed * (1 + velocity_pct / 100))
+    base_coi = barrel_coi if barrel_coi is not None else gun.center_of_impact
     return {
         "ergonomics": round(ergo, 2),
         "recoil_vertical": recoil_v,
@@ -528,6 +599,10 @@ def calculate_stats(
         "conflicts": _conflict_ids(index, mod_ids),
         "overswing": evo_weight > 0,
         "ammo_id": ammo.id if ammo and ammo.is_ammo else None,
+        "accuracy_moa": accuracy_moa(base_coi, accuracy_pct),
+        "muzzle_velocity": muzzle_velocity,
+        "arm_stamina": arm_stamina_seconds(weight, ergo),
+        "evo_ergo_delta": evo_ergo_delta(ergo, weight),
     }
 
 
@@ -604,6 +679,49 @@ def allowed_items_for_slots(db: Session, slot_ids: list[str]) -> dict[str, list[
                 items.append(item_summary(item))
         out[slot.id] = items
     return out
+
+
+_MAX_COMPAT_PAIRS = 200
+
+
+def compatible_pairs(
+    index: WorkbenchIndex,
+    gun: WbItem,
+    pairs: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    """丢掉本站 dump 不认识、或不从枪槽树可达的槽/件。"""
+    installed: dict[str, str] = {}
+    for slot_id, item_id in _pairs_map(pairs).items():
+        slot = index.slots.get(slot_id)
+        if slot is None or item_id not in slot.allowed_ids:
+            continue
+        installed[slot_id] = item_id
+    out: list[tuple[str, str]] = []
+
+    def walk(item_id: str) -> None:
+        if len(out) >= _MAX_COMPAT_PAIRS:
+            return
+        item = index.items.get(item_id)
+        if not item:
+            return
+        for slot in item.slots:
+            child_id = installed.get(slot.id, "")
+            if not child_id:
+                continue
+            out.append((slot.id, child_id))
+            walk(child_id)
+
+    walk(gun.id)
+    return out
+
+
+def compatible_ammo_id(gun: WbItem, ammo_id: str | None) -> str | None:
+    ammo = (ammo_id or "").strip()
+    if not ammo:
+        return None
+    if gun.allowed_ammo and ammo not in gun.allowed_ammo:
+        return None
+    return ammo
 
 
 def validate_build(

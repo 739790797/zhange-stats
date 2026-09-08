@@ -21,7 +21,7 @@ alwaysApply: true
 | 前端 UI | Ant Design 5 + `antdAppTheme`；按钮按角色选 type/size | Button 内联品牌色；第二套 UI 库；主应用抄塔科夫主题 | `.cursor/rules/frontend-ui.mdc` |
 | 后端 | `api/` 薄、`services/` 厚；upstream 拆 client/attendance | 路由内打上游 HTTP | `.cursor/rules/backend-conventions.mdc` |
 | 时间 | `app.core.timeutil` 北京墙钟 | 业务层随意 `utcnow` | `backend/app/core/timeutil.py` |
-| 安全 | 凭证 Fernet；QQ 只发 ticket；生产 `APP_ENV=production`；`ALLOW_EMAIL_CODE_LOG` 生产启动硬拒绝 | JWT 进回调 URL；生产弱口令 | `docs/security.md` |
+| 安全 | 凭证 Fernet；QQ 只发 ticket；会话 HttpOnly Cookie + CSRF；生产 `APP_ENV=production`；`ALLOW_EMAIL_CODE_LOG` 生产启动硬拒绝 | JWT 进回调 URL；persist JWT；去掉 CSRF 只改 Cookie；生产弱口令 | `docs/security.md` |
 | 短时 KV | 多实例共享 `REDIS_URL`（扫码 / 森空岛 cred / 限流含塔科夫 join·大厅） | 无共享 Redis 水平扩 app | `docs/deploy.md`「部署形态」、`backend-conventions.mdc` |
 | 目录 | 运行时 `var/`；`services/` · `components/` 按域分包；新平台进包 | 往 `services/` 或 `components/` 根堆平台文件 | `docs/directory-layout.md` |
 | 运行时 | 密钥/日志/上传在安装根 `var/`（或 .env 绝对路径）；相对路径相对安装根 | 往 `backend/` `frontend/` 写 data/uploads | `backend/app/core/paths.py`、`docs/deploy.md` |

@@ -29,6 +29,7 @@ def _payload() -> dict:
                         "recoilVertical": 100,
                         "recoilHorizontal": 200,
                         "sightingRange": 200,
+                        "centerOfImpact": 0.1,
                         "defaultPreset": "preset1",
                         "defaultAmmo": "ammo1",
                         "allowedAmmo": ["ammo1"],
@@ -49,6 +50,13 @@ def _payload() -> dict:
                                 "nameId": "mod_stock",
                                 "required": False,
                                 "filters": {"allowedItems": ["stock1"]},
+                            },
+                            {
+                                "id": "slot-barrel",
+                                "name": "Barrel",
+                                "nameId": "mod_barrel",
+                                "required": False,
+                                "filters": {"allowedItems": ["barrel1"]},
                             },
                         ],
                     },
@@ -132,6 +140,41 @@ def _payload() -> dict:
                     "properties": {
                         "propertiesType": "ItemPropertiesAmmo",
                         "caliber": "Caliber545x39",
+                        "initialSpeed": 900,
+                        "accuracyModifier": 0.05,
+                    },
+                },
+                "barrel1": {
+                    "id": "barrel1",
+                    "name": "barrel1 Name",
+                    "weight": 0.3,
+                    "ergonomicsModifier": -2,
+                    "types": ["mods"],
+                    "velocity": 1,
+                    "properties": {
+                        "propertiesType": "ItemPropertiesBarrel",
+                        "centerOfImpact": 0.053,
+                        "slots": [
+                            {
+                                "id": "slot-muzzle",
+                                "name": "Muzzle",
+                                "nameId": "mod_muzzle",
+                                "required": False,
+                                "filters": {"allowedItems": ["muzzle1"]},
+                            }
+                        ],
+                    },
+                },
+                "muzzle1": {
+                    "id": "muzzle1",
+                    "name": "muzzle1 Name",
+                    "weight": 0.08,
+                    "ergonomicsModifier": -1,
+                    "types": ["mods"],
+                    "velocity": 1.5,
+                    "properties": {
+                        "propertiesType": "ItemPropertiesWeaponMod",
+                        "accuracyModifier": 0.04,
                     },
                 },
                 "mag1": {
@@ -153,6 +196,8 @@ def _payload() -> dict:
             "stock1 Name": "枪托",
             "rail1 Name": "导轨",
             "ammo1 Name": "测试弹",
+            "barrel1 Name": "枪管",
+            "muzzle1 Name": "枪口",
             "mag1 Name": "弹匣",
         },
     }
@@ -200,6 +245,10 @@ def test_calculate_stats_sums_mods(index: svc.WorkbenchIndex):
     assert stats["weight"] == pytest.approx(1.5)
     assert stats["price_rub"] == 18000 + 3000 + 5000
     assert stats["conflicts"] == []
+    assert stats["accuracy_moa"] == 3.44
+    assert stats["muzzle_velocity"] is None
+    assert stats["arm_stamina"] == pytest.approx(52.3)
+    assert stats["evo_ergo_delta"] == pytest.approx(73.23)
 
 
 def test_calculate_stats_flags_conflicts(index: svc.WorkbenchIndex):
@@ -246,6 +295,59 @@ def test_ammo_weight_with_magazine(index: svc.WorkbenchIndex):
     )
     assert stats["mag_capacity"] == 30
     assert stats["weight"] == pytest.approx(1.0 + 0.2 + 0.01 * 30)
+    assert stats["muzzle_velocity"] == 900
+
+
+def test_workbench_derived_formulas():
+    assert svc.evo_ergo_delta(55, 3.179) == 52.91
+    assert svc.arm_stamina_seconds(3.179, 55) == 35.0
+    assert svc.evo_ergo_delta(55, 3.179, -0.15) == 40.01
+    assert svc.arm_stamina_seconds(3.179, 55, strength_level=0) == 33.7
+    assert svc.arm_stamina_seconds(3.179, 55, strength_level=51) == 40.6
+    assert svc.arm_stamina_seconds(3.179, 55, equip_ergo=-0.15) == 34.8
+    assert svc.accuracy_moa(0.053, 0) == 1.82
+    assert svc.accuracy_moa(None, 0) is None
+    assert svc.accuracy_moa(0, 0) is None
+
+
+def test_calculate_stats_accuracy_velocity_from_dump(index: svc.WorkbenchIndex):
+    stats = svc.calculate_stats(
+        index,
+        "gun1",
+        [("slot-barrel", "barrel1"), ("slot-muzzle", "muzzle1")],
+        ammo_id="ammo1",
+    )
+    assert index.items["barrel1"].center_of_impact == pytest.approx(0.053)
+    assert index.items["muzzle1"].velocity_mod == pytest.approx(1.5)
+    assert index.items["ammo1"].initial_speed == 900
+    # 枪管 COI 覆盖枪身；枪口精度 0.04 → +4%，弹药精度不进 MOA
+    assert stats["accuracy_moa"] == round(34.36 * 0.053 * (1 - 4 / 100), 2)
+    # 顶栏 velocity 已是百分点：枪管 +1、枪口 +1.5
+    assert stats["muzzle_velocity"] == round(900 * (1 + 2.5 / 100))
+
+
+def test_compatible_pairs_drops_unknown_slot_and_item(index: svc.WorkbenchIndex):
+    gun = index.items["gun1"]
+    kept = svc.compatible_pairs(
+        index,
+        gun,
+        [
+            ("slot-grip", "grip1"),
+            ("slot-missing", "grip1"),
+            ("slot-stock", "stock1"),
+        ],
+    )
+    assert kept == [("slot-grip", "grip1"), ("slot-stock", "stock1")]
+    assert svc.compatible_pairs(index, gun, [("slot-rail", "rail1")]) == []
+    nested = svc.compatible_pairs(
+        index,
+        gun,
+        [("slot-grip", "grip1"), ("slot-rail", "rail1")],
+    )
+    assert nested == [("slot-grip", "grip1"), ("slot-rail", "rail1")]
+    assert svc.compatible_ammo_id(gun, "ammo1") == "ammo1"
+    assert svc.compatible_ammo_id(gun, "ammo-other") is None
+    assert svc.compatible_ammo_id(gun, None) is None
 
 
 def test_validate_build_rejects_illegal_mod_and_ammo(index: svc.WorkbenchIndex):

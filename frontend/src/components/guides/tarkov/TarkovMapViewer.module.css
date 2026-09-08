@@ -116,37 +116,6 @@
   font-size: 13px;
   line-height: 1.35;
   pointer-events: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #5a5e4c #1a1b14;
-}
-
-.filterPanel::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.filterPanel::-webkit-scrollbar-track {
-  background: #1a1b14;
-}
-
-.filterPanel::-webkit-scrollbar-thumb {
-  background: #4a4e40;
-  border-radius: 4px;
-  border: 2px solid #1a1b14;
-}
-
-.filterPanel::-webkit-scrollbar-thumb:hover {
-  background: #6a6e58;
-}
-
-.filterPanel::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.filterPanel::-webkit-scrollbar-corner {
-  background: #1a1b14;
 }
 
 .wrapTopRight .filterPanel {

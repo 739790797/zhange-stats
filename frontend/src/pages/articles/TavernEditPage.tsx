@@ -48,6 +48,7 @@ import {
 } from "@/lib/articleImages";
 import { nowBeijing } from "@/lib/time";
 import { TAVERN_PATH, tavernEditPath } from "@/lib/tavernNav";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
 type FormValues = {
   title: string;
@@ -71,6 +72,7 @@ export default function TavernEditPage() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<FormValues>();
   const title = Form.useWatch("title", form) || "";
+  useDocumentTitle(isNew ? "写文章" : title.trim() || "编辑文章");
   const body = Form.useWatch("body", form) || "";
   const bodyFormat = Form.useWatch("body_format", form) || "html";
   const coverUrl = Form.useWatch("cover_url", form) || "";
@@ -479,7 +481,6 @@ export default function TavernEditPage() {
                 label="分类"
                 layout="vertical"
                 colon={false}
-                extra="带「仅管理员」的分类只有管理员能选。"
                 rules={[
                   { required: true, message: "请选择分类" },
                   { type: "array", min: 1, message: "请选择分类" },

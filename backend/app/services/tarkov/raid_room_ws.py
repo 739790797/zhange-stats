@@ -10,6 +10,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import SessionLocal
+from app.core.session_cookies import access_token_from_websocket
 from app.core.security import decode_access_token
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
@@ -37,6 +38,8 @@ def _load_user(token: str) -> User:
         else:
             user = query.filter(User.username == principal.username).first()
         if user is None:
+            raise PermissionError("unauth")
+        if user.anonymized_at is not None:
             raise PermissionError("unauth")
         db.expunge(user)
         return user
@@ -100,7 +103,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
     if not isinstance(first, dict) or str(first.get("event") or "") != "auth":
         await client.close(code=CLOSE_UNAUTHORIZED)
         return
-    token = str(first.get("token") or "").strip()
+    token = access_token_from_websocket(client, first)
     try:
         user = _load_user(token)
     except PermissionError as exc:

@@ -129,7 +129,7 @@ export function TarkovRaidPrepEntryModal({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const gameMode = useTarkovGameMode();
-  const loggedIn = Boolean(useAuthStore((s) => s.token));
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const displayName = useAuthStore((s) => s.user?.display_name);
   const [step, setStep] = useState<RaidPrepEntryStep>(stepProp);
   const [joinText, setJoinText] = useState("");

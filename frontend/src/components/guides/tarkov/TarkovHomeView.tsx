@@ -191,7 +191,7 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
 export function TarkovHomeView() {
   const navigate = useNavigate();
   const gameMode = useTarkovGameMode();
-  const loggedIn = Boolean(useAuthStore((s) => s.token));
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
   const [entryOpen, setEntryOpen] = useState(false);
   const [entryStep, setEntryStep] = useState<RaidPrepEntryStep>("create");

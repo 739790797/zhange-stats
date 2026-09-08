@@ -45,10 +45,23 @@ export function formatRequestError(
   const err = e as {
     code?: string;
     message?: string;
-    response?: { status?: number; data?: { detail?: unknown } };
+    requestId?: string;
+    response?: {
+      status?: number;
+      data?: { detail?: unknown };
+      headers?: Record<string, string | undefined>;
+    };
   };
   const status = err.response?.status;
   const detail = detailText(err.response?.data?.detail);
+  const headerRid =
+    err.response?.headers?.["x-request-id"] ||
+    err.response?.headers?.["X-Request-ID"];
+  const requestId = (err.requestId || headerRid || "").trim();
+  const ridSuffix =
+    requestId && status && status >= 500
+      ? `（编号 ${requestId.slice(0, 8)}）`
+      : "";
 
   if (!err.response) {
     if (err.code === "ECONNABORTED" || /timeout/i.test(err.message || "")) {
@@ -68,19 +81,19 @@ export function formatRequestError(
     return fallback;
   }
   if (status && status >= 500) {
-    return detail || "服务暂时不可用，请稍后重试";
+    return (detail || "服务暂时不可用，请稍后重试") + ridSuffix;
   }
   if (status === 429) {
-    return detail || "请求过于频繁，请稍后再试";
+    return (detail || "请求过于频繁，请稍后再试") + ridSuffix;
   }
   if (status === 422) {
-    return detail || "请求参数不正确";
+    return (detail || "请求参数不正确") + ridSuffix;
   }
   if (status === 403) {
-    return detail || "没有权限或尚未完成验证";
+    return (detail || "没有权限或尚未完成验证") + ridSuffix;
   }
   if (status === 401) {
-    return detail || fallback;
+    return (detail || fallback) + ridSuffix;
   }
-  return detail || fallback;
+  return (detail || fallback) + ridSuffix;
 }

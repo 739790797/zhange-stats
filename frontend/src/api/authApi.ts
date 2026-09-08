@@ -141,10 +141,36 @@ export async function startQqOAuthLogin() {
   return data;
 }
 
-/** QQ 回调一次性 ticket → JWT（不经 URL 传递 access_token）。 */
+/** QQ 回调一次性 ticket → 会话 Cookie（不经 URL 传递 access_token）。 */
 export async function exchangeQqTicket(ticket: string) {
   const { data } = await client.post<TokenResponse>("/auth/qq/exchange", {
     ticket,
   });
   return data;
+}
+
+export async function logoutRequest() {
+  await client.post("/auth/logout", {});
+}
+
+export async function sendDeleteAccountCode() {
+  const { data } = await client.post<RegisterResponse>("/auth/account/delete-code");
+  return data;
+}
+
+export async function deleteOwnAccount(code: string) {
+  const { data } = await client.post<{ ok: boolean; message: string }>(
+    "/auth/account/delete",
+    { code },
+  );
+  return data;
+}
+
+export async function sendStepUpCode() {
+  const { data } = await client.post<RegisterResponse>("/auth/step-up/send");
+  return data;
+}
+
+export function stepUpHeaders(code: string) {
+  return { "X-Step-Up-Code": code };
 }

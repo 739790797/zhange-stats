@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 import urllib.parse
@@ -9,7 +11,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base, resolve_frontend_base
-from app.core.security import create_access_token, hash_password
+from app.core.security import hash_password
 from app.models.member import Member
 from app.models.user import User, UserRole
 from app.schemas import (
@@ -34,7 +36,7 @@ from app.services.avatar_store import (
     is_custom_avatar_url,
     save_avatar_upload,
 )
-from app.services.member_sync import delete_user_with_member, ensure_user_member
+from app.services.member_sync import ensure_user_member
 from app.services.steam.bind import (
     PRIVACY_HINT,
     require_public_steam_profile,
@@ -54,6 +56,12 @@ from app.services.qq_oauth import (
     create_qq_oauth_state,
     decode_qq_oauth_state,
     exchange_code_for_profile,
+)
+from app.api.auth.step_up import consume_admin_step_up, require_admin_step_up
+from app.services.account_anonymize import (
+    AccountAnonymizeError,
+    anonymize_user_account,
+    user_is_anonymized,
 )
 from app.api.profile.helpers import (
     _apply_profile_fields,
@@ -77,6 +85,7 @@ def list_users(
     users = (
         db.query(User)
         .options(joinedload(User.member))
+        .filter(User.anonymized_at.is_(None))
         .order_by(User.id.asc())
         .all()
     )
@@ -92,6 +101,7 @@ def list_users(
             joinedload(User.member).joinedload(Member.kujiequ_bind),
             joinedload(User.member).joinedload(Member.mihoyo_bind),
         )
+        .filter(User.anonymized_at.is_(None))
         .order_by(User.id.asc())
         .all()
     )
@@ -152,6 +162,7 @@ def update_user(
     body: UserAdminUpdate,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
+    x_step_up_code: Annotated[str | None, Header(alias="X-Step-Up-Code")] = None,
 ) -> UserBrief:
     user = (
         db.query(User)
@@ -159,10 +170,25 @@ def update_user(
         .filter(User.id == user_id)
         .first()
     )
-    if not user:
+    if not user or user_is_anonymized(user):
         raise HTTPException(status_code=404, detail="用户不存在")
 
     data = body.model_dump(exclude_unset=True)
+    target_role: UserRole | None = None
+    if "role" in data and data["role"] is not None:
+        raw = str(data["role"]).strip().lower()
+        if raw not in ("admin", "user"):
+            raise HTTPException(status_code=400, detail="角色无效，可选 admin / user")
+        target_role = UserRole.admin if raw == "admin" else UserRole.user
+    elif "is_admin" in data and data["is_admin"] is not None:
+        target_role = UserRole.admin if data["is_admin"] else UserRole.user
+    currently_admin = _is_admin_user(user)
+    role_changing = False
+    if target_role is not None:
+        role_changing = (target_role == UserRole.admin) != currently_admin
+    if data.get("password") or role_changing:
+        consume_admin_step_up(db, current, x_step_up_code)
+
     member = ensure_user_member(db, user)
 
     if "email" in data and data["email"] is not None:
@@ -199,18 +225,7 @@ def update_user(
     if "steam_id" in data:
         _set_steam_id(db, member, data["steam_id"])
 
-    # 角色：支持 role 或 is_admin（前端以 role 为主）
-    target_role: UserRole | None = None
-    if "role" in data and data["role"] is not None:
-        raw = str(data["role"]).strip().lower()
-        if raw not in ("admin", "user"):
-            raise HTTPException(status_code=400, detail="角色无效，可选 admin / user")
-        target_role = UserRole.admin if raw == "admin" else UserRole.user
-    elif "is_admin" in data and data["is_admin"] is not None:
-        target_role = UserRole.admin if data["is_admin"] else UserRole.user
-
     if target_role is not None:
-        currently_admin = _is_admin_user(user)
         becoming_user = target_role == UserRole.user and currently_admin
         becoming_admin = target_role == UserRole.admin and not currently_admin
         if becoming_user:
@@ -243,7 +258,7 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current: User = Depends(require_admin),
+    current: User = Depends(require_admin_step_up),
 ) -> None:
     user = (
         db.query(User)
@@ -251,7 +266,7 @@ def delete_user(
         .filter(User.id == user_id)
         .first()
     )
-    if not user:
+    if not user or user_is_anonymized(user):
         raise HTTPException(status_code=404, detail="用户不存在")
     if user.id == current.id:
         raise HTTPException(status_code=400, detail="不能删除自己的账号")
@@ -259,8 +274,11 @@ def delete_user(
         raise HTTPException(status_code=400, detail="不能删除管理员账号")
 
     try:
-        delete_user_with_member(db, user)
+        anonymize_user_account(db, user, actor_id=current.id)
         db.commit()
+    except AccountAnonymizeError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=400, detail=f"删除失败：{exc}") from exc

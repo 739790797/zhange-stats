@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Card, Spin, Tabs } from "antd";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { MotionIn } from "@/components/PageMotion";
 import { PanelFallback } from "@/components/RouteFallback";
 import type { ExchangeBindStatus } from "@/components/ExchangePageTemplate";
 import {
@@ -87,38 +88,40 @@ export function PlatformFeatureTabsPage({
       <PageHeader title={title} />
 
       {needsBind ? (
-        <div
-          style={{
-            maxWidth: 560,
-            margin: "0 auto",
-            padding: "8px 0 48px",
-          }}
-        >
-          <Alert
-            type={tokenBroken ? "warning" : "info"}
-            showIcon
-            style={{ marginBottom: 16 }}
-            message={
-              tokenBroken
-                ? `${bindName}凭证可能已失效`
-                : unboundMessage || `尚未绑定${bindName}`
-            }
-            description={
-              tokenBroken
-                ? [
-                    bindTokenErrorMessage(statusQuery.data) ||
-                      "请重新绑定后再试。",
-                    bindName === "森空岛" ? SKLAND_APP_LOGOUT_HINT : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")
-                : bindName === "森空岛"
-                  ? SKLAND_APP_LOGOUT_HINT
-                  : undefined
-            }
-          />
-          <Card>{bindPanel}</Card>
-        </div>
+        <MotionIn>
+          <div
+            style={{
+              maxWidth: 560,
+              margin: "0 auto",
+              padding: "8px 0 48px",
+            }}
+          >
+            <Alert
+              type={tokenBroken ? "warning" : "info"}
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={
+                tokenBroken
+                  ? `${bindName}凭证可能已失效`
+                  : unboundMessage || `尚未绑定${bindName}`
+              }
+              description={
+                tokenBroken
+                  ? [
+                      bindTokenErrorMessage(statusQuery.data) ||
+                        "请重新绑定后再试。",
+                      bindName === "森空岛" ? SKLAND_APP_LOGOUT_HINT : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                  : bindName === "森空岛"
+                    ? SKLAND_APP_LOGOUT_HINT
+                    : undefined
+              }
+            />
+            <Card>{bindPanel}</Card>
+          </div>
+        </MotionIn>
       ) : !featuresReady ? (
         <div style={{ textAlign: "center", padding: 48 }}>
           <Spin />
@@ -131,12 +134,14 @@ export function PlatformFeatureTabsPage({
           destroyInactiveTabPane
         />
       ) : (
-        <Alert
-          type="info"
-          showIcon
-          message={emptyFeaturesMessage}
-          description={emptyFeaturesDescription}
-        />
+        <MotionIn>
+          <Alert
+            type="info"
+            showIcon
+            message={emptyFeaturesMessage}
+            description={emptyFeaturesDescription}
+          />
+        </MotionIn>
       )}
       {rolePickerModal}
     </div>

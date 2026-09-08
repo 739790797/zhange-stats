@@ -1,13 +1,6 @@
-import { useEffect } from "react";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
+/** 塔科夫攻略标签：`栏目 · 逃离塔科夫`。 */
 export function useTarkovDocumentTitle(title: string) {
-  useEffect(() => {
-    const next = title.trim();
-    if (!next) return;
-    const prev = document.title;
-    document.title = next.includes("逃离塔科夫") ? next : `${next} · 逃离塔科夫`;
-    return () => {
-      document.title = prev;
-    };
-  }, [title]);
+  useDocumentTitle(title, "逃离塔科夫");
 }

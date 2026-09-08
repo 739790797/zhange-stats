@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovBosses } from "@/api/guidesApi";
@@ -207,8 +207,13 @@ export function TarkovGuideShell({ children }: Props) {
       : "",
   );
   const searchRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLElement>(null);
   const gameMode = useTarkovGameMode();
   useTarkovDocumentTitle(tarkovPageTitle(pathname, searchParams.toString()));
+  useLayoutEffect(() => {
+    bodyRef.current?.scrollTo(0, 0);
+    bodyRef.current?.focus({ preventScroll: true });
+  }, [pathname]);
   useEffect(() => {
     if (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`) {
       setDraft(qParam);
@@ -286,6 +291,9 @@ export function TarkovGuideShell({ children }: Props) {
     <TarkovLiveWatchProvider>
     <TarkovGoonTrackerProvider>
     <div className={styles.shell}>
+      <a className={styles.skipLink} href="#tarkov-main">
+        跳到正文
+      </a>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
           <div className={styles.topLeft}>
@@ -422,17 +430,21 @@ export function TarkovGuideShell({ children }: Props) {
           </div>
         </div>
       </header>
-      <div
+      <main
+        ref={bodyRef}
+        id="tarkov-main"
+        tabIndex={-1}
         className={`${styles.body}${
           (pathname === TARKOV_ME_PATH &&
             resolveTarkovMeTab(searchParams.get("tab")) === "collection") ||
+          pathname === TARKOV_WORKBENCH_PATH ||
           pathname.startsWith(`${TARKOV_WORKBENCH_PATH}/`)
             ? ` ${styles.bodyFill}`
             : ""
         }`}
       >
         {children}
-      </div>
+      </main>
     </div>
     </TarkovGoonTrackerProvider>
     </TarkovLiveWatchProvider>

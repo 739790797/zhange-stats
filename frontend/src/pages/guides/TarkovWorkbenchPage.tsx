@@ -1,7 +1,10 @@
-import { useParams } from "react-router-dom";
-import { TarkovGunsPanel } from "@/components/guides/tarkov/TarkovGunsPanel";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { TarkovItemsPageShell } from "@/components/guides/tarkov/TarkovItemsPageShell";
 import { TarkovWorkbenchBuild } from "@/components/guides/tarkov/workbench/TarkovWorkbenchBuild";
+import { TarkovWorkbenchEmpty } from "@/components/guides/tarkov/workbench/TarkovWorkbenchEmpty";
+import { TarkovWorkbenchGunPickerModal } from "@/components/guides/tarkov/workbench/TarkovWorkbenchGunPickerModal";
+import styles from "@/components/guides/tarkov/workbench/TarkovWorkbenchBuild.module.css";
 import {
   TARKOV_WORKBENCH_PATH,
   tarkovWorkbenchHref,
@@ -9,37 +12,37 @@ import {
 
 export default function TarkovWorkbenchPage() {
   const { gunId } = useParams<{ gunId?: string }>();
+  const navigate = useNavigate();
+  const [pickOpen, setPickOpen] = useState(false);
 
-  if (gunId) {
-    return (
-      <TarkovItemsPageShell
-        crumbs={[
-          { label: "选枪", to: TARKOV_WORKBENCH_PATH },
-          { label: "改枪" },
-        ]}
-        sectionLabel="工作台"
-        sectionHref={TARKOV_WORKBENCH_PATH}
-        fill
-      >
-        <TarkovWorkbenchBuild gunId={gunId} />
-      </TarkovItemsPageShell>
-    );
-  }
+  const pickGun = (id: string) => {
+    setPickOpen(false);
+    navigate(tarkovWorkbenchHref(id));
+  };
 
   return (
     <TarkovItemsPageShell
-      title="枪械工作台"
-      crumbs={[]}
+      title={gunId ? undefined : "枪械工作台"}
+      crumbs={gunId ? [{ label: "改枪" }] : []}
       sectionLabel="工作台"
       sectionHref={TARKOV_WORKBENCH_PATH}
-      subtitle="点枪名或整行进入改枪。图鉴「枪支」表仍打开物品详情。"
+      fill
     >
-      <TarkovGunsPanel
-        pickHref={(id) => tarkovWorkbenchHref(id)}
-        caliberHref={(caliber) =>
-          `${TARKOV_WORKBENCH_PATH}?caliber=${encodeURIComponent(caliber)}`
-        }
-      />
+      <div className={styles.stage}>
+        {gunId ? (
+          <TarkovWorkbenchBuild
+            gunId={gunId}
+            onChangeGun={() => setPickOpen(true)}
+          />
+        ) : (
+          <TarkovWorkbenchEmpty onAdd={() => setPickOpen(true)} />
+        )}
+        <TarkovWorkbenchGunPickerModal
+          open={pickOpen}
+          onCancel={() => setPickOpen(false)}
+          onPick={pickGun}
+        />
+      </div>
     </TarkovItemsPageShell>
   );
 }

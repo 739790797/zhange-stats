@@ -220,3 +220,176 @@ function workbenchPartSortValue(
   if (key === "weight") return part.weight || 0;
   return part.price_rub || 0;
 }
+
+export const WORKBENCH_STRENGTH_MIN = 0;
+export const WORKBENCH_STRENGTH_MAX = 51;
+export const WORKBENCH_STRENGTH_DEFAULT = 10;
+export const WORKBENCH_EQUIP_ERGO_PENALTY_MIN = 0;
+export const WORKBENCH_EQUIP_ERGO_PENALTY_MAX = 100;
+export const WORKBENCH_STRENGTH_STORAGE_KEY =
+  "zhange.guides.tarkov.workbench.strengthLevel";
+export const WORKBENCH_EQUIP_ERGO_PENALTY_STORAGE_KEY =
+  "zhange.guides.tarkov.workbench.equipErgoPenalty";
+
+function clampInt(
+  raw: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  const n =
+    typeof raw === "number" ? raw : Number.parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+export function clampWorkbenchStrengthLevel(raw: unknown): number {
+  return clampInt(
+    raw,
+    WORKBENCH_STRENGTH_MIN,
+    WORKBENCH_STRENGTH_MAX,
+    WORKBENCH_STRENGTH_DEFAULT,
+  );
+}
+
+export function clampWorkbenchEquipErgoPenaltyPct(raw: unknown): number {
+  return clampInt(
+    raw,
+    WORKBENCH_EQUIP_ERGO_PENALTY_MIN,
+    WORKBENCH_EQUIP_ERGO_PENALTY_MAX,
+    0,
+  );
+}
+
+/** 滑条 0–100 的惩罚百分点 → 公式用的小数（负值）。 */
+export function workbenchEquipErgoModifier(penaltyPct: number): number {
+  return -clampWorkbenchEquipErgoPenaltyPct(penaltyPct) / 100;
+}
+
+export function loadWorkbenchStrengthLevel(): number {
+  try {
+    return clampWorkbenchStrengthLevel(
+      localStorage.getItem(WORKBENCH_STRENGTH_STORAGE_KEY),
+    );
+  } catch {
+    return WORKBENCH_STRENGTH_DEFAULT;
+  }
+}
+
+export function saveWorkbenchStrengthLevel(value: number) {
+  try {
+    localStorage.setItem(
+      WORKBENCH_STRENGTH_STORAGE_KEY,
+      String(clampWorkbenchStrengthLevel(value)),
+    );
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+export function loadWorkbenchEquipErgoPenaltyPct(): number {
+  try {
+    return clampWorkbenchEquipErgoPenaltyPct(
+      localStorage.getItem(WORKBENCH_EQUIP_ERGO_PENALTY_STORAGE_KEY),
+    );
+  } catch {
+    return 0;
+  }
+}
+
+export function saveWorkbenchEquipErgoPenaltyPct(value: number) {
+  try {
+    localStorage.setItem(
+      WORKBENCH_EQUIP_ERGO_PENALTY_STORAGE_KEY,
+      String(clampWorkbenchEquipErgoPenaltyPct(value)),
+    );
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/** 人机对应的重量上限（kg），与后端 workbench 过摆判定同一式。 */
+export function workbenchErgoWeightCap(
+  ergo: number,
+  equipErgo = 0,
+): number {
+  const adjusted = ergo * (1 + equipErgo);
+  return 0.0007556 * adjusted * adjusted + 0.02736 * adjusted + 2.9159;
+}
+
+function workbenchEvoErgoDeltaRaw(
+  ergo: number,
+  weight: number,
+  equipErgo = 0,
+): number {
+  return -15 * (weight - workbenchErgoWeightCap(ergo, equipErgo));
+}
+
+/** Evo 人机 Delta：-15 × (重量 − 人机重量上限)。正值未过摆。展示取一位小数。 */
+export function workbenchEvoErgoDelta(
+  ergo: number,
+  weight: number,
+  equipErgo = 0,
+): number {
+  return Math.round(workbenchEvoErgoDeltaRaw(ergo, weight, equipErgo) * 10) / 10;
+}
+
+export function workbenchOverswing(
+  ergo: number,
+  weight: number,
+  equipErgo = 0,
+): boolean {
+  return workbenchEvoErgoDeltaRaw(ergo, weight, equipErgo) < 0;
+}
+
+/** 站立开镜手臂耐力耗尽秒数；力量默认 10，与后端同一式。 */
+export function workbenchArmStaminaSeconds(
+  weight: number,
+  ergo: number,
+  strengthLevel = WORKBENCH_STRENGTH_DEFAULT,
+  equipErgo = 0,
+): number {
+  const safeWeight = weight > 0 ? weight : 0;
+  const bonus = 1 + equipErgo / 2;
+  const strength = clampWorkbenchStrengthLevel(strengthLevel);
+  return (
+    Math.round(
+      ((85.5 / (safeWeight + 0.65) + 9.15 + 0.06477 * ergo * bonus) / 1.04) *
+        (1 + strength * 0.004) *
+        10,
+    ) / 10
+  );
+}
+
+export function formatWorkbenchErgo(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  if (Math.abs(value - Math.round(value)) < 0.001) return String(Math.round(value));
+  return String(Math.round(value * 10) / 10);
+}
+
+export function formatWorkbenchAccuracyMoa(
+  value: number | null | undefined,
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${value.toFixed(2)} MOA`;
+}
+
+export function formatWorkbenchArmStamina(
+  value: number | null | undefined,
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${value.toFixed(1)}s`;
+}
+
+export function formatWorkbenchEed(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const text = value.toFixed(1);
+  return value > 0 ? `+${text}` : text;
+}
+
+export function formatWorkbenchMuzzleVelocity(
+  value: number | null | undefined,
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${Math.round(value)} m/s`;
+}

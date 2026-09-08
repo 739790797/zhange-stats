@@ -10,7 +10,8 @@ alwaysApply: false
 
 - 用户可见失败文案：`apiError(e, "兜底文案")`（`@/lib/apiError`）
 - 新接口写在对应 `frontend/src/api/*Api.ts`，需要时由 `client.ts` 再导出
-- 本后端 HTTP 只用 `@/api/http` 的 `client`
+- 本后端 HTTP 只用 `@/api/http` 的 `client`（`withCredentials`，可变方法带 `X-CSRF-Token`）
+- 401 登出：无会话不登出；`GET /auth/me` 或已登录业务 401 才登出，且同一时刻只一次；403 不登出；登录请求 401 只展示错误
 
 ## 禁止
 

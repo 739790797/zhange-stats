@@ -153,6 +153,34 @@ jobs:
           cd frontend && npm run gen:api
           git diff --exit-code -- frontend/src/api/generated/openapi.json frontend/src/api/generated/schema.d.ts
 
+  # 附件 B：可失败为 warning，不卡 PR / 不挡发版
+  dependency-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: npm audit (production deps)
+        working-directory: frontend
+        run: npm audit --omit=dev --package-lock-only
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: pip-audit
+        working-directory: backend
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r requirements.txt
+
   publish-release:
     needs: [frontend-quality, backend-tests, backend-migrate-mariadb, openapi-drift]
     if: github.event_name != 'pull_request'

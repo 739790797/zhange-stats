@@ -9,7 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
     return () => window.clearTimeout(t);
   }, [countdown]);
 
-  if (token) {
+  if (user) {
     return <Navigate to="/" replace />;
   }
 

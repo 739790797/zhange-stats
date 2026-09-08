@@ -31,3 +31,6 @@ def test_cors_origin_regex_override() -> None:
     assert resolve_cors_origin_regex(custom) == custom
     assert resolve_cors_origin_regex("  ") == DEFAULT_CORS_ORIGIN_REGEX
     assert resolve_cors_origin_regex(None) == DEFAULT_CORS_ORIGIN_REGEX
+    assert resolve_cors_origin_regex(None, production=True) is None
+    assert resolve_cors_origin_regex("  ", production=True) is None
+    assert resolve_cors_origin_regex(custom, production=True) == custom

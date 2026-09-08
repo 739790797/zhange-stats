@@ -14,3 +14,17 @@ export function apiStatus(e: unknown): number | undefined {
 export function isApiForbidden(e: unknown): boolean {
   return apiStatus(e) === 403;
 }
+
+export function requestIdFromError(e: unknown): string | undefined {
+  if (!e || typeof e !== "object") return undefined;
+  const err = e as {
+    requestId?: string;
+    response?: { headers?: Record<string, string | undefined> };
+  };
+  const raw =
+    err.requestId ||
+    err.response?.headers?.["x-request-id"] ||
+    err.response?.headers?.["X-Request-ID"];
+  const text = (raw || "").trim();
+  return text || undefined;
+}

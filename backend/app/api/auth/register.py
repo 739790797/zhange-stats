@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.auth.helpers import (
     PURPOSE_REGISTER,
     _consume_register_challenge,
+    _delete_challenges_for_email,
+    _delivery_user_message,
     _gen_username,
     _upsert_register_challenge,
 )
@@ -18,7 +20,8 @@ from app.api.auth.schemas import (
 )
 from app.core.database import get_db
 from app.core.rate_limit import auth_limiter, client_ip
-from app.core.security import create_access_token, hash_password
+from app.core.security import hash_password
+from app.core.session_cookies import issue_session
 from app.models.user import User, UserRole
 from app.services.member_sync import ensure_user_member
 
@@ -45,9 +48,11 @@ def send_register_code(
             delivery="skipped",
         )
     _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_REGISTER)
-    msg = "若该邮箱可注册，验证码已发送"
-    if delivery["mode"] == "log":
-        msg = "验证码已输出到服务端日志（邮件未配置或发送失败）"
+    msg = _delivery_user_message(
+        delivery,
+        sent="若该邮箱可注册，验证码已发送",
+        logged="验证码已输出到服务端日志（邮件未配置）",
+    )
     return RegisterResponse(message=msg, email=email, delivery=delivery["mode"])
 
 
@@ -55,6 +60,7 @@ def send_register_code(
 def register(
     body: RegisterRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> RegisterResponse:
     ip = client_ip(request)
@@ -69,6 +75,7 @@ def register(
         raise HTTPException(status_code=400, detail="邮箱已被注册")
 
     _consume_register_challenge(db, email, code, purpose=PURPOSE_REGISTER)
+    _delete_challenges_for_email(db, email)
 
     # 清理未完成验证的旧账号（若有）
     if existing:
@@ -93,7 +100,7 @@ def register(
     db.refresh(user)
     db.refresh(member)
     user.member = member
-    token = create_access_token(user.username, user_id=user.id)
+    token = issue_session(response, request, user)
     return RegisterResponse(
         message="注册成功",
         email=email,
@@ -143,7 +150,9 @@ def resend_code(
             delivery="skipped",
         )
     _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_REGISTER)
-    msg = "验证码已重新发送"
-    if delivery["mode"] == "log":
-        msg = "验证码已输出到服务端日志"
+    msg = _delivery_user_message(
+        delivery,
+        sent="验证码已重新发送",
+        logged="验证码已输出到服务端日志",
+    )
     return RegisterResponse(message=msg, email=email, delivery=delivery["mode"])

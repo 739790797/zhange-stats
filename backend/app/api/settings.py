@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
+from app.api.auth.step_up import consume_admin_step_up, require_admin_step_up
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
@@ -190,7 +191,7 @@ def get_email_settings(
 def update_email_settings(
     body: EmailSettingsUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_step_up),
 ) -> dict:
     current = load_email_config(db)
     if body.enabled:
@@ -268,7 +269,7 @@ def update_integrations(
     body: IntegrationsUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_step_up),
 ) -> dict:
     from app.main import scheduler
     from app.services.app_updator import invalidate_check_cache
@@ -395,8 +396,11 @@ def update_auth_settings(
     body: AuthSettingsUpdate,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
+    x_step_up_code: Annotated[str | None, Header(alias="X-Step-Up-Code")] = None,
 ) -> dict:
     payload = body.model_dump(exclude_unset=True)
+    if "enforce_single_admin" in payload:
+        consume_admin_step_up(db, current, x_step_up_code)
     saved = save_auth_config(db, payload)
     if saved.get("enforce_single_admin"):
         enforce_single_admin_if_needed(db, keep_user_id=current.id)
@@ -496,7 +500,7 @@ def get_platform_features_effective(
 def update_platform_features(
     body: PlatformFeaturesUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_admin_step_up),
 ) -> dict[str, Any]:
     from app.main import scheduler
 

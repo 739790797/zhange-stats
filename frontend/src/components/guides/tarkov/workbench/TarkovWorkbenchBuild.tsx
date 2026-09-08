@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Button, Input, Select, Spin, message } from "antd";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { Alert, Button, Input, Modal, Spin, message } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   fetchTarkovWorkbenchAllowed,
   fetchTarkovWorkbenchCalculate,
   fetchTarkovWorkbenchGun,
+  type TarkovWorkbenchCommunityBuild,
   type TarkovWorkbenchGun,
   type TarkovWorkbenchPair,
   type TarkovWorkbenchPart,
@@ -39,82 +39,27 @@ import {
   type WorkbenchPartSortKey,
 } from "@/lib/tarkovWorkbench";
 import {
-  collectSlotHotspots,
-  layoutWorkbenchIcons,
-  nearestWorkbenchSlot,
+  collectWorkbenchGridSlots,
+  layoutWorkbenchGrid,
   workbenchGunArtSource,
+  WORKBENCH_GUN_COL,
+  WORKBENCH_GUN_COL_SPAN,
 } from "@/lib/tarkovWorkbenchIconLayout";
+import { TarkovWorkbenchCommunityModal } from "./TarkovWorkbenchCommunityModal";
+import { TarkovWorkbenchStatsPane } from "./TarkovWorkbenchStatsPane";
 import styles from "./TarkovWorkbenchBuild.module.css";
 
-type Props = { gunId: string };
+type Props = { gunId: string; onChangeGun?: () => void };
 
 function partLabel(part: TarkovWorkbenchPart | null | undefined): string {
   return part?.name || part?.short_name || part?.id || "空";
 }
 
-function SlotPickerFloat({
-  anchor,
-  children,
-  onClose,
-}: {
-  anchor: HTMLElement | null;
-  children: ReactNode;
-  onClose: () => void;
-}) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-
-  useLayoutEffect(() => {
-    if (!anchor) {
-      setPos(null);
-      return;
-    }
-    const place = () => {
-      const rect = anchor.getBoundingClientRect();
-      const width = Math.min(480, window.innerWidth - 24);
-      const gap = 8;
-      let left = rect.right + gap;
-      if (left + width > window.innerWidth - 12) {
-        left = Math.max(12, rect.left - width - gap);
-      }
-      let top = rect.top;
-      const maxTop = window.innerHeight - 36;
-      top = Math.min(Math.max(12, top), maxTop);
-      setPos({ left, top });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [anchor]);
-
-  useEffect(() => {
-    if (!anchor) return;
-    const onDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (anchor.contains(target)) return;
-      if (panelRef.current?.contains(target)) return;
-      onClose();
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [anchor, onClose]);
-
-  if (!anchor || !pos || !children) return null;
-  return createPortal(
-    <div
-      ref={panelRef}
-      className={styles.pickerFloat}
-      style={{ left: pos.left, top: pos.top }}
-    >
-      {children}
-    </div>,
-    document.body,
-  );
+function slotPickerTitle(slot: TarkovWorkbenchSlotNode): string {
+  const installed = slot.installed
+    ? partLabel(slot.installed)
+    : "空";
+  return `${slot.name}${slot.required ? " · 必装" : ""} · ${installed}`;
 }
 
 function SlotPartPicker({
@@ -123,7 +68,6 @@ function SlotPartPicker({
   loading,
   installedIds,
   installedParts,
-  onClose,
   onInstall,
 }: {
   slot: TarkovWorkbenchSlotNode;
@@ -131,7 +75,6 @@ function SlotPartPicker({
   loading: boolean;
   installedIds: string[];
   installedParts: Array<{ id: string; conflicting_ids?: string[] | null }>;
-  onClose: () => void;
   onInstall: (part: TarkovWorkbenchPart) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -148,16 +91,6 @@ function SlotPartPicker({
 
   return (
     <div className={styles.picker}>
-      <div className={styles.paneHead}>
-        <span>
-          {slot.name}
-          {slot.required ? " · 必装" : ""}
-          {slot.installed ? ` · ${partLabel(slot.installed)}` : " · 空"}
-        </span>
-        <Button type="link" size="small" onClick={onClose}>
-          关闭
-        </Button>
-      </div>
       <Input
         className={styles.pickerSearch}
         allowClear
@@ -262,12 +195,34 @@ function SlotPartPicker({
   );
 }
 
+function gridCellClass(
+  cell: {
+    slotId: string;
+    itemId: string;
+    empty: boolean;
+    required: boolean;
+  },
+  activeSlotId: string | null,
+  conflicts: Set<string>,
+): string {
+  const active = cell.slotId === activeSlotId;
+  const conflict = Boolean(cell.itemId && conflicts.has(cell.itemId));
+  return [
+    styles.gridCell,
+    active ? styles.gridCellActive : "",
+    cell.empty ? styles.gridCellEmpty : "",
+    cell.empty && cell.required ? styles.gridCellEmptyRequired : "",
+    conflict ? styles.gridCellConflict : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function WorkbenchIconBoard({
   gun,
   slots,
   activeSlotId,
   conflicts,
-  picker,
   onSelectSlot,
   onClosePicker,
   onUnload,
@@ -276,16 +231,15 @@ function WorkbenchIconBoard({
   slots: TarkovWorkbenchSlotNode[];
   activeSlotId: string | null;
   conflicts: Set<string>;
-  picker: ReactNode;
   onSelectSlot: (id: string) => void;
   onClosePicker: (slotId?: string) => void;
   onUnload: (node: TarkovWorkbenchSlotNode) => void;
 }) {
-  const anchors = useRef<Record<string, HTMLButtonElement | null>>({});
-  const pieces = useMemo(() => {
-    return layoutWorkbenchIcons(collectSlotHotspots(slots));
-  }, [slots]);
-  const hasInstalled = pieces.some((piece) => !piece.empty);
+  const layout = useMemo(
+    () => layoutWorkbenchGrid(collectWorkbenchGridSlots(slots)),
+    [slots],
+  );
+  const hasInstalled = layout.cells.some((cell) => !cell.empty);
   const gunArt = useMemo(() => {
     const raw = workbenchGunArtSource({
       imageLink: gun.image_link,
@@ -294,90 +248,93 @@ function WorkbenchIconBoard({
     });
     return hdPreviewUrl(raw) || raw;
   }, [gun.image_link, gun.preset_image_link, hasInstalled]);
-  const activeAnchor = activeSlotId ? anchors.current[activeSlotId] || null : null;
+  const gridCells = layout.cells.filter((cell) => !cell.extras);
+  const extraCells = layout.cells.filter((cell) => cell.extras);
 
-  if (!gunArt && !pieces.length) {
+  if (!gunArt && !layout.cells.length) {
     return <p className={styles.hint}>没有枪图</p>;
   }
 
+  const renderCell = (
+    cell: (typeof layout.cells)[number],
+    style?: { gridColumn: number; gridRow: number },
+  ) => {
+    const src = cell.empty ? "" : inventoryThumbUrl(cell.icon, cell.itemId);
+    return (
+      <button
+        key={cell.slotId}
+        type="button"
+        className={gridCellClass(cell, activeSlotId, conflicts)}
+        style={style}
+        title={`${cell.slotName}${cell.shortName ? ` · ${cell.shortName}` : ""}`}
+        onClick={() => onSelectSlot(cell.slotId)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          const node = findSlotNode(slots, cell.slotId);
+          if (node) onUnload(node);
+          onClosePicker(cell.slotId);
+        }}
+      >
+        <span className={styles.gridCellInner}>
+          {src ? (
+            <img src={src} alt="" />
+          ) : (
+            <span className={styles.gridCellPlus} aria-hidden>
+              +
+            </span>
+          )}
+          {cell.shortName ? (
+            <span className={styles.gridShortName}>{cell.shortName}</span>
+          ) : null}
+        </span>
+        <span className={styles.gridLabel}>{cell.slotName}</span>
+      </button>
+    );
+  };
+
   return (
-    <div
-      className={styles.iconBoard}
-      aria-label="枪图与槽位"
-      onClick={(event) => {
-        if (event.target !== event.currentTarget) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        if (!rect.width || !rect.height) return;
-        const x = ((event.clientX - rect.left) / rect.width) * 100;
-        const y = ((event.clientY - rect.top) / rect.height) * 100;
-        const slotId = nearestWorkbenchSlot(pieces, x, y);
-        if (slotId) onSelectSlot(slotId);
-      }}
-    >
-      {gunArt ? (
-        <img
-          className={styles.gunArt}
-          src={gunArt}
-          alt={gun.short_name || gun.name || ""}
-        />
-      ) : null}
-      {pieces.map((piece) => {
-        const src = piece.empty
-          ? ""
-          : inventoryThumbUrl(piece.icon, piece.itemId);
-        const active = piece.slotId === activeSlotId;
-        const conflict = Boolean(piece.itemId && conflicts.has(piece.itemId));
-        return (
-          <button
-            key={piece.slotId}
-            ref={(node) => {
-              anchors.current[piece.slotId] = node;
-            }}
-            type="button"
-            className={[
-              styles.iconPiece,
-              styles.hotspotAnchor,
-              active ? styles.iconPieceActive : "",
-              piece.empty ? styles.iconPieceEmpty : "",
-              piece.empty && piece.required ? styles.iconPieceEmptyRequired : "",
-              conflict ? styles.iconPieceConflict : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            style={{ left: `${piece.x}%`, top: `${piece.y}%` }}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (active) onClosePicker(piece.slotId);
-              else onSelectSlot(piece.slotId);
-            }}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const node = findSlotNode(slots, piece.slotId);
-              if (node) onUnload(node);
-              onClosePicker(piece.slotId);
+    <div className={styles.iconBoard} aria-label="配件示意图">
+      <div className={styles.attachmentGridWrap}>
+        <div
+          className={styles.attachmentGrid}
+          style={{
+            gridTemplateRows: `repeat(${layout.totalRows}, var(--wb-cell-h))`,
+          }}
+        >
+          <div
+            className={styles.gunCell}
+            style={{
+              gridColumn: `${WORKBENCH_GUN_COL} / ${WORKBENCH_GUN_COL + WORKBENCH_GUN_COL_SPAN}`,
+              gridRow: String(layout.gunRow),
             }}
           >
-            {src ? (
-              <img src={src} alt="" />
+            {gunArt ? (
+              <img src={gunArt} alt={gun.short_name || gun.name || ""} />
             ) : (
-              <span className={styles.hotspotEmpty} />
+              <span className={styles.gridCellPlus} aria-hidden>
+                +
+              </span>
             )}
-            <span className={styles.hotspotName}>{piece.slotName}</span>
-          </button>
-        );
-      })}
-      <SlotPickerFloat
-        anchor={activeAnchor}
-        onClose={() => onClosePicker()}
-      >
-        {picker}
-      </SlotPickerFloat>
+            <span className={styles.gridLabel}>
+              {gun.short_name || gun.name || ""}
+            </span>
+          </div>
+          {gridCells.map((cell) =>
+            renderCell(cell, {
+              gridColumn: cell.col || 1,
+              gridRow: cell.row || 1,
+            }),
+          )}
+        </div>
+        {extraCells.length ? (
+          <div className={styles.gridExtras}>{extraCells.map((cell) => renderCell(cell))}</div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-export function TarkovWorkbenchBuild({ gunId }: Props) {
+export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
   const navigate = useNavigate();
   const gameMode = useTarkovGameMode();
   const [pairs, setPairs] = useState<TarkovWorkbenchPair[]>([]);
@@ -385,6 +342,7 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
   const [slots, setSlots] = useState<TarkovWorkbenchSlotNode[]>([]);
   const [stats, setStats] = useState<TarkovWorkbenchStats | null>(null);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
+  const [communityOpen, setCommunityOpen] = useState(false);
   const calcEpoch = useRef(0);
 
   const gunQuery = useQuery({
@@ -456,13 +414,20 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
     [stats?.conflicts],
   );
 
-  const applyPairs = (next: TarkovWorkbenchPair[], nextAmmo?: string | null) => {
+  const applyPairsAsync = (
+    next: TarkovWorkbenchPair[],
+    nextAmmo?: string | null,
+  ) => {
     const epoch = ++calcEpoch.current;
-    calcMutation.mutate({
+    return calcMutation.mutateAsync({
       pairs: next,
       ammoId: nextAmmo,
       epoch,
     });
+  };
+
+  const applyPairs = (next: TarkovWorkbenchPair[], nextAmmo?: string | null) => {
+    void applyPairsAsync(next, nextAmmo);
   };
 
   const unloadSlot = (node: TarkovWorkbenchSlotNode) => {
@@ -482,6 +447,24 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
       if (slotId && current && current !== slotId) return current;
       return null;
     });
+  };
+
+  const applyCommunity = (build: TarkovWorkbenchCommunityBuild) => {
+    setCommunityOpen(false);
+    closePicker();
+    void applyPairsAsync(build.pairs || [], build.ammo_id ?? null)
+      .then(() => {
+        if (build.dropped_pair_count) {
+          message.warning(
+            `已装入「${build.name}」，省略了 ${build.dropped_pair_count} 件本站没有的配件`,
+          );
+        } else {
+          message.success(`已装入「${build.name}」`);
+        }
+      })
+      .catch(() => {
+        /* calcMutation onError 已提示 */
+      });
   };
 
   const installPart = (part: TarkovWorkbenchPart) => {
@@ -524,7 +507,7 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
           <>
             {apiError(gunQuery.error, "未找到枪械")}
             {" · "}
-            <Link to={TARKOV_WORKBENCH_PATH}>返回选枪</Link>
+            <Link to={TARKOV_WORKBENCH_PATH}>返回工作台</Link>
           </>
         }
       />
@@ -546,7 +529,19 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
           </Link>
         </h2>
         <div className={styles.actions}>
-          <Button onClick={() => navigate(tarkovWorkbenchHref())}>
+          <Button
+            onClick={() => {
+              closePicker();
+              setCommunityOpen(true);
+            }}
+          >
+            社区方案
+          </Button>
+          <Button
+            onClick={() =>
+              onChangeGun ? onChangeGun() : navigate(tarkovWorkbenchHref())
+            }
+          >
             换一把枪
           </Button>
           <Button
@@ -581,20 +576,6 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
               slots={slots}
               activeSlotId={activeSlotId}
               conflicts={conflicts}
-              picker={
-                activeSlot ? (
-                  <SlotPartPicker
-                    key={activeSlot.id}
-                    slot={activeSlot}
-                    parts={allowedQuery.data?.slots?.[activeSlot.id] || []}
-                    loading={allowedQuery.isLoading}
-                    installedIds={installedIds}
-                    installedParts={installedParts}
-                    onClose={() => closePicker()}
-                    onInstall={installPart}
-                  />
-                ) : null
-              }
               onSelectSlot={(id) => {
                 setActiveSlotId(id);
               }}
@@ -602,76 +583,57 @@ export function TarkovWorkbenchBuild({ gunId }: Props) {
               onUnload={unloadSlot}
             />
           </div>
+          <Modal
+            open={Boolean(activeSlot)}
+            title={activeSlot ? slotPickerTitle(activeSlot) : ""}
+            footer={
+              activeSlot?.installed && !activeSlot.required ? (
+                <Button
+                  onClick={() => {
+                    if (activeSlot) unloadSlot(activeSlot);
+                  }}
+                >
+                  卸下
+                </Button>
+              ) : null
+            }
+            destroyOnClose
+            centered
+            width={720}
+            className={styles.pickerModal}
+            classNames={{
+              body: styles.pickerModalBody,
+              content: styles.pickerModalContent,
+            }}
+            onCancel={() => closePicker()}
+          >
+            {activeSlot ? (
+              <SlotPartPicker
+                key={activeSlot.id}
+                slot={activeSlot}
+                parts={allowedQuery.data?.slots?.[activeSlot.id] || []}
+                loading={allowedQuery.isLoading}
+                installedIds={installedIds}
+                installedParts={installedParts}
+                onInstall={installPart}
+              />
+            ) : null}
+          </Modal>
         </section>
-
-        <section className={`${styles.pane} ${styles.statsPane}`} aria-label="属性">
-          <div className={styles.paneHead}>属性</div>
-          <div className={styles.stats}>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>人机</span>
-              <span className={styles.statValue}>
-                {stats?.ergonomics ?? "—"}
-              </span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>垂直后坐</span>
-              <span className={styles.statValue}>
-                {stats?.recoil_vertical ?? "—"}
-              </span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>水平后坐</span>
-              <span className={styles.statValue}>
-                {stats?.recoil_horizontal ?? "—"}
-              </span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>重量</span>
-              <span className={styles.statValue}>
-                {formatWeight(stats?.weight)}
-              </span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>瞄具距离</span>
-              <span className={styles.statValue}>
-                {stats?.sighting_range ?? "—"}
-              </span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>弹匣容量</span>
-              <span className={styles.statValue}>
-                {stats?.mag_capacity ?? "—"}
-              </span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>估价</span>
-              <span className={styles.statValue}>
-                {formatMoney(stats?.price_rub)}
-              </span>
-            </div>
-            {stats?.overswing ? (
-              <p className={styles.warn}>过摆：当前重量超过人机阈值</p>
-            ) : null}
-            {conflicts.size ? (
-              <p className={styles.warn}>冲突件已标红，请卸下或更换</p>
-            ) : null}
-            {ammoOptions.length ? (
-              <div className={styles.ammo}>
-                <div className={styles.statLabel}>弹药</div>
-                <Select
-                  size="small"
-                  showSearch
-                  optionFilterProp="label"
-                  style={{ width: "100%", marginTop: 6 }}
-                  value={ammoId || undefined}
-                  options={ammoOptions}
-                  onChange={(value) => applyPairs(pairs, value)}
-                />
-              </div>
-            ) : null}
-          </div>
-        </section>
+        <TarkovWorkbenchStatsPane
+          stats={stats}
+          ammoId={ammoId}
+          ammoOptions={ammoOptions}
+          hasConflicts={conflicts.size > 0}
+          onAmmoChange={(value) => applyPairs(pairs, value)}
+        />
       </div>
+      <TarkovWorkbenchCommunityModal
+        gunId={gunId}
+        open={communityOpen}
+        onCancel={() => setCommunityOpen(false)}
+        onPick={applyCommunity}
+      />
     </div>
   );
 }

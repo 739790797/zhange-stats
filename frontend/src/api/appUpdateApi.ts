@@ -16,8 +16,9 @@ export async function checkAppUpdate() {
   return data;
 }
 
-export async function doAppUpdate(payload: Partial<AppUpdateDoIn> = {}) {
-  // 接口会立刻返回并在后台执行；仍给足超时以防预检/拉 Release 较慢
+export async function doAppUpdate(
+  payload: Partial<AppUpdateDoIn> & { stepUpCode: string },
+) {
   const { data } = await client.post<AppUpdateDoResult>(
     "/settings/app-update/do",
     {
@@ -25,7 +26,7 @@ export async function doAppUpdate(payload: Partial<AppUpdateDoIn> = {}) {
       proxy: payload.proxy ?? null,
       reboot: payload.reboot ?? true,
     },
-    { timeout: 120_000 },
+    { timeout: 120_000, headers: { "X-Step-Up-Code": payload.stepUpCode } },
   );
   return data;
 }

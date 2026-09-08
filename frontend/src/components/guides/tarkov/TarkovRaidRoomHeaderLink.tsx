@@ -9,7 +9,7 @@ import styles from "./TarkovRaidRoomHeaderLink.module.css";
 
 export function TarkovRaidRoomHeaderLink() {
   const { pathname } = useLocation();
-  const loggedIn = Boolean(useAuthStore((s) => s.token));
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const onHome = isTarkovHomePath(pathname);
   const hidden = useDocumentHidden();
   const pollMine = loggedIn && !onHome;

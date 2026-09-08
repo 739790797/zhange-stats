@@ -1,7 +1,9 @@
 import { Button, Result } from "antd";
 import { Link } from "react-router-dom";
+import { useDocumentTitle } from "@/lib/documentTitle";
 
 export function NotFoundPage() {
+  useDocumentTitle("页面不存在");
   return (
     <Result
       status="404"

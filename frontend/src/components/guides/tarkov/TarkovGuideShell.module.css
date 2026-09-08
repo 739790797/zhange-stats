@@ -32,6 +32,28 @@
   overflow: hidden;
 }
 
+.skipLink {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  z-index: 80;
+  padding: 8px 12px;
+  background: #22241a;
+  color: #eee9d6;
+  border: 1px solid #c8932a;
+  border-radius: 4px;
+  transform: translateY(-200%);
+}
+
+.skipLink:focus {
+  transform: none;
+}
+
+.skipLink:focus-visible {
+  outline: 2px solid #c8932a;
+  outline-offset: 2px;
+}
+
 .topbar {
   position: relative;
   flex: none;
@@ -328,6 +350,15 @@
   overflow: auto;
 }
 
+.body:focus {
+  outline: none;
+}
+
+.body:focus-visible {
+  outline: 1px solid #c8932a;
+  outline-offset: -2px;
+}
+
 .bodyFill {
   overflow: hidden;
 }
@@ -339,49 +370,21 @@
   flex-direction: column;
 }
 
+/* PageMotion 多一层：把原来套在页面根上的 stretch 下推一级。 */
+.bodyFill > :global(.app-motion-page) > * {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* 只拉最后一块内容。`> * > *` 会把面包屑也 flex:1，个人中心 tab 被顶下去。 */
-.bodyFill > * > :last-child {
+.bodyFill > :global(.app-motion-page) > * > :last-child {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.body::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.body::-webkit-scrollbar-track {
-  background: #1a1b14;
-}
-
-.body::-webkit-scrollbar-thumb {
-  background: #4a4e40;
-  border-radius: 4px;
-  border: 2px solid #1a1b14;
-}
-
-.body::-webkit-scrollbar-thumb:hover {
-  background: #6a6e58;
-}
-
-.body::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.body::-webkit-scrollbar-corner {
-  background: #1a1b14;
-}
-
-@supports (-moz-appearance: none) {
-  .body {
-    scrollbar-width: thin;
-    scrollbar-color: #5a5e4c #1a1b14;
-  }
 }
 
 @media (max-width: 1100px) {

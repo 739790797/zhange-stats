@@ -119,8 +119,8 @@ class TarkovWorkbenchPartOut(BaseModel):
 
 
 class TarkovWorkbenchPairOut(BaseModel):
-    slot_id: str
-    item_id: str
+    slot_id: str = Field(max_length=64)
+    item_id: str = Field(max_length=64)
 
 
 class TarkovWorkbenchSlotNodeOut(BaseModel):
@@ -144,6 +144,10 @@ class TarkovWorkbenchStatsOut(BaseModel):
     conflicts: list[str] = Field(default_factory=list)
     overswing: bool = False
     ammo_id: str | None = None
+    accuracy_moa: float | None = None
+    muzzle_velocity: int | None = None
+    arm_stamina: float | None = None
+    evo_ergo_delta: float = 0
 
 
 class TarkovWorkbenchGunOut(BaseModel):
@@ -165,7 +169,7 @@ class TarkovWorkbenchGunOut(BaseModel):
 
 
 class TarkovWorkbenchAllowedIn(BaseModel):
-    slot_ids: list[str] = Field(default_factory=list)
+    slot_ids: list[str] = Field(default_factory=list, max_length=200)
 
 
 class TarkovWorkbenchAllowedOut(BaseModel):
@@ -173,9 +177,9 @@ class TarkovWorkbenchAllowedOut(BaseModel):
 
 
 class TarkovWorkbenchCalculateIn(BaseModel):
-    gun_id: str
-    pairs: list[TarkovWorkbenchPairOut] = Field(default_factory=list)
-    ammo_id: str | None = None
+    gun_id: str = Field(max_length=64)
+    pairs: list[TarkovWorkbenchPairOut] = Field(default_factory=list, max_length=200)
+    ammo_id: str | None = Field(default=None, max_length=64)
 
 
 class TarkovWorkbenchCalculateOut(BaseModel):
@@ -195,6 +199,38 @@ class TarkovWorkbenchImageOut(BaseModel):
     busy: bool = False
     message: str | None = None
     enabled: bool = True
+
+
+class TarkovWorkbenchCommunityPreviewOut(BaseModel):
+    ergonomics: float | None = None
+    evo_ergo_delta: float | None = None
+    recoil_vertical: int | None = None
+    recoil_horizontal: int | None = None
+    weight: float | None = None
+    price_rub: int | None = None
+    overswing: bool = False
+
+
+class TarkovWorkbenchCommunityBuildOut(BaseModel):
+    id: str
+    name: str
+    author: str = ""
+    featured: bool = False
+    tags: list[str] = Field(default_factory=list)
+    published_at: str | None = None
+    load_count: int = 0
+    ammo_id: str | None = None
+    pairs: list[TarkovWorkbenchPairOut] = Field(default_factory=list)
+    loadable: bool = False
+    dropped_pair_count: int = 0
+    preview: TarkovWorkbenchCommunityPreviewOut | None = None
+
+
+class TarkovWorkbenchCommunityBuildsOut(BaseModel):
+    source: str
+    source_url: str
+    gun_id: str
+    builds: list[TarkovWorkbenchCommunityBuildOut] = Field(default_factory=list)
 
 
 class TarkovCatalogItemOut(BaseModel):

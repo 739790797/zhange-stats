@@ -58,4 +58,25 @@ describe("formatRequestError", () => {
       formatRequestError({ response: { status: 503, data: {} } }, "失败"),
     ).toBe("服务暂时不可用，请稍后重试");
   });
+
+  it("appends request id only on 5xx", () => {
+    expect(
+      formatRequestError(
+        {
+          requestId: "abcdef12-9999",
+          response: { status: 503, data: {} },
+        },
+        "失败",
+      ),
+    ).toBe("服务暂时不可用，请稍后重试（编号 abcdef12）");
+    expect(
+      formatRequestError(
+        {
+          requestId: "abcdef12-9999",
+          response: { status: 401, data: { detail: "账号或密码错误" } },
+        },
+        "失败",
+      ),
+    ).toBe("账号或密码错误");
+  });
 });

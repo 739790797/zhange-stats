@@ -126,6 +126,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_api_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/qq/oauth/start": {
         parameters: {
             query?: never;
@@ -157,7 +174,7 @@ export interface paths {
         put?: never;
         /**
          * Qq Oauth Exchange
-         * @description 用回调 URL 中的一次性 ticket 换取 JWT（不把 access_token 放进 query）。
+         * @description 用回调 URL 中的一次性 ticket 换取会话（不把 access_token 放进 query）。
          */
         post: operations["qq_oauth_exchange_api_auth_qq_exchange_post"];
         delete?: never;
@@ -322,6 +339,57 @@ export interface paths {
         put?: never;
         /** Reset Password */
         post: operations["reset_password_api_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/step-up/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Step Up Code */
+        post: operations["send_step_up_code_api_auth_step_up_send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/account/delete-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Delete Account Code */
+        post: operations["send_delete_account_code_api_auth_account_delete_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete Own Account */
+        post: operations["delete_own_account_api_auth_account_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3256,6 +3324,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/workbench/community-builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Workbench Community Builds
+         * @description 工作台：按枪读取 EFTForge 公开社区方案（不落库、不代投票）。
+         */
+        get: operations["guides_tarkov_workbench_community_builds_api_guides_tarkov_workbench_community_builds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/tasks/sync": {
         parameters: {
             query?: never;
@@ -4687,6 +4775,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Client Error */
+        post: operations["post_client_error_api_client_errors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/csp-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Csp Report */
+        post: operations["post_csp_report_api_csp_report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/robots.txt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Robots Txt */
+        get: operations["robots_txt_robots_txt_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -5930,6 +6069,33 @@ export interface components {
             checkin_hour?: number | null;
             /** Checkin Minute */
             checkin_minute?: number | null;
+        };
+        /** ClientErrorIn */
+        ClientErrorIn: {
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Component Stack
+             * @default
+             */
+            component_stack: string;
+            /**
+             * Pathname
+             * @default
+             */
+            pathname: string;
+            /** Request Id */
+            request_id?: string | null;
+            /** App Version */
+            app_version?: string | null;
+        };
+        /** DeleteAccountRequest */
+        DeleteAccountRequest: {
+            /** Code */
+            code: string;
         };
         /** EmailSettingsOut */
         EmailSettingsOut: {
@@ -14500,6 +14666,78 @@ export interface components {
             slots?: components["schemas"]["TarkovWorkbenchSlotNodeOut"][];
             stats: components["schemas"]["TarkovWorkbenchStatsOut"];
         };
+        /** TarkovWorkbenchCommunityBuildOut */
+        TarkovWorkbenchCommunityBuildOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Author
+             * @default
+             */
+            author: string;
+            /**
+             * Featured
+             * @default false
+             */
+            featured: boolean;
+            /** Tags */
+            tags?: string[];
+            /** Published At */
+            published_at?: string | null;
+            /**
+             * Load Count
+             * @default 0
+             */
+            load_count: number;
+            /** Ammo Id */
+            ammo_id?: string | null;
+            /** Pairs */
+            pairs?: components["schemas"]["TarkovWorkbenchPairOut"][];
+            /**
+             * Loadable
+             * @default false
+             */
+            loadable: boolean;
+            /**
+             * Dropped Pair Count
+             * @default 0
+             */
+            dropped_pair_count: number;
+            preview?: components["schemas"]["TarkovWorkbenchCommunityPreviewOut"] | null;
+        };
+        /** TarkovWorkbenchCommunityBuildsOut */
+        TarkovWorkbenchCommunityBuildsOut: {
+            /** Source */
+            source: string;
+            /** Source Url */
+            source_url: string;
+            /** Gun Id */
+            gun_id: string;
+            /** Builds */
+            builds?: components["schemas"]["TarkovWorkbenchCommunityBuildOut"][];
+        };
+        /** TarkovWorkbenchCommunityPreviewOut */
+        TarkovWorkbenchCommunityPreviewOut: {
+            /** Ergonomics */
+            ergonomics?: number | null;
+            /** Evo Ergo Delta */
+            evo_ergo_delta?: number | null;
+            /** Recoil Vertical */
+            recoil_vertical?: number | null;
+            /** Recoil Horizontal */
+            recoil_horizontal?: number | null;
+            /** Weight */
+            weight?: number | null;
+            /** Price Rub */
+            price_rub?: number | null;
+            /**
+             * Overswing
+             * @default false
+             */
+            overswing: boolean;
+        };
         /** TarkovWorkbenchGunOut */
         TarkovWorkbenchGunOut: {
             /** Id */
@@ -14693,6 +14931,17 @@ export interface components {
             overswing: boolean;
             /** Ammo Id */
             ammo_id?: string | null;
+            /** Accuracy Moa */
+            accuracy_moa?: number | null;
+            /** Muzzle Velocity */
+            muzzle_velocity?: number | null;
+            /** Arm Stamina */
+            arm_stamina?: number | null;
+            /**
+             * Evo Ergo Delta
+             * @default 0
+             */
+            evo_ergo_delta: number;
         };
         /** TaygedoAttendanceCalendarOut */
         TaygedoAttendanceCalendarOut: {
@@ -15614,6 +15863,28 @@ export interface operations {
             };
         };
     };
+    logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     qq_oauth_login_start_api_auth_qq_oauth_start_get: {
         parameters: {
             query?: never;
@@ -15942,6 +16213,81 @@ export interface operations {
             };
         };
     };
+    send_step_up_code_api_auth_step_up_send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterResponse"];
+                };
+            };
+        };
+    };
+    send_delete_account_code_api_auth_account_delete_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterResponse"];
+                };
+            };
+        };
+    };
+    delete_own_account_api_auth_account_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_members_api_members_get: {
         parameters: {
             query?: never;
@@ -16049,7 +16395,9 @@ export interface operations {
     delete_user_api_users__user_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path: {
                 user_id: number;
             };
@@ -16078,7 +16426,9 @@ export interface operations {
     update_user_api_users__user_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path: {
                 user_id: number;
             };
@@ -16599,7 +16949,9 @@ export interface operations {
     update_email_settings_api_settings_email_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -16707,7 +17059,9 @@ export interface operations {
     update_integrations_api_settings_integrations_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -16837,7 +17191,9 @@ export interface operations {
     update_auth_settings_api_settings_auth_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -16963,7 +17319,9 @@ export interface operations {
     update_platform_features_api_settings_platform_features_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -17078,7 +17436,9 @@ export interface operations {
     do_app_update_api_settings_app_update_do_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Step-Up-Code"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -21651,6 +22011,39 @@ export interface operations {
             };
         };
     };
+    guides_tarkov_workbench_community_builds_api_guides_tarkov_workbench_community_builds_get: {
+        parameters: {
+            query: {
+                gun_id: string;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchCommunityBuildsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post: {
         parameters: {
             query?: {
@@ -24929,6 +25322,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_client_error_api_client_errors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientErrorIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_csp_report_api_csp_report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    robots_txt_robots_txt_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

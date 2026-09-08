@@ -36,7 +36,7 @@ articles ── * article_versions
 
 | 表 | 用途 |
 |---|---|
-| `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin` |
+| `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin`。注销为 **anonymize**：保留 `id`，`anonymized_at` 非空，邮箱清空、用户名改为 `deleted_{id}`、显示名「已注销用户」、口令改为不可用哈希、`role` 降为 user；成员行与平台 bind CASCADE 删除。已发布酒馆文保留 `author_user_id`，草稿物理删 |
 | `article_categories` | 战鸽酒馆文章分类；`slug` 唯一；`admin_only` 仅管理员能把文章标到该分类；`chip_color` 为文章卡片芯片色（`#RGB` / `#RRGGBB`，空则前端用默认蓝） |
 | `article_tags` | 战鸽酒馆文章标签；`slug` 唯一 |
 | `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft`）、`author_user_id` ON DELETE SET NULL、`halo_source_id` 可空唯一（导入幂等）。删除为物理删除（评论 / 版本 / 分类标签关联 CASCADE） |
@@ -105,7 +105,7 @@ articles ── * article_versions
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档。索引含 `(job_key, started_at)` |
 | `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`site` 页脚备案号等） |
-| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset`；`expires_at` 有索引 |
+| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete` / `admin_stepup`；`expires_at` 有索引 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
 

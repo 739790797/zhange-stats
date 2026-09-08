@@ -58,7 +58,7 @@ alembic upgrade head
 - `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
 - 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
-- 未做 CSRF 前半改 JWT httpOnly Cookie
+- 去掉 CSRF / 登出清 Cookie / 生产 CORS 收紧，却只把 JWT 改成可读 Cookie 或继续 persist JWT
 - 生产开启 `ALLOW_EMAIL_CODE_LOG`（启动硬拒绝）；生产使用默认弱 `ADMIN_PASSWORD`
 
 ## PR 自检
@@ -75,5 +75,5 @@ alembic upgrade head
 
 ## CI
 
-PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（pytest）· `openapi-drift`；`main` 再发 GitHub Release（static 资产）。  
+PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（pytest）· `openapi-drift`；`dependency-audit` 为 warning、不卡 PR；`main` 再发 GitHub Release（static 资产）。  
 提交信息偏好 conventional commits（`feat` / `fix` / `chore` / `docs` / …）。

@@ -1,5 +1,5 @@
-import { lazy, Suspense, type ReactNode } from "react";
-import { ConfigProvider } from "antd";
+import { lazy, Suspense, useMemo, type ReactNode } from "react";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { HomeRedirect } from "@/components/HomeRedirect";
@@ -8,9 +8,10 @@ import { PlatformRoute } from "@/components/PlatformRoute";
 import { RouteFallback } from "@/components/RouteFallback";
 import { SetupGate } from "@/components/SetupGate";
 import { antdLocale } from "@/locales/zhCN";
+import { usePrefersReducedMotion } from "@/lib/prefersReducedMotion";
 import { TarkovGameModeProvider } from "@/lib/tarkovGameModeProvider";
 import { TAVERN_ADMIN_PATH, TAVERN_WRITE_PATH, tavernEditPath } from "@/lib/tavernNav";
-import { antdAppTheme } from "@/theme/antdApp";
+import { antdThemeWithMotion } from "@/theme/antdApp";
 
 const AppLayout = lazy(() =>
   import("@/components/AppLayout").then((m) => ({ default: m.AppLayout })),
@@ -113,25 +114,37 @@ function RedirectTavernManageEdit() {
   return <Navigate to={tavernEditPath(Number(articleId))} replace />;
 }
 
+const antdLocaleWithActions = {
+  ...antdLocale,
+  Modal: {
+    ...antdLocale.Modal,
+    okText: "确定",
+    cancelText: "取消",
+    justOkText: antdLocale.Modal?.justOkText ?? "知道了",
+  },
+  Popconfirm: {
+    ...antdLocale.Popconfirm,
+    okText: "确定",
+    cancelText: "取消",
+  },
+};
+
+function AntdProvider({ children }: { children: ReactNode }) {
+  const reducedMotion = usePrefersReducedMotion();
+  const theme = useMemo(
+    () => antdThemeWithMotion(!reducedMotion),
+    [reducedMotion],
+  );
+  return (
+    <ConfigProvider locale={antdLocaleWithActions} theme={theme}>
+      <AntdApp>{children}</AntdApp>
+    </ConfigProvider>
+  );
+}
+
 export default function App() {
   return (
-    <ConfigProvider
-      locale={{
-        ...antdLocale,
-        Modal: {
-          ...antdLocale.Modal,
-          okText: "确定",
-          cancelText: "取消",
-          justOkText: antdLocale.Modal?.justOkText ?? "知道了",
-        },
-        Popconfirm: {
-          ...antdLocale.Popconfirm,
-          okText: "确定",
-          cancelText: "取消",
-        },
-      }}
-      theme={antdAppTheme}
-    >
+    <AntdProvider>
       <BrowserRouter>
         <SetupGate>
           <Suspense fallback={<RouteFallback />}>
@@ -458,6 +471,6 @@ export default function App() {
           </Suspense>
         </SetupGate>
       </BrowserRouter>
-    </ConfigProvider>
+    </AntdProvider>
   );
 }

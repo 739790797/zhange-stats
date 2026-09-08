@@ -15,6 +15,7 @@ alwaysApply: false
 - 任务 / 物品 / 制作在 **parse 前**与 `tarkov_overlay_raws`（[tarkov-data-overlay](https://github.com/tarkovtracker-org/tarkov-data-overlay)）内存合入，不改 json 各表、不落合并表
 - 互动地图底图仍用 `frontend/src/data/tarkov-dev-maps.json` + `assets.tarkov.dev`（SVG/瓦片）；容器格仓轮廓用 `frontend/src/data/tarkov-item-grids.json`。二者都是展示资源，不是图鉴 API
 - 工作台改装中间预览：底板用 dump 枪图（工厂预设 / 裸机匣静图），按槽位 `nameId` 在枪图上点选配件（含空槽）。dump 没有整枪照片坐标。默认**不**代理 [image-gen.tarkov-changes.com](https://image-gen.tarkov-changes.com)。旧出图接口仍在，须显式 `TARKOV_WORKBENCH_IMAGE_GEN=true` 才启用。
+- 工作台社区方案：只 **GET** [eftforge.com](https://eftforge.com) `/builds/public?gun_id=`（公开列表），投影成 dump 可装的 `pairs`。不当图鉴源、不代投票/评论、不热链 Gitee 卡图、不落库（短时 KV 除外）。`TARKOV_WORKBENCH_COMMUNITY=false` 可关。
 
 ## 禁止
 
@@ -23,6 +24,7 @@ alwaysApply: false
 - 把 BTR/门锁等标点改去现场打 GraphQL；走 `maps` raw 投影
 - pytest 打真实 json.tarkov.dev / overlay CDN（用夹具）
 - pytest 打真实 image-gen.tarkov-changes.com（出图代理用注入假后端）
+- pytest 打真实 eftforge.com（社区方案用夹具）
 
 ## 兼容
 
