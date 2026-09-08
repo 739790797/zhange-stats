@@ -70,10 +70,7 @@ fi
 # shellcheck disable=SC1091
 source "${VENV_DIR}/bin/activate"
 pip install -U pip
-pip install -r "${BACKEND_DIR}/requirements.txt"
-# RapidOCR / EasyOCR 会顺带拉 opencv-python（GUI）；LXC 无 libGL，只保留 headless
-pip uninstall -y opencv-python >/dev/null 2>&1 || true
-pip install -q --force-reinstall --no-deps "opencv-python-headless>=4.8.0"
+bash "${REPO_ROOT}/scripts/pip_install_backend.sh" "$(command -v python)" "${BACKEND_DIR}"
 deactivate
 
 # 若本地已有 frontend/dist 则拷贝；否则尝试从 GitHub Release 拉 static

@@ -34,7 +34,8 @@ LAOHU_APP_ID = "10550"
 LAOHU_CHANNEL_ID = "1"
 LAOHU_VERSION_CODE = "17"
 LAOHU_SDK_VERSION = "4.327.0"
-LAOHU_UA = "LaohuSDK/4.327.0 (android os 14;mobile  manufacturer Google; model Pixel 6) "
+# httpx/h11 拒绝 header 值首尾空白，勿从抓包原样带上尾空格。
+LAOHU_UA = f"LaohuSDK/{LAOHU_SDK_VERSION} (android os 14;mobile  manufacturer Google; model Pixel 6)"
 
 GAME_NTE = "1289"
 GAME_NTE_NAME = "异环"

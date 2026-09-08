@@ -867,25 +867,110 @@ def apply_static_tar(tar_path: Path, static_dir: Path) -> None:
             tf.extractall(static_dir)
 
 
+# EasyOCR 依赖 torch。PyPI 默认 Linux 轮是 CUDA（数 GB）。生产 LXC 无 GPU，必须先装 CPU 轮再 -r。
+TORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
+
+
+def cpu_torch_pip_cmd(python: Path) -> list[str]:
+    return [
+        str(python),
+        "-m",
+        "pip",
+        "install",
+        "torch",
+        "torchvision",
+        "--index-url",
+        TORCH_CPU_INDEX,
+    ]
+
+
+def torch_constraint_lines(freeze_text: str) -> list[str]:
+    return [
+        line
+        for line in freeze_text.splitlines()
+        if line.startswith(("torch==", "torchvision=="))
+    ]
+
+
+def _run_pip(cmd: list[str], *, cwd: Path, progress_prefix: str) -> None:
+    logger.info("pip install: %s", " ".join(cmd))
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    assert proc.stdout is not None
+    last = ""
+    for raw in proc.stdout:
+        line = raw.rstrip()
+        if not line:
+            continue
+        last = line
+        logger.info("pip: %s", line)
+        shown = line[-160:] if len(line) > 160 else line
+        _set_progress(busy=True, phase="pip", message=f"{progress_prefix}{shown}")
+    rc = proc.wait()
+    if rc != 0:
+        tail = last[-400:] if last else f"exit={rc}"
+        raise RuntimeError(f"pip 安装失败（exit={rc}）。{tail}")
+
+
 def pip_install_requirements(install_dir: Path) -> None:
     backend = install_dir / "backend"
     req = backend / "requirements.txt"
     if not req.is_file():
         raise RuntimeError("缺少 backend/requirements.txt")
     python = _resolve_venv_python(install_dir)
-    cmd = [str(python), "-m", "pip", "install", "-r", str(req)]
-    logger.info("pip install: %s", " ".join(cmd))
-    subprocess.run(cmd, check=True, cwd=str(backend))
+    # 先钉 CPU torch，避免随后 easyocr 把 CUDA 轮当升级装进来。
+    _set_progress(busy=True, phase="pip", message="安装 CPU 版 PyTorch（避免拉取 CUDA）…")
+    _run_pip(cpu_torch_pip_cmd(python), cwd=backend, progress_prefix="torch · ")
+    freeze = subprocess.run(
+        [str(python), "-m", "pip", "freeze"],
+        check=True,
+        cwd=str(backend),
+        capture_output=True,
+        text=True,
+    )
+    pins = torch_constraint_lines(freeze.stdout)
+    extra: list[str] = []
+    constraint: Path | None = None
+    if pins:
+        fd, name = tempfile.mkstemp(prefix="zhange-torch-cpu-", suffix=".txt")
+        os.close(fd)
+        constraint = Path(name)
+        constraint.write_text("\n".join(pins) + "\n", encoding="utf-8")
+        extra = ["-c", str(constraint)]
+    try:
+        _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
+        _run_pip(
+            [str(python), "-m", "pip", "install", "-r", str(req), *extra],
+            cwd=backend,
+            progress_prefix="pip · ",
+        )
+    finally:
+        if constraint is not None:
+            constraint.unlink(missing_ok=True)
     # RapidOCR / EasyOCR 可能拉来带 GUI 的 opencv-python；LXC 只留 headless
     subprocess.run(
         [str(python), "-m", "pip", "uninstall", "-y", "opencv-python"],
         check=False,
         cwd=str(backend),
     )
-    subprocess.run(
-        [str(python), "-m", "pip", "install", "--force-reinstall", "--no-deps", "opencv-python-headless>=4.8.0"],
-        check=True,
-        cwd=str(backend),
+    _run_pip(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--force-reinstall",
+            "--no-deps",
+            "opencv-python-headless>=4.8.0",
+        ],
+        cwd=backend,
+        progress_prefix="opencv · ",
     )
 
 

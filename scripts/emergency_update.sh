@@ -110,10 +110,10 @@ mkdir -p "${STATIC_DIR}"
 find "${STATIC_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 tar -xzf "${TMP}/${ASSET}" -C "${STATIC_DIR}"
 
-log "pip install…"
-"${INSTALL_DIR}/backend/.venv/bin/python" -m pip install -r "${INSTALL_DIR}/backend/requirements.txt"
-"${INSTALL_DIR}/backend/.venv/bin/python" -m pip uninstall -y opencv-python >/dev/null 2>&1 || true
-"${INSTALL_DIR}/backend/.venv/bin/python" -m pip install -q --force-reinstall --no-deps "opencv-python-headless>=4.8.0"
+log "pip install（CPU torch，避免 CUDA）…"
+bash "${INSTALL_DIR}/scripts/pip_install_backend.sh" \
+  "${INSTALL_DIR}/backend/.venv/bin/python" \
+  "${INSTALL_DIR}/backend"
 
 if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   log "校正属主 ${SERVICE_USER}…"

@@ -13,6 +13,73 @@ import pytest
 from app.services import app_updator as u
 
 
+def test_cpu_torch_pip_uses_official_cpu_index():
+    python = Path("/venv/bin/python")
+    cmd = u.cpu_torch_pip_cmd(python)
+    assert cmd[0] == str(python)
+    assert cmd[-2:] == ["--index-url", u.TORCH_CPU_INDEX]
+    assert "torch" in cmd and "torchvision" in cmd
+    assert "cuda" not in " ".join(cmd).lower()
+
+
+def test_torch_constraint_lines_only_pins_torch_family():
+    freeze = "\n".join(
+        [
+            "easyocr==1.7.2",
+            "torch==2.8.0+cpu",
+            "torchvision==0.23.0+cpu",
+            "nvidia-cudnn-cu13==9.24.0.43",
+        ]
+    )
+    assert u.torch_constraint_lines(freeze) == [
+        "torch==2.8.0+cpu",
+        "torchvision==0.23.0+cpu",
+    ]
+
+
+def test_pip_install_requirements_pins_cpu_torch_before_requirements(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    install = tmp_path / "install"
+    backend = install / "backend"
+    venv_py = backend / ".venv" / "bin" / "python"
+    venv_py.parent.mkdir(parents=True)
+    venv_py.write_text("", encoding="utf-8")
+    (backend / "requirements.txt").write_text("easyocr>=1.7.2\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    class FakePopen:
+        def __init__(self, cmd, **_kwargs):
+            calls.append(list(cmd))
+            self.stdout = io.StringIO("ok\n")
+
+        def wait(self) -> int:
+            return 0
+
+    class FakeProc:
+        returncode = 0
+        stdout = "torch==2.8.0+cpu\ntorchvision==0.23.0+cpu\neasyocr==1.7.2\n"
+        stderr = ""
+
+    def fake_run(cmd, **kwargs):
+        if list(cmd)[1:4] == ["-m", "pip", "freeze"]:
+            return FakeProc()
+        calls.append(list(cmd))
+        return FakeProc()
+
+    monkeypatch.setattr(u.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(u.subprocess, "run", fake_run)
+    u.pip_install_requirements(install)
+    joined = [" ".join(c) for c in calls]
+    assert any(u.TORCH_CPU_INDEX in c and "torchvision" in c for c in joined)
+    req_cmds = [c for c in calls if "-r" in c]
+    assert req_cmds
+    assert "-c" in req_cmds[0]
+    constraint = Path(req_cmds[0][req_cmds[0].index("-c") + 1])
+    assert not constraint.exists()
+    assert any("opencv-python-headless" in c for c in joined)
+
+
 def test_compare_version_semver():
     assert u.compare_version("0.2.15", "0.2.14") > 0
     assert u.compare_version("v0.2.14", "0.2.14") == 0
