@@ -1,4 +1,7 @@
-"""开发环境酒馆示例文（幂等）。生产环境不会写入。"""
+"""开发环境酒馆示例文（幂等）。
+
+仅 ``python -m local_dev.seed_tavern`` 调用；启动与生产更新不会写入。
+"""
 
 from __future__ import annotations
 
@@ -232,7 +235,7 @@ def _apply_sample_categories(
 
 
 def ensure_dev_sample_articles(db: Session) -> dict:
-    """幂等写入分类、示例稿和少量评论。生产直接跳过。"""
+    """幂等写入分类、示例稿和少量评论。仅 CLI 灌数；生产与启动路径不调用。"""
     if get_settings().is_production:
         return {"created": 0, "skipped": "production"}
     admin = (

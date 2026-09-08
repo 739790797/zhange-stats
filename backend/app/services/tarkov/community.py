@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 from sqlalchemy.orm import Session
 
@@ -216,6 +216,40 @@ def accept_eftforge_public_url(url: str) -> bool:
     return path == "/builds/public"
 
 
+def _header(headers: Any, name: str) -> str:
+    if headers is None or not hasattr(headers, "get"):
+        return ""
+    for key in (name, name.lower(), name.title()):
+        value = headers.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def _get_public(url: str) -> Any:
+    try:
+        return http_request(
+            "GET",
+            url,
+            headers={"User-Agent": DEFAULT_UA, "Accept": "application/json"},
+            timeout=20,
+            follow_redirects=False,
+        )
+    except HttpRequestError as exc:
+        raise TarkovCommunityError("无法连接社区方案源") from exc
+
+
+def _redirect_location(url: str, resp: Any) -> str | None:
+    """3xx 返回跳转目标；非跳转返回 None。空 Location 返回空串。"""
+    status = int(getattr(resp, "status_code", 0) or 0)
+    if not (300 <= status < 400):
+        return None
+    location = _header(getattr(resp, "headers", None), "location")
+    if not location:
+        return ""
+    return urljoin(url, location)
+
+
 def fetch_public_raw(gun_id: str) -> list[Any]:
     ident = (gun_id or "").strip()
     if not ident:
@@ -232,18 +266,15 @@ def fetch_public_raw(gun_id: str) -> list[Any]:
     url = public_builds_request_url(ident, settings.EFTFORGE_BASE_URL)
     if not accept_eftforge_public_url(url):
         raise TarkovCommunityError("社区方案源未配置", status_code=503)
-    try:
-        resp = http_request(
-            "GET",
-            url,
-            headers={"User-Agent": DEFAULT_UA, "Accept": "application/json"},
-            timeout=20,
-            follow_redirects=False,
-        )
-    except HttpRequestError as exc:
-        raise TarkovCommunityError("无法连接社区方案源") from exc
-    if 300 <= resp.status_code < 400:
-        raise TarkovCommunityError("社区方案源异常跳转", status_code=502)
+    resp = _get_public(url)
+    hop = _redirect_location(url, resp)
+    if hop is not None:
+        # 对方 apex 会 301 到 www；只跟一跳，且目标仍须是白名单公开列表。
+        if not hop or not accept_eftforge_public_url(hop):
+            raise TarkovCommunityError("社区方案源异常跳转", status_code=502)
+        resp = _get_public(hop)
+        if _redirect_location(hop, resp) is not None:
+            raise TarkovCommunityError("社区方案源异常跳转", status_code=502)
     if resp.status_code == 403:
         detail = ""
         try:

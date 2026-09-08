@@ -15,17 +15,14 @@ from app.services.password_policy import PasswordPolicyError, validate_password
 from app.services.setup import ensure_setup_marker_if_admins_exist, needs_setup
 
 
-def _seed_tavern_content(db: Session, *, is_production: bool) -> None:
-    from app.services.articles.defaults import ensure_default_categories
+def _seed_tavern_content(db: Session) -> None:
+    """启动只补欢迎文；分类与示例稿不在更新路径写入。
+
+    开发库灌分类 / 示例文请显式跑 ``python -m local_dev.seed_tavern``。
+    """
     from app.services.articles.welcome import ensure_welcome_article
 
     ensure_welcome_article(db)
-    ensure_default_categories(db)
-    if is_production:
-        return
-    from app.services.articles.dev_samples import ensure_dev_sample_articles
-
-    ensure_dev_sample_articles(db)
 
 
 def seed_data(db: Session) -> None:
@@ -35,7 +32,7 @@ def seed_data(db: Session) -> None:
     if not needs_setup(db):
         ensure_setup_marker_if_admins_exist(db)
         enforce_single_admin_if_needed(db)
-        _seed_tavern_content(db, is_production=settings.is_production)
+        _seed_tavern_content(db)
         db.commit()
         return
 
@@ -89,5 +86,5 @@ def seed_data(db: Session) -> None:
     if db.get(SystemConfig, SETUP_COMPLETED_KEY) is None:
         db.add(SystemConfig(key=SETUP_COMPLETED_KEY, value="1"))
     enforce_single_admin_if_needed(db, keep_user_id=admin.id)
-    _seed_tavern_content(db, is_production=settings.is_production)
+    _seed_tavern_content(db)
     db.commit()

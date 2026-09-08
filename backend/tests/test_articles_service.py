@@ -273,6 +273,57 @@ def test_default_categories_idempotent() -> None:
     assert db.query(ArticleCategory).count() == len(DEFAULT_CATEGORIES)
 
 
+def test_default_categories_preserve_custom_fields() -> None:
+    from app.models.articles import ArticleCategory
+    from app.services.articles.defaults import ensure_default_categories
+
+    db = _session()
+    cats = ensure_default_categories(db)
+    guides = cats["guides"]
+    guides.name = "游戏"
+    guides.sort_order = 99
+    guides.admin_only = True
+    guides.chip_color = "#111111"
+    db.commit()
+    again = ensure_default_categories(db)
+    row = again["guides"]
+    assert row.name == "游戏"
+    assert row.sort_order == 99
+    assert row.admin_only is True
+    assert row.chip_color == "#111111"
+    assert db.query(ArticleCategory).filter(ArticleCategory.slug == "guides").count() == 1
+
+
+def test_seed_data_does_not_touch_article_categories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import get_settings
+    from app.models.articles import ArticleCategory
+    from app.services.seed import seed_data
+
+    db = _session()
+    _user(db, "root", admin=True)
+    articles_svc.upsert_category(db, name="游戏", slug="guides", chip_color="#111111")
+    db.commit()
+    before = [
+        (row.slug, row.name, row.chip_color, row.sort_order, row.admin_only)
+        for row in db.query(ArticleCategory).order_by(ArticleCategory.id.asc()).all()
+    ]
+    for env in ("production", "development"):
+        monkeypatch.setenv("APP_ENV", env)
+        get_settings.cache_clear()
+        seed_data(db)
+        after = [
+            (row.slug, row.name, row.chip_color, row.sort_order, row.admin_only)
+            for row in db.query(ArticleCategory).order_by(ArticleCategory.id.asc()).all()
+        ]
+        assert after == before
+    db.query(ArticleCategory).delete()
+    db.commit()
+    seed_data(db)
+    assert db.query(ArticleCategory).count() == 0
+
+
 def test_normalize_chip_color() -> None:
     assert articles_svc.normalize_chip_color(None) is None
     assert articles_svc.normalize_chip_color("  ") is None

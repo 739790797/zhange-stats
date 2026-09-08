@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
@@ -40,6 +40,7 @@ def _settings(*, enabled: bool = True, base: str = "https://eftforge.com") -> ob
 class _Resp:
     status_code: int
     content: bytes = b""
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 def test_project_public_build_strips_foreign_assets_and_bad_pairs(
@@ -198,6 +199,65 @@ def test_fetch_public_raw_caches(monkeypatch):
     assert first == [{"id": 1}]
     assert second == [{"id": 1}]
     assert calls["n"] == 1
+
+
+def test_fetch_follows_one_www_redirect(monkeypatch):
+    monkeypatch.setattr(svc, "get_settings", lambda: _settings())
+    urls: list[str] = []
+
+    def _http(_method: str, url: str, **_k):
+        urls.append(url)
+        if "www.eftforge.com" in url:
+            return _Resp(200, b'[{"id":1}]')
+        return _Resp(
+            301,
+            b"redirect",
+            headers={
+                "location": "https://www.eftforge.com/builds/public?gun_id=gun1"
+            },
+        )
+
+    monkeypatch.setattr(svc, "http_request", _http)
+    assert svc.fetch_public_raw("gun1") == [{"id": 1}]
+    assert urls == [
+        "https://eftforge.com/builds/public?gun_id=gun1",
+        "https://www.eftforge.com/builds/public?gun_id=gun1",
+    ]
+
+
+def test_fetch_rejects_offsite_and_chained_redirect(monkeypatch):
+    monkeypatch.setattr(svc, "get_settings", lambda: _settings())
+    monkeypatch.setattr(
+        svc,
+        "http_request",
+        lambda _m, url, **_k: _Resp(
+            301,
+            b"",
+            headers={"Location": "https://evil.example/builds/public?gun_id=gun1"},
+        ),
+    )
+    with pytest.raises(svc.TarkovCommunityError, match="异常跳转") as offsite:
+        svc.fetch_public_raw("gun1")
+    assert offsite.value.status_code == 502
+
+    def _chain(_m: str, url: str, **_k):
+        if "www.eftforge.com" in url:
+            return _Resp(
+                302,
+                b"",
+                headers={"location": "https://eftforge.com/builds/public?gun_id=gun1"},
+            )
+        return _Resp(
+            301,
+            b"",
+            headers={
+                "location": "https://www.eftforge.com/builds/public?gun_id=gun1"
+            },
+        )
+
+    monkeypatch.setattr(svc, "http_request", _chain)
+    with pytest.raises(svc.TarkovCommunityError, match="异常跳转"):
+        svc.fetch_public_raw("gun2")
 
 
 def test_fetch_public_raw_kill_switch_and_transport(monkeypatch):

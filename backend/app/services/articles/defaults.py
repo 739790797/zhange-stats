@@ -1,4 +1,8 @@
-"""酒馆默认分类（站点级，幂等）。"""
+"""酒馆开发库分类夹具。
+
+仅供 ``python -m local_dev.seed_tavern`` / ``ensure_dev_sample_articles``。
+启动与生产更新不得调用：站点分类由管理员在后台维护。
+"""
 
 from __future__ import annotations
 
@@ -18,7 +22,7 @@ class DefaultCategory(NamedTuple):
     chip_color: str | None = None
 
 
-# 适合战鸽数据：公告、攻略、技术、开黑、闲聊、圈子。
+# 本地空库灌数用；不要当成站点分类的权威清单。
 DEFAULT_CATEGORIES: tuple[DefaultCategory, ...] = (
     DefaultCategory("notice", "站点公告", 10, True, "#c41d7f"),
     DefaultCategory("guides", "游戏攻略", 20, False, "#1677ff"),
@@ -60,7 +64,7 @@ def drop_legacy_empty_categories(db: Session) -> None:
 
 
 def ensure_default_categories(db: Session) -> dict[str, ArticleCategory]:
-    """按 slug 补齐默认分类；已有同 slug 不改管理员自定义名（旧「公告」除外）。"""
+    """按 slug 补齐开发夹具分类；已有同 slug 不改名称 / 颜色 / 权限。"""
     found: dict[str, ArticleCategory] = {}
     for spec in DEFAULT_CATEGORIES:
         row = db.query(ArticleCategory).filter(ArticleCategory.slug == spec.slug).first()
