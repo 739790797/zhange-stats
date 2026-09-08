@@ -22,7 +22,7 @@ alwaysApply: false
 - 标签标题：`PageHeader` / `AuthGuestShell` / 酒馆无 Header 的页走 `useDocumentTitle`；塔科夫仍 `useTarkovDocumentTitle`
 - 提示：`ConfigProvider` 内包 antd `App`，静态 `message` 仍可用
 - 渲染失败：`Outlet`（及认证壳表单）外包 `RouteErrorBoundary`，Result + 重试；侧栏/攻略顶栏保留
-- 无障碍：`AppLayout` 顶部「跳到正文」→ `#app-main`（`main`/`Content` 带 `tabIndex={-1}`，换页 `focus({ preventScroll: true })`）；侧栏 `nav aria-label="站点"`。塔科夫壳用 `#tarkov-main`，跳转在攻略顶栏前
+- 无障碍：`AppLayout` 顶部「跳到正文」→ `#app-main`（`main`/`Content` 带 `tabIndex={-1}`，换页 `focusWithoutVisibleRing`，避免 F5 画出整栏描边）；侧栏 `nav aria-label="站点"`。塔科夫壳用 `#tarkov-main`，跳转在攻略顶栏前
 
 ## 按钮角色
 

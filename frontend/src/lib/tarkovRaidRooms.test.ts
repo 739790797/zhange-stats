@@ -61,6 +61,9 @@ import {
   sortRaidRoomMapOverlap,
   raidRoomPickDockMapId,
   parsePlayerFixEvent,
+  parsePlayerFixEvents,
+  playerFixCameraTarget,
+  playerFixFollowSig,
   playerFixMatchesRoomMap,
   shouldSuppressLocalPlayerFix,
   playerFixMarkerCaption,
@@ -816,6 +819,33 @@ describe("raid room helpers", () => {
       at: 1000,
     });
     expect(parsePlayerFixEvent({ user_id: 1, x: 1, y: 2 })).toBeNull();
+    expect(
+      parsePlayerFixEvent(
+        {
+          user_id: 12,
+          x: 1,
+          y: 2,
+          z: 3,
+          at: 555,
+        },
+        1000,
+      )?.at,
+    ).toBe(555);
+    expect(
+      parsePlayerFixEvents([
+        {
+          user_id: 12,
+          x: 1,
+          y: 2,
+          z: 3,
+          map_id: "customs",
+          at: 900,
+        },
+        { user_id: 3, x: 4, y: 5 },
+        { nope: true },
+      ]).map((row) => row.userId),
+    ).toEqual([12]);
+    expect(parsePlayerFixEvents({ user_id: 12, x: 1, y: 2, z: 3 })).toEqual([]);
     expect(playerFixMatchesRoomMap("", "customs")).toBe(true);
     expect(playerFixMatchesRoomMap("streets-of-tarkov", "streets")).toBe(true);
     expect(playerFixMatchesRoomMap("woods", "customs")).toBe(false);
@@ -884,6 +914,24 @@ describe("raid room helpers", () => {
     expect(collectPlayerFixMarks([teammate], null).map((row) => row.key)).toEqual([
       "u:3",
     ]);
+    expect(
+      collectPlayerFixMarks([{ ...remoteSelf, self: true }], null).map(
+        (row) => row.key,
+      ),
+    ).toEqual(["u:12"]);
+    expect(
+      playerFixCameraTarget(
+        collectPlayerFixMarks([{ ...remoteSelf, self: true }, teammate], null),
+        12,
+      )?.key,
+    ).toBe("u:12");
+    expect(
+      playerFixCameraTarget(collectPlayerFixMarks([remoteSelf, teammate], local), 12)
+        ?.key,
+    ).toBe("self");
+    expect(playerFixCameraTarget([teammate], 12)).toBeNull();
+    expect(playerFixFollowSig(local)).toBe("self:1:0:2");
+    expect(playerFixFollowSig(null)).toBe("");
     const first = parsed!;
     const second = { ...first, userId: 12, x: 10, at: 2000 };
     const other = { ...first, userId: 3, at: 2000 };

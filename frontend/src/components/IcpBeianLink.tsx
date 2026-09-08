@@ -54,3 +54,26 @@ export function IcpBeianLink({ light = false, className, style }: Props) {
     </a>
   );
 }
+
+type FooterProps = {
+  /** 塔科夫攻略正文末尾 */
+  variant?: "default" | "tarkov";
+};
+
+/** 跟在页面内容后面，随主栏滚动；未配置备案号则不渲染。 */
+export function IcpBeianFooter({ variant = "default" }: FooterProps) {
+  const { data } = useSitePublic();
+  if (!siteIcpBeianNo(data?.icp_beian_no)) return null;
+  return (
+    <div
+      className={[
+        "app-icp-footer",
+        variant === "tarkov" ? "app-icp-footer--tarkov" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <IcpBeianLink />
+    </div>
+  );
+}

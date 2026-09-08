@@ -37,8 +37,7 @@ import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
 import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective, logoutRequest } from "@/api/client";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
-import { IcpBeianLink } from "@/components/IcpBeianLink";
-import { useSitePublic } from "@/hooks/useSitePublic";
+import { IcpBeianFooter } from "@/components/IcpBeianLink";
 import { RouteFallback } from "@/components/RouteFallback";
 import { PageMotion } from "@/components/PageMotion";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
@@ -47,7 +46,6 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
 import { shouldPromptCompleteProfile } from "@/lib/completeProfile";
 import { isAdminUser } from "@/lib/isAdminUser";
-import { siteIcpBeianNo } from "@/lib/legalDocs";
 import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/lib/guideNav";
 import {
   PLATFORM_NAV,
@@ -58,6 +56,7 @@ import {
   loadAppSiderCollapsed,
   saveAppSiderCollapsed,
 } from "@/lib/appSiderPrefs";
+import { focusWithoutVisibleRing } from "@/lib/focusRouteTarget";
 import { LOCAL_QUERY_STALE_MS } from "@/lib/queryCache";
 import { TAVERN_ADMIN_PATH, TAVERN_FEATURE_ID, TAVERN_PATH } from "@/lib/tavernNav";
 import { useAuthStore } from "@/stores/authStore";
@@ -173,8 +172,6 @@ export function AppLayout() {
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const contentShell = adminContentShell(location.pathname);
   const mainRef = useRef<HTMLElement>(null);
-  const sitePublic = useSitePublic();
-  const showIcpBeian = Boolean(siteIcpBeianNo(sitePublic.data?.icp_beian_no));
 
   const featuresQuery = useQuery({
     queryKey: ["platform-features-effective"],
@@ -255,7 +252,7 @@ export function AppLayout() {
   useLayoutEffect(() => {
     mainRef.current?.scrollTo(0, 0);
     if (!isTarkovGuide) {
-      mainRef.current?.focus({ preventScroll: true });
+      focusWithoutVisibleRing(mainRef.current);
     }
   }, [location.pathname, isTarkovGuide]);
 
@@ -468,6 +465,7 @@ export function AppLayout() {
   const roleLabel = isAdmin ? "管理员" : null;
 
   const homeHref = TAVERN_PATH;
+  const pageGutter = contentShell === "flush" ? 0 : isMobile ? 12 : 24;
 
   const onLogout = () => {
     void logoutRequest().catch(() => undefined);
@@ -733,16 +731,12 @@ export function AppLayout() {
                   flex: 1,
                   minWidth: 0,
                   minHeight: 0,
-                  margin: contentShell === "flush" ? 0 : isMobile ? 12 : 24,
+                  margin: pageGutter,
                   overflowX: "hidden",
                   overflowY: "scroll",
                   scrollbarGutter: "stable",
                   ...(contentShell === "flush"
-                    ? {
-                        background: token.colorBgLayout,
-                        display: "flex",
-                        flexDirection: "column",
-                      }
+                    ? { background: token.colorBgLayout }
                     : {}),
                 }
           }
@@ -766,7 +760,6 @@ export function AppLayout() {
                       background: "transparent",
                       padding: 0,
                       boxShadow: "none",
-                      minHeight: "100%",
                       flex: "1 0 auto",
                       display: "flex",
                       flexDirection: "column",
@@ -791,31 +784,8 @@ export function AppLayout() {
               </Suspense>
             </div>
           )}
+          {isTarkovGuide ? null : <IcpBeianFooter />}
         </Content>
-        {showIcpBeian ? (
-          <div
-            style={{
-              flexShrink: 0,
-              textAlign: "center",
-              padding: "6px 12px 10px",
-              fontSize: 12,
-              lineHeight: 1.4,
-              ...(isTarkovGuide
-                ? {
-                    background: "#161710",
-                    borderTop: "1px solid #3a3d30",
-                  }
-                : {}),
-            }}
-          >
-            <IcpBeianLink
-              style={{
-                justifyContent: "center",
-                color: isTarkovGuide ? "#6a6c58" : token.colorTextTertiary,
-              }}
-            />
-          </div>
-        ) : null}
       </Layout>
       {isMobile || !siderCollapsed ? null : (
         <div className="app-sider-edge-slot">

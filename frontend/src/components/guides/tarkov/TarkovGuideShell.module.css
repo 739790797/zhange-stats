@@ -359,11 +359,28 @@
   outline-offset: -2px;
 }
 
+.body:global(.app-route-focus):focus-visible {
+  outline: none;
+}
+
 .bodyFill {
   overflow: hidden;
 }
 
-.bodyFill > * {
+.bodyPage {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.bodyFill > .bodyPage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bodyFill > .bodyPage > :global(.app-motion-page) {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -371,7 +388,7 @@
 }
 
 /* PageMotion 多一层：把原来套在页面根上的 stretch 下推一级。 */
-.bodyFill > :global(.app-motion-page) > * {
+.bodyFill > .bodyPage > :global(.app-motion-page) > * {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -379,7 +396,7 @@
 }
 
 /* 只拉最后一块内容。`> * > *` 会把面包屑也 flex:1，个人中心 tab 被顶下去。 */
-.bodyFill > :global(.app-motion-page) > * > :last-child {
+.bodyFill > .bodyPage > :global(.app-motion-page) > * > :last-child {
   flex: 1;
   min-height: 0;
   display: flex;

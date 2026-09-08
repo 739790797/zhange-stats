@@ -20,9 +20,11 @@ import {
   tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
+import { focusWithoutVisibleRing } from "@/lib/focusRouteTarget";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 import { TarkovThemed } from "@/components/guides/tarkov/TarkovThemed";
+import { IcpBeianFooter } from "@/components/IcpBeianLink";
 import { TarkovMeHeaderLink } from "@/components/guides/tarkov/TarkovMeHeaderLink";
 import { TarkovRaidRoomHeaderLink } from "@/components/guides/tarkov/TarkovRaidRoomHeaderLink";
 import {
@@ -210,7 +212,7 @@ export function TarkovGuideShell({ children }: Props) {
   useTarkovDocumentTitle(tarkovPageTitle(pathname, searchParams.toString()));
   useLayoutEffect(() => {
     bodyRef.current?.scrollTo(0, 0);
-    bodyRef.current?.focus({ preventScroll: true });
+    focusWithoutVisibleRing(bodyRef.current);
   }, [pathname]);
   useEffect(() => {
     if (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`) {
@@ -284,6 +286,7 @@ export function TarkovGuideShell({ children }: Props) {
     });
   }, [bossesQuery.data]);
 
+  const fills = tarkovGuideShellFills(pathname, searchParams.get("tab"));
   return (
     <TarkovThemed>
     <TarkovLiveWatchProvider>
@@ -432,13 +435,10 @@ export function TarkovGuideShell({ children }: Props) {
         ref={bodyRef}
         id="tarkov-main"
         tabIndex={-1}
-        className={`${styles.body}${
-          tarkovGuideShellFills(pathname, searchParams.get("tab"))
-            ? ` ${styles.bodyFill}`
-            : ""
-        }`}
+        className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}`}
       >
-        {children}
+        <div className={styles.bodyPage}>{children}</div>
+        {fills ? null : <IcpBeianFooter variant="tarkov" />}
       </main>
     </div>
     </TarkovGoonTrackerProvider>

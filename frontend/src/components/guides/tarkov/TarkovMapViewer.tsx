@@ -102,6 +102,8 @@ import { hazardOutlineColor } from "@/lib/tarkovMapMarkerOutlines";
 import {
   RAID_ROOM_OTHER_FLOOR_OPACITY,
   collectPlayerFixMarks,
+  playerFixCameraTarget,
+  playerFixFollowSig,
   playerFixMarkerCaption,
   playerFixPulseCrossFloor,
   playerFixPulseOpacity,
@@ -3253,17 +3255,18 @@ export function TarkovMapViewer({
       floor,
       floorBands,
     );
-    if (!fix) return;
-    const sig = `${fix.fileName}:${fix.lastModified}`;
+    const follow = playerFixCameraTarget(marks, authorUserId);
+    if (!follow) return;
+    const sig = playerFixFollowSig(follow);
     if (playerFixSigRef.current === sig) return;
     const hadFix = Boolean(playerFixSigRef.current);
     playerFixSigRef.current = sig;
     const mapKey = interactive?.key || "";
-    const nextFloor = overlayFloorForPoint(fix.y, floorBands, fix);
+    const nextFloor = overlayFloorForPoint(follow.y, floorBands, follow);
     if (mapKey && nextFloor !== floorRef.current) {
       updatePrefs((prev) => withMapFloor(prev, mapKey, nextFloor));
     }
-    const latLng = L.latLng(pos({ x: fix.x, z: fix.z }));
+    const latLng = L.latLng(pos({ x: follow.x, z: follow.z }));
     if (hadFix) {
       map.panTo(latLng, { animate: true, duration: 0.2 });
       return;
@@ -4172,10 +4175,10 @@ export function TarkovMapViewer({
                       <span className={styles.filterRow}>
                         <span className={styles.playerStatus}>
                           {shotWatch.fix
-                            ? "正在把你的位置同步给队友"
+                            ? "正在把你的位置同步到房间"
                             : shotWatch.lastFileName
                               ? "截图无坐标，请在战局里用游戏截图键"
-                              : "战局里按游戏截图键，把位置同步给队友"}
+                              : "战局里按游戏截图键，位置会同步到房间"}
                         </span>
                       </span>
                     ) : (

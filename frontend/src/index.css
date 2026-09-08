@@ -78,6 +78,8 @@ a {
 
 /* 主栏页内滚动：贴合浅色内容区，避免浏览器窗口条 */
 .app-main-scroll {
+  display: flex;
+  flex-direction: column;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(26, 35, 50, 0.28) transparent;
@@ -90,6 +92,10 @@ a {
 .app-main-scroll:focus-visible {
   outline: 2px solid #1a2332;
   outline-offset: -2px;
+}
+
+.app-main-scroll.app-route-focus:focus-visible {
+  outline: none;
 }
 
 .app-main-scroll::-webkit-scrollbar {
@@ -114,6 +120,36 @@ a {
   display: none;
   height: 0;
   width: 0;
+}
+
+/* 备案号在文档流末尾（短页靠底，长页滚到最后才见），不钉视口 */
+.app-icp-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: auto;
+  padding: 10px 12px 4px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45));
+}
+
+.app-icp-footer a {
+  color: inherit;
+}
+
+.app-icp-footer--tarkov {
+  padding: 14px 12px 18px;
+  color: #6a6c58;
+}
+
+.app-icp-footer--auth {
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 0;
+  padding: 4px 12px 16px;
 }
 
 /* 管理页：灰底上居中限宽卡片（GitHub / Linear / Stripe 设置页常见做法） */
@@ -147,7 +183,7 @@ a {
   background: transparent;
   box-shadow: none;
   border-radius: 0;
-  min-height: 100%;
+  flex: 1 0 auto;
 }
 
 @media (max-width: 720px) {

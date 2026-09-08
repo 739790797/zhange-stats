@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from fastapi import WebSocket
@@ -16,6 +17,7 @@ class RaidRoomHub:
         self._rooms: dict[str, dict[WebSocket, int]] = {}
         self._seq: dict[str, int] = {}
         self._log_phases: dict[str, dict[int, dict[str, Any]]] = {}
+        self._player_fixes: dict[str, dict[int, dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -44,6 +46,29 @@ class RaidRoomHub:
         room[int(user_id)] = dict(payload)
         return self.log_phases(public_id)
 
+    def player_fixes(self, public_id: str) -> list[dict[str, Any]]:
+        room = self._player_fixes.get(public_id) or {}
+        return [{"user_id": uid, **dict(payload)} for uid, payload in room.items()]
+
+    def set_player_fix(
+        self, public_id: str, user_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """记住最近一次截图坐标，供晚加入的手机端从 snapshot 拿到。"""
+        body = dict(payload)
+        body["at"] = int(time.time() * 1000)
+        self._player_fixes.setdefault(public_id, {})[int(user_id)] = body
+        return {"user_id": int(user_id), **body}
+
+    def drop_offline_player_fixes(self, public_id: str, online_ids: set[int]) -> None:
+        room = self._player_fixes.get(public_id)
+        if not room:
+            return
+        keep = {int(uid) for uid in online_ids}
+        for uid in [key for key in room if key not in keep]:
+            room.pop(uid, None)
+        if not room:
+            self._player_fixes.pop(public_id, None)
+
     async def join(self, public_id: str, ws: WebSocket, user_id: int) -> set[int]:
         self.bind_loop(asyncio.get_running_loop())
         async with self._lock:
@@ -59,8 +84,11 @@ class RaidRoomHub:
             room.pop(ws, None)
             if not room:
                 self._rooms.pop(public_id, None)
+                self._player_fixes.pop(public_id, None)
                 return set()
-            return set(room.values())
+            remaining = set(room.values())
+            self.drop_offline_player_fixes(public_id, remaining)
+            return remaining
 
     async def broadcast(self, public_id: str, payload: dict[str, Any]) -> None:
         message = dict(payload)
@@ -82,6 +110,9 @@ class RaidRoomHub:
                     room.pop(ws, None)
                 if not room:
                     self._rooms.pop(public_id, None)
+                    self._player_fixes.pop(public_id, None)
+                else:
+                    self.drop_offline_player_fixes(public_id, set(room.values()))
 
     def publish(self, public_id: str, payload: dict[str, Any]) -> None:
         try:

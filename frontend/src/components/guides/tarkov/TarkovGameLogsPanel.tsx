@@ -401,7 +401,7 @@ export function TarkovGameLogsPanel() {
         <p className={styles.hint}>
           常见位置：{TARKOV_SCREENSHOTS_PATH_HINT}
           <br />
-          战局里用游戏截图键（Print Screen）会把坐标写进文件名，开房间时队友能在地图上看到你的点。页面只读最新一张。请只选 Screenshots 文件夹。
+          战局里用游戏截图键（Print Screen）会把坐标写进文件名。开房间后，用同一账号在手机打开该房间即可当第二块地图；队友也能看到。页面只读最新一张。请只选 Screenshots 文件夹。
           {pruneEnabled
             ? shotCanWrite
               ? ` 已具备写入授权，超过 ${pruneKeepMax} 张游戏截图时会删掉最旧的。`

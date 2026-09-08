@@ -113,8 +113,9 @@ import {
   isTypingTarget,
   mergeBoardMarks,
   parsePlayerFixEvent,
+  parsePlayerFixEvents,
   parseStrokePoints,
-  playerFixMatchesRoomMap,
+  playerFixIsFresh,
   shouldSuppressLocalPlayerFix,
   RAID_ROOM_WS_PING_MS,
   raidRoomWsRetryDelayMs,
@@ -277,6 +278,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     let ping = 0;
     let retryTimer = 0;
 
+    useRaidRoomLiveStore.getState().bind(publicId);
+
     const connect = () => {
       if (stopped) return;
       ws = new WebSocket(tarkovRaidRoomWsUrl(publicId));
@@ -296,7 +299,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           yaw?: unknown;
           map_id?: unknown;
           file_name?: unknown;
+          at?: unknown;
           log_phases?: unknown;
+          player_fixes?: unknown;
         };
         try {
           payload = JSON.parse(String(event.data || ""));
@@ -307,6 +312,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           setWsLive(true);
           setWsGen((n) => n + 1);
           setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
+          const store = useRaidRoomLiveStore.getState();
+          store.bind(publicId);
+          for (const fix of parsePlayerFixEvents(payload.player_fixes)) {
+            if (playerFixIsFresh(fix.at)) store.upsertFix(fix);
+          }
+          if (payload.online_user_ids) {
+            store.dropFixesNotIn(new Set(payload.online_user_ids));
+          }
           if (ws?.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ event: "ping" }));
           }
@@ -316,8 +329,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         }
         if (payload.event === "player_fix") {
           const parsed = parsePlayerFixEvent(payload);
-          if (!parsed || parsed.userId === meIdRef.current) return;
-          if (!playerFixMatchesRoomMap(parsed.mapId, mapIdRef.current)) return;
+          if (!parsed || !playerFixIsFresh(parsed.at)) return;
           useRaidRoomLiveStore.getState().upsertFix(parsed);
           return;
         }

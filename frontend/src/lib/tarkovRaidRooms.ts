@@ -1160,6 +1160,7 @@ export function parsePlayerFixEvent(
     yaw?: unknown;
     map_id?: unknown;
     file_name?: unknown;
+    at?: unknown;
   },
   at = Date.now(),
 ): RaidRoomPlayerFix | null {
@@ -1175,6 +1176,8 @@ export function parsePlayerFixEvent(
     if (parsed == null) return null;
     yaw = parsed;
   }
+  const atRaw = Number(raw.at);
+  const stamp = Number.isFinite(atRaw) && atRaw > 0 ? atRaw : at;
   return {
     userId,
     x,
@@ -1183,8 +1186,47 @@ export function parsePlayerFixEvent(
     yaw,
     mapId: String(raw.map_id || "").trim(),
     fileName: String(raw.file_name || "").trim(),
-    at,
+    at: stamp,
   };
+}
+
+/** WS snapshot / 广播里的截图定位列表；无效行跳过。 */
+export function parsePlayerFixEvents(
+  raw: unknown,
+  now = Date.now(),
+): RaidRoomPlayerFix[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RaidRoomPlayerFix[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const parsed = parsePlayerFixEvent(
+      row as Parameters<typeof parsePlayerFixEvent>[0],
+      now,
+    );
+    if (parsed) out.push(parsed);
+  }
+  return out;
+}
+
+/** 镜头跟随自己：本机截图优先，否则用房间里同一账号的定位（手机当地图）。 */
+export function playerFixCameraTarget(
+  marks: readonly TarkovMapPlayerMark[],
+  authorUserId: number,
+): TarkovMapPlayerMark | null {
+  const uid = Number(authorUserId);
+  if (!Number.isFinite(uid) || uid <= 0) return null;
+  return (
+    marks.find((row) => row.self && row.userId === uid) ||
+    marks.find((row) => row.userId === uid) ||
+    null
+  );
+}
+
+export function playerFixFollowSig(
+  mark: Pick<TarkovMapPlayerMark, "key" | "x" | "y" | "z"> | null | undefined,
+): string {
+  if (!mark) return "";
+  return `${mark.key}:${mark.x}:${mark.y}:${mark.z}`;
 }
 
 /** 日志地图未知时仍可画；对不上房间地图则丢掉。 */

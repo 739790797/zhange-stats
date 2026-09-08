@@ -141,6 +141,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
             "snapshot": snapshot,
             "online_user_ids": list(online),
             "log_phases": hub.log_phases(public_id),
+            "player_fixes": hub.player_fixes(public_id),
         }
     )
     hub.publish(
@@ -180,12 +181,12 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 fix = rooms_svc.parse_player_fix(raw)
                 if fix is None:
                     continue
+                stored = hub.set_player_fix(public_id, user.id, fix)
                 hub.publish(
                     public_id,
                     {
                         "event": "player_fix",
-                        "user_id": user.id,
-                        **fix,
+                        **stored,
                     },
                 )
                 continue

@@ -287,6 +287,7 @@ export function TarkovRaidRoomLiveMap({
         y: row.y,
         z: row.z,
         yaw: row.yaw,
+        self: row.userId === authorUserId,
       }));
   }, [authorUserId, fixes, mapId, members, selfName]);
 
