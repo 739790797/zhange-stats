@@ -197,6 +197,9 @@ export async function fetchTarkovTasks(opts: {
 
 export type TarkovRaidPrep = components["schemas"]["TarkovRaidPrepOut"];
 export type TarkovRaidPrepTask = components["schemas"]["TarkovRaidPrepTaskOut"];
+export type TarkovRaidPrepOcr = components["schemas"]["TarkovRaidPrepOcrOut"];
+export type TarkovRaidPrepOcrMatch =
+  components["schemas"]["TarkovRaidPrepOcrMatchOut"];
 
 export async function fetchTarkovRaidPrep(opts: {
   map: string;
@@ -221,6 +224,27 @@ export async function fetchTarkovRaidPrep(opts: {
     },
     timeout: 120_000,
   });
+  return data;
+}
+
+const RAID_PREP_OCR_TIMEOUT_MS = 180_000;
+
+export async function recognizeTarkovRaidPrep(
+  file: Blob,
+  mapSlug: string,
+  options?: { signal?: AbortSignal },
+) {
+  const form = new FormData();
+  form.append("file", file, "raid-prep.png");
+  const { data } = await client.post<TarkovRaidPrepOcr>(
+    "/guides/tarkov/raid-prep/recognize",
+    form,
+    {
+      params: { map: mapSlug },
+      timeout: RAID_PREP_OCR_TIMEOUT_MS,
+      signal: options?.signal,
+    },
+  );
   return data;
 }
 

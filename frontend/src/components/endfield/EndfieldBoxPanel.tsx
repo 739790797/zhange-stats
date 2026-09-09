@@ -13,6 +13,7 @@ import {
 import { BoxPanelChrome } from "@/components/BoxPanelChrome";
 import { SklandGameEventsPanel } from "@/components/skland/SklandGameEventsPanel";
 import { fetchEndfieldBox } from "@/api/client";
+import { formatRoleNameChannel } from "@/lib/checkinDisplay";
 import type {
   EndfieldChar,
   EndfieldEquip,
@@ -511,7 +512,7 @@ function EndfieldBoxContent({ enabled }: Props) {
       }
       roles={roles.map((r) => ({
         uid: r.uid,
-        label: `${r.role_name} · ${r.channel_name}`,
+        label: formatRoleNameChannel(r.role_name, r.channel_name),
       }))}
       selectedUid={uid || box?.uid}
       onSelectUid={(v) => {

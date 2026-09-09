@@ -49,7 +49,7 @@ alwaysApply: false
 
 ## 弹窗
 
-Ant Design `Modal` 高度由 `frontend/src/index.css` 按视口约束（`100dvh`，标题/底栏固定、正文滚动）。竖屏用户很多，**不要写死** `height` / `maxHeight: 720` / `72vh`。需要近全屏时用 `max-height: calc(100dvh - 24px)`，body `overflow: auto`。`width` 也不要只写像素：全局已有 `max-width: calc(100vw - 24px)`。
+Ant Design `Modal` 高度由 `frontend/src/index.css` 按视口约束（`100dvh`，标题/底栏固定）。竖屏用户很多，**不要写死** `height` / `maxHeight: 720` / `72vh`。需要近全屏时用 `max-height: calc(100dvh - 24px)`；正文 `overflow-x: hidden; overflow-y: auto`，未超出视口不要出滚动条。`width` 也不要只写像素：全局已有 `max-width: calc(100vw - 24px)`。
 
 ## 例外（勿扩散）
 

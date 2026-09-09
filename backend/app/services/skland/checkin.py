@@ -748,6 +748,9 @@ def get_arknights_rogue_for_member(
     if not isinstance(raw_obj, dict):
         raise SklandApiError("肉鸽数据格式异常，请刷新重试")
 
+    for r in roles:
+        if r.channel_name:
+            r.channel_name = localize_arknights_channel_name(r.channel_name)
     box = parse_arknights_rogue(raw_obj, topic_id=topic)
     return box, role, roles, row.synced_at, stale
 

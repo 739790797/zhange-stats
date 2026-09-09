@@ -129,6 +129,12 @@ def test_weaker_fuzzy_needs_second_family() -> None:
     assert [row.id for row in solo] == []
     assert [row.id for row in invert_only] == []
     assert [row.id for row in agreed] == ["cardinal"]
+    solo_ok = match_keys(
+        [OcrToken(text=token, engines=frozenset({"paddle"}))],
+        catalog,
+        cross_check=False,
+    )
+    assert [row.id for row in solo_ok] == ["cardinal"]
 
 
 def test_engine_family_ignores_invert_channel() -> None:

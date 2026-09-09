@@ -1780,7 +1780,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       <TarkovRaidPrepOcrModal
         open={ocrOpen}
         onClose={() => setOcrOpen(false)}
-        catalog={catalog}
+        mapSlug={mapId}
         selectedIds={[...myClaims]}
         maxSelected={RAID_PREP_MAX_SELECTED}
         onConfirm={async (ids) => {

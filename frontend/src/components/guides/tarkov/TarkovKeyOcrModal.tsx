@@ -238,7 +238,7 @@ export function TarkovKeyOcrModal({
               : "登录后才能截图识别"}
           </p>
           <p className={ocr.ocrMeta}>
-            截图只进本站内存。按系统「文字识别」里为钥匙箱勾选的引擎交叉识别短名，不存盘。确认后才写入「我有」。模型由任务配置「识别模型更新」维护。
+            截图只进本站内存。按系统「文字识别」里为钥匙箱勾选的引擎交叉识别短名，不存盘。确认后才写入「我有」。模型由任务配置「文字识别模型」维护。
           </p>
           {error ? <p className={ocr.ocrError}>{error}</p> : null}
         </div>

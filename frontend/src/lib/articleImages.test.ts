@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 
 describe("articleImages", () => {
   it("allows http(s) and same-origin article paths", () => {
-    expect(isSafeArticleImageSrc("/uploads/articles/halo/a.png")).toBe(true);
+    expect(isSafeArticleImageSrc("/uploads/articles/2026/09/a.png")).toBe(true);
     expect(isSafeArticleImageSrc("https://cdn.example/a.png")).toBe(true);
     expect(isSafeArticleImageSrc("http://cdn.example/a.png")).toBe(true);
     expect(isSafeArticleImageSrc("//evil.example/a.png")).toBe(false);

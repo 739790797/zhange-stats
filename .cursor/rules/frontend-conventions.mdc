@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## 目录
 
-- `pages/`：路由页；`components/`：可复用 UI。根上只留跨平台外壳（`CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton` 等）；平台面板进 `components/<platform>/`，攻略进 `guides/`
+- `pages/`：路由页；`components/`：可复用 UI。根上只留跨平台外壳（`CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton` / `AdminHubLayout` 等）；平台面板进 `components/<platform>/`，攻略进 `guides/`
 - `src/data/`：源码资源（如塔科夫地图 JSON）；运行时/缓存在仓库根 `var/`，勿往 `frontend/data` 写
 - `api/`：`http.ts` + 域 `*Api.ts`；`client.ts` 再导出
 - `stores/authStore.ts`：只持久化 `user`（登录态以 HttpOnly Cookie 为准）
@@ -16,7 +16,7 @@ alwaysApply: false
 
 ## 权限与路由
 
-- `PrivateRoute` 需登录；`AdminRoute` 看 `role === admin`（`is_admin` 仅派生展示）
+- `AdminRoute` 走 `isAdminUser`：只信 `role === admin`（与后端 `User.is_admin_user` 一致）；API 的 `is_admin` 是派生字段，仅旧缓存缺 `role` 时回退
 - `PlatformRoute` 受 `platform_features` 控制；未登录可读的页用 `allowGuest`，避免去打需登录的 `/platform-features/effective`
 - 战鸽酒馆列表/详情走 `AppLayout`（与工作台同一套侧栏 / 移动端顶栏）；`/` 重定向到 `/tavern`，与 `/tavern/:slug` 同在 `PrivateRoute` 外以便未登录可读。写文章 `/tavern/write` 须登录作者；`/tavern/admin` 酒馆管理在社区组、仅管理员
 
@@ -30,8 +30,9 @@ alwaysApply: false
 - **新兑换内容**套 `ExchangePageTemplate` + `ExchangeGoodsCard`（商品字段/确认流由平台注入）
 - **平台页外壳**套 `PlatformFeatureTabsPage`（绑定门禁 + feature Tabs）
 - **新签到日历**套 `AttendanceCalendarButton`（禁止再复制五份 Modal）
-- **新盒子**先套 `BoxPanelChrome`（禁止复制未绑定 / 加载 / 失败 / 刷新条）；角色卡仍由面板自己画
+- **新盒子 / 旁路 raw 面板**（养成盒、肉鸽等）先套 `BoxPanelChrome`（禁止复制未绑定 / 加载 / 失败 / 刷新条）；角色卡、主题切换仍由面板自己画。多方对比板（如方舟盒子对比）不必套 Chrome
 - **新扫码绑定**走 `useQrBindSession`（短信/密码/极验仍留 BindPanel；表单走 `PhoneAuthBindTemplate`）
+- **新管理子页**进 `AdminHubLayout`（站点设置 / 运行维护 / 任务管理 / 用户管理），不要再往侧栏堆叶子；四个入口共用 wide 内容栏
 - **认证未登录页**套 `AuthGuestShell`（登录/注册/找回/验证/安装/**服务条款/隐私说明**）
 - 条款 / 隐私走公开路由 `/legal/terms`、`/legal/privacy`（在 `PrivateRoute` 外）；文案、片尾免责在 `lib/legalDocs.ts`；页脚条款链用 `LegalLinks`，备案号用 `IcpBeianLink`（`AuthGuestShell`、`AppLayout` 主栏、塔科夫 `main` 的**文档流末尾**，不钉视口）。号码来自公开 `GET /api/settings/site/public`（管理端「安全设置」或 `ICP_BEIAN_NO`）；留空不渲染
 - 塔科夫 antd 暗色只走 `TarkovGuideShell` 的 `TarkovThemed` 一层，详情页不要再包 `ConfigProvider`

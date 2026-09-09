@@ -1,15 +1,10 @@
 import {
   AuditOutlined,
   CalendarOutlined,
+  CloudServerOutlined,
   CoffeeOutlined,
-  CloudDownloadOutlined,
-  FileTextOutlined,
-  FontSizeOutlined,
-  KeyOutlined,
-  LockOutlined,
   LoginOutlined,
   LogoutOutlined,
-  MailOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
@@ -21,6 +16,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import {
   Avatar,
+  Badge,
   Button,
   Drawer,
   Grid,
@@ -45,6 +41,14 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
+import {
+  ADMIN_HUBS,
+  ADMIN_LEAF_PATHS,
+  ADMIN_USERS_PATH,
+  adminMenuSelectedKey,
+  adminOpsLandingPath,
+  adminPageMotionKey,
+} from "@/lib/adminHub";
 import { shouldPromptCompleteProfile } from "@/lib/completeProfile";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/lib/guideNav";
@@ -64,27 +68,10 @@ import { useAuthStore } from "@/stores/authStore";
 
 const { Header, Sider, Content } = Layout;
 
-const SYSTEM_CHILD_KEYS = [
-  "/settings/auth",
-  "/settings/integrations",
-  "/settings/email",
-  "/settings/ocr",
-  "/settings/system",
-] as const;
-
-const JOBS_CHILD_KEYS = ["/settings/task-config", "/settings/jobs"] as const;
-
-const ADMIN_LEAF_KEYS = [
-  "/settings/users",
-  ...JOBS_CHILD_KEYS,
-  "/settings/logs",
-  ...SYSTEM_CHILD_KEYS,
-] as const;
-
 const GUIDE_LEAF_KEYS = GUIDE_LEAF_PATHS;
 
 const leafKeys = [
-  ...ADMIN_LEAF_KEYS,
+  ...ADMIN_LEAF_PATHS,
   ...GUIDE_LEAF_KEYS,
   "/steam",
   "/skland",
@@ -98,66 +85,38 @@ const leafKeys = [
   TAVERN_ADMIN_PATH,
 ];
 
-function buildAdminMenuItems(): MenuProps["items"] {
+function buildAdminMenuItems(hasAppUpdate: boolean): MenuProps["items"] {
+  const opsPath = adminOpsLandingPath(hasAppUpdate);
+  const siteHub = ADMIN_HUBS.find((h) => h.id === "site");
+  const opsHub = ADMIN_HUBS.find((h) => h.id === "ops");
+  const jobsHub = ADMIN_HUBS.find((h) => h.id === "jobs");
+  const usersHub = ADMIN_HUBS.find((h) => h.id === "users");
   return [
     {
-      key: "admin-system",
+      key: "admin-site",
       icon: <SettingOutlined />,
-      label: "系统管理",
-      children: [
-        {
-          key: "/settings/auth",
-          icon: <LockOutlined />,
-          label: <Link to="/settings/auth">安全设置</Link>,
-        },
-        {
-          key: "/settings/integrations",
-          icon: <KeyOutlined />,
-          label: <Link to="/settings/integrations">集成密钥</Link>,
-        },
-        {
-          key: "/settings/email",
-          icon: <MailOutlined />,
-          label: <Link to="/settings/email">邮箱设置</Link>,
-        },
-        {
-          key: "/settings/ocr",
-          icon: <FontSizeOutlined />,
-          label: <Link to="/settings/ocr">文字识别</Link>,
-        },
-        {
-          key: "/settings/system",
-          icon: <CloudDownloadOutlined />,
-          label: <Link to="/settings/system">系统更新</Link>,
-        },
-      ],
+      label: <Link to="/settings/auth">{siteHub?.label}</Link>,
+    },
+    {
+      key: "admin-ops",
+      icon: <CloudServerOutlined />,
+      label: (
+        <Link to={opsPath}>
+          <Badge dot={hasAppUpdate} offset={[4, 0]}>
+            {opsHub?.label}
+          </Badge>
+        </Link>
+      ),
     },
     {
       key: "admin-jobs",
       icon: <ScheduleOutlined />,
-      label: "任务管理",
-      children: [
-        {
-          key: "/settings/task-config",
-          icon: <SettingOutlined />,
-          label: <Link to="/settings/task-config">任务配置</Link>,
-        },
-        {
-          key: "/settings/jobs",
-          icon: <ScheduleOutlined />,
-          label: <Link to="/settings/jobs">任务调度</Link>,
-        },
-      ],
+      label: <Link to="/settings/task-config">{jobsHub?.label}</Link>,
     },
     {
-      key: "/settings/users",
+      key: usersHub?.menuKey ?? ADMIN_USERS_PATH,
       icon: <TeamOutlined />,
-      label: <Link to="/settings/users">用户管理</Link>,
-    },
-    {
-      key: "/settings/logs",
-      icon: <FileTextOutlined />,
-      label: <Link to="/settings/logs">平台日志</Link>,
+      label: <Link to={ADMIN_USERS_PATH}>{usersHub?.label}</Link>,
     },
   ];
 }
@@ -269,13 +228,10 @@ export function AppLayout() {
 
   const selected = useMemo(() => {
     if (/^\/members\/\d+\/profile/.test(location.pathname)) {
-      return "/settings/users";
+      return ADMIN_USERS_PATH;
     }
     if (location.pathname.startsWith("/settings/")) {
-      const hit = ADMIN_LEAF_KEYS.find(
-        (key) =>
-          location.pathname === key || location.pathname.startsWith(`${key}/`),
-      );
+      const hit = adminMenuSelectedKey(location.pathname);
       if (hit) return hit;
     }
     if (location.pathname.startsWith(TAVERN_ADMIN_PATH)) {
@@ -309,18 +265,6 @@ export function AppLayout() {
       ) || "/steam"
     );
   }, [location.pathname]);
-
-  useEffect(() => {
-    const next: string[] = [];
-    if ((SYSTEM_CHILD_KEYS as readonly string[]).includes(selected)) {
-      next.push("admin-system");
-    }
-    if ((JOBS_CHILD_KEYS as readonly string[]).includes(selected)) {
-      next.push("admin-jobs");
-    }
-    if (!next.length) return;
-    setOpenKeys((prev) => Array.from(new Set([...prev, ...next])));
-  }, [selected]);
 
   const isAdmin = loggedIn && isAdminUser(user);
   const features = featuresQuery.data;
@@ -405,7 +349,7 @@ export function AppLayout() {
     },
   ];
 
-  const adminMenuItems = buildAdminMenuItems() || [];
+  const adminMenuItems = buildAdminMenuItems(hasAppUpdate) || [];
 
   const menuItems = [
     ...(communityItems.length
@@ -784,7 +728,7 @@ export function AppLayout() {
             >
               <Suspense fallback={<RouteFallback />}>
                 <RouteErrorBoundary resetKey={location.pathname}>
-                  <PageMotion motionKey={location.pathname}>
+                  <PageMotion motionKey={adminPageMotionKey(location.pathname)}>
                     <Outlet />
                   </PageMotion>
                 </RouteErrorBoundary>

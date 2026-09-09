@@ -16,6 +16,11 @@ import { antdThemeWithMotion } from "@/theme/antdApp";
 const AppLayout = lazy(() =>
   import("@/components/AppLayout").then((m) => ({ default: m.AppLayout })),
 );
+const AdminHubLayout = lazy(() =>
+  import("@/components/AdminHubLayout").then((m) => ({
+    default: m.AdminHubLayout,
+  })),
+);
 const SetupPage = lazy(() => import("@/pages/SetupPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const LegalTermsPage = lazy(() => import("@/pages/LegalTermsPage"));
@@ -39,9 +44,11 @@ const IntegrationsSettingsPage = lazy(
 const AuthSettingsPage = lazy(() => import("@/pages/AuthSettingsPage"));
 const EmailSettingsPage = lazy(() => import("@/pages/EmailSettingsPage"));
 const OcrSettingsPage = lazy(() => import("@/pages/OcrSettingsPage"));
+const FileManagerPage = lazy(() => import("@/pages/FileManagerPage"));
 const TaskConfigPage = lazy(() => import("@/pages/TaskConfigPage"));
 const ScheduledJobsPage = lazy(() => import("@/pages/ScheduledJobsPage"));
 const PlatformLogsPage = lazy(() => import("@/pages/PlatformLogsPage"));
+const RuntimeStatusPage = lazy(() => import("@/pages/RuntimeStatusPage"));
 const SystemUpdatePage = lazy(() => import("@/pages/SystemUpdatePage"));
 const TarkovGuidesOutlet = lazy(
   () => import("@/pages/guides/TarkovGuidesOutlet"),
@@ -402,77 +409,51 @@ export default function App() {
                   element={<Navigate to="/settings/users" replace />}
                 />
                 <Route
-                  path="/settings/users"
                   element={
                     <AdminPage>
-                      <UserManagementPage />
+                      <AdminHubLayout />
                     </AdminPage>
                   }
-                />
-                <Route
-                  path="/settings/integrations"
-                  element={
-                    <AdminPage>
-                      <IntegrationsSettingsPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/auth"
-                  element={
-                    <AdminPage>
-                      <AuthSettingsPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/email"
-                  element={
-                    <AdminPage>
-                      <EmailSettingsPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/ocr"
-                  element={
-                    <AdminPage>
-                      <OcrSettingsPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/task-config"
-                  element={
-                    <AdminPage>
-                      <TaskConfigPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/jobs"
-                  element={
-                    <AdminPage>
-                      <ScheduledJobsPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/logs"
-                  element={
-                    <AdminPage>
-                      <PlatformLogsPage />
-                    </AdminPage>
-                  }
-                />
-                <Route
-                  path="/settings/system"
-                  element={
-                    <AdminPage>
-                      <SystemUpdatePage />
-                    </AdminPage>
-                  }
-                />
+                >
+                  <Route
+                    path="/settings/users"
+                    element={<UserManagementPage />}
+                  />
+                  <Route
+                    path="/settings/integrations"
+                    element={<IntegrationsSettingsPage />}
+                  />
+                  <Route path="/settings/auth" element={<AuthSettingsPage />} />
+                  <Route
+                    path="/settings/email"
+                    element={<EmailSettingsPage />}
+                  />
+                  <Route path="/settings/ocr" element={<OcrSettingsPage />} />
+                  <Route
+                    path="/settings/files"
+                    element={<FileManagerPage />}
+                  />
+                  <Route
+                    path="/settings/task-config"
+                    element={<TaskConfigPage />}
+                  />
+                  <Route
+                    path="/settings/jobs"
+                    element={<ScheduledJobsPage />}
+                  />
+                  <Route
+                    path="/settings/logs"
+                    element={<PlatformLogsPage />}
+                  />
+                  <Route
+                    path="/settings/runtime"
+                    element={<RuntimeStatusPage />}
+                  />
+                  <Route
+                    path="/settings/system"
+                    element={<SystemUpdatePage />}
+                  />
+                </Route>
                 <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>

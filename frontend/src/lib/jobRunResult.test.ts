@@ -5,12 +5,18 @@ import {
   jobRunAlertType,
   jobRunAgeLabel,
   jobRunDomainLabel,
+  jobRunDomainProgressText,
+  jobRunDomainStatusLabel,
+  jobRunDownloadProgress,
   jobRunFreshnessSummary,
   jobRunFreshnessText,
+  jobRunPhaseLabel,
   jobRunProgressPercent,
+  jobRunProgressRows,
   jobRunStatEntries,
   jobRunStatusLabel,
   jobRunSummaryText,
+  jobRunSyncedText,
   jobRunWatchPollMs,
   parseJobRunMessage,
   pickWatchedJobRun,
@@ -82,6 +88,8 @@ describe("jobRunResult", () => {
       error: "dump 缺少 maps",
     });
     expect(jobRunDomainLabel("items_zh")).toBe("物品（中文）");
+    expect(parsed.domains[0].status).toBe("ok");
+    expect(parsed.domains[1].status).toBe("error");
   });
 
   it("keeps plain text and invalid JSON as text", () => {
@@ -166,6 +174,27 @@ describe("jobRunResult", () => {
         now,
       ),
     ).toContain("上游");
+    expect(jobRunSyncedText({ syncedAt: "2026-08-30T14:00:00+00:00" })).toContain(
+      "2026-08-30",
+    );
+    expect(
+      jobRunDomainProgressText(
+        {
+          status: "ok",
+          upstreamAt: "2026-08-26T09:01:54+00:00",
+        },
+        now,
+      ),
+    ).toContain("上游");
+    expect(
+      jobRunDomainProgressText(
+        {
+          status: "ok",
+          upstreamAt: "2026-08-26T09:01:54+00:00",
+        },
+        now,
+      ),
+    ).not.toContain("落库");
     expect(
       jobRunFreshnessSummary(
         [
@@ -173,6 +202,7 @@ describe("jobRunResult", () => {
             id: "dump:items",
             label: "物品",
             ok: true,
+            status: "ok",
             upstreamAt: "2026-08-26T09:01:54+00:00",
           },
         ],
@@ -211,5 +241,60 @@ describe("jobRunResult", () => {
     expect(formatJobRunBytes(512)).toBe("512 B");
     expect(jobRunProgressPercent({ percent: 40.2 })).toBe(40);
     expect(jobRunProgressPercent({ percent: "x" })).toBeNull();
+    expect(
+      jobRunStatEntries(
+        {
+          percent: 40,
+          phase: "download",
+          file: "items",
+          bytes: 1024,
+        },
+        { omitDownload: true },
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads live progress from stats.domains and download bytes", () => {
+    expect(jobRunPhaseLabel("download")).toBe("下载 dump");
+    expect(jobRunDomainStatusLabel("downloading")).toBe("下载中");
+    const run = {
+      id: 9,
+      status: "running",
+      message: "正在下载 items（1/12）",
+      stats: {
+        phase: "download",
+        percent: 8,
+        file: "items",
+        bytes: 5 * 1024 * 1024,
+        total_bytes: 10 * 1024 * 1024,
+        files_done: 0,
+        files_total: 12,
+        domains: [
+          {
+            id: "dump:items",
+            ok: false,
+            status: "downloading",
+            mode: "pvp",
+            bytes: 5 * 1024 * 1024,
+            total_bytes: 10 * 1024 * 1024,
+          },
+          { id: "dump:maps", ok: false, status: "pending", mode: "pvp" },
+        ],
+      },
+    };
+    const rows = jobRunProgressRows(run);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      id: "dump:items",
+      status: "downloading",
+      label: "dump · 物品 · PVP",
+    });
+    expect(jobRunDomainProgressText(rows[0])).toBe("5.0 MB / 10.0 MB");
+    expect(jobRunDownloadProgress(run.stats)).toMatchObject({
+      file: "items",
+      filesText: "0 / 12 个文件",
+      bytesText: "5.0 MB / 10.0 MB",
+      filePercent: 50,
+    });
   });
 });

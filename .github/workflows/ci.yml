@@ -1,6 +1,6 @@
 name: CI and release
 
-# PR：质量门。main 推送：同门 + 按 VERSION 发 GitHub Release（预构建 static）。
+# PR：质量门。main 推送：同门全绿才按 VERSION 发 GitHub Release（预构建 static）；门红不改 Release。
 on:
   push:
     branches:
@@ -182,6 +182,7 @@ jobs:
           pip-audit -r requirements.txt
 
   publish-release:
+    # needs 任一失败则本 job 跳过：不新建、不覆盖 tag，与没发一样。
     needs: [frontend-quality, backend-tests, backend-migrate-mariadb, openapi-drift]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest

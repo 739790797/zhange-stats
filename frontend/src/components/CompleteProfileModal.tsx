@@ -33,11 +33,12 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
 
   useEffect(() => {
     if (!open) {
-      bindForm.resetFields();
-      linkForm.resetFields();
       setCountdown(0);
       setTab("bind");
+      return;
     }
+    bindForm.resetFields();
+    linkForm.resetFields();
   }, [open, bindForm, linkForm]);
 
   const onSendCode = async () => {

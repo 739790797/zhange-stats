@@ -9,14 +9,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-import urllib.error
-import urllib.request
 from datetime import datetime
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import BEIJING, ensure, now as beijing_now, now_naive
 from app.models.game_schedule import GameScheduleRaw
 
@@ -140,27 +139,23 @@ def _download_upstream_payload(game: GameCode) -> tuple[dict[str, Any], str]:
         raise GameScheduleError("未配置活动日历上游地址")
     path = _PATH_BY_GAME[game]
     url = f"{base}{path}"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "zhange-stats/game-schedule-proxy",
-        },
-        method="GET",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
-            body = resp.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        raise GameScheduleError(f"活动日历上游 HTTP {exc.code}") from exc
-    except urllib.error.URLError as exc:
-        raise GameScheduleError(f"活动日历上游不可达：{exc.reason}") from exc
-    except TimeoutError as exc:
-        raise GameScheduleError("活动日历上游超时") from exc
-
+        resp = http_request(
+            "GET",
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "zhange-stats/game-schedule-proxy",
+            },
+            timeout=_HTTP_TIMEOUT,
+        )
+    except HttpRequestError as exc:
+        raise GameScheduleError(f"活动日历上游不可达：{exc}") from exc
+    if resp.status_code >= 400:
+        raise GameScheduleError(f"活动日历上游 HTTP {resp.status_code}")
     try:
-        payload = json.loads(body)
-    except json.JSONDecodeError as exc:
+        payload = resp.json()
+    except ValueError as exc:
         raise GameScheduleError("活动日历上游返回非 JSON") from exc
 
     if not isinstance(payload, dict):

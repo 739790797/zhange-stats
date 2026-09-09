@@ -23,7 +23,6 @@ nh3>=0.2.18
 patchright==1.62.3
 opencv-python-headless>=4.8.0
 rapidocr>=3.2.0
-# easyocr 依赖 torch。Linux 上请先装 CPU 轮（见 scripts/pip_install_backend.sh），
+# easyocr 依赖 torch。请用 scripts/*/install 或 run（先装 CPU 轮），
 # 否则 pip 会从 PyPI 拉数 GB CUDA。
 easyocr>=1.7.2
-pytesseract>=0.3.10

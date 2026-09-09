@@ -5,12 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import urllib.error
-import urllib.request
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import now_naive
 from app.models.arknights import ArknightsCatalogMeta, ArknightsOperator
 from app.services.skland.client import CHAR_AVATAR_CDN, PROFESSION_CN
@@ -37,18 +36,18 @@ class ArknightsCatalogError(Exception):
 
 
 def _http_get_bytes(url: str, *, timeout: int = DOWNLOAD_TIMEOUT) -> bytes:
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "zhange-stats/1.0"},
-        method="GET",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as exc:
-        raise ArknightsCatalogError(f"下载失败 HTTP {exc.code}: {url}") from exc
-    except urllib.error.URLError as exc:
+        resp = http_request(
+            "GET",
+            url,
+            headers={"User-Agent": "zhange-stats/1.0"},
+            timeout=timeout,
+        )
+    except HttpRequestError as exc:
         raise ArknightsCatalogError(f"无法连接资源站: {exc}") from exc
+    if resp.status_code >= 400:
+        raise ArknightsCatalogError(f"下载失败 HTTP {resp.status_code}: {url}")
+    return resp.content
 
 
 def _parse_rarity(raw: Any) -> int:

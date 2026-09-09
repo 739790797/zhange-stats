@@ -69,7 +69,7 @@ def anonymize_user_account(
     member = db.query(Member).filter(Member.user_id == user.id).first()
     if member is not None:
         if is_custom_avatar_url(member.avatar_url):
-            delete_avatar_file(member.id)
+            delete_avatar_file(member.id, db=db)
         delete_member_cascade(db, member)
 
     now = now_naive()

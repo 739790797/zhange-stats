@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "antd": {
+      "command": "npx",
+      "args": ["-y", "@ant-design/cli", "mcp", "--version", "5.22.7"]
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"]
+    }
+  }
+}

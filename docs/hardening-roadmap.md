@@ -80,8 +80,8 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 建议：
 
-- 脚本放 `scripts/backup.sh`（读 `.env` 的 `DATABASE_URL`，输出到例如 `/var/backups/zhange/` 带日期的 tar）
-- `scripts/restore.sh` 写明：停服务 → 导库 → 解压 `var/` → 启动；**不**在文档里只写 dump 不写 restore
+- 脚本放 `scripts/linux/backup.sh` / `scripts/win/backup.ps1`（读 `.env` 的 `DATABASE_URL`，默认写到本安装树 `var/backups/` 带日期的 tar）
+- `scripts/linux/restore.sh` 写明：停服务 → 导库 → 解压 `var/` → 启动；**不**在文档里只写 dump 不写 restore
 - systemd timer 或 cron：每日一次，保留 7～14 天；备份盘与数据盘分离更佳
 - 演练：在非生产或停机窗口做一次 restore 到临时库，确认能登录
 

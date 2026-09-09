@@ -810,7 +810,7 @@ def _resolve_venv_python(install_dir: Path) -> Path:
     ]
     python = next((p for p in candidates if p.is_file()), None)
     if python is None:
-        raise RuntimeError("找不到 Python（请先 scripts/install.sh 创建 backend/.venv）")
+        raise RuntimeError("找不到 Python（请先 scripts/linux/install.sh 创建 backend/.venv）")
     return python
 
 
@@ -974,10 +974,9 @@ def pip_install_requirements(install_dir: Path) -> None:
     )
 
 
-_EMERGENCY_UPDATE_HINT = (
-    "若库结构已半更新、管理端也无法再升，请在主机执行："
-    "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
-    "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
+_HOST_REPAIR_HINT = (
+    "若库结构已半更新、管理端也无法再升，请在主机拉代码后执行 "
+    "scripts/linux/install.sh 与 scripts/linux/restart.sh"
 )
 
 
@@ -1067,11 +1066,11 @@ async def _apply_update_core(
             logger.exception("source rollback failed after migrate error")
             msg = (
                 f"数据库迁移失败且代码回滚也失败: {exc}。"
-                f"{_EMERGENCY_UPDATE_HINT}"
+                f"{_HOST_REPAIR_HINT}"
             )
             _set_progress(phase="error", message="更新失败", error=msg, busy=False)
             return UpdateResult(ok=False, message=msg)
-        msg = f"{exc} 已回滚代码，当前进程继续运行。{_EMERGENCY_UPDATE_HINT}"
+        msg = f"{exc} 已回滚代码，当前进程继续运行。{_HOST_REPAIR_HINT}"
         _set_progress(phase="error", message="更新失败（已回滚）", error=msg, busy=False)
         return UpdateResult(ok=False, message=msg)
 

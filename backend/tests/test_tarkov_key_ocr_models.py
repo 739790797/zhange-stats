@@ -96,13 +96,12 @@ def test_default_recognizers_require_ready_weights(
 ) -> None:
     monkeypatch.setattr(engine_svc, "rapidocr_available", lambda: True)
     monkeypatch.setattr(engine_svc, "easyocr_available", lambda: True)
-    monkeypatch.setattr(engine_svc, "tesseract_available", lambda: False)
     monkeypatch.setattr(engine_svc, "paddle_models_ready", lambda *a, **k: False)
     monkeypatch.setattr(engine_svc, "easyocr_models_ready", lambda *a, **k: False)
     with pytest.raises(OcrError) as exc:
         engine_svc.default_named_recognizers()
     assert exc.value.status_code == 503
-    assert "识别模型更新" in exc.value.message
+    assert "文字识别模型" in exc.value.message
 
 
 def test_default_recognizers_require_packages(
@@ -110,7 +109,6 @@ def test_default_recognizers_require_packages(
 ) -> None:
     monkeypatch.setattr(engine_svc, "rapidocr_available", lambda: False)
     monkeypatch.setattr(engine_svc, "easyocr_available", lambda: False)
-    monkeypatch.setattr(engine_svc, "tesseract_available", lambda: False)
     monkeypatch.setattr(engine_svc, "paddle_models_ready", lambda *a, **k: False)
     monkeypatch.setattr(engine_svc, "easyocr_models_ready", lambda *a, **k: False)
     with pytest.raises(OcrError) as exc:
@@ -143,7 +141,7 @@ def test_job_id_is_wired() -> None:
     assert models_svc.JOB_ID == "ocr_model_sync"
     assert models_svc.JOB_ID in JOB_IDS
     assert any(item["id"] == models_svc.JOB_ID for item in JOB_CATALOG)
-    assert JOB_FEATURE_IDS[models_svc.JOB_ID] == "ocr.model_sync"
+    assert JOB_FEATURE_IDS[models_svc.JOB_ID] == "zhange.ocr_model"
     assert models_svc.JOB_ID in SYSTEM_CRON_HANDLERS
     assert set(JOB_IDS) == {str(item["id"]) for item in JOB_CATALOG}
 
@@ -208,3 +206,29 @@ def test_safe_zip_picks_filename() -> None:
         models_svc._safe_zip_member(["weights/craft_mlt_25k.pth"], "craft_mlt_25k.pth")
         == "weights/craft_mlt_25k.pth"
     )
+
+
+def test_download_weight_streams_via_http_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contextlib import contextmanager
+
+    class _Resp:
+        status_code = 200
+
+        def iter_bytes(self, chunk_size=None):  # noqa: ANN001
+            yield b"he"
+            yield b"llo"
+
+    @contextmanager
+    def fake_stream(*_a, **_k):
+        yield _Resp()
+
+    monkeypatch.setattr(models_svc, "http_stream", fake_stream)
+    spec = WeightSpec(
+        name="det.onnx",
+        url="https://example.test/det.onnx",
+        folder="rapidocr",
+    )
+    models_svc.download_weight(spec, tmp_path)
+    assert (tmp_path / "det.onnx").read_bytes() == b"hello"

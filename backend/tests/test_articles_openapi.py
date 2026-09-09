@@ -81,3 +81,13 @@ def test_article_mine_and_authors_require_security() -> None:
     assert restore and restore.get("security")
     recognize = (paths.get("/api/articles/math/recognize") or {}).get("post")
     assert recognize and recognize.get("security")
+    assets = (paths.get("/api/articles/assets") or {}).get("post")
+    assert assets and assets.get("security")
+    props = (
+        (schema.get("components") or {})
+        .get("schemas", {})
+        .get("ArticleAssetOut", {})
+        .get("properties", {})
+    )
+    assert "url" in props
+    assert "serial" in props

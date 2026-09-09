@@ -66,6 +66,7 @@ from app.models.articles import (
     ArticleVersion,
 )
 from app.models.user import User
+from app.models.user_files import UserFile
 
 __all__ = [
     "User",
@@ -138,4 +139,5 @@ __all__ = [
     "ArticleTag",
     "ArticleComment",
     "ArticleVersion",
+    "UserFile",
 ]

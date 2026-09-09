@@ -54,6 +54,16 @@ export function featureIconName(featureId: string): PlatformIconName | null {
   return FEATURE_ICON_BY_ID[root] ?? null;
 }
 
+/** 任务配置树：战鸽数据用本站标，其余走平台/游戏图 */
+export function featureTreeIcon(
+  featureId: string,
+  kind: string,
+): "brand" | PlatformIconName | null {
+  if (kind !== "platform" && kind !== "game") return null;
+  if (featureId === "zhange") return "brand";
+  return featureIconName(featureId);
+}
+
 /** 签到结果 game_code → 游戏 / 社区 App 图标 */
 const CHECKIN_GAME_ICON: Record<string, PlatformIconName> = {
   arknights: "arknights",

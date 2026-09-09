@@ -907,6 +907,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/files/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Files Summary */
+        get: operations["files_summary_api_settings_files_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Files Browse */
+        get: operations["files_browse_api_settings_files_browse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Files Download */
+        get: operations["files_download_api_settings_files_download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/app-update/status": {
         parameters: {
             query?: never;
@@ -3422,6 +3473,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/raid-prep/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Raid Prep Recognize
+         * @description 局前任务页截图识别；图只进内存。裁列表区后按配置引擎读任务名，对照当前地图闭集匹配。
+         */
+        post: operations["guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/raid-prep/state": {
         parameters: {
             query?: never;
@@ -5459,6 +5530,8 @@ export interface components {
         ArticleAssetOut: {
             /** Url */
             url: string;
+            /** Serial */
+            serial: string;
         };
         /** ArticleAuthorOut */
         ArticleAuthorOut: {
@@ -5871,6 +5944,11 @@ export interface components {
         };
         /** Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post */
         Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post */
+        Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post: {
             /** File */
             file: string;
         };
@@ -6751,6 +6829,147 @@ export interface components {
             today_results?: components["schemas"]["CheckinResultItem"][];
             /** Today Logs */
             today_logs?: components["schemas"]["CheckinLogOut"][];
+        };
+        /** FileBrowseEntryOut */
+        FileBrowseEntryOut: {
+            /** Name */
+            name: string;
+            /** Is Dir */
+            is_dir: boolean;
+            /**
+             * Size
+             * @default 0
+             */
+            size: number;
+            /** Modified At */
+            modified_at?: string | null;
+            /**
+             * Sensitive
+             * @default false
+             */
+            sensitive: boolean;
+            /**
+             * Downloadable
+             * @default false
+             */
+            downloadable: boolean;
+        };
+        /** FileBrowseOut */
+        FileBrowseOut: {
+            /** Root Id */
+            root_id: string;
+            /** Root Label */
+            root_label: string;
+            /** Path */
+            path: string;
+            /** Abs Path */
+            abs_path: string;
+            /** Entries */
+            entries?: components["schemas"]["FileBrowseEntryOut"][];
+        };
+        /** FileBrowseRootOut */
+        FileBrowseRootOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Path */
+            path: string;
+            /** Exists */
+            exists: boolean;
+        };
+        /** FileBucketOut */
+        FileBucketOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Business */
+            business: string;
+            /** Business Label */
+            business_label: string;
+            /** Kind */
+            kind: string;
+            /** Kind Label */
+            kind_label: string;
+            /** Path */
+            path: string;
+            /** Exists */
+            exists: boolean;
+            /**
+             * Optional
+             * @default false
+             */
+            optional: boolean;
+            /** Size Bytes */
+            size_bytes: number;
+            /** File Count */
+            file_count: number;
+            /** Browse Root Id */
+            browse_root_id?: string | null;
+            /**
+             * Browse Path
+             * @default
+             */
+            browse_path: string;
+        };
+        /** FileBusinessTotalOut */
+        FileBusinessTotalOut: {
+            /** Business */
+            business: string;
+            /** Label */
+            label: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** File Count */
+            file_count: number;
+        };
+        /** FileKindTotalOut */
+        FileKindTotalOut: {
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** File Count */
+            file_count: number;
+        };
+        /** FileSummaryOut */
+        FileSummaryOut: {
+            /** Measured At */
+            measured_at: string;
+            /** Total Bytes */
+            total_bytes: number;
+            /** Total Files */
+            total_files: number;
+            /** Kind Totals */
+            kind_totals?: components["schemas"]["FileKindTotalOut"][];
+            /** Business Totals */
+            business_totals?: components["schemas"]["FileBusinessTotalOut"][];
+            /** Volumes */
+            volumes?: components["schemas"]["FileVolumeOut"][];
+            /** Buckets */
+            buckets?: components["schemas"]["FileBucketOut"][];
+            /** Roots */
+            roots?: components["schemas"]["FileBrowseRootOut"][];
+        };
+        /** FileVolumeOut */
+        FileVolumeOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Path */
+            path: string;
+            /** Total Bytes */
+            total_bytes: number;
+            /** Used Bytes */
+            used_bytes: number;
+            /** Free Bytes */
+            free_bytes: number;
         };
         /**
          * GameScheduleCalendarOut
@@ -9428,6 +9647,23 @@ export interface components {
             /** Roster */
             roster?: components["schemas"]["MinecraftRosterPlayerOut"][];
         };
+        /** OcrEngineMetaOut */
+        OcrEngineMetaOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
+            /**
+             * Has Profiles
+             * @default false
+             */
+            has_profiles: boolean;
+        };
         /** OcrEngineStatusOut */
         OcrEngineStatusOut: {
             /** Id */
@@ -9464,12 +9700,16 @@ export interface components {
             };
             /** Use Cases */
             use_cases: {
-                [key: string]: string[];
+                [key: string]: components["schemas"]["OcrUseCaseSettings"];
             };
             /** Engine Status */
             engine_status?: components["schemas"]["OcrEngineStatusOut"][];
             /** Paddle Profiles */
             paddle_profiles?: components["schemas"]["OcrOptionOut"][];
+            /** Easyocr Profiles */
+            easyocr_profiles?: components["schemas"]["OcrOptionOut"][];
+            /** Engine Meta */
+            engine_meta?: components["schemas"]["OcrEngineMetaOut"][];
             /** Use Case Meta */
             use_case_meta?: components["schemas"]["OcrOptionOut"][];
             /** Engine Labels */
@@ -9490,8 +9730,18 @@ export interface components {
             };
             /** Use Cases */
             use_cases?: {
-                [key: string]: string[];
+                [key: string]: components["schemas"]["OcrUseCaseSettings"];
             };
+        };
+        /** OcrUseCaseSettings */
+        OcrUseCaseSettings: {
+            /** Engines */
+            engines?: string[];
+            /**
+             * Cross Check
+             * @default false
+             */
+            cross_check: boolean;
         };
         /** PasswordPolicyOut */
         PasswordPolicyOut: {
@@ -13097,6 +13347,58 @@ export interface components {
             task_id: string;
             /** Objective Id */
             objective_id: string;
+        };
+        /** TarkovRaidPrepOcrMatchOut */
+        TarkovRaidPrepOcrMatchOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Ocr Text
+             * @default
+             */
+            ocr_text: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+        };
+        /** TarkovRaidPrepOcrOut */
+        TarkovRaidPrepOcrOut: {
+            /** Matches */
+            matches?: components["schemas"]["TarkovRaidPrepOcrMatchOut"][];
+            /**
+             * Width
+             * @default 0
+             */
+            width: number;
+            /**
+             * Height
+             * @default 0
+             */
+            height: number;
+            /**
+             * Widescreen
+             * @default false
+             */
+            widescreen: boolean;
+            /**
+             * Preferred Size
+             * @default false
+             */
+            preferred_size: boolean;
+            /** Engines */
+            engines?: string[];
         };
         /** TarkovRaidPrepOut */
         TarkovRaidPrepOut: {
@@ -17615,6 +17917,102 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+        };
+    };
+    files_summary_api_settings_files_summary_get: {
+        parameters: {
+            query?: {
+                /** @description 忽略占用缓存，重新扫描 */
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_browse_api_settings_files_browse_get: {
+        parameters: {
+            query: {
+                root_id: string;
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileBrowseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_download_api_settings_files_download_get: {
+        parameters: {
+            query: {
+                root_id: string;
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -22385,6 +22783,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovRaidPrepOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post: {
+        parameters: {
+            query: {
+                map: string;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidPrepOcrOut"];
                 };
             };
             /** @description Validation Error */

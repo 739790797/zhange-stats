@@ -2,8 +2,8 @@
 
 识价作者经验：通用 OCR 认格子 shortName；切块 360–640（最佳约 520–540）正方形；
 i/l 等易混字做映射。引擎由系统配置「文字识别」按场景「塔科夫钥匙箱」挑选
-（熊猫 OCR / EasyOCR / 可选 Tesseract）。权重走任务配置「识别模型更新」，识别时不再现场下载。
-每族再跑反色补召回；模糊匹配须两个不同族同时读到，单族反色不算第二票。
+（熊猫 OCR / EasyOCR）。权重走任务配置「文字识别模型」，识别时不再现场下载。
+每族再跑反色补召回；多端校验开启时，模糊匹配须两个不同族同时读到，单族反色不算第二票。
 不走单格最小方块，也不走钥匙胚图标匹配。
 """
 
@@ -483,6 +483,8 @@ def parse_tokens(*texts: str) -> list[str]:
 def match_keys(
     tokens: list[OcrToken] | list[str],
     catalog: list[dict[str, str]],
+    *,
+    cross_check: bool = True,
 ) -> list[KeyOcrMatch]:
     entries = _catalog_entries(catalog)
     if not entries:
@@ -528,7 +530,7 @@ def match_keys(
         )
 
     for token in unique:
-        agreed = families_agreed(token.engines)
+        agreed = (not cross_check) or families_agreed(token.engines)
         needles = confuse_variants(token.text)
         exact_short: list[CatalogEntry] = []
         seen_ids: set[str] = set()
@@ -749,7 +751,12 @@ def recognize_image(
     for token in tokens:
         for text in parse_tokens(token.text):
             parsed.append(OcrToken(text=text, engines=token.engines))
-    matches = match_keys(parsed, catalog)
+    cross_check = True
+    if db is not None:
+        from app.services.ocr.config import load_ocr_config, use_case_cross_check
+
+        cross_check = use_case_cross_check(load_ocr_config(db), use_case)
+    matches = match_keys(parsed, catalog, cross_check=cross_check)
     result = {
         "matches": [match.__dict__ for match in matches],
         "tile_count": tile_count,

@@ -62,17 +62,17 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "ocr_model_sync",
-        "name": "识别模型更新",
-        "description": "按系统「文字识别」档位预下载/更新 Paddle RapidOCR 与 EasyOCR 权重到 var/data，识别时不再现场拉大包",
+        "name": "文字识别模型",
+        "description": "按系统「文字识别」当前熊猫档位（RapidOCR 清单）与 EasyOCR 预下载/更新权重到 var/data，识别时不再现场拉大包",
         "kind": "cron",
-        "platform": "ocr",
+        "platform": "zhange",
     },
     {
         "id": "texteller_model_sync",
-        "name": "公式识别模型更新",
+        "name": "公式识别模型",
         "description": "对照 hf-mirror 上的 OleehyO/TexTeller 更新本地公式识别权重（var/data/texteller）",
         "kind": "cron",
-        "platform": "tavern",
+        "platform": "zhange",
     },
     {
         "id": "taygedo_checkin",

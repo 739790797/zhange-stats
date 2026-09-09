@@ -26,29 +26,22 @@ _cache_lock = threading.Lock()
 # reserved=True：预留节点，UI 可展示但暂无独立门控，保存时忽略。
 FEATURE_TREE: list[dict[str, Any]] = [
     {
-        "id": "tavern",
-        "name": "战鸽酒馆",
+        "id": "zhange",
+        "name": "战鸽数据",
         "kind": "platform",
         "children": [
             {
-                "id": "tavern.texteller_sync",
-                "name": "公式识别模型更新",
-                "kind": "job",
-                "job_id": "texteller_model_sync",
-                "schedule": "cron",
-            },
-        ],
-    },
-    {
-        "id": "ocr",
-        "name": "文字识别",
-        "kind": "platform",
-        "children": [
-            {
-                "id": "ocr.model_sync",
-                "name": "识别模型更新",
+                "id": "zhange.ocr_model",
+                "name": "文字识别模型",
                 "kind": "job",
                 "job_id": "ocr_model_sync",
+                "schedule": "cron",
+            },
+            {
+                "id": "zhange.texteller_model",
+                "name": "公式识别模型",
+                "kind": "job",
+                "job_id": "texteller_model_sync",
                 "schedule": "cron",
             },
         ],
@@ -292,8 +285,8 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_full_sync": "guides.tarkov.full_sync",
-    "ocr_model_sync": "ocr.model_sync",
-    "texteller_model_sync": "tavern.texteller_sync",
+    "ocr_model_sync": "zhange.ocr_model",
+    "texteller_model_sync": "zhange.texteller_model",
 }
 
 CHECKIN_PLATFORM_FEATURES: dict[str, str] = {
@@ -314,11 +307,16 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "arknights_box": "干员练度更新",
     "arknights_schedule": "明日方舟活动日历",
     "endfield_schedule": "终末地活动日历",
+    "zhange": "战鸽数据",
     "tavern": "战鸽酒馆",
     "guides": "游戏",
     "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
-    "ocr": "文字识别",
+}
+
+# 旧平台 id → 现行节点。战鸽酒馆仍用 require_feature("tavern")，与「战鸽数据」同开同关。
+FEATURE_ALIASES: dict[str, str] = {
+    "tavern": "zhange",
 }
 
 
@@ -344,6 +342,24 @@ _RESERVED_FEATURE_IDS: set[str] = {
 
 def default_features() -> dict[str, bool]:
     return {fid: True for fid in _ALL_FEATURE_IDS}
+
+
+def _canonical_feature_id(feature_id: str) -> str:
+    return FEATURE_ALIASES.get(feature_id, feature_id)
+
+
+def _apply_legacy_feature_flags(base: dict[str, bool], flags: dict[str, Any]) -> None:
+    """旧树 tavern / ocr 并入战鸽数据。新 key 已写入则不再覆盖。"""
+    if "zhange" not in flags and "tavern" in flags:
+        base["zhange"] = bool(flags["tavern"])
+    if "zhange.ocr_model" not in flags:
+        if "ocr.model_sync" in flags:
+            base["zhange.ocr_model"] = bool(flags["ocr.model_sync"])
+        elif "ocr" in flags:
+            base["zhange.ocr_model"] = bool(flags["ocr"])
+    if "zhange.texteller_model" not in flags:
+        if "tavern.texteller_sync" in flags:
+            base["zhange.texteller_model"] = bool(flags["tavern.texteller_sync"])
 
 
 def invalidate_feature_cache() -> None:
@@ -377,6 +393,7 @@ def load_feature_flags(db: Session) -> dict[str, bool]:
                 for fid in base:
                     if fid in flags and flags[fid] is not None:
                         base[fid] = bool(flags[fid])
+                _apply_legacy_feature_flags(base, flags)
                 # 旧合并活动日历 → 按游戏拆分
                 if "skland.game_schedule_sync" in flags:
                     legacy_on = bool(flags["skland.game_schedule_sync"])
@@ -402,10 +419,11 @@ def save_feature_flags(
 ) -> dict[str, bool]:
     current = load_feature_flags(db)
     for key, value in features.items():
-        if key in _RESERVED_FEATURE_IDS:
+        fid = _canonical_feature_id(str(key))
+        if fid in _RESERVED_FEATURE_IDS:
             continue
-        if key in _ALL_FEATURE_ID_SET and value is not None:
-            current[key] = bool(value)
+        if fid in _ALL_FEATURE_ID_SET and value is not None:
+            current[fid] = bool(value)
     for fid in _RESERVED_FEATURE_IDS:
         current[fid] = True
     raw = json.dumps({"features": current}, ensure_ascii=False)
@@ -434,6 +452,7 @@ def is_feature_enabled_from_flags(
     flags: dict[str, bool], feature_id: str
 ) -> bool:
     """自身及全部祖先均为开启时才有效（基于已加载 flags）。"""
+    feature_id = _canonical_feature_id(feature_id)
     parts = feature_id.split(".")
     for i in range(len(parts)):
         node_id = ".".join(parts[: i + 1])
@@ -460,6 +479,8 @@ def effective_features(db: Session) -> dict[str, bool]:
                 enabled = False
                 break
         out[fid] = enabled
+    for alias, target in FEATURE_ALIASES.items():
+        out[alias] = bool(out.get(target, False))
     return out
 
 

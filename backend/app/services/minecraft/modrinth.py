@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import urllib.error
 import urllib.parse
-import urllib.request
 from typing import Any
 
 from app.core.http_client import HttpRequestError, http_request
@@ -21,14 +19,21 @@ class ModrinthError(Exception):
 
 
 def _get_json(url: str, *, timeout: float = 20.0) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raise ModrinthError(f"Modrinth HTTP {exc.code}") from exc
-    except urllib.error.URLError as exc:
-        raise ModrinthError(f"无法连接 Modrinth：{exc.reason}") from exc
+        resp = http_request(
+            "GET",
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=timeout,
+        )
+    except HttpRequestError as exc:
+        raise ModrinthError(f"无法连接 Modrinth：{exc}") from exc
+    if resp.status_code >= 400:
+        raise ModrinthError(f"Modrinth HTTP {resp.status_code}")
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise ModrinthError("Modrinth 返回无法解析") from exc
 
 
 def _env_server(file_obj: dict[str, Any] | None, version_obj: dict[str, Any]) -> str:

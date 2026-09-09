@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -88,6 +89,21 @@ class TarkovUpstreamError(Exception):
         self.message = message
 
 
+DumpProgress = Callable[[dict[str, Any]], None]
+ByteProgress = Callable[[int, int | None], None]
+
+
+def site_dump_specs(*, lang: str = "zh") -> list[tuple[str, str | None, str]]:
+    """下载/落库顺序：(resource, lang 或 None, dump 域 id)。"""
+    rows: list[tuple[str, str | None, str]] = [
+        (resource, None, f"dump:{resource}") for resource in JSON_RESOURCES
+    ]
+    for resource in JSON_LOCALES:
+        key = resource_key(resource, lang=lang)
+        rows.append((resource, lang, f"dump:{key}"))
+    return rows
+
+
 def resource_key(resource: str, *, lang: str | None = None) -> str:
     if lang:
         return f"{resource}_{lang}"
@@ -133,21 +149,28 @@ def merge_locale(payload: dict[str, Any], locale: dict[str, Any]) -> dict[str, A
 
 
 def download_json_object(
-    url: str, *, timeout: int = 180
+    url: str,
+    *,
+    timeout: int = 180,
+    on_bytes: ByteProgress | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     raw, upstream_at = download_bytes_with_meta(
-        url, timeout=timeout, error_cls=TarkovUpstreamError
+        url, timeout=timeout, error_cls=TarkovUpstreamError, on_bytes=on_bytes
     )
     return _decode_json(raw, label=url), upstream_at
 
 
 def download_json_resource(
-    resource: str, *, lang: str | None = None
+    resource: str,
+    *,
+    lang: str | None = None,
+    on_bytes: ByteProgress | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     timeout = 60 if lang else 180
     return download_json_object(
         json_resource_url(resource, lang=lang),
         timeout=timeout,
+        on_bytes=on_bytes,
     )
 
 
@@ -311,7 +334,7 @@ def persist_locale_if_present(
 
 
 def download_site_json(
-    *, lang: str = "zh"
+    *, lang: str = "zh", on_progress: DumpProgress | None = None
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """拉 json.tarkov.dev 当前模式全部静态文件（含 locale）。单文件失败不中断。
 
@@ -321,26 +344,64 @@ def download_site_json(
     upstream_times: dict[str, str] = {}
     prefix = json_api_prefix()
     errors: list[str] = []
-    for resource in JSON_RESOURCES:
+    specs = site_dump_specs(lang=lang)
+    total = len(specs)
+    for index, (resource, res_lang, domain_id) in enumerate(specs, start=1):
+        key = resource_key(resource, lang=res_lang)
+        is_locale = res_lang is not None
+
+        def emit(
+            *,
+            bytes_n: int = 0,
+            total_bytes: int | None = None,
+            done: bool = False,
+            error: str | None = None,
+            _key: str = key,
+            _domain_id: str = domain_id,
+            _index: int = index,
+        ) -> None:
+            if on_progress is None:
+                return
+            on_progress(
+                {
+                    "phase": "download",
+                    "file": _key,
+                    "domain_id": _domain_id,
+                    "index": _index,
+                    "total": total,
+                    "bytes": bytes_n,
+                    "total_bytes": total_bytes,
+                    "done": done,
+                    "error": error,
+                }
+            )
+
+        def on_bytes(
+            n: int,
+            total_bytes: int | None,
+            *,
+            _emit: Callable[..., None] = emit,
+        ) -> None:
+            _emit(bytes_n=n, total_bytes=total_bytes)
+
+        emit()
         try:
-            payload, upstream_at = download_json_resource(resource)
-            out[resource] = payload
-            if upstream_at:
-                upstream_times[resource] = upstream_at
-            logger.info("tarkov dump %s/%s ok", prefix, resource)
-        except TarkovUpstreamError as exc:
-            errors.append(f"{resource}: {exc}")
-            logger.warning("tarkov dump %s/%s failed: %s", prefix, resource, exc)
-    for resource in JSON_LOCALES:
-        key = resource_key(resource, lang=lang)
-        try:
-            payload, upstream_at = download_json_resource(resource, lang=lang)
+            payload, upstream_at = download_json_resource(
+                resource, lang=res_lang, on_bytes=on_bytes
+            )
             out[key] = payload
             if upstream_at:
                 upstream_times[key] = upstream_at
+            logger.debug("tarkov dump %s/%s ok", prefix, key)
+            emit(done=True)
         except TarkovUpstreamError as exc:
-            logger.warning("tarkov dump %s/%s locale failed: %s", prefix, key, exc)
-            out[key] = {}
+            emit(done=True, error=str(exc))
+            if is_locale:
+                logger.warning("tarkov dump %s/%s locale failed: %s", prefix, key, exc)
+                out[key] = {}
+            else:
+                errors.append(f"{resource}: {exc}")
+                logger.warning("tarkov dump %s/%s failed: %s", prefix, resource, exc)
     if not any(isinstance(out.get(name), dict) and out[name] for name in JSON_RESOURCES):
         detail = "；".join(errors) if errors else "无文件"
         raise TarkovUpstreamError(f"json.tarkov.dev 全站为空：{detail}")
@@ -353,51 +414,38 @@ def persist_site_json(
     *,
     lang: str = "zh",
     upstream_times: dict[str, str] | None = None,
+    on_progress: DumpProgress | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     prefix = json_api_prefix()
     times = upstream_times or {}
     mode = parse_game_mode()
-    for resource in JSON_RESOURCES:
-        payload = dump.get(resource)
-        if not isinstance(payload, dict) or not payload:
-            rows.append(
+    specs = site_dump_specs(lang=lang)
+    total = len(specs)
+    for index, (resource, res_lang, domain_id) in enumerate(specs, start=1):
+        key = resource_key(resource, lang=res_lang)
+        if on_progress is not None:
+            on_progress(
                 {
-                    "id": f"dump:{resource}",
-                    "ok": False,
-                    "source": None,
-                    "synced_at": None,
-                    "upstream_at": None,
-                    "mode": mode,
-                    "error": "未下载到该资源",
+                    "phase": "persist",
+                    "file": key,
+                    "domain_id": domain_id,
+                    "index": index,
+                    "total": total,
                 }
             )
-            continue
-        saved = persist_raw(
-            db,
-            resource,
-            payload,
-            source=SOURCE_JSON_API,
-            note=f"json.tarkov.dev/{prefix}/{resource}",
-            commit=False,
-            upstream_at=times.get(resource),
-        )
-        saved["id"] = f"dump:{resource}"
-        saved["mode"] = mode
-        rows.append(saved)
-    for resource in JSON_LOCALES:
-        key = resource_key(resource, lang=lang)
         payload = dump.get(key)
         if not isinstance(payload, dict) or not payload:
             rows.append(
                 {
-                    "id": f"dump:{key}",
+                    "id": domain_id,
                     "ok": False,
+                    "status": "error",
                     "source": None,
                     "synced_at": None,
                     "upstream_at": None,
                     "mode": mode,
-                    "error": "locale 不可用",
+                    "error": "locale 不可用" if res_lang else "未下载到该资源",
                 }
             )
             continue
@@ -405,14 +453,15 @@ def persist_site_json(
             db,
             resource,
             payload,
-            lang=lang,
+            lang=res_lang,
             source=SOURCE_JSON_API,
             note=f"json.tarkov.dev/{prefix}/{key}",
             commit=False,
             upstream_at=times.get(key),
         )
-        saved["id"] = f"dump:{key}"
+        saved["id"] = domain_id
         saved["mode"] = mode
+        saved["status"] = "ok" if saved.get("ok") else "error"
         rows.append(saved)
     db.commit()
     return rows

@@ -70,7 +70,9 @@ async def upload_my_avatar(
     user: User = Depends(get_current_user),
 ) -> MemberProfileOut:
     member = ensure_user_member(db, user)
-    url = await save_avatar_upload(member.id, file)
+    url = await save_avatar_upload(
+        member.id, file, db=db, owner_user_id=user.id
+    )
     member.avatar_url = url
     db.commit()
     db.refresh(member)
@@ -90,7 +92,7 @@ def delete_my_avatar(
 ) -> MemberProfileOut:
     member = ensure_user_member(db, user)
     if is_custom_avatar_url(member.avatar_url):
-        delete_avatar_file(member.id)
+        delete_avatar_file(member.id, db=db)
     member.avatar_url = None
     db.commit()
     db.refresh(member)
@@ -118,7 +120,9 @@ async def upload_member_avatar(
     )
     if not member:
         raise HTTPException(status_code=404, detail="成员不存在")
-    url = await save_avatar_upload(member.id, file)
+    url = await save_avatar_upload(
+        member.id, file, db=db, owner_user_id=member.user_id
+    )
     member.avatar_url = url
     db.commit()
     db.refresh(member)

@@ -164,7 +164,7 @@ def _item_rows(db: Session) -> list[dict[str, Any]]:
     try:
         return catalog_svc.peek_catalog_items(db)
     except TarkovItemsError as exc:
-        logger.warning("site search items skipped: %s", exc)
+        logger.debug("site search items skipped: %s", exc)
         return []
 
 
@@ -175,7 +175,7 @@ def _task_rows(db: Session) -> list[dict[str, Any]]:
         _source, rows, _locale, _synced, _note = tasks_svc.load_parsed_tasks(db)
         return rows
     except TarkovTasksError as exc:
-        logger.warning("site search tasks skipped: %s", exc)
+        logger.debug("site search tasks skipped: %s", exc)
         return []
 
 
@@ -185,7 +185,7 @@ def _trader_rows(db: Session) -> list[dict[str, Any]]:
     try:
         return list(traders_svc.list_traders(db).get("items") or [])
     except TarkovTradersError as exc:
-        logger.warning("site search traders skipped: %s", exc)
+        logger.debug("site search traders skipped: %s", exc)
         return []
 
 
@@ -195,7 +195,7 @@ def _boss_rows(db: Session) -> list[dict[str, Any]]:
     try:
         return _boss_search_rows(list(bosses_svc.list_bosses(db).get("items") or []))
     except TarkovBossesError as exc:
-        logger.warning("site search bosses skipped: %s", exc)
+        logger.debug("site search bosses skipped: %s", exc)
         return []
 
 

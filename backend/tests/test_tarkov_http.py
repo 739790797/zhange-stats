@@ -55,3 +55,24 @@ def test_download_bytes_transport_error(monkeypatch) -> None:
     monkeypatch.setattr("app.services.tarkov.http.http_request", _boom)
     with pytest.raises(TarkovAmmoError, match="无法连接资源站"):
         download_bytes("https://example.test/x", error_cls=TarkovAmmoError)
+
+
+def test_download_bytes_with_meta_reports_on_bytes(monkeypatch) -> None:
+    from app.services.tarkov.http import download_bytes_with_meta
+
+    seen: list[tuple[int, int | None]] = []
+
+    def fake_download(*_a, on_bytes=None, **_k):
+        if on_bytes:
+            on_bytes(1, 4)
+            on_bytes(4, 4)
+        return 200, b"abcd", {"Last-Modified": "Wed, 26 Aug 2026 09:01:54 GMT"}
+
+    monkeypatch.setattr("app.services.tarkov.http.http_download", fake_download)
+    raw, stamp = download_bytes_with_meta(
+        "https://example.test/x",
+        on_bytes=lambda n, total: seen.append((n, total)),
+    )
+    assert raw == b"abcd"
+    assert stamp == "2026-08-26T09:01:54+00:00"
+    assert seen == [(1, 4), (4, 4)]

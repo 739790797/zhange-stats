@@ -210,7 +210,6 @@ export default function IntegrationsSettingsPage() {
       <Form
         form={form}
         layout="vertical"
-        style={{ maxWidth: 960, margin: "0 auto" }}
         disabled={isLoading}
         onFinish={(values) => {
         const steam = values.steam_api_key?.trim() || "";

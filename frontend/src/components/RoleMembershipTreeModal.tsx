@@ -1,7 +1,8 @@
-import { Alert, Modal, Spin, Tree, Typography, message } from "antd";
+import { Alert, Modal, Tree, Typography, message } from "antd";
 import type { DataNode } from "antd/es/tree";
 import { useEffect, useMemo, useState } from "react";
 import { apiError } from "@/lib/apiError";
+import { NestedSpin } from "@/components/NestedSpin";
 import { CheckinTreeNameLabel } from "@/components/checkinTaskDisplay";
 import { CHECKIN_PLATFORM_LABELS } from "@/lib/checkinDisplay";
 import type {
@@ -181,7 +182,7 @@ export function RoleMembershipTreeModal({
       ) : null}
       {loading ? (
         <div style={{ textAlign: "center", padding: 32 }}>
-          <Spin tip="正在探测账号下的游戏角色…" />
+          <NestedSpin tip="正在探测账号下的游戏角色…" />
         </div>
       ) : roles.length === 0 && !loadError ? (
         <Alert

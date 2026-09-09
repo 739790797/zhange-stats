@@ -2684,6 +2684,174 @@
         ]
       }
     },
+    "/api/settings/files/summary": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Summary",
+        "operationId": "files_summary_api_settings_files_summary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "忽略占用缓存，重新扫描",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "忽略占用缓存，重新扫描"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileSummaryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/files/browse": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Browse",
+        "operationId": "files_browse_api_settings_files_browse_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2048,
+              "default": "",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileBrowseOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/files/download": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Download",
+        "operationId": "files_download_api_settings_files_download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/app-update/status": {
       "get": {
         "tags": [
@@ -10973,6 +11141,78 @@
         }
       }
     },
+    "/api/guides/tarkov/raid-prep/recognize": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Raid Prep Recognize",
+        "description": "局前任务页截图识别；图只进内存。裁列表区后按配置引擎读任务名，对照当前地图闭集匹配。",
+        "operationId": "guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "map",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "title": "Map"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidPrepOcrOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/raid-prep/state": {
       "get": {
         "tags": [
@@ -17701,11 +17941,16 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "serial": {
+            "type": "string",
+            "title": "Serial"
           }
         },
         "type": "object",
         "required": [
-          "url"
+          "url",
+          "serial"
         ],
         "title": "ArticleAssetOut"
       },
@@ -18731,6 +18976,20 @@
           "file"
         ],
         "title": "Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"
+      },
+      "Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post"
       },
       "Body_minecraft_files_upload_api_guides_minecraft_files_upload_post": {
         "properties": {
@@ -20744,6 +21003,349 @@
           "bound"
         ],
         "title": "ExiliumStatusOut"
+      },
+      "FileBrowseEntryOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_dir": {
+            "type": "boolean",
+            "title": "Is Dir"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "default": 0
+          },
+          "modified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified At"
+          },
+          "sensitive": {
+            "type": "boolean",
+            "title": "Sensitive",
+            "default": false
+          },
+          "downloadable": {
+            "type": "boolean",
+            "title": "Downloadable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "is_dir"
+        ],
+        "title": "FileBrowseEntryOut"
+      },
+      "FileBrowseOut": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "root_label": {
+            "type": "string",
+            "title": "Root Label"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "abs_path": {
+            "type": "string",
+            "title": "Abs Path"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FileBrowseEntryOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "root_label",
+          "path",
+          "abs_path"
+        ],
+        "title": "FileBrowseOut"
+      },
+      "FileBrowseRootOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "path",
+          "exists"
+        ],
+        "title": "FileBrowseRootOut"
+      },
+      "FileBucketOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "business": {
+            "type": "string",
+            "title": "Business"
+          },
+          "business_label": {
+            "type": "string",
+            "title": "Business Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists"
+          },
+          "optional": {
+            "type": "boolean",
+            "title": "Optional",
+            "default": false
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          },
+          "browse_root_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browse Root Id"
+          },
+          "browse_path": {
+            "type": "string",
+            "title": "Browse Path",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description",
+          "business",
+          "business_label",
+          "kind",
+          "kind_label",
+          "path",
+          "exists",
+          "size_bytes",
+          "file_count"
+        ],
+        "title": "FileBucketOut"
+      },
+      "FileBusinessTotalOut": {
+        "properties": {
+          "business": {
+            "type": "string",
+            "title": "Business"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "business",
+          "label",
+          "size_bytes",
+          "file_count"
+        ],
+        "title": "FileBusinessTotalOut"
+      },
+      "FileKindTotalOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "size_bytes",
+          "file_count"
+        ],
+        "title": "FileKindTotalOut"
+      },
+      "FileSummaryOut": {
+        "properties": {
+          "measured_at": {
+            "type": "string",
+            "title": "Measured At"
+          },
+          "total_bytes": {
+            "type": "integer",
+            "title": "Total Bytes"
+          },
+          "total_files": {
+            "type": "integer",
+            "title": "Total Files"
+          },
+          "kind_totals": {
+            "items": {
+              "$ref": "#/components/schemas/FileKindTotalOut"
+            },
+            "type": "array",
+            "title": "Kind Totals"
+          },
+          "business_totals": {
+            "items": {
+              "$ref": "#/components/schemas/FileBusinessTotalOut"
+            },
+            "type": "array",
+            "title": "Business Totals"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/FileVolumeOut"
+            },
+            "type": "array",
+            "title": "Volumes"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/FileBucketOut"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "roots": {
+            "items": {
+              "$ref": "#/components/schemas/FileBrowseRootOut"
+            },
+            "type": "array",
+            "title": "Roots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "measured_at",
+          "total_bytes",
+          "total_files"
+        ],
+        "title": "FileSummaryOut"
+      },
+      "FileVolumeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "total_bytes": {
+            "type": "integer",
+            "title": "Total Bytes"
+          },
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          },
+          "free_bytes": {
+            "type": "integer",
+            "title": "Free Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "path",
+          "total_bytes",
+          "used_bytes",
+          "free_bytes"
+        ],
+        "title": "FileVolumeOut"
       },
       "GameScheduleCalendarOut": {
         "properties": {
@@ -26084,6 +26686,34 @@
         ],
         "title": "MinecraftStatusOut"
       },
+      "OcrEngineMetaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          },
+          "has_profiles": {
+            "type": "boolean",
+            "title": "Has Profiles",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "OcrEngineMetaOut"
+      },
       "OcrEngineStatusOut": {
         "properties": {
           "id": {
@@ -26150,10 +26780,7 @@
           },
           "use_cases": {
             "additionalProperties": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "$ref": "#/components/schemas/OcrUseCaseSettings"
             },
             "type": "object",
             "title": "Use Cases"
@@ -26171,6 +26798,20 @@
             },
             "type": "array",
             "title": "Paddle Profiles"
+          },
+          "easyocr_profiles": {
+            "items": {
+              "$ref": "#/components/schemas/OcrOptionOut"
+            },
+            "type": "array",
+            "title": "Easyocr Profiles"
+          },
+          "engine_meta": {
+            "items": {
+              "$ref": "#/components/schemas/OcrEngineMetaOut"
+            },
+            "type": "array",
+            "title": "Engine Meta"
           },
           "use_case_meta": {
             "items": {
@@ -26211,10 +26852,7 @@
           },
           "use_cases": {
             "additionalProperties": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "$ref": "#/components/schemas/OcrUseCaseSettings"
             },
             "type": "object",
             "title": "Use Cases"
@@ -26222,6 +26860,24 @@
         },
         "type": "object",
         "title": "OcrSettingsUpdate"
+      },
+      "OcrUseCaseSettings": {
+        "properties": {
+          "engines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Engines"
+          },
+          "cross_check": {
+            "type": "boolean",
+            "title": "Cross Check",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "OcrUseCaseSettings"
       },
       "PasswordPolicyOut": {
         "properties": {
@@ -34040,6 +34696,79 @@
           "objective_id"
         ],
         "title": "TarkovRaidPrepObjectiveDoneIn"
+      },
+      "TarkovRaidPrepOcrMatchOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "ocr_text": {
+            "type": "string",
+            "title": "Ocr Text",
+            "default": ""
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovRaidPrepOcrMatchOut"
+      },
+      "TarkovRaidPrepOcrOut": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidPrepOcrMatchOut"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "default": 0
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height",
+            "default": 0
+          },
+          "widescreen": {
+            "type": "boolean",
+            "title": "Widescreen",
+            "default": false
+          },
+          "preferred_size": {
+            "type": "boolean",
+            "title": "Preferred Size",
+            "default": false
+          },
+          "engines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Engines"
+          }
+        },
+        "type": "object",
+        "title": "TarkovRaidPrepOcrOut"
       },
       "TarkovRaidPrepOut": {
         "properties": {

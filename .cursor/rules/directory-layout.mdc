@@ -10,5 +10,5 @@ alwaysApply: false
 
 - 后端：`services/<platform>/client.py` + `attendance.py` + Adapter 注册进 `services/checkin/`
 - 前端：面板进 `components/<platform>/`，页仍套 `CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton`
-- 横切（邮件、调度、更新）可留在 `services/` 根；OCR 进 `services/ocr/`，不要在根上堆 `ocr_*.py`
+- 横切（邮件、调度、更新、`file_manager`、`account_anonymize`）可留在 `services/` 根；OCR 进 `services/ocr/`，用户附件登记进 `services/user_files/`，不要在根上堆 `ocr_*.py` / `user_file_*.py`
 - 完整映射与步骤：[`docs/directory-layout.md`](../../docs/directory-layout.md)

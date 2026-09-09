@@ -9,6 +9,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.services.tarkov.bosses import MAP_ZH
 from app.services.tarkov.game_mode import parse_game_mode
 from app.services.tarkov.goon_tracker_hub import hub
@@ -162,8 +163,11 @@ def refresh_all() -> list[str]:
     try:
         bundle = _fetch_bundle()
     except GoonTrackerError:
-        logger.warning("goon tracker fetch failed", exc_info=True)
+        log_until_change(
+            logger, "goon_tracker.fetch", "goon tracker fetch failed", exc_info=True
+        )
         return []
+    clear_log_until_change("goon_tracker.fetch")
     changed: list[str] = []
     for mode in ("pvp", "pve"):
         tracking = pick_latest_tracking(bundle.get(mode) or [])

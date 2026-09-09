@@ -1,0 +1,28 @@
+---
+description: 运行时日志：级别、禁刷、禁密钥、HTTP 中间件已记账
+globs: backend/app/**/*.py
+alwaysApply: false
+---
+
+# 运行时日志
+
+全文 [`docs/logging.md`](../../docs/logging.md)。这是 Python `logger.*`（平台日志页），不是 `job_runs` / `*_checkin_logs`。
+
+## 必须
+
+- 默认 `logging.getLogger(__name__)`；横切用 `zhange.http` / `zhange.scheduler` / `zhange.startup` / `zhange.client` 等稳定名
+- **INFO**：启动、任务 begin/done **汇总**、同步开始/结束条数；管理端更新的 pip/migrate 逐行输出（偶发运维）允许 INFO
+- **WARNING**：降级、可恢复上游失败；同一故障用 `log_until_change`，恢复后 `clear_log_until_change`
+- **ERROR**：意外失败用 `logger.exception`
+- 成员/任务上下文走 `log_context(...)`，不要把 token 写进消息
+
+## 禁止
+
+- 成功且快的 GET 再打 INFO（`zhange.http` 已记写操作 / 4xx / 慢 GET）
+- 平台日志、运行状态、`/health` 的轮询打访问日志
+- 循环内逐成员 / 逐文件 / 逐 app_id 的 INFO
+- 密钥、Cookie、JWT、验证码、房间密码、上游整段带票响应
+- `print()`（本地验证码除外，生产禁止 `ALLOW_EMAIL_CODE_LOG`）
+- 签到「执行记录」当作用户可见文案（那是库表）
+
+HTTP 记不记：`should_log_request`。高频探活：`log_until_change`。

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Iterator, TypeVar
+from typing import Any, Iterator, TypeVar
 
 from app.core.config import get_settings
 from app.core.timeutil import BEIJING
@@ -29,6 +30,8 @@ _PLATFORM_PREFIXES: tuple[str, ...] = (
 
 _LOG_CONTEXT: ContextVar[dict[str, str]] = ContextVar("zhange_log_context", default={})
 _CONFIGURED = False
+_REPEAT_LOCK = threading.Lock()
+_REPEAT_LAST: dict[str, str] = {}
 
 F = TypeVar("F", bound=Callable[..., object])
 
@@ -119,6 +122,36 @@ class BizTagFilter(logging.Filter):
         ctx = current_log_context()
         record.log_context = format_log_context(ctx)  # type: ignore[attr-defined]
         return True
+
+
+def log_until_change(
+    log: logging.Logger,
+    key: str,
+    msg: str,
+    *args: object,
+    level: int = logging.WARNING,
+    **kwargs: Any,
+) -> None:
+    """同一 key 且格式化消息不变时，只首次打 level，之后 DEBUG。"""
+    try:
+        token = msg % args if args else str(msg)
+    except Exception:  # noqa: BLE001
+        token = str(msg)
+    with _REPEAT_LOCK:
+        if _REPEAT_LAST.get(key) == token:
+            log.debug(msg, *args, **kwargs)
+            return
+        _REPEAT_LAST[key] = token
+    log.log(level, msg, *args, **kwargs)
+
+
+def clear_log_until_change(key: str | None = None) -> None:
+    """恢复成功后清掉 key，使下次失败再打 WARNING。key 为空则全清（测试用）。"""
+    with _REPEAT_LOCK:
+        if key is None:
+            _REPEAT_LAST.clear()
+        else:
+            _REPEAT_LAST.pop(key, None)
 
 
 def wrap_scheduled_job(job_id: str, func: Callable[[], None]) -> Callable[[], None]:

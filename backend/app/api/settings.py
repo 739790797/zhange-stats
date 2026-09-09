@@ -245,12 +245,26 @@ class OcrOptionOut(BaseModel):
     hint: str = ""
 
 
+class OcrEngineMetaOut(BaseModel):
+    id: str
+    label: str
+    hint: str = ""
+    has_profiles: bool = False
+
+
+class OcrUseCaseSettings(BaseModel):
+    engines: list[str] = Field(default_factory=list)
+    cross_check: bool = False
+
+
 class OcrSettingsOut(BaseModel):
     paddle_profile: str
     engines: dict[str, bool]
-    use_cases: dict[str, list[str]]
+    use_cases: dict[str, OcrUseCaseSettings]
     engine_status: list[OcrEngineStatusOut] = Field(default_factory=list)
     paddle_profiles: list[OcrOptionOut] = Field(default_factory=list)
+    easyocr_profiles: list[OcrOptionOut] = Field(default_factory=list)
+    engine_meta: list[OcrEngineMetaOut] = Field(default_factory=list)
     use_case_meta: list[OcrOptionOut] = Field(default_factory=list)
     engine_labels: dict[str, str] = Field(default_factory=dict)
 
@@ -258,7 +272,7 @@ class OcrSettingsOut(BaseModel):
 class OcrSettingsUpdate(BaseModel):
     paddle_profile: str = "v5_server"
     engines: dict[str, bool] = Field(default_factory=dict)
-    use_cases: dict[str, list[str]] = Field(default_factory=dict)
+    use_cases: dict[str, OcrUseCaseSettings] = Field(default_factory=dict)
 
 
 def _ocr_settings_out(db: Session) -> dict[str, Any]:
@@ -283,10 +297,13 @@ def update_ocr_settings(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin_step_up),
 ) -> dict[str, Any]:
-    from app.services.ocr.config import public_ocr_config, save_ocr_config
+    from app.services.ocr.config import OcrConfigError, public_ocr_config, save_ocr_config
     from app.services.ocr.runtime import engine_status
 
-    saved = save_ocr_config(db, body.model_dump())
+    try:
+        saved = save_ocr_config(db, body.model_dump())
+    except OcrConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return public_ocr_config(
         saved,
         engine_status=engine_status(saved.get("paddle_profile")),

@@ -15,6 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from app.api import articles, auth, exilium, guides, jobs, kujiequ, members, mihoyo, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
 from app.api import client_errors as client_errors_api
+from app.api import files as files_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
 from app.api import settings as settings_api
@@ -47,6 +48,7 @@ from app.models import minecraft as _minecraft  # noqa: F401
 from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
 from app.models import articles as _articles  # noqa: F401
+from app.models import user_files as _user_files  # noqa: F401
 from app.services.seed import seed_data
 from app.services.scheduler_runtime import register_scheduler_jobs
 from app.services.member_sync import sync_users_and_members
@@ -104,30 +106,30 @@ async def lifespan(_: FastAPI):
         (cfg.APP_INSTALL_DIR or "").strip() or "(unset)",
     )
 
-    logger.info("startup step 1/8: alembic migrate")
+    logger.info("startup step 1/9: alembic migrate")
     try:
         run_migrations()
     except Exception:
         logger.exception(
             "startup migrate failed — process will exit; "
-            "fix the migration or run scripts/emergency_update.sh on the host"
+            "fix the migration, then git pull and run scripts/linux/install.sh + restart.sh"
         )
         raise
 
-    logger.info("startup step 2/8: ensure upload root (%s)", cfg.UPLOAD_DIR)
+    logger.info("startup step 2/9: ensure upload root (%s)", cfg.UPLOAD_DIR)
     upload_path = _ensure_upload_root()
     hydrate_legacy_runtime(
         dest_data=cfg.data_dir_path,
         install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
     )
-    logger.info("startup step 2/8 done: upload_root=%s data_root=%s", upload_path, cfg.data_dir_path)
+    logger.info("startup step 2/9 done: upload_root=%s data_root=%s", upload_path, cfg.data_dir_path)
 
     db = SessionLocal()
     try:
-        logger.info("startup step 3/8: beijing time storage check")
+        logger.info("startup step 3/9: beijing time storage check")
         ensure_beijing_time_storage(db, engine)
 
-        logger.info("startup step 4/8: seed data")
+        logger.info("startup step 4/9: seed data")
         seed_data(db)
 
         from app.services.security_bootstrap import (
@@ -135,16 +137,21 @@ async def lifespan(_: FastAPI):
             check_email_code_log_policy,
         )
 
-        logger.info("startup step 5/8: email code log policy")
+        logger.info("startup step 5/9: email code log policy")
         check_email_code_log_policy()
 
-        logger.info("startup step 6/8: admin password health")
+        logger.info("startup step 6/9: admin password health")
         check_admin_password_health(db)
 
-        logger.info("startup step 7/8: sync users and members")
+        logger.info("startup step 7/9: sync users and members")
         sync_users_and_members(db)
 
-        logger.info("startup step 8/8: register scheduler jobs (run_steam_once=true)")
+        logger.info("startup step 8/9: user files backfill")
+        from app.services.user_files.backfill import ensure_user_files_registered
+
+        ensure_user_files_registered(db)
+
+        logger.info("startup step 9/9: register scheduler jobs (run_steam_once=true)")
         register_scheduler_jobs(scheduler, db, run_steam_once=True)
     finally:
         db.close()
@@ -231,6 +238,7 @@ api.include_router(auth.router)
 api.include_router(members.router)
 api.include_router(profile.router)
 api.include_router(settings_api.router)
+api.include_router(files_api.router)
 api.include_router(app_update_api.router)
 api.include_router(runtime_logs_api.router)
 api.include_router(runtime_health_api.router)

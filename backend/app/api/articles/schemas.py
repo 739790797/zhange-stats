@@ -106,6 +106,7 @@ class ArticlePatchIn(BaseModel):
 
 class ArticleAssetOut(BaseModel):
     url: str
+    serial: str
 
 
 class ArticleMathRecognizeOut(BaseModel):

@@ -1532,6 +1532,23 @@ class TarkovKeyOcrOut(BaseModel):
     engines: list[str] = Field(default_factory=list)
 
 
+class TarkovRaidPrepOcrMatchOut(BaseModel):
+    id: str
+    name: str = ""
+    ocr_text: str = ""
+    trader_slug: str = ""
+    trader_name: str = ""
+
+
+class TarkovRaidPrepOcrOut(BaseModel):
+    matches: list[TarkovRaidPrepOcrMatchOut] = Field(default_factory=list)
+    width: int = 0
+    height: int = 0
+    widescreen: bool = False
+    preferred_size: bool = False
+    engines: list[str] = Field(default_factory=list)
+
+
 class TarkovCollectionTaskOut(BaseModel):
     id: str
     name: str = ""

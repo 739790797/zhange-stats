@@ -1,21 +1,16 @@
 import { Modal, Spin } from "antd";
-import { useCallback, useEffect, useState } from "react";
-import type { TarkovRaidPrepTask } from "@/api/guidesApi";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  formatRaidPrepOcrProgress,
-  isPreferredRaidPrepOcrSize,
-  matchRaidPrepTasksFromOcr,
-  newRaidPrepOcrIds,
-  type RaidPrepOcrMatch,
-} from "@/lib/tarkovRaidPrepOcr";
-import {
-  preloadRaidPrepOcrWorker,
-  recognizeRaidPrepTaskScreenshot,
-  terminateRaidPrepOcrWorker,
-} from "@/lib/tarkovRaidPrepOcrEngine";
+  recognizeTarkovRaidPrep,
+  type TarkovRaidPrepOcrMatch,
+} from "@/api/guidesApi";
+import { apiError } from "@/lib/apiError";
+import { formatKeyOcrEngines } from "@/lib/tarkovOcr";
+import { newRaidPrepOcrIds } from "@/lib/tarkovRaidPrepOcr";
 import { RAID_PREP_MAX_SELECTED, tarkovReadableName } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { traderDisplayName } from "@/lib/tarkovHomeNav";
+import { useAuthStore } from "@/stores/authStore";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 type Phase = "idle" | "working" | "done";
@@ -23,17 +18,7 @@ type Phase = "idle" | "working" | "done";
 type Props = {
   open: boolean;
   onClose: () => void;
-  catalog: Array<
-    Pick<
-      TarkovRaidPrepTask,
-      | "id"
-      | "name"
-      | "normalized_name"
-      | "map_name"
-      | "trader_slug"
-      | "trader_name"
-    >
-  >;
+  mapSlug: string;
   selectedIds: string[];
   /** 用户确认后的任务 id（已过滤未勾选项）；由调用方合并进已有勾选。 */
   onConfirm: (taskIds: string[]) => void | Promise<void>;
@@ -43,86 +28,110 @@ type Props = {
 export function TarkovRaidPrepOcrModal({
   open,
   onClose,
-  catalog,
+  mapSlug,
   selectedIds,
   onConfirm,
   maxSelected = RAID_PREP_MAX_SELECTED,
 }: Props) {
+  const user = useAuthStore((s) => s.user);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
-  const [progress, setProgress] = useState("识别中…");
-  const [matches, setMatches] = useState<RaidPrepOcrMatch[]>([]);
+  const [progress, setProgress] = useState("正在识别任务名…");
+  const [matches, setMatches] = useState<TarkovRaidPrepOcrMatch[]>([]);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const reset = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setPhase("idle");
     setError("");
     setHint("");
-    setProgress("识别中…");
+    setProgress("正在识别任务名…");
     setMatches([]);
     setChecked({});
     setSubmitting(false);
   }, []);
 
   useEffect(() => {
-    if (!open) {
-      reset();
-      void terminateRaidPrepOcrWorker();
-      return;
-    }
-    preloadRaidPrepOcrWorker();
+    if (!open) reset();
   }, [open, reset]);
 
   const runRecognize = useCallback(
     async (file: Blob) => {
+      if (!user) {
+        setError("登录后才能截图识别");
+        return;
+      }
+      const slug = (mapSlug || "").trim();
+      if (!slug) {
+        setError("请先选择地图");
+        return;
+      }
       setPhase("working");
       setError("");
       setHint("");
-      setProgress("正在加载识别引擎…");
+      setProgress("正在识别任务名…");
       setMatches([]);
       setChecked({});
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
       try {
-        const result = await recognizeRaidPrepTaskScreenshot(file, {
-          onProgress: (status, pct) => {
-            setProgress(formatRaidPrepOcrProgress(status, pct));
-          },
+        const result = await recognizeTarkovRaidPrep(file, slug, {
+          signal: ac.signal,
         });
+        if (ac.signal.aborted) return;
         if (!result.widescreen) {
           setPhase("done");
           setMatches([]);
-          setError("");
           setHint("请使用游戏内任务页的全屏截图（建议 1920×1080 或 2560×1440）");
           return;
         }
-        if (!isPreferredRaidPrepOcrSize(result.width, result.height)) {
-          setHint(
-            `当前 ${result.width}×${result.height}，建议使用 1920×1080 或 2560×1440`,
-          );
-        }
-        const hits = matchRaidPrepTasksFromOcr({
-          lines: result.lines,
-          catalog,
-        });
-        // 已勾选的也展示，默认勾上；确认时由 merge 去重
+        const hits = result.matches || [];
         setMatches(hits);
         const next: Record<string, boolean> = {};
         for (const hit of hits) next[hit.id] = true;
         setChecked(next);
         setPhase("done");
+        const engineHint = formatKeyOcrEngines(result.engines);
+        const sizeHint = result.preferred_size
+          ? ""
+          : `当前 ${result.width}×${result.height}，建议使用 1920×1080 或 2560×1440`;
+        const parts = [
+          engineHint ? `已用 ${engineHint}` : "",
+          sizeHint,
+        ].filter(Boolean);
+        if (!hits.length) {
+          setHint(
+            sizeHint ||
+              "未识别到可勾选的任务。请使用任务页全屏截图后重试。",
+          );
+        } else if (parts.length) {
+          setHint(parts.join(" · "));
+        }
       } catch (err) {
+        if (ac.signal.aborted) return;
         setPhase("idle");
-        setError(err instanceof Error ? err.message : "识别失败，请重试");
+        setError(apiError(err, "识别失败，请重试"));
       }
     },
-    [catalog],
+    [mapSlug, user],
   );
 
   useEffect(() => {
     if (!open) return undefined;
     const onPaste = (event: ClipboardEvent) => {
       if (phase === "working" || submitting) return;
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
+          return;
+        }
+      }
       const items = event.clipboardData?.items;
       if (items) {
         for (const item of items) {
@@ -136,8 +145,6 @@ export function TarkovRaidPrepOcrModal({
           }
         }
       }
-      event.preventDefault();
-      setError("请 Ctrl+V 粘贴截图");
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
@@ -162,7 +169,7 @@ export function TarkovRaidPrepOcrModal({
       await onConfirm(willAdd);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "勾选失败，请重试");
+      setError(apiError(err, "勾选失败，请重试"));
       setSubmitting(false);
     }
   };
@@ -226,7 +233,12 @@ export function TarkovRaidPrepOcrModal({
     >
       {phase === "idle" ? (
         <div className={styles.ocrIdle}>
-          <p className={styles.ocrPasteHint}>Ctrl+V粘贴截图进行识别</p>
+          <p className={styles.ocrPasteHint}>
+            {user ? "Ctrl+V粘贴截图进行识别" : "登录后才能截图识别"}
+          </p>
+          <p className={styles.ocrMeta}>
+            截图只进本站内存。按系统「文字识别」里为局前任务勾选的引擎对照当前地图任务名，不存盘。
+          </p>
           {error ? <p className={styles.ocrError}>{error}</p> : null}
         </div>
       ) : null}
@@ -235,15 +247,13 @@ export function TarkovRaidPrepOcrModal({
         <div className={styles.ocrWorking}>
           <Spin />
           <p className={styles.ocrMeta}>{progress}</p>
-          <p className={styles.ocrMeta}>中英模型从本站加载，无需访问外网</p>
         </div>
       ) : null}
 
       {phase === "done" && matches.length === 0 ? (
         <div className={styles.ocrEmpty}>
           <p className={styles.ocrLead}>
-            {hint ||
-              "未识别到可勾选的任务。请使用任务页全屏截图后重试。"}
+            {hint || "未识别到可勾选的任务。请使用任务页全屏截图后重试。"}
           </p>
           {error ? <p className={styles.ocrError}>{error}</p> : null}
         </div>

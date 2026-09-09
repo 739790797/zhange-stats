@@ -94,7 +94,6 @@ class ArticleTag(Base):
 
 class Article(Base):
     __tablename__ = "articles"
-    __table_args__ = (UniqueConstraint("halo_source_id", name="uq_articles_halo_source_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False, index=True)
@@ -113,7 +112,6 @@ class Article(Base):
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
-    halo_source_id: Mapped[str | None] = mapped_column(String(191), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -11,6 +11,8 @@ from typing import Any
 
 from fastapi import HTTPException, Request, status
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,9 +67,12 @@ class RateLimiter:
         try:
             _removed, count, *_rest = pipe.execute()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("rate_limit: Redis error (%s), fallback memory", exc)
+            log_until_change(
+                logger, "rate_limit.redis", "rate_limit: Redis error (%s), fallback memory", exc
+            )
             self._hit_memory(key, limit=limit, window_sec=window_sec)
             return
+        clear_log_until_change("rate_limit.redis")
         # count = size before zadd; reject if already at limit
         if int(count) >= limit:
             try:

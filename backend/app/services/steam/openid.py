@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import timedelta
 
 import jwt
 from jwt import InvalidTokenError
 
 from app.core.config import get_settings
+from app.core.http_client import HttpRequestError, http_request
 from app.core.security import ALGORITHM
 from app.core.timeutil import utc_now
 
@@ -96,37 +95,36 @@ def verify_steam_openid_assertion(query: dict[str, str]) -> str:
     check["openid.mode"] = "check_authentication"
 
     body = urllib.parse.urlencode(check).encode("utf-8")
-    req = urllib.request.Request(
-        STEAM_OPENID_ENDPOINT,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "zhange-stats/1.0",
-            "Origin": "https://steamcommunity.com",
-            "Referer": "https://steamcommunity.com/",
-        },
-    )
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "zhange-stats/1.0",
+        "Origin": "https://steamcommunity.com",
+        "Referer": "https://steamcommunity.com/",
+    }
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            text = resp.read().decode("utf-8", errors="ignore")
-    except urllib.error.HTTPError as exc:
-        # 部分环境 POST 403，改试 GET
-        if exc.code in {403, 405}:
+        resp = http_request(
+            "POST",
+            STEAM_OPENID_ENDPOINT,
+            content=body,
+            headers=headers,
+            timeout=20,
+        )
+        if resp.status_code in {403, 405}:
             url = f"{STEAM_OPENID_ENDPOINT}?{urllib.parse.urlencode(check)}"
-            get_req = urllib.request.Request(
+            resp = http_request(
+                "GET",
                 url,
                 headers={
                     "User-Agent": "zhange-stats/1.0",
                     "Origin": "https://steamcommunity.com",
                     "Referer": "https://steamcommunity.com/",
                 },
+                timeout=20,
             )
-            with urllib.request.urlopen(get_req, timeout=20) as resp:
-                text = resp.read().decode("utf-8", errors="ignore")
-        else:
-            raise ValueError(f"Steam 校验失败 HTTP {exc.code}") from exc
-    except urllib.error.URLError as exc:
+        elif resp.status_code >= 400:
+            raise ValueError(f"Steam 校验失败 HTTP {resp.status_code}")
+        text = resp.text
+    except HttpRequestError as exc:
         raise ValueError(f"无法连接 Steam 校验服务: {exc}") from exc
 
     if "is_valid:true" not in text.replace(" ", "").lower():

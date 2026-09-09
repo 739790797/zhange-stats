@@ -5,17 +5,16 @@ from __future__ import annotations
 import io
 import logging
 import os
-import ssl
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import httpx
 from PIL import Image, UnidentifiedImageError
 
 from app.core.config import get_settings
+from app.core.http_client import HttpRequestError, http_request, http_stream
 from app.services.articles.errors import ArticleError
 
 Image.MAX_IMAGE_PIXELS = 20_000_000
@@ -24,6 +23,10 @@ logger = logging.getLogger("zhange.articles.texteller")
 
 TEXTTELLER_REPO = "OleehyO/TexTeller"
 DEFAULT_HF_ENDPOINT = "https://hf-mirror.com"
+_HF_UA = "zhange-stats-texteller"
+_HF_CONNECT_SEC = 20
+_HF_JSON_READ_SEC = 30
+_HF_DOWNLOAD_READ_SEC = 600
 REVISION_NAME = "REVISION"
 MAX_RECOGNIZE_BYTES = 2 * 1024 * 1024
 ALLOW_PATTERNS = (
@@ -196,13 +199,26 @@ def _short_err(exc: BaseException) -> str:
     return text.replace("\n", " ")[:180]
 
 
-def _hf_http(*, read_sec: float | None = 30.0) -> httpx.Client:
-    return httpx.Client(
-        timeout=httpx.Timeout(connect=20.0, read=read_sec, write=60.0, pool=20.0),
-        follow_redirects=True,
-        verify=ssl.create_default_context(),
-        headers={"User-Agent": "zhange-stats-texteller"},
-    )
+def hf_get_json(url: str) -> dict[str, Any]:
+    try:
+        resp = http_request(
+            "GET",
+            url,
+            headers={"User-Agent": _HF_UA},
+            timeout=_HF_JSON_READ_SEC,
+            connect=_HF_CONNECT_SEC,
+        )
+    except HttpRequestError as exc:
+        raise ArticleError(502, f"模型接口失败：{_short_err(exc)}") from exc
+    if resp.status_code >= 400:
+        raise ArticleError(502, f"模型接口 HTTP {resp.status_code}")
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise ArticleError(502, "模型接口返回异常") from exc
+    if not isinstance(data, dict):
+        raise ArticleError(502, "模型接口返回异常")
+    return data
 
 
 def hf_model_api_url(endpoint: str, revision: str | None = None) -> str:
@@ -214,17 +230,6 @@ def hf_model_api_url(endpoint: str, revision: str | None = None) -> str:
 
 def hf_file_url(endpoint: str, revision: str, name: str) -> str:
     return f"{endpoint.rstrip('/')}/{TEXTTELLER_REPO}/resolve/{revision}/{name}"
-
-
-def hf_get_json(url: str) -> dict[str, Any]:
-    with _hf_http() as client:
-        resp = client.get(url)
-    if resp.status_code >= 400:
-        raise ArticleError(502, f"模型接口 HTTP {resp.status_code}")
-    data = resp.json()
-    if not isinstance(data, dict):
-        raise ArticleError(502, "模型接口返回异常")
-    return data
 
 
 def fetch_remote_meta(revision: str | None = None) -> tuple[str, list[tuple[str, int]]]:
@@ -262,58 +267,65 @@ def download_models(
             raise ArticleError(502, "镜像上没有可用的 TexTeller 权重")
         total_bytes = sum(size for _, size in files)
         done_bytes = 0
-        with _hf_http(read_sec=None) as client:
-            for index, (name, size) in enumerate(files, start=1):
-                current_n = 0
+        for index, (name, size) in enumerate(files, start=1):
+            current_n = 0
 
-                def on_bytes(n: int, *, _name=name, _index=index) -> None:
-                    nonlocal current_n
-                    current_n = max(0, n)
-                    if not progress:
-                        return
-                    progress(
-                        format_sync_message(
-                            "download",
-                            file=_name,
-                            index=_index,
-                            total=len(files),
+            def on_bytes(n: int, *, _name=name, _index=index) -> None:
+                nonlocal current_n
+                current_n = max(0, n)
+                if not progress:
+                    return
+                progress(
+                    format_sync_message(
+                        "download",
+                        file=_name,
+                        index=_index,
+                        total=len(files),
+                    ),
+                    {
+                        "phase": "download",
+                        "percent": compute_download_percent(
+                            done_bytes=done_bytes,
+                            current_bytes=current_n,
+                            total_bytes=total_bytes,
+                            files_done=_index - 1,
+                            files_total=len(files),
                         ),
-                        {
-                            "phase": "download",
-                            "percent": compute_download_percent(
-                                done_bytes=done_bytes,
-                                current_bytes=current_n,
-                                total_bytes=total_bytes,
-                                files_done=_index - 1,
-                                files_total=len(files),
-                            ),
-                            "file": _name,
-                            "bytes": done_bytes + current_n,
-                            "total_bytes": total_bytes,
-                            "files_done": _index - 1,
-                            "files_total": len(files),
-                        },
-                    )
+                        "file": _name,
+                        "bytes": done_bytes + current_n,
+                        "total_bytes": total_bytes,
+                        "files_done": _index - 1,
+                        "files_total": len(files),
+                    },
+                )
 
-                on_bytes(0)
-                url = hf_file_url(endpoint, revision, name)
-                target = dest / name
-                part = dest / f"{name}.part"
-                with client.stream("GET", url) as resp:
-                    if resp.status_code >= 400:
-                        raise ArticleError(
-                            502,
-                            f"下载 {name} 失败（HTTP {resp.status_code}）",
-                        )
-                    with part.open("wb") as handle:
-                        for chunk in resp.iter_bytes(64 * 1024):
-                            handle.write(chunk)
-                            on_bytes(current_n + len(chunk))
-                part.replace(target)
-                done_bytes += size or current_n
-                on_bytes(size or current_n)
+            on_bytes(0)
+            url = hf_file_url(endpoint, revision, name)
+            target = dest / name
+            part = dest / f"{name}.part"
+            with http_stream(
+                "GET",
+                url,
+                headers={"User-Agent": _HF_UA},
+                timeout=_HF_DOWNLOAD_READ_SEC,
+                connect=_HF_CONNECT_SEC,
+            ) as resp:
+                if resp.status_code >= 400:
+                    raise ArticleError(
+                        502,
+                        f"下载 {name} 失败（HTTP {resp.status_code}）",
+                    )
+                with part.open("wb") as handle:
+                    for chunk in resp.iter_bytes(64 * 1024):
+                        handle.write(chunk)
+                        on_bytes(current_n + len(chunk))
+            part.replace(target)
+            done_bytes += size or current_n
+            on_bytes(size or current_n)
     except ArticleError:
         raise
+    except HttpRequestError as exc:
+        raise ArticleError(502, f"下载 TexTeller 模型失败：{_short_err(exc)}") from exc
     except Exception as exc:
         logger.exception("texteller download failed")
         raise ArticleError(502, f"下载 TexTeller 模型失败：{_short_err(exc)}") from exc
@@ -499,7 +511,7 @@ def recognize_image_bytes(raw: bytes) -> str:
     if not models_ready():
         raise ArticleError(
             503,
-            "公式识别模型尚未就绪，请到任务配置运行「公式识别模型更新」",
+            "公式识别模型尚未就绪，请到任务配置运行「公式识别模型」",
         )
     image = _open_rgb_image(raw)
     try:

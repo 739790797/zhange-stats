@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Iterable
@@ -15,6 +12,7 @@ from typing import Any, Iterable
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import now_naive, to_naive
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -46,12 +44,8 @@ class StoreDetails:
     final_formatted: str | None = None
 
 
-def _utcnow() -> datetime:
-    return now_naive()
-
-
 def _aware(dt: datetime) -> datetime:
-    """库内时间规范为北京墙钟 naive，便于与 _utcnow() 比较。"""
+    """库内时间规范为北京墙钟 naive，便于与 now_naive() 比较。"""
     return to_naive(dt)
 
 
@@ -110,21 +104,13 @@ def _mark_client_icon_fetched(app_ids: Iterable[str]) -> None:
 
 def _http_url_ok(url: str, *, min_bytes: int = 200, timeout: float = 8) -> bool:
     """校验图片 URL 可下载（部分新游戏的 client icon hash 会 404）。"""
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if not (200 <= int(resp.status) < 300):
-                return False
-            data = resp.read(min_bytes + 1)
-            return len(data) >= min_bytes
-    except (
-        urllib.error.URLError,
-        urllib.error.HTTPError,
-        TimeoutError,
-        OSError,
-        ValueError,
-    ):
+        resp = http_request(
+            "GET", url, headers={"User-Agent": _UA}, timeout=timeout
+        )
+    except HttpRequestError:
         return False
+    return 200 <= resp.status_code < 300 and len(resp.content) >= min_bytes
 
 
 def fetch_store_details(
@@ -137,18 +123,16 @@ def fetch_store_details(
 
     params = urllib.parse.urlencode({"appids": app_id, "l": lang, "cc": cc})
     url = f"https://store.steampowered.com/api/appdetails?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except (
-        urllib.error.URLError,
-        urllib.error.HTTPError,
-        TimeoutError,
-        json.JSONDecodeError,
-        OSError,
-    ) as exc:
-        logger.warning("Steam Store appdetails failed for %s: %s", app_id, exc)
+        resp = http_request(
+            "GET", url, headers={"User-Agent": _UA}, timeout=15
+        )
+        payload = resp.json()
+    except (HttpRequestError, ValueError, OSError) as exc:
+        logger.debug("Steam Store appdetails failed for %s: %s", app_id, exc)
+        return StoreDetails(success=False)
+    if resp.status_code >= 400 or not isinstance(payload, dict):
+        logger.debug("Steam Store appdetails failed for %s: HTTP %s", app_id, resp.status_code)
         return StoreDetails(success=False)
 
     entry = (payload or {}).get(app_id) or {}
@@ -228,7 +212,7 @@ def _persist_store_row(
     fetched_at: datetime | None = None,
 ) -> None:
     """独立会话写入缓存并回写历史会话名。"""
-    now = fetched_at or _utcnow()
+    now = fetched_at or now_naive()
     db = SessionLocal()
     try:
         row = db.get(SteamApp, app_id)
@@ -275,7 +259,7 @@ def resolve_app_names(
 
     rows = db.query(SteamApp).filter(SteamApp.app_id.in_(ids)).all()
     by_id = {r.app_id: r for r in rows}
-    now = _utcnow()
+    now = now_naive()
     result: dict[str, str] = {}
 
     for app_id in ids:
@@ -410,18 +394,16 @@ def _fetch_icon_hash_from_steamcmd(app_id: str) -> str | None:
     if not app_id.isdigit():
         return None
     url = f"https://api.steamcmd.net/v1/info/{app_id}"
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except (
-        urllib.error.URLError,
-        urllib.error.HTTPError,
-        TimeoutError,
-        json.JSONDecodeError,
-        OSError,
-    ) as exc:
-        logger.warning("steamcmd appinfo failed for %s: %s", app_id, exc)
+        resp = http_request(
+            "GET", url, headers={"User-Agent": _UA}, timeout=15
+        )
+        payload = resp.json()
+    except (HttpRequestError, ValueError, OSError) as exc:
+        logger.debug("steamcmd appinfo failed for %s: %s", app_id, exc)
+        return None
+    if resp.status_code >= 400 or not isinstance(payload, dict):
+        logger.debug("steamcmd appinfo failed for %s: HTTP %s", app_id, resp.status_code)
         return None
 
     data = (payload or {}).get("data") or {}
@@ -450,7 +432,7 @@ def _fill_client_icons_from_steamcmd(
     db: Session, missing: list[str], result: dict[str, str]
 ) -> None:
     """无游戏库可查时：用 steamcmd 公开 appinfo 补 client icon hash。"""
-    now = _utcnow()
+    now = now_naive()
     for app_id in missing:
         if app_id in result and _is_client_icon_url(result.get(app_id)):
             continue
@@ -484,7 +466,7 @@ def _fill_client_icons_from_owned_games(
 
     if steam_key:
         adapter = SteamAdapter(steam_key)
-        now = _utcnow()
+        now = now_naive()
 
         for steam_id in _candidate_steam_ids_for_icons(db, missing):
             if not still:
@@ -544,7 +526,7 @@ def get_store_card(db: Session, app_id: str) -> dict[str, Any] | None:
     if not app_id.isdigit():
         return None
 
-    now = _utcnow()
+    now = now_naive()
     row = db.get(SteamApp, app_id)
     needs_refresh = (
         row is None

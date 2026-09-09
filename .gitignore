@@ -38,6 +38,9 @@ frontend/uploads/
 uploads/
 **/.secret_key
 
+# Playwright MCP local dumps
+.playwright-mcp/
+
 # Local scratch
 frontend/scripts/ocr-keybox-samples/
 .dev/

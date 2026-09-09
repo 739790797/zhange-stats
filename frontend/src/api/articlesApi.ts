@@ -17,6 +17,7 @@ export type ArticleAuthor = components["schemas"]["ArticleAuthorOut"];
 export type ArticleVersionListItem = components["schemas"]["ArticleVersionListItemOut"];
 export type ArticleVersionDetail = components["schemas"]["ArticleVersionDetailOut"];
 export type ArticleAuthorsPutIn = components["schemas"]["ArticleAuthorsPutIn"];
+export type ArticleAssetOut = components["schemas"]["ArticleAssetOut"];
 export type ArticleMathRecognizeOut =
   components["schemas"]["ArticleMathRecognizeOut"];
 
@@ -107,7 +108,7 @@ export async function deleteArticle(articleId: number) {
 export async function uploadArticleAsset(file: File) {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await client.post<{ url: string }>("/articles/assets", form, {
+  const { data } = await client.post<ArticleAssetOut>("/articles/assets", form, {
     timeout: 30000,
   });
   return data;

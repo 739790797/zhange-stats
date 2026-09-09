@@ -1,17 +1,16 @@
-"""酒馆文章配图与附件落盘。"""
+"""酒馆文章配图与附件落盘。类型/魔数/大小在本域；写盘与流水号走 user_files。"""
 
 from __future__ import annotations
 
 import io
-import uuid
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.timeutil import now_naive
+from app.services.user_files.store import StoredUserFile, UserFileError, public_file_url, store_bytes
 
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
@@ -69,7 +68,7 @@ def articles_dir() -> Path:
 
 
 def public_asset_url(rel: str) -> str:
-    return f"/uploads/articles/{rel.lstrip('/')}"
+    return public_file_url(f"articles/{rel.lstrip('/')}")
 
 
 def sniff_article_image_ext(raw: bytes) -> str:
@@ -92,9 +91,22 @@ def sniff_article_image_ext(raw: bytes) -> str:
     return ext
 
 
-def write_article_image(raw: bytes) -> str:
+def write_article_image(
+    raw: bytes,
+    *,
+    db: Session,
+    owner_user_id: int | None,
+    filename: str = "",
+) -> StoredUserFile:
     ext = sniff_article_image_ext(raw)
-    return _write_asset(raw, ext)
+    return _write_asset(
+        db,
+        raw,
+        ext,
+        owner_user_id=owner_user_id,
+        filename=filename,
+        content_type=_image_content_type(ext),
+    )
 
 
 def attachment_ext_from_name(filename: str) -> str:
@@ -166,18 +178,65 @@ def sniff_article_attachment_ext(raw: bytes, filename: str) -> str:
     return ext
 
 
-def write_article_attachment(raw: bytes, filename: str) -> str:
+def write_article_attachment(
+    raw: bytes,
+    filename: str,
+    *,
+    db: Session,
+    owner_user_id: int | None,
+) -> StoredUserFile:
     ext = sniff_article_attachment_ext(raw, filename)
-    return _write_asset(raw, ext)
+    return _write_asset(
+        db,
+        raw,
+        ext,
+        owner_user_id=owner_user_id,
+        filename=filename,
+        content_type=_attachment_content_type(ext),
+    )
 
 
-def _write_asset(raw: bytes, ext: str) -> str:
-    stamp: datetime = now_naive()
-    rel = f"{stamp.year:04d}/{stamp.month:02d}/{uuid.uuid4().hex}{ext}"
-    dest = articles_dir() / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(raw)
-    return public_asset_url(rel)
+def _image_content_type(ext: str) -> str:
+    return {
+        ".jpg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }.get(ext, "application/octet-stream")
+
+
+def _attachment_content_type(ext: str) -> str:
+    return {
+        ".pdf": "application/pdf",
+        ".txt": "text/plain",
+        ".md": "text/markdown",
+        ".csv": "text/csv",
+        ".json": "application/json",
+        ".zip": "application/zip",
+    }.get(ext, "application/octet-stream")
+
+
+def _write_asset(
+    db: Session,
+    raw: bytes,
+    ext: str,
+    *,
+    owner_user_id: int | None,
+    filename: str,
+    content_type: str,
+) -> StoredUserFile:
+    try:
+        return store_bytes(
+            db,
+            namespace="articles",
+            raw=raw,
+            ext=ext,
+            original_name=filename,
+            content_type=content_type,
+            owner_user_id=owner_user_id,
+        )
+    except UserFileError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def is_rejected_image_content_type(content_type: str) -> bool:
@@ -187,22 +246,52 @@ def is_rejected_image_content_type(content_type: str) -> bool:
     return declared not in ALLOWED_CONTENT_TYPES
 
 
-async def save_article_image(file: UploadFile) -> str:
+async def save_article_image(
+    file: UploadFile,
+    *,
+    db: Session,
+    owner_user_id: int | None,
+) -> StoredUserFile:
     if is_rejected_image_content_type(file.content_type or ""):
         raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
-    return write_article_image(await file.read())
+    return write_article_image(
+        await file.read(),
+        db=db,
+        owner_user_id=owner_user_id,
+        filename=file.filename or "",
+    )
 
 
-def save_article_bytes(raw: bytes, filename: str = "") -> str:
+def save_article_bytes(
+    raw: bytes,
+    filename: str = "",
+    *,
+    db: Session,
+    owner_user_id: int | None,
+) -> StoredUserFile:
     if not raw:
         raise HTTPException(status_code=400, detail="文件为空")
     name = filename or ""
     if name.lower().endswith(".svg") or _looks_like_htmlish(raw):
         raise HTTPException(status_code=400, detail="不支持的文件类型")
     if looks_like_article_image(raw):
-        return write_article_image(raw)
-    return write_article_attachment(raw, name)
+        return write_article_image(
+            raw, db=db, owner_user_id=owner_user_id, filename=name
+        )
+    return write_article_attachment(
+        raw, name, db=db, owner_user_id=owner_user_id
+    )
 
 
-async def save_article_asset(file: UploadFile) -> str:
-    return save_article_bytes(await file.read(), file.filename or "")
+async def save_article_asset(
+    file: UploadFile,
+    *,
+    db: Session,
+    owner_user_id: int | None,
+) -> StoredUserFile:
+    return save_article_bytes(
+        await file.read(),
+        file.filename or "",
+        db=db,
+        owner_user_id=owner_user_id,
+    )

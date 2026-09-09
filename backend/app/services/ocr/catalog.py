@@ -4,47 +4,54 @@ from __future__ import annotations
 
 from typing import Any
 
-ENGINE_IDS = ("paddle", "easyocr", "tess")
-DEFAULT_PADDLE_PROFILE = "v5_server"
-PADDLE_PROFILE_IDS = ("v5_server", "v6_small", "v6_medium")
-USE_CASE_IDS = ("tarkov_keys", "general")
+from app.services.ocr.paddle_profiles import (
+    DEFAULT_PADDLE_PROFILE,
+    list_paddle_profiles,
+    normalize_paddle_profile,
+    paddle_rapidocr_enums,
+)
+
+ENGINE_IDS = ("paddle", "easyocr")
+USE_CASE_IDS = ("tarkov_keys", "tarkov_raid_prep", "general")
 
 ENGINE_LABELS = {
     "paddle": "熊猫 OCR",
     "easyocr": "EasyOCR",
-    "tess": "Tesseract",
 }
 
-PADDLE_PROFILES: dict[str, dict[str, str]] = {
-    "v5_server": {
-        "label": "PP-OCRv5 server（中英准确，推荐）",
-        "ocr_version": "PP-OCRv5",
-        "model_type": "server",
-    },
-    "v6_small": {
-        "label": "PP-OCRv6 small（体积小、更快）",
-        "ocr_version": "PP-OCRv6",
-        "model_type": "small",
-    },
-    "v6_medium": {
-        "label": "PP-OCRv6 medium（多语更准、包更大）",
-        "ocr_version": "PP-OCRv6",
-        "model_type": "medium",
-    },
+ENGINE_HINTS = {
+    "paddle": "RapidOCR / Paddle ONNX。v5 与 v6 同族，交叉验证不能当两票。",
+    "easyocr": "CRAFT + CRNN，中英。CPU 常驻大约 1–2GB。",
 }
+
+EASYOCR_PROFILES = (
+    {"id": "ch_sim_en", "label": "ch_sim+en"},
+)
 
 USE_CASES: dict[str, dict[str, Any]] = {
     "tarkov_keys": {
         "label": "塔科夫钥匙箱",
-        "hint": "游戏 UI 短名，多引擎交叉验证；切块与闭集匹配仍在塔科夫业务里。",
-        "engines": ["paddle", "easyocr", "tess"],
+        "hint": "游戏 UI 短名。切块与闭集匹配仍在塔科夫业务里。",
+        "engines": ["paddle", "easyocr"],
+        "cross_check": True,
+    },
+    "tarkov_raid_prep": {
+        "label": "塔科夫局前任务",
+        "hint": "任务页截图。列表裁切与闭集匹配仍在塔科夫业务里。默认只开熊猫 OCR。",
+        "engines": ["paddle"],
+        "cross_check": False,
     },
     "general": {
         "label": "通用识别",
-        "hint": "给尚未单独配置的业务用。默认只开熊猫 OCR。",
+        "hint": "给尚未单独配置的业务用。",
         "engines": ["paddle"],
+        "cross_check": False,
     },
 }
+
+
+def engine_has_profiles(engine_id: str) -> bool:
+    return engine_id == "paddle"
 
 
 def normalize_engine_id(value: str) -> str:
@@ -52,22 +59,6 @@ def normalize_engine_id(value: str) -> str:
     if raw in ENGINE_IDS:
         return raw
     return ""
-
-
-def normalize_paddle_profile(value: str | None) -> str:
-    raw = (value or "").strip().lower().replace("-", "_")
-    aliases = {
-        "v5": "v5_server",
-        "ppocrv5": "v5_server",
-        "pp-ocrv5-server": "v5_server",
-        "v6": "v6_small",
-        "v6small": "v6_small",
-        "v6medium": "v6_medium",
-    }
-    raw = aliases.get(raw, raw)
-    if raw in PADDLE_PROFILE_IDS:
-        return raw
-    return DEFAULT_PADDLE_PROFILE
 
 
 def normalize_use_case(value: str | None) -> str:
@@ -84,29 +75,25 @@ def normalize_engine_list(values: Any, *, fallback: list[str]) -> list[str]:
     seen: set[str] = set()
     for item in values:
         engine = normalize_engine_id(str(item))
-        if not engine or engine in seen:
-            continue
-        seen.add(engine)
-        out.append(engine)
+        if engine and engine not in seen:
+            seen.add(engine)
+            out.append(engine)
     return out or list(fallback)
 
 
-def paddle_rapidocr_enums(profile: str) -> dict[str, Any]:
-    from rapidocr import LangDet, LangRec, ModelType, OCRVersion
-
-    meta = PADDLE_PROFILES[normalize_paddle_profile(profile)]
-    versions = {
-        "PP-OCRv5": OCRVersion.PPOCRV5,
-        "PP-OCRv6": OCRVersion.PPOCRV6,
-    }
-    types = {
-        "server": ModelType.SERVER,
-        "small": ModelType.SMALL,
-        "medium": ModelType.MEDIUM,
-    }
-    return {
-        "ocr_version": versions[meta["ocr_version"]],
-        "model_type": types[meta["model_type"]],
-        "det_lang": LangDet.CH,
-        "rec_lang": LangRec.CH,
-    }
+__all__ = [
+    "DEFAULT_PADDLE_PROFILE",
+    "EASYOCR_PROFILES",
+    "ENGINE_HINTS",
+    "ENGINE_IDS",
+    "ENGINE_LABELS",
+    "USE_CASES",
+    "USE_CASE_IDS",
+    "engine_has_profiles",
+    "list_paddle_profiles",
+    "normalize_engine_id",
+    "normalize_engine_list",
+    "normalize_paddle_profile",
+    "normalize_use_case",
+    "paddle_rapidocr_enums",
+]

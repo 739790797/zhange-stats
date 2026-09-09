@@ -268,7 +268,7 @@ def _rewrite_open_tag(match: re.Match[str]) -> str:
 
 
 def promote_palette_styles(html: str) -> str:
-    """把 Halo/Word 的 style 颜色提升成白名单 class，再丢掉 style。"""
+    """把粘贴进来的 style 颜色提升成白名单 class，再丢掉 style。"""
     promoted = _OPEN_TAG.sub(_rewrite_open_tag, html or "")
     return _FONT_CLOSE.sub("</span>", promoted)
 
@@ -298,7 +298,7 @@ def sanitize_html(body: str) -> str:
 
 
 def split_adjacent_file_links(html: str) -> str:
-    """Halo 附件常挤在同一个 p、中间没空白，拆成列表以免文件名连成一串。"""
+    """同一段里连续的附件链接拆成列表，避免文件名挤成一串。"""
 
     def repl(match: re.Match[str]) -> str:
         inner = match.group(1)

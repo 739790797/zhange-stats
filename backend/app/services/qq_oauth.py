@@ -214,7 +214,7 @@ def exchange_code_for_profile(code: str, *, backend: str | None = None) -> QqPro
             )
             unionid = str(union_me.get("unionid") or "").strip() or None
         except QqOAuthError as exc:
-            logger.info("qq unionid unavailable (openid-only bind): %s", exc.message)
+            logger.debug("qq unionid unavailable (openid-only bind): %s", exc.message)
 
     info_qs = urllib.parse.urlencode(
         {
@@ -240,7 +240,11 @@ def exchange_code_for_profile(code: str, *, backend: str | None = None) -> QqPro
                 or None
             )
         else:
-            logger.warning("qq get_user_info failed: %s", info)
+            logger.warning(
+                "qq get_user_info failed ret=%s msg=%s",
+                info.get("ret") if isinstance(info, dict) else None,
+                info.get("msg") if isinstance(info, dict) else info,
+            )
     except Exception:  # noqa: BLE001
         logger.exception("qq get_user_info error")
 

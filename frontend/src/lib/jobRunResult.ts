@@ -34,6 +34,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   extras: "补集",
   barters: "交换",
   crafts: "制作",
+  overlay: "overlay",
 };
 
 const STAT_LABELS: Record<string, string> = {
@@ -58,16 +59,60 @@ const STAT_LABELS: Record<string, string> = {
 };
 
 const HIDDEN_STAT_KEYS = new Set(["percent", "phase"]);
+const DOWNLOAD_STAT_KEYS = new Set([
+  "file",
+  "bytes",
+  "total_bytes",
+  "files_done",
+  "files_total",
+]);
+
+const DOMAIN_STATUSES = new Set([
+  "pending",
+  "downloading",
+  "downloaded",
+  "persisting",
+  "applying",
+  "ok",
+  "error",
+  "skipped",
+]);
+
+export type JobRunDomainStatus =
+  | "pending"
+  | "downloading"
+  | "downloaded"
+  | "persisting"
+  | "applying"
+  | "ok"
+  | "error"
+  | "skipped";
 
 export type JobRunDomainRow = {
   id: string;
   label: string;
   ok: boolean;
+  status: JobRunDomainStatus;
   error?: string;
   source?: string;
   mode?: string;
   syncedAt?: string;
   upstreamAt?: string;
+  bytes?: number;
+  totalBytes?: number;
+};
+
+export type JobRunDownloadProgress = {
+  file: string;
+  phase: string;
+  phaseLabel: string;
+  filesDone: number | null;
+  filesTotal: number | null;
+  bytes: number | null;
+  totalBytes: number | null;
+  filePercent: number | null;
+  bytesText: string;
+  filesText: string;
 };
 
 export type ParsedJobRunMessage =
@@ -98,6 +143,73 @@ export function jobRunAlertType(
   if (status === "error") return "error";
   if (status === "running") return "info";
   return "warning";
+}
+
+export function jobRunDomainModeLabel(mode?: string | null): string {
+  const modeKey = (mode || "").trim().toLowerCase();
+  if (modeKey === "pve") return "PVE";
+  if (modeKey === "pvp" || modeKey === "regular") return "PVP";
+  return "";
+}
+
+export function jobRunPhaseLabel(phase?: string | null): string {
+  switch ((phase || "").trim()) {
+    case "start":
+      return "准备中";
+    case "download":
+      return "下载 dump";
+    case "persist":
+      return "写入数据库";
+    case "overlay":
+      return "下载 overlay";
+    case "apply":
+      return "投影栏目";
+    case "done":
+      return "完成";
+    case "error":
+      return "失败";
+    default:
+      return "";
+  }
+}
+
+export function jobRunDomainStatusLabel(status?: string | null): string {
+  switch (status) {
+    case "pending":
+      return "等待";
+    case "downloading":
+      return "下载中";
+    case "downloaded":
+      return "已下载";
+    case "persisting":
+      return "写入中";
+    case "applying":
+      return "投影中";
+    case "ok":
+      return "成功";
+    case "error":
+      return "失败";
+    case "skipped":
+      return "跳过";
+    default:
+      return status || "未知";
+  }
+}
+
+export function jobRunDomainStatusColor(
+  status?: string | null,
+): "default" | "processing" | "success" | "error" | "blue" {
+  if (status === "ok") return "success";
+  if (status === "error") return "error";
+  if (
+    status === "downloading" ||
+    status === "persisting" ||
+    status === "applying"
+  ) {
+    return "processing";
+  }
+  if (status === "downloaded") return "blue";
+  return "default";
 }
 
 export function jobRunDomainLabel(id: string, mode?: string | null): string {
@@ -139,23 +251,48 @@ export function jobRunAgeLabel(
   return `${Math.round(hours / 24)} 天前`;
 }
 
+export function jobRunUpstreamText(
+  row: Pick<JobRunDomainRow, "upstreamAt">,
+  nowMs?: number,
+): string {
+  if (!row.upstreamAt) return "";
+  const age = jobRunAgeLabel(row.upstreamAt, nowMs);
+  return age
+    ? `上游 ${formatJobRunClock(row.upstreamAt)}（${age}）`
+    : `上游 ${formatJobRunClock(row.upstreamAt)}`;
+}
+
+export function jobRunSyncedText(
+  row: Pick<JobRunDomainRow, "syncedAt">,
+): string {
+  if (!row.syncedAt) return "";
+  return formatJobRunClock(row.syncedAt);
+}
+
 export function jobRunFreshnessText(
   row: Pick<JobRunDomainRow, "syncedAt" | "upstreamAt">,
   nowMs?: number,
 ): string {
   const parts: string[] = [];
-  if (row.upstreamAt) {
-    const age = jobRunAgeLabel(row.upstreamAt, nowMs);
-    parts.push(
-      age
-        ? `上游 ${formatJobRunClock(row.upstreamAt)}（${age}）`
-        : `上游 ${formatJobRunClock(row.upstreamAt)}`,
-    );
-  }
-  if (row.syncedAt) {
-    parts.push(`落库 ${formatJobRunClock(row.syncedAt)}`);
-  }
+  const upstream = jobRunUpstreamText(row, nowMs);
+  if (upstream) parts.push(upstream);
+  const synced = jobRunSyncedText(row);
+  if (synced) parts.push(`落库 ${synced}`);
   return parts.join(" · ");
+}
+
+export function jobRunDomainProgressText(
+  row: Pick<JobRunDomainRow, "status" | "bytes" | "totalBytes" | "upstreamAt">,
+  nowMs?: number,
+): string {
+  if (row.status === "downloading") {
+    const cur = formatJobRunBytes(row.bytes);
+    const total = formatJobRunBytes(row.totalBytes);
+    if (cur && total) return `${cur} / ${total}`;
+    if (cur) return cur;
+    return "";
+  }
+  return jobRunUpstreamText(row, nowMs);
 }
 
 export function jobRunFreshnessSummary(
@@ -234,6 +371,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function parseDomainStatus(row: Record<string, unknown>): JobRunDomainStatus {
+  const raw = String(row.status || "").trim();
+  if (DOMAIN_STATUSES.has(raw)) return raw as JobRunDomainStatus;
+  if (row.ok === true) return "ok";
+  if (row.error) return "error";
+  return "pending";
+}
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
 function parseDomainRow(value: unknown): JobRunDomainRow | null {
   const row = asRecord(value);
   if (!row) return null;
@@ -245,15 +396,76 @@ function parseDomainRow(value: unknown): JobRunDomainRow | null {
   const syncedAt = row.synced_at == null ? undefined : String(row.synced_at);
   const upstreamAt =
     row.upstream_at == null ? undefined : String(row.upstream_at);
+  const status = parseDomainStatus(row);
   return {
     id,
     label: jobRunDomainLabel(id, mode),
-    ok: row.ok === true,
+    ok: row.ok === true || status === "ok",
+    status,
     error,
     source,
     mode,
     syncedAt,
     upstreamAt,
+    bytes: parseOptionalNumber(row.bytes),
+    totalBytes: parseOptionalNumber(row.total_bytes),
+  };
+}
+
+export function jobRunProgressRows(
+  run: JobRunLike | null | undefined,
+): JobRunDomainRow[] {
+  const fromStats = run?.stats?.domains;
+  if (Array.isArray(fromStats)) {
+    return fromStats
+      .map(parseDomainRow)
+      .filter((row): row is JobRunDomainRow => Boolean(row));
+  }
+  const parsed = parseJobRunMessage(run?.message);
+  return parsed?.kind === "domains" ? parsed.domains : [];
+}
+
+export function jobRunDownloadProgress(
+  stats: Record<string, unknown> | null | undefined,
+): JobRunDownloadProgress | null {
+  if (!stats) return null;
+  const phase = String(stats.phase || "");
+  const file = stats.file == null ? "" : String(stats.file);
+  const bytes = parseOptionalNumber(stats.bytes) ?? null;
+  const totalBytes = parseOptionalNumber(stats.total_bytes) ?? null;
+  const filesDone = parseOptionalNumber(stats.files_done) ?? null;
+  const filesTotal = parseOptionalNumber(stats.files_total) ?? null;
+  const downloadPhase = phase === "download" || phase === "overlay";
+  const has =
+    downloadPhase ||
+    Boolean(file) ||
+    bytes != null ||
+    (filesTotal != null && filesTotal > 0);
+  if (!has) return null;
+  let filePercent: number | null = null;
+  if (totalBytes != null && totalBytes > 0 && bytes != null) {
+    filePercent = Math.max(0, Math.min(100, Math.round((bytes * 100) / totalBytes)));
+  }
+  const bytesPart = formatJobRunBytes(bytes);
+  const totalPart = formatJobRunBytes(totalBytes);
+  let bytesText = "";
+  if (bytesPart && totalPart) bytesText = `${bytesPart} / ${totalPart}`;
+  else if (bytesPart) bytesText = bytesPart;
+  const filesText =
+    filesDone != null && filesTotal != null
+      ? `${filesDone} / ${filesTotal} 个文件`
+      : "";
+  return {
+    file,
+    phase,
+    phaseLabel: jobRunPhaseLabel(phase),
+    filesDone,
+    filesTotal,
+    bytes,
+    totalBytes,
+    filePercent,
+    bytesText,
+    filesText,
   };
 }
 
@@ -306,15 +518,15 @@ export function jobRunSummaryText(
 
 export function jobRunStatEntries(
   stats: Record<string, unknown> | null | undefined,
+  opts?: { omitDownload?: boolean },
 ): Array<{ key: string; label: string; value: string }> {
   if (!stats) return [];
   return Object.entries(stats)
-    .filter(
-      ([key, value]) =>
-        !HIDDEN_STAT_KEYS.has(key) &&
-        value != null &&
-        typeof value !== "object",
-    )
+    .filter(([key, value]) => {
+      if (HIDDEN_STAT_KEYS.has(key)) return false;
+      if (opts?.omitDownload && DOWNLOAD_STAT_KEYS.has(key)) return false;
+      return value != null && typeof value !== "object";
+    })
     .map(([key, value]) => {
       let text = String(value);
       if (key === "bytes" || key === "total_bytes") {

@@ -24,8 +24,9 @@ import { JobRunResultModal } from "@/components/JobRunResultModal";
 import { AdminStepUpModal } from "@/components/AdminStepUpModal";
 import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
+import { BrandLogo } from "@/components/BrandLogo";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { featureIconName } from "@/lib/platformIcons";
+import { featureTreeIcon } from "@/lib/platformIcons";
 import type { JobRunWatch } from "@/lib/jobRunResult";
 import type { PlatformFeaturesUpdate } from "@/api/settingsApi";
 import { useAuthStore } from "@/stores/authStore";
@@ -95,10 +96,7 @@ function FeatureRow({
   const reserved = Boolean(node.reserved);
   const canEdit = parentOk && !reserved;
   const jobDraft = node.job_id ? jobs[node.job_id] : undefined;
-  const iconName =
-    node.kind === "platform" || node.kind === "game"
-      ? featureIconName(node.id)
-      : null;
+  const icon = featureTreeIcon(node.id, node.kind);
   const canManualRun =
     Boolean(node.job_id) &&
     (node.schedule === "cron" || node.schedule === "interval") &&
@@ -128,7 +126,22 @@ function FeatureRow({
               minWidth: 0,
             }}
           >
-            {iconName ? <PlatformIcon name={iconName} size={18} /> : null}
+            {icon === "brand" ? (
+              <span
+                className="anticon"
+                role="img"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <BrandLogo size={22} color="#1a2332" title="战鸽数据" />
+              </span>
+            ) : icon ? (
+              <PlatformIcon name={icon} size={18} />
+            ) : null}
             <Typography.Text strong={depth === 0}>{node.name}</Typography.Text>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {node.kind === "platform"

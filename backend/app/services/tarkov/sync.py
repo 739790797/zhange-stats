@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -47,6 +48,7 @@ def _domain_row(
     row: dict[str, Any] = {
         "id": domain_id,
         "ok": ok,
+        "status": "ok" if ok else "error",
         "error": error,
         "mode": parse_game_mode(),
     }
@@ -185,45 +187,328 @@ _APPLY_STEPS: tuple[tuple[str, Any, type[Exception]], ...] = (
     ("locks", lambda db, dump: _seed_locks(dump), key_packs_svc.TarkovKeyPacksError),
 )
 
+APPLY_DOMAIN_IDS: tuple[str, ...] = (
+    "overlay",
+    *(step[0] for step in _APPLY_STEPS),
+    "extras",
+)
 
-def _sync_current_mode(db: Session, *, lang: str = "zh") -> list[dict[str, Any]]:
+ProgressFn = Callable[[str, dict[str, Any]], None]
+
+_DONE_STATUSES = frozenset({"ok", "error", "skipped", "downloaded", "persisting"})
+_FLUSH_PHASES = frozenset(
+    {"start", "persist", "apply", "overlay", "done", "error"}
+)
+
+
+def format_full_sync_message(phase: str, **kwargs: Any) -> str:
+    file = str(kwargs.get("file") or "")
+    index = kwargs.get("index")
+    total = kwargs.get("total")
+    if phase == "download":
+        if index and total:
+            return f"正在下载 {file or 'dump'}（{index}/{total}）"
+        return f"正在下载 {file or 'dump'}"
+    if phase == "persist":
+        return f"正在写入 {file or 'dump'}…"
+    if phase == "overlay":
+        return "正在下载 overlay…"
+    if phase == "apply":
+        return f"正在投影 {file or '栏目'}…"
+    if phase == "done":
+        return "全量更新完成"
+    if phase == "error":
+        return str(kwargs.get("error") or "全量更新失败")
+    return "正在全量更新…"
+
+
+def planned_full_sync_domains(
+    modes: Sequence[str], *, lang: str = "zh"
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for mode in modes:
+        for _resource, _res_lang, domain_id in upstream_svc.site_dump_specs(lang=lang):
+            rows.append(_pending_row(domain_id, mode))
+        for domain_id in APPLY_DOMAIN_IDS:
+            rows.append(_pending_row(domain_id, mode))
+    return rows
+
+
+def _pending_row(domain_id: str, mode: str) -> dict[str, Any]:
+    return {
+        "id": domain_id,
+        "ok": False,
+        "status": "pending",
+        "error": None,
+        "mode": mode,
+        "source": None,
+        "synced_at": None,
+        "upstream_at": None,
+    }
+
+
+def _progress_percent(
+    domains: Sequence[dict[str, Any]], *, byte_frac: float = 0.0
+) -> int:
+    total = len(domains)
+    if total <= 0:
+        return 0
+    done = sum(1 for row in domains if row.get("status") in _DONE_STATUSES)
+    running = any(
+        row.get("status") in {"downloading", "applying"} for row in domains
+    )
+    frac = max(0.0, min(1.0, byte_frac)) if running else 0.0
+    return max(0, min(99, int(100 * (done + frac) / total)))
+
+
+class _SyncProgress:
+    def __init__(self, domains: list[dict[str, Any]], emit: ProgressFn | None):
+        self.domains = domains
+        self._emit = emit
+        self.mode = ""
+
+    def set_mode(self, mode: str) -> None:
+        self.mode = mode
+
+    def _row(self, domain_id: str) -> dict[str, Any] | None:
+        for row in self.domains:
+            if row.get("id") == domain_id and row.get("mode") == self.mode:
+                return row
+        return None
+
+    def patch(self, domain_id: str, **fields: Any) -> dict[str, Any] | None:
+        row = self._row(domain_id)
+        if row is None:
+            return None
+        row.update(fields)
+        return row
+
+    def fail_dumps(self, error: str) -> None:
+        for row in self.domains:
+            if row.get("mode") != self.mode:
+                continue
+            ident = str(row.get("id") or "")
+            if ident.startswith("dump:") and row.get("status") not in {"ok", "error"}:
+                row["status"] = "error"
+                row["ok"] = False
+                row["error"] = error
+            elif row.get("status") == "pending":
+                row["status"] = "skipped"
+                row["ok"] = False
+                row["error"] = "dump 未完成"
+
+    def emit(self, phase: str, **kwargs: Any) -> None:
+        if self._emit is None:
+            return
+        byte_frac = 0.0
+        bytes_n = kwargs.get("bytes")
+        total_bytes = kwargs.get("total_bytes")
+        try:
+            if total_bytes and bytes_n is not None and float(total_bytes) > 0:
+                byte_frac = float(bytes_n) / float(total_bytes)
+        except (TypeError, ValueError):
+            byte_frac = 0.0
+        percent = 100 if phase == "done" else _progress_percent(
+            self.domains, byte_frac=byte_frac
+        )
+        stats: dict[str, Any] = {
+            "phase": phase,
+            "percent": percent,
+            "domains": [dict(row) for row in self.domains],
+        }
+        for key in ("file", "bytes", "total_bytes", "files_done", "files_total"):
+            if kwargs.get(key) is not None:
+                stats[key] = kwargs[key]
+        self._emit(format_full_sync_message(phase, **kwargs), stats)
+
+
+def _sync_current_mode(
+    db: Session,
+    *,
+    lang: str = "zh",
+    tracker: _SyncProgress | None = None,
+) -> list[dict[str, Any]]:
     mode = parse_game_mode()
     logger.info("tarkov full site dump (%s)", mode)
+    if tracker is not None:
+        tracker.set_mode(mode)
     domains: list[dict[str, Any]] = []
-    try:
-        dump, upstream_times = upstream_svc.download_site_json(lang=lang)
-        domains.extend(
-            upstream_svc.persist_site_json(
-                db, dump, lang=lang, upstream_times=upstream_times
+    dump_specs = upstream_svc.site_dump_specs(lang=lang)
+    dump_total = len(dump_specs)
+
+    def on_download(event: dict[str, Any]) -> None:
+        if tracker is None:
+            return
+        domain_id = str(event.get("domain_id") or "")
+        error = event.get("error")
+        done = bool(event.get("done"))
+        index = int(event.get("index") or 0)
+        total = int(event.get("total") or dump_total)
+        if error:
+            tracker.patch(
+                domain_id, status="error", ok=False, error=str(error)
             )
+        elif done:
+            tracker.patch(domain_id, status="downloaded", ok=False, error=None)
+            row = tracker._row(domain_id)
+            if row is not None:
+                row.pop("bytes", None)
+                row.pop("total_bytes", None)
+        else:
+            tracker.patch(
+                domain_id,
+                status="downloading",
+                ok=False,
+                bytes=event.get("bytes") or 0,
+                total_bytes=event.get("total_bytes"),
+            )
+        files_done = index if done else max(0, index - 1)
+        tracker.emit(
+            "download",
+            file=event.get("file"),
+            index=index,
+            total=total,
+            bytes=event.get("bytes"),
+            total_bytes=event.get("total_bytes"),
+            files_done=files_done,
+            files_total=total,
         )
+
+    def on_persist(event: dict[str, Any]) -> None:
+        if tracker is None:
+            return
+        domain_id = str(event.get("domain_id") or "")
+        tracker.patch(domain_id, status="persisting", ok=False)
+        tracker.emit(
+            "persist",
+            file=event.get("file"),
+            index=event.get("index"),
+            total=event.get("total"),
+            files_done=max(0, int(event.get("index") or 1) - 1),
+            files_total=event.get("total") or dump_total,
+        )
+
+    try:
+        if tracker is not None:
+            first = dump_specs[0][0] if dump_specs else "dump"
+            tracker.emit(
+                "download",
+                file=first,
+                index=1,
+                total=dump_total,
+                files_done=0,
+                files_total=dump_total,
+            )
+        dump, upstream_times = upstream_svc.download_site_json(
+            lang=lang, on_progress=on_download
+        )
+        persist_rows = upstream_svc.persist_site_json(
+            db,
+            dump,
+            lang=lang,
+            upstream_times=upstream_times,
+            on_progress=on_persist,
+        )
+        domains.extend(persist_rows)
+        if tracker is not None:
+            for row in persist_rows:
+                tracker.patch(
+                    str(row.get("id") or ""),
+                    status="ok" if row.get("ok") else "error",
+                    ok=bool(row.get("ok")),
+                    error=row.get("error"),
+                    source=row.get("source"),
+                    synced_at=row.get("synced_at"),
+                    upstream_at=row.get("upstream_at"),
+                )
     except upstream_svc.TarkovUpstreamError as exc:
         logger.warning("tarkov site dump failed (%s): %s", mode, exc)
+        if tracker is not None:
+            tracker.fail_dumps(str(exc))
+            tracker.emit("error", error=str(exc))
         return [
             _domain_row("dump", ok=False, error=str(exc)),
         ]
 
     try:
-        overlay = overlay_svc.sync_overlay(db)
+        if tracker is not None:
+            tracker.patch("overlay", status="downloading", ok=False)
+            tracker.emit("overlay", file="overlay")
+
+        def overlay_bytes(n: int, total: int | None) -> None:
+            if tracker is None:
+                return
+            tracker.patch(
+                "overlay",
+                status="downloading",
+                ok=False,
+                bytes=n,
+                total_bytes=total,
+            )
+            tracker.emit("overlay", file="overlay", bytes=n, total_bytes=total)
+
+        overlay = overlay_svc.sync_overlay(db, on_bytes=overlay_bytes)
         domains.append(_domain_row("overlay", ok=True, result=overlay))
+        if tracker is not None:
+            tracker.patch(
+                "overlay",
+                status="ok",
+                ok=True,
+                error=None,
+                source=overlay.get("source"),
+                synced_at=overlay.get("synced_at"),
+                upstream_at=overlay.get("upstream_at"),
+            )
     except overlay_svc.TarkovOverlayError as exc:
         logger.warning("tarkov overlay dump failed (%s): %s", mode, exc)
         domains.append(_domain_row("overlay", ok=False, error=str(exc)))
+        if tracker is not None:
+            tracker.patch("overlay", status="error", ok=False, error=str(exc))
 
     for domain_id, fn, error_cls in _APPLY_STEPS:
+        if tracker is not None:
+            tracker.patch(domain_id, status="applying", ok=False)
+            tracker.emit("apply", file=domain_id)
         try:
             result = fn(db, dump)
             domains.append(_domain_row(domain_id, ok=True, result=result))
+            if tracker is not None:
+                tracker.patch(
+                    domain_id,
+                    status="ok",
+                    ok=True,
+                    error=None,
+                    source=result.get("source"),
+                    synced_at=result.get("synced_at"),
+                    upstream_at=result.get("upstream_at"),
+                )
         except error_cls as exc:
             logger.warning("tarkov full sync %s failed: %s", domain_id, exc)
             domains.append(_domain_row(domain_id, ok=False, error=str(exc)))
+            if tracker is not None:
+                tracker.patch(domain_id, status="error", ok=False, error=str(exc))
 
+    if tracker is not None:
+        tracker.patch("extras", status="applying", ok=False)
+        tracker.emit("apply", file="extras")
     try:
         extras = _apply_extras(db, dump)
         domains.append(_domain_row("extras", ok=True, result=extras))
+        if tracker is not None:
+            tracker.patch(
+                "extras",
+                status="ok",
+                ok=True,
+                error=None,
+                source=extras.get("source"),
+                synced_at=extras.get("synced_at"),
+                upstream_at=extras.get("upstream_at"),
+            )
     except upstream_svc.TarkovUpstreamError as exc:
         logger.warning("tarkov extras dump failed: %s", exc)
         domains.append(_domain_row("extras", ok=False, error=str(exc)))
+        if tracker is not None:
+            tracker.patch("extras", status="error", ok=False, error=str(exc))
 
     return domains
 
@@ -233,12 +518,16 @@ def sync_all_from_upstream(
     *,
     game_mode: str | None = None,
     lang: str = "zh",
+    progress: ProgressFn | None = None,
 ) -> dict[str, Any]:
     """拉齐 json.tarkov.dev 全文件；raw 只写一次，再派生弹药/枪械。 extras 从 dump 投影。"""
+    modes = sync_modes(game_mode)
+    tracker = _SyncProgress(planned_full_sync_domains(modes, lang=lang), progress)
+    tracker.emit("start")
     domains: list[dict[str, Any]] = []
-    for mode in sync_modes(game_mode):
+    for mode in modes:
         with game_mode_scope(mode):
-            domains.extend(_sync_current_mode(db, lang=lang))
+            domains.extend(_sync_current_mode(db, lang=lang, tracker=tracker))
 
     ok_count = sum(1 for row in domains if row["ok"])
     failed_count = len(domains) - ok_count
@@ -247,6 +536,7 @@ def sync_all_from_upstream(
             f"{row['id']}: {row.get('error') or '失败'}" for row in domains
         )
         raise TarkovFullSyncError(f"全量同步失败：{detail}")
+    tracker.emit("done")
     return {
         "ok_count": ok_count,
         "failed_count": failed_count,
@@ -255,43 +545,113 @@ def sync_all_from_upstream(
     }
 
 
+def _write_job_run(
+    run_id: int,
+    *,
+    status: str | None = None,
+    message: str | None = None,
+    stats: dict[str, Any] | None = None,
+    finished: bool = False,
+) -> None:
+    from app.core.database import SessionLocal
+    from app.models.job_run import JobRun
+
+    db = SessionLocal()
+    try:
+        row = db.get(JobRun, run_id)
+        if row is None:
+            return
+        if message is not None:
+            row.message = message
+        if stats is not None:
+            row.stats = stats
+        if status is not None:
+            row.status = status
+        if finished:
+            row.finished_at = now_naive()
+        db.commit()
+    except Exception:
+        logger.exception("tarkov full sync job_run write failed")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _domain_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": row.get("id"),
+        "ok": row.get("ok"),
+        "status": row.get("status") or ("ok" if row.get("ok") else "error"),
+        "error": row.get("error"),
+        "source": row.get("source"),
+        "mode": row.get("mode"),
+        "synced_at": row.get("synced_at"),
+        "upstream_at": row.get("upstream_at"),
+    }
+
+
 def full_sync_job_wrapper() -> None:
     from app.core.database import SessionLocal
     from app.models.job_run import JobRun
 
     db = SessionLocal()
-    job = JobRun(job_key=FULL_SYNC_JOB_KEY, status="running")
-    db.add(job)
+    run = JobRun(
+        job_key=FULL_SYNC_JOB_KEY,
+        status="running",
+        message=format_full_sync_message("start"),
+        stats={
+            "phase": "start",
+            "percent": 0,
+            "domains": planned_full_sync_domains(sync_modes(), lang="zh"),
+        },
+    )
+    db.add(run)
     db.commit()
+    run_id = int(run.id)
+    db.close()
+
+    last_at = 0.0
+
+    def progress(message: str, stats: dict[str, Any]) -> None:
+        nonlocal last_at
+        now = time.monotonic()
+        phase = str(stats.get("phase") or "")
+        force = phase in _FLUSH_PHASES
+        if not force and now - last_at < 0.45:
+            return
+        last_at = now
+        _write_job_run(run_id, message=message, stats=stats)
+
+    db = SessionLocal()
     try:
-        result = sync_all_from_upstream(db)
-        job.status = "ok" if int(result.get("failed_count") or 0) == 0 else "error"
-        job.message = json.dumps(
-            {
-                "ok_count": result.get("ok_count"),
-                "failed_count": result.get("failed_count"),
-                "domains": [
-                    {
-                        "id": row.get("id"),
-                        "ok": row.get("ok"),
-                        "error": row.get("error"),
-                        "source": row.get("source"),
-                        "mode": row.get("mode"),
-                        "synced_at": row.get("synced_at"),
-                        "upstream_at": row.get("upstream_at"),
-                    }
-                    for row in result.get("domains") or []
-                ],
+        result = sync_all_from_upstream(db, progress=progress)
+        failed = int(result.get("failed_count") or 0)
+        payload = {
+            "ok_count": result.get("ok_count"),
+            "failed_count": failed,
+            "domains": [
+                _domain_payload(row) for row in result.get("domains") or []
+            ],
+        }
+        _write_job_run(
+            run_id,
+            status="ok" if failed == 0 else "error",
+            message=json.dumps(payload, ensure_ascii=False),
+            stats={
+                "phase": "done" if failed == 0 else "error",
+                "percent": 100,
+                "domains": payload["domains"],
             },
-            ensure_ascii=False,
+            finished=True,
         )
-        job.finished_at = now_naive()
-        db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("tarkov full sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
+        _write_job_run(
+            run_id,
+            status="error",
+            message=str(exc),
+            stats={"phase": "error", "percent": 0},
+            finished=True,
+        )
     finally:
         db.close()

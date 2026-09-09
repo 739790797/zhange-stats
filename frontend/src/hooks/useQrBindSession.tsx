@@ -1,5 +1,6 @@
-import { Button, Spin, Typography } from "antd";
+import { Button, Typography } from "antd";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { NestedSpin } from "@/components/NestedSpin";
 import { apiError } from "@/lib/apiError";
 import type { PhoneAuthMode } from "@/lib/phoneAuth";
 
@@ -117,7 +118,7 @@ export function useQrBindSession({
         }}
       >
         {qrLoading ? (
-          <Spin tip="生成中" />
+          <NestedSpin tip="生成中" minHeight={120} />
         ) : qr?.qr_image ? (
           <img
             src={qr.qr_image}

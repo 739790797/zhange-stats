@@ -15,8 +15,13 @@ describe("isAdminUser", () => {
     expect(isAdminUser({ role: "admin" })).toBe(true);
   });
 
-  it("accepts derived is_admin", () => {
-    expect(isAdminUser({ role: "user", is_admin: true })).toBe(true);
+  it("rejects derived is_admin when role is user", () => {
+    expect(isAdminUser({ role: "user", is_admin: true })).toBe(false);
+  });
+
+  it("falls back to is_admin only when role is missing", () => {
+    expect(isAdminUser({ is_admin: true })).toBe(true);
+    expect(isAdminUser({ role: "", is_admin: true })).toBe(true);
   });
 
   it("rejects plain user", () => {

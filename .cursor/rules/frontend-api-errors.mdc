@@ -15,7 +15,7 @@ alwaysApply: false
 
 ## 禁止
 
-- 页面/组件内 `axios.create` 或裸 `fetch` 调本后端（上传等特例须行内注释说明）
+- 页面/组件内 `axios.create` 或裸 `fetch` 调本后端（上传等特例须行内注释说明）。公开 `GET /health` 探活允许裸 `fetch`（无 Cookie / CSRF），同样须行内注释
 - `catch` 里手拆 `e.response.data.detail` / `formatRequestError` 作为新代码默认路径
 - 在页面复制大型响应 interface（应 `components["schemas"][...]`）
 

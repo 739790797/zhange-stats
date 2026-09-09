@@ -4,6 +4,7 @@ import {
   communityGameRank,
   displayCheckinChannelName,
   formatCheckinTime,
+  formatRoleNameChannel,
   platformRank,
 } from "./checkinDisplay";
 
@@ -30,5 +31,15 @@ describe("checkinDisplay", () => {
   it("pads checkin clock", () => {
     expect(formatCheckinTime(8, 5)).toBe("08:05");
     expect(formatCheckinTime(0, 0)).toBe("00:00");
+  });
+
+  it("omits empty channel from role labels", () => {
+    expect(formatRoleNameChannel("白衣#5820", "官服")).toBe("白衣#5820 · 官服");
+    expect(formatRoleNameChannel("白衣#5820", "官服", "paren")).toBe(
+      "白衣#5820（官服）",
+    );
+    expect(formatRoleNameChannel("289253581", "")).toBe("289253581");
+    expect(formatRoleNameChannel("289253581", "  ", "paren")).toBe("289253581");
+    expect(formatRoleNameChannel("", "官服")).toBe("官服");
   });
 });

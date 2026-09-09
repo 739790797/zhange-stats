@@ -3,7 +3,7 @@ from __future__ import annotations
 import hmac
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -20,10 +20,6 @@ PURPOSE_BIND = "bind"
 PURPOSE_RESET = "reset"
 PURPOSE_DELETE = "delete"
 PURPOSE_STEPUP = "admin_stepup"
-
-
-def _utcnow() -> datetime:
-    return now_naive()
 
 
 def _gen_code() -> str:
@@ -51,7 +47,7 @@ def _upsert_register_challenge(
     cfg = load_email_config(db)
     expire_minutes = max(1, int(cfg.get("code_expire_minutes") or 15))
     code = _gen_code()
-    expires = _utcnow() + timedelta(minutes=expire_minutes)
+    expires = now_naive() + timedelta(minutes=expire_minutes)
     row = (
         db.query(RegisterChallenge)
         .filter(
@@ -132,7 +128,7 @@ def _consume_register_challenge(
     )
     if not row:
         raise HTTPException(status_code=400, detail="请先发送验证码")
-    if to_naive(row.expires_at) < _utcnow():
+    if to_naive(row.expires_at) < now_naive():
         raise HTTPException(status_code=400, detail="验证码已过期，请重新获取")
     provided = code.strip()
     if len(provided) != len(row.code) or not hmac.compare_digest(row.code, provided):

@@ -11,6 +11,8 @@ import threading
 import time
 from typing import Any
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
+
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
@@ -31,9 +33,15 @@ def ephemeral_set(key: str, value: str, *, ttl_sec: int) -> None:
     if r is not None:
         try:
             r.setex(key, int(ttl_sec), value)
+            clear_log_until_change("ephemeral_kv.set")
             return
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ephemeral_kv set Redis failed (%s), fallback memory", exc)
+            log_until_change(
+                logger,
+                "ephemeral_kv.set",
+                "ephemeral_kv set Redis failed (%s), fallback memory",
+                exc,
+            )
     expires = time.time() + float(ttl_sec)
     with _lock:
         _purge_memory_locked(time.time())
@@ -45,12 +53,18 @@ def ephemeral_get(key: str) -> str | None:
     if r is not None:
         try:
             val = r.get(key)
+            clear_log_until_change("ephemeral_kv.get")
             if val is not None:
                 return str(val)
             # Redis miss：不回退读内存，避免双写不一致
             return None
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ephemeral_kv get Redis failed (%s), fallback memory", exc)
+            log_until_change(
+                logger,
+                "ephemeral_kv.get",
+                "ephemeral_kv get Redis failed (%s), fallback memory",
+                exc,
+            )
     now = time.time()
     with _lock:
         _purge_memory_locked(now)
@@ -69,8 +83,11 @@ def ephemeral_delete(key: str) -> None:
     if r is not None:
         try:
             r.delete(key)
+            clear_log_until_change("ephemeral_kv.delete")
         except Exception as exc:  # noqa: BLE001
-            logger.warning("ephemeral_kv delete Redis failed (%s)", exc)
+            log_until_change(
+                logger, "ephemeral_kv.delete", "ephemeral_kv delete Redis failed (%s)", exc
+            )
     with _lock:
         _memory.pop(key, None)
 

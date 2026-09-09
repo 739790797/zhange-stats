@@ -30,7 +30,6 @@ export function formatOcrProgress(status: string, progress?: number): string {
 const KEY_OCR_ENGINE_LABELS: Record<string, string> = {
   paddle: "熊猫 OCR",
   easyocr: "EasyOCR",
-  tess: "Tesseract",
 };
 
 export function formatKeyOcrEngines(engines?: string[] | null): string {

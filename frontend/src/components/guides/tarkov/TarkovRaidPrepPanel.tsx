@@ -980,7 +980,7 @@ export function TarkovRaidPrepPanel() {
       <TarkovRaidPrepOcrModal
         open={ocrOpen}
         onClose={() => setOcrOpen(false)}
-        catalog={catalog}
+        mapSlug={mapId}
         selectedIds={selected}
         onConfirm={(ids) => {
           patchParams((params) => {

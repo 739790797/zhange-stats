@@ -29,12 +29,12 @@ describe("articleTiptap", () => {
     expect(html).toMatch(/<hr\b/);
   });
 
-  it("keeps halo figure captions and drops javascript images", () => {
+  it("keeps figure captions and drops javascript images", () => {
     const html = roundtrip(
-      '<figure><img src="/uploads/articles/halo/a.png" alt="图"><figcaption>图注</figcaption></figure><p><img src="javascript:alert(1)" alt="x"></p>',
+      '<figure><img src="/uploads/articles/2026/09/a.png" alt="图"><figcaption>图注</figcaption></figure><p><img src="javascript:alert(1)" alt="x"></p>',
     );
     expect(html).toContain("<figure>");
-    expect(html).toContain("/uploads/articles/halo/a.png");
+    expect(html).toContain("/uploads/articles/2026/09/a.png");
     expect(html).toContain("<figcaption>");
     expect(html).toContain("图注");
     expect(html).not.toContain("javascript:");

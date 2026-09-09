@@ -59,6 +59,7 @@ from app.api.guides.schemas import (
     TarkovKeyOwnsIn,
     TarkovKeyOwnsOut,
     TarkovKeyOcrOut,
+    TarkovRaidPrepOcrOut,
     TarkovCollectionOut,
     TarkovCollectionOwnsIn,
     TarkovCollectionOwnsOut,
@@ -90,6 +91,7 @@ from app.services.tarkov import workbench_image as workbench_image_svc
 from app.services.tarkov import community as community_svc
 from app.services.tarkov import key_owns as key_owns_svc
 from app.services.tarkov import key_ocr as key_ocr_svc
+from app.services.tarkov import raid_prep_ocr as raid_prep_ocr_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import collection as collection_svc
@@ -801,6 +803,62 @@ def guides_tarkov_raid_prep(
     return _catalog_ok(
         response, etag, TarkovRaidPrepOut.model_validate(result)
     )
+
+
+@router.post(
+    "/raid-prep/recognize",
+    response_model=TarkovRaidPrepOcrOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+async def guides_tarkov_raid_prep_recognize(
+    request: Request,
+    map_slug: str = Query(..., alias="map", max_length=64),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """局前任务页截图识别；图只进内存。裁列表区后按配置引擎读任务名，对照当前地图闭集匹配。"""
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-raid-prep-ocr:ip:{ip}", limit=8, window_sec=600)
+    platform_limiter.hit(
+        f"tarkov-raid-prep-ocr:uid:{user.id}", limit=6, window_sec=600
+    )
+    raw = await file.read(raid_prep_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
+    try:
+        tasks_svc.ensure_tasks(db)
+        prep = tasks_svc.list_raid_prep(db, map_slug)
+    except tasks_svc.TarkovTasksError as exc:
+        msg = str(exc)
+        if msg.startswith("地图无效"):
+            raise HTTPException(status_code=400, detail=msg) from exc
+        raise HTTPException(status_code=502, detail=msg) from exc
+    catalog = raid_prep_ocr_svc.catalog_from_raid_prep(prep.get("items") or [])
+    try:
+        image = raid_prep_ocr_svc.load_image(raw)
+    except OcrError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    if not raid_prep_ocr_svc.is_near_widescreen(image.width, image.height):
+        return TarkovRaidPrepOcrOut.model_validate(
+            raid_prep_ocr_svc.empty_result(width=image.width, height=image.height)
+        )
+    try:
+        recognizers = raid_prep_ocr_svc.resolve_recognizers(db=db)
+    except OcrError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    if not raid_prep_ocr_svc.try_begin_recognize():
+        raise HTTPException(
+            status_code=429,
+            detail="已有识别任务在运行，请稍后再试",
+        )
+    try:
+        result = raid_prep_ocr_svc.recognize_image(
+            image, catalog, recognizers=recognizers, db=db
+        )
+    except OcrError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    finally:
+        raid_prep_ocr_svc.end_recognize()
+    return TarkovRaidPrepOcrOut.model_validate(result)
 
 
 @router.get(

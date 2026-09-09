@@ -245,9 +245,7 @@ def run_migrations() -> None:
         if "present more than once" in msg or "overlaps with other requested revisions" in msg:
             raise RuntimeError(
                 "Alembic 修订号冲突（常见于 v0.2.37 双 0056）。"
-                "请在主机执行应急更新：\n"
-                "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
-                "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
+                "请在主机拉代码后执行 scripts/linux/install.sh 与 scripts/linux/restart.sh"
             ) from exc
         if (
             "Duplicate column" in msg
@@ -256,9 +254,8 @@ def run_migrations() -> None:
         ):
             raise RuntimeError(
                 "迁移半完成（对象已存在但 alembic_version 未前进；常见于 MySQL/MariaDB "
-                "非事务 DDL）。请确认迁移幂等后重试，或执行应急更新：\n"
-                "curl -fsSL https://raw.githubusercontent.com/739790797/zhange-stats/main/"
-                "scripts/emergency_update.sh | sudo SOURCE_REF=main bash"
+                "非事务 DDL）。请确认迁移幂等后重试，或在主机拉代码后执行 "
+                "scripts/linux/install.sh 与 scripts/linux/restart.sh"
             ) from exc
         raise
 

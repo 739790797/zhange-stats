@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import timezone
 from email.utils import parsedate_to_datetime
+from types import SimpleNamespace
 from typing import Any
 
-from app.core.http_client import HttpRequestError, http_request
+from app.core.http_client import HttpRequestError, http_download, http_request
 
 DEFAULT_UA = "zhange-stats/1.0"
 
@@ -27,6 +29,23 @@ def http_last_modified_iso(headers: Any) -> str | None:
     return dt.astimezone(timezone.utc).isoformat()
 
 
+def _raise_http_error(
+    url: str,
+    status_code: int,
+    content: bytes,
+    error_cls: type[Exception],
+) -> None:
+    detail = ""
+    try:
+        detail = content.decode("utf-8", errors="replace")[:300]
+    except Exception:  # noqa: BLE001
+        detail = ""
+    msg = f"下载失败 HTTP {status_code}: {url}"
+    if detail:
+        msg = f"{msg} ({detail})"
+    raise error_cls(msg)
+
+
 def download_response(
     url: str,
     *,
@@ -35,29 +54,37 @@ def download_response(
     headers: dict[str, str] | None = None,
     timeout: float | int = 120,
     error_cls: type[Exception] = RuntimeError,
+    on_bytes: Callable[[int, int | None], None] | None = None,
 ) -> Any:
     req_headers = {"User-Agent": DEFAULT_UA, **(headers or {})}
+    if on_bytes is None:
+        try:
+            resp = http_request(
+                method,
+                url,
+                headers=req_headers,
+                content=body,
+                timeout=timeout,
+            )
+        except HttpRequestError as exc:
+            raise error_cls(f"无法连接资源站: {exc}") from exc
+        if resp.status_code >= 400:
+            _raise_http_error(url, resp.status_code, resp.content, error_cls)
+        return resp
     try:
-        resp = http_request(
+        status, content, resp_headers = http_download(
             method,
             url,
             headers=req_headers,
             content=body,
             timeout=timeout,
+            on_bytes=on_bytes,
         )
     except HttpRequestError as exc:
         raise error_cls(f"无法连接资源站: {exc}") from exc
-    if resp.status_code >= 400:
-        detail = ""
-        try:
-            detail = resp.content.decode("utf-8", errors="replace")[:300]
-        except Exception:  # noqa: BLE001
-            detail = ""
-        msg = f"下载失败 HTTP {resp.status_code}: {url}"
-        if detail:
-            msg = f"{msg} ({detail})"
-        raise error_cls(msg)
-    return resp
+    if status >= 400:
+        _raise_http_error(url, status, content, error_cls)
+    return SimpleNamespace(status_code=status, content=content, headers=resp_headers)
 
 
 def download_bytes(
@@ -87,6 +114,7 @@ def download_bytes_with_meta(
     headers: dict[str, str] | None = None,
     timeout: float | int = 120,
     error_cls: type[Exception] = RuntimeError,
+    on_bytes: Callable[[int, int | None], None] | None = None,
 ) -> tuple[bytes, str | None]:
     resp = download_response(
         url,
@@ -95,5 +123,6 @@ def download_bytes_with_meta(
         headers=headers,
         timeout=timeout,
         error_cls=error_cls,
+        on_bytes=on_bytes,
     )
     return resp.content, http_last_modified_iso(getattr(resp, "headers", None))

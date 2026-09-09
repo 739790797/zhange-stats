@@ -257,7 +257,7 @@ def checkin_job_wrapper(
 
     lock = _job_lock_for(adapter.platform)
     if not lock.acquire(blocking=False):
-        logger.info("%s checkin job already running, skip", adapter.platform)
+        logger.debug("%s checkin job already running, skip", adapter.platform)
         return
     db = SessionLocal()
     job = JobRun(job_key=adapter.job_key, status="running")

@@ -37,9 +37,12 @@ alwaysApply: false
 - 时间：`app.core.timeutil`（北京墙钟）
 - 密钥：`crypto_secret` Fernet
 - 运行时：`DATA_DIR` / `UPLOAD_DIR` 相对路径相对**安装根**（默认 `var/data`、`var/uploads`），见 `app.core.paths`；勿按 cwd 写进 `backend/` / `frontend/`
+- 文件管理：`file_manager` 只扫白名单根（安装根优先）；占用分桶；浏览须 `resolve_in_root`；敏感名置灰，目录不可进、文件不可下载
+- 用户附件：新上传走 `services/user_files`（`namespace` + 相对 `UPLOAD_DIR` 的 `rel_path` + 流水号）；类型/魔数留在业务域。酒馆 `store_bytes` 追加 UUID；头像裁剪后 `replace_bytes` 覆盖 `avatars/{member_id}.jpg`。存量由启动时 `ensure_user_files_registered` 扫盘补登记
 - 限流 + 短时 KV（扫码 / 森空岛 cred / 塔科夫 join 与大厅列表）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 `docs/deploy.md`「部署形态」）
 - 出站 HTTP：`app.core.http_client.http_request`（进程级 httpx）；勿每次新建 `httpx.Client` / `urllib.urlopen`
 - QQ 登录：一次性 ticket，勿把 JWT 放回调 query；浏览器会话走 HttpOnly Cookie + CSRF
+- 运行时日志：INFO 里程碑、WARNING 降级且重复故障用 `log_until_change`；访问日志交给 `zhange.http`。全文 `docs/logging.md`
 
 ## 数据库
 

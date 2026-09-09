@@ -192,7 +192,16 @@ a {
   }
 }
 
-/* 所有 Ant Design 弹窗贴视口：竖屏不溢出，正文滚动。不要再写死 720px / 72vh。 */
+/* Hub Tabs 只当导航条，内容走 Outlet，避免空 pane 占位。 */
+.admin-hub-tabs.ant-tabs > .ant-tabs-nav {
+  margin-bottom: 16px;
+}
+
+.admin-hub-tabs.ant-tabs > .ant-tabs-content-holder {
+  display: none;
+}
+
+/* 所有 Ant Design 弹窗贴视口：竖屏不溢出；正文只在超出视口时才出滚动条。不要写死 720px / 72vh。 */
 .ant-modal {
   max-width: calc(100vw - 24px);
   top: min(100px, 8dvh);
@@ -209,6 +218,8 @@ a {
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - min(100px, 8dvh) - 12px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .ant-modal-centered .ant-modal .ant-modal-content {
@@ -221,8 +232,16 @@ a {
 }
 
 .ant-modal .ant-modal-body {
-  min-height: 0;
-  overflow: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  /* clip 不形成横向滚动容器。hidden + auto 时 Progress 负 margin 撑宽 1px，Windows 会再逼出竖条。 */
+  overflow-x: clip;
+  overflow-y: auto;
+}
+
+.ant-modal .ant-modal-body .ant-progress {
+  display: block;
+  max-width: 100%;
 }
 
 .app-main-tarkov {

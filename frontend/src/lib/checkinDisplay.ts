@@ -38,6 +38,18 @@ export function displayCheckinChannelName(name?: string | null) {
   return n;
 }
 
+/** 角色名 + 渠道；缺渠道时不要画出空括号 / 空间隔。 */
+export function formatRoleNameChannel(
+  name?: string | null,
+  channel?: string | null,
+  style: "dot" | "paren" = "dot",
+) {
+  const n = (name || "").trim();
+  const c = displayCheckinChannelName(channel);
+  if (n && c) return style === "paren" ? `${n}（${c}）` : `${n} · ${c}`;
+  return n || c || "";
+}
+
 export function formatCheckinTime(hour: number, minute: number) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }

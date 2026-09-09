@@ -1,6 +1,7 @@
 import { ReloadOutlined } from "@ant-design/icons";
-import { Alert, Button, Empty, Select, Space, Spin, Typography } from "antd";
+import { Alert, Button, Empty, Select, Space, Typography } from "antd";
 import type { ReactNode } from "react";
+import { NestedSpin } from "@/components/NestedSpin";
 import { apiError } from "@/lib/apiError";
 import { formatSyncedAt } from "@/lib/formatSyncedAt";
 
@@ -59,7 +60,7 @@ export function BoxPanelChrome({
   if (loading) {
     return (
       <div style={{ textAlign: "center", padding: 48 }}>
-        <Spin tip={loadingTip} />
+        <NestedSpin tip={loadingTip} />
       </div>
     );
   }

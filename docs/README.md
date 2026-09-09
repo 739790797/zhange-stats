@@ -9,6 +9,7 @@
 | 根 [`README.md`](../README.md) | GitHub / 克隆后的落地页（站点性质与致谢） |
 | 根 [`AGENTS.md`](../AGENTS.md) | Agent 总入口（Cursor / 其他工具默认读仓库根） |
 | [`.cursor/rules/*.mdc`](../.cursor/rules/) | Cursor 按路径加载；`alwaysApply` 与 glob 只对这个目录生效 |
+| [`.cursor/mcp.json`](../.cursor/mcp.json) | Cursor 项目 MCP：Ant Design 5、Context7、Playwright（无密钥） |
 | 各子目录 `README.md` | 打开该目录就能看到「这是干什么的」 |
 
 人找文档从本页进；Agent 改代码从 `AGENTS.md` → `.cursor/rules/`。
@@ -21,9 +22,10 @@
 |---|---|
 | 了解产品做什么 | [`README.md`](../README.md) |
 | 克隆后跑起来 | [`develop.md`](develop.md) |
-| 上生产 / 一键更新 | [`deploy.md`](deploy.md) |
+| 上生产 / 一键更新 / 发版 | [`deploy.md`](deploy.md) |
 | 查某张表、改表 | [`database.md`](database.md) + [`backend/alembic/README.md`](../backend/alembic/README.md) |
-| 安全 / JWT Cookie / CSRF / Redis / 弱口令 / 塔科夫联机 | [`security.md`](security.md) |
+| 安全 / JWT Cookie / CSRF / Redis / 弱口令 / 塔科夫联机 / 文件管理 | [`security.md`](security.md) |
+| 什么时候打 logger、平台日志怎么记 | [`logging.md`](logging.md) |
 | 对外宣传前核对 | [`deploy.md`](deploy.md)「公开运营检查」 |
 | 规范对齐分期（安全头 / 备份 / 删号 / Cookie） | [`hardening-roadmap.md`](hardening-roadmap.md) |
 | 改代码、加平台、改签到 | [`AGENTS.md`](../AGENTS.md) → [架构索引](../.cursor/rules/zhange-architecture.mdc) |
@@ -49,9 +51,10 @@
 | 文件 | 一句话 |
 |---|---|
 | [`develop.md`](develop.md) | 技术栈、Windows 本地开发、工程 / CI、目录树 |
-| [`deploy.md`](deploy.md) | LXC 安装、管理端更新、部署形态、公开运营检查、Minecraft / Pelican |
+| [`deploy.md`](deploy.md) | LXC / Windows 本机安装、管理端更新、发版（仅质量门绿才打 Release）、部署形态、公开运营检查、Minecraft / Pelican |
 | [`database.md`](database.md) | 表结构总览（改模型必须同步本文） |
 | [`security.md`](security.md) | Cookie/CSRF、步进、请求 ID、CSP、弱口令、Redis、塔科夫联机读权限/限流、条款页、ICP 备案号、邮件验证码日志、密钥 |
+| [`logging.md`](logging.md) | 运行时日志：级别、禁刷、管道（环缓冲 / JSONL）、与业务落库的区别 |
 | [`hardening-roadmap.md`](hardening-roadmap.md) | 公开站点规范对齐（1～8 期 + 附件已落地） |
 | [`directory-layout.md`](directory-layout.md) | `var/` 与 services/components 分包映射（已落地） |
 | [`agent-governance-plan.md`](agent-governance-plan.md) | 治理方案原文（已落地，归档） |
@@ -70,6 +73,7 @@ Cursor 规则，不是给人当手册从头读的。架构索引始终加载；�
 | [`tarkov-upstream.mdc`](../.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴 | 只走 json.tarkov.dev；禁止 GraphQL 回源 |
 | [`db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | `models/`、迁移 | 改表必须 Alembic + 同步 `docs/database.md` |
 | [`backend-conventions.mdc`](../.cursor/rules/backend-conventions.mdc) | `backend/app/` | `api/` 薄、`services/` 厚；新平台 Adapter + 注册表 |
+| [`logging.mdc`](../.cursor/rules/logging.mdc) | `backend/app/` | 运行时日志级别与禁刷；全文 `logging.md` |
 | [`frontend-conventions.mdc`](../.cursor/rules/frontend-conventions.mdc) | `frontend/` | 签到/兑换/平台页套 Template；status **显式传** `force` |
 | [`frontend-api-errors.mdc`](../.cursor/rules/frontend-api-errors.mdc) | 页面、组件、`api/` | 用户可见错误用 `apiError`；请求走域 `*Api.ts` |
 | [`frontend-ui.mdc`](../.cursor/rules/frontend-ui.mdc) | 前端 ts/css | 只用 Ant Design 5 + `antdAppTheme` |
@@ -96,8 +100,8 @@ Cursor 规则，不是给人当手册从头读的。架构索引始终加载；�
 | 位置 | 实际是 |
 |---|---|
 | `.env.example` | 环境变量清单与注释 |
-| `VERSION` | 发版号；`main` 推送按它打 GitHub Release |
+| `VERSION` | 发版号；仅 `main` 质量门绿才打 GitHub Release |
 | `deploy/systemd/zhange-stats.service` | 生产 systemd 单元 |
-| `scripts/install.sh` · `run_dev.bat` | 安装 / 本地热重载入口 |
+| `scripts/linux/` · `scripts/win/` | 每边五件套：install / run / restart / backup / restore；`scripts/common/provision_mariadb.py` 准备本机 MariaDB。根目录 `run.bat` 转发 Windows `run.ps1` |
 
 贡献约定在 `AGENTS.md`，安全说明在 [`security.md`](security.md)。

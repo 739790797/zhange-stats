@@ -24,9 +24,10 @@ alwaysApply: false
 - `GET …/status` 的 `force` 默认 → `test_checkin_status_force_default`
 - 运行时路径相对安装根、密钥从 `backend/data` 迁出 → `test_paths`
 - 弱口令、限流、oauth ticket、生产禁邮件日志
+- 改「是否记 HTTP / 重复故障降 DEBUG」→ `test_request_log` / `test_biz_logging`
 - 前端：凭证失效文案、B服渠道识别、北京墙钟、`formatRequestError`
 
-触及 Steam / NapCat / 扫码绑定时，给该次改动涉及的纯函数补测。
+触及 Steam / 扫码绑定时，给该次改动涉及的纯函数补测。
 
 ## 禁止
 

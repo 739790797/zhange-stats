@@ -5,6 +5,7 @@ import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
 
 async function fetchAppVersion(): Promise<string> {
+  // 探活公开 /health（无 Cookie / CSRF）；不走 *Api
   const res = await fetch("/health", { cache: "no-store" });
   // degraded 时后端返回 503，仍带 version 字段
   try {

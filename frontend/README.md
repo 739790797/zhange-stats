@@ -27,7 +27,7 @@ npm run gen:api             # 生成 src/api/generated/schema.d.ts
 ## 权限
 
 - `PrivateRoute`：需登录；未登录进登录页并记住回跳路径
-- `AdminRoute`：`role === admin`（或派生 `is_admin`）；非管理员看 403 页
+- `AdminRoute`：`isAdminUser`（只信 `role === admin`；`is_admin` 为 API 派生，仅旧缓存缺 role 时回退）；非管理员看 403 页
 - `PlatformRoute`：受 `platform_features` 有效开关控制；关闭时看功能不可用页
 - `/legal/terms`、`/legal/privacy`：公开页，未登录可看（`AuthGuestShell`）
 - 页脚 ICP 备案号：`IcpBeianLink`（登录壳、`AppLayout` 主栏、塔科夫正文末尾，随页面滚动；不钉视口），号码来自 `GET /api/settings/site/public`，在管理端「安全设置」配置；留空不展示

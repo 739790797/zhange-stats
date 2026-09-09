@@ -1,23 +1,19 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert,
   Drawer,
-  Empty,
-  Select,
   Segmented,
   Space,
-  Spin,
   Table,
   Tag,
   Typography,
-  Button,
   message,
 } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { fetchArknightsRogue } from "@/api/client";
+import { BoxPanelChrome } from "@/components/BoxPanelChrome";
 import { apiError } from "@/lib/apiError";
+import { formatRoleNameChannel } from "@/lib/checkinDisplay";
 import type { ArknightsRogue, ArknightsRogueRecord } from "@/api/types";
 
 const TOPIC_FALLBACK = [
@@ -73,7 +69,7 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
   const roleOptions = useMemo(() => {
     const roles = data?.roles ?? [];
     return roles.map((r) => ({
-      label: `${r.role_name}（${r.channel_name}）`,
+      label: formatRoleNameChannel(r.role_name, r.channel_name, "paren"),
       value: r.uid,
     }));
   }, [data?.roles]);
@@ -131,89 +127,41 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
     },
   ];
 
-  if (!enabled) {
-    return (
-      <Alert type="info" showIcon message="请先绑定森空岛后再查看集成战略" />
-    );
-  }
-
-  if (query.isLoading) {
-    return (
-      <div style={{ padding: 48, textAlign: "center" }}>
-        <Spin />
-      </div>
-    );
-  }
-
-  if (query.isError) {
-    return (
-      <Alert
-        type="error"
-        showIcon
-        message={apiError(query.error, "加载肉鸽数据失败")}
-        action={
-          <Button size="small" onClick={() => query.refetch()}>
-            重试
-          </Button>
-        }
-      />
-    );
-  }
-
-  if (!data) {
-    return <Empty description="暂无肉鸽数据" />;
-  }
-
-  const ov = data.overview;
+  const ov = data?.overview;
 
   return (
-    <div>
-      <Space wrap style={{ marginBottom: 16, width: "100%" }} size="middle">
-        {roleOptions.length > 1 ? (
-          <Select
-            style={{ minWidth: 200 }}
-            value={uid ?? data.uid}
-            options={roleOptions}
-            onChange={(v) => setUid(v)}
-          />
-        ) : (
-          <Typography.Text type="secondary">
-            {data.role_name} · {data.channel_name}
-          </Typography.Text>
-        )}
+    <BoxPanelChrome
+      enabled={enabled}
+      disabledDescription="请先绑定森空岛后再查看集成战略"
+      loading={query.isLoading}
+      loadingTip="加载肉鸽数据…"
+      error={query.error}
+      errorTitle="无法加载肉鸽数据"
+      empty={!data}
+      refreshing={refreshing}
+      onRefresh={() => void onRefresh()}
+      stale={data?.stale}
+      title={data?.topic_name || "集成战略"}
+      subtitle={
+        data
+          ? formatRoleNameChannel(data.role_name, data.channel_name) || undefined
+          : undefined
+      }
+      roles={roleOptions.map((r) => ({ uid: r.value, label: r.label }))}
+      selectedUid={uid ?? data?.uid}
+      onSelectUid={setUid}
+      syncedAt={data?.synced_at}
+    >
+      {data && ov ? (
+        <>
+      <Space wrap style={{ marginBottom: 16 }} size="middle">
         <Segmented
           size="small"
           value={topicId}
           options={topicOptions}
           onChange={(v) => setTopicId(String(v))}
         />
-        <Button
-          size="small"
-          icon={<ReloadOutlined />}
-          loading={refreshing}
-          onClick={() => void onRefresh()}
-        >
-          刷新
-        </Button>
-        {data.synced_at ? (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            同步于{" "}
-            {new Date(data.synced_at).toLocaleString("zh-CN", {
-              hour12: false,
-            })}
-            {data.stale ? "（陈旧）" : ""}
-          </Typography.Text>
-        ) : null}
       </Space>
-
-      {data.stale ? (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="上游刷新失败，正在展示上次缓存"
-        />
-      ) : null}
 
       <Space wrap size={[16, 8]} style={{ marginBottom: 16 }}>
         <Stat label="当前主题" value={data.topic_name} />
@@ -334,7 +282,9 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
           </Space>
         ) : null}
       </Drawer>
-    </div>
+        </>
+      ) : null}
+    </BoxPanelChrome>
   );
 }
 

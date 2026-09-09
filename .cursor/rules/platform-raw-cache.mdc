@@ -1,6 +1,6 @@
 ---
 description: 第三方平台数据：原始响应落库、二次加工、读库优先、手动/定时回源
-globs: backend/app/services/**/*.py,backend/app/api/**/*.py,backend/app/models/**/*.py,frontend/src/pages/**/*.tsx,frontend/src/components/**/*Box*.tsx,frontend/src/components/CheckinPageTemplate.tsx,frontend/src/api/**
+globs: backend/app/services/**/*.py,backend/app/api/**/*.py,backend/app/models/**/*.py,frontend/src/pages/**/*.tsx,frontend/src/components/**/*Box*.tsx,frontend/src/components/**/*Rogue*.tsx,frontend/src/components/CheckinPageTemplate.tsx,frontend/src/api/**
 alwaysApply: false
 ---
 

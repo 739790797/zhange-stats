@@ -9,10 +9,8 @@ import {
 } from "./tarkovOcr";
 
 describe("formatOcrProgress", () => {
-  it("maps tesseract status", () => {
-    expect(formatOcrProgress("loading tesseract core")).toBe(
-      "正在加载识别引擎…",
-    );
+  it("maps engine status", () => {
+    expect(formatOcrProgress("loading core")).toBe("正在加载识别引擎…");
     expect(formatOcrProgress("loading language traineddata")).toBe(
       "正在加载识别模型…",
     );
@@ -22,9 +20,9 @@ describe("formatOcrProgress", () => {
 });
 
 describe("formatKeyOcrEngines", () => {
-  it("labels paddle / easyocr / tess", () => {
-    expect(formatKeyOcrEngines(["paddle", "easyocr", "tess"])).toBe(
-      "熊猫 OCR / EasyOCR / Tesseract",
+  it("labels paddle / easyocr", () => {
+    expect(formatKeyOcrEngines(["paddle", "easyocr"])).toBe(
+      "熊猫 OCR / EasyOCR",
     );
     expect(formatKeyOcrEngines([])).toBe("");
   });

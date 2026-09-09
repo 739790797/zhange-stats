@@ -6,6 +6,7 @@
 users 1 ── 1 members ── * play_sessions / presence_segments
                       └── 0..1 skland_binds ── * skland_checkin_logs
                                          └── * skland_attendance_raws
+                                         └── * endfield_attendance_raws
                                          └── * endfield_box_raws
                                          └── * arknights_box_snapshots
                                          └── * arknights_rogue_raws
@@ -28,6 +29,7 @@ tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_clai
 tarkov_map_places
 tarkov_user_key_owns · tarkov_user_collection_owns · tarkov_user_collection_layouts · tarkov_user_collection_placements · tarkov_user_task_dones · tarkov_user_task_starteds · tarkov_user_task_objective_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
+users ── * user_files（用户附件登记；酒馆 `articles/`、头像 `avatars/`）
 users ── * articles ── * article_comments
 users ── * article_authors（酒馆作者白名单）
 articles * ── * article_categories / article_tags（链接表 article_category_links / article_tag_links）
@@ -39,11 +41,12 @@ articles ── * article_versions
 | `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin`。注销为 **anonymize**：保留 `id`，`anonymized_at` 非空，邮箱清空、用户名改为 `deleted_{id}`、显示名「已注销用户」、口令改为不可用哈希、`role` 降为 user；成员行与平台 bind CASCADE 删除。已发布酒馆文保留 `author_user_id`，草稿物理删 |
 | `article_categories` | 战鸽酒馆文章分类；`slug` 唯一；`admin_only` 仅管理员能把文章标到该分类；`chip_color` 为文章卡片芯片色（`#RGB` / `#RRGGBB`，空则前端用默认蓝） |
 | `article_tags` | 战鸽酒馆文章标签；`slug` 唯一 |
-| `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft`）、`author_user_id` ON DELETE SET NULL、`halo_source_id` 可空唯一（导入幂等）。删除为物理删除（评论 / 版本 / 分类标签关联 CASCADE） |
+| `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft`）、`author_user_id` ON DELETE SET NULL。删除为物理删除（评论 / 版本 / 分类标签关联 CASCADE） |
+| `user_files` | 用户附件登记（与管理端 `file_manager` 盘点分开）：`serial` 唯一对外流水号（`UF`+零填充 `id`，不进公开 URL）、`namespace`（`articles` / `avatars`）、`rel_path` 相对 `UPLOAD_DIR` 唯一（酒馆 `articles/{yyyy}/{mm}/{uuid}.ext`；头像覆盖 `avatars/{member_id}.jpg`）、`original_name` / `content_type` / `size_bytes`、`owner_user_id` 可空 ON DELETE SET NULL（盘上对不上成员的存量可无主；头像按文件名反查 `members`）、`visibility`（一期仅 `public`）、`status`（`stored` / `deleted`；删头像或注销标 deleted 并清盘）。正文/封面/头像 URL 仍嵌公开路径字符串；新上传走 `services/user_files`。启动时自动扫盘补行（幂等，不改已有 URL）；也可 `python -m app.services.user_files.backfill` |
 | `article_authors` | 酒馆作者白名单；主键 `user_id` ON DELETE CASCADE。站点管理员不必入表即可发文；被勾选的普通用户可发文、编辑/删除自己的文章 |
 | `article_versions` | 只记**已发布**正文快照；草稿保存不写版本。唯一 `(article_id, version_no)`；恢复某一版会写回正文，若当前仍是已发布再追加一条。`article_id` ON DELETE CASCADE，`created_by_user_id` ON DELETE SET NULL |
 | `article_category_links` / `article_tag_links` | 文章与分类/标签多对多 |
-| `article_comments` | 酒馆评论（一层回复 `parent_id`）；`user_id` 可空（导入游客评用 `guest_name`）；ON DELETE CASCADE 随文章 |
+| `article_comments` | 酒馆评论（一层回复 `parent_id`）；`user_id` 可空（游客评用 `guest_name`）；ON DELETE CASCADE 随文章 |
 | `members` | 档案、站内头像/昵称、Steam 绑定（含 `steam_persona_name` / `steam_avatar_url`）、QQ 互联（`qq_openid` 等）；`user_id` ON DELETE CASCADE |
 | `play_sessions` | 游戏中会话（热力）；索引含 `(member_id, started_at)` / `(member_id, ended_at)` / `(source, started_at)` / `last_seen_at`（复合最左前缀覆盖 member_id，无单列 member_id）；`member_id` ON DELETE CASCADE |
 | `presence_segments` | 离线/在线/游戏中（日时间轴）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |

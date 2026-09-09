@@ -1,6 +1,6 @@
-"""共享 OCR 引擎：熊猫 OCR（RapidOCR / Paddle）+ EasyOCR + 可选 Tesseract。
+"""共享 OCR 引擎：熊猫 OCR（RapidOCR / Paddle）+ EasyOCR。
 
-权重由任务配置「识别模型更新」落到 var/data/{rapidocr,easyocr}。
+权重由任务配置「文字识别模型」落到 var/data/{rapidocr,easyocr}。
 识别路径不现场下载。非主引擎失败返回空行，不拖垮整次识别。
 Paddle 档位由系统配置决定；同族 v5/v6 不能当两票。
 """
@@ -31,11 +31,9 @@ NamedRecognizer = NamedEngine
 
 _RAPID_LOCK = threading.Lock()
 _EASY_LOCK = threading.Lock()
-_TESS_LOCK = threading.Lock()
 _RAPID: Any | None = None
 _RAPID_PROFILE: str | None = None
 _EASY: Any | None = None
-_TESS_LANG: str | None = None
 
 
 def rapidocr_available() -> bool:
@@ -56,16 +54,6 @@ def easyocr_available() -> bool:
     return True
 
 
-def tesseract_available() -> bool:
-    try:
-        import pytesseract
-
-        pytesseract.get_tesseract_version()
-    except Exception:
-        return False
-    return True
-
-
 def ocr_available() -> bool:
     return rapidocr_available() or easyocr_available()
 
@@ -75,14 +63,12 @@ def model_dir():
 
 
 def reset_runtime() -> None:
-    global _RAPID, _RAPID_PROFILE, _EASY, _TESS_LANG
+    global _RAPID, _RAPID_PROFILE, _EASY
     with _RAPID_LOCK:
         _RAPID = None
         _RAPID_PROFILE = None
     with _EASY_LOCK:
         _EASY = None
-    with _TESS_LOCK:
-        _TESS_LANG = None
 
 
 def build_named_engines(
@@ -98,9 +84,6 @@ def build_named_engines(
         elif engine == "easyocr":
             if easyocr_available() and easyocr_models_ready():
                 pack.append(NamedEngine(name="easyocr", engine=EasyOcrEngine()))
-        elif engine == "tess":
-            if tesseract_available():
-                pack.append(NamedEngine(name="tess", engine=TessOcrEngine()))
     return pack
 
 
@@ -249,28 +232,6 @@ def get_easyocr_engine() -> Any:
         return _EASY
 
 
-def _pick_tess_lang() -> str:
-    global _TESS_LANG
-    if _TESS_LANG is not None:
-        return _TESS_LANG
-    import pytesseract
-
-    for lang in ("chi_sim+eng", "eng+chi_sim", "eng", "chi_sim"):
-        try:
-            pytesseract.get_tesseract_version()
-            pytesseract.image_to_string(
-                Image.new("RGB", (16, 16), (0, 0, 0)),
-                lang=lang,
-                config="--psm 6",
-            )
-            _TESS_LANG = lang
-            return lang
-        except Exception:
-            continue
-    _TESS_LANG = ""
-    return ""
-
-
 class RapidOcrEngine:
     """Paddle RapidOCR。档位由系统配置决定（默认 PP-OCRv5 server）。"""
 
@@ -331,61 +292,6 @@ class EasyOcrEngine:
         return _lines_from_easyocr(rows)
 
 
-class TessOcrEngine:
-    """系统 Tesseract，补拉丁短码；未安装语言包则跳过。"""
-
-    def recognize(self, image: Image.Image) -> list[OcrLine]:
-        try:
-            import pytesseract
-            from pytesseract import Output
-        except ImportError:
-            return []
-        lang = _pick_tess_lang()
-        if not lang:
-            return []
-        with _TESS_LOCK:
-            try:
-                data = pytesseract.image_to_data(
-                    image.convert("RGB"),
-                    lang=lang,
-                    config="--oem 3 --psm 6",
-                    output_type=Output.DICT,
-                )
-            except Exception:
-                logger.exception("tesseract recognize failed")
-                return []
-        texts = data.get("text") or []
-        lefts = data.get("left") or []
-        tops = data.get("top") or []
-        widths = data.get("width") or []
-        heights = data.get("height") or []
-        confs = data.get("conf") or []
-        out: list[OcrLine] = []
-        for index, raw in enumerate(texts):
-            text = str(raw or "").strip()
-            if not text:
-                continue
-            try:
-                conf = float(confs[index])
-            except (TypeError, ValueError, IndexError):
-                conf = 0.0
-            if conf >= 0 and conf < 40:
-                continue
-            try:
-                x = float(lefts[index])
-                y = float(tops[index])
-                w = float(widths[index])
-                h = float(heights[index])
-            except (TypeError, ValueError, IndexError):
-                out.append(OcrLine(text=text))
-                continue
-            if w >= 2 and h >= 2:
-                out.append(OcrLine(text=text, x=x, y=y, w=w, h=h))
-            else:
-                out.append(OcrLine(text=text))
-        return out
-
-
 def engine_status_rows(profile: str | None = None) -> list[dict[str, Any]]:
     chosen = normalize_paddle_profile(profile)
     return [
@@ -400,11 +306,5 @@ def engine_status_rows(profile: str | None = None) -> list[dict[str, Any]]:
             "label": ENGINE_LABELS["easyocr"],
             "installed": easyocr_available(),
             "models_ready": easyocr_models_ready(),
-        },
-        {
-            "id": "tess",
-            "label": ENGINE_LABELS["tess"],
-            "installed": tesseract_available(),
-            "models_ready": tesseract_available(),
         },
     ]

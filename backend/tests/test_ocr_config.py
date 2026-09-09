@@ -1,5 +1,6 @@
 """OCR 系统配置：归一化、读写、场景选引擎。"""
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -26,34 +27,71 @@ def test_load_defaults_when_missing() -> None:
     cfg = ocr_cfg.load_ocr_config(db_with_stored(None))
     assert cfg["paddle_profile"] == "v5_server"
     assert cfg["engines"]["paddle"] is True
-    assert cfg["use_cases"]["tarkov_keys"] == ["paddle", "easyocr", "tess"]
-    assert cfg["use_cases"]["general"] == ["paddle"]
+    assert "tess" not in cfg["engines"]
+    assert cfg["use_cases"]["tarkov_keys"] == {
+        "engines": ["paddle", "easyocr"],
+        "cross_check": True,
+    }
+    assert cfg["use_cases"]["tarkov_raid_prep"] == {
+        "engines": ["paddle"],
+        "cross_check": False,
+    }
+    assert cfg["use_cases"]["general"] == {
+        "engines": ["paddle"],
+        "cross_check": False,
+    }
 
 
-def test_load_stored_and_drop_unknown_engines() -> None:
+def test_load_legacy_list_and_drop_unknown_engines() -> None:
     cfg = ocr_cfg.load_ocr_config(
         db_with_stored(
             {
                 "paddle_profile": "v6_small",
-                "engines": {"paddle": False, "ghost": True},
-                "use_cases": {"tarkov_keys": ["easyocr", "ghost", "easyocr"]},
+                "engines": {"paddle": False, "ghost": True, "tess": True},
+                "use_cases": {"tarkov_keys": ["easyocr", "ghost", "tess", "easyocr"]},
             }
         )
     )
     assert cfg["paddle_profile"] == "v6_small"
     assert cfg["engines"]["paddle"] is False
     assert cfg["engines"]["easyocr"] is True
-    assert cfg["use_cases"]["tarkov_keys"] == ["easyocr"]
+    assert "tess" not in cfg["engines"]
+    assert cfg["use_cases"]["tarkov_keys"]["engines"] == ["easyocr"]
+    assert cfg["use_cases"]["tarkov_keys"]["cross_check"] is True
 
 
 def test_engines_for_use_case_respects_global_switch() -> None:
     cfg = {
         "paddle_profile": "v5_server",
-        "engines": {"paddle": False, "easyocr": True, "tess": True},
-        "use_cases": {"tarkov_keys": ["paddle", "easyocr", "tess"]},
+        "engines": {"paddle": False, "easyocr": True},
+        "use_cases": {
+            "tarkov_keys": {"engines": ["paddle", "easyocr"], "cross_check": True}
+        },
     }
-    assert ocr_cfg.engines_for_use_case(cfg, "tarkov_keys") == ["easyocr", "tess"]
+    assert ocr_cfg.engines_for_use_case(cfg, "tarkov_keys") == ["easyocr"]
     assert ocr_cfg.engines_for_use_case(cfg, "general") == []
+
+
+def test_save_rejects_cross_check_without_two_families() -> None:
+    db = _sqlite()
+    try:
+        with pytest.raises(ocr_cfg.OcrConfigError, match="多端校验"):
+            ocr_cfg.save_ocr_config(
+                db,
+                {
+                    "paddle_profile": "v5_server",
+                    "engines": {"paddle": True, "easyocr": False},
+                    "use_cases": {
+                        "tarkov_keys": {
+                            "engines": ["paddle", "easyocr"],
+                            "cross_check": True,
+                        },
+                        "general": {"engines": ["paddle"], "cross_check": False},
+                    },
+                },
+            )
+    finally:
+        db.close()
 
 
 def test_save_roundtrip() -> None:
@@ -63,15 +101,26 @@ def test_save_roundtrip() -> None:
             db,
             {
                 "paddle_profile": "v6_medium",
-                "engines": {"paddle": True, "easyocr": False, "tess": True},
-                "use_cases": {"general": ["tess", "paddle"]},
+                "engines": {"paddle": True, "easyocr": False},
+                "use_cases": {
+                    "tarkov_keys": {
+                        "engines": ["paddle"],
+                        "cross_check": False,
+                    },
+                    "general": {"engines": ["paddle"], "cross_check": False},
+                },
             },
         )
         loaded = ocr_cfg.load_ocr_config(db)
         assert saved == loaded
         assert loaded["paddle_profile"] == "v6_medium"
         assert loaded["engines"]["easyocr"] is False
-        assert loaded["use_cases"]["general"] == ["tess", "paddle"]
+        assert loaded["use_cases"]["tarkov_keys"]["cross_check"] is False
+        assert loaded["use_cases"]["tarkov_raid_prep"] == {
+            "engines": ["paddle"],
+            "cross_check": False,
+        }
+        assert loaded["use_cases"]["general"]["engines"] == ["paddle"]
     finally:
         db.close()
 
@@ -95,13 +144,24 @@ def test_ocr_settings_openapi_exists() -> None:
     path = (schema.get("paths") or {}).get("/api/settings/ocr") or {}
     assert path.get("get") is not None
     assert path.get("put") is not None
+    components = (schema.get("components") or {}).get("schemas") or {}
+    assert "OcrUseCaseSettings" in components
+    assert "OcrEngineMetaOut" in components
 
 
 def test_public_shape_includes_catalog() -> None:
     out = ocr_cfg.public_ocr_config(ocr_cfg.default_ocr_config(), engine_status=[])
     assert out["paddle_profile"] == "v5_server"
     ids = {row["id"] for row in out["paddle_profiles"]}
-    assert ids == {"v5_server", "v6_small", "v6_medium"}
+    assert "v5_server" in ids
+    assert "v6_small" in ids
+    assert "v6_medium" in ids
+    assert all(row.get("label") for row in out["paddle_profiles"])
     cases = {row["id"] for row in out["use_case_meta"]}
-    assert cases == {"tarkov_keys", "general"}
+    assert cases == {"tarkov_keys", "tarkov_raid_prep", "general"}
     assert "paddle" in out["engine_labels"]
+    assert "tess" not in out["engine_labels"]
+    meta_ids = [row["id"] for row in out["engine_meta"]]
+    assert meta_ids == ["paddle", "easyocr"]
+    assert out["easyocr_profiles"][0]["id"] == "ch_sim_en"
+    assert out["use_cases"]["tarkov_keys"]["cross_check"] is True

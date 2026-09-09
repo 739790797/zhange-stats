@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
+
+from app.core.http_client import HttpRequestError, http_request
 
 STEAMID64_BASE = 76561197960265728
 # s.team/p/ 短邀请码字符表（与 Valve 编码一致）
@@ -40,15 +39,23 @@ def resolve_vanity(api_key: str, vanity: str) -> str:
         {"key": api_key, "vanityurl": vanity, "url_type": 1}
     )
     url = f"https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": "zhange-stats/1.0"})
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Steam 解析失败 HTTP {exc.code}: {body}") from exc
-    except urllib.error.URLError as exc:
+        resp = http_request(
+            "GET",
+            url,
+            headers={"User-Agent": "zhange-stats/1.0"},
+            timeout=15,
+        )
+    except HttpRequestError as exc:
         raise RuntimeError(f"Steam 网络错误: {exc}") from exc
+    if resp.status_code >= 400:
+        raise RuntimeError(
+            f"Steam 解析失败 HTTP {resp.status_code}: {resp.text}"
+        )
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        raise RuntimeError("Steam 解析失败：返回无法解析") from exc
 
     response = (payload or {}).get("response") or {}
     if int(response.get("success") or 0) != 1 or not response.get("steamid"):

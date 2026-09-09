@@ -1,0 +1,43 @@
+"""用户附件登记：落盘 + 流水号，不与管理端 file_manager 合并。"""
+
+from app.services.user_files.store import (
+    APPEND_NAMESPACES,
+    NAMESPACES,
+    NS_ARTICLES,
+    NS_AVATARS,
+    STATUS_DELETED,
+    STATUS_STORED,
+    VISIBILITY_PUBLIC,
+    StoredUserFile,
+    UserFileError,
+    format_serial,
+    get_by_rel_path,
+    get_by_serial,
+    mark_deleted,
+    normalize_rel_path,
+    public_file_url,
+    replace_bytes,
+    store_bytes,
+    upload_root,
+)
+
+__all__ = [
+    "APPEND_NAMESPACES",
+    "NAMESPACES",
+    "NS_ARTICLES",
+    "NS_AVATARS",
+    "STATUS_DELETED",
+    "STATUS_STORED",
+    "VISIBILITY_PUBLIC",
+    "StoredUserFile",
+    "UserFileError",
+    "format_serial",
+    "get_by_rel_path",
+    "get_by_serial",
+    "mark_deleted",
+    "normalize_rel_path",
+    "public_file_url",
+    "replace_bytes",
+    "store_bytes",
+    "upload_root",
+]

@@ -18,8 +18,6 @@ def _not_installed_message(wanted: list[str]) -> str:
         names.append("rapidocr")
     if "easyocr" in wanted:
         names.append("easyocr")
-    if "tess" in wanted:
-        names.append("tesseract")
     if not names:
         return "服务器未安装识别引擎"
     return "服务器未安装识别引擎（" + " 或 ".join(names) + "）"
@@ -30,8 +28,6 @@ def _any_installed(wanted: list[str]) -> bool:
         if engine == "paddle" and ocr_engines.rapidocr_available():
             return True
         if engine == "easyocr" and ocr_engines.easyocr_available():
-            return True
-        if engine == "tess" and ocr_engines.tesseract_available():
             return True
     return False
 

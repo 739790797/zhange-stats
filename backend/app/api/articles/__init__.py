@@ -269,11 +269,12 @@ async def recognize_math(
 async def upload_asset(
     request: Request,
     file: UploadFile = File(...),
+    db: Session = Depends(get_db),
     user: User = Depends(require_tavern_writer),
 ) -> ArticleAssetOut:
     _hit_article_write_limit(request, user)
-    url = await save_article_asset(file)
-    return ArticleAssetOut(url=url)
+    stored = await save_article_asset(file, db=db, owner_user_id=user.id)
+    return ArticleAssetOut(url=stored.url, serial=stored.serial)
 
 
 @router.post("", response_model=ArticleDetailOut)

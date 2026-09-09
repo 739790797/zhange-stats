@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
@@ -58,6 +59,44 @@ def test_sniff_article_attachment_ext() -> None:
     with pytest.raises(HTTPException) as spoof:
         sniff_article_attachment_ext(b"MZ\x90\x00", "a.pdf")
     assert spoof.value.status_code == 400
+
+
+def test_save_article_bytes_uses_user_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.database import Base
+    from app.models.user import User, UserRole
+    from app.models.user_files import UserFile
+    from app.services.articles.store import save_article_bytes
+    from app.services.user_files.store import get_by_serial
+
+    monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, UserFile.__table__])
+    db = sessionmaker(bind=engine)()
+    user = User(
+        username="w",
+        display_name="w",
+        password_hash="x",
+        role=UserRole.user,
+    )
+    db.add(user)
+    db.flush()
+    stored = save_article_bytes(
+        _png(),
+        "shot.png",
+        db=db,
+        owner_user_id=user.id,
+    )
+    assert stored.url.startswith("/uploads/articles/")
+    assert stored.serial.startswith("UF")
+    row = get_by_serial(db, stored.serial)
+    assert row is not None
+    assert row.owner_user_id == user.id
+    assert (tmp_path / stored.rel_path).is_file()
 
 
 def test_is_rejected_image_content_type() -> None:

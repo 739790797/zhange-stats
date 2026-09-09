@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -263,11 +264,15 @@ def apply_overlay(
     return payload
 
 
-def download_overlay() -> tuple[dict[str, Any], str | None]:
+def download_overlay(
+    *,
+    on_bytes: Callable[[int, int | None], None] | None = None,
+) -> tuple[dict[str, Any], str | None]:
     raw, upstream_at = download_bytes_with_meta(
         OVERLAY_URL,
         timeout=DOWNLOAD_TIMEOUT,
         error_cls=TarkovOverlayError,
+        on_bytes=on_bytes,
     )
     try:
         payload = json.loads(raw.decode("utf-8"))
@@ -278,8 +283,12 @@ def download_overlay() -> tuple[dict[str, Any], str | None]:
     return payload, upstream_at
 
 
-def sync_overlay(db: Session) -> dict[str, Any]:
-    payload, upstream_at = download_overlay()
+def sync_overlay(
+    db: Session,
+    *,
+    on_bytes: Callable[[int, int | None], None] | None = None,
+) -> dict[str, Any]:
+    payload, upstream_at = download_overlay(on_bytes=on_bytes)
     logger.info("tarkov overlay dump ok (%s)", json_api_prefix())
     return persist_overlay(db, payload, upstream_at=upstream_at)
 

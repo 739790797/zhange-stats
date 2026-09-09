@@ -427,3 +427,146 @@ def test_scheduler_drops_removed_per_domain_jobs() -> None:
     assert out["tarkov_full_sync"]["enabled"] is True
     assert "tarkov_items_sync" not in out
     assert "tarkov_tasks_sync" not in out
+
+
+def test_site_dump_specs_cover_main_and_locale() -> None:
+    specs = upstream_svc.site_dump_specs(lang="zh")
+    ids = [row[2] for row in specs]
+    assert ids[0] == "dump:items"
+    assert "dump:items_zh" in ids
+    assert "dump:barters" in ids
+    assert len(specs) == len(upstream_svc.JSON_RESOURCES) + len(upstream_svc.JSON_LOCALES)
+
+
+def test_download_site_json_emits_file_progress(monkeypatch) -> None:
+    def fake_resource(resource, lang=None, on_bytes=None):  # noqa: ANN001
+        if on_bytes:
+            on_bytes(3, 10)
+            on_bytes(10, 10)
+        return {"data": {resource: True}}, None
+
+    monkeypatch.setattr(upstream_svc, "download_json_resource", fake_resource)
+    events: list[dict] = []
+    dump, _times = upstream_svc.download_site_json(
+        on_progress=lambda event: events.append(event)
+    )
+    assert dump["items"]["data"]["items"] is True
+    assert dump["items_zh"]["data"]["items"] is True
+    assert any(
+        event["file"] == "items" and event["bytes"] == 3 and not event["done"]
+        for event in events
+    )
+    assert any(
+        event["domain_id"] == "dump:items" and event["done"] for event in events
+    )
+    assert any(event["file"] == "items_zh" for event in events)
+    specs = upstream_svc.site_dump_specs(lang="zh")
+    ids = [row[2] for row in specs]
+    assert ids[0] == "dump:items"
+    assert "dump:items_zh" in ids
+    assert "dump:barters" in ids
+    assert len(specs) == len(upstream_svc.JSON_RESOURCES) + len(upstream_svc.JSON_LOCALES)
+
+
+def test_format_full_sync_message() -> None:
+    assert full_sync.format_full_sync_message("start") == "正在全量更新…"
+    assert (
+        full_sync.format_full_sync_message("download", file="items", index=2, total=12)
+        == "正在下载 items（2/12）"
+    )
+    assert full_sync.format_full_sync_message("overlay") == "正在下载 overlay…"
+
+
+def test_planned_full_sync_domains_include_dump_and_apply() -> None:
+    rows = full_sync.planned_full_sync_domains(("pvp",), lang="zh")
+    ids = [row["id"] for row in rows]
+    assert ids[0] == "dump:items"
+    assert "overlay" in ids
+    assert "extras" in ids
+    assert "locks" in ids
+    assert all(row["status"] == "pending" and row["mode"] == "pvp" for row in rows)
+
+
+def test_sync_emits_download_progress(monkeypatch) -> None:
+    dump = _sample_dump()
+
+    def fake_download(*, lang="zh", on_progress=None):  # noqa: ARG001
+        if on_progress:
+            on_progress(
+                {
+                    "phase": "download",
+                    "file": "items",
+                    "domain_id": "dump:items",
+                    "index": 1,
+                    "total": 12,
+                    "bytes": 40,
+                    "total_bytes": 80,
+                    "done": False,
+                    "error": None,
+                }
+            )
+            on_progress(
+                {
+                    "phase": "download",
+                    "file": "items",
+                    "domain_id": "dump:items",
+                    "index": 1,
+                    "total": 12,
+                    "bytes": 80,
+                    "total_bytes": 80,
+                    "done": True,
+                    "error": None,
+                }
+            )
+        return dump, {}
+
+    monkeypatch.setattr(upstream_svc, "download_site_json", fake_download)
+    monkeypatch.setattr(
+        upstream_svc,
+        "persist_site_json",
+        lambda *_a, **_k: [
+            {
+                "id": "dump:items",
+                "ok": True,
+                "source": "json.tarkov.dev",
+                "synced_at": "t",
+                "error": None,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        upstream_svc,
+        "persist_raw",
+        lambda *_a, **_k: {
+            "id": "extras",
+            "ok": True,
+            "source": "json.tarkov.dev",
+            "synced_at": "t",
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(items_svc, "rebuild_from_raw", lambda *_a, **_k: _ok())
+    _stub_overlay_sync(monkeypatch)
+
+    events: list[tuple[str, dict]] = []
+
+    def progress(message: str, stats: dict) -> None:
+        events.append((message, stats))
+
+    out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp", progress=progress)
+    assert out["failed_count"] == 0
+    assert events[0][1]["phase"] == "start"
+    assert events[0][1]["domains"]
+    download_stats = [stats for _msg, stats in events if stats.get("phase") == "download"]
+    assert download_stats
+    assert any(stats.get("file") == "items" for stats in download_stats)
+    live = next(
+        row
+        for stats in download_stats
+        for row in stats["domains"]
+        if row["id"] == "dump:items" and row.get("status") == "downloading"
+    )
+    assert live["bytes"] == 40
+    assert live["total_bytes"] == 80
+    assert events[-1][1]["phase"] == "done"
+    assert events[-1][1]["percent"] == 100

@@ -79,9 +79,9 @@ def test_sanitize_html_promotes_style_colors_to_classes() -> None:
 
 def test_sanitize_html_keeps_local_article_images() -> None:
     cleaned = sanitize_html(
-        '<figure><img src="/uploads/articles/halo/a.png" alt="图" width="800"></figure>'
+        '<figure><img src="/uploads/articles/2026/09/a.png" alt="图" width="800"></figure>'
     )
-    assert "/uploads/articles/halo/a.png" in cleaned
+    assert "/uploads/articles/2026/09/a.png" in cleaned
     assert "width" in cleaned
     assert "<figure>" in cleaned
 
@@ -89,8 +89,8 @@ def test_sanitize_html_keeps_local_article_images() -> None:
 def test_split_adjacent_file_links() -> None:
     jammed = (
         "<p>"
-        '<a href="/uploads/articles/halo/a.lml">a.lml</a>'
-        '<a href="/uploads/articles/halo/b.lml">b.lml</a>'
+        '<a href="/uploads/articles/2026/09/a.lml">a.lml</a>'
+        '<a href="/uploads/articles/2026/09/b.lml">b.lml</a>'
         "</p>"
     )
     out = split_adjacent_file_links(jammed)
@@ -140,10 +140,10 @@ def test_create_article_sanitizes_html_body() -> None:
         db,
         author=author,
         title="with image",
-        body='<p><img src="/uploads/articles/halo/a.png" alt="图"></p>',
+        body='<p><img src="/uploads/articles/2026/09/a.png" alt="图"></p>',
         body_format=articles_svc.FORMAT_HTML,
     )
-    assert "/uploads/articles/halo/a.png" in (pictured.body or "")
+    assert "/uploads/articles/2026/09/a.png" in (pictured.body or "")
     with pytest.raises(ArticleError) as exc:
         articles_svc.create_article(
             db,

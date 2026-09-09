@@ -89,6 +89,13 @@ export function formatRequestError(
   if (status === 422) {
     return (detail || "请求参数不正确") + ridSuffix;
   }
+  if (status === 404) {
+    const notFound =
+      !detail || detail === "Not Found" || detail === "Not found"
+        ? "接口或资源不存在"
+        : detail;
+    return notFound + ridSuffix;
+  }
   if (status === 403) {
     return (detail || "没有权限或尚未完成验证") + ridSuffix;
   }

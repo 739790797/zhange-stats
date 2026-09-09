@@ -14,18 +14,21 @@ alwaysApply: true
 | 森空岛上游 | 官/B 渠道语义、补奖、`unknown`、cred 缓存按上游规则 | B服当未签；`gameId` 回退官服；B服 GET 补奖 | `.cursor/rules/skland-upstream.mdc` |
 | 塔科夫图鉴 | 回源 json.tarkov.dev（`/regular/`·`/pve/`）落 `tarkov_*_raws`；extras 从 dump 抽出；overlay 只内存合入 | 回源 `api.tarkov.dev` GraphQL；为补字段再加 GraphQL 请求 | `.cursor/rules/tarkov-upstream.mdc`、`docs/database.md` |
 | 塔科夫工作台出图 | 底板用 dump 枪图，在图上点槽位换配件；不再默认代理 image-gen | 把出图站当图鉴源；pytest 打真站 | `.cursor/rules/tarkov-upstream.mdc` |
-| 塔科夫联机 | 非成员 GET 只给预览（标题/地图/人数/是否要密码）；写操作与 WS 须入座 | 房间码当秘密；GET 把棋盘/钥匙/人员回给路人 | `docs/security.md`「塔科夫联机」、`docs/database.md` |
+| 塔科夫联机 | 非成员 GET 只给预览（标题/地图/人数/是否要密码等，无棋盘）；写操作与 WS 须入座 | 房间码当秘密；GET 把棋盘/钥匙/人员回给路人 | `docs/security.md`「塔科夫联机」、`docs/database.md` |
 | DB | Alembic 迁移 + 同步 `docs/database.md` | 往 `schema_ensure.py` 堆 ALTER | `.cursor/rules/db-schema-readme.mdc` |
 | 前端 API | 域 `*Api.ts`；用户可见错误用 `apiError`；status **显式传** `force` | 页面直连 axios；手拆 `detail`；省略 force 参数 | `.cursor/rules/frontend-api-errors.mdc`、`frontend-conventions.mdc` |
-| 前端结构 | 签到套 `CheckinPageTemplate`；兑换套 `ExchangePageTemplate`；平台页套 `PlatformFeatureTabsPage`；日历套 `AttendanceCalendarButton`；盒子先套 `BoxPanelChrome`；扫码绑定走 `useQrBindSession`；认证页套 `AuthGuestShell`；权限看 `role` | 新造平行请求层 / 复制整页外壳 / 复制日历 Modal / 复制盒子 loading 条 / 扫码轮询抄两份 | `.cursor/rules/frontend-conventions.mdc` |
+| 前端结构 | 签到套 `CheckinPageTemplate`；兑换套 `ExchangePageTemplate`；平台页套 `PlatformFeatureTabsPage`；日历套 `AttendanceCalendarButton`；盒子先套 `BoxPanelChrome`；扫码绑定走 `useQrBindSession`；认证页套 `AuthGuestShell`；管理子页进 `AdminHubLayout` Hub；权限看 `role` | 新造平行请求层 / 复制整页外壳 / 复制日历 Modal / 复制盒子 loading 条 / 扫码轮询抄两份 / 往管理侧栏堆叶子 | `.cursor/rules/frontend-conventions.mdc` |
 | 前端 UI | Ant Design 5 + `antdAppTheme`；按钮按角色选 type/size | Button 内联品牌色；第二套 UI 库；主应用抄塔科夫主题 | `.cursor/rules/frontend-ui.mdc` |
 | 后端 | `api/` 薄、`services/` 厚；upstream 拆 client/attendance | 路由内打上游 HTTP | `.cursor/rules/backend-conventions.mdc` |
+| 运行时日志 | INFO 只打里程碑；重复故障 `log_until_change`；写操作/慢 GET 交给 `zhange.http` | 成功快 GET；循环内逐条 INFO；密钥/验证码进日志 | `docs/logging.md`、`.cursor/rules/logging.mdc` |
 | 时间 | `app.core.timeutil` 北京墙钟 | 业务层随意 `utcnow` | `backend/app/core/timeutil.py` |
 | 安全 | 凭证 Fernet；QQ 只发 ticket；会话 HttpOnly Cookie + CSRF；生产 `APP_ENV=production`；`ALLOW_EMAIL_CODE_LOG` 生产启动硬拒绝 | JWT 进回调 URL；persist JWT；去掉 CSRF 只改 Cookie；生产弱口令 | `docs/security.md` |
 | 短时 KV | 多实例共享 `REDIS_URL`（扫码 / 森空岛 cred / 限流含塔科夫 join·大厅） | 无共享 Redis 水平扩 app | `docs/deploy.md`「部署形态」、`backend-conventions.mdc` |
 | 目录 | 运行时 `var/`；`services/` · `components/` 按域分包；新平台进包 | 往 `services/` 或 `components/` 根堆平台文件 | `docs/directory-layout.md` |
-| 运行时 | 密钥/日志/上传在安装根 `var/`（或 .env 绝对路径）；相对路径相对安装根 | 往 `backend/` `frontend/` 写 data/uploads | `backend/app/core/paths.py`、`docs/deploy.md` |
-| 生产部署 | LXC：`scripts/install.sh` + systemd；管理端更新：落盘 → **先 migrate** → 失败回滚代码不重启 → 成功再 `os.execv`；迁移须幂等且兼容 MariaDB（CI `backend-migrate-mariadb`） | 控制面 Docker/Watchtower；依赖 SSH `update.sh` / `systemctl` 做常规升级；迁移用 MySQL 专属 SQL（如 `CAST(... AS JSON)`） | `docs/deploy.md`、`backend/alembic/README.md` |
+| 运行时 | 密钥/日志/上传在安装根 `var/`（或 .env 绝对路径）；相对路径相对安装根。本机 MariaDB：`scripts/common/provision_mariadb.py`（Linux apt / Windows `var/mariadb`） | 往 `backend/` `frontend/` 写 data/uploads；应用进程里 apt/winget 装库 | `backend/app/core/paths.py`、`docs/deploy.md` |
+| 文件管理 | 管理端浏览白名单根（安装根优先；站外缓存另列）；占用按产生/依赖/缓存/下载分桶；`.secret_key` / `.env` / `.git` / `var/mariadb/data` / 备份 `zhange-*.tar.gz` 置灰且不可进、不可下载 | 把用户路径拼进任意绝对路径；把密钥当普通文件下发 | `docs/security.md`「文件管理」 |
+| 用户附件 | 新业务上传走 `services/user_files`（namespace 子目录 + 登记表）；酒馆用 UUID 路径，头像覆盖 `avatars/{member_id}.jpg`；流水号不进公开 URL | 直写 `UPLOAD_DIR` 根；把流水号写进 StaticFiles 路径；和管理端 `file_manager` 合并 | `docs/directory-layout.md`、`docs/security.md`「战鸽酒馆」 |
+| 生产部署 | LXC：`scripts/linux/install.sh` + `run.sh` / `restart.sh`（有 unit 则 systemd）；管理端更新：落盘 → **先 migrate** → 失败回滚代码不重启 → 成功再 `os.execv`；迁移须幂等且兼容 MariaDB（CI `backend-migrate-mariadb`）；发版仅质量门绿才打 GitHub Release | 控制面 Docker/Watchtower；脚本参数区分生产/开发；依赖 SSH `update.sh` 做常规升级；迁移用 MySQL 专属 SQL（如 `CAST(... AS JSON)`）；CI 红当已发版 / 手工打 tag | `docs/deploy.md`「发版」、`backend/alembic/README.md` |
 | 自测 | 规则在哪层实现就在哪层测；渠道/`force`/弱口令先补测 | 前端再测后端投影；平行 `/health`；拷 integrations fixture | `.cursor/rules/testing.mdc` |
 
 总入口：仓库根 `AGENTS.md`。

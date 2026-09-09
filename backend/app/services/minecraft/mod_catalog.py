@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app.core.ephemeral_kv import ephemeral_get, ephemeral_set
+from app.core.http_client import HttpRequestError, http_request
 from app.services.minecraft.modrinth import MODRINTH_API, USER_AGENT, ModrinthError, _get_json
 
 logger = logging.getLogger(__name__)
@@ -153,9 +152,15 @@ def pick_mcmod_hit(rows: list[Any], query: str) -> dict[str, Any] | None:
 
 
 def _http_json(url: str, *, timeout: float = _HTTP_TIMEOUT) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    resp = http_request(
+        "GET",
+        url,
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        timeout=timeout,
+    )
+    if resp.status_code >= 400:
+        raise ValueError(f"HTTP {resp.status_code}")
+    return resp.json()
 
 
 def _search_modrinth(query: str) -> dict[str, Any] | None:
@@ -185,7 +190,7 @@ def _search_mcmod(query: str) -> dict[str, Any] | None:
     url = MCMOD_SEARCH + urllib.parse.quote(q, safe="")
     try:
         data = _http_json(url)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+    except (HttpRequestError, ValueError, OSError):
         return None
     if not isinstance(data, list):
         return None
@@ -198,7 +203,7 @@ def _fetch_mcmod_class(mcmod_id: str) -> dict[str, Any] | None:
         return None
     try:
         data = _http_json(MCMOD_CLASS + mid)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+    except (HttpRequestError, ValueError, OSError):
         return None
     return data if isinstance(data, dict) else None
 

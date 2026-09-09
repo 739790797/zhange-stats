@@ -53,6 +53,7 @@ export async function waitForHealthVersion(
       }
     }
     try {
+      // 重启后探活公开 /health（无 Cookie / CSRF）；不走 *Api
       const res = await fetch("/health", { cache: "no-store" });
       const data = (await res.json()) as { version?: string };
       const got = (data.version || "").replace(/^v/i, "").trim();

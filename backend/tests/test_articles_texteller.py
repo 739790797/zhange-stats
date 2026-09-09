@@ -242,3 +242,19 @@ def test_models_ready_needs_revision_and_weights(tmp_path: Path) -> None:
     assert texteller_svc.models_ready(dest) is False
     (dest / "encoder_model.onnx").write_bytes(b"x")
     assert texteller_svc.models_ready(dest) is True
+
+
+def test_hf_get_json_maps_http_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _Resp:
+        status_code = 502
+
+        def json(self):
+            return {}
+
+    monkeypatch.setattr(
+        texteller_svc, "http_request", lambda *_a, **_k: _Resp()
+    )
+    with pytest.raises(ArticleError) as exc:
+        texteller_svc.hf_get_json("https://example.test/api")
+    assert exc.value.status_code == 502
+    assert "HTTP 502" in exc.value.message

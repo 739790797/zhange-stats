@@ -72,10 +72,6 @@ AVATAR_POOL = [
 ]
 
 
-def _utcnow() -> datetime:
-    return now_naive()
-
-
 def ensure_demo_user(
     db, username: str, display_name: str, steam_id: str, avatar_url: str
 ) -> Member:
@@ -196,7 +192,7 @@ def close_demo_opens(db, member_ids: set[int], now: datetime) -> None:
 def main() -> int:
     db = SessionLocal()
     try:
-        now = _utcnow()
+        now = now_naive()
         demos: dict[str, Member] = {}
         for i, (username, display_name, steam_id) in enumerate(DEMO_USERS):
             demos[display_name] = ensure_demo_user(

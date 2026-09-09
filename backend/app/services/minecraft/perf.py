@@ -10,6 +10,7 @@ from typing import Any, Literal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.database import SessionLocal
 from app.core.ephemeral_kv import ephemeral_delete, ephemeral_get, ephemeral_set
 from app.core.timeutil import ensure, now, now_naive, to_naive
@@ -268,6 +269,7 @@ def collect_entities(host: str, port: int, password: str) -> None:
     stamp = now().isoformat(timespec="seconds")
     try:
         parsed = query_entities(host, port, password)
+        clear_log_until_change("minecraft.rcon.entities")
         _save_entities(
             {
                 "ok": True,
@@ -277,7 +279,9 @@ def collect_entities(host: str, port: int, password: str) -> None:
             }
         )
     except MinecraftRconError as exc:
-        logger.info("minecraft rcon entities: %s", exc.message)
+        log_until_change(
+            logger, "minecraft.rcon.entities", "minecraft rcon entities: %s", exc.message
+        )
         _save_entities(
             {
                 **_empty_entities(),
@@ -287,7 +291,9 @@ def collect_entities(host: str, port: int, password: str) -> None:
             }
         )
     except OSError as exc:
-        logger.info("minecraft rcon entities os: %s", exc)
+        log_until_change(
+            logger, "minecraft.rcon.entities", "minecraft rcon entities os: %s", exc
+        )
         _save_entities(
             {
                 **_empty_entities(),
@@ -381,15 +387,21 @@ def collect_perf(db: Session) -> None:
     chunks_total: float | None = None
     try:
         chunk_hit = query_chunks(host, port, password)
+        clear_log_until_change("minecraft.rcon.chunks")
         if chunk_hit and chunk_hit.get("chunks") is not None:
             chunks_total = float(int(chunk_hit["chunks"]))
     except MinecraftRconError as exc:
-        logger.info("minecraft rcon chunks: %s", exc.message)
+        log_until_change(
+            logger, "minecraft.rcon.chunks", "minecraft rcon chunks: %s", exc.message
+        )
     except OSError as exc:
-        logger.info("minecraft rcon chunks os: %s", exc)
+        log_until_change(
+            logger, "minecraft.rcon.chunks", "minecraft rcon chunks os: %s", exc
+        )
 
     try:
         parsed = query_perf(host, port, password)
+        clear_log_until_change("minecraft.rcon.perf")
         tps = _as_float(parsed.get("tps"))
         mspt = _as_float(parsed.get("mspt"))
         db.add(
@@ -432,7 +444,9 @@ def collect_perf(db: Session) -> None:
                 "at": stamp,
             }
         )
-        logger.info("minecraft rcon perf: %s", exc.message)
+        log_until_change(
+            logger, "minecraft.rcon.perf", "minecraft rcon perf: %s", exc.message
+        )
     except OSError as exc:
         db.rollback()
         _save_status(
@@ -446,7 +460,9 @@ def collect_perf(db: Session) -> None:
                 "at": stamp,
             }
         )
-        logger.info("minecraft rcon perf os: %s", exc)
+        log_until_change(
+            logger, "minecraft.rcon.perf", "minecraft rcon perf os: %s", exc
+        )
 
 
 def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:

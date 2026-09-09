@@ -79,4 +79,19 @@ describe("formatRequestError", () => {
       ),
     ).toBe("账号或密码错误");
   });
+
+  it("maps FastAPI default 404", () => {
+    expect(
+      formatRequestError(
+        { response: { status: 404, data: { detail: "Not Found" } } },
+        "失败",
+      ),
+    ).toBe("接口或资源不存在");
+    expect(
+      formatRequestError(
+        { response: { status: 404, data: { detail: "目录不存在" } } },
+        "失败",
+      ),
+    ).toBe("目录不存在");
+  });
 });

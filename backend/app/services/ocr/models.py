@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import ssl
 import threading
 import time
 import zipfile
@@ -18,10 +17,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import httpx
-
 from app.core.config import get_settings
-from app.services.ocr.catalog import DEFAULT_PADDLE_PROFILE, normalize_paddle_profile, paddle_rapidocr_enums
+from app.core.http_client import HttpRequestError, http_stream
+from app.services.ocr.paddle_profiles import (
+    DEFAULT_PADDLE_PROFILE,
+    normalize_paddle_profile,
+    paddle_rapidocr_enums,
+)
 from app.services.ocr.types import OcrError
 
 logger = logging.getLogger("zhange.ocr")
@@ -29,9 +31,12 @@ logger = logging.getLogger("zhange.ocr")
 REVISION_NAME = "ocr_REVISION"
 LEGACY_REVISION_NAME = "key_ocr_REVISION"
 MODELS_NOT_READY_MSG = (
-    "识别模型未就绪，请到任务配置运行「识别模型更新」，或在系统管理「文字识别」查看引擎状态"
+    "识别模型未就绪，请到任务配置运行「文字识别模型」，或在系统管理「文字识别」查看引擎状态"
 )
 JOB_ID = "ocr_model_sync"
+_DOWNLOAD_READ_SEC = 300
+_DOWNLOAD_CONNECT_SEC = 20
+_UA = "zhange-stats-ocr"
 
 _SYNC_LOCK = threading.Lock()
 
@@ -257,16 +262,6 @@ def format_sync_message(phase: str, **kwargs: Any) -> str:
     return "正在同步识别模型…"
 
 
-def _http() -> httpx.Client:
-    return httpx.Client(
-        timeout=httpx.Timeout(connect=20.0, read=300.0, write=60.0, pool=20.0),
-        follow_redirects=True,
-        max_redirects=5,
-        verify=ssl.create_default_context(),
-        headers={"User-Agent": "zhange-stats-ocr"},
-    )
-
-
 def _safe_zip_member(names: Sequence[str], filename: str) -> str:
     match = next((item for item in names if Path(item).name == filename), None)
     if match is None:
@@ -295,20 +290,25 @@ def download_weight(
     url_path = urlparse(spec.url).path.lower()
     is_zip = url_path.endswith(".zip")
     try:
-        with _http() as client:
-            with client.stream("GET", spec.url) as resp:
-                if resp.status_code >= 400:
-                    raise OcrError(
-                        f"下载 {spec.name} 失败（HTTP {resp.status_code}）",
-                        502,
-                    )
-                written = 0
-                with part.open("wb") as handle:
-                    for chunk in resp.iter_bytes(64 * 1024):
-                        handle.write(chunk)
-                        written += len(chunk)
-                        if on_bytes:
-                            on_bytes(written)
+        with http_stream(
+            "GET",
+            spec.url,
+            headers={"User-Agent": _UA},
+            timeout=_DOWNLOAD_READ_SEC,
+            connect=_DOWNLOAD_CONNECT_SEC,
+        ) as resp:
+            if resp.status_code >= 400:
+                raise OcrError(
+                    f"下载 {spec.name} 失败（HTTP {resp.status_code}）",
+                    502,
+                )
+            written = 0
+            with part.open("wb") as handle:
+                for chunk in resp.iter_bytes(64 * 1024):
+                    handle.write(chunk)
+                    written += len(chunk)
+                    if on_bytes:
+                        on_bytes(written)
         if is_zip:
             with zipfile.ZipFile(part) as archive:
                 member = _safe_zip_member(archive.namelist(), spec.name)
@@ -323,6 +323,12 @@ def download_weight(
     except OcrError:
         part.unlink(missing_ok=True)
         raise
+    except HttpRequestError as exc:
+        part.unlink(missing_ok=True)
+        raise OcrError(
+            f"下载识别模型失败：{_short_err(exc)}",
+            502,
+        ) from exc
     except Exception as exc:
         part.unlink(missing_ok=True)
         logger.exception("ocr weight download failed name=%s", spec.name)
