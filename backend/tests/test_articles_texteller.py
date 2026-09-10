@@ -191,6 +191,16 @@ def test_progress_helpers() -> None:
     ) == [("config.json", 2), ("encoder_model.onnx", 30)]
 
 
+def test_leftover_texteller_weights_are_not_downloaded() -> None:
+    from app.core.paths import LEFTOVER_TEXTTELLER_FILES
+
+    allowed = set(texteller_svc.ALLOW_PATTERNS)
+    assert "encoder_model.onnx" in allowed
+    assert "decoder_model.onnx" in allowed
+    for name in LEFTOVER_TEXTTELLER_FILES:
+        assert name not in allowed
+
+
 def test_sync_emits_skip_progress(tmp_path: Path) -> None:
     dest = tmp_path / "texteller"
     dest.mkdir()

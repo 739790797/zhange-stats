@@ -50,7 +50,7 @@ zhange-stats/
 
 ### user_files/
 
-用户上传附件登记（`store` / `backfill`）。命名空间子目录写在 `UPLOAD_DIR`（`articles/`、`avatars/`）。头像裁剪仍走根上 `avatar_store`，落盘与登记走本包（覆盖 `avatars/{member_id}.jpg`，不另开 UUID）。启动时扫盘把存量文件补进登记表（幂等）。管理端占用浏览仍走根上 `file_manager`，不要把用户附件元数据塞进盘点模块。
+用户上传附件登记（`store` / `backfill`）。命名空间子目录写在 `UPLOAD_DIR`（`articles/`、`avatars/`）。头像裁剪仍走根上 `avatar_store`，落盘与登记走本包（覆盖 `avatars/{member_id}.jpg`，不另开 UUID）。启动时扫盘把存量文件补进登记表（幂等）。管理端占用与安装根增删改查仍走根上 `file_manager`，不要把用户附件元数据塞进盘点模块。
 
 ## 前端 `components/`
 
@@ -77,7 +77,7 @@ zhange-stats/
 
 前端生产跑的是 **CI 绿之后** GitHub Release 的 `static/` tar，打包后的 JS 已带组件路径。本机 Vite 另靠 `frontend/` 同步。发版约定见 [`deploy.md`](deploy.md)「发版」。
 
-表结构变更走 Alembic。运行时目录（`config/` / `data/`）在保护前缀里，更新不会覆盖。首次启动会把旧 `var/` 迁进 `data/{runtime,uploads,models,…}`。
+表结构变更走 Alembic。运行时目录（`config/` / `data/`）在保护前缀里，更新不会覆盖。首次启动会把旧 `var/` 迁进 `data/{runtime,uploads,models,…}`，并清根 `config.example/`、空壳旧目录、未使用的公式 ONNX；根 `.env` 与可能不同的 `backend/data/.secret_key` 不自动删。
 
 ## 附录：历史搬家对照（已完成）
 

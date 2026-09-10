@@ -17,6 +17,88 @@ from app.core.timeutil import BEIJING
 
 FileKind = Literal["generated", "dependency", "cache", "download"]
 
+MAX_EDIT_BYTES = 2 * 1024 * 1024
+MAX_UPLOAD_BYTES = 256 * 1024 * 1024
+MAX_ENTRY_NAME = 255
+MAX_DELETE_NAMES = 200
+
+TEXT_SUFFIXES = frozenset(
+    {
+        ".txt",
+        ".md",
+        ".markdown",
+        ".rst",
+        ".json",
+        ".jsonl",
+        ".json5",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".xml",
+        ".csv",
+        ".log",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".properties",
+        ".py",
+        ".pyi",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".css",
+        ".scss",
+        ".less",
+        ".html",
+        ".htm",
+        ".sh",
+        ".bash",
+        ".ps1",
+        ".bat",
+        ".cmd",
+        ".service",
+        ".lock",
+        ".example",
+        ".gitignore",
+        ".dockerignore",
+        ".editorconfig",
+        ".mdc",
+        ".svg",
+    }
+)
+TEXT_BASENAMES = frozenset(
+    {
+        "version",
+        "license",
+        "makefile",
+        "dockerfile",
+        "procfile",
+        "gemfile",
+        "jenkinsfile",
+        "agents.md",
+        "readme",
+        "readme.md",
+        ".gitignore",
+        ".dockerignore",
+        ".editorconfig",
+        ".nvmrc",
+        ".python-version",
+    }
+)
+_WIN_RESERVED = frozenset(
+    {
+        "con",
+        "prn",
+        "aux",
+        "nul",
+        *(f"com{i}" for i in range(1, 10)),
+        *(f"lpt{i}" for i in range(1, 10)),
+    }
+)
+
 KIND_LABELS: dict[FileKind, str] = {
     "generated": "产生",
     "dependency": "依赖",
@@ -159,6 +241,7 @@ class BrowseEntry:
     modified_at: str | None
     sensitive: bool
     downloadable: bool
+    editable: bool = False
 
 
 @dataclass(frozen=True)
@@ -836,6 +919,9 @@ def list_directory(
                     modified_at=_mtime_beijing(Path(entry.path)),
                     sensitive=sensitive,
                     downloadable=is_file and not sensitive,
+                    editable=is_file
+                    and not sensitive
+                    and looks_like_text_name(entry.name, size),
                 )
             )
         except OSError:
@@ -869,3 +955,412 @@ def resolve_download(
     if not target.exists() or not target.is_file() or target.is_symlink():
         raise FileManagerError("文件不存在", status_code=404)
     return target
+
+
+@dataclass(frozen=True)
+class MutateResult:
+    root_id: str
+    path: str
+    name: str = ""
+    kept_sensitive: bool = False
+    content: str = ""
+
+
+def looks_like_text_name(name: str, size: int) -> bool:
+    if size > MAX_EDIT_BYTES:
+        return False
+    text = (name or "").strip()
+    if not text:
+        return False
+    lower = text.lower()
+    if lower in TEXT_BASENAMES:
+        return True
+    suffix = Path(text).suffix.lower()
+    if suffix in TEXT_SUFFIXES:
+        return True
+    if lower.endswith(".example") and Path(text[: -len(".example")]).suffix.lower() in TEXT_SUFFIXES:
+        return True
+    if size <= 0:
+        return False
+    if size <= 64 * 1024 and "." not in text.lstrip("."):
+        return True
+    return False
+
+
+def validate_entry_name(name: str, *, from_upload: bool = False) -> str:
+    text = (name or "").replace("\\", "/").strip()
+    if from_upload and "/" in text:
+        text = text.rsplit("/", 1)[-1].strip()
+    if not text or text in {".", ".."} or "\x00" in text:
+        raise FileManagerError("文件名不合法")
+    if "/" in text or os.path.isabs(text) or os.path.splitdrive(text)[0]:
+        raise FileManagerError("文件名不合法")
+    if os.name == "nt" and ":" in text:
+        raise FileManagerError("文件名不合法")
+    if len(text) > MAX_ENTRY_NAME:
+        raise FileManagerError("文件名过长")
+    stem = text.split(".", 1)[0].rstrip(".").lower()
+    if os.name == "nt" and stem in _WIN_RESERVED:
+        raise FileManagerError("文件名不合法")
+    if text.endswith(" ") or text.endswith("."):
+        raise FileManagerError("文件名不合法")
+    return text
+
+
+def child_rel(dir_rel: str, name: str) -> str:
+    parent = normalize_rel(dir_rel)
+    child = validate_entry_name(name)
+    return f"{parent}/{child}" if parent else child
+
+
+def _refuse_sensitive(rel: str, action: str) -> None:
+    if rel_is_sensitive(rel):
+        raise FileManagerError(f"敏感路径不可{action}", status_code=403)
+
+
+def _io_error(_exc: OSError, fallback: str) -> FileManagerError:
+    return FileManagerError(fallback, status_code=500)
+
+
+def _root_and_dir(
+    root_id: str,
+    dir_rel: str,
+    *,
+    ctx: FileManagerContext,
+) -> tuple[BrowseRoot, str, Path]:
+    root = _root_by_id(ctx, root_id)
+    rel_n = normalize_rel(dir_rel)
+    _refuse_sensitive(rel_n, "操作")
+    target = resolve_in_root(root.path, rel_n)
+    if not target.exists() or not target.is_dir() or target.is_symlink():
+        raise FileManagerError("目录不存在", status_code=404)
+    return root, rel_n, target
+
+
+def dir_contains_sensitive(path: Path, rel: str) -> bool:
+    if rel_is_sensitive(rel):
+        return True
+    try:
+        if not path.is_dir() or path.is_symlink():
+            return False
+    except OSError:
+        return True
+    stack = [(path, rel)]
+    while stack:
+        current, current_rel = stack.pop()
+        try:
+            with os.scandir(current) as it:
+                for entry in it:
+                    child_rel_n = f"{current_rel}/{entry.name}" if current_rel else entry.name
+                    if rel_is_sensitive(child_rel_n):
+                        return True
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append((Path(entry.path), child_rel_n))
+        except OSError:
+            return True
+    return False
+
+
+def _new_child_path(parent: Path, parent_rel: str, name: str, *, action: str) -> tuple[str, Path]:
+    child_name = validate_entry_name(name)
+    rel = child_rel(parent_rel, child_name)
+    _refuse_sensitive(rel, action)
+    target = parent.joinpath(child_name)
+    try:
+        resolved = target.resolve()
+    except OSError as exc:
+        raise FileManagerError("路径不合法") from exc
+    if not is_under(resolved, parent.resolve()):
+        raise FileManagerError("路径不合法")
+    if resolved.exists():
+        raise FileManagerError("已存在同名文件或目录", status_code=409)
+    return rel, resolved
+
+
+def _decode_text(data: bytes) -> str:
+    if b"\x00" in data:
+        raise FileManagerError("不是可编辑的文本", status_code=415)
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise FileManagerError("不是可编辑的文本", status_code=415) from exc
+
+
+def _write_bytes(path: Path, data: bytes) -> None:
+    try:
+        path.write_bytes(data)
+    except OSError as exc:
+        raise _io_error(exc, "无法写入文件") from exc
+
+
+def read_text(
+    root_id: str,
+    rel: str,
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    target = resolve_download(root_id, rel, ctx=ctx)
+    try:
+        size = target.stat().st_size
+    except OSError as exc:
+        raise _io_error(exc, "无法读取文件") from exc
+    if size > MAX_EDIT_BYTES:
+        raise FileManagerError(
+            f"文件超过 {MAX_EDIT_BYTES // (1024 * 1024)}MB，请下载后编辑",
+            status_code=413,
+        )
+    try:
+        data = target.read_bytes()
+    except OSError as exc:
+        raise _io_error(exc, "无法读取文件") from exc
+    return MutateResult(
+        root_id=root_id,
+        path=normalize_rel(rel),
+        name=target.name,
+        content=_decode_text(data),
+    )
+
+
+def write_text(
+    root_id: str,
+    rel: str,
+    content: str,
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    rel_n = normalize_rel(rel)
+    if not rel_n:
+        raise FileManagerError("请指定文件")
+    _refuse_sensitive(rel_n, "修改")
+    root = _root_by_id(ctx, root_id)
+    target = resolve_in_root(root.path, rel_n)
+    if is_sensitive_name(target.name):
+        raise FileManagerError("敏感路径不可修改", status_code=403)
+    if not target.exists() or not target.is_file() or target.is_symlink():
+        raise FileManagerError("文件不存在", status_code=404)
+    data = (content or "").encode("utf-8")
+    if len(data) > MAX_EDIT_BYTES:
+        raise FileManagerError(
+            f"文件内容超过 {MAX_EDIT_BYTES // (1024 * 1024)}MB，请改为上传",
+            status_code=413,
+        )
+    _write_bytes(target, data)
+    clear_size_cache()
+    return MutateResult(root_id=root_id, path=rel_n, name=target.name)
+
+
+def create_folder(
+    root_id: str,
+    dir_rel: str,
+    name: str,
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
+    _, target = _new_child_path(parent, parent_rel, name, action="创建")
+    try:
+        target.mkdir(exist_ok=False)
+    except FileExistsError as exc:
+        raise FileManagerError("已存在同名文件或目录", status_code=409) from exc
+    except OSError as exc:
+        raise _io_error(exc, "无法创建目录") from exc
+    clear_size_cache()
+    return MutateResult(root_id=root.id, path=parent_rel, name=target.name)
+
+
+def create_file(
+    root_id: str,
+    dir_rel: str,
+    name: str,
+    content: str = "",
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
+    data = (content or "").encode("utf-8")
+    if len(data) > MAX_EDIT_BYTES:
+        raise FileManagerError(
+            f"文件内容超过 {MAX_EDIT_BYTES // (1024 * 1024)}MB，请改为上传",
+            status_code=413,
+        )
+    _, target = _new_child_path(parent, parent_rel, name, action="创建")
+    _write_bytes(target, data)
+    clear_size_cache()
+    return MutateResult(root_id=root.id, path=parent_rel, name=target.name)
+
+
+def upload_file(
+    root_id: str,
+    dir_rel: str,
+    filename: str,
+    data: bytes,
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise FileManagerError("上传不能超过 256MB", status_code=413)
+    root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
+    child_name = validate_entry_name(filename, from_upload=True)
+    rel = child_rel(parent_rel, child_name)
+    _refuse_sensitive(rel, "上传")
+    target = parent.joinpath(child_name)
+    try:
+        resolved = target.resolve()
+    except OSError as exc:
+        raise FileManagerError("路径不合法") from exc
+    if not is_under(resolved, parent.resolve()):
+        raise FileManagerError("路径不合法")
+    if resolved.exists() and (resolved.is_dir() or resolved.is_symlink()):
+        raise FileManagerError("已存在同名目录", status_code=409)
+    if is_sensitive_name(resolved.name):
+        raise FileManagerError("敏感路径不可上传", status_code=403)
+    _write_bytes(resolved, data)
+    clear_size_cache()
+    return MutateResult(root_id=root.id, path=parent_rel, name=resolved.name)
+
+
+def rename_entry(
+    root_id: str,
+    dir_rel: str,
+    src: str,
+    dest: str,
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
+    src_name = validate_entry_name(src)
+    dest_name = validate_entry_name(dest)
+    if src_name == dest_name:
+        return MutateResult(root_id=root.id, path=parent_rel, name=dest_name)
+    src_rel = child_rel(parent_rel, src_name)
+    dest_rel = child_rel(parent_rel, dest_name)
+    _refuse_sensitive(src_rel, "重命名")
+    _refuse_sensitive(dest_rel, "重命名")
+    src_path = parent.joinpath(src_name)
+    dest_path = parent.joinpath(dest_name)
+    try:
+        src_resolved = src_path.resolve()
+        dest_resolved = dest_path.resolve()
+        parent_resolved = parent.resolve()
+    except OSError as exc:
+        raise FileManagerError("路径不合法") from exc
+    if not is_under(src_resolved, parent_resolved) or not is_under(dest_resolved, parent_resolved):
+        raise FileManagerError("路径不合法")
+    if not src_resolved.exists() or src_resolved.is_symlink():
+        raise FileManagerError("文件不存在", status_code=404)
+    if dest_resolved.exists():
+        raise FileManagerError("已存在同名文件或目录", status_code=409)
+    if src_resolved.is_dir() and dir_contains_sensitive(src_resolved, src_rel):
+        raise FileManagerError("目录含敏感文件，不可重命名", status_code=403)
+    try:
+        src_resolved.rename(dest_resolved)
+    except OSError as exc:
+        raise _io_error(exc, "无法重命名") from exc
+    clear_size_cache()
+    return MutateResult(root_id=root.id, path=parent_rel, name=dest_name)
+
+
+def _delete_tree(path: Path, rel: str) -> bool:
+    """Delete path; skip sensitive descendants. True if path is gone."""
+    if rel_is_sensitive(rel):
+        return False
+    try:
+        if path.is_symlink():
+            return False
+        if path.is_file():
+            path.unlink()
+            return True
+        if not path.is_dir():
+            return False
+    except OSError as exc:
+        raise _io_error(exc, "无法删除") from exc
+    remaining = False
+    try:
+        with os.scandir(path) as it:
+            entries = list(it)
+    except OSError as exc:
+        raise _io_error(exc, "无法删除") from exc
+    for entry in entries:
+        child_rel_n = f"{rel}/{entry.name}" if rel else entry.name
+        child = Path(entry.path)
+        if rel_is_sensitive(child_rel_n) or entry.is_symlink():
+            remaining = True
+            continue
+        try:
+            is_dir = entry.is_dir(follow_symlinks=False)
+            is_file = entry.is_file(follow_symlinks=False)
+        except OSError:
+            remaining = True
+            continue
+        if is_dir:
+            if not _delete_tree(child, child_rel_n):
+                remaining = True
+        elif is_file:
+            try:
+                child.unlink()
+            except OSError as exc:
+                raise _io_error(exc, "无法删除") from exc
+        else:
+            remaining = True
+    if remaining:
+        return False
+    try:
+        path.rmdir()
+    except OSError:
+        return False
+    return True
+
+
+def delete_entries(
+    root_id: str,
+    dir_rel: str,
+    names: list[str],
+    *,
+    ctx: FileManagerContext | None = None,
+) -> MutateResult:
+    ctx = ctx or context_from_settings()
+    if not names:
+        raise FileManagerError("请选择要删除的文件")
+    if len(names) > MAX_DELETE_NAMES:
+        raise FileManagerError(f"一次最多删除 {MAX_DELETE_NAMES} 项")
+    root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
+    kept_sensitive = False
+    last_name = ""
+    seen: set[str] = set()
+    for raw in names:
+        name = validate_entry_name(raw)
+        if name in seen:
+            continue
+        seen.add(name)
+        rel = child_rel(parent_rel, name)
+        _refuse_sensitive(rel, "删除")
+        target = parent.joinpath(name)
+        try:
+            resolved = target.resolve()
+        except OSError as exc:
+            raise FileManagerError("路径不合法") from exc
+        if not is_under(resolved, parent.resolve()):
+            raise FileManagerError("路径不合法")
+        if not resolved.exists():
+            raise FileManagerError(f"{name} 不存在", status_code=404)
+        if resolved.is_symlink():
+            raise FileManagerError("不支持删除该项目")
+        gone = _delete_tree(resolved, rel)
+        if not gone and resolved.exists():
+            kept_sensitive = True
+        last_name = name
+    clear_size_cache()
+    return MutateResult(
+        root_id=root.id,
+        path=parent_rel,
+        name=last_name,
+        kept_sensitive=kept_sensitive,
+    )

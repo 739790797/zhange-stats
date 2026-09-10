@@ -110,6 +110,22 @@ has_systemd_unit() {
     && systemctl cat "${SERVICE_NAME}" >/dev/null 2>&1
 }
 
+write_systemd_unit() {
+  [[ -f "${SERVICE_SRC}" ]] || return 0
+  install -d -m 0755 /etc/systemd/system
+  sed \
+    -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
+    -e "s|__SERVICE_USER__|${SERVICE_USER}|g" \
+    "${SERVICE_SRC}" > "/etc/systemd/system/${SERVICE_NAME}"
+  if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    systemctl daemon-reload
+    systemctl enable "${SERVICE_NAME}"
+    log "已写入并 enable /etc/systemd/system/${SERVICE_NAME}"
+  else
+    log "已写入 /etc/systemd/system/${SERVICE_NAME}（当前无 systemd，未 enable）"
+  fi
+}
+
 ensure_deps() {
   [[ -f "${REPO_ROOT}/VERSION" ]] || die "未找到 VERSION"
   need_cmd python3

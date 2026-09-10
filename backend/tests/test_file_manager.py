@@ -289,9 +289,200 @@ def test_openapi_files_admin_only() -> None:
     summary = paths.get("/api/settings/files/summary") or {}
     browse = paths.get("/api/settings/files/browse") or {}
     download = paths.get("/api/settings/files/download") or {}
+    contents = paths.get("/api/settings/files/contents") or {}
     assert summary.get("get") is not None
     assert browse.get("get") is not None
     assert download.get("get") is not None
+    assert contents.get("get") is not None
+    assert contents.get("put") is not None
+    assert (paths.get("/api/settings/files/upload") or {}).get("post") is not None
+    assert (paths.get("/api/settings/files/create-folder") or {}).get("post") is not None
+    assert (paths.get("/api/settings/files/create-file") or {}).get("post") is not None
+    assert (paths.get("/api/settings/files/rename") or {}).get("post") is not None
+    assert (paths.get("/api/settings/files/delete") or {}).get("post") is not None
     components = (schema.get("components") or {}).get("schemas") or {}
     assert "FileSummaryOut" in components
     assert "FileBrowseOut" in components
+    assert "FileOkOut" in components
+    assert "FileContentsOut" in components
+    entry = components["FileBrowseEntryOut"]["properties"]
+    assert "editable" in entry
+
+
+def test_crud_inside_install_root(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    notes = ctx.data_dir / "notes"
+    created = fm.create_folder("install", "data/runtime", "notes", ctx=ctx)
+    assert created.name == "notes"
+    assert notes.is_dir()
+
+    made = fm.create_file("install", "data/runtime/notes", "hello.txt", "hi\n", ctx=ctx)
+    assert made.name == "hello.txt"
+    assert (notes / "hello.txt").read_text(encoding="utf-8") == "hi\n"
+
+    listing = fm.list_directory("install", "data/runtime/notes", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    assert names["hello.txt"].downloadable is True
+    assert names["hello.txt"].editable is True
+
+    read = fm.read_text("install", "data/runtime/notes/hello.txt", ctx=ctx)
+    assert read.content == "hi\n"
+    fm.write_text("install", "data/runtime/notes/hello.txt", "updated\n", ctx=ctx)
+    assert (notes / "hello.txt").read_text(encoding="utf-8") == "updated\n"
+
+    fm.rename_entry("install", "data/runtime/notes", "hello.txt", "hi.txt", ctx=ctx)
+    assert not (notes / "hello.txt").exists()
+    assert (notes / "hi.txt").is_file()
+
+    uploaded = fm.upload_file(
+        "install",
+        "data/runtime/notes",
+        "pack.bin",
+        b"xyz",
+        ctx=ctx,
+    )
+    assert uploaded.name == "pack.bin"
+    assert (notes / "pack.bin").read_bytes() == b"xyz"
+    fm.upload_file("install", "data/runtime/notes", "pack.bin", b"zzz", ctx=ctx)
+    assert (notes / "pack.bin").read_bytes() == b"zzz"
+
+    deleted = fm.delete_entries(
+        "install",
+        "data/runtime/notes",
+        ["hi.txt", "pack.bin"],
+        ctx=ctx,
+    )
+    assert deleted.kept_sensitive is False
+    assert list(notes.iterdir()) == []
+
+    fm.delete_entries("install", "data/runtime", ["notes"], ctx=ctx)
+    assert not notes.exists()
+
+
+def test_crud_refuses_sensitive_and_escape(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    (ctx.install_dir / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    secret = ctx.data_dir / ".secret_key"
+    secret.write_text("secret\n", encoding="utf-8")
+    (ctx.data_dir / "ok.log").write_text("hello\n", encoding="utf-8")
+    cfg = ctx.install_dir / "config"
+    cfg.mkdir()
+    (cfg / "app.json").write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(fm.FileManagerError) as create_env:
+        fm.create_file("install", "", ".env.local", "x=1\n", ctx=ctx)
+    assert create_env.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as mkdir_git:
+        fm.create_folder("install", "", ".git", ctx=ctx)
+    assert mkdir_git.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as upload_key:
+        fm.upload_file("install", "data/runtime", ".secret_key", b"nope", ctx=ctx)
+    assert upload_key.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as write_secret:
+        fm.write_text("install", "data/runtime/.secret_key", "x", ctx=ctx)
+    assert write_secret.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as read_secret:
+        fm.read_text("install", "data/runtime/.secret_key", ctx=ctx)
+    assert read_secret.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as del_env:
+        fm.delete_entries("install", "", [".env"], ctx=ctx)
+    assert del_env.value.status_code == 403
+    assert (ctx.install_dir / ".env").is_file()
+    with pytest.raises(fm.FileManagerError) as del_config:
+        fm.delete_entries("install", "", ["config"], ctx=ctx)
+    assert del_config.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as rename_secret:
+        fm.rename_entry("install", "data/runtime", ".secret_key", "key.txt", ctx=ctx)
+    assert rename_secret.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as rename_to_env:
+        fm.rename_entry("install", "data/runtime", "ok.log", ".env", ctx=ctx)
+    assert rename_to_env.value.status_code == 403
+    with pytest.raises(fm.FileManagerError):
+        fm.create_file("install", "data/runtime", "../outside.txt", "nope", ctx=ctx)
+    with pytest.raises(fm.FileManagerError):
+        fm.delete_entries("install", "data/runtime", ["../outside.txt"], ctx=ctx)
+    assert secret.read_text(encoding="utf-8") == "secret\n"
+
+
+def test_delete_dir_skips_sensitive_children(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    runtime = ctx.data_dir
+    (runtime / ".secret_key").write_text("secret\n", encoding="utf-8")
+    logs = runtime / "logs"
+    logs.mkdir()
+    (logs / "app.jsonl").write_text("{}\n", encoding="utf-8")
+    (runtime / "ok.log").write_text("hello\n", encoding="utf-8")
+
+    result = fm.delete_entries("install", "data", ["runtime"], ctx=ctx)
+    assert result.kept_sensitive is True
+    assert (runtime / ".secret_key").is_file()
+    assert not (runtime / "ok.log").exists()
+    assert not logs.exists()
+
+    mdb = ctx.data_root / "mariadb"
+    (mdb / "data").mkdir(parents=True)
+    (mdb / "data" / "ibdata1").write_bytes(b"x" * 8)
+    (mdb / "provision.json").write_text("{}\n", encoding="utf-8")
+    (mdb / "my.ini").write_text("[mysqld]\n", encoding="utf-8")
+    (mdb / "dist").mkdir()
+    (mdb / "dist" / "readme.txt").write_text("bin\n", encoding="utf-8")
+    nested = fm.delete_entries("install", "data", ["mariadb"], ctx=ctx)
+    assert nested.kept_sensitive is True
+    assert (mdb / "data" / "ibdata1").is_file()
+    assert (mdb / "provision.json").is_file()
+    assert not (mdb / "my.ini").exists()
+    assert not (mdb / "dist").exists()
+
+
+def test_rename_dir_blocked_when_it_holds_secrets(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    (ctx.data_dir / ".secret_key").write_text("secret\n", encoding="utf-8")
+    (ctx.data_dir / "ok.log").write_text("hello\n", encoding="utf-8")
+    with pytest.raises(fm.FileManagerError) as blocked:
+        fm.rename_entry("install", "data", "runtime", "runtime-old", ctx=ctx)
+    assert blocked.value.status_code == 403
+    assert ctx.data_dir.is_dir()
+    empty = ctx.data_root / "tmp"
+    empty.mkdir()
+    (empty / "a.txt").write_text("x\n", encoding="utf-8")
+    fm.rename_entry("install", "data", "tmp", "tmp2", ctx=ctx)
+    assert not empty.exists()
+    assert (ctx.data_root / "tmp2" / "a.txt").is_file()
+
+
+def test_validate_entry_name() -> None:
+    assert fm.validate_entry_name("ok.log") == "ok.log"
+    assert fm.validate_entry_name("dir/foo.txt", from_upload=True) == "foo.txt"
+    with pytest.raises(fm.FileManagerError):
+        fm.validate_entry_name("a/b")
+    with pytest.raises(fm.FileManagerError):
+        fm.validate_entry_name("..")
+    with pytest.raises(fm.FileManagerError):
+        fm.validate_entry_name("")
+    assert fm.looks_like_text_name("hello.txt", 12) is True
+    assert fm.looks_like_text_name("det.onnx", 12) is False
+    assert fm.looks_like_text_name("VERSION", 6) is True
+    assert fm.looks_like_text_name(".env.example", 8) is True
+
+
+def test_create_conflict_and_binary_text(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    fm.create_file("install", "data/runtime", "a.txt", "one", ctx=ctx)
+    with pytest.raises(fm.FileManagerError) as exists:
+        fm.create_file("install", "data/runtime", "a.txt", "two", ctx=ctx)
+    assert exists.value.status_code == 409
+    (ctx.data_dir / "blob.bin").write_bytes(b"\x00\x01\x02")
+    listing = fm.list_directory("install", "data/runtime", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    assert names["blob.bin"].editable is False
+    with pytest.raises(fm.FileManagerError) as not_text:
+        fm.read_text("install", "data/runtime/blob.bin", ctx=ctx)
+    assert not_text.value.status_code == 415
+    with pytest.raises(fm.FileManagerError) as missing:
+        fm.delete_entries("install", "data/runtime", ["nope.txt"], ctx=ctx)
+    assert missing.value.status_code == 404

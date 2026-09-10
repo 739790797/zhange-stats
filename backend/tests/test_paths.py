@@ -11,6 +11,8 @@ import pytest
 from app.core.paths import (
     DEFAULT_DATA_DIR,
     DEFAULT_UPLOAD_DIR,
+    LEFTOVER_TEXTTELLER_FILES,
+    cleanup_legacy_install_tree,
     hydrate_legacy_runtime,
     migrate_runtime_layout,
     resolve_runtime_path,
@@ -244,3 +246,78 @@ def test_migrate_spilled_copies_owned_weights_and_leaves_shared_hf(
     (models / "texteller" / "encoder_model.onnx").write_bytes(b"keep")
     migrate_spilled_library_caches(install=install, home=home)
     assert (models / "texteller" / "encoder_model.onnx").read_bytes() == b"keep"
+
+
+def test_migrate_rewrites_env_var_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install = tmp_path / "zhange-stats"
+    var_data = install / "var" / "data"
+    var_data.mkdir(parents=True)
+    (var_data / ".secret_key").write_text("k\n", encoding="utf-8")
+    (install / "var" / "uploads").mkdir(parents=True)
+    sqlite = (var_data / "zhange.sqlite").resolve().as_posix()
+    monkeypatch.setenv("DATA_DIR", str(var_data))
+    monkeypatch.setenv("UPLOAD_DIR", str(install / "var" / "uploads"))
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{sqlite}")
+
+    migrate_runtime_layout(install)
+
+    assert os.environ["DATA_DIR"] == DEFAULT_DATA_DIR
+    assert os.environ["UPLOAD_DIR"] == DEFAULT_UPLOAD_DIR
+    assert os.environ["DATABASE_URL"].replace("\\", "/").endswith(
+        "data/runtime/zhange.sqlite"
+    )
+
+
+def test_migrate_merges_backend_uploads(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    dest = install / "data" / "uploads" / "avatars"
+    dest.mkdir(parents=True)
+    (dest / "keep.jpg").write_bytes(b"a")
+    leftover = install / "backend" / "uploads" / "articles"
+    leftover.mkdir(parents=True)
+    (leftover / "pic.png").write_bytes(b"b")
+
+    migrate_runtime_layout(install)
+
+    assert (install / "data" / "uploads" / "avatars" / "keep.jpg").is_file()
+    assert (install / "data" / "uploads" / "articles" / "pic.png").is_file()
+    assert not (install / "backend" / "uploads").exists()
+
+
+def test_cleanup_legacy_install_tree_skips_env_and_secret(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    (install / "scripts" / "config.example").mkdir(parents=True)
+    (install / "scripts" / "linux").mkdir(parents=True)
+    (install / "scripts" / "config.example" / "app.json").write_text("{}\n", encoding="utf-8")
+    (install / "scripts" / "linux" / "zhange-stats.service").write_text("u\n", encoding="utf-8")
+    (install / "config.example").mkdir()
+    (install / "config.example" / "app.json").write_text("old\n", encoding="utf-8")
+    (install / "deploy" / "systemd").mkdir(parents=True)
+    (install / "backend" / "uploads").mkdir(parents=True)
+    (install / "backend" / "data" / "logs").mkdir(parents=True)
+    (install / "backend" / "data" / ".secret_key").write_text("other\n", encoding="utf-8")
+    (install / ".env").write_text("X=1\n", encoding="utf-8")
+    models = install / "data" / "models" / "texteller"
+    models.mkdir(parents=True)
+    (models / "encoder_model.onnx").write_bytes(b"keep")
+    (models / "decoder_model.onnx").write_bytes(b"keep")
+    for name in LEFTOVER_TEXTTELLER_FILES:
+        (models / name).write_bytes(b"drop")
+    (install / "data" / "runtime" / "maa").mkdir(parents=True)
+
+    removed = cleanup_legacy_install_tree(install)
+    assert "config.example/" in removed
+    assert "deploy/" in removed
+    assert any(item.endswith("decoder_model_merged.onnx") for item in removed)
+    assert not (install / "config.example").exists()
+    assert not (install / "deploy").exists()
+    assert not (install / "backend" / "uploads").exists()
+    assert not (install / "data" / "runtime" / "maa").exists()
+    assert (install / ".env").is_file()
+    assert (install / "backend" / "data" / ".secret_key").read_text(encoding="utf-8") == "other\n"
+    assert (models / "encoder_model.onnx").is_file()
+    assert (models / "decoder_model.onnx").is_file()
+    for name in LEFTOVER_TEXTTELLER_FILES:
+        assert not (models / name).exists()

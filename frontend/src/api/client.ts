@@ -90,6 +90,8 @@ export {
   updateOcrSettings,
   fetchRuntimeEnv,
   updateRuntimeEnv,
+  testRuntimeDatabase,
+  testRuntimeRedis,
 } from "./settingsApi";
 
 export {

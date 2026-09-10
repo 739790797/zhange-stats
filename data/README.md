@@ -3,7 +3,7 @@
 应用运行时、模型、缓存、本地开发进程文件一律写在安装根 `data/`，**不要**写进 `backend/` 或 `frontend/`。
 `frontend/src/data/` 是源码资源（如塔科夫地图 JSON），不是本目录。
 
-启动时 `migrate_runtime_layout` 会把旧的 `var/`（以及曾经当 `DATA_DIR` 用的扁平 `data/`）拆进下表。不要再出现 `data/data`。
+启动时 `migrate_runtime_layout` 会把旧的 `var/`（以及曾经当 `DATA_DIR` 用的扁平 `data/`）拆进下表，并清根 `config.example/`、空壳旧目录、未使用的 TexTeller ONNX。不要再出现 `data/data`。根 `.env` 与可能不同的旧 `.secret_key` 不自动删。
 
 | 子目录 | 用途 |
 |--------|------|
@@ -18,5 +18,5 @@
 
 备份打包 `config/`、`runtime/`、`uploads/`、`models/`；不打包 `cache/`、`run/`、`tmp/`、`mariadb/`。
 
-管理端「运行维护 → 文件管理」统计这些目录的磁盘占用，并可从安装根点进去浏览（密钥文件不可下载）。
+管理端「运行维护 → 文件管理」统计这些目录的磁盘占用，并可从安装根点进去增删改查（密钥 / `config/` / `.git` / MariaDB 数据 / 备份不可进、不可改、不可删）。
 `frontend/src/api/generated/` 是提交进仓库的 OpenAPI 契约，不是缓存。

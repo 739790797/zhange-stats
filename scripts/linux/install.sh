@@ -25,14 +25,8 @@ if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
 fi
 
 if [[ -f "${SERVICE_SRC}" ]]; then
-  install -d -m 0755 /etc/systemd/system
-  sed \
-    -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
-    -e "s|__SERVICE_USER__|${SERVICE_USER}|g" \
-    "${SERVICE_SRC}" > "/etc/systemd/system/${SERVICE_NAME}"
-  systemctl daemon-reload
-  systemctl enable "${SERVICE_NAME}"
-  log "已安装并 enable ${SERVICE_NAME}（未自动 start，请执行 scripts/linux/run.sh）"
+  write_systemd_unit
+  log "未自动 start，请执行 scripts/linux/run.sh"
 fi
 if [[ -f "${SERVICE_SRC}" && -e "${REPO_ROOT}/deploy" ]]; then
   rm -rf "${REPO_ROOT}/deploy"

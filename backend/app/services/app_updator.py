@@ -22,6 +22,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from app.core.config import get_settings
+from app.core.paths import cleanup_legacy_install_tree
 from app.core.paths import resolve_install_dir as resolve_install_dir_from_env
 from app.core.paths import resolve_runtime_path
 from app.core.runtime_cache import pin_library_cache_env, runtime_tmp_dir
@@ -883,8 +884,8 @@ def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
                 continue
             _sync_merge_tree(src, dest)
             applied.append(rel.rstrip("/") + "/")
-        if remove_legacy_deploy_tree(install_dir):
-            applied.append("-deploy/")
+        for rel_leftover in cleanup_legacy_install_tree(install_dir):
+            applied.append(f"-{rel_leftover}")
     return applied
 
 

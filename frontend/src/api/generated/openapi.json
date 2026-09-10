@@ -2647,6 +2647,98 @@
         ]
       }
     },
+    "/api/settings/runtime-env/database-test": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Test Runtime Database",
+        "operationId": "test_runtime_database_api_settings_runtime_env_database_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeDatabaseTestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConnTestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/runtime-env/redis-test": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Test Runtime Redis",
+        "operationId": "test_runtime_redis_api_settings_runtime_env_redis_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeRedisTestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConnTestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/files/summary": {
       "get": {
         "tags": [
@@ -2813,6 +2905,340 @@
             }
           }
         }
+      }
+    },
+    "/api/settings/files/contents": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Contents",
+        "operationId": "files_contents_api_settings_files_contents_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContentsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Write",
+        "operationId": "files_write_api_settings_files_contents_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileWriteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/files/upload": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Upload",
+        "operationId": "files_upload_api_settings_files_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_files_upload_api_settings_files_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/files/create-folder": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Create Folder",
+        "operationId": "files_create_folder_api_settings_files_create_folder_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDirOpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/files/create-file": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Create File",
+        "operationId": "files_create_file_api_settings_files_create_file_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileCreateFileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/files/rename": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Rename",
+        "operationId": "files_rename_api_settings_files_rename_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileRenameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/files/delete": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Files Delete",
+        "operationId": "files_delete_api_settings_files_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDeleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/settings/app-update/status": {
@@ -18945,6 +19371,33 @@
         ],
         "title": "BindEmailResponse"
       },
+      "Body_files_upload_api_settings_files_upload_post": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Path",
+            "default": ""
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "file"
+        ],
+        "title": "Body_files_upload_api_settings_files_upload_post"
+      },
       "Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post": {
         "properties": {
           "file": {
@@ -21021,6 +21474,11 @@
             "type": "boolean",
             "title": "Downloadable",
             "default": false
+          },
+          "editable": {
+            "type": "boolean",
+            "title": "Editable",
+            "default": false
           }
         },
         "type": "object",
@@ -21205,6 +21663,127 @@
         ],
         "title": "FileBusinessTotalOut"
       },
+      "FileContentsOut": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "path"
+        ],
+        "title": "FileContentsOut"
+      },
+      "FileCreateFileIn": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Path",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2097152,
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "name"
+        ],
+        "title": "FileCreateFileIn"
+      },
+      "FileDeleteIn": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Path",
+            "default": ""
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Names"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "names"
+        ],
+        "title": "FileDeleteIn"
+      },
+      "FileDirOpIn": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Path",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "name"
+        ],
+        "title": "FileDirOpIn"
+      },
       "FileKindTotalOut": {
         "properties": {
           "kind": {
@@ -21232,6 +21811,72 @@
           "file_count"
         ],
         "title": "FileKindTotalOut"
+      },
+      "FileOkOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "root_id": {
+            "type": "string",
+            "title": "Root Id",
+            "default": ""
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "kept_sensitive": {
+            "type": "boolean",
+            "title": "Kept Sensitive",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "FileOkOut"
+      },
+      "FileRenameIn": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Path",
+            "default": ""
+          },
+          "src": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Src"
+          },
+          "dest": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Dest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "src",
+          "dest"
+        ],
+        "title": "FileRenameIn"
       },
       "FileSummaryOut": {
         "properties": {
@@ -21328,6 +21973,34 @@
           "free_bytes"
         ],
         "title": "FileVolumeOut"
+      },
+      "FileWriteIn": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Root Id"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2097152,
+            "title": "Content",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "path"
+        ],
+        "title": "FileWriteIn"
       },
       "GameScheduleCalendarOut": {
         "properties": {
@@ -27435,6 +28108,59 @@
         ],
         "title": "RoleMembershipTreeOut"
       },
+      "RuntimeConnTestOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "RuntimeConnTestOut"
+      },
+      "RuntimeDatabaseTestIn": {
+        "properties": {
+          "db_engine": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Db Engine",
+            "default": "sqlite"
+          },
+          "db_path": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Db Path",
+            "default": ""
+          },
+          "db_url": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Db Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "RuntimeDatabaseTestIn"
+      },
       "RuntimeEnvOut": {
         "properties": {
           "app_env": {
@@ -27795,6 +28521,18 @@
           "buffered"
         ],
         "title": "RuntimeLogsOut"
+      },
+      "RuntimeRedisTestIn": {
+        "properties": {
+          "redis_url": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Redis Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "RuntimeRedisTestIn"
       },
       "ScheduledJobLastRunOut": {
         "properties": {

@@ -142,7 +142,7 @@ export default function EmailSettingsPage() {
                       : undefined
                   }
                 >
-                  <Input placeholder="如 2753478236@qq.com" />
+                  <Input placeholder="user@example.com" />
                 </Form.Item>
 
                 <Form.Item
@@ -154,7 +154,7 @@ export default function EmailSettingsPage() {
                     </Typography.Text>
                   }
                 >
-                  <Input placeholder="可选" />
+                  <Input placeholder="noreply@example.com" />
                 </Form.Item>
 
                 <Form.Item
@@ -180,7 +180,7 @@ export default function EmailSettingsPage() {
                 </Form.Item>
 
                 <Form.Item name="display_name" label="显示名称">
-                  <Input placeholder="如 战鸽波波" />
+                  <Input placeholder="站点名称" />
                 </Form.Item>
 
                 <Form.Item
@@ -192,7 +192,7 @@ export default function EmailSettingsPage() {
                       : undefined
                   }
                 >
-                  <Input placeholder="如 smtp.qq.com" />
+                  <Input placeholder="smtp.example.com" />
                 </Form.Item>
 
                 <Form.Item
@@ -208,7 +208,7 @@ export default function EmailSettingsPage() {
                     min={1}
                     max={65535}
                     style={{ width: "100%" }}
-                    placeholder="如 465"
+                    placeholder="465"
                   />
                 </Form.Item>
 

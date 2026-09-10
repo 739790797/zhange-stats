@@ -35,10 +35,15 @@ if [[ "${rc}" -ne 0 ]]; then
   exit "${rc}"
 fi
 
-if [[ "${EUID}" -eq 0 ]] && id -u "${SERVICE_USER}" >/dev/null 2>&1; then
-  chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_ROOT}"
-  chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
-  chmod 700 "${DATA_DIR}" "${UPLOAD_DIR}" 2>/dev/null || true
+if [[ "${EUID}" -eq 0 ]]; then
+  write_systemd_unit
+  if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_ROOT}"
+    chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
+    chmod 700 "${DATA_DIR}" "${UPLOAD_DIR}" 2>/dev/null || true
+  fi
+else
+  log "WARN: 非 root，未刷新 systemd 单元；请 sudo bash scripts/linux/install.sh 后 restart"
 fi
 
 restart_app

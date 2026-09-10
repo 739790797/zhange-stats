@@ -217,6 +217,30 @@ def test_remove_legacy_deploy_tree(tmp_path: Path) -> None:
     assert u.remove_legacy_deploy_tree(install) is False
 
 
+def test_apply_source_zip_removes_root_config_example(tmp_path: Path):
+    install = tmp_path / "install"
+    (install / "config.example").mkdir(parents=True)
+    (install / "config.example" / "app.json").write_text("old\n", encoding="utf-8")
+    (install / "deploy" / "old.txt").parent.mkdir(parents=True)
+    (install / "deploy" / "old.txt").write_text("x\n", encoding="utf-8")
+    (install / "backend" / "app").mkdir(parents=True)
+
+    zip_path = tmp_path / "src.zip"
+    root = "zhange-stats-abc/"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(root + "VERSION", "1.0.0\n")
+        zf.writestr(root + "backend/app/x.py", "x\n")
+        zf.writestr(root + "scripts/config.example/app.json", '{"_version": 1}\n')
+        zf.writestr(root + "scripts/linux/zhange-stats.service", "unit\n")
+
+    applied = u.apply_source_zip(zip_path, install)
+    assert not (install / "config.example").exists()
+    assert not (install / "deploy").exists()
+    assert (install / "scripts" / "config.example" / "app.json").is_file()
+    assert any(item.startswith("-config.example") for item in applied)
+    assert any(item.startswith("-deploy") for item in applied)
+
+
 def test_apply_source_zip_new_whitelist_path_from_incoming_updator(tmp_path: Path):
     install = tmp_path / "install"
     install.mkdir()

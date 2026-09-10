@@ -198,10 +198,28 @@ def default_sqlite_rel() -> str:
         return path.as_posix()
 
 
-def ping_mysql_url(url: str) -> None:
+def ping_mysql_url(url: str, *, connect_timeout: int = 5) -> None:
     from sqlalchemy import create_engine, text
 
-    engine = create_engine(url, pool_pre_ping=True)
+    engine = create_engine(
+        url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": connect_timeout},
+    )
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    finally:
+        engine.dispose()
+
+
+def ping_sqlite_path(path: Path) -> None:
+    from sqlalchemy import create_engine, text
+
+    dest = path if path.is_absolute() else resolve_install_dir() / path
+    if not dest.parent.exists():
+        raise DatabaseSettingsError(f"目录不存在：{dest.parent.as_posix()}")
+    engine = create_engine(sqlite_file_url(dest))
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))

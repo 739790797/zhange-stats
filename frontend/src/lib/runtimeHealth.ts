@@ -1,6 +1,6 @@
 import type { RuntimeHealthService } from "@/api/runtimeHealthApi";
 
-/** 本机依赖探活，画在运行环境表单标签旁。 */
+/** 本机依赖探活，画在运行环境各服务卡片标题旁。 */
 export const RUNTIME_STATUS_IDS = ["database", "redis"] as const;
 
 export const HEALTH_TAG: Record<string, { color: string; label: string }> = {

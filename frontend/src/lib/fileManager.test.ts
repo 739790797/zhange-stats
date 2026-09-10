@@ -7,6 +7,8 @@ import {
   formatPercent,
   isFileBrowseLocked,
   joinFileRel,
+  managedUploadJobLabel,
+  managedUploadProgressPercent,
   parentFileRel,
   stackDiskUsage,
 } from "./fileManager";
@@ -66,6 +68,7 @@ describe("fileManager", () => {
         modified_at: null,
         sensitive: false,
         downloadable: false,
+        editable: false,
         browseRootId: "install",
         missing: false,
       },
@@ -77,6 +80,7 @@ describe("fileManager", () => {
         modified_at: null,
         sensitive: false,
         downloadable: false,
+        editable: false,
         browseRootId: "other",
         missing: true,
       },
@@ -135,6 +139,17 @@ describe("fileManager", () => {
     expect(stack?.siteBytes).toBe(50);
     expect(stack?.otherBytes).toBe(0);
     expect(stack?.freeBytes).toBe(50);
+  });
+
+  it("labels managed uploads", () => {
+    expect(managedUploadJobLabel("uploading", null)).toBe("上传中…");
+    expect(managedUploadJobLabel("uploading", 40)).toBe("上传中 40%");
+    expect(managedUploadJobLabel("writing", 100)).toBe("正在写入磁盘…");
+    expect(managedUploadJobLabel("done", 100)).toBe("已上传");
+    expect(managedUploadJobLabel("error", 12)).toBe("上传失败");
+    expect(managedUploadProgressPercent("writing", 40)).toBe(100);
+    expect(managedUploadProgressPercent("uploading", null)).toBe(0);
+    expect(managedUploadProgressPercent("uploading", 40)).toBe(40);
   });
 
   it("returns null without a usable volume", () => {

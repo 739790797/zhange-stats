@@ -711,3 +711,53 @@ def update_runtime_env(
     get_settings.cache_clear()
     return _runtime_env_out(restart_required=restart)
 
+
+class RuntimeConnTestOut(BaseModel):
+    ok: bool
+    message: str
+    latency_ms: float | None = None
+
+
+class RuntimeDatabaseTestIn(BaseModel):
+    db_engine: str = Field(default="sqlite", max_length=16)
+    db_path: str = Field(default="", max_length=512)
+    db_url: str = Field(default="", max_length=2000)
+
+
+class RuntimeRedisTestIn(BaseModel):
+    redis_url: str = Field(default="", max_length=512)
+
+
+@router.post("/runtime-env/database-test", response_model=RuntimeConnTestOut)
+def test_runtime_database(
+    body: RuntimeDatabaseTestIn,
+    _: User = Depends(require_admin),
+) -> RuntimeConnTestOut:
+    from app.services.runtime_health import probe_database_settings
+
+    result = probe_database_settings(
+        engine=body.db_engine,
+        path=body.db_path,
+        url=body.db_url,
+    )
+    return RuntimeConnTestOut(
+        ok=result.ok,
+        message=result.message,
+        latency_ms=result.latency_ms,
+    )
+
+
+@router.post("/runtime-env/redis-test", response_model=RuntimeConnTestOut)
+def test_runtime_redis(
+    body: RuntimeRedisTestIn,
+    _: User = Depends(require_admin),
+) -> RuntimeConnTestOut:
+    from app.services.runtime_health import probe_redis_url
+
+    result = probe_redis_url(body.redis_url)
+    return RuntimeConnTestOut(
+        ok=result.ok,
+        message=result.message,
+        latency_ms=result.latency_ms,
+    )
+

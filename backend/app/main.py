@@ -28,6 +28,7 @@ from app.core.file_config import database_is_configured, ensure_config_dir
 from app.core.http_client import close_http_client
 from app.core.migrate import run_migrations
 from app.core.paths import (
+    cleanup_legacy_install_tree,
     hydrate_legacy_runtime,
     migrate_runtime_layout,
     resolve_install_dir,
@@ -105,6 +106,12 @@ def _ensure_upload_root() -> Path:
     return path
 
 
+def _cleanup_legacy_after_hydrate(install: Path) -> None:
+    leftover = cleanup_legacy_install_tree(install)
+    if leftover:
+        logger.info("startup leftover cleanup: %s", ",".join(leftover))
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_config_dir()
@@ -133,6 +140,7 @@ async def lifespan(_: FastAPI):
             dest_data=cfg.data_dir_path,
             install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
         )
+        _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
         logger.info(
             "startup waiting for setup version=%s upload_root=%s",
             cfg.APP_VERSION,
@@ -160,6 +168,7 @@ async def lifespan(_: FastAPI):
         dest_data=cfg.data_dir_path,
         install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
     )
+    _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
     logger.info("startup step 2/9 done: upload_root=%s data_root=%s", upload_path, cfg.data_dir_path)
 
     db = SessionLocal()

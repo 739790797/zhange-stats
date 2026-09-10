@@ -9,6 +9,7 @@ against the install root, not the process cwd (uvicorn usually starts in
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -32,6 +33,27 @@ _VAR_LAYOUT = (
 _LEGACY_DATA_RELATIVE = ("backend/data", "frontend/data")
 _LEGACY_UPLOAD_RELATIVE = ("uploads", "backend/uploads", "frontend/uploads")
 _HYDRATE_SUBDIRS = ("logs", "maa")
+_EMPTY_LEFTOVER_DIRS = (
+    "backend/uploads",
+    "backend/var",
+    "frontend/uploads",
+    "frontend/data",
+    "frontend/var",
+    "uploads",
+)
+_EMPTY_MAA_DIRS = (
+    "data/runtime/maa",
+    "data/maa",
+    "backend/data/maa",
+    "var/data/maa",
+)
+# 推理不用；ALLOW_PATTERNS 已不再下载。启动时删存量，不删 .env / 旧 .secret_key。
+LEFTOVER_TEXTTELLER_FILES = (
+    "decoder_model_merged.onnx",
+    "decoder_with_past_model.onnx",
+)
+
+logger = logging.getLogger("zhange.startup")
 
 
 def resolve_install_dir(*, configured: str = "") -> Path:
@@ -220,6 +242,154 @@ def _rewrite_site_config_paths(install: Path) -> None:
     _patch_json(config / "database.json", patch_database)
 
 
+def _rewrite_sqlite_database_url(raw: str, install: Path) -> str | None:
+    text = (raw or "").strip()
+    if not text.lower().startswith("sqlite"):
+        return None
+    marker = ":///"
+    idx = text.find(marker)
+    if idx < 0:
+        return None
+    rest = text[idx + len(marker) :].replace("\\", "/")
+    nxt = _rewrite_path_value(rest, install)
+    if nxt is None:
+        return None
+    dest = Path(nxt)
+    if not dest.is_absolute():
+        dest = (install / dest).resolve()
+    else:
+        dest = dest.resolve()
+    return "sqlite:///" + dest.as_posix()
+
+
+def rewrite_legacy_runtime_env(install: Path | None = None) -> dict[str, str]:
+    """If process env still points at ``var/data``, rewrite to the new layout.
+
+    systemd ``EnvironmentFile=.env`` and leftover ``DATA_DIR`` win over
+    ``config/app.json``; after 0.5.1 that can recreate an empty ``var/data``.
+    """
+
+    base = (install or resolve_install_dir()).resolve()
+    changed: dict[str, str] = {}
+    for key in ("DATA_DIR", "UPLOAD_DIR"):
+        raw = (os.environ.get(key) or "").strip()
+        if not raw:
+            continue
+        nxt = _rewrite_path_value(raw, base)
+        if nxt is None or nxt == raw:
+            continue
+        os.environ[key] = nxt
+        changed[key] = nxt
+    raw_db = (os.environ.get("DATABASE_URL") or "").strip()
+    if raw_db:
+        nxt_db = _rewrite_sqlite_database_url(raw_db, base)
+        if nxt_db is not None and nxt_db != raw_db:
+            os.environ["DATABASE_URL"] = nxt_db
+            changed["DATABASE_URL"] = nxt_db
+    return changed
+
+
+def _rel_of(base: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(base.resolve()).as_posix()
+    except (OSError, ValueError):
+        return path.as_posix().replace("\\", "/")
+
+
+def _rmdir_empty_tree(path: Path) -> bool:
+    if path.is_symlink() or not path.is_dir():
+        return False
+    try:
+        children = list(path.iterdir())
+    except OSError:
+        return False
+    for child in children:
+        if child.is_dir() and not child.is_symlink():
+            _rmdir_empty_tree(child)
+    try:
+        path.rmdir()
+        return True
+    except OSError:
+        return False
+
+
+def _unlink_if_file(path: Path) -> bool:
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        path.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def cleanup_legacy_install_tree(install: Path | None = None) -> list[str]:
+    """Delete leftovers that 0.5.1 moved away from but did not remove.
+
+    Does **not** delete root ``.env`` or leftover ``.secret_key`` files
+    (may differ from the live key).
+    """
+
+    base = (install or resolve_install_dir()).resolve()
+    removed: list[str] = []
+
+    unit = base / "scripts" / "linux" / "zhange-stats.service"
+    leftover_deploy = base / "deploy"
+    if unit.is_file() and leftover_deploy.exists():
+        try:
+            if leftover_deploy.is_dir():
+                shutil.rmtree(leftover_deploy)
+            else:
+                leftover_deploy.unlink()
+            removed.append("deploy/")
+        except OSError:
+            pass
+
+    nested_example = base / "scripts" / "config.example"
+    leftover_example = base / "config.example"
+    if nested_example.is_dir() and leftover_example.exists():
+        try:
+            if leftover_example.is_dir():
+                shutil.rmtree(leftover_example)
+            else:
+                leftover_example.unlink()
+            removed.append("config.example/")
+        except OSError:
+            pass
+
+    models = base / DEFAULT_MODELS_DIR / "texteller"
+    runtime_texteller = base / DEFAULT_DATA_DIR / "texteller"
+    for folder in (models, runtime_texteller):
+        for name in LEFTOVER_TEXTTELLER_FILES:
+            path = folder / name
+            if _unlink_if_file(path):
+                removed.append(_rel_of(base, path))
+
+    for rel in _EMPTY_MAA_DIRS:
+        path = base / rel
+        if _rmdir_empty_tree(path):
+            removed.append(rel.rstrip("/") + "/")
+
+    for rel in _EMPTY_LEFTOVER_DIRS:
+        path = base / rel
+        if _rmdir_empty_tree(path):
+            removed.append(rel.rstrip("/") + "/")
+
+    leftover_backend_data = base / "backend" / "data"
+    if leftover_backend_data.is_dir():
+        logs = leftover_backend_data / "logs"
+        if logs.is_dir():
+            _rmdir_empty_tree(logs)
+        if _rmdir_empty_tree(leftover_backend_data):
+            removed.append("backend/data/")
+
+    var = base / "var"
+    if var.is_dir() and _rmdir_empty_tree(var):
+        removed.append("var/")
+
+    return removed
+
+
 def migrate_runtime_layout(install: Path | None = None) -> None:
     """Move ``var/`` and old flat ``data/`` into ``data/{runtime,uploads,models,…}``."""
 
@@ -257,12 +427,20 @@ def migrate_runtime_layout(install: Path | None = None) -> None:
         except OSError:
             pass
 
-    uploads_legacy = base / "uploads"
-    if uploads_legacy.is_dir() and not (root / "uploads").exists():
-        _relocate(uploads_legacy, root / "uploads")
+    dest_uploads = root / "uploads"
+    for src in iter_legacy_upload_dirs(base):
+        _relocate(src, dest_uploads)
 
     _split_models(root)
     _rewrite_site_config_paths(base)
+    rewritten = rewrite_legacy_runtime_env(base)
+    leftover = cleanup_legacy_install_tree(base)
+    if rewritten or leftover:
+        logger.info(
+            "runtime layout migrated env=%s leftover=%s",
+            ",".join(f"{k}={v}" for k, v in rewritten.items()) or "-",
+            ",".join(leftover) or "-",
+        )
 
 
 def hydrate_legacy_runtime(*, dest_data: Path, install: Path) -> None:

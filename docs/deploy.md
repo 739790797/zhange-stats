@@ -37,21 +37,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\run.ps1
 生产日常可用管理端「系统更新」（仅管理员；默认 `APP_ENV=production`，可用 `ALLOW_IN_APP_UPDATE` 覆盖）。主机脚本与管理端走**同一套** GitHub Release：
 
 1. 下载 Release 源码 zip + 预构建 `static`（对端掐流会自动重试并尝试续传）
-2. 白名单目录整棵替换（**增 / 改 / 删** `backend/app`、`alembic`、`scripts` 等）；`frontend/` 按文件同步（保留 `node_modules` / `dist`）；不碰 `config/` / `data/` / `.venv`（存量 `.env` / `var/` / `uploads/` 也不覆盖）
+2. 白名单目录整棵替换（**增 / 改 / 删** `backend/app`、`alembic`、`scripts` 等）；`frontend/` 按文件同步（保留 `node_modules` / `dist`）；不碰 `config/` / `data/` / `.venv`（存量 `.env` 也不覆盖）。落盘后以及随后启动会清根 `config.example/`、`deploy/`、空壳旧目录、未使用的 TexTeller ONNX；**不会**删根 `.env` 或可能不同的旧 `.secret_key`
 3. **先跑 Alembic 迁移**；失败则回滚白名单代码、**不重启**（避免迁移挂死 → 502）
-4. 迁移成功后：管理端 **`os.execv` 同 PID 换码**；主机 `update` 再走 `restart`（有 systemd 则 `systemctl`，否则 6130/6131）
+4. 迁移成功后：管理端 **`os.execv` 同 PID 换码**；主机 `update`（root）会把 `scripts/linux/zhange-stats.service` 写进 `/etc` 再 `restart`（有 systemd 则 `systemctl`，否则 6130/6131）。管理端更新碰不到 `/etc`，0.5.1 升上来后请另跑一次 `install.sh` 刷新单元
 
 ```bash
 sudo bash scripts/linux/update.sh              # 升到最新 Release
 sudo bash scripts/linux/update.sh --check      # 只看是否有新版本
-sudo bash scripts/linux/update.sh --version v0.5.1
+sudo bash scripts/linux/update.sh --version v0.5.2
 sudo bash scripts/linux/update.sh --force      # 已是该版本也重新落盘
 ```
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Check
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Version v0.5.1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Version v0.5.2
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Force
 ```
 

@@ -106,6 +106,7 @@ export type FileAllRootRow = {
   modified_at: null;
   sensitive: false;
   downloadable: false;
+  editable: false;
   browseRootId: string;
   missing: boolean;
 };
@@ -121,9 +122,33 @@ export function fileAllRootRows(
     modified_at: null,
     sensitive: false,
     downloadable: false,
+    editable: false,
     browseRootId: row.id,
     missing: !row.exists,
   }));
+}
+
+export type ManagedUploadPhase = "uploading" | "writing" | "done" | "error";
+
+export function managedUploadProgressPercent(
+  phase: ManagedUploadPhase,
+  percent: number | null,
+) {
+  if (phase === "done" || phase === "writing") return 100;
+  if (percent == null) return 0;
+  return Math.min(100, Math.max(0, percent));
+}
+
+export function managedUploadJobLabel(
+  phase: ManagedUploadPhase,
+  percent: number | null,
+) {
+  if (phase === "uploading") {
+    return percent == null ? "上传中…" : `上传中 ${percent}%`;
+  }
+  if (phase === "writing") return "正在写入磁盘…";
+  if (phase === "done") return "已上传";
+  return "上传失败";
 }
 
 export function filenameFromDisposition(header: string | undefined, fallback: string) {

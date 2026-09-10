@@ -47,7 +47,7 @@
 
 ## 文件管理
 
-管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并浏览**安装根**（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`、`.env`（不含 `.env.example`）、`config/`、`.git`、密钥类后缀、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：敏感目录不可进入，文件不可下载。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。不提供删除。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」。
+管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`、`.env`（不含 `.env.example`）、`config/`、`.git`、密钥类后缀、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：敏感目录不可进入，文件不可下载、修改、重命名或删除；也不能新建同名敏感项。删除普通目录时跳过其中的敏感子项。文本编辑 ≤2MB，上传 ≤256MB。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
 
 ## 塔科夫钥匙截图识别
 

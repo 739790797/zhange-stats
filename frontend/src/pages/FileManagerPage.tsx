@@ -1,8 +1,15 @@
 import {
+  CloseOutlined,
+  DeleteOutlined,
   DownloadOutlined,
+  EditOutlined,
+  FileAddOutlined,
   FileOutlined,
+  FolderAddOutlined,
   FolderOutlined,
+  MoreOutlined,
   ReloadOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,23 +18,38 @@ import {
   Button,
   Card,
   Col,
+  Dropdown,
+  Form,
+  Input,
+  Modal,
+  Progress,
   Row,
   Space,
   Statistic,
   Table,
   Tag,
   Typography,
+  Upload,
   message,
   theme,
 } from "antd";
+import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  createManagedFile,
+  createManagedFolder,
+  deleteManagedFiles,
   downloadManagedFile,
   fetchFileBrowse,
   fetchFileSummary,
+  fetchManagedFileContents,
+  renameManagedFile,
+  uploadManagedFile,
+  writeManagedFile,
   type FileBrowseEntry,
+  type FileOk,
 } from "@/api/filesApi";
 import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
@@ -38,8 +60,11 @@ import {
   formatPercent,
   isFileBrowseLocked,
   joinFileRel,
+  managedUploadJobLabel,
+  managedUploadProgressPercent,
   stackDiskUsage,
   type FileKind,
+  type ManagedUploadPhase,
 } from "@/lib/fileManager";
 import { formatBeijing } from "@/lib/time";
 
@@ -49,12 +74,56 @@ type BrowserRow = FileBrowseEntry & {
   missing?: boolean;
 };
 
+type NameForm = { name: string };
+type RenameForm = { dest: string };
+type EditorForm = { name: string; content: string };
+
+type UploadJob = {
+  uid: string;
+  name: string;
+  size: number;
+  percent: number | null;
+  phase: ManagedUploadPhase;
+};
+
+const UPLOAD_DISMISS_MS = 4000;
+
+function uploadJobStatus(phase: ManagedUploadPhase) {
+  if (phase === "done") return "success" as const;
+  if (phase === "error") return "exception" as const;
+  return "active" as const;
+}
+
 export default function FileManagerPage() {
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const rootId = params.get("root") || "install";
   const path = params.get("path") || "";
+  const [selected, setSelected] = useState<string[]>([]);
+  const [filter, setFilter] = useState("");
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [renameRow, setRenameRow] = useState<BrowserRow | null>(null);
+  const [editor, setEditor] = useState<{
+    mode: "create" | "edit";
+    name: string;
+    content: string;
+    path?: string;
+  } | null>(null);
+  const [uploads, setUploads] = useState<UploadJob[]>([]);
+  const [folderForm] = Form.useForm<NameForm>();
+  const [renameForm] = Form.useForm<RenameForm>();
+  const [editorForm] = Form.useForm<EditorForm>();
+  const dismissTimers = useRef<Record<string, number>>({});
+
+  useEffect(
+    () => () => {
+      Object.values(dismissTimers.current).forEach((id) =>
+        window.clearTimeout(id),
+      );
+    },
+    [],
+  );
 
   const summaryQuery = useQuery({
     queryKey: ["site-files-summary"],
@@ -96,6 +165,8 @@ export default function FileManagerPage() {
   );
 
   const setLocation = useCallback((nextRoot: string, nextPath = "") => {
+    setSelected([]);
+    setFilter("");
     if (!nextRoot) {
       setParams({});
       return;
@@ -105,11 +176,15 @@ export default function FileManagerPage() {
     setParams(next);
   }, [setParams]);
 
+  const refreshBrowse = () => {
+    void queryClient.invalidateQueries({ queryKey: ["site-files-browse"] });
+  };
+
   const refresh = useMutation({
     mutationFn: () => fetchFileSummary(true),
     onSuccess: (data) => {
       queryClient.setQueryData(["site-files-summary"], data);
-      void queryClient.invalidateQueries({ queryKey: ["site-files-browse"] });
+      refreshBrowse();
       message.success("已重新扫描磁盘占用");
     },
     onError: (e: unknown) => message.error(apiError(e, "扫描失败")),
@@ -119,6 +194,43 @@ export default function FileManagerPage() {
     mutationFn: (rel: string) => downloadManagedFile(rootId, rel),
     onError: (e: unknown) => message.error(apiError(e, "下载失败")),
   });
+
+  const run = async (task: () => Promise<FileOk | void>, ok: string) => {
+    try {
+      const result = await task();
+      if (result && result.kept_sensitive) {
+        message.success("已删除，敏感项已保留");
+      } else {
+        message.success(ok);
+      }
+      setSelected([]);
+      refreshBrowse();
+      return true;
+    } catch (e: unknown) {
+      message.error(apiError(e, "操作失败"));
+      return false;
+    }
+  };
+
+  const patchUpload = (uid: string, patch: Partial<UploadJob>) => {
+    setUploads((rows) =>
+      rows.map((row) => (row.uid === uid ? { ...row, ...patch } : row)),
+    );
+  };
+
+  const dismissUpload = (uid: string) => {
+    window.clearTimeout(dismissTimers.current[uid]);
+    delete dismissTimers.current[uid];
+    setUploads((rows) => rows.filter((row) => row.uid !== uid));
+  };
+
+  const scheduleDismiss = (uid: string) => {
+    window.clearTimeout(dismissTimers.current[uid]);
+    dismissTimers.current[uid] = window.setTimeout(
+      () => dismissUpload(uid),
+      UPLOAD_DISMISS_MS,
+    );
+  };
 
   const openEntry = (row: BrowserRow) => {
     if (isFileBrowseLocked(row)) return;
@@ -136,13 +248,70 @@ export default function FileManagerPage() {
     }
   };
 
+  const openEditor = async (row: BrowserRow) => {
+    const rel = joinFileRel(path, row.name);
+    try {
+      const res = await fetchManagedFileContents(rootId, rel);
+      setEditor({
+        mode: "edit",
+        name: row.name,
+        content: res.content,
+        path: rel,
+      });
+      editorForm.setFieldsValue({ name: row.name, content: res.content });
+    } catch (e: unknown) {
+      message.error(apiError(e, "无法读取文件"));
+    }
+  };
+
+  const onNameClick = (row: BrowserRow) => {
+    if (row.is_dir) {
+      openEntry(row);
+      return;
+    }
+    if (row.editable && !isFileBrowseLocked(row)) {
+      void openEditor(row);
+    }
+  };
+
+  const confirmDelete = (names: string[]) => {
+    Modal.confirm({
+      title: names.length === 1 ? `删除 ${names[0]}？` : `删除 ${names.length} 项？`,
+      content: "删除后无法从这里恢复。目录里的敏感文件会留下。",
+      okText: "删除",
+      okButtonProps: { danger: true },
+      onOk: () => run(() => deleteManagedFiles(rootId, path, names), "已删除"),
+    });
+  };
+
+  const saveEditor = useMutation({
+    mutationFn: async () => {
+      const values = await editorForm.validateFields();
+      if (editor?.mode === "create") {
+        return createManagedFile(rootId, path, values.name, values.content);
+      }
+      const rel = editor?.path || joinFileRel(path, values.name);
+      return writeManagedFile(rootId, rel, values.content);
+    },
+    onSuccess: () => {
+      message.success(editor?.mode === "create" ? "已创建" : "已保存");
+      setEditor(null);
+      refreshBrowse();
+    },
+    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  });
+
   const browserRows: BrowserRow[] = useMemo(() => {
     const entries = browseQuery.data?.entries || [];
-    const rows: BrowserRow[] = entries.map((row) => ({
+    const q = filter.trim().toLowerCase();
+    const filtered = q
+      ? entries.filter((row) => row.name.toLowerCase().includes(q))
+      : entries;
+    const rows: BrowserRow[] = filtered.map((row) => ({
       ...row,
       key: row.name,
     }));
-    if (path) {
+    if (path && !q) {
       rows.unshift({
         key: "..",
         name: "..",
@@ -151,10 +320,11 @@ export default function FileManagerPage() {
         modified_at: null,
         sensitive: false,
         downloadable: false,
+        editable: false,
       });
     }
     return rows;
-  }, [browseQuery.data?.entries, path]);
+  }, [browseQuery.data?.entries, filter, path]);
 
   const crumbs = useMemo(() => {
     const rootLabel =
@@ -186,6 +356,50 @@ export default function FileManagerPage() {
     return items;
   }, [browseQuery.data?.root_label, path, rootId, roots, setLocation]);
 
+  const rowMenu = (row: BrowserRow): MenuProps["items"] => {
+    if (row.name === ".." || isFileBrowseLocked(row)) return [];
+    const items: MenuProps["items"] = [];
+    if (row.is_dir) {
+      items.push({
+        key: "open",
+        label: "打开",
+        onClick: () => openEntry(row),
+      });
+    } else if (row.editable) {
+      items.push({
+        key: "edit",
+        icon: <EditOutlined />,
+        label: "编辑",
+        onClick: () => void openEditor(row),
+      });
+    }
+    if (row.downloadable) {
+      items.push({
+        key: "download",
+        icon: <DownloadOutlined />,
+        label: "下载",
+        onClick: () => download.mutate(joinFileRel(path, row.name)),
+      });
+    }
+    items.push({
+      key: "rename",
+      label: "重命名",
+      onClick: () => {
+        setRenameRow(row);
+        renameForm.setFieldsValue({ dest: row.name });
+      },
+    });
+    items.push({ type: "divider" });
+    items.push({
+      key: "delete",
+      icon: <DeleteOutlined />,
+      danger: true,
+      label: "删除",
+      onClick: () => confirmDelete([row.name]),
+    });
+    return items;
+  };
+
   const fileColumns: ColumnsType<BrowserRow> = [
     {
       title: "名称",
@@ -193,6 +407,7 @@ export default function FileManagerPage() {
       ellipsis: true,
       render: (name: string, row) => {
         const locked = isFileBrowseLocked(row);
+        const clickable = row.is_dir ? !locked : Boolean(row.editable && !locked);
         const inner = (
           <Space>
             {row.is_dir ? <FolderOutlined /> : <FileOutlined />}
@@ -201,7 +416,7 @@ export default function FileManagerPage() {
             {row.missing ? <Tag>不存在</Tag> : null}
           </Space>
         );
-        if (locked || !row.is_dir) {
+        if (!clickable) {
           return (
             <Typography.Text
               type={locked ? "secondary" : undefined}
@@ -216,7 +431,7 @@ export default function FileManagerPage() {
             type="link"
             size="small"
             style={{ padding: 0, height: "auto" }}
-            onClick={() => openEntry(row)}
+            onClick={() => onNameClick(row)}
           >
             {inner}
           </Button>
@@ -240,27 +455,43 @@ export default function FileManagerPage() {
     {
       title: "",
       key: "actions",
-      width: 88,
-      render: (_, row) =>
-        row.downloadable ? (
-          <Button
-            type="link"
-            size="small"
-            icon={<DownloadOutlined />}
-            loading={download.isPending}
-            onClick={() => download.mutate(joinFileRel(path, row.name))}
-          >
-            下载
-          </Button>
-        ) : null,
+      width: 108,
+      render: (_, row) => {
+        if (row.name === "..") return null;
+        return (
+          <Space size={0}>
+            {row.downloadable ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<DownloadOutlined />}
+                loading={download.isPending}
+                onClick={() => download.mutate(joinFileRel(path, row.name))}
+              >
+                下载
+              </Button>
+            ) : null}
+            {isFileBrowseLocked(row) ? null : (
+              <Dropdown menu={{ items: rowMenu(row) }} trigger={["click"]}>
+                <Button type="text" size="small" icon={<MoreOutlined />} />
+              </Dropdown>
+            )}
+          </Space>
+        );
+      },
     },
   ];
+
+  const selectedMutable = selected.filter((name) => {
+    const row = browserRows.find((item) => item.name === name);
+    return row && row.name !== ".." && !isFileBrowseLocked(row);
+  });
 
   return (
     <>
       <PageHeader
         title="文件管理"
-        subtitle="查看本站运行时、模型、缓存与依赖的磁盘占用，并浏览安装根。敏感项置灰，不可进入、不可下载。"
+        subtitle="查看本站磁盘占用，并在安装根内增删改查。敏感项置灰，不可进入、下载、修改或删除。"
         extra={
           <Button
             icon={<ReloadOutlined />}
@@ -392,18 +623,158 @@ export default function FileManagerPage() {
         </Card>
       ) : null}
 
-      <Card size="small" title="目录">
+      <Card
+        size="small"
+        title="目录"
+        extra={
+          <Space wrap>
+            <Upload
+              multiple
+              showUploadList={false}
+              customRequest={async (options) => {
+                const file = options.file as File & { uid?: string };
+                const uid = String(
+                  file.uid || `${file.name}-${file.size}-${Date.now()}`,
+                );
+                setUploads((rows) => [
+                  ...rows.filter((row) => row.uid !== uid),
+                  {
+                    uid,
+                    name: file.name,
+                    size: file.size,
+                    percent: null,
+                    phase: "uploading",
+                  },
+                ]);
+                try {
+                  await uploadManagedFile(rootId, path, file, (percent) => {
+                    patchUpload(uid, {
+                      percent: percent ?? null,
+                      phase: percent === 100 ? "writing" : "uploading",
+                    });
+                    options.onProgress?.({ percent: percent ?? 0 });
+                  });
+                  patchUpload(uid, { percent: 100, phase: "done" });
+                  options.onSuccess?.(null);
+                  message.success(`已上传 ${file.name}`);
+                  refreshBrowse();
+                  scheduleDismiss(uid);
+                } catch (e: unknown) {
+                  patchUpload(uid, { phase: "error" });
+                  options.onError?.(e as Error);
+                  message.error(apiError(e, `上传 ${file.name} 失败`));
+                }
+              }}
+            >
+              <Button size="small" icon={<UploadOutlined />}>
+                上传
+              </Button>
+            </Upload>
+            <Button
+              size="small"
+              icon={<FileAddOutlined />}
+              onClick={() => {
+                setEditor({ mode: "create", name: "", content: "" });
+                editorForm.setFieldsValue({ name: "", content: "" });
+              }}
+            >
+              新建文件
+            </Button>
+            <Button
+              size="small"
+              icon={<FolderAddOutlined />}
+              onClick={() => {
+                folderForm.resetFields();
+                setFolderOpen(true);
+              }}
+            >
+              新建目录
+            </Button>
+            <Button
+              size="small"
+              danger
+              disabled={!selectedMutable.length}
+              icon={<DeleteOutlined />}
+              onClick={() => confirmDelete(selectedMutable)}
+            >
+              删除
+            </Button>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={() => browseQuery.refetch()}
+            >
+              刷新
+            </Button>
+          </Space>
+        }
+      >
         <Space
           style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }}
           wrap
         >
           <Breadcrumb items={crumbs} />
-          {rootId && browseQuery.data?.abs_path ? (
-            <Typography.Text type="secondary" copyable>
-              {browseQuery.data.abs_path}
-            </Typography.Text>
-          ) : null}
+          <Space wrap>
+            {rootId && browseQuery.data?.abs_path ? (
+              <Typography.Text type="secondary" copyable>
+                {browseQuery.data.abs_path}
+              </Typography.Text>
+            ) : null}
+            <Input.Search
+              size="small"
+              allowClear
+              placeholder="筛选当前目录"
+              style={{ width: 220 }}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </Space>
         </Space>
+        {uploads.length > 0 ? (
+          <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+            {uploads.map((job) => (
+              <div
+                key={job.uid}
+                style={{
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: token.borderRadius,
+                  padding: "8px 12px",
+                }}
+              >
+                <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                  <Typography.Text ellipsis style={{ maxWidth: 360 }} title={job.name}>
+                    {job.name}
+                  </Typography.Text>
+                  <Space size={8}>
+                    <Typography.Text type="secondary">
+                      {formatBytes(job.size)}
+                    </Typography.Text>
+                    {job.phase === "done" || job.phase === "error" ? (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<CloseOutlined />}
+                        onClick={() => dismissUpload(job.uid)}
+                      />
+                    ) : null}
+                  </Space>
+                </Space>
+                <Progress
+                  percent={managedUploadProgressPercent(job.phase, job.percent)}
+                  status={uploadJobStatus(job.phase)}
+                  showInfo={false}
+                  size="small"
+                />
+                <Typography.Text
+                  type={job.phase === "error" ? "danger" : "secondary"}
+                  style={{ fontSize: 12 }}
+                >
+                  {managedUploadJobLabel(job.phase, job.percent)}
+                </Typography.Text>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {rootId && browseQuery.isError ? (
           <Alert
             type="error"
@@ -419,6 +790,23 @@ export default function FileManagerPage() {
           dataSource={browserRows}
           columns={fileColumns}
           pagination={{ pageSize: 50, hideOnSinglePage: true }}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: (keys) =>
+              setSelected(
+                keys
+                  .map(String)
+                  .filter((name) => {
+                    const row = browserRows.find((item) => item.name === name);
+                    return Boolean(
+                      row && row.name !== ".." && !isFileBrowseLocked(row),
+                    );
+                  }),
+              ),
+            getCheckboxProps: (row) => ({
+              disabled: row.name === ".." || isFileBrowseLocked(row),
+            }),
+          }}
           onRow={(row) => ({
             style: row.sensitive
               ? { opacity: 0.45, color: token.colorTextDisabled }
@@ -429,6 +817,88 @@ export default function FileManagerPage() {
           })}
         />
       </Card>
+
+      <Modal
+        title="新建目录"
+        open={folderOpen}
+        onCancel={() => setFolderOpen(false)}
+        onOk={async () => {
+          const values = await folderForm.validateFields();
+          const ok = await run(
+            () => createManagedFolder(rootId, path, values.name),
+            "已创建目录",
+          );
+          if (ok) setFolderOpen(false);
+        }}
+      >
+        <Form form={folderForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="目录名"
+            rules={[{ required: true, message: "请输入目录名" }]}
+          >
+            <Input placeholder="logs" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="重命名"
+        open={Boolean(renameRow)}
+        onCancel={() => setRenameRow(null)}
+        onOk={async () => {
+          if (!renameRow) return;
+          const values = await renameForm.validateFields();
+          const ok = await run(
+            () => renameManagedFile(rootId, path, renameRow.name, values.dest),
+            "已重命名",
+          );
+          if (ok) setRenameRow(null);
+        }}
+      >
+        <Form form={renameForm} layout="vertical">
+          <Form.Item
+            name="dest"
+            label="新名称"
+            rules={[{ required: true, message: "请输入新名称" }]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editor?.mode === "create" ? "新建文件" : `编辑 ${editor?.name || ""}`}
+        open={Boolean(editor)}
+        width={840}
+        confirmLoading={saveEditor.isPending}
+        onCancel={() => setEditor(null)}
+        okText="保存"
+        onOk={() => saveEditor.mutate()}
+      >
+        <Form form={editorForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="文件名"
+            rules={[{ required: true, message: "请输入文件名" }]}
+          >
+            <Input
+              disabled={editor?.mode === "edit"}
+              placeholder="notes.txt"
+            />
+          </Form.Item>
+          <Form.Item name="content" label="内容">
+            <Input.TextArea
+              rows={18}
+              style={{
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                fontSize: 13,
+              }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

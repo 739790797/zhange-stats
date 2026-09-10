@@ -38,7 +38,7 @@ alwaysApply: false
 - 密钥：`crypto_secret` Fernet
 - 运行时：`DATA_DIR` / `UPLOAD_DIR` 相对路径相对**安装根**（默认 `data/runtime`、`data/uploads`），权重在 `data/models`，见 `app.core.paths`；勿按 cwd 写进 `backend/` / `frontend/`。第三方库缓存走 `pin_library_cache_env`（`data/cache` / `data/tmp`），勿落到家目录 `~/.cache` / `~/.EasyOCR`。已外溢的战鸽权重由 `migrate_spilled_library_caches` copy-if-missing 收回，不搬共享 HF 家目录
 - 站点配置：权威源是安装根 `config/*.json`；模板在 `scripts/config.example/`（`_version`）。改模板字段须把该文件 `_version` 加 1；启动与 install/run/update 会补缺失键，不覆盖用户值，不用模板新建 `database.json`
-- 文件管理：`file_manager` 只扫安装根（站外路径不进 roots / 占用桶）；占用分桶；浏览须 `resolve_in_root`；敏感名置灰，目录不可进、文件不可下载
+- 文件管理：`file_manager` 只扫安装根（站外路径不进 roots / 占用桶）；占用分桶；浏览/写须 `resolve_in_root`；敏感名置灰，目录不可进、文件不可下载/改/删；删目录时跳过敏感子项
 - 用户附件：新上传走 `services/user_files`（`namespace` + 相对 `UPLOAD_DIR` 的 `rel_path` + 流水号）；类型/魔数留在业务域。酒馆 `store_bytes` 追加 UUID；头像裁剪后 `replace_bytes` 覆盖 `avatars/{member_id}.jpg`。存量由启动时 `ensure_user_files_registered` 扫盘补登记
 - 限流 + 短时 KV（扫码 / 森空岛 cred / 塔科夫 join 与大厅列表）：`REDIS_URL`；本地可空（进程内降级）。**多 `app` 实例必须共享同一 Redis**，否则扫码 pending / cred 缓存不互通；当前产品仍按单副本设计（见 `docs/deploy.md`「部署形态」）
 - 出站 HTTP：`app.core.http_client.http_request`（进程级 httpx）；勿每次新建 `httpx.Client` / `urllib.urlopen`

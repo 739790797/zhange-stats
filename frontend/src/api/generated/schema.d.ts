@@ -925,6 +925,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/runtime-env/database-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Runtime Database */
+        post: operations["test_runtime_database_api_settings_runtime_env_database_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime-env/redis-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Runtime Redis */
+        post: operations["test_runtime_redis_api_settings_runtime_env_redis_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/files/summary": {
         parameters: {
             query?: never;
@@ -970,6 +1004,109 @@ export interface paths {
         get: operations["files_download_api_settings_files_download_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Files Contents */
+        get: operations["files_contents_api_settings_files_contents_get"];
+        /** Files Write */
+        put: operations["files_write_api_settings_files_contents_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Files Upload */
+        post: operations["files_upload_api_settings_files_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/create-folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Files Create Folder */
+        post: operations["files_create_folder_api_settings_files_create_folder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/create-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Files Create File */
+        post: operations["files_create_file_api_settings_files_create_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Files Rename */
+        post: operations["files_rename_api_settings_files_rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/files/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Files Delete */
+        post: operations["files_delete_api_settings_files_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5977,6 +6114,18 @@ export interface components {
             message: string;
             user: components["schemas"]["UserOut"];
         };
+        /** Body_files_upload_api_settings_files_upload_post */
+        Body_files_upload_api_settings_files_upload_post: {
+            /** Root Id */
+            root_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** File */
+            file: string;
+        };
         /** Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post */
         Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post: {
             /** File */
@@ -6888,6 +7037,11 @@ export interface components {
              * @default false
              */
             downloadable: boolean;
+            /**
+             * Editable
+             * @default false
+             */
+            editable: boolean;
         };
         /** FileBrowseOut */
         FileBrowseOut: {
@@ -6961,6 +7115,64 @@ export interface components {
             /** File Count */
             file_count: number;
         };
+        /** FileContentsOut */
+        FileContentsOut: {
+            /** Root Id */
+            root_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** FileCreateFileIn */
+        FileCreateFileIn: {
+            /** Root Id */
+            root_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Name */
+            name: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+        };
+        /** FileDeleteIn */
+        FileDeleteIn: {
+            /** Root Id */
+            root_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Names */
+            names: string[];
+        };
+        /** FileDirOpIn */
+        FileDirOpIn: {
+            /** Root Id */
+            root_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Name */
+            name: string;
+        };
         /** FileKindTotalOut */
         FileKindTotalOut: {
             /** Kind */
@@ -6971,6 +7183,48 @@ export interface components {
             size_bytes: number;
             /** File Count */
             file_count: number;
+        };
+        /** FileOkOut */
+        FileOkOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Root Id
+             * @default
+             */
+            root_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Kept Sensitive
+             * @default false
+             */
+            kept_sensitive: boolean;
+        };
+        /** FileRenameIn */
+        FileRenameIn: {
+            /** Root Id */
+            root_id: string;
+            /**
+             * Path
+             * @default
+             */
+            path: string;
+            /** Src */
+            src: string;
+            /** Dest */
+            dest: string;
         };
         /** FileSummaryOut */
         FileSummaryOut: {
@@ -7005,6 +7259,18 @@ export interface components {
             used_bytes: number;
             /** Free Bytes */
             free_bytes: number;
+        };
+        /** FileWriteIn */
+        FileWriteIn: {
+            /** Root Id */
+            root_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
         };
         /**
          * GameScheduleCalendarOut
@@ -10001,6 +10267,33 @@ export interface components {
             /** Roles */
             roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
+        /** RuntimeConnTestOut */
+        RuntimeConnTestOut: {
+            /** Ok */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /** Latency Ms */
+            latency_ms?: number | null;
+        };
+        /** RuntimeDatabaseTestIn */
+        RuntimeDatabaseTestIn: {
+            /**
+             * Db Engine
+             * @default sqlite
+             */
+            db_engine: string;
+            /**
+             * Db Path
+             * @default
+             */
+            db_path: string;
+            /**
+             * Db Url
+             * @default
+             */
+            db_url: string;
+        };
         /** RuntimeEnvOut */
         RuntimeEnvOut: {
             /** App Env */
@@ -10154,6 +10447,14 @@ export interface components {
             file_bytes?: number | null;
             /** Lines */
             lines?: components["schemas"]["RuntimeLogLineOut"][];
+        };
+        /** RuntimeRedisTestIn */
+        RuntimeRedisTestIn: {
+            /**
+             * Redis Url
+             * @default
+             */
+            redis_url: string;
         };
         /** ScheduledJobLastRunOut */
         ScheduledJobLastRunOut: {
@@ -18114,6 +18415,72 @@ export interface operations {
             };
         };
     };
+    test_runtime_database_api_settings_runtime_env_database_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeDatabaseTestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeConnTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_runtime_redis_api_settings_runtime_env_redis_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeRedisTestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeConnTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     files_summary_api_settings_files_summary_get: {
         parameters: {
             query?: {
@@ -18197,6 +18564,236 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_contents_api_settings_files_contents_get: {
+        parameters: {
+            query: {
+                root_id: string;
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileContentsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_write_api_settings_files_contents_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileWriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_upload_api_settings_files_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_files_upload_api_settings_files_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_create_folder_api_settings_files_create_folder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDirOpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_create_file_api_settings_files_create_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileCreateFileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_rename_api_settings_files_rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileRenameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    files_delete_api_settings_files_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDeleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOkOut"];
                 };
             };
             /** @description Validation Error */
