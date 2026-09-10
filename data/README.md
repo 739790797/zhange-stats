@@ -18,5 +18,5 @@
 
 备份打包 `config/`、`runtime/`、`uploads/`、`models/`；不打包 `cache/`、`run/`、`tmp/`、`mariadb/`。
 
-管理端「运行维护 → 文件管理」统计这些目录的磁盘占用，并可从安装根点进去增删改查（密钥 / `config/` / `.git` / MariaDB 数据 / 备份不可进、不可改、不可删）。
+管理端「运行维护 → 文件管理」统计这些目录的磁盘占用，并可从安装根点进去增删改查。密钥、MariaDB 数据目录与备份仍不可下载/改/删；`.git`、`config/` 等普通目录可进可删。
 `frontend/src/api/generated/` 是提交进仓库的 OpenAPI 契约，不是缓存。

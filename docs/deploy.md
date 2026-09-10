@@ -44,14 +44,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\run.ps1
 ```bash
 sudo bash scripts/linux/update.sh              # 升到最新 Release
 sudo bash scripts/linux/update.sh --check      # 只看是否有新版本
-sudo bash scripts/linux/update.sh --version v0.5.2
+sudo bash scripts/linux/update.sh --version v0.5.3
 sudo bash scripts/linux/update.sh --force      # 已是该版本也重新落盘
 ```
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Check
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Version v0.5.2
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Version v0.5.3
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -Force
 ```
 

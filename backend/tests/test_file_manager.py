@@ -95,13 +95,15 @@ def test_is_sensitive_name() -> None:
     assert fm.is_sensitive_name(".secret_key")
     assert fm.is_sensitive_name(".env")
     assert fm.is_sensitive_name(".env.local")
-    assert fm.is_sensitive_name(".git")
+    assert not fm.is_sensitive_name(".git")
+    assert not fm.is_sensitive_name("config")
     assert fm.is_sensitive_name("tls.pem")
     assert not fm.is_sensitive_name(".env.example")
     assert not fm.is_sensitive_name(".gitignore")
     assert not fm.is_sensitive_name("app.jsonl")
     assert not fm.is_sensitive_name("det.onnx")
-    assert fm.rel_is_sensitive(".git/config")
+    assert not fm.rel_is_sensitive(".git/config")
+    assert not fm.rel_is_sensitive("config/app.json")
     assert not fm.rel_is_sensitive("docs/README.md")
     assert fm.rel_is_sensitive("data/mariadb/provision.json")
     assert fm.rel_is_sensitive("data/mariadb/data")
@@ -112,8 +114,6 @@ def test_is_sensitive_name() -> None:
     assert fm.rel_is_sensitive("data/backups/zhange-20260101-000000.tar.gz")
     assert fm.rel_is_sensitive("var/backups/zhange-20260101-000000.tar.gz")
     assert fm.rel_is_sensitive("zhange.sql")
-    assert fm.rel_is_sensitive("config/app.json")
-    assert fm.is_sensitive_name("config")
     assert not fm.rel_is_sensitive("config.example/app.json")
     assert not fm.rel_is_sensitive("scripts/config.example/app.json")
 
@@ -188,19 +188,19 @@ def test_browse_install_root_greys_secrets(tmp_path: Path) -> None:
     assert names[".env"].downloadable is False
     assert names[".env.example"].sensitive is False
     assert names[".env.example"].downloadable is True
-    assert names[".git"].sensitive is True
+    assert names[".git"].sensitive is False
     assert names[".git"].is_dir is True
-    assert names["config"].sensitive is True
+    assert names["config"].sensitive is False
     assert names["config"].is_dir is True
-    with pytest.raises(fm.FileManagerError) as hidden:
-        fm.list_directory("install", ".git", ctx=ctx)
-    assert hidden.value.status_code == 403
-    with pytest.raises(fm.FileManagerError) as config_hidden:
-        fm.list_directory("install", "config", ctx=ctx)
-    assert config_hidden.value.status_code == 403
-    with pytest.raises(fm.FileManagerError) as blocked:
-        fm.resolve_download("install", ".git/config", ctx=ctx)
-    assert blocked.value.status_code == 403
+    git_listing = fm.list_directory("install", ".git", ctx=ctx)
+    assert {row.name for row in git_listing.entries} == {"config"}
+    cfg_listing = fm.list_directory("install", "config", ctx=ctx)
+    assert {row.name for row in cfg_listing.entries} == {"app.json"}
+    assert fm.resolve_download("install", ".git/config", ctx=ctx).name == "config"
+    assert fm.resolve_download("install", "config/app.json", ctx=ctx).name == "app.json"
+    deleted_git = fm.delete_entries("install", "", [".git"], ctx=ctx)
+    assert deleted_git.kept_sensitive is False
+    assert not git.exists()
 
 
 def test_browse_root_prefers_install_for_nested_data(tmp_path: Path) -> None:
@@ -374,9 +374,6 @@ def test_crud_refuses_sensitive_and_escape(tmp_path: Path) -> None:
     with pytest.raises(fm.FileManagerError) as create_env:
         fm.create_file("install", "", ".env.local", "x=1\n", ctx=ctx)
     assert create_env.value.status_code == 403
-    with pytest.raises(fm.FileManagerError) as mkdir_git:
-        fm.create_folder("install", "", ".git", ctx=ctx)
-    assert mkdir_git.value.status_code == 403
     with pytest.raises(fm.FileManagerError) as upload_key:
         fm.upload_file("install", "data/runtime", ".secret_key", b"nope", ctx=ctx)
     assert upload_key.value.status_code == 403
@@ -390,9 +387,9 @@ def test_crud_refuses_sensitive_and_escape(tmp_path: Path) -> None:
         fm.delete_entries("install", "", [".env"], ctx=ctx)
     assert del_env.value.status_code == 403
     assert (ctx.install_dir / ".env").is_file()
-    with pytest.raises(fm.FileManagerError) as del_config:
-        fm.delete_entries("install", "", ["config"], ctx=ctx)
-    assert del_config.value.status_code == 403
+    deleted_cfg = fm.delete_entries("install", "", ["config"], ctx=ctx)
+    assert deleted_cfg.kept_sensitive is False
+    assert not cfg.exists()
     with pytest.raises(fm.FileManagerError) as rename_secret:
         fm.rename_entry("install", "data/runtime", ".secret_key", "key.txt", ctx=ctx)
     assert rename_secret.value.status_code == 403

@@ -491,7 +491,7 @@ export default function FileManagerPage() {
     <>
       <PageHeader
         title="文件管理"
-        subtitle="查看本站磁盘占用，并在安装根内增删改查。敏感项置灰，不可进入、下载、修改或删除。"
+        subtitle="查看本站磁盘占用，并在安装根内增删改查。密钥、备份与 MariaDB 数据目录置灰保护；其余目录可进入、删除。"
         extra={
           <Button
             icon={<ReloadOutlined />}

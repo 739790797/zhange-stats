@@ -58,7 +58,7 @@ cd frontend && npm install && npm run dev
 - 站点配置字段见 [`scripts/config.example/`](../scripts/config.example/)。`install` / `run` / `restart` / `update` 与启动会按文件 `_version` 把模板里的新键补进 `config/`，不覆盖已有值。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；本地 Vite 与战鸽助手（Tauri `https://tauri.localhost`）走默认正则，可在「运行环境」覆盖 `CORS_ORIGINS` / `CORS_ORIGIN_REGEX`。QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `data/runtime/`、`data/uploads/`）。Hugging Face / Torch / EasyOCR / pip 等第三方缓存启动时 pin 到 `data/cache`，tempfile 与备份暂存在 `data/tmp`。上游 HTTP 走进程级 `httpx` 连接池；可选 `REDIS_URL` 在运行环境配置
 - Linux 本机同一套六件套：`scripts/linux/install.sh`（装系统包与 systemd 需 root）、`run.sh`、`restart.sh`、`update.sh`、`backup.sh`、`restore.sh`。已有 systemd unit 时 `run`/`restart`/`update` 后的重启走 `systemctl`；否则起 `:6130` 后端与 `:6131` Vite。本机 MariaDB 改为手工 `scripts/common/provision_mariadb.py`。
 - 平台可用性：管理员在 **管理 → 任务管理 → 任务配置** 按平台 / 游戏 / 任务级联开关
-- 磁盘占用：管理员在 **管理 → 运行维护 → 文件管理** 查看运行时 / 模型 / 缓存 / 依赖占用，并在安装根内增删改查（敏感项除外）
+- 磁盘占用：管理员在 **管理 → 运行维护 → 文件管理** 查看运行时 / 模型 / 缓存 / 依赖占用，并在安装根内增删改查（密钥、备份与 MariaDB 数据目录除外）
 - **管理端一键更新仅面向 `APP_ENV=production`（LXC）**；本机默认 `development`，不会出现该入口
 
 本地假 Steam 数据见 [`backend/local_dev/README.md`](../backend/local_dev/README.md)。

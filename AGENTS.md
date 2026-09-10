@@ -68,7 +68,7 @@ alembic upgrade head
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
 - 去掉 CSRF / 登出清 Cookie / 生产 CORS 收紧，却只把 JWT 改成可读 Cookie 或继续 persist JWT
 - 生产开启 `ALLOW_EMAIL_CODE_LOG`（启动硬拒绝）；生产使用默认弱 `ADMIN_PASSWORD`
-- 文件管理把查询参数当任意绝对路径读盘、把站外缓存当第二根；把 `.secret_key` / `.env` / `config/` / `.git` / 备份 `zhange-*.tar.gz` 当普通文件下发、进入、修改或删除
+- 文件管理把查询参数当任意绝对路径读盘、把站外缓存当第二根；把 `.secret_key` / `.env` / 备份 `zhange-*.tar.gz` 当普通文件下发、修改或删除
 - 新业务用户上传直写 `UPLOAD_DIR`（应走 `services/user_files` + namespace；头像覆盖写也要登记）
 - 应用进程内 apt / winget 装 MariaDB（走 `scripts/common/provision_mariadb.py`；Windows 便携包在 `data/mariadb/`）
 - 把 Hugging Face / Torch / EasyOCR / pip 缓存写到家目录（启动与脚本应 pin 到 `data/cache`，tempfile 到 `data/tmp`）
@@ -87,7 +87,7 @@ alembic upgrade head
 - [ ] 改森空岛渠道/补奖/cred：已对照 `skland-upstream.mdc`，相关 `test_skland_*` 通过
 - [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
 - [ ] 改塔科夫联机：非成员 GET 仅为预览；限流与 `docs/security.md`「塔科夫联机」一致
-- [ ] 改文件管理：只扫安装根；敏感项不可进/下/改/删；相关 `test_file_manager` 通过
+- [ ] 改文件管理：只扫安装根；密钥 / MariaDB 数据 / 备份不可下/改/删；相关 `test_file_manager` 通过
 - [ ] 改用户附件：走 `user_files`；OpenAPI `serial`；相关 `test_user_files` 通过
 - [ ] 改纯函数/渠道/`force`/弱口令：已按 `testing.mdc` 补测（规则在哪层实现就在哪层测）
 - [ ] 改前端请求/报错：走 `*Api` + `apiError`；status 显式传 `force`

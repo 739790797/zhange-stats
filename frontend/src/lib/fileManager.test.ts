@@ -30,7 +30,8 @@ describe("fileManager", () => {
   it("locks sensitive or missing browse rows", () => {
     expect(isFileBrowseLocked({ name: "..", sensitive: true })).toBe(false);
     expect(isFileBrowseLocked({ name: ".env", sensitive: true })).toBe(true);
-    expect(isFileBrowseLocked({ name: ".git", sensitive: true })).toBe(true);
+    expect(isFileBrowseLocked({ name: ".git" })).toBe(false);
+    expect(isFileBrowseLocked({ name: "data", sensitive: true })).toBe(true);
     expect(isFileBrowseLocked({ name: "backend", missing: true })).toBe(true);
     expect(isFileBrowseLocked({ name: "backend" })).toBe(false);
   });

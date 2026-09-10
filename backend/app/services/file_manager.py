@@ -129,7 +129,6 @@ SENSITIVE_NAMES = frozenset(
         "id_ed25519",
     }
 )
-SENSITIVE_DIR_NAMES = frozenset({".git", "config"})
 SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
 _SIZE_CACHE: dict[str, tuple[float, int, int]] = {}
@@ -263,7 +262,7 @@ def is_sensitive_name(name: str) -> bool:
     if not text:
         return False
     lower = text.lower()
-    if lower in SENSITIVE_NAMES or lower in SENSITIVE_DIR_NAMES:
+    if lower in SENSITIVE_NAMES:
         return True
     if lower.startswith(".env.") and lower != ".env.example":
         return True
