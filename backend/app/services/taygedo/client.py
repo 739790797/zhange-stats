@@ -218,6 +218,19 @@ def _make_ds() -> str:
     return f"{timestamp},{nonce},{signature}"
 
 
+def native_app_headers(creds: TaygedoCredentials) -> dict[str, str]:
+    """官方 App 原生请求头（与 usercenter 登录同套 ds / appversion）。"""
+    return {
+        "Authorization": creds.access_token,
+        "appversion": TAYGEDO_APP_VER,
+        "platform": "android",
+        "uid": creds.uid,
+        "deviceid": creds.device_id,
+        "ds": _make_ds(),
+        "User-Agent": "okhttp/4.12.0",
+    }
+
+
 def login_with_password(phone: str, password: str) -> TaygedoCredentials:
     phone = (phone or "").strip()
     password = (password or "").strip()

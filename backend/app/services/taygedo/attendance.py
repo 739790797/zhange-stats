@@ -31,13 +31,17 @@ from app.services.taygedo.client import (
     _http,
     ensure_access_token,
     list_all_game_roles,
+    native_app_headers,
     refresh_access_token,
 )
 
 logger = logging.getLogger(__name__)
 
 # 社区任务（与官方任务中心 taskKey 对齐）
-COMMUNITY_ID = 1
+# 官网 #/home?id=2 为当前 BBS；1 是旧 APP 社区。平台签到以 2 为准，1 作兼容补签。
+COMMUNITY_ID = 2
+LEGACY_APP_COMMUNITY_ID = 1
+COMMUNITY_IDS: tuple[int, ...] = (COMMUNITY_ID, LEGACY_APP_COMMUNITY_ID)
 TASK_GID = 1
 TK_SIGNIN = "signin_c"
 TK_BROWSE = "browse_post_c"
@@ -229,13 +233,7 @@ def _awards_from_sign_payload(
 
 
 def _app_headers(creds: TaygedoCredentials) -> dict[str, str]:
-    return {
-        "authorization": creds.access_token,
-        "uid": creds.uid,
-        "deviceid": creds.device_id,
-        "appversion": "1.1.0",
-        "User-Agent": "okhttp/4.12.0",
-    }
+    return native_app_headers(creds)
 
 
 def _h5_headers(creds: TaygedoCredentials) -> dict[str, str]:
@@ -251,7 +249,9 @@ def _h5_headers(creds: TaygedoCredentials) -> dict[str, str]:
     }
 
 
-def _get_app_sign_state(creds: TaygedoCredentials, *, community_id: int = 1) -> bool | None:
+def _get_app_sign_state(
+    creds: TaygedoCredentials, *, community_id: int = COMMUNITY_ID
+) -> bool | None:
     """GET /apihub/api/getSignState — data=true 表示今日已签。
 
     鉴权失败会抛 TaygedoApiError；其它业务失败返回 None。
@@ -264,6 +264,29 @@ def _get_app_sign_state(creds: TaygedoCredentials, *, community_id: int = 1) -> 
     if status == 200 and data.get("code") == 0:
         return bool(data.get("data"))
     _raise_if_auth_failure(status=status, data=data, fallback="查询社区签到状态失败")
+    return None
+
+
+def _app_signed_today(creds: TaygedoCredentials) -> bool | None:
+    """任一社区已签即已签；有明确未签则未签；全部查失败才返回 None。"""
+    saw_unsigned = False
+    last_auth: TaygedoApiError | None = None
+    for community_id in COMMUNITY_IDS:
+        try:
+            state = _get_app_sign_state(creds, community_id=community_id)
+        except TaygedoApiError as exc:
+            if is_auth_failure(code=exc.code, message=exc.message):
+                last_auth = exc
+                continue
+            raise
+        if state is True:
+            return True
+        if state is False:
+            saw_unsigned = True
+    if saw_unsigned:
+        return False
+    if last_auth is not None:
+        raise last_auth
     return None
 
 
@@ -282,7 +305,7 @@ def ensure_session(creds: TaygedoCredentials) -> TaygedoCredentials:
 
 
 def _app_awards_from_exp_records(
-    creds: TaygedoCredentials, *, community_id: int = 1
+    creds: TaygedoCredentials, *, community_id: int = COMMUNITY_ID
 ) -> tuple[str | None, list[dict[str, Any]]]:
     """兼容旧调用：社区签到奖励改走任务中心塔塔币，不再读经验流水。"""
     _ = community_id
@@ -893,7 +916,7 @@ def query_app_today(creds: TaygedoCredentials) -> CheckinResult:
     已签时打开页 force 回源会补跑每日任务（浏览/点赞/分享）；
     未签仅展示进度，由行内签到触发执行。
     """
-    signed = _get_app_sign_state(creds)
+    signed = _app_signed_today(creds)
     if signed:
         awards_text, awards_items = _app_signin_awards_from_tasks(creds)
         result = CheckinResult(
@@ -1013,25 +1036,33 @@ def query_today_all(
     return working, sort_taygedo_results(results)
 
 
-def app_signin(creds: TaygedoCredentials) -> CheckinResult:
+def _post_app_signin(
+    creds: TaygedoCredentials, community_id: int
+) -> tuple[str, dict[str, Any], str]:
     status, data = _http(
         "POST",
         f"{TAYGEDO_BASE}/apihub/api/signin",
         headers={
-            "authorization": creds.access_token,
-            "uid": creds.uid,
-            "deviceid": creds.device_id,
-            "appversion": "1.1.0",
+            **_app_headers(creds),
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "okhttp/4.12.0",
         },
-        body=_form_encode({"communityId": str(COMMUNITY_ID)}),
+        body=_form_encode({"communityId": str(community_id)}),
     )
     msg = str(data.get("msg") or data.get("message") or "")
     if status == 200 and data.get("code") == 0:
+        return "ok", data, msg
+    if _is_already(msg):
+        return "already", data, msg
+    return "error", data, msg
+
+
+def _community_signin_result(
+    creds: TaygedoCredentials, kind: str, data: dict[str, Any]
+) -> CheckinResult:
+    if kind == "ok":
         payload = data.get("data") or {}
-        exp = payload.get("exp")
-        gold = payload.get("goldCoin")
+        exp = payload.get("exp") if isinstance(payload, dict) else None
+        gold = payload.get("goldCoin") if isinstance(payload, dict) else None
         awards_text = None
         awards_items: list[dict[str, Any]] = []
         if isinstance(exp, (int, float)) or isinstance(gold, (int, float)):
@@ -1058,22 +1089,45 @@ def app_signin(creds: TaygedoCredentials) -> CheckinResult:
             awards=awards_items or None,
         )
         return _attach_daily_tasks(creds, result)
-    if _is_already(msg):
-        awards_text, awards_items = _app_signin_awards_from_tasks(creds)
-        result = CheckinResult(
+    awards_text, awards_items = _app_signin_awards_from_tasks(creds)
+    result = CheckinResult(
+        game_code=GAME_APP,
+        game_name=GAME_APP_NAME,
+        role_uid=creds.uid,
+        role_name="社区账号",
+        channel_name="社区",
+        status="already",
+        message=(
+            f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
+        ),
+        awards_text=awards_text,
+        awards=awards_items or None,
+    )
+    return _attach_daily_tasks(creds, result)
+
+
+def app_signin(creds: TaygedoCredentials) -> CheckinResult:
+    kind, data, msg = _post_app_signin(creds, COMMUNITY_ID)
+    if kind in ("ok", "already"):
+        try:
+            _post_app_signin(creds, LEGACY_APP_COMMUNITY_ID)
+        except TaygedoApiError:
+            pass
+        return _community_signin_result(creds, kind, data)
+    try:
+        kind2, data2, msg2 = _post_app_signin(creds, LEGACY_APP_COMMUNITY_ID)
+    except TaygedoApiError as exc:
+        return CheckinResult(
             game_code=GAME_APP,
             game_name=GAME_APP_NAME,
             role_uid=creds.uid,
             role_name="社区账号",
             channel_name="社区",
-            status="already",
-            message=(
-                f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
-            ),
-            awards_text=awards_text,
-            awards=awards_items or None,
+            status="error",
+            message=friendly_error_message(msg or exc.message or "社区签到失败"),
         )
-        return _attach_daily_tasks(creds, result)
+    if kind2 in ("ok", "already"):
+        return _community_signin_result(creds, kind2, data2)
     return CheckinResult(
         game_code=GAME_APP,
         game_name=GAME_APP_NAME,
@@ -1081,7 +1135,7 @@ def app_signin(creds: TaygedoCredentials) -> CheckinResult:
         role_name="社区账号",
         channel_name="社区",
         status="error",
-        message=friendly_error_message(msg or "社区签到失败"),
+        message=friendly_error_message(msg or msg2 or "社区签到失败"),
     )
 
 

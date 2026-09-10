@@ -431,6 +431,11 @@ def migrate_runtime_layout(install: Path | None = None) -> None:
     for src in iter_legacy_upload_dirs(base):
         _relocate(src, dest_uploads)
 
+    leftover_secret = root / ".secret_key"
+    dest_secret = root / "runtime" / ".secret_key"
+    if leftover_secret.is_file() and not dest_secret.exists():
+        _relocate(leftover_secret, dest_secret)
+
     _split_models(root)
     _rewrite_site_config_paths(base)
     rewritten = rewrite_legacy_runtime_env(base)

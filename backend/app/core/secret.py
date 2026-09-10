@@ -48,6 +48,7 @@ def _legacy_secret_candidates(
     out: list[Path] = []
     for path in (
         upload_root / _SECRET_FILENAME,
+        install / "data" / _SECRET_FILENAME,
         *(root / _SECRET_FILENAME for root in iter_legacy_data_dirs(install)),
     ):
         resolved = path.resolve()

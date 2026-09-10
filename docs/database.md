@@ -54,7 +54,7 @@ articles ── * article_versions
 | `checkin_role_prefs` | 各平台按角色的「加入本站」(`included`) 与自动签到开关/北京时间（`platform`+`game_code`+`role_uid`）；签到页与调度仅处理 `included`；`enabled` 另控自动签到；调度索引 `(platform, enabled, checkin_hour, checkin_minute)` |
 | `skland_checkin_logs` | 森空岛角色签到记录（展示路径打开页始终回源后 upsert；`source`=`status` 查询 / `action` 真正执行，不驱动产品 UI；含 `awards_text` / `awards_json`；调度可按今日成功态跳过；超期由 `job_runs_prune` 清理） |
 | `skland_attendance_raws` | 明日方舟签到日历 GET attendance 原始 JSON（按 member+uid 最新一份；跨月或 force / 签到后回源） |
-| `game_schedule_raws` | 活动日历上游原始 JSON（按游戏 `arknights` / `endfield` 各一份；读库优先；定时 / force 回源；失败不覆盖） |
+| `game_schedule_raws` | 活动日历上游原始 JSON（按游戏 `arknights` / `endfield` 各一份；读库优先；定时 / force 回源；失败或空列表不覆盖。终末地在 game-schedule 空列表时回源 fz.wiki「活动」页） |
 | `endfield_box_raws` | 终末地 card/detail 原始 JSON（按 role 最新一份） |
 | `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |

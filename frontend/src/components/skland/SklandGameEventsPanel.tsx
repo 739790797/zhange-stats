@@ -482,15 +482,32 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
         type="secondary"
         style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}
       >
-        数据来自{" "}
-        <a
-          href="https://github.com/jacket-sikaha/game-schedule"
-          target="_blank"
-          rel="noreferrer"
-        >
-          game-schedule
-        </a>
-        ，非森空岛官方接口。限时活动用时间轴；常驻活动单独列表。横轴可左右滑动。
+        {data?.source === "fz.wiki" ? (
+          <>
+            数据来自{" "}
+            <a
+              href="https://www.fz.wiki/wiki/%E6%B4%BB%E5%8A%A8"
+              target="_blank"
+              rel="noreferrer"
+            >
+              终末地 Wiki
+            </a>
+            ，非森空岛官方接口。
+          </>
+        ) : (
+          <>
+            数据来自{" "}
+            <a
+              href="https://github.com/jacket-sikaha/game-schedule"
+              target="_blank"
+              rel="noreferrer"
+            >
+              game-schedule
+            </a>
+            ，非森空岛官方接口。
+          </>
+        )}
+        限时活动用时间轴；常驻活动单独列表。横轴可左右滑动。
       </Typography.Paragraph>
     </div>
   );

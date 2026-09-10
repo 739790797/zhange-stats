@@ -7,11 +7,14 @@ from unittest.mock import MagicMock, patch
 # 先加载 client，避免 attendance↔client 循环导入
 import app.services.taygedo.client  # noqa: F401
 from app.services.taygedo.attendance import (
+    COMMUNITY_ID,
+    LEGACY_APP_COMMUNITY_ID,
     _parse_shop_goods,
     _tasks_extra_text,
     checkin_target,
     exchange_shop_goods,
     list_checkin_targets,
+    list_recommend_posts,
     list_shop_goods,
     query_app_today,
     query_today_all,
@@ -21,6 +24,7 @@ from app.services.taygedo.client import (
     GAME_APP_NAME,
     GAME_NTE,
     GAME_NTE_NAME,
+    TAYGEDO_APP_VER,
     TaygedoCredentials,
     TaygedoRole,
 )
@@ -76,11 +80,33 @@ def test_query_app_today_already_with_awards() -> None:
 
 def test_query_app_today_state_unavailable() -> None:
     with patch(
-        "app.services.taygedo.attendance._get_app_sign_state", return_value=None
+        "app.services.taygedo.attendance._app_signed_today", return_value=None
     ):
         r = query_app_today(_creds())
     assert r.status == "error"
     assert "查询社区签到状态失败" in (r.message or "")
+
+
+def test_query_app_today_already_if_legacy_community_signed() -> None:
+    def _state(_creds, *, community_id=COMMUNITY_ID):
+        return True if community_id == LEGACY_APP_COMMUNITY_ID else False
+
+    with (
+        patch(
+            "app.services.taygedo.attendance._get_app_sign_state",
+            side_effect=_state,
+        ),
+        patch(
+            "app.services.taygedo.attendance._app_signin_awards_from_tasks",
+            return_value=("塔塔币+40", [{"name": "塔塔币", "count": 40}]),
+        ),
+        patch(
+            "app.services.taygedo.attendance.complete_daily_tasks",
+            return_value={"text": "每日任务：浏览 5/5", "all_done": True},
+        ),
+    ):
+        r = query_app_today(_creds())
+    assert r.status == "already"
 
 
 def test_list_checkin_targets_includes_app_first() -> None:
@@ -221,6 +247,63 @@ def test_app_signin_channel_name_is_community() -> None:
     assert r.awards_text is not None
     assert "塔塔币+40" in r.awards_text or "经验+10" in r.awards_text
     assert r.extra_text and "每日任务" in r.extra_text
+
+
+def test_app_signin_posts_current_community_first() -> None:
+    from app.services.taygedo.attendance import app_signin
+
+    bodies: list[str] = []
+
+    def _fake_http(method, url, *, headers=None, body=None):
+        bodies.append(body or "")
+        return 200, {"code": 0, "data": {"exp": 10, "goldCoin": 40}}
+
+    with (
+        patch("app.services.taygedo.attendance._http", side_effect=_fake_http),
+        patch(
+            "app.services.taygedo.attendance.complete_daily_tasks",
+            return_value={"text": "每日任务：浏览 5/5 · 点赞 5/5 · 分享 1/1"},
+        ),
+    ):
+        r = app_signin(_creds())
+    assert r.status == "ok"
+    assert bodies
+    assert f"communityId={COMMUNITY_ID}" in bodies[0]
+    assert any(f"communityId={LEGACY_APP_COMMUNITY_ID}" in body for body in bodies)
+
+
+def test_app_signin_falls_back_to_legacy_community() -> None:
+    from app.services.taygedo.attendance import app_signin
+
+    def _fake_http(method, url, *, headers=None, body=None):
+        text = body or ""
+        if f"communityId={COMMUNITY_ID}" in text:
+            return 200, {"code": 1, "msg": "社区不存在"}
+        return 200, {"code": 0, "data": {"exp": 5, "goldCoin": 20}}
+
+    with (
+        patch("app.services.taygedo.attendance._http", side_effect=_fake_http),
+        patch(
+            "app.services.taygedo.attendance.complete_daily_tasks",
+            return_value={"text": "每日任务：浏览 5/5 · 点赞 5/5 · 分享 1/1"},
+        ),
+    ):
+        r = app_signin(_creds())
+    assert r.status == "ok"
+    assert r.awards_text is not None
+    assert "塔塔币+20" in r.awards_text
+
+
+def test_list_recommend_posts_uses_current_community() -> None:
+    captured: dict = {}
+
+    def _fake_http(method, url, *, headers=None, body=None):
+        captured["url"] = url
+        return 200, {"code": 0, "data": {"posts": []}}
+
+    with patch("app.services.taygedo.attendance._http", side_effect=_fake_http):
+        list_recommend_posts(_creds())
+    assert f"communityId={COMMUNITY_ID}" in captured["url"]
 
 
 def test_tasks_extra_text_format() -> None:
@@ -407,7 +490,10 @@ def test_exchange_shop_goods_uses_app_headers_and_count() -> None:
     assert out.get("ok") is True
     assert captured["method"] == "POST"
     assert captured["url"].endswith("/apihub/api/shop/exchange")
-    assert captured["headers"].get("authorization") == "atok"
+    assert captured["headers"].get("Authorization") == "atok"
+    assert captured["headers"].get("appversion") == TAYGEDO_APP_VER
+    assert captured["headers"].get("platform") == "android"
+    assert "ds" in captured["headers"]
     assert "Origin" not in captured["headers"]
     assert "goodsId=12" in captured["body"]
     assert "gameId=1289" in captured["body"]

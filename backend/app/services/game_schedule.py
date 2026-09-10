@@ -1,7 +1,8 @@
 """代理 [game-schedule](https://github.com/jacket-sikaha/game-schedule) 活动日历。
 
 上游：`GAME_SCHEDULE_BASE_URL` 的 `/ak`、`/endfield`。
-落库 `game_schedule_raws`（按游戏一份）；默认读库，force / 定时任务回源；失败不覆盖已有 raw。
+终末地在 game-schedule 空列表或失败时回源 fz.wiki「活动」页（contentJson）。
+落库 `game_schedule_raws`（按游戏一份）；默认读库，force / 定时任务回源；失败或空列表不覆盖已有 raw。
 """
 
 from __future__ import annotations
@@ -9,8 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal
+from urllib.parse import quote
 
 from sqlalchemy.orm import Session
 
@@ -28,9 +30,16 @@ SCHEDULE_JOB_KEYS: dict[GameCode, str] = {
     "endfield": "game_schedule_endfield_sync",
 }
 
+SOURCE_GAME_SCHEDULE = "game-schedule"
+SOURCE_FZ_WIKI = "fz.wiki"
+
 # 方舟公告子项常见「一、」「十一、」编号前缀
 _TITLE_ORDINAL_RE = re.compile(
     r"^[一二三四五六七八九十百千零〇两\d]+[、.．]\s*"
+)
+# wiki / 公告常见「2026/9/2 7:00:00」
+_LOOSE_TIME_RE = re.compile(
+    r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$"
 )
 
 _PATH_BY_GAME: dict[GameCode, str] = {
@@ -38,9 +47,15 @@ _PATH_BY_GAME: dict[GameCode, str] = {
     "endfield": "/endfield",
 }
 
+ENDFIELD_WIKI_ARTICLE_URL = "https://api.fz.wiki/api/v1/articles/by-title"
+ENDFIELD_WIKI_ARTICLE_TITLE = "活动"
+ENDFIELD_WIKI_PAGE_BASE = "https://www.fz.wiki/wiki"
+
 _HTTP_TIMEOUT = 25
 # 跨度超过此天数视为常驻/占位结束时间，不进日历时间轴
 _PERMANENT_SPAN_DAYS = 180
+# wiki 无结束时间时占位（与 game-schedule +5 年一致），便于归入常驻
+_EMPTY_CLOSE_SPAN_DAYS = 365 * 5 + 1
 
 _GAME_FEATURES: dict[GameCode, str] = {
     "arknights": "skland.arknights",
@@ -55,7 +70,7 @@ class GameScheduleError(Exception):
 
 
 def _parse_schedule_time(value: Any) -> datetime | None:
-    """解析上游 `YYYY-MM-DD HH:mm`（按北京墙钟）。"""
+    """解析上游 `YYYY-MM-DD HH:mm` 或 wiki `YYYY/M/D H:mm:ss`（按北京墙钟）。"""
     if value is None:
         return None
     text = str(value).strip()
@@ -66,7 +81,19 @@ def _parse_schedule_time(value: Any) -> datetime | None:
             return datetime.strptime(text, fmt).replace(tzinfo=BEIJING)
         except ValueError:
             continue
-    return None
+    matched = _LOOSE_TIME_RE.match(text)
+    if not matched:
+        return None
+    year, month, day, hour, minute, second = matched.groups()
+    return datetime(
+        int(year),
+        int(month),
+        int(day),
+        int(hour or 0),
+        int(minute or 0),
+        int(second or 0),
+        tzinfo=BEIJING,
+    )
 
 
 def _strip_title_ordinal(title: str) -> str:
@@ -124,6 +151,90 @@ def _is_permanent_event(event: dict[str, Any]) -> bool:
     return (end - start).days >= _PERMANENT_SPAN_DAYS
 
 
+def _iter_endfield_wiki_activities(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """兼容 attrs.activities 旧形与 content 子节点新形。"""
+    revision = payload.get("revision")
+    if not isinstance(revision, dict):
+        return []
+    content_json = revision.get("contentJson")
+    if not isinstance(content_json, dict):
+        return []
+    nodes = content_json.get("content")
+    if not isinstance(nodes, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        if node.get("type") != "endfieldCardActivityIndex":
+            continue
+        attrs = node.get("attrs")
+        if isinstance(attrs, dict):
+            nested = attrs.get("activities")
+            if isinstance(nested, list):
+                for item in nested:
+                    if isinstance(item, dict):
+                        out.append(item)
+        children = node.get("content")
+        if not isinstance(children, list):
+            continue
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            if child.get("type") != "endfieldCardActivityIndex__activities":
+                continue
+            child_attrs = child.get("attrs")
+            if isinstance(child_attrs, dict):
+                out.append(child_attrs)
+    return out
+
+
+def _wiki_activity_to_schedule_item(act: dict[str, Any]) -> dict[str, Any] | None:
+    title = str(act.get("name") or act.get("title") or "").strip()
+    if not title:
+        return None
+    ranges = act.get("timeRanges")
+    first: dict[str, Any] = {}
+    if isinstance(ranges, list) and ranges and isinstance(ranges[0], dict):
+        first = ranges[0]
+    start = _parse_schedule_time(first.get("open"))
+    if start is None:
+        return None
+    end = _parse_schedule_time(first.get("close"))
+    if end is None:
+        end = start + timedelta(days=_EMPTY_CLOSE_SPAN_DAYS)
+    tags = act.get("tags")
+    event_type = ""
+    if isinstance(tags, list):
+        event_type = ", ".join(str(t).strip() for t in tags if str(t).strip())
+    elif isinstance(tags, str):
+        event_type = tags.strip()
+    link_title = str(act.get("linkTitle") or "").strip()
+    link_url = (
+        f"{ENDFIELD_WIKI_PAGE_BASE}/{quote(link_title, safe='/')}" if link_title else ""
+    )
+    banner = act.get("tabImgUrl") or act.get("banner")
+    return {
+        "id": str(act.get("activityId") or act.get("id") or title),
+        "title": title,
+        "start_time": start.strftime("%Y-%m-%d %H:%M"),
+        "end_time": end.strftime("%Y-%m-%d %H:%M"),
+        "banner": str(banner).strip() if banner else "",
+        "linkUrl": link_url,
+        "type": event_type,
+    }
+
+
+def wiki_activities_to_schedule_data(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """把 fz.wiki 活动页 contentJson 转成 game-schedule `data` 列表。"""
+    data: list[dict[str, Any]] = []
+    for act in _iter_endfield_wiki_activities(payload):
+        item = _wiki_activity_to_schedule_item(act)
+        if item:
+            data.append(item)
+    return data
+
+
 def get_game_schedule_raw(db: Session, game: GameCode) -> GameScheduleRaw | None:
     return (
         db.query(GameScheduleRaw)
@@ -132,7 +243,7 @@ def get_game_schedule_raw(db: Session, game: GameCode) -> GameScheduleRaw | None
     )
 
 
-def _download_upstream_payload(game: GameCode) -> tuple[dict[str, Any], str]:
+def _download_game_schedule(game: GameCode) -> tuple[dict[str, Any], str]:
     settings = get_settings()
     base = (settings.GAME_SCHEDULE_BASE_URL or "").rstrip("/")
     if not base:
@@ -170,6 +281,68 @@ def _download_upstream_payload(game: GameCode) -> tuple[dict[str, Any], str]:
     return payload, base
 
 
+def _download_endfield_wiki() -> tuple[dict[str, Any], str, str]:
+    try:
+        resp = http_request(
+            "GET",
+            ENDFIELD_WIKI_ARTICLE_URL,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "zhange-stats/endfield-wiki",
+            },
+            params={
+                "ns": 0,
+                "title": ENDFIELD_WIKI_ARTICLE_TITLE,
+                "withRevision": 1,
+            },
+            timeout=_HTTP_TIMEOUT,
+        )
+    except HttpRequestError as exc:
+        raise GameScheduleError(f"终末地 Wiki 不可达：{exc}") from exc
+    if resp.status_code >= 400:
+        raise GameScheduleError(f"终末地 Wiki HTTP {resp.status_code}")
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        raise GameScheduleError("终末地 Wiki 返回非 JSON") from exc
+    if not isinstance(payload, dict):
+        raise GameScheduleError("终末地 Wiki 响应格式异常")
+    data = wiki_activities_to_schedule_data(payload)
+    if not data:
+        raise GameScheduleError("终末地 Wiki 无活动条目")
+    return {"code": 200, "data": data}, "https://api.fz.wiki", SOURCE_FZ_WIKI
+
+
+def _download_upstream_payload(game: GameCode) -> tuple[dict[str, Any], str, str]:
+    schedule_error: GameScheduleError | None = None
+    payload: dict[str, Any] | None = None
+    base = ""
+    try:
+        payload, base = _download_game_schedule(game)
+    except GameScheduleError as exc:
+        schedule_error = exc
+
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if isinstance(data, list) and data:
+        return payload, base, SOURCE_GAME_SCHEDULE
+
+    if game == "endfield":
+        if schedule_error is not None:
+            logger.warning(
+                "game_schedule endfield failed, falling back to fz.wiki: %s",
+                schedule_error.message,
+            )
+        else:
+            logger.warning("game_schedule endfield empty, falling back to fz.wiki")
+        return _download_endfield_wiki()
+
+    if schedule_error is not None:
+        raise schedule_error
+    if payload is None:
+        raise GameScheduleError("活动日历上游无 data 列表")
+    return payload, base, SOURCE_GAME_SCHEDULE
+
+
 def _parse_events_from_payload(payload: dict[str, Any], game: GameCode) -> list[dict[str, Any]]:
     data = payload.get("data")
     if not isinstance(data, list):
@@ -201,6 +374,7 @@ def _upsert_game_schedule_raw(
     payload: dict[str, Any],
     upstream_base: str,
     synced_at: datetime,
+    source: str = SOURCE_GAME_SCHEDULE,
 ) -> None:
     raw_json = json.dumps(payload, ensure_ascii=False)
     row = get_game_schedule_raw(db, game)
@@ -208,23 +382,25 @@ def _upsert_game_schedule_raw(
         db.add(
             GameScheduleRaw(
                 game=game,
-                source="game-schedule",
+                source=source,
                 upstream_base=upstream_base,
                 raw_json=raw_json,
                 synced_at=synced_at,
             )
         )
     else:
-        row.source = "game-schedule"
+        row.source = source
         row.upstream_base = upstream_base
         row.raw_json = raw_json
         row.synced_at = synced_at
 
 
 def sync_game_schedule(db: Session, game: GameCode) -> dict[str, Any]:
-    """回源并落库；失败不覆盖已有成功 raw。"""
-    payload, upstream_base = _download_upstream_payload(game)
+    """回源并落库；失败或空列表不覆盖已有成功 raw。"""
+    payload, upstream_base, source = _download_upstream_payload(game)
     events = _parse_events_from_payload(payload, game)
+    if not events:
+        raise GameScheduleError("活动日历上游无有效活动")
     now = now_naive()
     _upsert_game_schedule_raw(
         db,
@@ -232,11 +408,18 @@ def sync_game_schedule(db: Session, game: GameCode) -> dict[str, Any]:
         payload=payload,
         upstream_base=upstream_base,
         synced_at=now,
+        source=source,
     )
     db.commit()
-    logger.info("game_schedule synced game=%s count=%s", game, len(events))
+    logger.info(
+        "game_schedule synced game=%s source=%s count=%s",
+        game,
+        source,
+        len(events),
+    )
     return {
         "game": game,
+        "source": source,
         "count": len(events),
         "synced_at": now.isoformat(),
     }
@@ -255,6 +438,7 @@ def _build_calendar(
     include_ended: bool,
     synced_at: str | None,
     stale: bool,
+    source: str = SOURCE_GAME_SCHEDULE,
 ) -> dict[str, Any]:
     at = beijing_now()
     ongoing: list[dict[str, Any]] = []
@@ -292,7 +476,7 @@ def _build_calendar(
 
     return {
         "game": game,
-        "source": "game-schedule",
+        "source": source or SOURCE_GAME_SCHEDULE,
         "synced_at": synced_at,
         "stale": stale,
         "events": result_events,
@@ -339,6 +523,7 @@ def get_game_events(
         include_ended=include_ended,
         synced_at=synced_at,
         stale=stale,
+        source=str(row.source or SOURCE_GAME_SCHEDULE),
     )
 
 

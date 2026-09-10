@@ -70,6 +70,54 @@ def test_ensure_secret_migrates_from_backend_data(tmp_path: Path) -> None:
     assert not (legacy / ".secret_key").is_file()
 
 
+def test_ensure_secret_migrates_from_data_root_leftover(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    install.mkdir()
+    (install / "VERSION").write_text("0.0.0\n", encoding="utf-8")
+    (install / "backend").mkdir()
+    leftover = install / "data"
+    leftover.mkdir()
+    (leftover / ".secret_key").write_text("flat-data-secret\n", encoding="utf-8")
+
+    got = ensure_secret_key(
+        "",
+        data_dir="data/runtime",
+        upload_dir="data/uploads",
+        install_dir=str(install),
+    )
+    dest = install / "data" / "runtime" / ".secret_key"
+    assert got == "flat-data-secret"
+    assert dest.read_text(encoding="utf-8").strip() == "flat-data-secret"
+    assert not (leftover / ".secret_key").is_file()
+
+
+def test_migrate_relocates_leftover_data_root_secret(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    runtime = install / "data" / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "logs").mkdir()
+    (install / "data" / ".secret_key").write_text("live-key\n", encoding="utf-8")
+
+    migrate_runtime_layout(install)
+
+    dest = runtime / ".secret_key"
+    assert dest.read_text(encoding="utf-8") == "live-key\n"
+    assert not (install / "data" / ".secret_key").exists()
+
+
+def test_migrate_keeps_runtime_secret_if_leftover_differs(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    runtime = install / "data" / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / ".secret_key").write_text("runtime-key\n", encoding="utf-8")
+    (install / "data" / ".secret_key").write_text("leftover-key\n", encoding="utf-8")
+
+    migrate_runtime_layout(install)
+
+    assert (runtime / ".secret_key").read_text(encoding="utf-8") == "runtime-key\n"
+    assert (install / "data" / ".secret_key").read_text(encoding="utf-8") == "leftover-key\n"
+
+
 def test_hydrate_copies_logs_once(tmp_path: Path) -> None:
     install = tmp_path / "zhange-stats"
     dest = install / "data" / "runtime"

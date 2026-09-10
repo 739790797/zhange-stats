@@ -14,6 +14,7 @@ def _mock_db_with_raw(payload: dict) -> MagicMock:
 
     row = MagicMock()
     row.raw_json = json.dumps(payload)
+    row.source = "game-schedule"
     row.synced_at = datetime(2026, 8, 24, 10, 0, tzinfo=BEIJING)
     db = MagicMock()
     db.query.return_value.filter.return_value.one_or_none.return_value = row
@@ -174,3 +175,151 @@ def test_get_game_events_force_sync(monkeypatch) -> None:
     )
     out = gs.get_game_events(db, "arknights", force=True)
     assert out["events"][0]["title"] == "进行中"
+    assert out["source"] == "game-schedule"
+
+
+def _wiki_payload_new_shape() -> dict:
+    return {
+        "revision": {
+            "contentJson": {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "endfieldCardActivityIndex",
+                        "attrs": {"id": "section/endfieldCardActivityIndex#0"},
+                        "content": [
+                            {
+                                "type": "endfieldCardActivityIndex__activities",
+                                "attrs": {
+                                    "name": "雾隐冬梦深林中",
+                                    "tags": ["叙事活动"],
+                                    "linkTitle": "活动/雾隐冬梦深林中",
+                                    "tabImgUrl": "https://assets.fz.wiki/banner.png",
+                                    "activityId": "CharacterGuide_typhoeus",
+                                    "timeRanges": [
+                                        {
+                                            "open": "2026/9/2 7:00:00",
+                                            "close": "2026/10/15 6:00:00",
+                                        }
+                                    ],
+                                },
+                            },
+                            {
+                                "type": "endfieldCardActivityIndex__activities",
+                                "attrs": {
+                                    "name": "于此启程",
+                                    "tags": ["新手活动"],
+                                    "activityId": "activity_gacha_beginner",
+                                    "timeRanges": [
+                                        {"open": "2025/12/9 4:00:00", "close": ""}
+                                    ],
+                                },
+                            },
+                            {
+                                "type": "endfieldCardActivityIndex__activities",
+                                "attrs": {
+                                    "name": "无开始时间",
+                                    "activityId": "skip-me",
+                                    "timeRanges": [{"open": "", "close": ""}],
+                                },
+                            },
+                        ],
+                    }
+                ],
+            }
+        }
+    }
+
+
+def test_parse_wiki_time_unpadded() -> None:
+    parsed = gs._parse_schedule_time("2026/9/2 7:00:00")
+    assert parsed is not None
+    assert parsed.year == 2026
+    assert parsed.month == 9
+    assert parsed.day == 2
+    assert parsed.hour == 7
+
+
+def test_wiki_activities_new_shape() -> None:
+    data = gs.wiki_activities_to_schedule_data(_wiki_payload_new_shape())
+    assert [item["title"] for item in data] == ["雾隐冬梦深林中", "于此启程"]
+    limited = data[0]
+    assert limited["id"] == "CharacterGuide_typhoeus"
+    assert limited["start_time"] == "2026-09-02 07:00"
+    assert limited["end_time"] == "2026-10-15 06:00"
+    assert limited["type"] == "叙事活动"
+    assert limited["banner"] == "https://assets.fz.wiki/banner.png"
+    assert limited["linkUrl"].endswith("/%E6%B4%BB%E5%8A%A8/%E9%9B%BE%E9%9A%90%E5%86%AC%E6%A2%A6%E6%B7%B1%E6%9E%97%E4%B8%AD")
+    beginner = data[1]
+    start = gs._parse_schedule_time(beginner["start_time"])
+    end = gs._parse_schedule_time(beginner["end_time"])
+    assert start is not None and end is not None
+    assert (end - start).days >= gs._PERMANENT_SPAN_DAYS
+    assert gs._is_permanent_event(beginner) is True
+
+
+def test_wiki_activities_old_attrs_shape() -> None:
+    payload = {
+        "revision": {
+            "contentJson": {
+                "content": [
+                    {
+                        "type": "endfieldCardActivityIndex",
+                        "attrs": {
+                            "activities": [
+                                {
+                                    "name": "理智补给",
+                                    "activityId": "stamina",
+                                    "tags": ["限时活动"],
+                                    "timeRanges": [
+                                        {
+                                            "open": "2026/8/26 4:00:00",
+                                            "close": "2026/9/2 4:00:00",
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+    }
+    data = gs.wiki_activities_to_schedule_data(payload)
+    assert len(data) == 1
+    assert data[0]["title"] == "理智补给"
+    assert data[0]["start_time"] == "2026-08-26 04:00"
+
+
+def test_endfield_empty_schedule_falls_back_to_wiki(monkeypatch) -> None:
+    monkeypatch.setattr(
+        gs,
+        "_download_game_schedule",
+        lambda _game: ({"code": 200, "data": []}, "https://gebc.example"),
+    )
+    wiki_data = gs.wiki_activities_to_schedule_data(_wiki_payload_new_shape())
+    monkeypatch.setattr(
+        gs,
+        "_download_endfield_wiki",
+        lambda: ({"code": 200, "data": wiki_data}, "https://api.fz.wiki", gs.SOURCE_FZ_WIKI),
+    )
+    payload, base, source = gs._download_upstream_payload("endfield")
+    assert source == gs.SOURCE_FZ_WIKI
+    assert base == "https://api.fz.wiki"
+    assert payload["data"][0]["title"] == "雾隐冬梦深林中"
+
+
+def test_sync_rejects_empty_events(monkeypatch) -> None:
+    monkeypatch.setattr(
+        gs,
+        "_download_upstream_payload",
+        lambda _game: ({"code": 200, "data": []}, "https://gebc.example", gs.SOURCE_GAME_SCHEDULE),
+    )
+    db = MagicMock()
+    try:
+        gs.sync_game_schedule(db, "arknights")
+    except gs.GameScheduleError as exc:
+        assert "无有效活动" in exc.message
+    else:
+        raise AssertionError("expected empty sync to fail")
+    db.commit.assert_not_called()
