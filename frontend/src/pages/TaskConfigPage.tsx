@@ -21,15 +21,12 @@ import {
   type PlatformFeatureNode,
 } from "@/api/client";
 import { JobRunResultModal } from "@/components/JobRunResultModal";
-import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { featureTreeIcon } from "@/lib/platformIcons";
 import type { JobRunWatch } from "@/lib/jobRunResult";
 import type { PlatformFeaturesUpdate } from "@/api/settingsApi";
-import { useAuthStore } from "@/stores/authStore";
 
 type DraftFlags = Record<string, boolean>;
 type DraftJobs = Record<
@@ -268,10 +265,6 @@ export default function TaskConfigPage() {
   } | null>(null);
   const [triggeringJobId, setTriggeringJobId] = useState<string | null>(null);
   const [runWatch, setRunWatch] = useState<JobRunWatch | null>(null);
-  const [pendingSave, setPendingSave] = useState<PlatformFeaturesUpdate | null>(
-    null,
-  );
-  const user = useAuthStore((s) => s.user);
 
   const query = useQuery({
     queryKey: ["platform-features-admin"],
@@ -294,16 +287,10 @@ export default function TaskConfigPage() {
   const jobs = draft?.jobs ?? baseline?.jobs;
 
   const save = useMutation({
-    mutationFn: ({
-      payload,
-      code,
-    }: {
-      payload: PlatformFeaturesUpdate;
-      code: string;
-    }) => updatePlatformFeatures(payload, code),
+    mutationFn: (payload: PlatformFeaturesUpdate) =>
+      updatePlatformFeatures(payload),
     onSuccess: (data) => {
       message.success("任务配置已保存并应用");
-      setPendingSave(null);
       queryClient.setQueryData(["platform-features-admin"], data);
       queryClient.setQueryData(
         ["platform-features-effective"],
@@ -379,11 +366,7 @@ export default function TaskConfigPage() {
                   if (!reserved.has(id)) features[id] = on;
                 }
                 const payload = { features, jobs };
-                requestAdminStepUp(user, {
-                  onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-                  onNeedCode: () => setPendingSave(payload),
-                  onSkip: () => save.mutate({ payload, code: "" }),
-                });
+                save.mutate(payload);
               }}
             >
               保存并应用
@@ -447,16 +430,6 @@ export default function TaskConfigPage() {
       )}
 
       <JobRunResultModal watch={runWatch} onClose={() => setRunWatch(null)} />
-      <AdminStepUpModal
-        open={pendingSave != null}
-        title="保存任务配置需邮箱验证码"
-        confirmLoading={save.isPending}
-        onCancel={() => setPendingSave(null)}
-        onConfirm={(code) => {
-          if (!pendingSave) return;
-          save.mutate({ payload: pendingSave, code });
-        }}
-      />
     </div>
   );
 }

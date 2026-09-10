@@ -1,10 +1,9 @@
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
-from app.api.auth.step_up import consume_admin_step_up, require_admin_step_up
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
@@ -191,7 +190,7 @@ def get_email_settings(
 def update_email_settings(
     body: EmailSettingsUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_step_up),
+    _: User = Depends(require_admin),
 ) -> dict:
     current = load_email_config(db)
     if body.enabled:
@@ -295,7 +294,7 @@ def get_ocr_settings(
 def update_ocr_settings(
     body: OcrSettingsUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_step_up),
+    _: User = Depends(require_admin),
 ) -> dict[str, Any]:
     from app.services.ocr.config import OcrConfigError, public_ocr_config, save_ocr_config
     from app.services.ocr.runtime import engine_status
@@ -347,7 +346,7 @@ def update_integrations(
     body: IntegrationsUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_step_up),
+    _: User = Depends(require_admin),
 ) -> dict:
     from app.main import scheduler
     from app.services.app_updator import invalidate_check_cache
@@ -474,11 +473,8 @@ def update_auth_settings(
     body: AuthSettingsUpdate,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
-    x_step_up_code: Annotated[str | None, Header(alias="X-Step-Up-Code")] = None,
 ) -> dict:
     payload = body.model_dump(exclude_unset=True)
-    if "enforce_single_admin" in payload:
-        consume_admin_step_up(db, current, x_step_up_code)
     saved = save_auth_config(db, payload)
     if saved.get("enforce_single_admin"):
         enforce_single_admin_if_needed(db, keep_user_id=current.id)
@@ -578,7 +574,7 @@ def get_platform_features_effective(
 def update_platform_features(
     body: PlatformFeaturesUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin_step_up),
+    _: User = Depends(require_admin),
 ) -> dict[str, Any]:
     from app.main import scheduler
 
@@ -611,3 +607,107 @@ def update_platform_features(
 
     register_scheduler_jobs(scheduler, db, run_steam_once=False)
     return _platform_features_payload(db)
+
+
+class RuntimeEnvOut(BaseModel):
+    app_env: str
+    is_production: bool
+    redis_url: str = ""
+    cors_origins: str = ""
+    cors_origin_regex: str = ""
+    csp_enforce: bool = False
+    trust_x_forwarded_for: bool = False
+    db_engine: str = "sqlite"
+    db_path: str = ""
+    db_url: str = ""
+    restart_required: bool = False
+
+
+class RuntimeEnvUpdate(BaseModel):
+    app_env: str | None = Field(default=None, max_length=32)
+    redis_url: str | None = Field(default=None, max_length=512)
+    cors_origins: str | None = Field(default=None, max_length=2000)
+    cors_origin_regex: str | None = Field(default=None, max_length=2000)
+    csp_enforce: bool | None = None
+    trust_x_forwarded_for: bool | None = None
+    db_engine: str | None = Field(default=None, max_length=16)
+    db_path: str | None = Field(default=None, max_length=512)
+    db_url: str | None = Field(default=None, max_length=2000)
+
+
+def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
+    from app.core.config import get_settings
+    from app.core.file_config import load_database_settings
+
+    s = get_settings()
+    db = load_database_settings()
+    return {
+        "app_env": s.APP_ENV,
+        "is_production": s.is_production,
+        "redis_url": s.REDIS_URL or "",
+        "cors_origins": s.CORS_ORIGINS or "",
+        "cors_origin_regex": s.CORS_ORIGIN_REGEX or "",
+        "csp_enforce": bool(s.CSP_ENFORCE),
+        "trust_x_forwarded_for": bool(s.TRUST_X_FORWARDED_FOR),
+        "db_engine": db["db_engine"],
+        "db_path": db["db_path"],
+        "db_url": db["db_url"],
+        "restart_required": restart_required,
+    }
+
+
+@router.get("/runtime-env", response_model=RuntimeEnvOut)
+def get_runtime_env(_: User = Depends(require_admin)) -> dict[str, Any]:
+    return _runtime_env_out()
+
+
+@router.put("/runtime-env", response_model=RuntimeEnvOut)
+def update_runtime_env(
+    body: RuntimeEnvUpdate,
+    _: User = Depends(require_admin),
+) -> dict[str, Any]:
+    from app.core.config import get_settings
+    from app.core.file_config import (
+        DatabaseSettingsError,
+        load_database_settings,
+        read_json,
+        save_database_settings,
+        write_json,
+    )
+
+    current = read_json("app") or {}
+    payload = body.model_dump(exclude_unset=True)
+    mapping = {
+        "app_env": "APP_ENV",
+        "redis_url": "REDIS_URL",
+        "cors_origins": "CORS_ORIGINS",
+        "cors_origin_regex": "CORS_ORIGIN_REGEX",
+        "csp_enforce": "CSP_ENFORCE",
+        "trust_x_forwarded_for": "TRUST_X_FORWARDED_FOR",
+    }
+    restart = False
+    for field, json_key in mapping.items():
+        if field not in payload:
+            continue
+        current[json_key] = payload[field]
+        restart = True
+    if any(field in payload for field in mapping):
+        env_name = str(current.get("APP_ENV") or "development").strip().lower()
+        if env_name not in ("development", "production", "prod"):
+            raise HTTPException(status_code=400, detail="APP_ENV 只能是 development 或 production")
+        write_json("app", current)
+    db_keys = ("db_engine", "db_path", "db_url")
+    if any(key in payload for key in db_keys):
+        before = load_database_settings()
+        try:
+            save_database_settings(
+                engine=str(payload.get("db_engine") or before["db_engine"]),
+                path=str(payload.get("db_path") if "db_path" in payload else before["db_path"]),
+                url=str(payload.get("db_url") if "db_url" in payload else before["db_url"]),
+            )
+        except DatabaseSettingsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        restart = True
+    get_settings.cache_clear()
+    return _runtime_env_out(restart_required=restart)
+

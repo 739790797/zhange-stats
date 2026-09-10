@@ -1,15 +1,12 @@
-"""邮箱 SMTP 配置：数据库优先，.env 兜底。"""
+"""邮箱 SMTP 配置：config/email.json。"""
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.core.crypto_secret import decrypt_secret, encrypt_secret
-from app.models.system_config import SystemConfig
+from app.core.file_config import read_json, write_json
 
 EMAIL_CONFIG_KEY = "email_smtp"
 
@@ -22,23 +19,21 @@ def _encryption_from_legacy(use_ssl: bool, starttls: bool) -> str:
     return "NONE"
 
 
-def _env_defaults() -> dict[str, Any]:
-    s = get_settings()
+def _defaults() -> dict[str, Any]:
     return {
-        "enabled": bool(s.SMTP_HOST and s.SMTP_FROM),
-        "smtp_user": s.SMTP_USER or "",
-        "smtp_from": s.SMTP_FROM or "",
-        "smtp_password": s.SMTP_PASSWORD or "",
+        "enabled": False,
+        "smtp_user": "",
+        "smtp_from": "",
+        "smtp_password": "",
         "display_name": "",
-        "smtp_host": s.SMTP_HOST or "",
-        "smtp_port": int(s.SMTP_PORT or 465),
-        "encryption": _encryption_from_legacy(bool(s.SMTP_USE_SSL), bool(s.SMTP_STARTTLS)),
-        "code_expire_minutes": int(s.EMAIL_CODE_EXPIRE_MINUTES),
+        "smtp_host": "",
+        "smtp_port": 465,
+        "encryption": "SSL",
+        "code_expire_minutes": 15,
     }
 
 
 def _normalize(cfg: dict[str, Any]) -> dict[str, Any]:
-    """兼容旧字段 smtp_use_ssl / smtp_starttls。"""
     out = dict(cfg)
     if "encryption" not in out or not out.get("encryption"):
         out["encryption"] = _encryption_from_legacy(
@@ -55,34 +50,20 @@ def _normalize(cfg: dict[str, Any]) -> dict[str, Any]:
     out["smtp_from"] = str(out.get("smtp_from") or "")
     out["smtp_host"] = str(out.get("smtp_host") or "")
     out["smtp_port"] = int(out.get("smtp_port") or 465)
-    out["smtp_password"] = decrypt_secret(str(out.get("smtp_password") or ""))
+    out["smtp_password"] = str(out.get("smtp_password") or "")
     out["code_expire_minutes"] = max(1, int(out.get("code_expire_minutes") or 15))
     return out
 
 
-def load_email_config(db: Session) -> dict[str, Any]:
-    base = _normalize(_env_defaults())
-    row = db.query(SystemConfig).filter(SystemConfig.key == EMAIL_CONFIG_KEY).first()
-    if not row:
-        return base
-    try:
-        stored = json.loads(row.value or "{}")
-    except json.JSONDecodeError:
-        return base
-    if not isinstance(stored, dict):
-        return base
-    # 先取出密文再 merge，避免 _normalize 对已加密串误处理前丢失
-    stored_password = stored.get("smtp_password")
-    merged = {**base, **{k: v for k, v in stored.items() if v is not None}}
-    if stored_password is not None and str(stored_password).strip():
-        merged["smtp_password"] = decrypt_secret(str(stored_password))
-    elif not str(merged.get("smtp_password") or "").strip():
-        merged["smtp_password"] = base.get("smtp_password") or ""
-    return _normalize(merged)
+def load_email_config(_db: Session | None = None) -> dict[str, Any]:
+    stored = read_json("email")
+    if not stored:
+        return _normalize(_defaults())
+    return _normalize({**_defaults(), **stored})
 
 
-def save_email_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
-    current = load_email_config(db)
+def save_email_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, Any]:
+    current = load_email_config(_db)
     password = payload.get("smtp_password")
     if password is None or str(password).strip() == "":
         password = current.get("smtp_password") or ""
@@ -108,22 +89,11 @@ def save_email_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
             ),
         }
     )
-
-    to_store = dict(data)
-    to_store["smtp_password"] = encrypt_secret(str(data.get("smtp_password") or ""))
-
-    row = db.query(SystemConfig).filter(SystemConfig.key == EMAIL_CONFIG_KEY).first()
-    raw = json.dumps(to_store, ensure_ascii=False)
-    if row:
-        row.value = raw
-    else:
-        db.add(SystemConfig(key=EMAIL_CONFIG_KEY, value=raw))
-    db.commit()
+    write_json("email", data)
     return data
 
 
 def resolve_mail_from(cfg: dict[str, Any]) -> str:
-    """发信地址为空时回退到用户名。"""
     mail_from = (cfg.get("smtp_from") or "").strip()
     if mail_from:
         return mail_from

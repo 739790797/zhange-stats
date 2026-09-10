@@ -4,6 +4,7 @@ from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, Unique
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 
 class ArknightsOperator(Base):
@@ -52,7 +53,7 @@ class ArknightsBoxSnapshot(Base):
     )
     uid: Mapped[str] = mapped_column(String(64), nullable=False)
     # 满练度盒子含技能/模组，JSON 常超 TEXT(64KB)，需 LONGTEXT
-    payload_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    payload_json: Mapped[str] = mapped_column(LongText, nullable=False)
     sync_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

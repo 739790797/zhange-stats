@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 
 class GameScheduleRaw(Base):
@@ -14,7 +15,7 @@ class GameScheduleRaw(Base):
     game: Mapped[str] = mapped_column(String(32), primary_key=True)
     source: Mapped[str] = mapped_column(String(64), nullable=False, default="game-schedule")
     upstream_base: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 安装本机依赖（系统包、venv、MariaDB、.env 路径）。不写入 APP_ENV。
-# 生产机请在本机 .env 自行设 APP_ENV=production。
+# 安装本机依赖（系统包、venv）。不写入 APP_ENV；不自动装 MariaDB。
+# 生产机请在管理端「运行环境」或 config/app.json 设 APP_ENV=production。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,15 +34,19 @@ if [[ -f "${SERVICE_SRC}" ]]; then
   systemctl enable "${SERVICE_NAME}"
   log "已安装并 enable ${SERVICE_NAME}（未自动 start，请执行 scripts/linux/run.sh）"
 fi
+if [[ -f "${SERVICE_SRC}" && -e "${REPO_ROOT}/deploy" ]]; then
+  rm -rf "${REPO_ROOT}/deploy"
+  log "已移除旧目录 deploy/"
+fi
 
 ensure_deps
 
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_ROOT}"
 chmod 750 "${REPO_ROOT}"
-chmod 640 "${REPO_ROOT}/.env" 2>/dev/null || true
+chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
 chmod 700 "${DATA_DIR}" "${UPLOAD_DIR}"
 
 chmod a+x "${SCRIPT_DIR}/install.sh" "${SCRIPT_DIR}/run.sh" "${SCRIPT_DIR}/restart.sh" \
-  "${SCRIPT_DIR}/backup.sh" "${SCRIPT_DIR}/restore.sh"
+  "${SCRIPT_DIR}/update.sh" "${SCRIPT_DIR}/backup.sh" "${SCRIPT_DIR}/restore.sh"
 
-log "完成。编辑 .env 后: bash ${SCRIPT_DIR}/run.sh"
+log "完成。打开站点走安装向导选库：bash ${SCRIPT_DIR}/run.sh"

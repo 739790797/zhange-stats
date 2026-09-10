@@ -21,8 +21,6 @@ import {
   updateUser,
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
-import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { ADMIN_STEP_UP_BLOCKED, adminCanStepUp, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
@@ -122,14 +120,8 @@ export default function UserManagementPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
-  const canStepUp = adminCanStepUp(currentUser);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserBrief | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [pendingSave, setPendingSave] = useState<{
-    id: number;
-    values: UserFormValues;
-  } | null>(null);
   const [createForm] = Form.useForm<UserFormValues>();
   const [editForm] = Form.useForm<UserFormValues>();
 
@@ -176,11 +168,9 @@ export default function UserManagementPage() {
     mutationFn: ({
       id,
       values,
-      code,
     }: {
       id: number;
       values: UserFormValues;
-      code?: string;
     }) => {
       const payload: {
         email?: string;
@@ -195,12 +185,11 @@ export default function UserManagementPage() {
       if (values.password?.trim()) {
         payload.password = values.password.trim();
       }
-      return updateUser(id, payload, code);
+      return updateUser(id, payload);
     },
     onSuccess: () => {
       message.success("用户已更新");
       setEditing(null);
-      setPendingSave(null);
       editForm.resetFields();
       invalidate();
     },
@@ -208,11 +197,9 @@ export default function UserManagementPage() {
   });
 
   const removeUser = useMutation({
-    mutationFn: ({ id, code }: { id: number; code: string }) =>
-      deleteUser(id, code),
+    mutationFn: (id: number) => deleteUser(id),
     onSuccess: () => {
       message.success("用户已注销");
-      setDeleteTarget(null);
       invalidate();
     },
     onError: (e: unknown) => message.error(apiError(e, "删除失败")),
@@ -293,29 +280,14 @@ export default function UserManagementPage() {
                     size="small"
                     danger
                     disabled={isSelf || isAdmin}
-                    title={
-                      canStepUp
-                        ? undefined
-                        : "请先在个人中心绑定并验证邮箱"
-                    }
                     onClick={() => {
-                      requestAdminStepUp(currentUser, {
-                        onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-                        onNeedCode: () => setDeleteTarget(row.id),
-                        onSkip: () => {
-                          Modal.confirm({
-                            title: "确定注销该用户？",
-                            content: "此操作不可撤销。",
-                            okText: "注销",
-                            okButtonProps: { danger: true },
-                            cancelText: "取消",
-                            onOk: () =>
-                              removeUser.mutateAsync({
-                                id: row.id,
-                                code: "",
-                              }),
-                          });
-                        },
+                      Modal.confirm({
+                        title: "确定注销该用户？",
+                        content: "此操作不可撤销。",
+                        okText: "注销",
+                        okButtonProps: { danger: true },
+                        cancelText: "取消",
+                        onOk: () => removeUser.mutateAsync(row.id),
                       });
                     }}
                   >
@@ -394,18 +366,6 @@ export default function UserManagementPage() {
           layout="vertical"
           onFinish={(values) => {
             if (!editing) return;
-            const roleChanging =
-              (values.role === "admin") !== isAdminUser(editing);
-            const passwordSet = Boolean(values.password?.trim());
-            if (roleChanging || passwordSet) {
-              requestAdminStepUp(currentUser, {
-                onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-                onNeedCode: () => setPendingSave({ id: editing.id, values }),
-                onSkip: () =>
-                  saveUser.mutate({ id: editing.id, values, code: "" }),
-              });
-              return;
-            }
             saveUser.mutate({ id: editing.id, values });
           }}
         >
@@ -465,26 +425,6 @@ export default function UserManagementPage() {
           </Form.Item>
         </Form>
       </Modal>
-      <AdminStepUpModal
-        open={deleteTarget != null}
-        title="注销用户需邮箱验证码"
-        confirmLoading={removeUser.isPending}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={(code) => {
-          if (deleteTarget == null) return;
-          removeUser.mutate({ id: deleteTarget, code });
-        }}
-      />
-      <AdminStepUpModal
-        open={pendingSave != null}
-        title="改角色或重置密码需邮箱验证码"
-        confirmLoading={saveUser.isPending}
-        onCancel={() => setPendingSave(null)}
-        onConfirm={(code) => {
-          if (!pendingSave) return;
-          saveUser.mutate({ ...pendingSave, code });
-        }}
-      />
     </div>
   );
 }

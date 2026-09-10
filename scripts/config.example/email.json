@@ -1,0 +1,12 @@
+{
+  "_version": 1,
+  "enabled": false,
+  "smtp_host": "",
+  "smtp_port": 465,
+  "smtp_user": "",
+  "smtp_password": "",
+  "smtp_from": "",
+  "display_name": "",
+  "encryption": "SSL",
+  "code_expire_minutes": 15
+}

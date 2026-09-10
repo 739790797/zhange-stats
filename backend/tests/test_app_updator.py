@@ -120,6 +120,8 @@ def test_path_whitelist_and_protected(tmp_path: Path):
     assert not u._path_allowed_from_whitelist("data/secret")
     assert not u._path_allowed_from_whitelist("var/data/secret")
     assert not u._path_allowed_from_whitelist(".env")
+    assert not u._path_allowed_from_whitelist("config/app.json")
+    assert not u._path_allowed_from_whitelist("config/integrations.json")
     assert not u._path_allowed_from_whitelist("backend/.venv/lib/x")
     assert not u._path_allowed_from_whitelist("static/index.html")
     assert u._is_protected("uploads/avatars/a.png")
@@ -155,6 +157,195 @@ def test_apply_source_zip_whitelist_only(tmp_path: Path):
     assert (install / ".env").read_text(encoding="utf-8") == "SECRET=1"
     assert (install / "data" / "keep.txt").read_text(encoding="utf-8") == "keep"
     assert not (install / "data" / "evil.txt").exists()
+
+
+def test_parse_py_string_tuple():
+    text = '''
+SOURCE_WHITELIST: tuple[str, ...] = (
+    "VERSION",
+    "backend/app",
+    "docs/extra.md",
+)
+MERGE_TREES: tuple[str, ...] = ("frontend",)
+'''
+    assert u.parse_py_string_tuple(text, "SOURCE_WHITELIST") == (
+        "VERSION",
+        "backend/app",
+        "docs/extra.md",
+    )
+    assert u.parse_py_string_tuple(text, "MERGE_TREES") == ("frontend",)
+    assert u.parse_py_string_tuple("x = 1", "SOURCE_WHITELIST") is None
+    live = Path(u.__file__).read_text(encoding="utf-8")
+    assert u.parse_py_string_tuple(live, "SOURCE_WHITELIST") == u.SOURCE_WHITELIST
+    assert u.parse_py_string_tuple(live, "MERGE_TREES") == u.MERGE_TREES
+    assert "deploy" not in u.SOURCE_WHITELIST
+    assert "scripts" in u.SOURCE_WHITELIST
+
+
+def test_apply_source_zip_deletes_removed_whitelist_file(tmp_path: Path):
+    install = tmp_path / "install"
+    install.mkdir()
+    (install / "AGENTS.md").write_text("old agents\n", encoding="utf-8")
+    (install / "backend" / "app").mkdir(parents=True)
+    (install / "backend" / "app" / "keep.py").write_text("keep\n", encoding="utf-8")
+
+    zip_path = tmp_path / "src.zip"
+    root = "zhange-stats-abc/"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(root + "VERSION", "1.0.0\n")
+        zf.writestr(root + "backend/app/keep.py", "keep\n")
+        zf.writestr(root + "README.md", "readme\n")
+
+    applied = u.apply_source_zip(zip_path, install)
+    assert "-AGENTS.md" in applied
+    assert not (install / "AGENTS.md").exists()
+    assert (install / "README.md").read_text(encoding="utf-8") == "readme\n"
+
+
+def test_remove_legacy_deploy_tree(tmp_path: Path) -> None:
+    install = tmp_path / "install"
+    (install / "scripts" / "linux").mkdir(parents=True)
+    (install / "scripts" / "linux" / "zhange-stats.service").write_text("unit\n", encoding="utf-8")
+    systemd = install / "deploy" / "systemd"
+    systemd.mkdir(parents=True)
+    (systemd / "zhange-stats.service").write_text("old\n", encoding="utf-8")
+    assert u.remove_legacy_deploy_tree(install) is True
+    assert not (install / "deploy").exists()
+    assert (install / "scripts" / "linux" / "zhange-stats.service").read_text(
+        encoding="utf-8"
+    ) == "unit\n"
+    assert u.remove_legacy_deploy_tree(install) is False
+
+
+def test_apply_source_zip_new_whitelist_path_from_incoming_updator(tmp_path: Path):
+    install = tmp_path / "install"
+    install.mkdir()
+    (install / "backend" / "app").mkdir(parents=True)
+
+    zip_path = tmp_path / "src.zip"
+    root = "zhange-stats-abc/"
+    updator = '''
+SOURCE_WHITELIST: tuple[str, ...] = (
+    "VERSION",
+    "backend/app",
+    "docs/extra.md",
+)
+MERGE_TREES: tuple[str, ...] = ("frontend",)
+'''
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(root + "VERSION", "1.2.3\n")
+        zf.writestr(root + "backend/app/main.py", "ok\n")
+        zf.writestr(root + "backend/app/services/app_updator.py", updator)
+        zf.writestr(root + "docs/extra.md", "new-doc\n")
+        zf.writestr(root + ".env", "HACKED=1\n")
+
+    applied = u.apply_source_zip(zip_path, install)
+    assert any(a == "docs/extra.md" or a.endswith("docs/extra.md") for a in applied)
+    assert (install / "docs" / "extra.md").read_text(encoding="utf-8") == "new-doc\n"
+    assert not (install / ".env").exists()
+
+
+def test_apply_source_zip_merges_frontend_without_wiping_node_modules(tmp_path: Path):
+    install = tmp_path / "install"
+    src_dir = install / "frontend" / "src"
+    src_dir.mkdir(parents=True)
+    (src_dir / "old.tsx").write_text("old\n", encoding="utf-8")
+    nm = install / "frontend" / "node_modules" / "keep"
+    nm.mkdir(parents=True)
+    (nm / "pkg.js").write_text("pkg\n", encoding="utf-8")
+
+    zip_path = tmp_path / "src.zip"
+    root = "zhange-stats-abc/"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(root + "VERSION", "1.0.0\n")
+        zf.writestr(root + "backend/app/x.py", "x\n")
+        zf.writestr(root + "frontend/src/new.tsx", "new\n")
+        zf.writestr(root + "frontend/package.json", "{}\n")
+        zf.writestr(root + "frontend/node_modules/evil.js", "nope\n")
+
+    u.apply_source_zip(zip_path, install)
+    assert (install / "frontend" / "src" / "new.tsx").read_text(encoding="utf-8") == "new\n"
+    assert not (src_dir / "old.tsx").exists()
+    assert (nm / "pkg.js").read_text(encoding="utf-8") == "pkg\n"
+    assert not (install / "frontend" / "node_modules" / "evil.js").exists()
+
+
+def test_resolve_target_force_reapplies_current():
+    current = "0.2.18"
+    same = u.ReleaseInfo(
+        tag_name="v0.2.18",
+        name="v0.2.18",
+        body="",
+        published_at="",
+        zipball_url="https://example.com/a.zip",
+    )
+    skipped = u._resolve_target_release([same], "latest", current)
+    assert isinstance(skipped, u.UpdateResult)
+    assert skipped.skipped is True
+    forced = u._resolve_target_release([same], "latest", current, force=True)
+    assert isinstance(forced, u.ReleaseInfo)
+    assert forced.tag_name == "v0.2.18"
+
+
+def test_update_allowed_host_skips_env_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    install = tmp_path / "install"
+    (install / "backend" / "app").mkdir(parents=True)
+    (install / "VERSION").write_text("0.2.22\n", encoding="utf-8")
+    (install / "static").mkdir()
+    data = install / "data"
+    data.mkdir()
+
+    monkeypatch.setattr(u, "resolve_install_dir", lambda: install.resolve())
+    monkeypatch.setattr(
+        u,
+        "get_settings",
+        lambda: type(
+            "S",
+            (),
+            {
+                "allow_in_app_update": False,
+                "DATA_DIR": str(data),
+                "APP_INSTALL_DIR": str(install),
+                "APP_VERSION": "0.2.22",
+            },
+        )(),
+    )
+    blocked, reason = u.update_allowed()
+    assert blocked is False
+    assert "不允许" in reason
+    ok, _ = u.update_allowed(host=True)
+    assert ok is True
+
+
+def test_host_update_main_check_and_skip(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    async def fake_check(**_kwargs):
+        rel = u.ReleaseInfo(
+            tag_name="v9.9.9",
+            name="v9.9.9",
+            body="",
+            published_at="",
+            zipball_url="https://example.com/z.zip",
+        )
+        return rel, [rel]
+
+    monkeypatch.setattr(u, "check_update", fake_check)
+    monkeypatch.setattr(u, "get_settings", lambda: type("S", (), {"APP_VERSION": "0.1.0"})())
+    assert u.host_update_main(["--check"]) == 0
+    out = capsys.readouterr().out
+    assert "CURRENT=0.1.0" in out
+    assert "LATEST=9.9.9" in out
+    assert "HAS_NEW=1" in out
+
+    async def fake_apply(**_kwargs):
+        return u.UpdateResult(
+            ok=False,
+            message="当前已经是最新版本（0.1.0）",
+            version="0.1.0",
+            skipped=True,
+        )
+
+    monkeypatch.setattr(u, "apply_update", fake_apply)
+    assert u.host_update_main(["--version", "latest"]) == 2
 
 
 def test_apply_static_tar(tmp_path: Path):
@@ -301,6 +492,30 @@ def test_snapshot_and_restore_source_paths(tmp_path: Path):
     assert (install / "backend" / "app" / "keep.py").read_text(encoding="utf-8") == "old\n"
 
 
+def test_snapshot_restore_frontend_keeps_node_modules(tmp_path: Path):
+    install = tmp_path / "install"
+    (install / "backend" / "app").mkdir(parents=True)
+    (install / "VERSION").write_text("1\n", encoding="utf-8")
+    src = install / "frontend" / "src"
+    src.mkdir(parents=True)
+    (src / "a.tsx").write_text("old\n", encoding="utf-8")
+    nm = install / "frontend" / "node_modules" / "x"
+    nm.mkdir(parents=True)
+    (nm / "p.js").write_text("nm\n", encoding="utf-8")
+
+    backup = tmp_path / "rollback"
+    saved = u.snapshot_source_paths(install, backup)
+    assert "frontend" in saved
+    assert not (backup / "frontend" / "node_modules").exists()
+
+    (src / "a.tsx").write_text("new\n", encoding="utf-8")
+    (src / "b.tsx").write_text("extra\n", encoding="utf-8")
+    u.restore_source_paths(install, backup)
+    assert (src / "a.tsx").read_text(encoding="utf-8") == "old\n"
+    assert not (src / "b.tsx").exists()
+    assert (nm / "p.js").read_text(encoding="utf-8") == "nm\n"
+
+
 def test_run_install_migrations_raises_on_nonzero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = tmp_path / "install"
     (install / "backend").mkdir(parents=True)
@@ -396,7 +611,7 @@ def test_apply_update_core_rolls_back_when_migrate_fails(
 
 
 def test_update_lock_rejects_concurrent(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(u, "update_allowed", lambda: (True, ""))
+    monkeypatch.setattr(u, "update_allowed", lambda **_kwargs: (True, ""))
 
     held = u._lock.acquire(blocking=False)
     assert held
@@ -459,6 +674,10 @@ def test_download_retryable_and_size_helpers(tmp_path: Path):
     assert "从 GitHub 下载被中断" in msg
     assert "一键更新" in msg
     assert u._format_download_error(RuntimeError(msg)) == msg
+    forbidden = httpx.Response(403, request=httpx.Request("GET", "https://api.github.com/x"))
+    assert "403" in u._format_download_error(
+        httpx.HTTPStatusError("nope", request=forbidden.request, response=forbidden)
+    )
 
     assert not u._download_send_range("https://api.github.com/repos/x/y/zipball/v1", 100)
     assert u._download_send_range("https://codeload.github.com/x/y/zip/refs/tags/v1", 100)

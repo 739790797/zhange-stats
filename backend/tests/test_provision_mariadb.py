@@ -1,8 +1,9 @@
-"""MariaDB provisioner: URL / .env helpers (no real server, no download)."""
+"""MariaDB provisioner: URL / config/database.json helpers (no real server, no download)."""
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -45,29 +46,50 @@ def test_parse_and_build_url_roundtrip() -> None:
     assert "p%40ss" in url
 
 
-def test_set_env_value_replaces_and_preserves(tmp_path: Path) -> None:
+def test_write_database_url_creates_config(tmp_path: Path) -> None:
     m = _load()
-    env = tmp_path / ".env"
-    env.write_text(
-        "# comment\nDATABASE_URL=mysql+pymysql://root:password@127.0.0.1:3306/zhange_stats_dev\nREDIS_URL=\n",
+    url = "mysql+pymysql://zhange:x@127.0.0.1:3306/zhange_stats"
+    m.write_database_url(tmp_path, url)
+    data = json.loads((tmp_path / "config" / "database.json").read_text(encoding="utf-8"))
+    assert data["engine"] == "mysql"
+    assert data["url"] == url
+    assert data["_version"] == 1
+
+
+def test_write_database_url_keeps_extra_keys(tmp_path: Path) -> None:
+    m = _load()
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    (cfg / "database.json").write_text(
+        json.dumps({"_version": 1, "engine": "sqlite", "path": "data/runtime/zhange.sqlite"}),
         encoding="utf-8",
     )
-    m.set_env_value(env, "DATABASE_URL", "mysql+pymysql://zhange:x@127.0.0.1:3306/zhange_stats")
-    text = env.read_text(encoding="utf-8")
-    assert text.count("DATABASE_URL=") == 1
-    assert "zhange:x@" in text
-    assert "REDIS_URL=" in text
-    assert text.startswith("# comment")
+    m.write_database_url(tmp_path, "mysql+pymysql://zhange:x@127.0.0.1:3306/db")
+    data = json.loads((cfg / "database.json").read_text(encoding="utf-8"))
+    assert data["engine"] == "mysql"
+    assert data["path"] == "data/runtime/zhange.sqlite"
+    assert data["_version"] == 1
 
 
-def test_set_env_value_appends_missing_key(tmp_path: Path) -> None:
+def test_read_configured_database_url_prefers_process_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     m = _load()
-    env = tmp_path / ".env"
-    env.write_text("APP_ENV=development\n", encoding="utf-8")
-    m.set_env_value(env, "DATABASE_URL", "mysql+pymysql://zhange:x@127.0.0.1:3306/db")
-    text = env.read_text(encoding="utf-8")
-    assert "APP_ENV=development" in text
-    assert text.strip().endswith("DATABASE_URL=mysql+pymysql://zhange:x@127.0.0.1:3306/db")
+    monkeypatch.setenv("DATABASE_URL", "mysql+pymysql://from-env@127.0.0.1:3306/e")
+    m.write_database_url(tmp_path, "mysql+pymysql://from-file@127.0.0.1:3306/f")
+    assert "from-env@" in m.read_configured_database_url(tmp_path)
+
+
+def test_read_configured_database_url_falls_back_to_dotenv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    m = _load()
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    (tmp_path / ".env").write_text(
+        "DATABASE_URL=mysql+pymysql://legacy@127.0.0.1:3306/old\n",
+        encoding="utf-8",
+    )
+    assert "legacy@" in m.read_configured_database_url(tmp_path)
 
 
 def test_choose_database_name() -> None:
@@ -108,3 +130,21 @@ def test_safe_extract_zip_rejects_parent(tmp_path: Path) -> None:
     archive.write_bytes(blob.getvalue())
     with pytest.raises(m.ProvisionError):
         m.safe_extract_zip(archive, tmp_path / "out")
+
+
+def test_portable_layout_uses_data_mariadb(tmp_path: Path) -> None:
+    m = _load()
+    paths = m.portable_layout(tmp_path)
+    assert paths["base"] == tmp_path / "data" / "mariadb"
+    assert paths["provision"] == tmp_path / "data" / "mariadb" / "provision.json"
+
+
+def test_portable_layout_relocates_legacy_var(tmp_path: Path) -> None:
+    m = _load()
+    old = tmp_path / "var" / "mariadb"
+    old.mkdir(parents=True)
+    (old / "my.ini").write_text("[mysqld]\n", encoding="utf-8")
+    paths = m.portable_layout(tmp_path)
+    assert paths["base"] == tmp_path / "data" / "mariadb"
+    assert (tmp_path / "data" / "mariadb" / "my.ini").is_file()
+    assert not old.exists()

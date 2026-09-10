@@ -2,31 +2,15 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.database import Base
-from app.models.system_config import SystemConfig
+from app.core.file_config import write_json
 from app.services import platform_features as pf
 
 
-def _sqlite() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine, tables=[SystemConfig.__table__])
-    return sessionmaker(bind=engine)()
-
-
-def _store(db: Session, features: dict[str, bool]) -> None:
-    db.add(
-        SystemConfig(
-            key=pf.PLATFORM_FEATURES_KEY,
-            value=json.dumps({"features": features}, ensure_ascii=False),
-        )
-    )
-    db.commit()
+def _store(features: dict[str, bool]) -> None:
+    write_json("jobs", {"features": features})
+    pf.invalidate_feature_cache()
 
 
 @pytest.fixture(autouse=True)
@@ -61,34 +45,30 @@ def test_tavern_alias_follows_zhange() -> None:
 
 
 def test_legacy_tavern_and_ocr_flags_migrate() -> None:
-    db = _sqlite()
     _store(
-        db,
         {
             "tavern": False,
             "tavern.texteller_sync": True,
             "ocr": True,
             "ocr.model_sync": False,
-        },
+        }
     )
-    loaded = pf.load_feature_flags(db)
+    loaded = pf.load_feature_flags()
     assert loaded["zhange"] is False
     assert loaded["zhange.texteller_model"] is True
     assert loaded["zhange.ocr_model"] is False
-    assert pf.effective_features(db)["tavern"] is False
+    assert pf.effective_features(None)["tavern"] is False  # type: ignore[arg-type]
 
 
 def test_new_zhange_keys_win_over_legacy() -> None:
-    db = _sqlite()
     _store(
-        db,
         {
             "tavern": False,
             "zhange": True,
             "ocr.model_sync": False,
             "zhange.ocr_model": True,
-        },
+        }
     )
-    loaded = pf.load_feature_flags(db)
+    loaded = pf.load_feature_flags()
     assert loaded["zhange"] is True
     assert loaded["zhange.ocr_model"] is True

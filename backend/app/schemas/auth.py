@@ -23,7 +23,6 @@ class UserOut(OrmModel):
     role: str
     is_admin: bool
     email_verified: bool = False
-    admin_step_up_required: bool = True
     avatar_url: str | None = None
     steam_id: str | None = None
     created_at: datetime

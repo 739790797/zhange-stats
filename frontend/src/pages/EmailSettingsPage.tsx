@@ -12,16 +12,9 @@ import {
   message,
 } from "antd";
 import { useEffect, useState } from "react";
-import {
-  fetchEmailSettings,
-  testEmailSettings,
-  updateEmailSettings,
-} from "@/api/client";
-import { AdminStepUpModal } from "@/components/AdminStepUpModal";
+import { fetchEmailSettings, testEmailSettings, updateEmailSettings } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
-import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
-import { useAuthStore } from "@/stores/authStore";
 
 type FormValues = {
   enabled: boolean;
@@ -54,12 +47,6 @@ export default function EmailSettingsPage() {
   const [form] = Form.useForm<FormValues>();
   const [testOpen, setTestOpen] = useState(false);
   const [testTo, setTestTo] = useState("");
-  const user = useAuthStore((s) => s.user);
-  const [pending, setPending] = useState<{
-    kind: "save" | "test";
-    payload: ReturnType<typeof toPayload>;
-    to?: string;
-  } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["email-settings"],
@@ -82,16 +69,10 @@ export default function EmailSettingsPage() {
   }, [data, form]);
 
   const save = useMutation({
-    mutationFn: ({
-      payload,
-      code,
-    }: {
-      payload: ReturnType<typeof toPayload>;
-      code: string;
-    }) => updateEmailSettings(payload, code),
+    mutationFn: (payload: ReturnType<typeof toPayload>) =>
+      updateEmailSettings(payload),
     onSuccess: () => {
       message.success("邮箱设置已保存");
-      setPending(null);
       queryClient.invalidateQueries({ queryKey: ["email-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
@@ -100,19 +81,16 @@ export default function EmailSettingsPage() {
   const test = useMutation({
     mutationFn: async ({
       payload,
-      code,
       to,
     }: {
       payload: ReturnType<typeof toPayload>;
-      code: string;
       to: string;
     }) => {
-      await updateEmailSettings(payload, code);
+      await updateEmailSettings(payload);
       return testEmailSettings(to);
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["email-settings"] });
-      setPending(null);
       if (res.ok) message.success(res.message);
       else message.warning(res.message);
       setTestOpen(false);
@@ -129,12 +107,7 @@ export default function EmailSettingsPage() {
         requiredMark
         disabled={isLoading}
         onFinish={(values) => {
-          const payload = toPayload(values);
-          requestAdminStepUp(user, {
-            onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-            onNeedCode: () => setPending({ kind: "save", payload }),
-            onSkip: () => save.mutate({ payload, code: "" }),
-          });
+          save.mutate(toPayload(values));
         }}
         initialValues={{
           enabled: false,
@@ -284,20 +257,9 @@ export default function EmailSettingsPage() {
           }
           void form.validateFields().then((values) => {
             const payload = toPayload(values);
-            requestAdminStepUp(user, {
-              onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-              onNeedCode: () =>
-                setPending({
-                  kind: "test",
-                  payload,
-                  to: testTo.trim(),
-                }),
-              onSkip: () =>
-                test.mutate({
-                  payload,
-                  code: "",
-                  to: testTo.trim(),
-                }),
+            test.mutate({
+              payload,
+              to: testTo.trim(),
             });
           });
         }}
@@ -314,24 +276,6 @@ export default function EmailSettingsPage() {
           placeholder="收件邮箱"
         />
       </Modal>
-      <AdminStepUpModal
-        open={pending != null}
-        title="保存 SMTP 配置需邮箱验证码"
-        confirmLoading={save.isPending || test.isPending}
-        onCancel={() => setPending(null)}
-        onConfirm={(code) => {
-          if (!pending) return;
-          if (pending.kind === "test") {
-            test.mutate({
-              payload: pending.payload,
-              code,
-              to: pending.to || "",
-            });
-            return;
-          }
-          save.mutate({ payload: pending.payload, code });
-        }}
-      />
     </div>
   );
 }

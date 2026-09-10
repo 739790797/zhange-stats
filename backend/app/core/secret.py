@@ -68,7 +68,7 @@ def ensure_secret_key(
     """Return a stable SECRET_KEY, generating one on first run when unset.
 
     Priority:
-    1. Non-empty, non-placeholder value from environment / .env
+    1. Non-empty, non-placeholder value from the process environment
     2. Existing file under DATA_DIR/.secret_key (outside the public uploads tree)
     3. Legacy locations (UPLOAD_DIR, install/data, backend/data, frontend/data)
        — migrate into DATA_DIR then prefer that

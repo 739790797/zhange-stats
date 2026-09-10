@@ -24,6 +24,7 @@ import httpx
 from app.core.config import get_settings
 from app.core.paths import resolve_install_dir as resolve_install_dir_from_env
 from app.core.paths import resolve_runtime_path
+from app.core.runtime_cache import pin_library_cache_env, runtime_tmp_dir
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +41,25 @@ SOURCE_WHITELIST: tuple[str, ...] = (
     "backend/requirements-dev.txt",
     "backend/scripts",
     "scripts",
-    "deploy",
     "AGENTS.md",
     "README.md",
 )
 
 PROTECTED_PREFIXES: tuple[str, ...] = (
     ".env",
+    "config/",
     "var/",
     "data/",
     "uploads/",
     "backend/.venv/",
     "frontend/node_modules/",
     "static/",  # replaced only via static asset, not source zip
+)
+
+# 目录同步（增删改文件，保留 node_modules / dist 等运行时）。
+MERGE_TREES: tuple[str, ...] = ("frontend",)
+TREE_SKIP_NAMES: frozenset[str] = frozenset(
+    {"node_modules", "dist", ".git", ".venv", "__pycache__"}
 )
 
 _state_lock = threading.Lock()
@@ -168,6 +175,7 @@ class UpdateResult:
     message: str
     version: str = ""
     reboot: bool = False
+    skipped: bool = False
 
 
 @dataclass
@@ -259,9 +267,9 @@ def _check_install_writable(install: Path) -> tuple[bool, str]:
     return True, ""
 
 
-def update_allowed() -> tuple[bool, str]:
+def update_allowed(*, host: bool = False) -> tuple[bool, str]:
     settings = get_settings()
-    if not settings.allow_in_app_update:
+    if not host and not settings.allow_in_app_update:
         return False, "当前环境不允许应用内更新（仅 production 默认开启，或设置 ALLOW_IN_APP_UPDATE=true）"
     install = resolve_install_dir()
     if not (install / "VERSION").is_file():
@@ -538,6 +546,16 @@ def _check_download_size(path: Path, expected: int | None) -> None:
 
 
 def _format_download_error(exc: BaseException) -> str:
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+        code = exc.response.status_code
+        if code == 403:
+            return (
+                "GitHub API 拒绝（403，常见于未登录限流）。"
+                "可在管理端「集成密钥」填写 GitHub Token 后重试，或稍后再试。"
+            )
+        if code == 404:
+            return "未找到 GitHub Release（404）。请确认 UPDATE_GITHUB_REPO 与目标 tag。"
+        return f"GitHub 请求失败（HTTP {code}）"
     text = str(exc).strip() or exc.__class__.__name__
     if text.startswith("从 GitHub 下载被中断"):
         return text
@@ -549,7 +567,7 @@ def _format_download_error(exc: BaseException) -> str:
         return text
     return (
         f"从 GitHub 下载被中断（{text}）。"
-        "请再点一次「一键更新」。若反复失败，请在主机执行 docs/deploy.md 中的应急更新脚本。"
+        "请再点一次「一键更新」，或在主机运行 scripts/linux/update.sh / scripts/win/update.ps1。"
     )
 
 
@@ -686,6 +704,8 @@ def _resolve_target_release(
     releases: list[ReleaseInfo],
     version: str,
     current_version: str,
+    *,
+    force: bool = False,
 ) -> ReleaseInfo | UpdateResult:
     """Return target ReleaseInfo, or UpdateResult on soft failure."""
     if not releases:
@@ -693,11 +713,12 @@ def _resolve_target_release(
     ver = (version or "latest").strip()
     if ver in ("", "latest"):
         target = releases[0]
-        if compare_version(target.tag_name, current_version) <= 0:
+        if not force and compare_version(target.tag_name, current_version) <= 0:
             return UpdateResult(
                 ok=False,
                 message=f"当前已经是最新版本（{current_version}）",
                 version=current_version,
+                skipped=True,
             )
         return target
     want = ver if ver.startswith("v") else f"v{ver}"
@@ -718,34 +739,129 @@ def _is_protected(rel_posix: str) -> bool:
     return False
 
 
-def _path_allowed_from_whitelist(rel_posix: str) -> bool:
+def _path_allowed_from_whitelist(
+    rel_posix: str,
+    whitelist: tuple[str, ...] | None = None,
+) -> bool:
     r = rel_posix.lstrip("./")
     if _is_protected(r):
         return False
-    for w in SOURCE_WHITELIST:
+    allowed = whitelist if whitelist is not None else SOURCE_WHITELIST
+    for w in allowed:
         if r == w or r.startswith(w.rstrip("/") + "/"):
             return True
     return False
 
 
+def parse_py_string_tuple(text: str, name: str) -> tuple[str, ...] | None:
+    """Read ``NAME = ("a", "b")`` from a Python source snippet."""
+    match = re.search(
+        rf"{re.escape(name)}\s*(?::[^=]+)?=\s*\((.*?)\)",
+        text,
+        re.S,
+    )
+    if not match:
+        return None
+    found = re.findall(r"\"([^\"]*)\"|'([^']*)'", match.group(1))
+    items = tuple(a or b for a, b in found if (a or b))
+    return items or None
+
+
+def _union_rel_paths(*groups: tuple[str, ...]) -> tuple[str, ...]:
+    seen: list[str] = []
+    for group in groups:
+        for raw in group:
+            rel = raw.replace("\\", "/").strip().lstrip("./")
+            if not rel or rel in seen or _is_protected(rel):
+                continue
+            seen.append(rel)
+    return tuple(seen)
+
+
+def _ignore_tree_runtime(_directory: str, names: list[str]) -> set[str]:
+    return {n for n in names if n in TREE_SKIP_NAMES}
+
+
+def _sync_merge_tree(src: Path, dest: Path) -> None:
+    """Add / overwrite / delete files under dest to match src; keep TREE_SKIP_NAMES."""
+    dest.mkdir(parents=True, exist_ok=True)
+    src_names = {p.name for p in src.iterdir()}
+    for child in list(dest.iterdir()):
+        if child.name in TREE_SKIP_NAMES:
+            continue
+        if child.name not in src_names:
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink(missing_ok=True)
+    for child in src.iterdir():
+        if child.name in TREE_SKIP_NAMES:
+            continue
+        target = dest / child.name
+        if child.is_dir():
+            _sync_merge_tree(child, target)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(child, target)
+
+
+def load_update_paths_from_extracted(
+    src_root: Path,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Prefer whitelist from the incoming zip so new paths apply in this round."""
+    path = src_root / "backend" / "app" / "services" / "app_updator.py"
+    parsed_source: tuple[str, ...] | None = None
+    parsed_merge: tuple[str, ...] | None = None
+    if path.is_file():
+        text = path.read_text(encoding="utf-8")
+        parsed_source = parse_py_string_tuple(text, "SOURCE_WHITELIST")
+        parsed_merge = parse_py_string_tuple(text, "MERGE_TREES")
+    merge = _union_rel_paths(parsed_merge or (), MERGE_TREES)
+    merge_set = {p.rstrip("/") for p in merge}
+    whitelist = tuple(
+        p
+        for p in _union_rel_paths(parsed_source or (), SOURCE_WHITELIST)
+        if p.rstrip("/") not in merge_set
+    )
+    return whitelist, merge
+
+
+def remove_legacy_deploy_tree(install_dir: Path) -> bool:
+    """systemd 单元已迁到 scripts/linux/；旧顶层 deploy/ 删掉避免残留。"""
+    unit = install_dir / "scripts" / "linux" / "zhange-stats.service"
+    leftover = install_dir / "deploy"
+    if not unit.is_file() or not leftover.exists():
+        return False
+    if leftover.is_dir():
+        shutil.rmtree(leftover)
+    else:
+        leftover.unlink()
+    return True
+
+
 def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
-    """Extract zipball to temp, then copy only SOURCE_WHITELIST into install_dir."""
+    """Extract zipball, then add/replace/delete whitelist paths in install_dir."""
     applied: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="zhange-src-") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="zhange-src-", dir=str(runtime_tmp_dir(install_dir))
+    ) as tmp:
         tmp_path = Path(tmp)
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(tmp_path)
         # GitHub zipball: single top-level directory
         children = [p for p in tmp_path.iterdir() if p.name not in (".", "..")]
         src_root = children[0] if len(children) == 1 and children[0].is_dir() else tmp_path
+        whitelist, merge = load_update_paths_from_extracted(src_root)
 
-        for rel in SOURCE_WHITELIST:
-            if not _path_allowed_from_whitelist(rel):
+        for rel in whitelist:
+            if not _path_allowed_from_whitelist(rel, whitelist):
                 continue
             src = src_root / rel
             dest = install_dir / rel
             if not src.exists():
-                logger.debug("whitelist miss (not in zip): %s", rel)
+                if dest.is_file():
+                    dest.unlink()
+                    applied.append(f"-{rel}")
                 continue
             if src.is_dir():
                 if dest.exists():
@@ -757,6 +873,18 @@ def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
                 applied.append(rel)
+
+        for rel in merge:
+            if _is_protected(rel):
+                continue
+            src = src_root / rel
+            dest = install_dir / rel
+            if not src.is_dir():
+                continue
+            _sync_merge_tree(src, dest)
+            applied.append(rel.rstrip("/") + "/")
+        if remove_legacy_deploy_tree(install_dir):
+            applied.append("-deploy/")
     return applied
 
 
@@ -774,6 +902,17 @@ def snapshot_source_paths(install_dir: Path, backup_dir: Path) -> list[str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
         if src.is_dir():
             shutil.copytree(src, dest)
+        else:
+            shutil.copy2(src, dest)
+        saved.append(rel)
+    for rel in MERGE_TREES:
+        src = install_dir / rel
+        if not src.exists():
+            continue
+        dest = backup_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_dir():
+            shutil.copytree(src, dest, ignore=_ignore_tree_runtime)
         else:
             shutil.copy2(src, dest)
         saved.append(rel)
@@ -799,6 +938,22 @@ def restore_source_paths(install_dir: Path, backup_dir: Path) -> None:
             shutil.copytree(src, dest)
         else:
             shutil.copy2(src, dest)
+    for rel in MERGE_TREES:
+        dest = install_dir / rel
+        src = backup_dir / rel
+        if src.is_dir():
+            _sync_merge_tree(src, dest)
+            continue
+        if dest.exists() and dest.is_dir():
+            for child in list(dest.iterdir()):
+                if child.name in TREE_SKIP_NAMES:
+                    continue
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink(missing_ok=True)
+        elif dest.is_file():
+            dest.unlink(missing_ok=True)
 
 
 def _resolve_venv_python(install_dir: Path) -> Path:
@@ -919,6 +1074,7 @@ def _run_pip(cmd: list[str], *, cwd: Path, progress_prefix: str) -> None:
 
 
 def pip_install_requirements(install_dir: Path) -> None:
+    pin_library_cache_env(install=install_dir)
     backend = install_dir / "backend"
     req = backend / "requirements.txt"
     if not req.is_file():
@@ -938,7 +1094,11 @@ def pip_install_requirements(install_dir: Path) -> None:
     extra: list[str] = []
     constraint: Path | None = None
     if pins:
-        fd, name = tempfile.mkstemp(prefix="zhange-torch-cpu-", suffix=".txt")
+        fd, name = tempfile.mkstemp(
+            prefix="zhange-torch-cpu-",
+            suffix=".txt",
+            dir=str(runtime_tmp_dir(install_dir)),
+        )
         os.close(fd)
         constraint = Path(name)
         constraint.write_text("\n".join(pins) + "\n", encoding="utf-8")
@@ -975,8 +1135,8 @@ def pip_install_requirements(install_dir: Path) -> None:
 
 
 _HOST_REPAIR_HINT = (
-    "若库结构已半更新、管理端也无法再升，请在主机拉代码后执行 "
-    "scripts/linux/install.sh 与 scripts/linux/restart.sh"
+    "若库结构已半更新、管理端也无法再升，请在主机执行 "
+    "scripts/linux/update.sh 或 scripts/win/update.ps1"
 )
 
 
@@ -1100,9 +1260,11 @@ async def apply_update(
     version: str = "latest",
     proxy: str | None = None,
     reboot: bool = True,
+    host: bool = False,
+    force: bool = False,
 ) -> UpdateResult:
-    """Blocking self-update（测试 / 同进程调用）。管理端请用 enqueue_update。"""
-    allowed, reason = update_allowed()
+    """Blocking self-update（测试 / 同进程 / 主机脚本）。管理端请用 enqueue_update。"""
+    allowed, reason = update_allowed(host=host)
     if not allowed:
         return UpdateResult(ok=False, message=reason)
 
@@ -1119,7 +1281,9 @@ async def apply_update(
     try:
         _set_progress(busy=True, phase="check", message="检查版本…", error="", target_version="")
         releases = await fetch_releases(proxy=proxy)
-        resolved = _resolve_target_release(releases, version, settings.APP_VERSION)
+        resolved = _resolve_target_release(
+            releases, version, settings.APP_VERSION, force=force
+        )
         if isinstance(resolved, UpdateResult):
             return resolved
         return await _apply_update_core(
@@ -1224,3 +1388,89 @@ async def enqueue_update(
         version=target_ver,
         reboot=reboot,
     )
+
+
+def host_update_main(argv: list[str] | None = None) -> int:
+    """主机 ``update.sh`` / ``update.ps1`` 入口。不 ``os.execv``；成功后由包装脚本重启。"""
+    pin_library_cache_env()
+    import argparse
+
+    global _set_progress
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "从 GitHub Release 更新战鸽数据："
+            "白名单目录整棵替换（增删改）、frontend 同步（保留 node_modules）、"
+            "static、pip、Alembic。成功后由 update.sh / update.ps1 重启。"
+        )
+    )
+    parser.add_argument("--version", default="latest", help="目标 tag，默认 latest")
+    parser.add_argument("--check", action="store_true", help="只检查是否有新版本，不落盘")
+    parser.add_argument("--force", action="store_true", help="即使已是该版本也重新落盘")
+    parser.add_argument("--proxy", default="", help="GitHub 下载代理前缀")
+    parser.add_argument(
+        "--no-restart",
+        action="store_true",
+        help="不重启（由 update.sh / update.ps1 处理；直接调用本入口时无效）",
+    )
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format="[update] %(message)s")
+    orig_set = _set_progress
+
+    def hooked(**kwargs: Any) -> None:
+        orig_set(**kwargs)
+        err = str(kwargs.get("error") or "")
+        msg = str(kwargs.get("message") or "")
+        phase = str(kwargs.get("phase") or "")
+        if err:
+            print(f"[update] {err}", file=sys.stderr, flush=True)
+        elif msg:
+            label = f"{phase}: {msg}" if phase else msg
+            print(f"[update] {label}", flush=True)
+
+    _set_progress = hooked  # type: ignore[misc]
+
+    async def _run() -> int:
+        proxy = (args.proxy or "").strip() or None
+        if args.check:
+            latest, _releases = await check_update(proxy=proxy, force=True)
+            settings = get_settings()
+            latest_ver = latest.tag_name.lstrip("vV") if latest else ""
+            has_new = bool(latest) and compare_version(latest.tag_name, settings.APP_VERSION) > 0
+            print(f"CURRENT={settings.APP_VERSION}")
+            print(f"LATEST={latest_ver or settings.APP_VERSION}")
+            print(f"HAS_NEW={'1' if has_new else '0'}")
+            return 0
+        result = await apply_update(
+            version=args.version,
+            proxy=proxy,
+            reboot=False,
+            host=True,
+            force=args.force,
+        )
+        if result.skipped:
+            print(result.message)
+            return 2
+        if not result.ok:
+            print(result.message, file=sys.stderr)
+            return 1
+        print(result.message)
+        return 0
+
+    try:
+        return asyncio.run(_run())
+    except KeyboardInterrupt:
+        print("已中断", file=sys.stderr)
+        return 130
+    except httpx.HTTPStatusError as exc:
+        msg = _format_download_error(exc)
+        logger.warning("host update http error: %s", msg)
+        print(msg, file=sys.stderr)
+        return 1
+    except Exception as exc:
+        logger.exception("host update failed")
+        print(_format_download_error(exc), file=sys.stderr)
+        return 1
+    finally:
+        _set_progress = orig_set  # type: ignore[misc]

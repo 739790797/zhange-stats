@@ -9,7 +9,7 @@ alwaysApply: false
 ## 目录
 
 - `pages/`：路由页；`components/`：可复用 UI。根上只留跨平台外壳（`CheckinPageTemplate` / `BoxPanelChrome` / `AttendanceCalendarButton` / `AdminHubLayout` 等）；平台面板进 `components/<platform>/`，攻略进 `guides/`
-- `src/data/`：源码资源（如塔科夫地图 JSON）；运行时/缓存在仓库根 `var/`，勿往 `frontend/data` 写
+- `src/data/`：源码资源（如塔科夫地图 JSON）；运行时/缓存在仓库根 `data/`，勿往 `frontend/data` 写
 - `api/`：`http.ts` + 域 `*Api.ts`；`client.ts` 再导出
 - `stores/authStore.ts`：只持久化 `user`（登录态以 HttpOnly Cookie 为准）
 - `lib/apiError.ts`：用户可见错误文案

@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 
 class KujiequBind(Base):
@@ -101,7 +102,7 @@ class KujiequAttendanceRaw(Base):
     role_uid: Mapped[str] = mapped_column(String(64), nullable=False)
     role_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     game_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -124,7 +125,7 @@ class KujiequWwBoxRaw(Base):
     role_id: Mapped[str] = mapped_column(String(64), nullable=False)
     uid: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     # 组合包 {"base": {...}, "calabash": {...}}；上游 data 字段已解包为对象
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

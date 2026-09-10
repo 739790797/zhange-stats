@@ -1,6 +1,6 @@
 """共享 OCR 引擎：熊猫 OCR（RapidOCR / Paddle）+ EasyOCR。
 
-权重由任务配置「文字识别模型」落到 var/data/{rapidocr,easyocr}。
+权重由任务配置「文字识别模型」落到 data/models/{rapidocr,easyocr}。
 识别路径不现场下载。非主引擎失败返回空行，不拖垮整次识别。
 Paddle 档位由系统配置决定；同族 v5/v6 不能当两票。
 """
@@ -161,6 +161,9 @@ def _rapidocr_params(folder, profile: str) -> dict[str, Any]:
 
 
 def _build_rapid(profile: str) -> Any:
+    from app.core.runtime_cache import pin_library_cache_env
+
+    pin_library_cache_env()
     try:
         from rapidocr import RapidOCR
     except ImportError as exc:
@@ -193,6 +196,9 @@ def get_engine() -> Any:
 
 
 def _build_easyocr() -> Any:
+    from app.core.runtime_cache import pin_library_cache_env
+
+    pin_library_cache_env()
     try:
         import easyocr
     except ImportError as exc:

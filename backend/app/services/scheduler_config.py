@@ -1,14 +1,12 @@
-"""定时任务调度配置：数据库优先，.env 兜底。"""
+"""定时任务调度配置：config/jobs.json 的 scheduler 段。"""
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.models.system_config import SystemConfig
+from app.core.file_config import read_json, write_json
 
 SCHEDULER_CONFIG_KEY = "scheduler_jobs"
 
@@ -54,85 +52,23 @@ def _clamp_interval(value: Any, default: int = 3) -> int:
         return default
 
 
-def _env_defaults() -> dict[str, dict[str, Any]]:
-    s = get_settings()
+def _code_defaults() -> dict[str, dict[str, Any]]:
     return {
-        "steam_presence": {
-            "enabled": bool(s.STEAM_POLL_ENABLED),
-            "interval_minutes": _clamp_interval(s.STEAM_POLL_INTERVAL_MINUTES, 3),
-        },
-        "minecraft_presence": {
-            "enabled": True,
-            "interval_minutes": _clamp_interval(
-                getattr(s, "MINECRAFT_POLL_INTERVAL_MINUTES", 1), 1
-            ),
-        },
-        "skland_checkin": {
-            "enabled": bool(s.SKLAND_CHECKIN_ENABLED),
-            "hour": _clamp_hour(s.SKLAND_CHECKIN_HOUR),
-            "minute": _clamp_minute(s.SKLAND_CHECKIN_MINUTE),
-        },
-        "arknights_box_sync": {
-            "enabled": bool(s.ARKNIGHTS_BOX_SYNC_ENABLED),
-            "hour": _clamp_hour(s.ARKNIGHTS_BOX_SYNC_HOUR),
-            "minute": _clamp_minute(s.ARKNIGHTS_BOX_SYNC_MINUTE),
-        },
-        "arknights_catalog_sync": {
-            "enabled": bool(s.ARKNIGHTS_CATALOG_SYNC_ENABLED),
-            "hour": _clamp_hour(s.ARKNIGHTS_CATALOG_SYNC_HOUR),
-            "minute": _clamp_minute(s.ARKNIGHTS_CATALOG_SYNC_MINUTE),
-        },
-        "game_schedule_arknights_sync": {
-            "enabled": bool(s.GAME_SCHEDULE_SYNC_ENABLED),
-            "hour": _clamp_hour(s.GAME_SCHEDULE_SYNC_HOUR),
-            "minute": _clamp_minute(s.GAME_SCHEDULE_SYNC_MINUTE),
-        },
-        "game_schedule_endfield_sync": {
-            "enabled": bool(s.GAME_SCHEDULE_SYNC_ENABLED),
-            "hour": _clamp_hour(s.GAME_SCHEDULE_SYNC_HOUR),
-            "minute": _clamp_minute(s.GAME_SCHEDULE_SYNC_MINUTE),
-        },
-        "tarkov_full_sync": {
-            "enabled": bool(getattr(s, "TARKOV_FULL_SYNC_ENABLED", True)),
-            "hour": _clamp_hour(getattr(s, "TARKOV_FULL_SYNC_HOUR", 4)),
-            "minute": _clamp_minute(getattr(s, "TARKOV_FULL_SYNC_MINUTE", 25)),
-        },
-        "ocr_model_sync": {
-            "enabled": True,
-            "hour": 5,
-            "minute": 10,
-        },
-        "texteller_model_sync": {
-            "enabled": True,
-            "hour": 4,
-            "minute": 50,
-        },
-        "taygedo_checkin": {
-            "enabled": bool(s.TAYGEDO_CHECKIN_ENABLED),
-            "hour": _clamp_hour(s.TAYGEDO_CHECKIN_HOUR),
-            "minute": _clamp_minute(s.TAYGEDO_CHECKIN_MINUTE),
-        },
-        "exilium_checkin": {
-            "enabled": bool(s.EXILIUM_CHECKIN_ENABLED),
-            "hour": _clamp_hour(s.EXILIUM_CHECKIN_HOUR),
-            "minute": _clamp_minute(s.EXILIUM_CHECKIN_MINUTE),
-        },
-        "kujiequ_checkin": {
-            "enabled": bool(s.KUJIEQU_CHECKIN_ENABLED),
-            "hour": _clamp_hour(s.KUJIEQU_CHECKIN_HOUR),
-            "minute": _clamp_minute(s.KUJIEQU_CHECKIN_MINUTE),
-        },
-        "mihoyo_checkin": {
-            "enabled": bool(s.MIHOYO_CHECKIN_ENABLED),
-            "hour": _clamp_hour(s.MIHOYO_CHECKIN_HOUR),
-            "minute": _clamp_minute(s.MIHOYO_CHECKIN_MINUTE),
-        },
-        "job_runs_prune": {
-            "enabled": True,
-            "hour": 3,
-            "minute": 30,
-            "retention_days": 90,
-        },
+        "steam_presence": {"enabled": True, "interval_minutes": 3},
+        "minecraft_presence": {"enabled": True, "interval_minutes": 1},
+        "skland_checkin": {"enabled": True, "hour": 0, "minute": 1},
+        "arknights_box_sync": {"enabled": True, "hour": 0, "minute": 20},
+        "arknights_catalog_sync": {"enabled": True, "hour": 4, "minute": 0},
+        "game_schedule_arknights_sync": {"enabled": True, "hour": 5, "minute": 0},
+        "game_schedule_endfield_sync": {"enabled": True, "hour": 5, "minute": 0},
+        "tarkov_full_sync": {"enabled": True, "hour": 4, "minute": 25},
+        "ocr_model_sync": {"enabled": True, "hour": 5, "minute": 10},
+        "texteller_model_sync": {"enabled": True, "hour": 4, "minute": 50},
+        "taygedo_checkin": {"enabled": True, "hour": 0, "minute": 1},
+        "exilium_checkin": {"enabled": True, "hour": 0, "minute": 1},
+        "kujiequ_checkin": {"enabled": True, "hour": 0, "minute": 1},
+        "mihoyo_checkin": {"enabled": True, "hour": 0, "minute": 1},
+        "job_runs_prune": {"enabled": True, "hour": 3, "minute": 30, "retention_days": 90},
     }
 
 
@@ -164,20 +100,10 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
     return out
 
 
-def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
-    base = _env_defaults()
-    row = (
-        db.query(SystemConfig)
-        .filter(SystemConfig.key == SCHEDULER_CONFIG_KEY)
-        .first()
-    )
-    if not row:
-        return {jid: dict(base[jid]) for jid in JOB_IDS}
-
-    try:
-        stored = json.loads(row.value or "{}")
-    except json.JSONDecodeError:
-        return {jid: dict(base[jid]) for jid in JOB_IDS}
+def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any]]:
+    base = _code_defaults()
+    blob = read_json("jobs") or {}
+    stored = blob.get("scheduler") if isinstance(blob.get("scheduler"), dict) else blob
     if not isinstance(stored, dict):
         return {jid: dict(base[jid]) for jid in JOB_IDS}
 
@@ -204,12 +130,12 @@ def load_scheduler_config(db: Session) -> dict[str, dict[str, Any]]:
 
 
 def save_scheduler_config(
-    db: Session,
+    _db: Session | None,
     payload: dict[str, Any],
     *,
     commit: bool = True,
 ) -> dict[str, dict[str, Any]]:
-    current = load_scheduler_config(db)
+    current = load_scheduler_config(_db)
     jobs_in = payload.get("jobs") if isinstance(payload.get("jobs"), dict) else payload
     if not isinstance(jobs_in, dict):
         jobs_in = {}
@@ -223,18 +149,7 @@ def save_scheduler_config(
         else:
             next_cfg[jid] = dict(fallback)
 
-    raw = json.dumps(next_cfg, ensure_ascii=False)
-    row = (
-        db.query(SystemConfig)
-        .filter(SystemConfig.key == SCHEDULER_CONFIG_KEY)
-        .first()
-    )
-    if row:
-        row.value = raw
-    else:
-        db.add(SystemConfig(key=SCHEDULER_CONFIG_KEY, value=raw))
-    if commit:
-        db.commit()
-    else:
-        db.flush()
+    blob = read_json("jobs") or {}
+    blob["scheduler"] = next_cfg
+    write_json("jobs", blob)
     return next_cfg

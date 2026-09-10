@@ -2,10 +2,10 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import DateTime, Index, Integer, String, Text, func
-from sqlalchemy.dialects.mysql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import PortableJSON
 
 
 class JobRun(Base):
@@ -27,4 +27,4 @@ class JobRun(Base):
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    stats: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    stats: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)

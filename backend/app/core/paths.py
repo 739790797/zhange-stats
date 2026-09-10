@@ -1,21 +1,35 @@
 """Install root and runtime directory resolution.
 
-Application runtime (secrets, logs, uploads, update lock, local scratch)
-lives under the install root ``var/`` by default — never under ``backend/``
-or ``frontend/``. Relative ``DATA_DIR`` / ``UPLOAD_DIR`` resolve against the
-install root, not the process cwd (uvicorn usually starts in ``backend/``).
+Application runtime lives under the install root ``data/`` — never under
+``backend/`` or ``frontend/``. Relative ``DATA_DIR`` / ``UPLOAD_DIR`` resolve
+against the install root, not the process cwd (uvicorn usually starts in
+``backend/``).
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
+from typing import Any, Callable
 
-DEFAULT_DATA_DIR = "var/data"
-DEFAULT_UPLOAD_DIR = "var/uploads"
+DEFAULT_DATA_DIR = "data/runtime"
+DEFAULT_UPLOAD_DIR = "data/uploads"
+DEFAULT_MODELS_DIR = "data/models"
 
-_LEGACY_DATA_RELATIVE = ("data", "backend/data", "frontend/data")
+_RUNTIME_ROOT = "data"
+_MODEL_FOLDERS = ("rapidocr", "easyocr", "texteller")
+_VAR_LAYOUT = (
+    ("data", "runtime"),
+    ("uploads", "uploads"),
+    ("cache", "cache"),
+    ("dev", "run"),
+    ("backups", "backups"),
+    ("mariadb", "mariadb"),
+    ("tmp", "tmp"),
+)
+_LEGACY_DATA_RELATIVE = ("backend/data", "frontend/data")
 _LEGACY_UPLOAD_RELATIVE = ("uploads", "backend/uploads", "frontend/uploads")
 _HYDRATE_SUBDIRS = ("logs", "maa")
 
@@ -42,12 +56,213 @@ def resolve_runtime_path(path_str: str, *, configured_install: str = "") -> Path
     return (resolve_install_dir(configured=configured_install) / path).resolve()
 
 
+def runtime_root(install: Path | None = None) -> Path:
+    base = install if install is not None else resolve_install_dir()
+    return (base / _RUNTIME_ROOT).resolve()
+
+
 def iter_legacy_data_dirs(install: Path) -> list[Path]:
     return [(install / rel).resolve() for rel in _LEGACY_DATA_RELATIVE]
 
 
 def iter_legacy_upload_dirs(install: Path) -> list[Path]:
     return [(install / rel).resolve() for rel in _LEGACY_UPLOAD_RELATIVE]
+
+
+def _relocate(src: Path, dest: Path) -> None:
+    if not src.exists():
+        return
+    try:
+        if src.resolve() == dest.resolve():
+            return
+    except OSError:
+        return
+    if dest.exists():
+        if src.is_dir() and dest.is_dir():
+            for child in list(src.iterdir()):
+                _relocate(child, dest / child.name)
+            try:
+                src.rmdir()
+            except OSError:
+                pass
+            return
+        if src.is_file():
+            try:
+                dest.unlink()
+            except OSError:
+                pass
+        else:
+            return
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        src.rename(dest)
+        return
+    except OSError:
+        pass
+    if src.is_dir():
+        dest.mkdir(parents=True, exist_ok=True)
+        for child in list(src.iterdir()):
+            _relocate(child, dest / child.name)
+        try:
+            src.rmdir()
+        except OSError:
+            pass
+        return
+    try:
+        shutil.copy2(src, dest)
+        src.unlink()
+    except OSError:
+        pass
+
+
+def _is_old_flat_data_dir(root: Path) -> bool:
+    if not root.is_dir():
+        return False
+    if (root / "runtime").exists() or (root / "uploads").exists() or (root / "models").exists():
+        return False
+    return (root / ".secret_key").is_file() or (root / "logs").is_dir() or (root / "rapidocr").is_dir()
+
+
+def _split_models(root: Path) -> None:
+    runtime = root / "runtime"
+    models = root / "models"
+    for name in _MODEL_FOLDERS:
+        _relocate(runtime / name, models / name)
+    for stamp in ("ocr_REVISION", "key_ocr_REVISION"):
+        _relocate(runtime / stamp, models / stamp)
+    _relocate(runtime / "tarkov_pw_profile", root / "cache" / "tarkov_pw_profile")
+
+
+def _rewrite_path_value(raw: str, install: Path) -> str | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    key = text.replace("\\", "/").strip("/")
+    rel_map = {
+        "var/data": DEFAULT_DATA_DIR,
+        "var/uploads": DEFAULT_UPLOAD_DIR,
+        "var/data/zhange.sqlite": f"{DEFAULT_DATA_DIR}/zhange.sqlite",
+        "data": DEFAULT_DATA_DIR,
+        "data/zhange.sqlite": f"{DEFAULT_DATA_DIR}/zhange.sqlite",
+        "uploads": DEFAULT_UPLOAD_DIR,
+    }
+    if key in rel_map:
+        return rel_map[key]
+    if (
+        key == DEFAULT_DATA_DIR
+        or key.startswith(f"{DEFAULT_DATA_DIR}/")
+        or key == DEFAULT_UPLOAD_DIR
+        or key.startswith(f"{DEFAULT_UPLOAD_DIR}/")
+        or key == DEFAULT_MODELS_DIR
+        or key.startswith(f"{DEFAULT_MODELS_DIR}/")
+    ):
+        return None
+    try:
+        resolved = Path(text).expanduser()
+        if not resolved.is_absolute():
+            return None
+        resolved = resolved.resolve()
+    except OSError:
+        return None
+    ordered = (
+        ((install / "var" / "data").resolve(), DEFAULT_DATA_DIR),
+        ((install / "var" / "uploads").resolve(), DEFAULT_UPLOAD_DIR),
+        ((install / "data" / "runtime").resolve(), DEFAULT_DATA_DIR),
+        ((install / "data" / "uploads").resolve(), DEFAULT_UPLOAD_DIR),
+        ((install / "data").resolve(), DEFAULT_DATA_DIR),
+        ((install / "uploads").resolve(), DEFAULT_UPLOAD_DIR),
+    )
+    for old, new in ordered:
+        if resolved == old:
+            return new
+        try:
+            rest = resolved.relative_to(old).as_posix()
+        except ValueError:
+            continue
+        return f"{new}/{rest}"
+    return None
+
+
+def _patch_json(path: Path, mutator: Callable[[dict[str, Any]], bool]) -> None:
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8") or "{}")
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(payload, dict):
+        return
+    if not mutator(payload):
+        return
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _rewrite_site_config_paths(install: Path) -> None:
+    config = install / "config"
+
+    def patch_app(data: dict[str, Any]) -> bool:
+        changed = False
+        for key in ("DATA_DIR", "UPLOAD_DIR"):
+            nxt = _rewrite_path_value(str(data.get(key) or ""), install)
+            if nxt is not None and nxt != data.get(key):
+                data[key] = nxt
+                changed = True
+        return changed
+
+    def patch_database(data: dict[str, Any]) -> bool:
+        nxt = _rewrite_path_value(str(data.get("path") or ""), install)
+        if nxt is None or nxt == data.get("path"):
+            return False
+        data["path"] = nxt
+        return True
+
+    _patch_json(config / "app.json", patch_app)
+    _patch_json(config / "database.json", patch_database)
+
+
+def migrate_runtime_layout(install: Path | None = None) -> None:
+    """Move ``var/`` and old flat ``data/`` into ``data/{runtime,uploads,models,…}``."""
+
+    base = (install or resolve_install_dir()).resolve()
+    root = base / _RUNTIME_ROOT
+    var = base / "var"
+
+    if _is_old_flat_data_dir(root):
+        staging = base / ".zhange-data-migrate"
+        if staging.exists():
+            shutil.rmtree(staging)
+        root.rename(staging)
+        root.mkdir(parents=True)
+        runtime = root / "runtime"
+        runtime.mkdir()
+        for child in list(staging.iterdir()):
+            _relocate(child, runtime / child.name)
+        try:
+            staging.rmdir()
+        except OSError:
+            pass
+
+    if var.is_dir():
+        root.mkdir(parents=True, exist_ok=True)
+        for old_name, new_name in _VAR_LAYOUT:
+            _relocate(var / old_name, root / new_name)
+        readme = var / "README.md"
+        dest_readme = root / "README.md"
+        if readme.is_file() and not dest_readme.exists():
+            _relocate(readme, dest_readme)
+        try:
+            next(var.iterdir())
+        except StopIteration:
+            var.rmdir()
+        except OSError:
+            pass
+
+    uploads_legacy = base / "uploads"
+    if uploads_legacy.is_dir() and not (root / "uploads").exists():
+        _relocate(uploads_legacy, root / "uploads")
+
+    _split_models(root)
+    _rewrite_site_config_paths(base)
 
 
 def hydrate_legacy_runtime(*, dest_data: Path, install: Path) -> None:

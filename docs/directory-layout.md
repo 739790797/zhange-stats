@@ -1,12 +1,12 @@
 # 战鸽数据 · 目录结构
 
-> 状态：**已落地**（运行时 `var/` + services/components 按域分包）  
+> 状态：**已落地**（运行时 `data/` + services/components 按域分包）  
 > 目的：代码树只放代码；域文件按平台/能力分包；禁止再往 `services/`、`components/` 根上堆平台文件。
 
 ## 原则
 
-1. **顶层不动**：`frontend/` · `backend/` · `scripts/` · `deploy/` · `var/`。`scripts/` 内再按平台分：`linux/`（`.sh`）、`win/`（`.ps1`）、`common/`（共用 Python）。公开命令只有 **install / run / restart / backup / restore**（两边各一份）；`_lib` 不是对外入口。
-2. **运行时只进 `var/`**（或 `.env` 绝对路径）。相对 `DATA_DIR` / `UPLOAD_DIR` 相对安装根，不跟 cwd。
+1. **顶层不动**：`frontend/` · `backend/` · `scripts/` · `data/`。`scripts/` 内再按平台分：`linux/`（`.sh`、systemd 单元模板）、`win/`（`.ps1`）、`common/`（共用 Python）、`config.example/`（站点配置模板，按 `_version` 补键）。公开命令只有 **install / run / restart / update / backup / restore**（两边各一份）；`_lib` 不是对外入口。
+2. **运行时只进 `data/`**（或安装配置里的绝对路径）。默认 `DATA_DIR=data/runtime`、`UPLOAD_DIR=data/uploads`、权重 `data/models`。相对路径相对安装根，不跟 cwd。站点管理配置在安装根 `config/`。第三方库缓存（Hugging Face / Torch / EasyOCR / pip / Playwright / tempfile）启动时 pin 到 `data/cache` 与 `data/tmp`，不要写到用户家目录。家目录里已有的战鸽权重（TexTeller hub、EasyOCR `.pth`）启动时 copy-if-missing 进安装根，不搬共享的 HF 家目录（Cursor 等）。
 3. **一个域一个包**。新平台、新盒子、新日历直接进子目录，并继续套现有 Template / Chrome / Adapter。
 4. **禁止一次大搬家式空 PR**。分包已完成；本文是现行布局与禁止清单，不是待办清单。
 5. **不要做**：feature-sliced 重写前端；按 http/parse/db 再切 services；把 `generated/` 或 `frontend/src/data/` 当缓存挪走。
@@ -15,7 +15,12 @@
 
 ```
 zhange-stats/
-  var/                      # 运行时（仅 README 入库）
+  data/                     # 运行时（仅 README 入库）
+    runtime/                # DATA_DIR：密钥、日志、SQLite、更新锁
+    uploads/                # UPLOAD_DIR：avatars、articles
+    models/                 # RapidOCR / EasyOCR / TexTeller
+    run/ cache/ backups/ mariadb/ tmp/
+  scripts/config.example/   # 站点配置模板（_version；启动/脚本补键）
   frontend/src/
     pages/                  # 路由页（攻略已在 pages/guides/）
     components/             # 根上只留跨平台外壳
@@ -33,7 +38,7 @@ zhange-stats/
 
 `components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AdminHubLayout`、`AuthGuestShell`、`LegalDocView` / `LegalLinks` / `IcpBeianLink` 等跨平台外壳。
 
-`services/` 根上只留横切：`account_anonymize`、`app_updator`、`avatar_store`、`auth_config`、`email*`、`file_manager`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。OCR 进包 `ocr/`，用户附件登记进包 `user_files/`（不要叫 `files`，以免和管理端 `file_manager` 撞名）。不要在根上加 `ocr_*.py` / `user_file_*.py`。
+`services/` 根上只留横切：`account_anonymize`、`app_updator`、`avatar_store`、`auth_config`、`config_import`、`email*`、`file_manager`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。OCR 进包 `ocr/`，用户附件登记进包 `user_files/`（不要叫 `files`，以免和管理端 `file_manager` 撞名）。不要在根上加 `ocr_*.py` / `user_file_*.py`。
 
 `pages/`、平台 `api/` 单文件、`models/` 保持现状，不要求再搬家。既有 `services/adapters/`、`services/mihoyo_bbs/` 保持。
 
@@ -41,7 +46,7 @@ zhange-stats/
 
 ### ocr/
 
-站点共享文字识别（引擎、权重、`system_configs.ocr`）。业务后处理（切块 / 闭集匹配）留在各域，例如 `tarkov/key_ocr.py`、`tarkov/raid_prep_ocr.py`。不要对外加通用识别 HTTP。
+站点共享文字识别（引擎、权重、`config/ocr.json`）。业务后处理（切块 / 闭集匹配）留在各域，例如 `tarkov/key_ocr.py`、`tarkov/raid_prep_ocr.py`。不要对外加通用识别 HTTP。
 
 ### user_files/
 
@@ -68,11 +73,11 @@ zhange-stats/
 
 ## 生产更新
 
-管理端「系统更新」对白名单目录做 **整目录删除再拷贝**（`backend/app`、`deploy/` 等）。`services/` 在 `backend/app` 内，旧扁平模块名不会和分包并存。主机无法启动时在安装树 `git pull` 后执行 `scripts/linux/install.sh` 与 `restart.sh`。
+管理端「系统更新」与主机 `scripts/linux/update.sh` / `scripts/win/update.ps1` 走同一套 GitHub Release：白名单目录 **整目录删除再拷贝**（增、改、删文件，如 `backend/app`、`scripts/`）；`frontend/` **按文件同步**（新增/覆盖/删除源码，保留 `node_modules` / `dist`）；`static/` 先清空再解压 Release 预构建包。`services/` 在 `backend/app` 内，旧扁平模块名不会和分包并存。进程挂死、管理端进不去时用主机 `update`，不要 curl 管道覆盖源码。
 
-前端源码不在源码白名单里。生产跑的是 **CI 绿之后** GitHub Release 的 `static/` tar（同样先清空再解压），打包后的 JS 已带组件路径，不依赖 LXC 上残留的 `frontend/src`。发版约定见 [`deploy.md`](deploy.md)「发版」。
+前端生产跑的是 **CI 绿之后** GitHub Release 的 `static/` tar，打包后的 JS 已带组件路径。本机 Vite 另靠 `frontend/` 同步。发版约定见 [`deploy.md`](deploy.md)「发版」。
 
-表结构变更走 Alembic。运行时目录（`data/` / `uploads/` / `var/` / `.env`）在保护前缀里，更新不会覆盖。已有 LXC 若 `.env` 或 systemd 仍指向安装根 `data/`，继续用即可。
+表结构变更走 Alembic。运行时目录（`config/` / `data/`）在保护前缀里，更新不会覆盖。首次启动会把旧 `var/` 迁进 `data/{runtime,uploads,models,…}`。
 
 ## 附录：历史搬家对照（已完成）
 

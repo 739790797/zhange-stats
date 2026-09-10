@@ -9,7 +9,6 @@ from app.api.auth import (
     qq_login,
     register,
     reset_password,
-    step_up,
 )
 from app.api.auth.helpers import _gen_username
 
@@ -22,7 +21,6 @@ for _sub in (
     me,
     change_password,
     reset_password,
-    step_up,
     account,
 ):
     router.include_router(_sub.router)

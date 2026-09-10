@@ -9,7 +9,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect, text
 
-from app.core.database import Base, engine
+from app.core.database import Base, get_engine
 from app.core.schema_ensure import ensure_schema
 
 logger = logging.getLogger("zhange.migrate")
@@ -79,13 +79,17 @@ def _alembic_config() -> Config:
 
 
 def _drop_obsolete_tables() -> None:
-    with engine.begin() as conn:
+    dialect = get_engine().dialect.name
+    with get_engine().begin() as conn:
         for name in _OBSOLETE_TABLES:
-            conn.execute(text(f"DROP TABLE IF EXISTS `{name}`"))
+            if dialect == "sqlite":
+                conn.execute(text(f'DROP TABLE IF EXISTS "{name}"'))
+            else:
+                conn.execute(text(f"DROP TABLE IF EXISTS `{name}`"))
 
 
 def _verify_aligned_schema() -> None:
-    inspector = inspect(engine)
+    inspector = inspect(get_engine())
     tables = set(inspector.get_table_names())
     missing_tables = [t for t in _REQUIRED_TABLES if t not in tables]
     if missing_tables:
@@ -107,14 +111,14 @@ def _align_legacy_schema() -> None:
     """Bring pre-Alembic databases up to current models before stamping."""
     import app.models  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
-    ensure_schema(engine)
+    Base.metadata.create_all(bind=get_engine())
+    ensure_schema(get_engine())
     _verify_aligned_schema()
 
 
 def _repair_known_schema_drift() -> None:
     """Fix drift from the v0.2.37 dual-0056 collision (wrong revision applied)."""
-    inspector = inspect(engine)
+    inspector = inspect(get_engine())
     tables = set(inspector.get_table_names())
 
     if "minecraft_server_profiles" in tables:
@@ -123,7 +127,7 @@ def _repair_known_schema_drift() -> None:
             logger.warning(
                 "Repairing minecraft_server_profiles public_* still present after 0056"
             )
-            with engine.begin() as conn:
+            with get_engine().begin() as conn:
                 if "public_host" in cols and "public_port" in cols:
                     row = conn.execute(
                         text(
@@ -195,7 +199,7 @@ def _repair_known_schema_drift() -> None:
         pk_cols = list(pk.get("constrained_columns") or [])
         if "purpose" not in cols or pk_cols != ["email", "purpose"]:
             logger.warning("Repairing register_challenges to (email, purpose) PK")
-            with engine.begin() as conn:
+            with get_engine().begin() as conn:
                 conn.execute(text("DROP TABLE IF EXISTS register_challenges"))
                 conn.execute(
                     text(
@@ -210,10 +214,29 @@ def _repair_known_schema_drift() -> None:
                 )
 
 
+def _run_sqlite_schema() -> None:
+    import app.models  # noqa: F401
+
+    eng = get_engine()
+    inspector = inspect(eng)
+    tables = set(inspector.get_table_names())
+    cfg = _alembic_config()
+    if "alembic_version" in tables:
+        command.upgrade(cfg, "head")
+    else:
+        Base.metadata.create_all(bind=eng)
+        command.stamp(cfg, "head")
+    logger.info("SQLite schema is up to date")
+
+
 def run_migrations() -> None:
     """Apply pending migrations; stamp existing create_all databases once."""
+    if get_engine().dialect.name == "sqlite":
+        _run_sqlite_schema()
+        return
+
     cfg = _alembic_config()
-    inspector = inspect(engine)
+    inspector = inspect(get_engine())
     tables = set(inspector.get_table_names())
 
     try:

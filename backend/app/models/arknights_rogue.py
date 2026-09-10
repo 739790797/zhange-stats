@@ -2,10 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 
 class ArknightsRogueRaw(Base):
@@ -27,7 +28,7 @@ class ArknightsRogueRaw(Base):
     )
     uid: Mapped[str] = mapped_column(String(64), nullable=False)
     topic_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

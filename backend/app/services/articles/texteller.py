@@ -1,4 +1,4 @@
-"""TexTeller 公式识别：权重在 var/data/texteller，可定时对照 Hugging Face 更新。"""
+"""TexTeller 公式识别：权重在 data/models/texteller，可定时对照 Hugging Face 更新。"""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ _HF_JSON_READ_SEC = 30
 _HF_DOWNLOAD_READ_SEC = 600
 REVISION_NAME = "REVISION"
 MAX_RECOGNIZE_BYTES = 2 * 1024 * 1024
+# 推理只用 encoder + decoder_model；merged / with_past 各约 800MB+，不同步。
 ALLOW_PATTERNS = (
     "config.json",
     "generation_config.json",
@@ -40,8 +41,6 @@ ALLOW_PATTERNS = (
     "merges.txt",
     "encoder_model.onnx",
     "decoder_model.onnx",
-    "decoder_with_past_model.onnx",
-    "decoder_model_merged.onnx",
 )
 
 _SYNC_LOCK = threading.Lock()
@@ -64,13 +63,16 @@ def hf_endpoint() -> str:
 
 
 def apply_hf_endpoint() -> str:
+    from app.core.runtime_cache import pin_library_cache_env
+
+    pin_library_cache_env()
     endpoint = hf_endpoint()
     os.environ["HF_ENDPOINT"] = endpoint
     return endpoint
 
 
 def texteller_dir() -> Path:
-    path = get_settings().data_dir_path / "texteller"
+    path = get_settings().models_dir_path / "texteller"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

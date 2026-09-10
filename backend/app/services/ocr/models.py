@@ -54,17 +54,19 @@ class WeightSpec:
 
 
 def rapidocr_model_dir(root: Path | None = None) -> Path:
-    base = root if root is not None else get_settings().data_dir_path
-    return base / "rapidocr"
+    if root is not None:
+        return root / "rapidocr"
+    return get_settings().models_dir_path / "rapidocr"
 
 
 def easyocr_model_dir(root: Path | None = None) -> Path:
-    base = root if root is not None else get_settings().data_dir_path
-    return base / "easyocr"
+    if root is not None:
+        return root / "easyocr"
+    return get_settings().models_dir_path / "easyocr"
 
 
 def revision_path(root: Path | None = None) -> Path:
-    base = root if root is not None else get_settings().data_dir_path
+    base = root if root is not None else get_settings().models_dir_path
     return base / REVISION_NAME
 
 
@@ -72,7 +74,14 @@ def read_local_revision(root: Path | None = None) -> str:
     path = revision_path(root)
     if path.is_file():
         return path.read_text(encoding="utf-8").strip()
-    legacy = (root if root is not None else get_settings().data_dir_path) / LEGACY_REVISION_NAME
+    if root is None:
+        for folder in (get_settings().data_dir_path, get_settings().models_dir_path):
+            for name in (REVISION_NAME, LEGACY_REVISION_NAME):
+                legacy = folder / name
+                if legacy.is_file():
+                    return legacy.read_text(encoding="utf-8").strip()
+        return ""
+    legacy = root / LEGACY_REVISION_NAME
     if legacy.is_file():
         return legacy.read_text(encoding="utf-8").strip()
     return ""
@@ -394,7 +403,7 @@ def sync_ocr_models(
     profile: str | None = None,
     progress: ProgressFn | None = None,
 ) -> dict[str, str | bool]:
-    root = dest if dest is not None else get_settings().data_dir_path
+    root = dest if dest is not None else get_settings().models_dir_path
     root.mkdir(parents=True, exist_ok=True)
     chosen = normalize_paddle_profile(profile)
     rows = list(specs) if specs is not None else all_weight_specs(chosen)

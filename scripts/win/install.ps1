@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Install local deps: .env paths, MariaDB, venv, pip. Does not write APP_ENV.
+# Install local deps: venv, pip. Does not write APP_ENV or provision MariaDB.
 
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\_lib.ps1"

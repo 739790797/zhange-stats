@@ -7,6 +7,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.database import SessionLocal
+from app.core.file_config import database_is_configured
 from app.services.setup import is_setup_complete_cached, mark_setup_complete, needs_setup
 
 
@@ -27,6 +28,8 @@ def _is_allowed_during_setup(path: str) -> bool:
 def _peek_setup_required() -> bool:
     if is_setup_complete_cached():
         return False
+    if not database_is_configured():
+        return True
     db = SessionLocal()
     try:
         required = needs_setup(db)

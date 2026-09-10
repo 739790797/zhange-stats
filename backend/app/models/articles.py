@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 article_category_links = Table(
     "article_category_links",
@@ -99,7 +100,7 @@ class Article(Base):
     slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     summary: Mapped[str] = mapped_column(String(512), nullable=False, default="")
-    body: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False, default="")
+    body: Mapped[str] = mapped_column(LongText, nullable=False, default="")
     body_format: Mapped[str] = mapped_column(String(16), nullable=False, default="markdown")
     cover_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", index=True)
@@ -223,7 +224,7 @@ class ArticleVersion(Base):
     version_no: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     summary: Mapped[str] = mapped_column(String(512), nullable=False, default="")
-    body: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False, default="")
+    body: Mapped[str] = mapped_column(LongText, nullable=False, default="")
     body_format: Mapped[str] = mapped_column(String(16), nullable=False, default="markdown")
     cover_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     note: Mapped[str] = mapped_column(String(128), nullable=False, default="")

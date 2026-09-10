@@ -32,7 +32,7 @@ alwaysApply: false
 ## 禁止
 
 - 再写一份 `/health` 字段断言（只留 ASGI：`test_health_api`）
-- 再拷 `_db_with_stored`（用 `tests/integrations_fakes.py`）
+- 再给 integrations / SMTP / 调度造假 `system_configs` 行（配置走 `write_json` / `config/*.json`）
 - oauth issue/consume happy path 再抄一份（Fernet 往返 vs SQLite 过期/清理分开）
 - 为新日历平台再抄「解析 / 未签 / fallback 含今日」空壳；只测该平台差量
 - 用 `...(force ? { force: true } : {})` 省略参数还声称测过 status

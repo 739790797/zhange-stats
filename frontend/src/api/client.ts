@@ -20,8 +20,6 @@ export {
   logoutRequest,
   sendDeleteAccountCode,
   deleteOwnAccount,
-  sendStepUpCode,
-  stepUpHeaders,
 } from "./authApi";
 
 export {
@@ -90,6 +88,8 @@ export {
   testEmailSettings,
   fetchOcrSettings,
   updateOcrSettings,
+  fetchRuntimeEnv,
+  updateRuntimeEnv,
 } from "./settingsApi";
 
 export {
@@ -99,7 +99,7 @@ export {
   waitForHealthVersion,
 } from "./appUpdateApi";
 
-export { fetchSetupStatus, completeSetupAdmin } from "./setupApi";
+export { fetchSetupStatus, completeSetupAdmin, completeSetupDatabase } from "./setupApi";
 export type { SetupStatus, SetupAdminResult } from "./setupApi";
 
 export {

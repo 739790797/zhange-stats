@@ -1,0 +1,30 @@
+[Unit]
+Description=Zhange Stats (战鸽数据)
+After=network-online.target mariadb.service mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+WorkingDirectory=__REPO_ROOT__/backend
+Environment=APP_INSTALL_DIR=__REPO_ROOT__
+Environment=STATIC_DIR=__REPO_ROOT__/static
+Environment=DATA_DIR=__REPO_ROOT__/data/runtime
+Environment=UPLOAD_DIR=__REPO_ROOT__/data/uploads
+Environment=APP_ENV=production
+Environment=PYTHONPYCACHEPREFIX=__REPO_ROOT__/data/cache/pycache
+Environment=HF_HOME=__REPO_ROOT__/data/cache/huggingface
+Environment=TORCH_HOME=__REPO_ROOT__/data/cache/torch
+Environment=EASYOCR_MODULE_PATH=__REPO_ROOT__/data/cache/easyocr
+Environment=PIP_CACHE_DIR=__REPO_ROOT__/data/cache/pip
+Environment=XDG_CACHE_HOME=__REPO_ROOT__/data/cache/xdg
+Environment=TMPDIR=__REPO_ROOT__/data/tmp
+ExecStart=__REPO_ROOT__/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+# 管理端一键更新：进程内落盘后 os.execv 同 PID 换码（AstrBot 式；无需 systemctl 权限）。
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

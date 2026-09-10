@@ -3,7 +3,7 @@
 会话 source=demo，Steam 轮询不会收尾，可一直显示。
 
 用法（仓库 backend 目录）:
-  .venv\\Scripts\\python.exe scripts_dev_seed_now_playing.py
+  .venv\\Scripts\\python.exe -m local_dev.seed_now_playing
 """
 
 from __future__ import annotations
@@ -12,7 +12,9 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
 
 from app.core.database import SessionLocal
 from app.core.security import hash_password
@@ -204,16 +206,7 @@ def main() -> int:
             )
         db.flush()
 
-        viewer = demos["演示观察者"]
         players = [m for name, m in demos.items() if name != "演示观察者"]
-
-        for m in players:
-
-        # 兼容旧演示账号（demo_alpha 等）也挂到观察者好友下
-        for old in ("演示甲", "演示乙", "演示丙"):
-            if old in demos:
-                continue
-
         close_all_opens(db, {m.id for m in players}, now)
 
         # 旧脚本可能写在真实成员上（source=steam），一并收尾避免干扰

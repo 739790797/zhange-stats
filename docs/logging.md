@@ -11,7 +11,7 @@
 | 去处 | 位置 | 说明 |
 |------|------|------|
 | 内存环缓冲 | 约 5000 条 | 重启丢失；「清空缓冲」只清这里 |
-| JSONL 文件 | `var/data/logs/app.jsonl` | 按大小轮转（默认 50MB × 5） |
+| JSONL 文件 | `data/runtime/logs/app.jsonl` | 按大小轮转（默认 50MB × 5） |
 | 进程 stdout | systemd journal | uvicorn 照常带 |
 
 每条自动带：级别、logger 名、从 logger 名推出的 **biz**、`log_context`（如 `request_id`、`job`、`member_id`）。北京墙钟时间。
@@ -22,7 +22,7 @@
 
 `zhange.http` 管访问日志，业务里不要再抄「这个 GET 成功了」。
 
-**不记：** `/health`、静态资源、头像、运行状态 / 平台日志自己的轮询（否则自动刷新会刷爆）。
+**不记：** `/health`、静态资源、头像、运行环境 / 平台日志自己的轮询（否则自动刷新会刷爆）。
 
 **必记：** 非 GET（写操作）。
 
@@ -52,7 +52,7 @@
 
 ## 不该发
 
-- 成功且快的 GET；平台日志 / 运行状态 / `/health` 的轮询
+- 成功且快的 GET；平台日志 / 运行环境 / `/health` 的轮询
 - 循环里「处理了第 N 个」——签到一轮上百人会把环缓冲顶满
 - 密钥、Cookie、JWT、房间密码、验证码明文（生产 `ALLOW_EMAIL_CODE_LOG` 启动硬拒绝）
 - 上游整段 JSON、含 token 的响应体；QQ 用户信息失败只打 `ret`/`msg`
@@ -73,6 +73,6 @@
 
 ## 怎么看
 
-管理端 **运行维护 → 平台日志**：筛级别 / logger / biz / 关键字。默认 INFO+。依赖是否可用看 **运行维护 → 运行状态**，不要把核对项再塞回日志页。
+管理端 **运行维护 → 平台日志**：筛级别 / logger / biz / 关键字。默认 INFO+。依赖是否可用看 **运行维护 → 运行环境**，不要把核对项再塞回日志页。
 
-磁盘：`var/data/logs/app.jsonl`。对一次请求：浏览器响应头 `X-Request-ID` 与日志 `context` 同一编号。
+磁盘：`data/runtime/logs/app.jsonl`。对一次请求：浏览器响应头 `X-Request-ID` 与日志 `context` 同一编号。

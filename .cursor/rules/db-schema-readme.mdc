@@ -11,5 +11,6 @@ alwaysApply: false
 1. **必须**在同一次改动中新增 Alembic 迁移（推荐在 `backend/` 下执行 `alembic revision --autogenerate -m "..."`，并人工检查生成文件）。
 2. **必须**同步更新 [`docs/database.md`](../../docs/database.md)，使其与模型一致。
 3. 增量变更只走 `alembic/versions/`。`schema_ensure.py` 仅用于无 `alembic_version` 的旧库 stamp 前一次性对齐，不要再往里堆新的 `ALTER TABLE`。
+4. **新** migration 必须 SQLite（stamp 之后）与 MySQL 都能 `upgrade`：用 `sa.JSON()` / `LongText`（`app.core.sqltypes`），禁止 `CAST(... AS JSON)` 与 MySQL 专属 `MODIFY COLUMN`。SQLite 首次安装走 `create_all` + stamp，不会重放历史 MySQL DDL。
 
 提交前确认：迁移可 `upgrade` / `downgrade` 逻辑合理，`docs/database.md` 字段与约束已更新。

@@ -48,7 +48,7 @@ const FileManagerPage = lazy(() => import("@/pages/FileManagerPage"));
 const TaskConfigPage = lazy(() => import("@/pages/TaskConfigPage"));
 const ScheduledJobsPage = lazy(() => import("@/pages/ScheduledJobsPage"));
 const PlatformLogsPage = lazy(() => import("@/pages/PlatformLogsPage"));
-const RuntimeStatusPage = lazy(() => import("@/pages/RuntimeStatusPage"));
+const RuntimeEnvPage = lazy(() => import("@/pages/RuntimeEnvPage"));
 const SystemUpdatePage = lazy(() => import("@/pages/SystemUpdatePage"));
 const TarkovGuidesOutlet = lazy(
   () => import("@/pages/guides/TarkovGuidesOutlet"),
@@ -447,7 +447,11 @@ export default function App() {
                   />
                   <Route
                     path="/settings/runtime"
-                    element={<RuntimeStatusPage />}
+                    element={<RuntimeEnvPage />}
+                  />
+                  <Route
+                    path="/settings/runtime-env"
+                    element={<Navigate to="/settings/runtime" replace />}
                   />
                   <Route
                     path="/settings/system"

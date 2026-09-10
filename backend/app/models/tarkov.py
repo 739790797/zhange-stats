@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 
 class TarkovCatalogRawMixin:
@@ -26,7 +27,7 @@ class TarkovCatalogRawMixin:
     mode_id: Mapped[int] = mapped_column(Integer, nullable=False)
     lang: Mapped[str] = mapped_column(String(8), nullable=False, default="")
     source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

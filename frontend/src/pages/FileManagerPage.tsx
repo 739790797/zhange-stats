@@ -12,7 +12,6 @@ import {
   Card,
   Col,
   Row,
-  Select,
   Space,
   Statistic,
   Table,
@@ -34,7 +33,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 import {
   FILE_KIND_LABEL,
-  fileAllRootRows,
   fileBrowseUp,
   formatBytes,
   formatPercent,
@@ -51,13 +49,11 @@ type BrowserRow = FileBrowseEntry & {
   missing?: boolean;
 };
 
-const ALL_ROOTS = "all";
-
 export default function FileManagerPage() {
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const rootId = params.get("root") || "";
+  const rootId = params.get("root") || "install";
   const path = params.get("path") || "";
 
   const summaryQuery = useQuery({
@@ -128,7 +124,7 @@ export default function FileManagerPage() {
     if (isFileBrowseLocked(row)) return;
     if (row.name === "..") {
       const next = fileBrowseUp(rootId, path);
-      setLocation(next.root, next.path);
+      setLocation(next.root || "install", next.path);
       return;
     }
     if (row.browseRootId) {
@@ -141,48 +137,39 @@ export default function FileManagerPage() {
   };
 
   const browserRows: BrowserRow[] = useMemo(() => {
-    if (!rootId) {
-      return fileAllRootRows(roots);
-    }
     const entries = browseQuery.data?.entries || [];
     const rows: BrowserRow[] = entries.map((row) => ({
       ...row,
       key: row.name,
     }));
-    rows.unshift({
-      key: "..",
-      name: "..",
-      is_dir: true,
-      size: 0,
-      modified_at: null,
-      sensitive: false,
-      downloadable: false,
-    });
+    if (path) {
+      rows.unshift({
+        key: "..",
+        name: "..",
+        is_dir: true,
+        size: 0,
+        modified_at: null,
+        sensitive: false,
+        downloadable: false,
+      });
+    }
     return rows;
-  }, [browseQuery.data?.entries, rootId, roots]);
+  }, [browseQuery.data?.entries, path]);
 
   const crumbs = useMemo(() => {
+    const rootLabel =
+      browseQuery.data?.root_label ||
+      roots.find((row) => row.id === rootId)?.label ||
+      "安装根";
     const items = [
       {
         title: (
-          <Button type="link" size="small" onClick={() => setLocation("", "")}>
-            全部
+          <Button type="link" size="small" onClick={() => setLocation(rootId, "")}>
+            {rootLabel}
           </Button>
         ),
       },
     ];
-    if (!rootId) return items;
-    const rootLabel =
-      browseQuery.data?.root_label ||
-      roots.find((row) => row.id === rootId)?.label ||
-      rootId;
-    items.push({
-      title: (
-        <Button type="link" size="small" onClick={() => setLocation(rootId, "")}>
-          {rootLabel}
-        </Button>
-      ),
-    });
     const parts = path ? path.split("/").filter(Boolean) : [];
     let acc = "";
     for (const part of parts) {
@@ -273,7 +260,7 @@ export default function FileManagerPage() {
     <>
       <PageHeader
         title="文件管理"
-        subtitle="查看本站运行时、模型、缓存与依赖的磁盘占用，并浏览安装根与站外缓存。敏感项置灰，不可进入、不可下载。"
+        subtitle="查看本站运行时、模型、缓存与依赖的磁盘占用，并浏览安装根。敏感项置灰，不可进入、不可下载。"
         extra={
           <Button
             icon={<ReloadOutlined />}
@@ -405,29 +392,7 @@ export default function FileManagerPage() {
         </Card>
       ) : null}
 
-      <Card
-        size="small"
-        title="目录"
-        extra={
-          <Select
-            style={{ minWidth: 220 }}
-            allowClear={Boolean(rootId)}
-            value={rootId || ALL_ROOTS}
-            placeholder="全部"
-            options={[
-              { value: ALL_ROOTS, label: "全部" },
-              ...roots.map((row) => ({
-                value: row.id,
-                label: row.exists ? row.label : `${row.label}（不存在）`,
-                disabled: !row.exists,
-              })),
-            ]}
-            onChange={(value) =>
-              setLocation(!value || value === ALL_ROOTS ? "" : value, "")
-            }
-          />
-        }
-      >
+      <Card size="small" title="目录">
         <Space
           style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }}
           wrap
@@ -450,7 +415,7 @@ export default function FileManagerPage() {
         <Table
           size="small"
           rowKey="key"
-          loading={rootId ? browseQuery.isFetching : summaryQuery.isLoading}
+          loading={browseQuery.isFetching}
           dataSource={browserRows}
           columns={fileColumns}
           pagination={{ pageSize: 50, hideOnSinglePage: true }}

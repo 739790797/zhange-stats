@@ -1,75 +1,40 @@
-"""管理员步进：生产校验验证码，development 跳过。"""
+"""管理员保存配置不再要求邮箱步进码。"""
 
-from unittest.mock import MagicMock
+from inspect import signature
 
-import pytest
-from fastapi import HTTPException
-
-from app.api.auth.step_up import admin_step_up_required, consume_admin_step_up
-from app.core.config import get_settings
-
-
-def _user(**kwargs) -> MagicMock:
-    user = MagicMock()
-    user.email = kwargs.get("email", "a@b.c")
-    user.email_verified = kwargs.get("email_verified", True)
-    return user
-
-
-def test_development_skips_step_up(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_ENV", "development")
-    get_settings.cache_clear()
-    try:
-        assert admin_step_up_required() is False
-        consume_admin_step_up(MagicMock(), _user(email=None, email_verified=False), None)
-    finally:
-        get_settings.cache_clear()
+from app.api.app_update import do_app_update
+from app.api.profile.users_admin import delete_user, update_user
+from app.api.settings import (
+    update_auth_settings,
+    update_email_settings,
+    update_integrations,
+    update_ocr_settings,
+    update_platform_features,
+)
+from app.main import app
+from app.schemas.auth import UserOut
 
 
-def test_production_requires_verified_email(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_ENV", "production")
-    get_settings.cache_clear()
-    try:
-        assert admin_step_up_required() is True
-        with pytest.raises(HTTPException) as exc:
-            consume_admin_step_up(MagicMock(), _user(email=None, email_verified=False), "123456")
-        assert exc.value.status_code == 400
-        assert "邮箱" in str(exc.value.detail)
-    finally:
-        get_settings.cache_clear()
+def test_admin_writes_have_no_step_up_header() -> None:
+    for fn in (
+        update_auth_settings,
+        update_email_settings,
+        update_integrations,
+        update_ocr_settings,
+        update_platform_features,
+        do_app_update,
+        update_user,
+        delete_user,
+    ):
+        assert "x_step_up_code" not in signature(fn).parameters
 
 
-def test_production_requires_code(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_ENV", "production")
-    get_settings.cache_clear()
-    try:
-        with pytest.raises(HTTPException) as exc:
-            consume_admin_step_up(MagicMock(), _user(), None)
-        assert exc.value.status_code == 400
-        assert "验证码" in str(exc.value.detail)
-    finally:
-        get_settings.cache_clear()
-
-
-def test_production_verify_is_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_ENV", "production")
-    get_settings.cache_clear()
-
-    def boom(*_args, **_kwargs) -> None:
-        raise HTTPException(status_code=400, detail="验证码错误")
-
-    monkeypatch.setattr("app.api.auth.step_up._consume_register_challenge", boom)
-    try:
-        user = _user()
-        user.id = 424242
-        user.email = "stepup-rl@example.test"
-        user.email_verified = True
-        for _ in range(12):
-            with pytest.raises(HTTPException) as exc:
-                consume_admin_step_up(MagicMock(), user, "000000")
-            assert exc.value.status_code == 400
-        with pytest.raises(HTTPException) as exc:
-            consume_admin_step_up(MagicMock(), user, "000000")
-        assert exc.value.status_code == 429
-    finally:
-        get_settings.cache_clear()
+def test_step_up_removed_from_contract() -> None:
+    assert "admin_step_up_required" not in UserOut.model_fields
+    schema = app.openapi()
+    paths = schema.get("paths") or {}
+    assert not any("step-up" in path for path in paths)
+    props = (
+        ((schema.get("components") or {}).get("schemas") or {}).get("UserOut") or {}
+    ).get("properties") or {}
+    assert "admin_step_up_required" not in props

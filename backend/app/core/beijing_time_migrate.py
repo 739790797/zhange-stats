@@ -26,6 +26,13 @@ _SHIFTS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 def ensure_beijing_time_storage(db: Session, engine: Engine) -> None:
+    if engine.dialect.name == "sqlite":
+        row = db.get(SystemConfig, _MARKER_KEY)
+        if row is None:
+            db.add(SystemConfig(key=_MARKER_KEY, value=_MARKER_VALUE))
+            db.commit()
+        return
+
     row = db.get(SystemConfig, _MARKER_KEY)
     if row and row.value.strip() == _MARKER_VALUE:
         return

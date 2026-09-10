@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 import urllib.parse
@@ -57,7 +55,6 @@ from app.services.qq_oauth import (
     decode_qq_oauth_state,
     exchange_code_for_profile,
 )
-from app.api.auth.step_up import consume_admin_step_up, require_admin_step_up
 from app.services.account_anonymize import (
     AccountAnonymizeError,
     anonymize_user_account,
@@ -162,7 +159,6 @@ def update_user(
     body: UserAdminUpdate,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
-    x_step_up_code: Annotated[str | None, Header(alias="X-Step-Up-Code")] = None,
 ) -> UserBrief:
     user = (
         db.query(User)
@@ -186,9 +182,6 @@ def update_user(
     role_changing = False
     if target_role is not None:
         role_changing = (target_role == UserRole.admin) != currently_admin
-    if data.get("password") or role_changing:
-        consume_admin_step_up(db, current, x_step_up_code)
-
     member = ensure_user_member(db, user)
 
     if "email" in data and data["email"] is not None:
@@ -258,7 +251,7 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current: User = Depends(require_admin_step_up),
+    current: User = Depends(require_admin),
 ) -> None:
     user = (
         db.query(User)

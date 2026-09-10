@@ -103,7 +103,7 @@ export default function PlatformLogsPage() {
         subtitle={
           <>
             进程内缓冲与落盘日志。依赖核对见
-            <Link to="/settings/runtime">运行状态</Link>。
+            <Link to="/settings/runtime">运行环境</Link>。
           </>
         }
         extra={

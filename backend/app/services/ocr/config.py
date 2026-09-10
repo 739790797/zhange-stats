@@ -1,13 +1,12 @@
-"""OCR 系统配置：system_configs.key = ocr。"""
+"""OCR 系统配置：config/ocr.json。"""
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.system_config import SystemConfig
+from app.core.file_config import read_json, write_json
 from app.services.ocr.catalog import (
     EASYOCR_PROFILES,
     ENGINE_HINTS,
@@ -101,39 +100,17 @@ def validate_ocr_config(data: dict[str, Any]) -> None:
             )
 
 
-def load_ocr_config(db: Session | None) -> dict[str, Any]:
-    if db is None:
-        return default_ocr_config()
-    row = (
-        db.query(SystemConfig)
-        .filter(SystemConfig.key == OCR_CONFIG_KEY)
-        .first()
-    )
-    if not row:
-        return default_ocr_config()
-    try:
-        stored = json.loads(row.value or "{}")
-    except json.JSONDecodeError:
-        return default_ocr_config()
-    if not isinstance(stored, dict):
+def load_ocr_config(_db: Session | None = None) -> dict[str, Any]:
+    stored = read_json("ocr")
+    if not stored:
         return default_ocr_config()
     return _normalize(stored)
 
 
-def save_ocr_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+def save_ocr_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, Any]:
     data = _normalize(payload)
     validate_ocr_config(data)
-    raw = json.dumps(data, ensure_ascii=False)
-    row = (
-        db.query(SystemConfig)
-        .filter(SystemConfig.key == OCR_CONFIG_KEY)
-        .first()
-    )
-    if row:
-        row.value = raw
-    else:
-        db.add(SystemConfig(key=OCR_CONFIG_KEY, value=raw))
-    db.commit()
+    write_json("ocr", data)
     from app.services.ocr.engines import reset_runtime
 
     reset_runtime()

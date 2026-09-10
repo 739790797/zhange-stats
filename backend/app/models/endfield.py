@@ -2,10 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import LongText
 
 
 class EndfieldBoxRaw(Base):
@@ -24,7 +25,7 @@ class EndfieldBoxRaw(Base):
     server_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     uid: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     # 上游整包响应，体积可能较大
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -53,7 +54,7 @@ class EndfieldAttendanceRaw(Base):
     uid: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     role_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     channel_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    raw_json: Mapped[str] = mapped_column(Text(length=2**32 - 1), nullable=False)
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -1,4 +1,4 @@
-"""本站磁盘占用与目录浏览：只走白名单根，不跟任意用户路径读盘。"""
+"""本站磁盘占用与目录浏览：只扫安装根，不跟任意用户路径读盘。"""
 
 from __future__ import annotations
 
@@ -34,7 +34,6 @@ BUSINESS_LABELS: dict[str, str] = {
     "python": "Python 环境",
     "frontend": "前端资源",
     "backup": "站点备份",
-    "external": "外部缓存",
     "leftover": "未分类",
 }
 
@@ -48,7 +47,7 @@ SENSITIVE_NAMES = frozenset(
         "id_ed25519",
     }
 )
-SENSITIVE_DIR_NAMES = frozenset({".git"})
+SENSITIVE_DIR_NAMES = frozenset({".git", "config"})
 SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
 _SIZE_CACHE: dict[str, tuple[float, int, int]] = {}
@@ -64,27 +63,16 @@ class FileManagerError(Exception):
 
 
 @dataclass(frozen=True)
-class ExtraRoot:
-    id: str
-    label: str
-    path: Path
-    business: str
-    kind: FileKind
-    description: str = ""
-    optional: bool = True
-
-
-@dataclass(frozen=True)
 class FileManagerContext:
     install_dir: Path
     data_dir: Path
     upload_dir: Path
-    var_dir: Path
+    data_root: Path
+    models_dir: Path
     venv_dir: Path
     node_modules_dir: Path
     static_dir: Path | None
     backup_dir: Path | None
-    extra: tuple[ExtraRoot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -371,76 +359,11 @@ def _mtime_beijing(path: Path) -> str | None:
     return datetime.fromtimestamp(ts, BEIJING).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _home_cache(name: str) -> Path:
-    return Path.home() / ".cache" / name
-
-
-def _detect_extra_roots(*, data_dir: Path, var_dir: Path) -> tuple[ExtraRoot, ...]:
-    rows: list[ExtraRoot] = []
-    hf_raw = (os.environ.get("HF_HOME") or os.environ.get("HUGGINGFACE_HUB_CACHE") or "").strip()
-    hf = Path(hf_raw).expanduser() if hf_raw else _home_cache("huggingface")
-    torch_raw = (os.environ.get("TORCH_HOME") or "").strip()
-    torch = Path(torch_raw).expanduser() if torch_raw else _home_cache("torch")
-    candidates = (
-        ExtraRoot(
-            id="hf_cache",
-            label="Hugging Face 缓存",
-            path=hf,
-            business="external",
-            kind="cache",
-            description="HF_HOME / 默认 ~/.cache/huggingface，公式识别等可能写入",
-        ),
-        ExtraRoot(
-            id="torch_cache",
-            label="Torch 缓存",
-            path=torch,
-            business="external",
-            kind="cache",
-            description="TORCH_HOME / 默认 ~/.cache/torch",
-        ),
-        ExtraRoot(
-            id="easyocr_home",
-            label="EasyOCR 用户目录",
-            path=Path.home() / ".EasyOCR",
-            business="ocr",
-            kind="cache",
-            description="引擎默认家目录；本站权重应在 DATA_DIR/easyocr",
-        ),
-        ExtraRoot(
-            id="paddleocr_home",
-            label="PaddleOCR 用户目录",
-            path=Path.home() / ".paddleocr",
-            business="ocr",
-            kind="cache",
-            description="引擎默认家目录；本站权重应在 DATA_DIR/rapidocr",
-        ),
-    )
-    for row in candidates:
-        try:
-            resolved = row.path.expanduser()
-        except OSError:
-            continue
-        if is_under(resolved, data_dir) or is_under(resolved, var_dir):
-            continue
-        rows.append(
-            ExtraRoot(
-                id=row.id,
-                label=row.label,
-                path=resolved,
-                business=row.business,
-                kind=row.kind,
-                description=row.description,
-                optional=True,
-            )
-        )
-    return tuple(rows)
-
-
 def _backup_dir(install: Path) -> Path:
     raw = (os.environ.get("ZHANGE_BACKUP_DIR") or "").strip()
     if raw:
         return Path(raw).expanduser()
-    local = install / "var" / "backups"
+    local = install / "data" / "backups"
     legacy = Path("/var/backups/zhange")
     if os.name != "nt" and legacy.is_dir() and not local.is_dir():
         return legacy
@@ -452,7 +375,8 @@ def context_from_settings() -> FileManagerContext:
     install = resolve_install_dir(configured=settings.APP_INSTALL_DIR)
     data_dir = settings.data_dir_path
     upload_dir = settings.upload_dir_path
-    var_dir = (install / "var").resolve()
+    data_root = (install / "data").resolve()
+    models_dir = settings.models_dir_path
     static: Path | None = None
     if (settings.STATIC_DIR or "").strip():
         static = resolve_runtime_path(
@@ -462,12 +386,12 @@ def context_from_settings() -> FileManagerContext:
         install_dir=install,
         data_dir=data_dir,
         upload_dir=upload_dir,
-        var_dir=var_dir,
+        data_root=data_root,
+        models_dir=models_dir,
         venv_dir=(install / "backend" / ".venv").resolve(),
         node_modules_dir=(install / "frontend" / "node_modules").resolve(),
         static_dir=static,
         backup_dir=_backup_dir(install),
-        extra=_detect_extra_roots(data_dir=data_dir, var_dir=var_dir),
     )
 
 
@@ -497,26 +421,26 @@ def _bucket(
 def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
     data = ctx.data_dir
     uploads = ctx.upload_dir
-    var_dir = ctx.var_dir
+    data_root = ctx.data_root
+    models = ctx.models_dir
     classified_data = (
-        data / "rapidocr",
-        data / "easyocr",
-        data / "texteller",
         data / "logs",
         data / "update-tmp",
         data / "maa",
     )
     classified_uploads = (uploads / "avatars", uploads / "articles")
-    var_children: list[Path] = [
-        var_dir / "cache",
-        var_dir / "dev",
-        var_dir / "tmp",
-        var_dir / "mariadb",
+    data_children: list[Path] = [
+        data_root / "cache",
+        data_root / "run",
+        data_root / "tmp",
+        data_root / "mariadb",
+        data_root / "models",
+        data_root / "backups",
     ]
-    if is_under(data, var_dir):
-        var_children.append(data)
-    if is_under(uploads, var_dir) and not same_path(uploads, data):
-        var_children.append(uploads)
+    if is_under(data, data_root):
+        data_children.append(data)
+    if is_under(uploads, data_root) and not same_path(uploads, data):
+        data_children.append(uploads)
 
     rows: list[FileBucket] = [
         _bucket(
@@ -525,7 +449,7 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
             description="RapidOCR / Paddle 模型，任务配置「文字识别模型」预拉",
             business="ocr",
             kind="download",
-            path=data / "rapidocr",
+            path=models / "rapidocr",
         ),
         _bucket(
             id="ocr_easyocr",
@@ -533,7 +457,7 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
             description="EasyOCR 模型，任务配置「文字识别模型」预拉",
             business="ocr",
             kind="download",
-            path=data / "easyocr",
+            path=models / "easyocr",
         ),
         _bucket(
             id="articles_texteller",
@@ -541,7 +465,7 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
             description="TexTeller ONNX，任务配置「公式识别模型」预拉",
             business="articles",
             kind="download",
-            path=data / "texteller",
+            path=models / "texteller",
         ),
         _bucket(
             id="articles_uploads",
@@ -588,37 +512,37 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
         _bucket(
             id="runtime_cache",
             label="开发与构建缓存",
-            description="var/cache：pytest / Vite / PYTHONPYCACHEPREFIX",
+            description="data/cache：pytest / Vite / pip / HF / Torch / PYTHONPYCACHEPREFIX",
             business="runtime",
             kind="cache",
-            path=var_dir / "cache",
+            path=data_root / "cache",
             optional=True,
         ),
         _bucket(
             id="runtime_dev",
             label="本地开发进程文件",
-            description="var/dev：run/restart 的 pid / 日志",
+            description="data/run：run/restart 的 pid / 日志",
             business="runtime",
             kind="generated",
-            path=var_dir / "dev",
+            path=data_root / "run",
             optional=True,
         ),
         _bucket(
             id="runtime_tmp",
             label="运行时临时目录",
-            description="var/tmp",
+            description="data/tmp",
             business="runtime",
             kind="cache",
-            path=var_dir / "tmp",
+            path=data_root / "tmp",
             optional=True,
         ),
         _bucket(
             id="runtime_mariadb",
             label="本机 MariaDB",
-            description="Windows 便携实例：var/mariadb（发行包 + 数据目录）",
+            description="Windows 便携实例：data/mariadb（发行包 + 数据目录）",
             business="runtime",
             kind="dependency",
-            path=var_dir / "mariadb",
+            path=data_root / "mariadb",
             optional=True,
         ),
         _bucket(
@@ -640,13 +564,13 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
             exclude=classified_uploads,
         ),
         _bucket(
-            id="var_leftover",
-            label="var 其余文件",
-            description="安装根 var/ 中未归入 data / uploads / cache / mariadb 的内容",
+            id="data_root_leftover",
+            label="data 其余文件",
+            description="安装根 data/ 中未归入 runtime / uploads / models / cache / mariadb 的内容",
             business="leftover",
             kind="generated",
-            path=var_dir,
-            exclude=tuple(var_children),
+            path=data_root,
+            exclude=tuple(data_children),
             optional=True,
         ),
         _bucket(
@@ -685,57 +609,29 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
             _bucket(
                 id="site_backup",
                 label="站点备份",
-                description="本安装树 var/backups，或 ZHANGE_BACKUP_DIR",
+                description="本安装树 data/backups，或 ZHANGE_BACKUP_DIR（仅安装根内计入）",
                 business="backup",
                 kind="generated",
                 path=ctx.backup_dir,
                 optional=True,
             )
         )
-    for extra in ctx.extra:
-        rows.append(
-            _bucket(
-                id=extra.id,
-                label=extra.label,
-                description=extra.description,
-                business=extra.business,
-                kind=extra.kind,
-                path=extra.path,
-                optional=extra.optional,
-            )
-        )
-    return rows
+    return [row for row in rows if is_under(row.path, ctx.install_dir)]
 
 
 def browse_roots(ctx: FileManagerContext) -> list[BrowseRoot]:
-    roots: list[BrowseRoot] = []
-    seen: list[Path] = []
-
-    def add(id: str, label: str, path: Path, *, require_exists: bool = True) -> None:
-        try:
-            resolved = path.resolve()
-        except OSError:
-            return
-        if require_exists and not resolved.exists():
-            return
-        if any(same_path(resolved, item) or is_under(resolved, item) for item in seen):
-            return
-        seen.append(resolved)
-        roots.append(BrowseRoot(id=id, label=label, path=resolved, exists=resolved.exists()))
-
-    add("install", "安装根", ctx.install_dir, require_exists=False)
-    add("var", "运行时 var/", ctx.var_dir)
-    add("data", "数据目录", ctx.data_dir, require_exists=False)
-    add("uploads", "上传目录", ctx.upload_dir, require_exists=False)
-    add("python_venv", "Python 虚拟环境", ctx.venv_dir)
-    add("frontend_node_modules", "前端 node_modules", ctx.node_modules_dir)
-    if ctx.static_dir is not None:
-        add("frontend_static", "前端静态资源", ctx.static_dir)
-    if ctx.backup_dir is not None:
-        add("site_backup", "站点备份", ctx.backup_dir)
-    for extra in ctx.extra:
-        add(extra.id, extra.label, extra.path)
-    return roots
+    try:
+        resolved = ctx.install_dir.resolve()
+    except OSError:
+        resolved = ctx.install_dir
+    return [
+        BrowseRoot(
+            id="install",
+            label="安装根",
+            path=resolved,
+            exists=resolved.exists(),
+        )
+    ]
 
 
 def _attach_browse(
@@ -775,8 +671,6 @@ def _volume_key(path: Path) -> str:
 def _volumes(ctx: FileManagerContext, roots: list[BrowseRoot]) -> list[VolumeUsage]:
     samples: list[tuple[str, str, Path]] = [
         ("install", "安装根", ctx.install_dir),
-        ("data", "数据目录", ctx.data_dir),
-        ("uploads", "上传目录", ctx.upload_dir),
     ]
     for root in roots:
         samples.append((root.id, root.label, root.path))
@@ -823,15 +717,8 @@ def build_summary(ctx: FileManagerContext | None = None) -> FileSummary:
         size, count, exists = measure_bucket(bucket)
         if bucket.optional and not exists:
             continue
-        if (
-            bucket.id in {"data_leftover", "uploads_leftover", "var_leftover"}
-            and size <= 0
-            and not exists
-        ):
-            continue
-        if bucket.id == "var_leftover" and size <= 0:
-            continue
-        if bucket.id in {"data_leftover", "uploads_leftover"} and size <= 0:
+        leftover_ids = {"data_leftover", "uploads_leftover", "data_root_leftover"}
+        if bucket.id in leftover_ids and size <= 0:
             continue
         browse_root_id, browse_path = _attach_browse(bucket, roots)
         measured.append(

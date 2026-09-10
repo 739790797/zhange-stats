@@ -1,19 +1,18 @@
 """平台 / 游戏 / 任务功能开关（级联）。
 
-存储于 system_configs.key = platform_features。
+存储于 config/jobs.json 的 features 段。
 节点自身 enabled 与祖先共同决定 effective；关闭父级即整体不可用。
 """
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.system_config import SystemConfig
+from app.core.file_config import read_json, write_json
 
 PLATFORM_FEATURES_KEY = "platform_features"
 _CACHE_TTL_SEC = 30.0
@@ -369,7 +368,7 @@ def invalidate_feature_cache() -> None:
         _flags_cache_at = 0.0
 
 
-def load_feature_flags(db: Session) -> dict[str, bool]:
+def load_feature_flags(_db: Session | None = None) -> dict[str, bool]:
     global _flags_cache, _flags_cache_at
     now = time.monotonic()
     with _cache_lock:
@@ -377,31 +376,19 @@ def load_feature_flags(db: Session) -> dict[str, bool]:
             return dict(_flags_cache)
 
     base = default_features()
-    row = (
-        db.query(SystemConfig)
-        .filter(SystemConfig.key == PLATFORM_FEATURES_KEY)
-        .first()
-    )
-    if row:
-        try:
-            stored = json.loads(row.value or "{}")
-        except json.JSONDecodeError:
-            stored = {}
-        if isinstance(stored, dict):
-            flags = stored.get("features")
-            if isinstance(flags, dict):
-                for fid in base:
-                    if fid in flags and flags[fid] is not None:
-                        base[fid] = bool(flags[fid])
-                _apply_legacy_feature_flags(base, flags)
-                # 旧合并活动日历 → 按游戏拆分
-                if "skland.game_schedule_sync" in flags:
-                    legacy_on = bool(flags["skland.game_schedule_sync"])
-                    if "skland.arknights.schedule_sync" not in flags:
-                        base["skland.arknights.schedule_sync"] = legacy_on
-                    if "skland.endfield.schedule_sync" not in flags:
-                        base["skland.endfield.schedule_sync"] = legacy_on
-    # 预留节点始终视为开启（无独立门控）
+    blob = read_json("jobs") or {}
+    flags = blob.get("features")
+    if isinstance(flags, dict):
+        for fid in base:
+            if fid in flags and flags[fid] is not None:
+                base[fid] = bool(flags[fid])
+        _apply_legacy_feature_flags(base, flags)
+        if "skland.game_schedule_sync" in flags:
+            legacy_on = bool(flags["skland.game_schedule_sync"])
+            if "skland.arknights.schedule_sync" not in flags:
+                base["skland.arknights.schedule_sync"] = legacy_on
+            if "skland.endfield.schedule_sync" not in flags:
+                base["skland.endfield.schedule_sync"] = legacy_on
     for fid in _RESERVED_FEATURE_IDS:
         base[fid] = True
 
@@ -412,12 +399,12 @@ def load_feature_flags(db: Session) -> dict[str, bool]:
 
 
 def save_feature_flags(
-    db: Session,
+    _db: Session | None,
     features: dict[str, Any],
     *,
     commit: bool = True,
 ) -> dict[str, bool]:
-    current = load_feature_flags(db)
+    current = load_feature_flags(_db)
     for key, value in features.items():
         fid = _canonical_feature_id(str(key))
         if fid in _RESERVED_FEATURE_IDS:
@@ -426,21 +413,10 @@ def save_feature_flags(
             current[fid] = bool(value)
     for fid in _RESERVED_FEATURE_IDS:
         current[fid] = True
-    raw = json.dumps({"features": current}, ensure_ascii=False)
-    row = (
-        db.query(SystemConfig)
-        .filter(SystemConfig.key == PLATFORM_FEATURES_KEY)
-        .first()
-    )
-    if row:
-        row.value = raw
-    else:
-        db.add(SystemConfig(key=PLATFORM_FEATURES_KEY, value=raw))
+    blob = read_json("jobs") or {}
+    blob["features"] = current
+    write_json("jobs", blob)
     invalidate_feature_cache()
-    if commit:
-        db.commit()
-    else:
-        db.flush()
     global _flags_cache, _flags_cache_at
     with _cache_lock:
         _flags_cache = dict(current)

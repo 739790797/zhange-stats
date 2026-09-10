@@ -1,21 +1,19 @@
-"""登录会话与安全策略：数据库优先，.env / 代码默认兜底。"""
+"""登录会话与安全策略：config/auth.json。"""
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.database import SessionLocal
-from app.models.system_config import SystemConfig
+from app.core.file_config import read_json, write_json
 from app.models.user import User, UserRole
 
 AUTH_CONFIG_KEY = "auth_session"
-_DEFAULT_EXPIRE_MINUTES = 60 * 24  # 24 小时
+_DEFAULT_EXPIRE_MINUTES = 60 * 24
 _MIN_EXPIRE = 5
-_MAX_EXPIRE = 60 * 24 * 365  # 最长 1 年
+_MAX_EXPIRE = 60 * 24 * 365
 _DEFAULT_MIN_PASSWORD_LENGTH = 8
 _MIN_PASSWORD_LENGTH = 6
 _MAX_PASSWORD_LENGTH = 72
@@ -56,34 +54,19 @@ def _as_optional_bool(value: Any) -> bool | None:
     return None
 
 
-def _env_defaults() -> dict[str, Any]:
-    s = get_settings()
-    # 兼容旧 .env：仅在库中尚无策略时作为初始默认
-    reject: bool | None = None
-    if s.REJECT_WEAK_ADMIN_PASSWORD is not None:
-        reject = bool(s.REJECT_WEAK_ADMIN_PASSWORD)
+def _defaults() -> dict[str, Any]:
     return {
-        "access_token_expire_minutes": _clamp_expire(
-            s.ACCESS_TOKEN_EXPIRE_MINUTES, _DEFAULT_EXPIRE_MINUTES
-        ),
+        "access_token_expire_minutes": _DEFAULT_EXPIRE_MINUTES,
         "min_password_length": _DEFAULT_MIN_PASSWORD_LENGTH,
-        "reject_weak_admin_password": reject,
-        "enforce_single_admin": bool(s.ENFORCE_SINGLE_ADMIN),
+        "reject_weak_admin_password": None,
+        "enforce_single_admin": False,
+        "icp_beian_no": "",
     }
 
 
-def load_auth_config(db: Session) -> dict[str, Any]:
-    base = _env_defaults()
-    row = db.query(SystemConfig).filter(SystemConfig.key == AUTH_CONFIG_KEY).first()
-    if not row:
-        return dict(base)
-    try:
-        stored = json.loads(row.value or "{}")
-    except json.JSONDecodeError:
-        return dict(base)
-    if not isinstance(stored, dict):
-        return dict(base)
-
+def load_auth_config(_db: Session | None = None) -> dict[str, Any]:
+    base = _defaults()
+    stored = read_json("auth") or {}
     if (
         "access_token_expire_minutes" in stored
         and stored["access_token_expire_minutes"] is not None
@@ -103,11 +86,15 @@ def load_auth_config(db: Session) -> dict[str, Any]:
         )
     if "enforce_single_admin" in stored and stored["enforce_single_admin"] is not None:
         base["enforce_single_admin"] = bool(stored["enforce_single_admin"])
+    if "icp_beian_no" in stored:
+        from app.services.site_config import normalize_icp_beian_no
+
+        base["icp_beian_no"] = normalize_icp_beian_no(stored.get("icp_beian_no"))
     return base
 
 
-def save_auth_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
-    current = load_auth_config(db)
+def save_auth_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, Any]:
+    current = load_auth_config(_db)
 
     minutes = payload.get("access_token_expire_minutes")
     if minutes is None:
@@ -127,6 +114,12 @@ def save_auth_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
     else:
         enforce = bool(current.get("enforce_single_admin"))
 
+    icp = current.get("icp_beian_no") or ""
+    if "icp_beian_no" in payload:
+        from app.services.site_config import normalize_icp_beian_no
+
+        icp = normalize_icp_beian_no(payload.get("icp_beian_no"))
+
     data = {
         "access_token_expire_minutes": _clamp_expire(
             minutes, current["access_token_expire_minutes"]
@@ -136,19 +129,13 @@ def save_auth_config(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "reject_weak_admin_password": reject,
         "enforce_single_admin": enforce,
+        "icp_beian_no": icp,
     }
-    raw = json.dumps(data, ensure_ascii=False)
-    row = db.query(SystemConfig).filter(SystemConfig.key == AUTH_CONFIG_KEY).first()
-    if row:
-        row.value = raw
-    else:
-        db.add(SystemConfig(key=AUTH_CONFIG_KEY, value=raw))
-    db.commit()
+    write_json("auth", data)
     return data
 
 
 def effective_reject_weak_admin_password(cfg: dict[str, Any] | None = None) -> bool:
-    """显式策略优先；未设置时 production 默认拒绝。"""
     settings = get_settings()
     if cfg is None:
         reject = None
@@ -156,7 +143,6 @@ def effective_reject_weak_admin_password(cfg: dict[str, Any] | None = None) -> b
         reject = _as_optional_bool(cfg.get("reject_weak_admin_password"))
     if reject is not None:
         return reject
-    # 库无策略时仍尊重旧 env 覆盖
     if settings.REJECT_WEAK_ADMIN_PASSWORD is not None:
         return bool(settings.REJECT_WEAK_ADMIN_PASSWORD)
     return settings.is_production
@@ -211,19 +197,13 @@ def public_auth_config(
     return out
 
 
-def get_access_token_expire_minutes(db: Session | None = None) -> int:
-    if db is not None:
-        return int(load_auth_config(db)["access_token_expire_minutes"])
-    session = SessionLocal()
-    try:
-        return int(load_auth_config(session)["access_token_expire_minutes"])
-    finally:
-        session.close()
+def get_access_token_expire_minutes(_db: Session | None = None) -> int:
+    return int(load_auth_config(_db)["access_token_expire_minutes"])
 
 
-def get_min_password_length(db: Session) -> int:
+def get_min_password_length(_db: Session | None = None) -> int:
     return _clamp_min_password_length(
-        load_auth_config(db).get("min_password_length"),
+        load_auth_config(_db).get("min_password_length"),
         _DEFAULT_MIN_PASSWORD_LENGTH,
     )
 

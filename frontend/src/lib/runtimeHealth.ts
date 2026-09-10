@@ -1,20 +1,7 @@
 import type { RuntimeHealthService } from "@/api/runtimeHealthApi";
 
-/** 会探活的依赖，画成状态卡片。 */
-export const RUNTIME_STATUS_IDS = [
-  "mysql",
-  "redis",
-  "scheduler",
-  "smtp",
-] as const;
-
-/** 部署核对项，只做说明，不伪装成服务。 */
-export const RUNTIME_NOTE_IDS = ["app_env", "xff"] as const;
-
-export const RUNTIME_NOTE_LABELS: Record<string, string> = {
-  app_env: "运行环境",
-  xff: "访客 IP",
-};
+/** 本机依赖探活，画在运行环境表单标签旁。 */
+export const RUNTIME_STATUS_IDS = ["database", "redis"] as const;
 
 export const HEALTH_TAG: Record<string, { color: string; label: string }> = {
   ok: { color: "success", label: "正常" },
@@ -38,6 +25,13 @@ export function healthHint(
   return [item.detail, latency].filter(Boolean).join(" · ");
 }
 
+export function healthById(
+  services: readonly RuntimeHealthService[] | undefined,
+  id: string,
+): RuntimeHealthService | undefined {
+  return services?.find((item) => item.id === id);
+}
+
 export function pickHealthServices(
   services: readonly RuntimeHealthService[] | undefined,
   ids: readonly string[],
@@ -48,8 +42,4 @@ export function pickHealthServices(
     const item = byId.get(id);
     return item ? [item] : [];
   });
-}
-
-export function runtimeNoteLabel(item: RuntimeHealthService): string {
-  return RUNTIME_NOTE_LABELS[item.id] || item.name;
 }

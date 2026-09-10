@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Ensure a local MariaDB is reachable and DATABASE_URL works.
+"""Ensure a local MariaDB is reachable and write ``config/database.json``.
 
-Does **not** run inside the FastAPI process. Called from install / run /
-restart on both Linux and Windows.
+Does **not** run inside the FastAPI process. Hand-run only (``install`` /
+``run`` will not call this). Writes the URL into ``config/database.json``,
+not a root ``.env``. Leftover ``.env`` is still read as a fallback.
 
 Linux (root + apt): install mariadb-server and bootstrap a dedicated user.
-Windows (amd64): portable MariaDB 11.4 under var/mariadb/ (no admin / winget).
+Windows (amd64): portable MariaDB 11.4 under data/mariadb/ (no admin / winget).
 Existing loopback server: CREATE DATABASE / USER only, do not overwrite a
-hand-written DATABASE_URL.
+hand-written database URL.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ import time
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote, unquote, urlparse
 from urllib.request import Request, urlopen
 
@@ -122,6 +124,7 @@ def read_env_map(path: Path) -> dict[str, str]:
 
 
 def set_env_value(path: Path, key: str, value: str) -> None:
+    """Rewrite a leftover ``.env`` key. New installs write ``config/database.json``."""
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
     prefix = f"{key}="
@@ -139,6 +142,49 @@ def set_env_value(path: Path, key: str, value: str) -> None:
             new_lines.append("")
         new_lines.append(f"{key}={value}")
     path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+def read_json_file(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8") or "{}")
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def write_json_file(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.chmod(0o700)
+    except OSError:
+        pass
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+
+
+def read_configured_database_url(root: Path) -> str:
+    env = (os.environ.get("DATABASE_URL") or "").strip()
+    if env:
+        return env
+    url = str(read_json_file(root / "config" / "database.json").get("url") or "").strip()
+    if url:
+        return url
+    return (read_env_map(root / ".env").get("DATABASE_URL") or "").strip()
+
+
+def write_database_url(root: Path, url: str) -> None:
+    path = root / "config" / "database.json"
+    data = read_json_file(path)
+    data["engine"] = "mysql"
+    data["url"] = url
+    if "_version" not in data:
+        data["_version"] = 1
+    write_json_file(path, data)
 
 
 def sql_ident(name: str) -> str:
@@ -564,7 +610,7 @@ def linux_install_mariadb() -> bool:
     if hasattr(os, "geteuid") and os.geteuid() != 0:
         raise ProvisionError("自动安装 MariaDB 需要 root：sudo bash scripts/linux/install.sh")
     if not shutil.which("apt-get"):
-        raise ProvisionError("当前系统没有 apt，请自备 MariaDB 并填写 DATABASE_URL")
+        raise ProvisionError("当前系统没有 apt，请自备 MariaDB 并填写 config/database.json")
     already = linux_has_server_pkg()
     if already:
         log("已检测到 mariadb/mysql 软件包")
@@ -645,7 +691,12 @@ def windows_machine_ok() -> bool:
 
 
 def portable_layout(root: Path) -> dict[str, Path]:
-    base = root / "var" / "mariadb"
+    new = root / "data" / "mariadb"
+    old = root / "var" / "mariadb"
+    if old.is_dir() and not new.exists():
+        new.parent.mkdir(parents=True, exist_ok=True)
+        old.rename(new)
+    base = new
     return {
         "base": base,
         "dist": base / "dist",
@@ -664,7 +715,7 @@ def ensure_windows_dist(paths: dict[str, Path]) -> Path:
         return mysqld.parent.parent
     if not windows_machine_ok():
         raise ProvisionError(
-            "当前 Windows 不是 amd64，便携 MariaDB 无对应包。请自备库并填写 DATABASE_URL"
+            "当前 Windows 不是 amd64，便携 MariaDB 无对应包。请自备库并填写 config/database.json"
         )
     archive = paths["zip"]
     if not archive.is_file() or sha256_file(archive) != MARIADB_SHA256:
@@ -688,7 +739,7 @@ def ensure_windows_dist(paths: dict[str, Path]) -> Path:
         if last_error:
             raise ProvisionError(
                 f"无法下载 MariaDB {MARIADB_VERSION} Windows 包。{last_error}。"
-                "可设置 ZHANGE_MARIADB_MIRROR 为 zip 地址，或自备库填写 DATABASE_URL"
+                "可设置 ZHANGE_MARIADB_MIRROR 为 zip 地址，或自备库填写 config/database.json"
             )
     log("解压 MariaDB")
     if paths["dist"].exists():
@@ -747,7 +798,6 @@ def provision_windows_portable(
     *,
     database: str,
     rewrite_url: bool,
-    env_path: Path,
     clients: list[Path],
 ) -> None:
     paths = portable_layout(root)
@@ -778,7 +828,7 @@ def provision_windows_portable(
         port=port,
     )
     if not ping_creds("127.0.0.1", port, "root", root_password, clients=extra_clients):
-        raise ProvisionError("便携 MariaDB 已启动，但 root 密码不匹配（见 var/mariadb/provision.json）")
+        raise ProvisionError("便携 MariaDB 已启动，但 root 密码不匹配（见 data/mariadb/provision.json）")
     exec_bootstrap(
         client,
         bootstrap_sql(database, APP_USER, app_password),
@@ -800,17 +850,17 @@ def provision_windows_portable(
     )
     new_url = build_database_url(APP_USER, app_password, "127.0.0.1", port, database)
     if rewrite_url:
-        set_env_value(env_path, "DATABASE_URL", new_url)
-        log(f"已写入 DATABASE_URL（{APP_USER}@127.0.0.1:{port}/{database}）")
+        write_database_url(root, new_url)
+        log(f"已写入 config/database.json（{APP_USER}@127.0.0.1:{port}/{database}）")
     if not ping_creds("127.0.0.1", port, APP_USER, app_password, clients=extra_clients):
         raise ProvisionError("应用账号创建后仍无法连接")
 
 
 def provision_linux(
+    root: Path,
     *,
     database: str,
     rewrite_url: bool,
-    env_path: Path,
     clients: list[Path],
 ) -> None:
     installed_now = False
@@ -839,7 +889,7 @@ def provision_linux(
     if not socket_ok:
         raise ProvisionError(
             "本机 :3306 已有服务，但无法用 unix_socket 以 root 登录。"
-            "请填写正确的 DATABASE_URL，或 ZHANGE_SKIP_MARIADB=1"
+            "请填写正确的 config/database.json，或 ZHANGE_SKIP_MARIADB=1"
         )
     if installed_now:
         write_linux_tune_cnf()
@@ -854,19 +904,19 @@ def provision_linux(
     )
     new_url = build_database_url(APP_USER, app_password, "127.0.0.1", 3306, database)
     if rewrite_url:
-        set_env_value(env_path, "DATABASE_URL", new_url)
-        log(f"已写入 DATABASE_URL（{APP_USER}@127.0.0.1:3306/{database}）")
+        write_database_url(root, new_url)
+        log(f"已写入 config/database.json（{APP_USER}@127.0.0.1:3306/{database}）")
     extra = [client]
     if not ping_creds("127.0.0.1", 3306, APP_USER, app_password, clients=extra):
         raise ProvisionError("应用账号创建后仍无法连接")
 
 
 def try_reuse_loopback(
+    root: Path,
     *,
     port: int,
     database: str,
     rewrite_url: bool,
-    env_path: Path,
     clients: list[Path],
 ) -> bool:
     if not tcp_open("127.0.0.1", port):
@@ -900,12 +950,11 @@ def try_reuse_loopback(
             finally:
                 conn.close()
             if rewrite_url:
-                set_env_value(
-                    env_path,
-                    "DATABASE_URL",
+                write_database_url(
+                    root,
                     build_database_url(APP_USER, app_password, "127.0.0.1", port, database),
                 )
-                log(f"已复用本机 :{port} 并写入 DATABASE_URL")
+                log(f"已复用本机 :{port} 并写入 config/database.json")
             return True
         app_password = generate_password()
         exec_bootstrap(
@@ -917,12 +966,11 @@ def try_reuse_loopback(
             port=port,
         )
         if rewrite_url:
-            set_env_value(
-                env_path,
-                "DATABASE_URL",
+            write_database_url(
+                root,
                 build_database_url(APP_USER, app_password, "127.0.0.1", port, database),
             )
-            log(f"已复用本机 :{port} 并写入 DATABASE_URL")
+            log(f"已复用本机 :{port} 并写入 config/database.json")
         return True
     return False
 
@@ -938,22 +986,15 @@ def resolve_root(explicit: str) -> Path:
 
 
 def provision(root: Path) -> None:
-    env_path = root / ".env"
-    example = root / ".env.example"
-    if not env_path.is_file():
-        if not example.is_file():
-            raise ProvisionError("缺少 .env 与 .env.example")
-        shutil.copy(example, env_path)
-        log("已复制 .env.example → .env")
-    env = read_env_map(env_path)
-    url = (os.environ.get("DATABASE_URL") or env.get("DATABASE_URL") or "").strip()
+    url = read_configured_database_url(root)
+    env = read_env_map(root / ".env")
     paths = portable_layout(root)
     clients = [p for p in [find_mysql_client([paths["dist"]])] if p]
     if should_skip():
         log("ZHANGE_SKIP_MARIADB=1，跳过自动安装")
         return
     if url and not is_placeholder_url(url) and ping_url(url, clients=clients):
-        log("DATABASE_URL 已可连接，跳过")
+        log("数据库已可连接，跳过")
         return
 
     placeholder = is_placeholder_url(url)
@@ -966,14 +1007,14 @@ def provision(root: Path) -> None:
 
     if parsed and not placeholder and not is_loopback_host(parsed.host):
         raise ProvisionError(
-            f"无法连接 {parsed.host}:{parsed.port}（非本机），未自动安装。请修正 DATABASE_URL"
+            f"无法连接 {parsed.host}:{parsed.port}（非本机），未自动安装。请修正 config/database.json"
         )
 
     if parsed and not placeholder and is_loopback_host(parsed.host):
         if tcp_open(parsed.host, parsed.port):
             raise ProvisionError(
-                f"本机 :{parsed.port} 已有服务，但当前 DATABASE_URL 连不上。"
-                "请改正连接串，或设置 ZHANGE_SKIP_MARIADB=1"
+                f"本机 :{parsed.port} 已有服务，但当前连接串连不上。"
+                "请改正 config/database.json，或设置 ZHANGE_SKIP_MARIADB=1"
             )
         paths = portable_layout(root)
         if (paths["data"] / "mysql").is_dir():
@@ -1002,8 +1043,8 @@ def provision(root: Path) -> None:
                 log("已拉起系统 MariaDB")
                 return
         raise ProvisionError(
-            "当前 DATABASE_URL 不是占位值且库未运行。请先启动已有 MariaDB，"
-            "或改回 .env.example 的占位连接串后再自动安装"
+            "当前连接串不是空/占位值且库未运行。请先启动已有 MariaDB，"
+            "或清空 config/database.json 的 url 后再自动安装"
         )
 
     database = choose_database_name(env, parsed, placeholder=placeholder)
@@ -1011,10 +1052,10 @@ def provision(root: Path) -> None:
     port = parsed.port if parsed else 3306
 
     if try_reuse_loopback(
+        root,
         port=port,
         database=database,
         rewrite_url=rewrite_url,
-        env_path=env_path,
         clients=clients,
     ):
         return
@@ -1024,23 +1065,22 @@ def provision(root: Path) -> None:
             root,
             database=database,
             rewrite_url=rewrite_url,
-            env_path=env_path,
             clients=clients,
         )
         return
     if sys.platform.startswith("linux"):
         provision_linux(
+            root,
             database=database,
             rewrite_url=rewrite_url,
-            env_path=env_path,
             clients=clients,
         )
         return
-    raise ProvisionError("仅支持 Linux apt 安装或 Windows 便携包。请自备 MariaDB 并填写 DATABASE_URL")
+    raise ProvisionError("仅支持 Linux apt 安装或 Windows 便携包。请自备 MariaDB 并填写 config/database.json")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="为本机准备 MariaDB 并写回 DATABASE_URL")
+    parser = argparse.ArgumentParser(description="为本机准备 MariaDB 并写回 config/database.json")
     parser.add_argument("--root", default="", help="安装根（默认仓库根）")
     args = parser.parse_args(argv)
     try:

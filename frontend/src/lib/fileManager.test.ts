@@ -43,41 +43,41 @@ describe("fileManager", () => {
   });
 
   it("goes up from a browse root to the all-roots view", () => {
-    expect(fileBrowseUp("var", "cache/pycache")).toEqual({
-      root: "var",
+    expect(fileBrowseUp("data_root", "cache/pycache")).toEqual({
+      root: "data_root",
       path: "cache",
     });
-    expect(fileBrowseUp("var", "cache")).toEqual({ root: "var", path: "" });
-    expect(fileBrowseUp("var", "")).toEqual({ root: "", path: "" });
+    expect(fileBrowseUp("data_root", "cache")).toEqual({ root: "data_root", path: "" });
+    expect(fileBrowseUp("data_root", "")).toEqual({ root: "", path: "" });
   });
 
   it("lists every browse root as a folder row", () => {
     expect(
       fileAllRootRows([
-        { id: "var", label: "运行时 var/", exists: true },
-        { id: "hf_cache", label: "Hugging Face 缓存", exists: false },
+        { id: "install", label: "安装根", exists: true },
+        { id: "other", label: "另一根", exists: false },
       ]),
     ).toEqual([
       {
-        key: "var",
-        name: "运行时 var/",
+        key: "install",
+        name: "安装根",
         is_dir: true,
         size: 0,
         modified_at: null,
         sensitive: false,
         downloadable: false,
-        browseRootId: "var",
+        browseRootId: "install",
         missing: false,
       },
       {
-        key: "hf_cache",
-        name: "Hugging Face 缓存",
+        key: "other",
+        name: "另一根",
         is_dir: true,
         size: 0,
         modified_at: null,
         sensitive: false,
         downloadable: false,
-        browseRootId: "hf_cache",
+        browseRootId: "other",
         missing: true,
       },
     ]);
@@ -106,8 +106,8 @@ describe("fileManager", () => {
           free_bytes: 53,
         },
         {
-          id: "vol_huggingface",
-          path: "C:\\hf",
+          id: "vol_other",
+          path: "C:\\other",
           total_bytes: 200,
           used_bytes: 170,
           free_bytes: 30,

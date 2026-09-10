@@ -19,6 +19,7 @@ describe("adminHubByPath", () => {
 
   it("maps ops and jobs tabs", () => {
     expect(adminHubByPath("/settings/runtime")?.id).toBe("ops");
+    expect(adminHubByPath("/settings/runtime-env")).toBeNull();
     expect(adminHubByPath("/settings/system")?.id).toBe("ops");
     expect(adminHubByPath("/settings/logs")?.id).toBe("ops");
     expect(adminHubByPath("/settings/files")?.id).toBe("ops");
@@ -93,5 +94,11 @@ describe("ADMIN_HUBS", () => {
 
   it("names the ops hub 运行维护", () => {
     expect(ADMIN_HUBS.find((h) => h.id === "ops")?.label).toBe("运行维护");
+    expect(ADMIN_HUBS.find((h) => h.id === "ops")?.tabs.map((t) => t.label)).toEqual([
+      "运行环境",
+      "系统更新",
+      "平台日志",
+      "文件管理",
+    ]);
   });
 });

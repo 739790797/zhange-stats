@@ -15,7 +15,7 @@ import {
   message,
   theme,
 } from "antd";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   fetchIntegrationsSettings,
   testPelicanConnection,
@@ -23,12 +23,9 @@ import {
   updateIntegrationsSettings,
 } from "@/api/client";
 import type { IntegrationsUpdate } from "@/api/settingsApi";
-import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { apiError } from "@/lib/apiError";
-import { useAuthStore } from "@/stores/authStore";
 
 type FormValues = {
   steam_api_key?: string;
@@ -116,8 +113,6 @@ function IntegrationBlock({
 export default function IntegrationsSettingsPage() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<FormValues>();
-  const user = useAuthStore((s) => s.user);
-  const [pending, setPending] = useState<IntegrationsUpdate | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["integrations-settings"],
@@ -143,16 +138,10 @@ export default function IntegrationsSettingsPage() {
   }, [data, form]);
 
   const save = useMutation({
-    mutationFn: ({
-      payload,
-      code,
-    }: {
-      payload: IntegrationsUpdate;
-      code: string;
-    }) => updateIntegrationsSettings(payload, code),
+    mutationFn: (payload: IntegrationsUpdate) =>
+      updateIntegrationsSettings(payload),
     onSuccess: () => {
       message.success("集成密钥已保存");
-      setPending(null);
       queryClient.invalidateQueries({ queryKey: ["integrations-settings"] });
       queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
@@ -236,11 +225,7 @@ export default function IntegrationsSettingsPage() {
           minecraft_public_host: values.minecraft_public_host ?? "",
           minecraft_public_port: values.minecraft_public_port || 25565,
         };
-        requestAdminStepUp(user, {
-          onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-          onNeedCode: () => setPending(payload),
-          onSkip: () => save.mutate({ payload, code: "" }),
-        });
+        save.mutate(payload);
       }}
     >
       <PageHeader
@@ -437,16 +422,6 @@ export default function IntegrationsSettingsPage() {
         </Form.Item>
       </IntegrationBlock>
     </Form>
-    <AdminStepUpModal
-      open={pending != null}
-      title="保存集成密钥需邮箱验证码"
-      confirmLoading={save.isPending}
-      onCancel={() => setPending(null)}
-      onConfirm={(code) => {
-        if (!pending) return;
-        save.mutate({ payload: pending, code });
-      }}
-    />
     </ConfigProvider>
   );
 }

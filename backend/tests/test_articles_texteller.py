@@ -184,6 +184,8 @@ def test_progress_helpers() -> None:
         [
             {"rfilename": "README.md", "size": 10},
             {"rfilename": "encoder_model.onnx", "size": 30},
+            {"rfilename": "decoder_model_merged.onnx", "size": 800},
+            {"rfilename": "decoder_with_past_model.onnx", "size": 790},
             {"rfilename": "config.json", "size": 2},
         ]
     ) == [("config.json", 2), ("encoder_model.onnx", 30)]

@@ -1,6 +1,6 @@
 # 数据库表结构
 
-改表须新增 Alembic 迁移，并更新本文总览。细节以 `models/` + `alembic/versions/` 为准。迁移流程见 [`backend/alembic/README.md`](../backend/alembic/README.md)。
+改表须新增 Alembic 迁移，并更新本文总览。细节以 `models/` + `alembic/versions/` 为准。迁移流程见 [`backend/alembic/README.md`](../backend/alembic/README.md)。引擎在安装向导选定：SQLite（`data/runtime/zhange.sqlite`，首次 `create_all` + stamp）或外部 MySQL/MariaDB（现有 Alembic）。站点设置在安装根 `config/*.json`，不在这些表里。
 
 ```
 users 1 ── 1 members ── * play_sessions / presence_segments
@@ -87,7 +87,7 @@ articles ── * article_versions
 | `tarkov_raid_room_objective_dones` | 房间目标「我做完了」署名；复合主键 `(room_id, task_id, objective_id, user_id)`。删除线只对勾选者本人；准备总结是公共内容，最后一列列出已完成用户。ON DELETE CASCADE |
 | `tarkov_raid_room_marks` | 房间画板（`kind`=`pin`/`line`/`stroke`，地图 `x/z` + `floor`；`stroke` 另存 `points_json` 折线）。索引 `(room_id, created_at)`。ON DELETE CASCADE |
 | `tarkov_map_places` | 管理员维护的全站地图地名（`kind`=`point`/`box`）。`map_key` 为互动图 `normalizedName`（夜厂等变体归父图）。点用 `x/z`；框另存对角 `x2/z2`。`label_x`/`label_z` 为框的文字落点（空则用框中心）；点的文字就是 `x/z`。`floor` 空则看 `top`/`bottom` 高度带，都空则各层都显示。索引 `(map_key, sort_order)`。展示只读本表，不再回退上游 labels。迁移种入海岸线社区点、街区生产手标（57），以及其余互动图的上游译名快照（已有行的图跳过） |
-| `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组键值预设（按 tool_id 存用户选定的配置 `directories`，以及 `pins`：`file` 为服内绝对路径且须在这些目录内，加上 key/value；旧整文件草稿忽略）；`mod_inventory_json` 为当前服 jar 库存（打开页对账指纹，增量拆包认亲；与开服剧本 `mods_json` 不是同一份）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `system_configs.integrations`，不进开服剧本） |
+| `minecraft_server_profiles` | 圈子 Minecraft 开服剧本草稿（永远一行 `id=1`：版本 / 加载器 / 核心 / Egg / 启动命令 / 钉死模组 / 配置覆盖；不镜像当前 Pelican 服实时状态。`applied_json` 为上次成功「应用」时的快照；`mod_presets_json` 为模组键值预设（按 tool_id 存用户选定的配置 `directories`，以及 `pins`：`file` 为服内绝对路径且须在这些目录内，加上 key/value；旧整文件草稿忽略）；`mod_inventory_json` 为当前服 jar 库存（打开页对账指纹，增量拆包认亲；与开服剧本 `mods_json` 不是同一份）；本体在 Pelican，不另起进程；公开地址与 RCON 连接在 `config/integrations.json`，不进开服剧本） |
 | `minecraft_perf_samples` | Minecraft RCON 性能采样热数据（约 10 秒一条：TPS/MSPT，以及可选实体总数 / 已加载区块）。只保留约 48 小时，供 30 分钟 / 1 小时折线看尖峰 |
 | `minecraft_perf_rollups` | 性能留档：`grain`=`1m`/`1h`/`1d` + `bucket_at` 唯一。分钟桶约留 30 天（12h/24h 折线）；小时/日桶永久（30d / 全部）。每桶含 avg/min/max（实体与区块为 avg/max）。由采集任务刷新当前桶，`job_runs_prune` 回填并删过期原始点 |
 | `minecraft_presence_segments` | Minecraft 玩家在线/离线片段（总览时间轴，永久留档）；索引含 `(player_key, started_at)` / `(player_key, ended_at)` |
@@ -107,8 +107,8 @@ articles ── * article_versions
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档。索引含 `(job_key, started_at)` |
-| `system_configs` | 系统配置（SMTP、集成密钥、`platform_features` 平台开关、调度、`site` 页脚备案号、`ocr` 文字识别引擎/档位/场景等） |
-| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete` / `admin_stepup`；`expires_at` 有索引 |
+| `system_configs` | 非界面 KV（如北京时间迁移标记）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
+| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
 

@@ -62,41 +62,22 @@ def test_probe_redis_degraded_in_production_when_unconfigured(
 def test_collect_runtime_health_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         rh,
-        "_probe_mysql",
-        lambda: rh.ServiceHealthItem("mysql", "MySQL", "ok", latency_ms=1.0, detail="ok"),
+        "_probe_database",
+        lambda: rh.ServiceHealthItem(
+            "database", "数据库", "ok", latency_ms=1.0, detail="ok"
+        ),
     )
     monkeypatch.setattr(
         rh,
         "_probe_redis",
         lambda: rh.ServiceHealthItem("redis", "Redis", "skipped", detail="n/a"),
     )
-    monkeypatch.setattr(
-        rh,
-        "_probe_app_env",
-        lambda: rh.ServiceHealthItem("app_env", "运行环境", "skipped", detail="dev"),
-    )
-    monkeypatch.setattr(
-        rh,
-        "_probe_xff",
-        lambda: rh.ServiceHealthItem("xff", "X-Forwarded-For", "skipped", detail="off"),
-    )
-    monkeypatch.setattr(
-        rh,
-        "_probe_smtp",
-        lambda _db: rh.ServiceHealthItem("smtp", "SMTP", "skipped", detail="n/a"),
-    )
-    report = rh.collect_runtime_health(MagicMock(), scheduler_running=True)
+    report = rh.collect_runtime_health()
     assert report.overall == "ok"
     assert report.checked_at
     ids = [s.id for s in report.services]
-    assert ids == [
-        "app",
-        "mysql",
-        "redis",
-        "scheduler",
-        "app_env",
-        "xff",
-        "smtp",
-    ]
-    sched = next(s for s in report.services if s.id == "scheduler")
-    assert sched.status == "ok"
+    assert ids == ["database", "redis"]
+    assert "smtp" not in ids
+    assert "scheduler" not in ids
+    assert "app_env" not in ids
+    assert "xff" not in ids

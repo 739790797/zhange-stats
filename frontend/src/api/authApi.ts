@@ -165,12 +165,3 @@ export async function deleteOwnAccount(code: string) {
   );
   return data;
 }
-
-export async function sendStepUpCode() {
-  const { data } = await client.post<RegisterResponse>("/auth/step-up/send");
-  return data;
-}
-
-export function stepUpHeaders(code: string) {
-  return { "X-Step-Up-Code": code };
-}

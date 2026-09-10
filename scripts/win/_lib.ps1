@@ -1,19 +1,31 @@
 #Requires -Version 5.1
-# Shared by scripts/win/install.ps1, run.ps1, restart.ps1. Not a public command.
+# Shared by scripts/win/install.ps1, run.ps1, restart.ps1, update.ps1. Not a public command.
 
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-$DevDir = Join-Path $RepoRoot "var\dev"
+$DevDir = Join-Path $RepoRoot "data\run"
 $BackendDir = Join-Path $RepoRoot "backend"
 $FrontendDir = Join-Path $RepoRoot "frontend"
 $VenvDir = Join-Path $BackendDir ".venv"
 $PythonExe = Join-Path $VenvDir "Scripts\python.exe"
 $PipStamp = Join-Path $VenvDir ".zhange-req.stamp"
 $StaticDir = Join-Path $RepoRoot "static"
-$DataDir = Join-Path $RepoRoot "var\data"
-$UploadDir = Join-Path $RepoRoot "var\uploads"
-$env:PYTHONPYCACHEPREFIX = Join-Path $RepoRoot "var\cache\pycache"
+$DataDir = Join-Path $RepoRoot "data\runtime"
+$UploadDir = Join-Path $RepoRoot "data\uploads"
+$ModelsDir = Join-Path $RepoRoot "data\models"
+$CacheDir = Join-Path $RepoRoot "data\cache"
+$TmpDir = Join-Path $RepoRoot "data\tmp"
+$env:PYTHONPYCACHEPREFIX = Join-Path $CacheDir "pycache"
+$env:HF_HOME = Join-Path $CacheDir "huggingface"
+$env:TORCH_HOME = Join-Path $CacheDir "torch"
+$env:EASYOCR_MODULE_PATH = Join-Path $CacheDir "easyocr"
+$env:PIP_CACHE_DIR = Join-Path $CacheDir "pip"
+$env:XDG_CACHE_HOME = Join-Path $CacheDir "xdg"
+$env:TEMP = $TmpDir
+$env:TMP = $TmpDir
+$env:TMPDIR = $TmpDir
+$env:npm_config_cache = Join-Path $CacheDir "npm"
 
 $BackendPort = 6130
 $FrontendPort = 6131
@@ -235,51 +247,9 @@ function Invoke-Python([hashtable]$Spec, [string[]]$PyArgs) {
   }
 }
 
-function Ensure-EnvKey([string]$Key, [string]$Value) {
-  $envFile = Join-Path $RepoRoot ".env"
-  $content = [IO.File]::ReadAllText($envFile)
-  foreach ($line in $content.Split(@("`r`n", "`n"), [StringSplitOptions]::None)) {
-    $trim = $line.Trim()
-    if ($trim.StartsWith("#") -or -not $trim.StartsWith("$Key=")) {
-      continue
-    }
-    return
-  }
-  $suffix = if ($content.Length -eq 0 -or $content.EndsWith("`n")) { "$Key=$Value`n" } else { "`n$Key=$Value`n" }
-  [IO.File]::AppendAllText($envFile, $suffix)
-  Write-Host "[env] appended $Key"
-}
-
-function Ensure-EnvFile {
-  $envFile = Join-Path $RepoRoot ".env"
-  $example = Join-Path $RepoRoot ".env.example"
-  if (Test-Path $envFile) { return }
-  if (-not (Test-Path $example)) {
-    throw "Missing .env and .env.example"
-  }
-  Copy-Item $example $envFile
-  Write-Host "[env] copied .env.example -> .env"
-}
-
 function Ensure-InstallPaths {
-  New-Item -ItemType Directory -Force -Path $DataDir, $UploadDir, $StaticDir, $DevDir, (Join-Path $RepoRoot "var\backups") | Out-Null
-  Ensure-EnvKey "APP_INSTALL_DIR" "$RepoRoot"
-  Ensure-EnvKey "STATIC_DIR" "$StaticDir"
-  Ensure-EnvKey "DATA_DIR" "$DataDir"
-  Ensure-EnvKey "UPLOAD_DIR" "$UploadDir"
-}
-
-function Ensure-MariaDB {
-  $script = Join-Path $RepoRoot "scripts\common\provision_mariadb.py"
-  if (-not (Test-Path $script)) {
-    throw "Missing $script"
-  }
-  $spec = Get-ProvisionPython
-  Write-Host "[mariadb] ensuring local database..."
-  & $spec.File @($spec.Prefix + @($script, "--root", "$RepoRoot"))
-  if ($LASTEXITCODE -ne 0) {
-    throw "MariaDB is not ready. Set DATABASE_URL or ZHANGE_SKIP_MARIADB=1"
-  }
+  $configDir = Join-Path $RepoRoot "config"
+  New-Item -ItemType Directory -Force -Path $DataDir, $UploadDir, $ModelsDir, $StaticDir, $DevDir, (Join-Path $RepoRoot "data\backups"), $CacheDir, $TmpDir, $env:PYTHONPYCACHEPREFIX, $env:HF_HOME, $env:TORCH_HOME, $env:PIP_CACHE_DIR, $configDir | Out-Null
 }
 
 function Install-PythonDeps {
@@ -287,12 +257,13 @@ function Install-PythonDeps {
   if (-not (Test-Path $req)) {
     throw "Missing $req"
   }
+  New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
   Write-Host "[pip] installing CPU torch + requirements..."
   & $PythonExe -m pip install -U pip
   if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
   & $PythonExe -m pip install torch torchvision --index-url "https://download.pytorch.org/whl/cpu"
   if ($LASTEXITCODE -ne 0) { throw "CPU torch install failed" }
-  $constraint = Join-Path $env:TEMP ("zhange-torch-" + [guid]::NewGuid().ToString() + ".txt")
+  $constraint = Join-Path $TmpDir ("zhange-torch-" + [guid]::NewGuid().ToString() + ".txt")
   try {
     $pinned = & $PythonExe -m pip freeze | Select-String -Pattern '^(torch|torchvision)=='
     $pinned | ForEach-Object { $_.Line } | Set-Content -Path $constraint -Encoding ascii
@@ -356,22 +327,35 @@ function Ensure-FrontendDeps {
   }
 }
 
+function Sync-SiteConfig {
+  if (-not (Test-Path $PythonExe)) { return }
+  Push-Location $BackendDir
+  try {
+    & $PythonExe -m app.core.config_sync
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "[config] WARN: site config sync failed"
+    }
+  } finally {
+    Pop-Location
+  }
+}
+
 function Ensure-ZhangeDeps {
   param([switch]$ForcePip)
   if (-not (Test-Path (Join-Path $RepoRoot "VERSION"))) {
     throw "VERSION not found; not an install root"
   }
-  Ensure-EnvFile
   Ensure-InstallPaths
-  Ensure-MariaDB
   Ensure-PythonDeps -ForcePip:$ForcePip
   Ensure-FrontendDeps
+  Sync-SiteConfig
 }
 
 function Get-MysqlTool([string]$Name) {
   $cmd = Get-Command $Name -ErrorAction SilentlyContinue
   if ($cmd) { return $cmd.Source }
-  $dist = Join-Path $RepoRoot "var\mariadb\dist"
+  $dist = Join-Path $RepoRoot "data\mariadb\dist"
+  if (-not (Test-Path $dist)) { $dist = Join-Path $RepoRoot "var\mariadb\dist" }
   if (Test-Path $dist) {
     $hit = Get-ChildItem $dist -Recurse -Filter "$Name.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($hit) { return $hit.FullName }

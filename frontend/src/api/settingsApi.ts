@@ -51,12 +51,10 @@ export async function fetchPlatformFeaturesAdmin() {
 
 export async function updatePlatformFeatures(
   payload: PlatformFeaturesUpdate,
-  stepUpCode: string,
 ) {
   const { data } = await client.put<PlatformFeaturesResponse>(
     "/settings/platform-features",
     payload,
-    { headers: { "X-Step-Up-Code": stepUpCode } },
   );
   return data;
 }
@@ -129,12 +127,10 @@ export async function fetchIntegrationsStatus() {
 
 export async function updateIntegrationsSettings(
   payload: IntegrationsUpdate,
-  stepUpCode: string,
 ) {
   const { data } = await client.put<IntegrationsSettings>(
     "/settings/integrations",
     payload,
-    { headers: { "X-Step-Up-Code": stepUpCode } },
   );
   return data;
 }
@@ -166,13 +162,8 @@ export async function fetchAuthSettings(params?: { check_weak?: boolean }) {
   return data;
 }
 
-export async function updateAuthSettings(
-  payload: AuthSettingsUpdate,
-  stepUpCode?: string,
-) {
-  const { data } = await client.put<AuthSettings>("/settings/auth", payload, {
-    headers: stepUpCode ? { "X-Step-Up-Code": stepUpCode } : undefined,
-  });
+export async function updateAuthSettings(payload: AuthSettingsUpdate) {
+  const { data } = await client.put<AuthSettings>("/settings/auth", payload);
   return data;
 }
 
@@ -191,13 +182,8 @@ export async function updateSiteSettings(payload: SiteSettingsUpdate) {
   return data;
 }
 
-export async function updateEmailSettings(
-  payload: EmailSettingsUpdate,
-  stepUpCode: string,
-) {
-  const { data } = await client.put<EmailSettings>("/settings/email", payload, {
-    headers: { "X-Step-Up-Code": stepUpCode },
-  });
+export async function updateEmailSettings(payload: EmailSettingsUpdate) {
+  const { data } = await client.put<EmailSettings>("/settings/email", payload);
   return data;
 }
 
@@ -214,12 +200,23 @@ export async function fetchOcrSettings() {
   return data;
 }
 
-export async function updateOcrSettings(
-  payload: OcrSettingsUpdate,
-  stepUpCode: string,
-) {
-  const { data } = await client.put<OcrSettings>("/settings/ocr", payload, {
-    headers: { "X-Step-Up-Code": stepUpCode },
-  });
+export async function updateOcrSettings(payload: OcrSettingsUpdate) {
+  const { data } = await client.put<OcrSettings>("/settings/ocr", payload);
+  return data;
+}
+
+export type RuntimeEnvSettings = components["schemas"]["RuntimeEnvOut"];
+export type RuntimeEnvUpdate = components["schemas"]["RuntimeEnvUpdate"];
+
+export async function fetchRuntimeEnv() {
+  const { data } = await client.get<RuntimeEnvSettings>("/settings/runtime-env");
+  return data;
+}
+
+export async function updateRuntimeEnv(payload: RuntimeEnvUpdate) {
+  const { data } = await client.put<RuntimeEnvSettings>(
+    "/settings/runtime-env",
+    payload,
+  );
   return data;
 }

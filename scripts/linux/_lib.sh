@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared by linux/install.sh, run.sh, restart.sh. Not a public command.
+# Shared by linux/install.sh, run.sh, restart.sh, update.sh. Not a public command.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,22 +8,29 @@ BACKEND_DIR="${REPO_ROOT}/backend"
 VENV_DIR="${BACKEND_DIR}/.venv"
 VENV_PY="${VENV_DIR}/bin/python"
 STATIC_DIR="${REPO_ROOT}/static"
-SERVICE_SRC="${REPO_ROOT}/deploy/systemd/zhange-stats.service"
+SERVICE_SRC="${SCRIPT_DIR}/zhange-stats.service"
 SERVICE_NAME="${ZHANGE_SERVICE:-zhange-stats.service}"
 SERVICE_USER="${ZHANGE_USER:-zhange}"
-DEV_DIR="${REPO_ROOT}/var/dev"
+DEV_DIR="${REPO_ROOT}/data/run"
 BACKEND_PORT="${ZHANGE_BACKEND_PORT:-6130}"
 FRONTEND_PORT="${ZHANGE_FRONTEND_PORT:-6131}"
 PIP_STAMP="${VENV_DIR}/.zhange-req.stamp"
 ZHANGE_LOG_TAG="${ZHANGE_LOG_TAG:-zhange}"
 
-if [[ -d "${REPO_ROOT}/data" && ! -e "${REPO_ROOT}/var/data/.secret_key" ]]; then
-  DATA_DIR="${REPO_ROOT}/data"
-  UPLOAD_DIR="${REPO_ROOT}/uploads"
-else
-  DATA_DIR="${REPO_ROOT}/var/data"
-  UPLOAD_DIR="${REPO_ROOT}/var/uploads"
-fi
+DATA_DIR="${REPO_ROOT}/data/runtime"
+UPLOAD_DIR="${REPO_ROOT}/data/uploads"
+MODELS_DIR="${REPO_ROOT}/data/models"
+CACHE_DIR="${REPO_ROOT}/data/cache"
+TMP_DIR="${REPO_ROOT}/data/tmp"
+
+export PYTHONPYCACHEPREFIX="${CACHE_DIR}/pycache"
+export HF_HOME="${CACHE_DIR}/huggingface"
+export TORCH_HOME="${CACHE_DIR}/torch"
+export EASYOCR_MODULE_PATH="${CACHE_DIR}/easyocr"
+export PIP_CACHE_DIR="${CACHE_DIR}/pip"
+export XDG_CACHE_HOME="${CACHE_DIR}/xdg"
+export TMPDIR="${TMP_DIR}"
+export npm_config_cache="${CACHE_DIR}/npm"
 
 log() { printf '[%s] %s\n' "${ZHANGE_LOG_TAG}" "$*"; }
 die() { printf '[%s] ERROR: %s\n' "${ZHANGE_LOG_TAG}" "$*" >&2; exit 1; }
@@ -32,40 +39,19 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令: $1"
 }
 
-ensure_env_key() {
-  local key="$1" value="$2"
-  local env_file="${REPO_ROOT}/.env"
-  if grep -qE "^[[:space:]]*${key}=" "${env_file}" 2>/dev/null; then
-    return 0
-  fi
-  printf '\n%s=%s\n' "${key}" "${value}" >> "${env_file}"
-  log "已追加 ${key}"
-}
-
-ensure_env_file() {
-  if [[ -f "${REPO_ROOT}/.env" ]]; then
-    return 0
-  fi
-  [[ -f "${REPO_ROOT}/.env.example" ]] || die "缺少 .env 与 .env.example"
-  cp "${REPO_ROOT}/.env.example" "${REPO_ROOT}/.env"
-  log "已复制 .env.example → .env"
-}
-
 ensure_runtime_dirs() {
-  mkdir -p "${DATA_DIR}" "${UPLOAD_DIR}" "${STATIC_DIR}" "${DEV_DIR}" "${REPO_ROOT}/var/backups"
+  mkdir -p "${DATA_DIR}" "${UPLOAD_DIR}" "${MODELS_DIR}" "${STATIC_DIR}" "${DEV_DIR}" \
+    "${REPO_ROOT}/data/backups" "${CACHE_DIR}" "${TMP_DIR}" \
+    "${PYTHONPYCACHEPREFIX}" "${HF_HOME}" "${TORCH_HOME}" "${PIP_CACHE_DIR}" \
+    "${REPO_ROOT}/config"
+  chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
 }
 
-ensure_install_paths() {
-  ensure_env_key "APP_INSTALL_DIR" "${REPO_ROOT}"
-  ensure_env_key "STATIC_DIR" "${STATIC_DIR}"
-  ensure_env_key "DATA_DIR" "${DATA_DIR}"
-  ensure_env_key "UPLOAD_DIR" "${UPLOAD_DIR}"
-}
-
-ensure_mariadb() {
-  log "检查 MariaDB…"
-  python3 "${REPO_ROOT}/scripts/common/provision_mariadb.py" --root "${REPO_ROOT}" \
-    || die "MariaDB 不可用。可自备库并填写 DATABASE_URL，或 ZHANGE_SKIP_MARIADB=1"
+sync_site_config() {
+  [[ -x "${VENV_PY}" ]] || return 0
+  if ! (cd "${BACKEND_DIR}" && "${VENV_PY}" -m app.core.config_sync); then
+    log "WARN: 站点配置同步失败"
+  fi
 }
 
 ensure_venv() {
@@ -84,7 +70,8 @@ pip_install_backend() {
   [[ -f "${req}" ]] || die "缺少 ${req}"
   "${python}" -m pip install -U pip
   "${python}" -m pip install torch torchvision --index-url "${index}"
-  constraint="$(mktemp)"
+  mkdir -p "${TMP_DIR}"
+  constraint="$(mktemp "${TMP_DIR}/zhange-torch.XXXXXX")"
   "${python}" -m pip freeze | grep -E '^(torch|torchvision)==' > "${constraint}" || true
   if [[ -s "${constraint}" ]]; then
     "${python}" -m pip install -r "${req}" -c "${constraint}"
@@ -127,10 +114,8 @@ ensure_deps() {
   [[ -f "${REPO_ROOT}/VERSION" ]] || die "未找到 VERSION"
   need_cmd python3
   ensure_runtime_dirs
-  ensure_env_file
-  ensure_install_paths
-  ensure_mariadb
   ensure_python_deps
+  sync_site_config
   if ! has_systemd_unit; then
     ensure_frontend_deps
   fi

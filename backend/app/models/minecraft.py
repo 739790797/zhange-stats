@@ -2,10 +2,10 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import DateTime, Float, Index, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.dialects.mysql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.sqltypes import PortableJSON
 
 PROFILE_ROW_ID = 1
 
@@ -29,16 +29,16 @@ class MinecraftServerProfile(Base):
     loader_version: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     egg_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     startup: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    mods_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    mods_json: Mapped[list[Any]] = mapped_column(PortableJSON, nullable=False, default=list)
     overrides_json: Mapped[dict[str, Any]] = mapped_column(
-        JSON, nullable=False, default=dict
+        PortableJSON, nullable=False, default=dict
     )
-    applied_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    applied_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     mod_presets_json: Mapped[dict[str, Any]] = mapped_column(
-        JSON, nullable=False, default=dict
+        PortableJSON, nullable=False, default=dict
     )
     mod_inventory_json: Mapped[dict[str, Any]] = mapped_column(
-        JSON, nullable=False, default=dict
+        PortableJSON, nullable=False, default=dict
     )
     last_applied_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

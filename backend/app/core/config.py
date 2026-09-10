@@ -3,7 +3,13 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.paths import DEFAULT_DATA_DIR, DEFAULT_UPLOAD_DIR, resolve_runtime_path
+from app.core.file_config import read_json, resolve_database_url
+from app.core.paths import (
+    DEFAULT_DATA_DIR,
+    DEFAULT_MODELS_DIR,
+    DEFAULT_UPLOAD_DIR,
+    resolve_runtime_path,
+)
 from app.core.secret import DEFAULT_SECRET_KEY, ensure_secret_key
 
 
@@ -25,19 +31,18 @@ def _read_version_file() -> str:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
-        env_file_encoding="utf-8",
         extra="ignore",
+        env_file=None,
     )
 
-    DATABASE_URL: str = "mysql+pymysql://root:password@127.0.0.1:3306/zhange_stats_dev"
+    DATABASE_URL: str = ""
     # 请求线程 + 调度任务共用；按 MariaDB max_connections 留余量
     DB_POOL_SIZE: int = 15
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 10
     # 留空或保持占位值时，首次启动会自动生成并写入 DATA_DIR/.secret_key
     SECRET_KEY: str = DEFAULT_SECRET_KEY
-    # 默认 24 小时；管理端可在 system_configs 再调（最长 1 年）
+    # 默认 24 小时；管理端可在 config/auth.json 再调（最长 1 年）
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     # 留空：本地 Vite + Tauri 2 用 allow_origin_regex；生产同域一般无需 CORS
     CORS_ORIGINS: str = ""
@@ -113,7 +118,7 @@ class Settings(BaseSettings):
     TARKOV_GUIDES_SYNC_ENABLED: bool = False
     TARKOV_GUIDES_SYNC_HOUR: int = 4
     TARKOV_GUIDES_SYNC_MINUTE: int = 50
-    # 兼容旧 .env；调度已合并为 TARKOV_ITEMS_*
+    # 兼容旧调度字段名；调度已合并为 TARKOV_ITEMS_*
     TARKOV_AMMO_SYNC_ENABLED: bool = True
     TARKOV_AMMO_SYNC_HOUR: int = 4
     TARKOV_AMMO_SYNC_MINUTE: int = 30
@@ -143,7 +148,7 @@ class Settings(BaseSettings):
     MIHOYO_CHECKIN_ENABLED: bool = True
     MIHOYO_CHECKIN_HOUR: int = 0
     MIHOYO_CHECKIN_MINUTE: int = 1
-    # 运行时数据目录（密钥/日志等；相对路径相对安装根，默认 var/data）
+    # 运行时数据目录（密钥/日志等；相对路径相对安装根，默认 data/runtime）
     DATA_DIR: str = DEFAULT_DATA_DIR
     # 应用日志：级别 / 内存环缓冲 / JSONL 持久化（DATA_DIR/logs/app.jsonl）
     APP_LOG_LEVEL: str = "INFO"
@@ -151,7 +156,7 @@ class Settings(BaseSettings):
     APP_LOG_FILE: bool = True
     APP_LOG_FILE_MAX_MB: int = 50
     APP_LOG_FILE_BACKUP_COUNT: int = 5
-    # 头像等本地上传目录（相对安装根或绝对路径，默认 var/uploads）
+    # 头像等本地上传目录（相对安装根或绝对路径，默认 data/uploads）
     UPLOAD_DIR: str = DEFAULT_UPLOAD_DIR
     # 公式识别模型源。默认 hf-mirror，避免国内直连 huggingface.co
     HF_ENDPOINT: str = "https://hf-mirror.com"
@@ -213,9 +218,62 @@ class Settings(BaseSettings):
     def upload_dir_path(self) -> Path:
         return resolve_runtime_path(self.UPLOAD_DIR, configured_install=self.APP_INSTALL_DIR)
 
+    @property
+    def models_dir_path(self) -> Path:
+        return resolve_runtime_path(DEFAULT_MODELS_DIR, configured_install=self.APP_INSTALL_DIR)
+
+def _apply_app_json(settings: Settings) -> None:
+    data = read_json("app") or {}
+    if not data:
+        return
+    mapping = {
+        "APP_ENV": "APP_ENV",
+        "REDIS_URL": "REDIS_URL",
+        "CORS_ORIGINS": "CORS_ORIGINS",
+        "CORS_ORIGIN_REGEX": "CORS_ORIGIN_REGEX",
+        "CSP_ENFORCE": "CSP_ENFORCE",
+        "TRUST_X_FORWARDED_FOR": "TRUST_X_FORWARDED_FOR",
+        "ALLOW_EMAIL_CODE_LOG": "ALLOW_EMAIL_CODE_LOG",
+        "ALLOW_IN_APP_UPDATE": "ALLOW_IN_APP_UPDATE",
+        "PUBLIC_BACKEND_URL": "PUBLIC_BACKEND_URL",
+        "PUBLIC_FRONTEND_URL": "PUBLIC_FRONTEND_URL",
+        "APP_LOG_LEVEL": "APP_LOG_LEVEL",
+        "HF_ENDPOINT": "HF_ENDPOINT",
+        "DATA_DIR": "DATA_DIR",
+        "UPLOAD_DIR": "UPLOAD_DIR",
+        "STATIC_DIR": "STATIC_DIR",
+        "APP_INSTALL_DIR": "APP_INSTALL_DIR",
+    }
+    import os
+
+    for json_key, attr in mapping.items():
+        if attr in os.environ and str(os.environ.get(attr) or "").strip() != "":
+            continue
+        if json_key not in data or data[json_key] is None:
+            continue
+        value = data[json_key]
+        current = getattr(settings, attr, None)
+        if isinstance(current, bool):
+            if isinstance(value, bool):
+                setattr(settings, attr, value)
+            else:
+                text = str(value).strip().lower()
+                setattr(settings, attr, text in ("1", "true", "yes", "on"))
+        elif isinstance(current, int) and not isinstance(current, bool):
+            try:
+                setattr(settings, attr, int(value))
+            except (TypeError, ValueError):
+                pass
+        else:
+            setattr(settings, attr, str(value).strip() if value is not None else "")
+
+
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
+    _apply_app_json(settings)
+    if not (settings.DATABASE_URL or "").strip():
+        settings.DATABASE_URL = resolve_database_url()
     settings.SECRET_KEY = ensure_secret_key(
         settings.SECRET_KEY,
         data_dir=settings.DATA_DIR,

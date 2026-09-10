@@ -1,20 +1,10 @@
 """OCR 系统配置：归一化、读写、场景选引擎。"""
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.database import Base
-from app.models.system_config import SystemConfig
+from app.core.file_config import write_json
 from app.services.ocr import config as ocr_cfg
 from app.services.ocr.catalog import normalize_paddle_profile
-from tests.integrations_fakes import db_with_stored
-
-
-def _sqlite() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine, tables=[SystemConfig.__table__])
-    return sessionmaker(bind=engine)()
 
 
 def test_normalize_paddle_profile_aliases() -> None:
@@ -24,7 +14,7 @@ def test_normalize_paddle_profile_aliases() -> None:
 
 
 def test_load_defaults_when_missing() -> None:
-    cfg = ocr_cfg.load_ocr_config(db_with_stored(None))
+    cfg = ocr_cfg.load_ocr_config()
     assert cfg["paddle_profile"] == "v5_server"
     assert cfg["engines"]["paddle"] is True
     assert "tess" not in cfg["engines"]
@@ -43,15 +33,15 @@ def test_load_defaults_when_missing() -> None:
 
 
 def test_load_legacy_list_and_drop_unknown_engines() -> None:
-    cfg = ocr_cfg.load_ocr_config(
-        db_with_stored(
-            {
-                "paddle_profile": "v6_small",
-                "engines": {"paddle": False, "ghost": True, "tess": True},
-                "use_cases": {"tarkov_keys": ["easyocr", "ghost", "tess", "easyocr"]},
-            }
-        )
+    write_json(
+        "ocr",
+        {
+            "paddle_profile": "v6_small",
+            "engines": {"paddle": False, "ghost": True, "tess": True},
+            "use_cases": {"tarkov_keys": ["easyocr", "ghost", "tess", "easyocr"]},
+        },
     )
+    cfg = ocr_cfg.load_ocr_config()
     assert cfg["paddle_profile"] == "v6_small"
     assert cfg["engines"]["paddle"] is False
     assert cfg["engines"]["easyocr"] is True
@@ -73,65 +63,58 @@ def test_engines_for_use_case_respects_global_switch() -> None:
 
 
 def test_save_rejects_cross_check_without_two_families() -> None:
-    db = _sqlite()
-    try:
-        with pytest.raises(ocr_cfg.OcrConfigError, match="多端校验"):
-            ocr_cfg.save_ocr_config(
-                db,
-                {
-                    "paddle_profile": "v5_server",
-                    "engines": {"paddle": True, "easyocr": False},
-                    "use_cases": {
-                        "tarkov_keys": {
-                            "engines": ["paddle", "easyocr"],
-                            "cross_check": True,
-                        },
-                        "general": {"engines": ["paddle"], "cross_check": False},
-                    },
-                },
-            )
-    finally:
-        db.close()
-
-
-def test_save_roundtrip() -> None:
-    db = _sqlite()
-    try:
-        saved = ocr_cfg.save_ocr_config(
-            db,
+    with pytest.raises(ocr_cfg.OcrConfigError, match="多端校验"):
+        ocr_cfg.save_ocr_config(
+            None,
             {
-                "paddle_profile": "v6_medium",
+                "paddle_profile": "v5_server",
                 "engines": {"paddle": True, "easyocr": False},
                 "use_cases": {
                     "tarkov_keys": {
-                        "engines": ["paddle"],
-                        "cross_check": False,
+                        "engines": ["paddle", "easyocr"],
+                        "cross_check": True,
                     },
                     "general": {"engines": ["paddle"], "cross_check": False},
                 },
             },
         )
-        loaded = ocr_cfg.load_ocr_config(db)
-        assert saved == loaded
-        assert loaded["paddle_profile"] == "v6_medium"
-        assert loaded["engines"]["easyocr"] is False
-        assert loaded["use_cases"]["tarkov_keys"]["cross_check"] is False
-        assert loaded["use_cases"]["tarkov_raid_prep"] == {
-            "engines": ["paddle"],
-            "cross_check": False,
-        }
-        assert loaded["use_cases"]["general"]["engines"] == ["paddle"]
-    finally:
-        db.close()
+
+
+def test_save_roundtrip() -> None:
+    saved = ocr_cfg.save_ocr_config(
+        None,
+        {
+            "paddle_profile": "v6_medium",
+            "engines": {"paddle": True, "easyocr": False},
+            "use_cases": {
+                "tarkov_keys": {
+                    "engines": ["paddle"],
+                    "cross_check": False,
+                },
+                "general": {"engines": ["paddle"], "cross_check": False},
+            },
+        },
+    )
+    loaded = ocr_cfg.load_ocr_config()
+    assert saved == loaded
+    assert loaded["paddle_profile"] == "v6_medium"
+    assert loaded["engines"]["easyocr"] is False
+    assert loaded["use_cases"]["tarkov_keys"]["cross_check"] is False
+    assert loaded["use_cases"]["tarkov_raid_prep"] == {
+        "engines": ["paddle"],
+        "cross_check": False,
+    }
+    assert loaded["use_cases"]["general"]["engines"] == ["paddle"]
 
 
 def test_scheduler_maps_legacy_key_ocr_job() -> None:
     from app.services.scheduler_config import load_scheduler_config
 
-    db = db_with_stored(
-        {"tarkov_key_ocr_sync": {"enabled": False, "hour": 7, "minute": 22}}
+    write_json(
+        "jobs",
+        {"tarkov_key_ocr_sync": {"enabled": False, "hour": 7, "minute": 22}},
     )
-    cfg = load_scheduler_config(db)
+    cfg = load_scheduler_config()
     assert cfg["ocr_model_sync"]["enabled"] is False
     assert cfg["ocr_model_sync"]["hour"] == 7
     assert cfg["ocr_model_sync"]["minute"] == 22

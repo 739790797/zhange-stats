@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeHealthService } from "@/api/runtimeHealthApi";
 import {
+  healthById,
   healthHint,
   healthMeta,
   pickHealthServices,
-  RUNTIME_NOTE_IDS,
   RUNTIME_STATUS_IDS,
-  runtimeNoteLabel,
 } from "./runtimeHealth";
 
 function item(
@@ -24,15 +23,25 @@ function item(
 
 describe("pickHealthServices", () => {
   it("keeps requested order and skips missing ids", () => {
-    const services = [item("smtp"), item("mysql"), item("app")];
+    const services = [item("redis"), item("database"), item("smtp")];
     expect(
-      pickHealthServices(services, ["mysql", "redis", "smtp"]).map((s) => s.id),
-    ).toEqual(["mysql", "smtp"]);
+      pickHealthServices(services, ["database", "redis"]).map((s) => s.id),
+    ).toEqual(["database", "redis"]);
   });
 
   it("returns empty when the snapshot has no services", () => {
     expect(pickHealthServices(undefined, RUNTIME_STATUS_IDS)).toEqual([]);
     expect(pickHealthServices([], RUNTIME_STATUS_IDS)).toEqual([]);
+  });
+});
+
+describe("healthById", () => {
+  it("finds a service by id", () => {
+    expect(healthById([item("database"), item("redis")], "redis")?.id).toBe(
+      "redis",
+    );
+    expect(healthById([item("database")], "smtp")).toBeUndefined();
+    expect(healthById(undefined, "database")).toBeUndefined();
   });
 });
 
@@ -47,25 +56,17 @@ describe("healthMeta / healthHint", () => {
     expect(healthHint({ detail: "SELECT 1 ok", latency_ms: 1.4 })).toBe(
       "SELECT 1 ok · 1ms",
     );
-    expect(healthHint({ detail: "未配置 SMTP" })).toBe("未配置 SMTP");
+    expect(healthHint({ detail: "未配置 REDIS_URL" })).toBe("未配置 REDIS_URL");
     expect(healthHint({ detail: "", latency_ms: null })).toBe("");
   });
 });
 
-describe("runtime notes", () => {
-  it("does not treat env / XFF as status chips", () => {
+describe("runtime status ids", () => {
+  it("only treats database and redis as local deps", () => {
+    expect([...RUNTIME_STATUS_IDS]).toEqual(["database", "redis"]);
+    expect(RUNTIME_STATUS_IDS).not.toContain("smtp");
+    expect(RUNTIME_STATUS_IDS).not.toContain("scheduler");
     expect(RUNTIME_STATUS_IDS).not.toContain("app_env");
     expect(RUNTIME_STATUS_IDS).not.toContain("xff");
-    expect(RUNTIME_STATUS_IDS).not.toContain("app");
-    expect([...RUNTIME_NOTE_IDS]).toEqual(["app_env", "xff"]);
-  });
-
-  it("uses plain labels for env and visitor IP", () => {
-    expect(runtimeNoteLabel(item("app_env", { name: "运行环境" }))).toBe(
-      "运行环境",
-    );
-    expect(runtimeNoteLabel(item("xff", { name: "X-Forwarded-For" }))).toBe(
-      "访客 IP",
-    );
   });
 });

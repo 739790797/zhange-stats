@@ -74,14 +74,15 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 | 对象 | 路径 / 命令 |
 |------|----------------|
-| MySQL | `mysqldump`（含例行 `--single-transaction`）；库名来自 `DATABASE_URL` |
-| 运行时 | `var/data/`（含 `.secret_key`、日志、TexTeller 权重、钥匙 OCR RapidOCR / EasyOCR 权重）、`var/uploads/` |
-| 配置 | 安装根 `.env`（**不要**进 Git；备份目录权限仅 root/zhange） |
+| MySQL | `mysqldump`（含例行 `--single-transaction`）；库名来自 `config/database.json` 或环境变量 `DATABASE_URL` |
+| SQLite | 打包 `data/runtime/zhange.sqlite`（随 `data/runtime/`） |
+| 运行时 | `data/runtime/`（含 `.secret_key`、日志）、`data/uploads/`、`data/models/`（TexTeller / RapidOCR / EasyOCR 权重） |
+| 配置 | 安装根 `config/`（**不要**进 Git；旧备份里的 `.env` 若仍在会打包装上以便迁入） |
 
 建议：
 
-- 脚本放 `scripts/linux/backup.sh` / `scripts/win/backup.ps1`（读 `.env` 的 `DATABASE_URL`，默认写到本安装树 `var/backups/` 带日期的 tar）
-- `scripts/linux/restore.sh` 写明：停服务 → 导库 → 解压 `var/` → 启动；**不**在文档里只写 dump 不写 restore
+- 脚本放 `scripts/linux/backup.sh` / `scripts/win/backup.ps1`（读 `config/database.json`，默认写到本安装树 `data/backups/` 带日期的 tar）
+- `scripts/linux/restore.sh` 写明：停服务 → 恢复 `config/` → 导库（若有 sql）→ 解压 `data/` → 启动；**不**在文档里只写 dump 不写 restore
 - systemd timer 或 cron：每日一次，保留 7～14 天；备份盘与数据盘分离更佳
 - 演练：在非生产或停机窗口做一次 restore 到临时库，确认能登录
 
@@ -188,11 +189,11 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 - 保存「集成密钥」（Pelican / 出图等）
 - （可选）关闭 `tavern` 等全局功能开关
 
-实现：`POST /api/auth/step-up/send` + 写操作带 `code`；验证码短 TTL（5～15 分钟），`auth_limiter` 限额与绑邮箱同级。前端 Modal：先发码再提交原表单。
+实现（已取消）：管理端保存不再发步进码。用户侧注册/绑邮/找回/注销仍走邮箱验证码。`ALLOW_EMAIL_CODE_LOG` 生产仍禁止。
 
 验收：
 
-- [x] 无码或错码不能更新/删用户/改集成密钥
+- [x] 管理端保存不再依赖邮件步进码；用户侧发码限流仍在
 - [x] 生产仍禁止 `ALLOW_EMAIL_CODE_LOG`
 - [x] 普通用户界面无这些入口（已有 `AdminRoute`）
 

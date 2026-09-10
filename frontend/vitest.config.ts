@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  cacheDir: path.resolve(__dirname, "../var/cache/vite"),
+  cacheDir: path.resolve(__dirname, "../data/cache/vite"),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

@@ -23,10 +23,17 @@ from app.core.http_headers import SecurityHeadersMiddleware
 from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_origin_regex
-from app.core.database import SessionLocal, engine
+from app.core.database import SessionLocal, engine, get_engine
+from app.core.file_config import database_is_configured, ensure_config_dir
 from app.core.http_client import close_http_client
 from app.core.migrate import run_migrations
-from app.core.paths import hydrate_legacy_runtime, resolve_install_dir, resolve_runtime_path
+from app.core.paths import (
+    hydrate_legacy_runtime,
+    migrate_runtime_layout,
+    resolve_install_dir,
+    resolve_runtime_path,
+)
+from app.core.runtime_cache import pin_library_cache_env
 from app.core.request_log_middleware import RequestLogMiddleware
 from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
@@ -72,6 +79,8 @@ class ImmutableStaticFiles(StaticFiles):
 def _ping_database() -> bool:
     """SELECT 1，1 秒内复用结果，避免探针打满连接池。"""
     global _health_db_ok, _health_db_at
+    if not database_is_configured():
+        return False
     now = time.monotonic()
     if _health_db_ok is not None and now - _health_db_at < _HEALTH_DB_TTL_SEC:
         return _health_db_ok
@@ -98,6 +107,16 @@ def _ensure_upload_root() -> Path:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    ensure_config_dir()
+    from app.services.config_import import import_legacy_dotenv, import_legacy_system_configs
+
+    import_legacy_dotenv()
+    migrate_runtime_layout(resolve_install_dir())
+    pin_library_cache_env()
+    from app.core.config_sync import sync_site_config
+
+    sync_site_config()
+    get_settings.cache_clear()
     cfg = get_settings()
     logger.info(
         "startup begin version=%s env=%s install_dir=%s",
@@ -105,6 +124,25 @@ async def lifespan(_: FastAPI):
         cfg.APP_ENV,
         (cfg.APP_INSTALL_DIR or "").strip() or "(unset)",
     )
+
+    if not database_is_configured():
+        logger.info("startup: database not configured; setup wizard required")
+        logger.info("startup step 2/9: ensure upload root (%s)", cfg.UPLOAD_DIR)
+        upload_path = _ensure_upload_root()
+        hydrate_legacy_runtime(
+            dest_data=cfg.data_dir_path,
+            install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
+        )
+        logger.info(
+            "startup waiting for setup version=%s upload_root=%s",
+            cfg.APP_VERSION,
+            upload_path,
+        )
+        yield
+        logger.info("shutdown begin")
+        close_http_client()
+        logger.info("shutdown complete")
+        return
 
     logger.info("startup step 1/9: alembic migrate")
     try:
@@ -127,7 +165,10 @@ async def lifespan(_: FastAPI):
     db = SessionLocal()
     try:
         logger.info("startup step 3/9: beijing time storage check")
-        ensure_beijing_time_storage(db, engine)
+        ensure_beijing_time_storage(db, get_engine())
+
+        logger.info("startup step 3b: import legacy system_configs into config/")
+        import_legacy_system_configs(db)
 
         logger.info("startup step 4/9: seed data")
         seed_data(db)
@@ -277,8 +318,19 @@ def robots_txt() -> PlainTextResponse:
 
 @app.get("/health")
 def health():
-    """存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。"""
+    """存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。"""
     from fastapi.responses import JSONResponse
+
+    if not database_is_configured():
+        return JSONResponse(
+            content={
+                "status": "setup",
+                "version": settings.APP_VERSION,
+                "database": "unconfigured",
+                "scheduler": "stopped",
+            },
+            status_code=200,
+        )
 
     db_ok = _ping_database()
     sched_ok = bool(scheduler.running) if scheduler else False

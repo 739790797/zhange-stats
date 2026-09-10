@@ -1,0 +1,11 @@
+{
+  "_version": 1,
+  "APP_ENV": "development",
+  "REDIS_URL": "",
+  "CORS_ORIGINS": "",
+  "CORS_ORIGIN_REGEX": "",
+  "CSP_ENFORCE": false,
+  "TRUST_X_FORWARDED_FOR": false,
+  "PUBLIC_BACKEND_URL": "",
+  "PUBLIC_FRONTEND_URL": ""
+}

@@ -27,6 +27,47 @@
         }
       }
     },
+    "/api/setup/database": {
+      "post": {
+        "tags": [
+          "setup"
+        ],
+        "summary": "Post Setup Database",
+        "operationId": "post_setup_database_api_setup_database_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupDatabaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupDatabaseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/admin": {
       "post": {
         "tags": [
@@ -734,32 +775,6 @@
         }
       }
     },
-    "/api/auth/step-up/send": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Send Step Up Code",
-        "operationId": "send_step_up_code_api_auth_step_up_send_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisterResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/auth/account/delete-code": {
       "post": {
         "tags": [
@@ -1010,22 +1025,6 @@
               "type": "integer",
               "title": "User Id"
             }
-          },
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
           }
         ],
         "requestBody": {
@@ -1081,22 +1080,6 @@
             "schema": {
               "type": "integer",
               "title": "User Id"
-            }
-          },
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
             }
           }
         ],
@@ -1939,11 +1922,6 @@
         ],
         "summary": "Get Email Settings",
         "operationId": "get_email_settings_api_settings_email_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1955,7 +1933,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -1963,38 +1946,15 @@
         ],
         "summary": "Update Email Settings",
         "operationId": "update_email_settings_api_settings_email_put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EmailSettingsUpdate"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -2017,7 +1977,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/settings/email/test": {
@@ -2075,11 +2040,6 @@
         ],
         "summary": "Get Ocr Settings",
         "operationId": "get_ocr_settings_api_settings_ocr_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2091,7 +2051,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -2099,38 +2064,15 @@
         ],
         "summary": "Update Ocr Settings",
         "operationId": "update_ocr_settings_api_settings_ocr_put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OcrSettingsUpdate"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -2153,7 +2095,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/settings/integrations/status": {
@@ -2189,11 +2136,6 @@
         ],
         "summary": "Get Integrations",
         "operationId": "get_integrations_api_settings_integrations_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2205,7 +2147,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -2213,38 +2160,15 @@
         ],
         "summary": "Update Integrations",
         "operationId": "update_integrations_api_settings_integrations_put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/IntegrationsUpdate"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -2267,7 +2191,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/settings/integrations/pelican-test": {
@@ -2420,24 +2349,6 @@
             "HTTPBearer": []
           }
         ],
-        "parameters": [
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2572,11 +2483,6 @@
         "summary": "Get Platform Features Admin",
         "description": "管理端：完整树 + raw / effective 开关。",
         "operationId": "get_platform_features_admin_api_settings_platform_features_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2588,7 +2494,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -2596,38 +2507,15 @@
         ],
         "summary": "Update Platform Features",
         "operationId": "update_platform_features_api_settings_platform_features_put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PlatformFeaturesUpdate"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -2650,7 +2538,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/settings/platform-features/effective": {
@@ -2672,6 +2565,76 @@
                   },
                   "type": "object",
                   "title": "Response Get Platform Features Effective Api Settings Platform Features Effective Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/runtime-env": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Runtime Env",
+        "operationId": "get_runtime_env_api_settings_runtime_env_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeEnvOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update Runtime Env",
+        "operationId": "update_runtime_env_api_settings_runtime_env_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeEnvUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeEnvOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2941,38 +2904,15 @@
         ],
         "summary": "Do App Update",
         "operationId": "do_app_update_api_settings_app_update_do_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Step-Up-Code",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Step-Up-Code"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AppUpdateDoIn"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -2995,7 +2935,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/settings/runtime-logs": {
@@ -3178,7 +3123,7 @@
           "settings"
         ],
         "summary": "Get Runtime Health",
-        "description": "管理端运行时健康：控制面、MySQL、Redis、调度器，以及 APP_ENV / XFF / SMTP。",
+        "description": "管理端运行时健康：当前进程的数据库与 Redis。",
         "operationId": "get_runtime_health_api_settings_runtime_health_get",
         "responses": {
           "200": {
@@ -16865,7 +16810,7 @@
     "/health": {
       "get": {
         "summary": "Health",
-        "description": "存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。",
+        "description": "存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -16873,6 +16818,43 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{full_path}": {
+      "get": {
+        "summary": "Spa Fallback",
+        "operationId": "spa_fallback__full_path__get",
+        "parameters": [
+          {
+            "name": "full_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Full Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -27453,6 +27435,181 @@
         ],
         "title": "RoleMembershipTreeOut"
       },
+      "RuntimeEnvOut": {
+        "properties": {
+          "app_env": {
+            "type": "string",
+            "title": "App Env"
+          },
+          "is_production": {
+            "type": "boolean",
+            "title": "Is Production"
+          },
+          "redis_url": {
+            "type": "string",
+            "title": "Redis Url",
+            "default": ""
+          },
+          "cors_origins": {
+            "type": "string",
+            "title": "Cors Origins",
+            "default": ""
+          },
+          "cors_origin_regex": {
+            "type": "string",
+            "title": "Cors Origin Regex",
+            "default": ""
+          },
+          "csp_enforce": {
+            "type": "boolean",
+            "title": "Csp Enforce",
+            "default": false
+          },
+          "trust_x_forwarded_for": {
+            "type": "boolean",
+            "title": "Trust X Forwarded For",
+            "default": false
+          },
+          "db_engine": {
+            "type": "string",
+            "title": "Db Engine",
+            "default": "sqlite"
+          },
+          "db_path": {
+            "type": "string",
+            "title": "Db Path",
+            "default": ""
+          },
+          "db_url": {
+            "type": "string",
+            "title": "Db Url",
+            "default": ""
+          },
+          "restart_required": {
+            "type": "boolean",
+            "title": "Restart Required",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_env",
+          "is_production"
+        ],
+        "title": "RuntimeEnvOut"
+      },
+      "RuntimeEnvUpdate": {
+        "properties": {
+          "app_env": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Env"
+          },
+          "redis_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redis Url"
+          },
+          "cors_origins": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cors Origins"
+          },
+          "cors_origin_regex": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cors Origin Regex"
+          },
+          "csp_enforce": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csp Enforce"
+          },
+          "trust_x_forwarded_for": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust X Forwarded For"
+          },
+          "db_engine": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Engine"
+          },
+          "db_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Path"
+          },
+          "db_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Url"
+          }
+        },
+        "type": "object",
+        "title": "RuntimeEnvUpdate"
+      },
       "RuntimeHealthOut": {
         "properties": {
           "checked_at": {
@@ -27959,21 +28116,90 @@
         ],
         "title": "SetupAdminResponse"
       },
+      "SetupDatabaseRequest": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "pattern": "^(sqlite|mysql)$",
+            "title": "Engine"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "engine"
+        ],
+        "title": "SetupDatabaseRequest"
+      },
+      "SetupDatabaseResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          },
+          "sqlite_path": {
+            "type": "string",
+            "title": "Sqlite Path",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "engine"
+        ],
+        "title": "SetupDatabaseResponse"
+      },
       "SetupStatusOut": {
         "properties": {
           "needs_setup": {
             "type": "boolean",
             "title": "Needs Setup"
           },
+          "needs_database": {
+            "type": "boolean",
+            "title": "Needs Database"
+          },
+          "needs_admin": {
+            "type": "boolean",
+            "title": "Needs Admin"
+          },
           "min_password_length": {
             "type": "integer",
             "title": "Min Password Length",
             "default": 8
+          },
+          "engines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Engines"
+          },
+          "sqlite_path": {
+            "type": "string",
+            "title": "Sqlite Path",
+            "default": ""
           }
         },
         "type": "object",
         "required": [
-          "needs_setup"
+          "needs_setup",
+          "needs_database",
+          "needs_admin"
         ],
         "title": "SetupStatusOut"
       },
@@ -40191,11 +40417,6 @@
             "type": "boolean",
             "title": "Email Verified",
             "default": false
-          },
-          "admin_step_up_required": {
-            "type": "boolean",
-            "title": "Admin Step Up Required",
-            "default": true
           },
           "avatar_url": {
             "anyOf": [

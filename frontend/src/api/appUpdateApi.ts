@@ -16,9 +16,7 @@ export async function checkAppUpdate() {
   return data;
 }
 
-export async function doAppUpdate(
-  payload: Partial<AppUpdateDoIn> & { stepUpCode: string },
-) {
+export async function doAppUpdate(payload: Partial<AppUpdateDoIn> = {}) {
   const { data } = await client.post<AppUpdateDoResult>(
     "/settings/app-update/do",
     {
@@ -26,7 +24,7 @@ export async function doAppUpdate(
       proxy: payload.proxy ?? null,
       reboot: payload.reboot ?? true,
     },
-    { timeout: 120_000, headers: { "X-Step-Up-Code": payload.stepUpCode } },
+    { timeout: 120_000 },
   );
   return data;
 }

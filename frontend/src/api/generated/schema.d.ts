@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/setup/database": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Setup Database */
+        post: operations["post_setup_database_api_setup_database_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/setup/admin": {
         parameters: {
             query?: never;
@@ -339,23 +356,6 @@ export interface paths {
         put?: never;
         /** Reset Password */
         post: operations["reset_password_api_auth_reset_password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/step-up/send": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Send Step Up Code */
-        post: operations["send_step_up_code_api_auth_step_up_send_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -907,6 +907,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/runtime-env": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runtime Env */
+        get: operations["get_runtime_env_api_settings_runtime_env_get"];
+        /** Update Runtime Env */
+        put: operations["update_runtime_env_api_settings_runtime_env_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/files/summary": {
         parameters: {
             query?: never;
@@ -1072,7 +1090,7 @@ export interface paths {
         };
         /**
          * Get Runtime Health
-         * @description 管理端运行时健康：控制面、MySQL、Redis、调度器，以及 APP_ENV / XFF / SMTP。
+         * @description 管理端运行时健康：当前进程的数据库与 Redis。
          */
         get: operations["get_runtime_health_api_settings_runtime_health_get"];
         put?: never;
@@ -4944,9 +4962,26 @@ export interface paths {
         };
         /**
          * Health
-         * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。
+         * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。
          */
         get: operations["health_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/{full_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spa Fallback */
+        get: operations["spa_fallback__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9966,6 +10001,79 @@ export interface components {
             /** Roles */
             roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
+        /** RuntimeEnvOut */
+        RuntimeEnvOut: {
+            /** App Env */
+            app_env: string;
+            /** Is Production */
+            is_production: boolean;
+            /**
+             * Redis Url
+             * @default
+             */
+            redis_url: string;
+            /**
+             * Cors Origins
+             * @default
+             */
+            cors_origins: string;
+            /**
+             * Cors Origin Regex
+             * @default
+             */
+            cors_origin_regex: string;
+            /**
+             * Csp Enforce
+             * @default false
+             */
+            csp_enforce: boolean;
+            /**
+             * Trust X Forwarded For
+             * @default false
+             */
+            trust_x_forwarded_for: boolean;
+            /**
+             * Db Engine
+             * @default sqlite
+             */
+            db_engine: string;
+            /**
+             * Db Path
+             * @default
+             */
+            db_path: string;
+            /**
+             * Db Url
+             * @default
+             */
+            db_url: string;
+            /**
+             * Restart Required
+             * @default false
+             */
+            restart_required: boolean;
+        };
+        /** RuntimeEnvUpdate */
+        RuntimeEnvUpdate: {
+            /** App Env */
+            app_env?: string | null;
+            /** Redis Url */
+            redis_url?: string | null;
+            /** Cors Origins */
+            cors_origins?: string | null;
+            /** Cors Origin Regex */
+            cors_origin_regex?: string | null;
+            /** Csp Enforce */
+            csp_enforce?: boolean | null;
+            /** Trust X Forwarded For */
+            trust_x_forwarded_for?: boolean | null;
+            /** Db Engine */
+            db_engine?: string | null;
+            /** Db Path */
+            db_path?: string | null;
+            /** Db Url */
+            db_url?: string | null;
+        };
         /** RuntimeHealthOut */
         RuntimeHealthOut: {
             /** Checked At */
@@ -10173,15 +10281,53 @@ export interface components {
              */
             token_type: string;
         };
+        /** SetupDatabaseRequest */
+        SetupDatabaseRequest: {
+            /** Engine */
+            engine: string;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /** SetupDatabaseResponse */
+        SetupDatabaseResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /** Engine */
+            engine: string;
+            /**
+             * Sqlite Path
+             * @default
+             */
+            sqlite_path: string;
+        };
         /** SetupStatusOut */
         SetupStatusOut: {
             /** Needs Setup */
             needs_setup: boolean;
+            /** Needs Database */
+            needs_database: boolean;
+            /** Needs Admin */
+            needs_admin: boolean;
             /**
              * Min Password Length
              * @default 8
              */
             min_password_length: number;
+            /** Engines */
+            engines?: string[];
+            /**
+             * Sqlite Path
+             * @default
+             */
+            sqlite_path: string;
         };
         /** SiteSettingsOut */
         SiteSettingsOut: {
@@ -15893,11 +16039,6 @@ export interface components {
              * @default false
              */
             email_verified: boolean;
-            /**
-             * Admin Step Up Required
-             * @default true
-             */
-            admin_step_up_required: boolean;
             /** Avatar Url */
             avatar_url?: string | null;
             /** Steam Id */
@@ -16152,6 +16293,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupStatusOut"];
+                };
+            };
+        };
+    };
+    post_setup_database_api_setup_database_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupDatabaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupDatabaseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -16706,26 +16880,6 @@ export interface operations {
             };
         };
     };
-    send_step_up_code_api_auth_step_up_send_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RegisterResponse"];
-                };
-            };
-        };
-    };
     send_delete_account_code_api_auth_account_delete_code_post: {
         parameters: {
             query?: never;
@@ -16888,9 +17042,7 @@ export interface operations {
     delete_user_api_users__user_id__delete: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path: {
                 user_id: number;
             };
@@ -16919,9 +17071,7 @@ export interface operations {
     update_user_api_users__user_id__patch: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path: {
                 user_id: number;
             };
@@ -17442,9 +17592,7 @@ export interface operations {
     update_email_settings_api_settings_email_put: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -17532,9 +17680,7 @@ export interface operations {
     update_ocr_settings_api_settings_ocr_put: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -17607,9 +17753,7 @@ export interface operations {
     update_integrations_api_settings_integrations_put: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -17739,9 +17883,7 @@ export interface operations {
     update_auth_settings_api_settings_auth_put: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -17867,9 +18009,7 @@ export interface operations {
     update_platform_features_api_settings_platform_features_put: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -17917,6 +18057,59 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+        };
+    };
+    get_runtime_env_api_settings_runtime_env_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeEnvOut"];
+                };
+            };
+        };
+    };
+    update_runtime_env_api_settings_runtime_env_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeEnvUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeEnvOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -18080,9 +18273,7 @@ export interface operations {
     do_app_update_api_settings_app_update_do_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Step-Up-Code"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -26136,6 +26327,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    spa_fallback__full_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                full_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

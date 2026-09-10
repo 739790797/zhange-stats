@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import get_settings
+from app.core.paths import resolve_install_dir, runtime_root
 from app.services.tarkov.workbench_image import ImageGenBusy
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,8 @@ _PROFILE_NAME = "tarkov_pw_profile"
 
 
 def _profile_dir() -> Path:
-    return get_settings().data_dir_path / _PROFILE_NAME
+    settings = get_settings()
+    return runtime_root(resolve_install_dir(configured=settings.APP_INSTALL_DIR)) / "cache" / _PROFILE_NAME
 
 
 def _kill_profile_chrome() -> None:

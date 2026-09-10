@@ -18,16 +18,11 @@ import {
 } from "@/api/appUpdateApi";
 import type { AppUpdateStatus } from "@/api/appUpdateApi";
 import { PageHeader } from "@/components/PageHeader";
-import { AdminStepUpModal } from "@/components/AdminStepUpModal";
-import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
-import { useAuthStore } from "@/stores/authStore";
 
 export default function SystemUpdatePage() {
   const queryClient = useQueryClient();
   const [waitingRestart, setWaitingRestart] = useState(false);
-  const [stepUpOpen, setStepUpOpen] = useState(false);
-  const user = useAuthStore((s) => s.user);
 
   const statusQuery = useQuery({
     queryKey: ["app-update-status"],
@@ -50,11 +45,10 @@ export default function SystemUpdatePage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (stepUpCode: string) =>
+    mutationFn: () =>
       doAppUpdate({
         version: "latest",
         reboot: true,
-        stepUpCode,
       }),
     onSuccess: async (data) => {
       message.success(data.message);
@@ -153,11 +147,7 @@ export default function SystemUpdatePage() {
                   if (!status?.has_new_version) {
                     message.info("未检测到新版本，仍将尝试更新到 latest");
                   }
-                  requestAdminStepUp(user, {
-                    onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-                    onNeedCode: () => setStepUpOpen(true),
-                    onSkip: () => updateMutation.mutate(""),
-                  });
+                  updateMutation.mutate();
                 }}
               >
                 一键更新
@@ -179,16 +169,6 @@ export default function SystemUpdatePage() {
           ) : null}
         </Space>
       </Card>
-      <AdminStepUpModal
-        open={stepUpOpen}
-        title="系统更新需邮箱验证码"
-        confirmLoading={updateMutation.isPending}
-        onCancel={() => setStepUpOpen(false)}
-        onConfirm={(code) => {
-          setStepUpOpen(false);
-          updateMutation.mutate(code);
-        }}
-      />
     </div>
   );
 }

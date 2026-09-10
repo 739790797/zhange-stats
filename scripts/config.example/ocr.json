@@ -1,0 +1,22 @@
+{
+  "_version": 1,
+  "paddle_profile": "v5_server",
+  "engines": {
+    "paddle": true,
+    "easyocr": true
+  },
+  "use_cases": {
+    "tarkov_keys": {
+      "engines": ["paddle", "easyocr"],
+      "cross_check": true
+    },
+    "tarkov_raid_prep": {
+      "engines": ["paddle"],
+      "cross_check": false
+    },
+    "general": {
+      "engines": ["paddle"],
+      "cross_check": false
+    }
+  }
+}

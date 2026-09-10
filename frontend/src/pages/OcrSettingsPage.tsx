@@ -21,10 +21,8 @@ import {
   triggerScheduledJob,
   updateOcrSettings,
 } from "@/api/settingsApi";
-import { AdminStepUpModal } from "@/components/AdminStepUpModal";
 import { JobRunResultModal } from "@/components/JobRunResultModal";
 import { PageHeader } from "@/components/PageHeader";
-import { ADMIN_STEP_UP_BLOCKED, requestAdminStepUp } from "@/lib/adminCanStepUp";
 import { apiError } from "@/lib/apiError";
 import type { JobRunWatch } from "@/lib/jobRunResult";
 import {
@@ -34,7 +32,6 @@ import {
   groupOcrProfileOptions,
   type OcrUseCaseFormValue,
 } from "@/lib/ocrSettings";
-import { useAuthStore } from "@/stores/authStore";
 
 type FormValues = {
   paddle_profile: string;
@@ -46,8 +43,6 @@ export default function OcrSettingsPage() {
   const queryClient = useQueryClient();
   const { token } = theme.useToken();
   const [form] = Form.useForm<FormValues>();
-  const user = useAuthStore((s) => s.user);
-  const [pending, setPending] = useState<FormValues | null>(null);
   const [runWatch, setRunWatch] = useState<JobRunWatch | null>(null);
   const enginesWatch = Form.useWatch("engines", form);
   const paddleWatch = Form.useWatch("paddle_profile", form);
@@ -67,11 +62,9 @@ export default function OcrSettingsPage() {
   }, [data, form]);
 
   const save = useMutation({
-    mutationFn: ({ payload, code }: { payload: FormValues; code: string }) =>
-      updateOcrSettings(payload, code),
+    mutationFn: (payload: FormValues) => updateOcrSettings(payload),
     onSuccess: () => {
       message.success("文字识别配置已保存");
-      setPending(null);
       queryClient.invalidateQueries({ queryKey: ["ocr-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
@@ -155,11 +148,7 @@ export default function OcrSettingsPage() {
       message.warning(blocked);
       return;
     }
-    requestAdminStepUp(user, {
-      onBlocked: () => message.warning(ADMIN_STEP_UP_BLOCKED),
-      onNeedCode: () => setPending(values),
-      onSkip: () => save.mutate({ payload: values, code: "" }),
-    });
+    save.mutate(values);
   };
 
   return (
@@ -313,16 +302,6 @@ export default function OcrSettingsPage() {
           保存
         </Button>
       </Form>
-      <AdminStepUpModal
-        open={pending != null}
-        title="保存文字识别配置需邮箱验证码"
-        confirmLoading={save.isPending}
-        onCancel={() => setPending(null)}
-        onConfirm={(code) => {
-          if (!pending) return;
-          save.mutate({ payload: pending, code });
-        }}
-      />
       <JobRunResultModal watch={runWatch} onClose={() => setRunWatch(null)} />
     </div>
   );

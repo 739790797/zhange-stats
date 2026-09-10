@@ -2,7 +2,7 @@
 
 表结构的**可执行**记录在 `versions/`。应用启动时会自动执行 `upgrade head`；管理端一键更新会在 **`os.execv` 重启前**先跑迁移，失败则回滚代码、不重启，避免生产 502。
 
-生产库是 **MariaDB**。CI 的 `backend-migrate-mariadb` 会在 MariaDB 11 上空库 `upgrade head` 两遍，拦住方言不兼容 SQL。
+MySQL/MariaDB 走 Alembic `upgrade head`（CI `backend-migrate-mariadb` 在 MariaDB 11 上空库跑两遍）。SQLite 首次安装是 ORM `create_all` + `stamp head`，之后与 MySQL 同一套新 migration。
 
 ## 日常改表流程
 
@@ -30,9 +30,11 @@ alembic history
 
 MySQL/MariaDB 的 DDL **非事务**：`ADD COLUMN` 成功后若后续语句失败，列已留下但 `alembic_version` 不前进；重启再跑会 `Duplicate column` 死循环。
 
+SQLite 首次安装走 `create_all` + `stamp head`，之后与 MySQL **同一套** `upgrade head`。新 migration 必须两边都能跑。
+
 1. **幂等**：`ADD COLUMN` / `CREATE TABLE` 前用 `sa.inspect` 判断是否已存在。
-2. **避免 MySQL 专属写法**：生产是 MariaDB。禁止 `CAST(... AS JSON)`；JSON 空值用 `'{}'` 字符串赋值即可。
-3. **JSON / 复杂类型改 NULL**：优先原生 `MODIFY COLUMN ...`，慎用 Alembic `op.alter_column` 对 JSON。
+2. **禁止 MySQL 专属 DDL**：不要 `CAST(... AS JSON)`、不要 `MODIFY COLUMN` 专供 MySQL。JSON 用 `sa.JSON()`；超 64KB 文本用 `LongText`（`app.core.sqltypes`）。JSON 空值用 `'{}'` 字符串赋值即可。
+3. **JSON / 复杂类型改 NULL**：优先可移植 `op.alter_column`，不要写死 MariaDB `MODIFY COLUMN ... JSON`。
 4. **修订号唯一**：用日期前缀（如 `20260825_0064`），禁止复用短序号。
 
 ## 从旧版 create_all 库升级

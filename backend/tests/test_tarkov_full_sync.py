@@ -221,30 +221,6 @@ def test_sync_all_raises_when_dump_fails(monkeypatch) -> None:
         raise AssertionError("expected TarkovFullSyncError")
 
 
-class _SchedulerRow:
-    def __init__(self, value: str) -> None:
-        self.value = value
-
-
-class _SchedulerQuery:
-    def __init__(self, row: _SchedulerRow | None) -> None:
-        self._row = row
-
-    def filter(self, *_a, **_k):
-        return self
-
-    def first(self):
-        return self._row
-
-
-class _SchedulerDb:
-    def __init__(self, stored: dict | None) -> None:
-        self._row = None if stored is None else _SchedulerRow(json.dumps(stored))
-
-    def query(self, *_a, **_k):
-        return _SchedulerQuery(self._row)
-
-
 class _RawQuery:
     def __init__(self, session, model):  # noqa: ANN001
         self.session = session
@@ -419,11 +395,16 @@ def test_extras_from_site_dump_pulls_nested_catalogs() -> None:
 
 
 def test_scheduler_drops_removed_per_domain_jobs() -> None:
-    stored = {
-        "tarkov_items_sync": {"enabled": True, "hour": 4, "minute": 30},
-        "tarkov_tasks_sync": {"enabled": True, "hour": 4, "minute": 35},
-    }
-    out = scheduler_config_svc.load_scheduler_config(_SchedulerDb(stored))
+    from app.core.file_config import write_json
+
+    write_json(
+        "jobs",
+        {
+            "tarkov_items_sync": {"enabled": True, "hour": 4, "minute": 30},
+            "tarkov_tasks_sync": {"enabled": True, "hour": 4, "minute": 35},
+        },
+    )
+    out = scheduler_config_svc.load_scheduler_config()
     assert out["tarkov_full_sync"]["enabled"] is True
     assert "tarkov_items_sync" not in out
     assert "tarkov_tasks_sync" not in out
