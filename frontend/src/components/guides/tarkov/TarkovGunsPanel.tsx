@@ -22,6 +22,8 @@ type Props = {
   caliberHref?: (caliber: string) => string;
   /** 弹窗内嵌：不读 URL 筛选、不链口径、去掉页头来源 */
   compact?: boolean;
+  /** 手册子类对应的 weapon_class；不传则不过滤 */
+  weaponClasses?: string[];
 };
 
 const GUN_SOURCE_LINKS: Record<string, { label: string; href: string }> = {
@@ -55,6 +57,7 @@ export function TarkovGunsPanel({
   onPick,
   caliberHref,
   compact = false,
+  weaponClasses,
 }: Props = {}) {
   const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -81,6 +84,11 @@ export function TarkovGunsPanel({
   });
 
   const items = gunsQuery.data?.items ?? EMPTY_ITEMS;
+  const visibleItems = useMemo(() => {
+    if (!weaponClasses?.length) return items;
+    const allow = new Set(weaponClasses);
+    return items.filter((row) => allow.has(row.weapon_class || ""));
+  }, [items, weaponClasses]);
 
   const ammoFilterLabel = useMemo(() => {
     if (!ammoFilterId) return null;
@@ -129,9 +137,7 @@ export function TarkovGunsPanel({
           <div>数据来源：{renderGunSource(meta?.source)}</div>
           <div>
             更新时间：{formatSyncedAt(meta?.synced_at)}
-            {typeof meta?.gun_count === "number"
-              ? ` · 共 ${meta.gun_count} 把`
-              : null}
+            {` · 共 ${visibleItems.length} 把`}
           </div>
         </div>
       )}
@@ -154,7 +160,7 @@ export function TarkovGunsPanel({
 
       <div className={compact ? undefined : styles.panel}>
         <TarkovGunsTable
-          data={items}
+          data={visibleItems}
           ammoFilterId={ammoFilterId}
           caliberFilterParam={caliberFilterParam}
           pickHref={pickHref}

@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { TarkovCollectionPanel } from "@/components/guides/tarkov/TarkovCollectionPanel";
 import { TarkovGameLogsPanel } from "@/components/guides/tarkov/TarkovGameLogsPanel";
+import { TarkovHideoutPanel } from "@/components/guides/tarkov/TarkovHideoutPanel";
 import { TarkovKeyPacksPanel } from "@/components/guides/tarkov/TarkovKeyPacksPanel";
 import { TarkovTaskManagerPanel } from "@/components/guides/tarkov/TarkovTaskManagerPanel";
 import {
@@ -14,6 +15,7 @@ const TABS: Array<{ id: TarkovMeTabId; label: string }> = [
   { id: "tasks", label: "任务管理" },
   { id: "keys", label: "钥匙管理" },
   { id: "collection", label: "3×4收集" },
+  { id: "hideout", label: "藏身处" },
   { id: "logs", label: "日志路径" },
 ];
 
@@ -24,6 +26,9 @@ export function TarkovMePanel() {
   const setTab = (id: TarkovMeTabId) => {
     const params = new URLSearchParams(searchParams);
     params.set("tab", id);
+    if (id !== "hideout") {
+      params.delete("station");
+    }
     if (id !== "keys") {
       params.delete("map");
       params.delete("page");
@@ -67,6 +72,7 @@ export function TarkovMePanel() {
       {tab === "tasks" ? <TarkovTaskManagerPanel /> : null}
       {tab === "keys" ? <TarkovKeyPacksPanel /> : null}
       {tab === "collection" ? <TarkovCollectionPanel /> : null}
+      {tab === "hideout" ? <TarkovHideoutPanel /> : null}
       {tab === "logs" ? <TarkovGameLogsPanel /> : null}
     </div>
   );

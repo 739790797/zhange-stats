@@ -19,11 +19,19 @@ _SKIP_EXACT = frozenset({"/health", "/favicon.ico"})
 _SLOW_GET_MS = 200.0
 
 
+def _skip_access_log(path: str) -> bool:
+    if path in _SKIP_EXACT or any(path.startswith(p) for p in _SKIP_PREFIXES):
+        return True
+    if "/settings/runtime-health" in path or "/settings/runtime-logs" in path:
+        return True
+    if "/client-rum" in path:
+        return True
+    return False
+
+
 def should_log_request(method: str, path: str, status_code: int, elapsed_ms: float) -> bool:
     """GET 2xx 且快路径不打 INFO；写操作 / 错误 / 慢请求仍记。"""
-    if path in _SKIP_EXACT or any(path.startswith(p) for p in _SKIP_PREFIXES):
-        return False
-    if "/settings/runtime-health" in path or "/settings/runtime-logs" in path:
+    if _skip_access_log(path):
         return False
     if method.upper() != "GET":
         return True
@@ -42,10 +50,7 @@ class RequestLogMiddleware:
             return
         path = scope.get("path") or ""
         method = str(scope.get("method") or "GET")
-        if path in _SKIP_EXACT or any(path.startswith(p) for p in _SKIP_PREFIXES):
-            await self.app(scope, receive, send)
-            return
-        if "/settings/runtime-health" in path or "/settings/runtime-logs" in path:
+        if _skip_access_log(path):
             await self.app(scope, receive, send)
             return
 

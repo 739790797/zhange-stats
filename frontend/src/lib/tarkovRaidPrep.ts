@@ -2,9 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { MAPS_HREF, TARKOV_MAPS, traderDisplayName } from "@/lib/tarkovHomeNav";
 import { logMapHref } from "@/lib/tarkovGameLogs";
 import {
+  parseTarkovPmcFaction,
+  taskVisibleForFaction,
+} from "@/lib/tarkovPmcFaction";
+import { displayTaskProgressName } from "@/lib/tarkovTaskName";
+import {
+  canonicalizeObjectiveType,
   orderObjectiveTypes,
   tarkovExitStatusLabel,
   tarkovObjectiveTypeLabel,
+  TARKOV_OBJECTIVE_TYPE_CANON,
 } from "@/lib/tarkovTaskObjective";
 
 /** 与后端 MAP_SLUG_EQUIV_GROUPS 对齐。 */
@@ -41,6 +48,12 @@ export const RAID_PREP_LIST_SCOPE_LABELS: Record<RaidPrepListScope, string> = {
   done: "已完成",
 };
 
+/** 进行中任务在地图侧栏再按是否属于当前图分段。 */
+export const RAID_PREP_ACTIVE_MAP_GROUP_LABELS = {
+  onMap: "本地图任务",
+  offMap: "非本地图任务",
+} as const;
+
 /** 与个人中心任务管理下拉一致：未完成 / 进行中 / 已完成。 */
 export const RAID_PREP_STATUS_SELECT_OPTIONS: readonly {
   value: RaidPrepTaskProgressStatus;
@@ -55,11 +68,8 @@ export const RAID_PREP_STATUS_SELECT_OPTIONS: readonly {
 export const RAID_PREP_ANY_OF_MIN = 4;
 
 /** 准备总结：物品 / 任务物成对合成一列。 */
-export const RAID_PREP_SUMMARY_TYPE_MERGE: Readonly<Record<string, string>> = {
-  findQuestItem: "findItem",
-  giveQuestItem: "giveItem",
-  plantQuestItem: "plantItem",
-};
+export const RAID_PREP_SUMMARY_TYPE_MERGE: Readonly<Record<string, string>> =
+  TARKOV_OBJECTIVE_TYPE_CANON;
 
 /** 要带进战局的目标列（跟「所需钥匙」一组，排在找到/上交前面）。 */
 export const RAID_PREP_SUMMARY_BRING_TYPES = [
@@ -76,7 +86,7 @@ export const RAID_PREP_SUMMARY_SHOOT_TYPE = "shoot";
 export function raidPrepSummaryColumnType(type: string): string {
   const key = (type || "").trim();
   if (!key) return "item";
-  return RAID_PREP_SUMMARY_TYPE_MERGE[key] || key;
+  return canonicalizeObjectiveType(key);
 }
 
 export function isRaidPrepSummaryBringType(type: string): boolean {
@@ -652,13 +662,20 @@ export function displayRaidPrepTaskName(task: {
   id: string;
   name?: string | null;
   normalized_name?: string | null;
+  faction_name?: string | null;
+  line_hint?: string | null;
 }): string {
-  return (
+  const name =
     tarkovReadableName(task.name, task.id) ||
     tarkovReadableName(task.normalized_name, task.id) ||
     (task.normalized_name || "").trim() ||
-    task.id
-  );
+    task.id;
+  return displayTaskProgressName({
+    id: task.id,
+    name,
+    faction_name: task.faction_name,
+    line_hint: task.line_hint,
+  });
 }
 
 /** 地图悬浮窗 / 标签用的参与者，去空白与重复（有 userId 时按人去重）。 */
@@ -887,22 +904,28 @@ export function filterRaidPrepRows<
     trader_slug?: string | null;
     trader_name?: string | null;
     map_name?: string | null;
+    faction_name?: string | null;
   },
 >(
   rows: T[],
   opts: {
     trader?: string;
     q?: string;
+    faction?: string;
     excludeIds?: readonly string[];
   } = {},
 ): T[] {
   const traderKey = (opts.trader || "").trim().toLowerCase();
   const needle = (opts.q || "").trim().toLowerCase();
+  const faction = parseTarkovPmcFaction(opts.faction);
   const exclude = new Set(
     (opts.excludeIds || []).map((id) => (id || "").trim()).filter(Boolean),
   );
   return rows.filter((row) => {
     if (exclude.size && exclude.has(String(row.id || "").trim())) {
+      return false;
+    }
+    if (!taskVisibleForFaction(row.faction_name, faction)) {
       return false;
     }
     if (traderKey) {
@@ -1582,6 +1605,19 @@ export function groupRaidPrepRowsByProgress<T extends { id: string }>(
     groups[raidPrepTaskProgressStatus(row.id, doneIds, startedIds)].push(row);
   }
   return groups;
+}
+
+/** 进行中列表：当前图任务与其他图 / 无地图任务分开。缺省当成本图。 */
+export function splitRaidPrepRowsByCurrentMap<T extends { on_this_map?: boolean }>(
+  rows: readonly T[],
+): { onMap: T[]; offMap: T[] } {
+  const onMap: T[] = [];
+  const offMap: T[] = [];
+  for (const row of rows) {
+    if (row.on_this_map === false) offMap.push(row);
+    else onMap.push(row);
+  }
+  return { onMap, offMap };
 }
 
 export function filterRaidPrepRowsByScope<T extends { id: string }>(
@@ -3070,7 +3106,7 @@ export function collectRaidPrepTaskShootSlots(
   return out;
 }
 
-/** 按准备总结列分组：找到/捡取、上交、藏匿各自合成一列。 */
+/** 按准备总结列分组：找到、上交、藏匿各自合成一列。 */
 export function groupRaidPrepItemsByType(
   items: RaidPrepNeededItem[],
 ): Record<string, RaidPrepNeededItem[]> {

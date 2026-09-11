@@ -15,6 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from app.api import articles, auth, exilium, guides, jobs, kujiequ, members, mihoyo, profile, setup, skland, steam, taygedo
 from app.api import app_update as app_update_api
 from app.api import client_errors as client_errors_api
+from app.api import rum as rum_api
 from app.api import files as files_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
@@ -57,6 +58,7 @@ from app.models import taygedo as _taygedo  # noqa: F401
 from app.models import user as _user  # noqa: F401
 from app.models import articles as _articles  # noqa: F401
 from app.models import user_files as _user_files  # noqa: F401
+from app.models import rum as _rum  # noqa: F401
 from app.services.seed import seed_data
 from app.services.scheduler_runtime import register_scheduler_jobs
 from app.services.member_sync import sync_users_and_members
@@ -302,6 +304,7 @@ api.include_router(mihoyo.router)
 api.include_router(guides.router)
 api.include_router(articles.router)
 api.include_router(client_errors_api.router)
+api.include_router(rum_api.router)
 app.include_router(api)
 
 # 只挂载头像子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问

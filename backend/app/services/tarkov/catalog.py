@@ -102,6 +102,11 @@ _ITEM_REF_KEYS = ("defaultAmmo", "defaultPreset", "baseItem")
 _ITEM_REF_LIST_KEYS = ("allowedAmmo", "presets")
 _BR_RE = re.compile(r"<br\s*/?>", re.I)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_GARBLED_LOCALE_RE = re.compile(r"^[?？�\s]+$")
+_ENUM_LOCALE_PREFIX_RE = re.compile(
+    r"^(Collider Type|Armor Zone|EBodyPartColliderType)[.\s:_-]*",
+    re.I,
+)
 _GENERIC_CATEGORY_IDS = {
     "54009119af1c881c07000029",
     "566162e44bdc2d3f298b4573",
@@ -182,6 +187,47 @@ def _localized_category_name(
     return str(meta.get("normalizedName") or cat_id)
 
 
+def _category_catalogs(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    data = _items_data_blob(payload)
+    root_data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    item_cats = data.get("itemCategories") if isinstance(data.get("itemCategories"), dict) else {}
+    if not item_cats and isinstance(payload.get("itemCategories"), dict):
+        item_cats = payload["itemCategories"]
+    if not item_cats and isinstance(root_data.get("itemCategories"), dict):
+        item_cats = root_data["itemCategories"]
+    handbook_cats = (
+        data.get("handbookCategories")
+        if isinstance(data.get("handbookCategories"), dict)
+        else {}
+    )
+    if not handbook_cats and isinstance(payload.get("handbookCategories"), dict):
+        handbook_cats = payload["handbookCategories"]
+    if not handbook_cats and isinstance(root_data.get("handbookCategories"), dict):
+        handbook_cats = root_data["handbookCategories"]
+    return item_cats, handbook_cats
+
+
+def lookup_category_names(payload: dict[str, Any], wanted: set[str]) -> dict[str, str]:
+    """items dump 的 itemCategories / handbookCategories + locale → 分类中文名。"""
+    if not wanted:
+        return {}
+    locale = items_svc._locale_map(payload)
+    item_cats, handbook_cats = _category_catalogs(payload)
+    out: dict[str, str] = {}
+    for cat_id in wanted:
+        ident = str(cat_id or "").strip()
+        if not ident:
+            continue
+        meta = item_cats.get(ident) if isinstance(item_cats.get(ident), dict) else None
+        if not isinstance(meta, dict):
+            hb = handbook_cats.get(ident)
+            meta = hb if isinstance(hb, dict) else {}
+        name = _localized_category_name(ident, locale, meta)
+        if name and name != ident:
+            out[ident] = name
+    return out
+
+
 def _resolve_category_list(
     value: Any,
     locale: dict[str, Any],
@@ -251,6 +297,67 @@ def _hydrate_content(value: Any, locale: dict[str, Any]) -> list[str]:
     return out
 
 
+def _enrich_plate_stub(
+    stub: dict[str, Any],
+    raw: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """兼容插板表需要等级 / 材质 / 惩罚 / 耐久 / 重量 / 价格。"""
+    if not isinstance(raw, dict):
+        return stub
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    weight = _as_float(raw.get("weight"))
+    if weight is not None:
+        stub["weight"] = weight
+    for src in ("lastLowPrice", "avg24hPrice", "basePrice"):
+        n = _as_int(raw.get(src))
+        if n is not None:
+            stub[src] = n
+    for key in ("class", "durability", "maxDurability"):
+        n = _as_int(props.get(key))
+        if n is not None:
+            stub[key] = n
+    for key in ("ergoPenalty", "speedPenalty", "turnPenalty"):
+        n = _as_float(props.get(key))
+        if n is not None:
+            stub[key] = n
+    armor_type = str(props.get("armorType") or "").strip()
+    if armor_type:
+        stub["armorType"] = armor_type
+    material = props.get("material")
+    if isinstance(material, str) and material.strip():
+        stub["material"] = material.strip()
+    elif isinstance(material, dict):
+        ident = str(material.get("id") or "").strip()
+        name = str(material.get("name") or "").strip()
+        slim = {k: v for k, v in (("id", ident), ("name", name)) if v}
+        if slim:
+            stub["material"] = slim
+    return stub
+
+
+def _hydrate_preset_stub(
+    value: Any,
+    items_by_id: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+) -> dict[str, Any] | None:
+    stub = _resolve_item_ref(value, items_by_id, locale)
+    if not stub:
+        return None
+    raw = items_by_id.get(str(stub.get("id") or ""))
+    if not isinstance(raw, dict):
+        return stub
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    if props.get("default") is True:
+        stub["default"] = True
+    contains_raw = raw.get("containsItems")
+    if not isinstance(contains_raw, list):
+        contains_raw = props.get("containsItems")
+    contains = _hydrate_contains_items(contains_raw, items_by_id, locale)
+    if contains:
+        stub["containsItems"] = contains
+    return stub
+
+
 def _hydrate_contains_items(
     value: Any,
     items_by_id: dict[str, dict[str, Any]],
@@ -291,8 +398,12 @@ def _hydrate_armor_slots(
             resolved: list[dict[str, Any]] = []
             for entry in plates:
                 stub = _resolve_item_ref(entry, items_by_id, locale)
-                if stub:
-                    resolved.append(stub)
+                if not stub:
+                    continue
+                ident = str(stub.get("id") or "")
+                resolved.append(
+                    _enrich_plate_stub(stub, items_by_id.get(ident))
+                )
             copied["allowedPlates"] = resolved
         out.append(copied)
     return out
@@ -319,13 +430,27 @@ def _hydrate_detail_refs(
     for key in _ITEM_REF_KEYS:
         if key not in props or props[key] in (None, ""):
             continue
-        resolved = _resolve_item_ref(props[key], items_by_id, locale)
+        if key == "defaultPreset":
+            resolved = _hydrate_preset_stub(props[key], items_by_id, locale)
+        else:
+            resolved = _resolve_item_ref(props[key], items_by_id, locale)
         if resolved:
             props[key] = resolved
     for key in _ITEM_REF_LIST_KEYS:
         if key not in props:
             continue
-        props[key] = _hydrate_ref_list(props[key], items_by_id, locale)
+        if key == "presets":
+            raw_list = props[key] if isinstance(props[key], list) else []
+            props[key] = [
+                stub
+                for stub in (
+                    _hydrate_preset_stub(entry, items_by_id, locale)
+                    for entry in raw_list
+                )
+                if stub
+            ]
+        else:
+            props[key] = _hydrate_ref_list(props[key], items_by_id, locale)
     if "armorSlots" in props:
         props["armorSlots"] = _hydrate_armor_slots(
             props.get("armorSlots"), items_by_id, locale
@@ -353,6 +478,7 @@ def _hydrate_detail_refs(
             item.get("conflictingCategories"), locale, catalogs
         )
     detail["item"] = item
+    _localize_armor_props(props, locale)
     detail["properties"] = props
     return detail
 
@@ -383,7 +509,143 @@ def _localized_name(
     return name, short_name, description
 
 
-def _compact_properties(props: dict[str, Any]) -> dict[str, Any]:
+def _locale_enum_override(locale: dict[str, Any], raw: Any) -> str | None:
+    """items_zh 对碰撞体 / 插板槽 / 材质有词条时返回译名；缺译、回声或 ???? 视为没有。"""
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    stripped = _ENUM_LOCALE_PREFIX_RE.sub("", text).strip() or text
+    keys: list[str] = []
+    for token in (text, stripped):
+        if token in keys:
+            continue
+        keys.append(token)
+        keys.append(f"{token} Name")
+        keys.append(f"{token} name")
+    for key in keys:
+        val = locale.get(key) if isinstance(locale, dict) else None
+        if not isinstance(val, str):
+            continue
+        loc = val.strip()
+        if not loc or _GARBLED_LOCALE_RE.fullmatch(loc):
+            continue
+        if loc.lower() in {text.lower(), stripped.lower()}:
+            continue
+        if loc.lower().endswith(" name") and (text in loc or stripped in loc):
+            continue
+        return loc
+    return None
+
+
+def _locale_enum_label(locale: dict[str, Any], raw: Any) -> str:
+    text = str(raw or "").strip()
+    return _locale_enum_override(locale, text) or text
+
+
+def _localize_enum_list(value: Any, locale: dict[str, Any]) -> Any:
+    if not isinstance(value, list):
+        return value
+    return [
+        _locale_enum_label(locale, item)
+        if item is not None and not isinstance(item, (dict, list))
+        else item
+        for item in value
+    ]
+
+
+def _localize_material(value: Any, locale: dict[str, Any]) -> Any:
+    if isinstance(value, str):
+        return _locale_enum_label(locale, value)
+    if not isinstance(value, dict):
+        return value
+    copied = dict(value)
+    ident = str(copied.get("id") or "").strip()
+    name = str(copied.get("name") or ident).strip()
+    override = _locale_enum_override(locale, name)
+    if override is None and ident and ident != name:
+        override = _locale_enum_override(locale, ident)
+    if override:
+        copied["name"] = override
+    return copied
+
+
+def _localize_armor_props(props: dict[str, Any], locale: dict[str, Any]) -> dict[str, Any]:
+    if not locale:
+        return props
+    for key in ("zones", "headZones"):
+        if key in props:
+            props[key] = _localize_enum_list(props[key], locale)
+    armor_type = props.get("armorType")
+    if isinstance(armor_type, str) and armor_type.strip():
+        props["armorType"] = _locale_enum_label(locale, armor_type)
+    if "material" in props:
+        props["material"] = _localize_material(props["material"], locale)
+    slots = props.get("armorSlots")
+    if isinstance(slots, list):
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            name = slot.get("name")
+            if isinstance(name, str) and name.strip():
+                slot["name"] = _locale_enum_label(locale, name)
+            if "zones" in slot:
+                slot["zones"] = _localize_enum_list(slot["zones"], locale)
+            plates = slot.get("allowedPlates")
+            if not isinstance(plates, list):
+                continue
+            for plate in plates:
+                if not isinstance(plate, dict):
+                    continue
+                plate_type = plate.get("armorType")
+                if isinstance(plate_type, str) and plate_type.strip():
+                    plate["armorType"] = _locale_enum_label(locale, plate_type)
+                if "material" in plate:
+                    plate["material"] = _localize_material(plate["material"], locale)
+    return props
+
+
+def _armor_slot_rows(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        raw = value
+    elif isinstance(value, dict):
+        raw = list(value.values())
+    else:
+        return []
+    return [row for row in raw if isinstance(row, dict)]
+
+
+def _slot_has_plates(slot: dict[str, Any]) -> bool:
+    plates = slot.get("allowedPlates")
+    if isinstance(plates, list):
+        return any(x not in (None, "", {}) for x in plates)
+    if isinstance(plates, dict):
+        return bool(plates)
+    return False
+
+
+def _slot_has_armor(slot: dict[str, Any]) -> bool:
+    if _slot_has_plates(slot):
+        return True
+    dur = _as_int(slot.get("durability"))
+    max_dur = _as_int(slot.get("maxDurability"))
+    if (dur or 0) > 0 or (max_dur or 0) > 0:
+        return True
+    name = str(slot.get("name") or slot.get("id") or "").lower()
+    return "plate" in name
+
+
+def props_is_armored(props: dict[str, Any]) -> bool:
+    """软甲等级或可插板/缝制护甲槽，用来区分防弹胸挂。"""
+    cls = _as_int(props.get("class"))
+    if cls is not None and cls > 0:
+        return True
+    return any(_slot_has_armor(slot) for slot in _armor_slot_rows(props.get("armorSlots")))
+
+
+def _compact_properties(
+    props: dict[str, Any],
+    locale: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """列表用属性：标量 / 简单数组 / grids 尺寸，去掉槽位树。"""
     out: dict[str, Any] = {}
     for key, value in props.items():
@@ -415,6 +677,10 @@ def _compact_properties(props: dict[str, Any]) -> dict[str, Any]:
                 out[key] = value
             continue
         out[key] = value
+    if props_is_armored(props):
+        out["armored"] = True
+    if locale:
+        _localize_armor_props(out, locale)
     return out
 
 
@@ -446,7 +712,7 @@ def _row_from_raw(
         "base_price": _as_int(raw.get("basePrice")),
         "avg24h_price": _as_int(raw.get("avg24hPrice")),
         "last_low_price": _as_int(raw.get("lastLowPrice")),
-        "properties": _compact_properties(props) if isinstance(props, dict) else {},
+        "properties": _compact_properties(props, locale) if isinstance(props, dict) else {},
     }
     if description and _is_handbook_key(handbook_ids, type_list):
         row["description"] = description
@@ -606,12 +872,44 @@ def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
     return index
 
 
+def _item_type_list(raw: dict[str, Any]) -> list[str]:
+    types = raw.get("types") if isinstance(raw.get("types"), list) else []
+    return [str(t) for t in types if t is not None and str(t).strip()]
+
+
+def _is_non_weapon_preset(
+    raw: dict[str, Any],
+    type_list: list[str],
+    gun_ids: set[str],
+) -> bool:
+    """胸挂/护甲等预设不进目录；枪预设仍给搜索和枪表用。"""
+    lowered = {t.lower() for t in type_list}
+    if "preset" not in lowered:
+        return False
+    if "gun" in lowered:
+        return False
+    props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
+    base_id = _extract_ref_id(props.get("baseItem"))
+    return not (base_id and base_id in gun_ids)
+
+
 def parse_catalog_items(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     locale = items_svc._locale_map(payload)
+    collected: list[tuple[str, dict[str, Any], list[str]]] = []
+    gun_ids: set[str] = set()
+    for item_id, raw in iter_raw_items(source, payload):
+        if not item_id or not isinstance(raw, dict):
+            continue
+        type_list = _item_type_list(raw)
+        if any(t.lower() == "gun" for t in type_list):
+            gun_ids.add(item_id)
+        collected.append((item_id, raw, type_list))
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for item_id, raw in iter_raw_items(source, payload):
+    for item_id, raw, type_list in collected:
         if item_id in seen:
+            continue
+        if _is_non_weapon_preset(raw, type_list, gun_ids):
             continue
         row = _row_from_raw(item_id, raw, locale)
         if not row:

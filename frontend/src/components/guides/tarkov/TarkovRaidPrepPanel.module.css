@@ -693,7 +693,7 @@
 
 .taskRow {
   display: grid;
-  grid-template-columns: 22px 8px 28px minmax(0, 1fr) 72px 28px;
+  grid-template-columns: 22px 8px 28px minmax(0, 1fr) 72px auto;
   column-gap: 8px;
   align-items: center;
   box-sizing: border-box;
@@ -839,6 +839,27 @@
   color: var(--hb-green, #7ab648);
 }
 
+.taskSubGroup + .taskSubGroup {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--hb-border, #3a3d30);
+}
+
+.taskSubGroupLabel {
+  margin: 0;
+  padding: 4px 10px 2px 14px;
+  font-size: 11px;
+  color: #8a8c78;
+}
+
+.taskSubGroupLabel[data-map="on"] {
+  color: var(--hb-text, #eee9d6);
+}
+
+.taskSubGroupLabel[data-map="off"] {
+  color: #8a8c78;
+}
+
 .taskRowCompact {
   height: 40px;
   min-height: 40px;
@@ -923,7 +944,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  gap: 4px;
+  width: auto;
+  min-width: 28px;
   height: 28px;
 }
 
@@ -1248,6 +1271,14 @@
   line-height: 1.35;
 }
 
+.taskTraderSlot {
+  width: 28px;
+}
+
+.taskLocateSlot {
+  justify-content: flex-end;
+}
+
 .locateBtn {
   display: inline-flex;
   align-items: center;
@@ -1263,6 +1294,7 @@
   font-size: 14px;
   cursor: pointer;
   appearance: none;
+  text-decoration: none;
 }
 
 .locateBtn:hover {

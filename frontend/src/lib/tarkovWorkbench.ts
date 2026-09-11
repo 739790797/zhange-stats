@@ -7,6 +7,7 @@ export type WorkbenchSlotWalkNode = {
     id?: string | null;
     name?: string;
     conflicting_ids?: string[] | null;
+    category_ids?: string[] | null;
   } | null;
   children?: WorkbenchSlotWalkNode[];
 };
@@ -62,14 +63,23 @@ export function collectSlotIds(
 
 export function collectInstalledParts(
   nodes: WorkbenchSlotWalkNode[] | undefined,
-): Array<{ id: string; conflicting_ids?: string[] | null }> {
-  const out: Array<{ id: string; conflicting_ids?: string[] | null }> = [];
+): Array<{
+  id: string;
+  conflicting_ids?: string[] | null;
+  category_ids?: string[] | null;
+}> {
+  const out: Array<{
+    id: string;
+    conflicting_ids?: string[] | null;
+    category_ids?: string[] | null;
+  }> = [];
   for (const node of nodes || []) {
     const id = node.installed?.id;
     if (id) {
       out.push({
         id,
         conflicting_ids: node.installed?.conflicting_ids,
+        category_ids: node.installed?.category_ids,
       });
     }
     if (node.children?.length) {

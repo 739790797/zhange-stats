@@ -13,6 +13,12 @@ import { TarkovTaskFlowBoard } from "@/components/guides/tarkov/TarkovTaskFlowBo
 import { apiError } from "@/lib/apiError";
 import { nowBeijingStamp } from "@/lib/time";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import {
+  TARKOV_PMC_FACTIONS,
+  filterTasksByFaction,
+  tarkovPmcFactionLabel,
+  useTarkovPmcFaction,
+} from "@/lib/tarkovPmcFaction";
 import { tarkovTaskHref, traderDisplayName } from "@/lib/tarkovHomeNav";
 import {
   orderObjectiveTypes,
@@ -260,6 +266,7 @@ function MapGlyph({ icon }: { icon: string }) {
 
 export function TarkovTaskManagerPanel() {
   const gameMode = useTarkovGameMode();
+  const { faction, setFaction } = useTarkovPmcFaction();
   const logSync = useTarkovLogSyncDialog();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -413,9 +420,13 @@ export function TarkovTaskManagerPanel() {
     placeholderData: keepPreviousData,
   });
 
-  const items = useMemo(
+  const catalogItems = useMemo(
     () => catalogQuery.data?.items ?? [],
     [catalogQuery.data],
+  );
+  const items = useMemo(
+    () => filterTasksByFaction(catalogItems, faction),
+    [catalogItems, faction],
   );
   const traders = useMemo(
     () => catalogQuery.data?.traders ?? [],
@@ -425,7 +436,10 @@ export function TarkovTaskManagerPanel() {
     () => traders.map((item) => ({ slug: item.slug, name: item.name })),
     [traders],
   );
-  const knownIds = useMemo(() => new Set(items.map((item) => item.id)), [items]);
+  const knownIds = useMemo(
+    () => new Set(catalogItems.map((item) => item.id)),
+    [catalogItems],
+  );
   const visibleProgress = useMemo(
     () =>
       keepCatalogTaskProgress(
@@ -506,14 +520,16 @@ export function TarkovTaskManagerPanel() {
   );
   const traderNav = useMemo(
     () =>
-      traders.map((item) => {
-        const rows = itemsByTrader.get(item.slug) ?? [];
-        return {
-          item,
-          labels: { english: traderDisplayName(item.slug, item.name) },
-          count: summarizeTaskProgress(rows, done, started),
-        };
-      }),
+      traders
+        .map((item) => {
+          const rows = itemsByTrader.get(item.slug) ?? [];
+          return {
+            item,
+            labels: { english: traderDisplayName(item.slug, item.name) },
+            count: summarizeTaskProgress(rows, done, started),
+          };
+        })
+        .filter((row) => row.count.total > 0),
     [done, itemsByTrader, started, traders],
   );
 
@@ -769,6 +785,28 @@ export function TarkovTaskManagerPanel() {
                       流程图
                     </button>
                   </td>
+                </tr>
+                <tr role="radiogroup" aria-label="PMC 阵营">
+                  {TARKOV_PMC_FACTIONS.map((id) => (
+                    <td key={id}>
+                      <button
+                        type="button"
+                        role="radio"
+                        className={`${styles.viewBtn}${
+                          faction === id ? ` ${styles.viewOn}` : ""
+                        }`}
+                        aria-checked={faction === id}
+                        title={
+                          faction === id
+                            ? "再点一次显示全部阵营"
+                            : `只显示 ${tarkovPmcFactionLabel(id)} 可接任务`
+                        }
+                        onClick={() => setFaction(faction === id ? "" : id)}
+                      >
+                        {tarkovPmcFactionLabel(id)}
+                      </button>
+                    </td>
+                  ))}
                 </tr>
                 <tr>
                   <td>

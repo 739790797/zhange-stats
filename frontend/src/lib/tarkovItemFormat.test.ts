@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   catalogColumnsForSlug,
+  catalogColumnLabel,
+  catalogRowIsArmored,
+  catalogSortableColumnIds,
   cheapestPrice,
+  compareCatalogRows,
   DEFAULT_AMMO_HINT,
   extractContentLines,
   extractGridPockets,
@@ -10,6 +14,7 @@ import {
   formatPropertyList,
   innerSlots,
   itemHasFlea,
+  matchRigKindFilter,
   namedTraderOffers,
   parseItemBuyOffers,
   parseVendorOffers,
@@ -19,7 +24,24 @@ import {
 describe("catalogColumnsForSlug", () => {
   it("uses backpacks / armor presets and falls back", () => {
     expect(catalogColumnsForSlug("backpacks")).toContain("slots");
-    expect(catalogColumnsForSlug("armors")).toContain("class");
+    expect(catalogColumnsForSlug("armors")).toEqual([
+      "name",
+      "class",
+      "weight",
+      "ergoPenalty",
+      "speedPenalty",
+      "turnPenalty",
+      "price",
+    ]);
+    expect(catalogColumnsForSlug("rigs")).toEqual([
+      "name",
+      "slots",
+      "weight",
+      "ergoPenalty",
+      "speedPenalty",
+      "turnPenalty",
+      "price",
+    ]);
     expect(catalogColumnsForSlug("ammo-packs")).toContain("slots");
     expect(catalogColumnsForSlug("melee")).toEqual([
       "name",
@@ -34,6 +56,81 @@ describe("catalogColumnsForSlug", () => {
       "weight",
       "price",
     ]);
+  });
+});
+
+describe("catalogColumnLabel / compareCatalogRows", () => {
+  it("relabels rig capacity and penalty columns", () => {
+    expect(catalogColumnLabel("rigs", "slots")).toBe("容量");
+    expect(catalogColumnLabel("rigs", "turnPenalty")).toBe("转向惩罚");
+    expect(catalogColumnLabel("armors", "turnPenalty")).toBe("转向惩罚");
+    expect(catalogColumnLabel("armors", "class")).toBe("等级");
+    expect(catalogColumnLabel("backpacks", "slots")).toBe("内部格");
+    expect(catalogColumnLabel("helmets", "turnPenalty")).toBe("转向");
+    expect(catalogColumnLabel("rigs", "ergoPenalty")).toBe("人机惩罚");
+    expect(catalogColumnLabel("rigs", "speedPenalty")).toBe("移速惩罚");
+  });
+
+  it("does not sort the name column on client-sorted catalogs", () => {
+    expect(catalogSortableColumnIds("rigs", catalogColumnsForSlug("rigs"))).toEqual([
+      "slots",
+      "weight",
+      "ergoPenalty",
+      "speedPenalty",
+      "turnPenalty",
+      "price",
+    ]);
+    expect(catalogSortableColumnIds("armors", catalogColumnsForSlug("armors"))).toEqual([
+      "class",
+      "weight",
+      "ergoPenalty",
+      "speedPenalty",
+      "turnPenalty",
+      "price",
+    ]);
+    expect(catalogSortableColumnIds("backpacks", catalogColumnsForSlug("backpacks"))).toEqual(
+      [],
+    );
+  });
+
+  it("filters plain vs armored rigs", () => {
+    const pouch = { id: "p", name: "56式", properties: { capacity: 8 } };
+    const sewn = { id: "s", name: "6B3", properties: { class: 4 } };
+    const plates = { id: "c", name: "TacTec", properties: { armored: true } };
+    expect(catalogRowIsArmored(pouch)).toBe(false);
+    expect(catalogRowIsArmored(sewn)).toBe(true);
+    expect(catalogRowIsArmored(plates)).toBe(true);
+    expect(matchRigKindFilter(pouch, "all")).toBe(true);
+    expect(matchRigKindFilter(pouch, "plain")).toBe(true);
+    expect(matchRigKindFilter(pouch, "armored")).toBe(false);
+    expect(matchRigKindFilter(plates, "plain")).toBe(false);
+    expect(matchRigKindFilter(plates, "armored")).toBe(true);
+  });
+
+  it("sorts numeric columns with empty values last", () => {
+    const light = {
+      id: "a",
+      name: "轻",
+      weight: 1,
+      last_low_price: 10,
+      properties: { capacity: 12, ergoPenalty: -0.1 },
+    };
+    const heavy = {
+      id: "b",
+      name: "重",
+      weight: 4,
+      last_low_price: 50,
+      properties: { capacity: 20, ergoPenalty: -0.2 },
+    };
+    const missing = { id: "c", name: "无", properties: {} };
+    expect(compareCatalogRows(light, heavy, "weight", "ascend")).toBeLessThan(0);
+    expect(compareCatalogRows(light, heavy, "slots", "descend")).toBeGreaterThan(0);
+    expect(compareCatalogRows(missing, light, "weight", "ascend")).toBeGreaterThan(0);
+    expect(compareCatalogRows(missing, light, "weight", "descend")).toBeGreaterThan(0);
+    const class4 = { id: "d", name: "甲", properties: { class: 4 } };
+    const class6 = { id: "e", name: "重甲", properties: { class: 6 } };
+    expect(compareCatalogRows(class4, class6, "class", "ascend")).toBeLessThan(0);
+    expect(compareCatalogRows(class4, class6, "class", "descend")).toBeGreaterThan(0);
   });
 });
 
@@ -71,6 +168,7 @@ describe("formatPropertyList", () => {
     const rows = formatPropertyList({
       slots: [{ id: "x" }],
       propertiesType: "ItemPropertiesBackpack",
+      armored: true,
       grids: [{ width: 4, height: 5 }],
       turnPenalty: 0.05,
       weight: 1.2,
@@ -84,8 +182,16 @@ describe("formatPropertyList", () => {
 describe("formatPropValue", () => {
   it("joins armor zones", () => {
     expect(formatPropValue("zones", ["Chest", "Stomach"])).toBe(
-      "Chest · Stomach",
+      "胸部 · 腹部",
     );
+    expect(
+      formatPropValue("zones", [
+        "Collider Type RibcageUp",
+        "Armor Zone Plate_Granit_SAPI_chest",
+      ]),
+    ).toBe("上胸 · 前胸插板");
+    expect(formatPropValue("material", "Aramid")).toBe("芳纶");
+    expect(formatPropValue("armorType", "Light")).toBe("轻型");
   });
 
   it("flattens zoom levels", () => {

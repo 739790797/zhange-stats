@@ -38,6 +38,7 @@ export const ADMIN_HUBS: readonly AdminHub[] = [
     path: "/settings/runtime",
     tabs: [
       { path: "/settings/runtime", label: "运行环境" },
+      { path: "/settings/rum", label: "用户等待" },
       { path: "/settings/system", label: "系统更新" },
       { path: "/settings/logs", label: "平台日志" },
       { path: "/settings/files", label: "文件管理" },

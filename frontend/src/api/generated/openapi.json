@@ -10447,6 +10447,23 @@
             }
           },
           {
+            "name": "faction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Faction"
+            }
+          },
+          {
             "name": "game_mode",
             "in": "query",
             "required": false,
@@ -11176,6 +11193,120 @@
         }
       }
     },
+    "/api/guides/tarkov/workbench/gunsmith-tasks": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Workbench Gunsmith Tasks",
+        "description": "工作台：从 tasks dump 投影枪匠改装目标（不 vendor 第三方任务包）。",
+        "operationId": "guides_tarkov_workbench_gunsmith_tasks_api_guides_tarkov_workbench_gunsmith_tasks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovWorkbenchGunsmithTasksOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/workbench/gunsmith-solve": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Workbench Gunsmith Solve",
+        "description": "工作台：为一条枪匠目标求一套可交任务的改装。",
+        "operationId": "guides_tarkov_workbench_gunsmith_solve_api_guides_tarkov_workbench_gunsmith_solve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovWorkbenchGunsmithSolveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovWorkbenchGunsmithSolveOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/tasks/sync": {
       "post": {
         "tags": [
@@ -11294,6 +11425,23 @@
             }
           },
           {
+            "name": "faction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Faction"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": false,
@@ -11378,7 +11526,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Raid Prep",
-        "description": "联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。",
+        "description": "联机大厅：列出全部任务。当前图有标点的排前；geometry+ids 才返回点位。",
         "operationId": "guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get",
         "security": [
           {
@@ -12875,6 +13023,118 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovHideoutDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/hideout-levels": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Hideout Levels List",
+        "description": "个人中心藏身处规划等级。",
+        "operationId": "guides_tarkov_hideout_levels_list_api_guides_tarkov_hideout_levels_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovHideoutLevelsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Hideout Levels Set",
+        "description": "升级或降级一个模块；降级会级联压低依赖它的模块。",
+        "operationId": "guides_tarkov_hideout_levels_set_api_guides_tarkov_hideout_levels_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovHideoutLevelSetIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovHideoutLevelsOut"
                 }
               }
             }
@@ -17217,6 +17477,99 @@
         }
       }
     },
+    "/api/client-rum": {
+      "post": {
+        "tags": [
+          "observability"
+        ],
+        "summary": "Post Client Rum",
+        "description": "浏览器批量上报等待时间。访客可报；不上平台日志。",
+        "operationId": "post_client_rum_api_client_rum_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientRumIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientRumOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/rum": {
+      "get": {
+        "tags": [
+          "observability"
+        ],
+        "summary": "Get Rum Summary",
+        "description": "管理端：接口转圈与第三方图的 p50/p95。",
+        "operationId": "get_rum_summary_api_settings_rum_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 336,
+              "minimum": 1,
+              "default": 24,
+              "title": "Hours"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RumSummaryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/robots.txt": {
       "get": {
         "summary": "Robots Txt",
@@ -20189,6 +20542,103 @@
         },
         "type": "object",
         "title": "ClientErrorIn"
+      },
+      "ClientRumEventIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "maxLength": 8,
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Url",
+            "default": ""
+          },
+          "duration_ms": {
+            "type": "number",
+            "title": "Duration Ms"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "transfer_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "duration_ms"
+        ],
+        "title": "ClientRumEventIn"
+      },
+      "ClientRumIn": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Page",
+            "default": ""
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ClientRumEventIn"
+            },
+            "type": "array",
+            "maxItems": 80,
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "title": "ClientRumIn"
+      },
+      "ClientRumOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "accepted": {
+            "type": "integer",
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "accepted"
+        ],
+        "title": "ClientRumOut"
       },
       "DeleteAccountRequest": {
         "properties": {
@@ -28108,6 +28558,265 @@
         ],
         "title": "RoleMembershipTreeOut"
       },
+      "RumSeriesPointOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "api_count": {
+            "type": "integer",
+            "title": "Api Count",
+            "default": 0
+          },
+          "img_count": {
+            "type": "integer",
+            "title": "Img Count",
+            "default": 0
+          },
+          "api_p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api P50 Ms"
+          },
+          "api_p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api P95 Ms"
+          },
+          "img_p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Img P50 Ms"
+          },
+          "img_p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Img P95 Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at"
+        ],
+        "title": "RumSeriesPointOut"
+      },
+      "RumSummaryOut": {
+        "properties": {
+          "hours": {
+            "type": "integer",
+            "title": "Hours"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since"
+          },
+          "api_count": {
+            "type": "integer",
+            "title": "Api Count"
+          },
+          "img_count": {
+            "type": "integer",
+            "title": "Img Count"
+          },
+          "api_p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api P50 Ms"
+          },
+          "api_p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api P95 Ms"
+          },
+          "api_max_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Max Ms"
+          },
+          "img_p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Img P50 Ms"
+          },
+          "img_p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Img P95 Ms"
+          },
+          "img_max_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Img Max Ms"
+          },
+          "api": {
+            "items": {
+              "$ref": "#/components/schemas/RumSummaryRowOut"
+            },
+            "type": "array",
+            "title": "Api"
+          },
+          "img": {
+            "items": {
+              "$ref": "#/components/schemas/RumSummaryRowOut"
+            },
+            "type": "array",
+            "title": "Img"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/RumSeriesPointOut"
+            },
+            "type": "array",
+            "title": "Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hours",
+          "since",
+          "api_count",
+          "img_count"
+        ],
+        "title": "RumSummaryOut"
+      },
+      "RumSummaryRowOut": {
+        "properties": {
+          "url_key": {
+            "type": "string",
+            "title": "Url Key"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "default": ""
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "avg_ms": {
+            "type": "integer",
+            "title": "Avg Ms"
+          },
+          "p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Ms"
+          },
+          "p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Ms"
+          },
+          "max_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ms"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count",
+            "default": 0
+          },
+          "avg_transfer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Transfer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url_key",
+          "count",
+          "avg_ms"
+        ],
+        "title": "RumSummaryRowOut"
+      },
       "RuntimeConnTestOut": {
         "properties": {
           "ok": {
@@ -30451,6 +31160,26 @@
             "title": "Heavy Bleed Modifier",
             "default": 0
           },
+          "tracer": {
+            "type": "boolean",
+            "title": "Tracer",
+            "default": false
+          },
+          "tracer_color": {
+            "type": "string",
+            "title": "Tracer Color",
+            "default": ""
+          },
+          "fragmentation_chance": {
+            "type": "number",
+            "title": "Fragmentation Chance",
+            "default": 0
+          },
+          "ricochet_chance": {
+            "type": "number",
+            "title": "Ricochet Chance",
+            "default": 0
+          },
           "icon_link": {
             "type": "string",
             "title": "Icon Link",
@@ -31979,6 +32708,17 @@
             "title": "Duration",
             "default": 0
           },
+          "task_unlock": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Unlock"
+          },
           "required_items": {
             "items": {
               "$ref": "#/components/schemas/TarkovGuideItemRefOut"
@@ -32416,6 +33156,54 @@
         ],
         "title": "TarkovGunSyncOut"
       },
+      "TarkovHideoutBonusOut": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "default": 0
+          },
+          "passive": {
+            "type": "boolean",
+            "title": "Passive",
+            "default": true
+          },
+          "production": {
+            "type": "boolean",
+            "title": "Production",
+            "default": false
+          },
+          "skill": {
+            "type": "string",
+            "title": "Skill",
+            "default": ""
+          },
+          "skill_id": {
+            "type": "string",
+            "title": "Skill Id",
+            "default": ""
+          },
+          "slot_items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovGuideItemRefOut"
+            },
+            "type": "array",
+            "title": "Slot Items"
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutBonusOut"
+      },
       "TarkovHideoutCatalogOut": {
         "properties": {
           "items": {
@@ -32589,16 +33377,86 @@
             },
             "type": "array",
             "title": "Skill Requirements"
+          },
+          "bonuses": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutBonusOut"
+            },
+            "type": "array",
+            "title": "Bonuses"
           }
         },
         "type": "object",
         "title": "TarkovHideoutLevelOut"
+      },
+      "TarkovHideoutLevelRowOut": {
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "title": "Station Id"
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_id"
+        ],
+        "title": "TarkovHideoutLevelRowOut"
+      },
+      "TarkovHideoutLevelSetIn": {
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Station Id"
+          },
+          "level": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_id",
+          "level"
+        ],
+        "title": "TarkovHideoutLevelSetIn"
+      },
+      "TarkovHideoutLevelsOut": {
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovHideoutLevelRowOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "game_mode": {
+            "type": "string",
+            "title": "Game Mode",
+            "default": "pvp"
+          }
+        },
+        "type": "object",
+        "title": "TarkovHideoutLevelsOut"
       },
       "TarkovHideoutSkillReqOut": {
         "properties": {
           "skill": {
             "type": "string",
             "title": "Skill",
+            "default": ""
+          },
+          "skill_id": {
+            "type": "string",
+            "title": "Skill Id",
             "default": ""
           },
           "level": {
@@ -35907,6 +36765,11 @@
             "title": "Line Hint",
             "default": ""
           },
+          "prestige_cycle": {
+            "type": "integer",
+            "title": "Prestige Cycle",
+            "default": 0
+          },
           "mutex_ids": {
             "items": {
               "type": "string"
@@ -35953,6 +36816,11 @@
             "type": "boolean",
             "title": "Has Map Markers",
             "default": false
+          },
+          "on_this_map": {
+            "type": "boolean",
+            "title": "On This Map",
+            "default": true
           }
         },
         "type": "object",
@@ -37268,6 +38136,11 @@
             "title": "Line Hint",
             "default": ""
           },
+          "prestige_cycle": {
+            "type": "integer",
+            "title": "Prestige Cycle",
+            "default": 0
+          },
           "mutex_ids": {
             "items": {
               "type": "string"
@@ -37815,6 +38688,11 @@
             "type": "string",
             "title": "Line Hint",
             "default": ""
+          },
+          "prestige_cycle": {
+            "type": "integer",
+            "title": "Prestige Cycle",
+            "default": 0
           },
           "mutex_ids": {
             "items": {
@@ -39659,6 +40537,328 @@
         ],
         "title": "TarkovWorkbenchGunOut"
       },
+      "TarkovWorkbenchGunsmithChecklistOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": false
+          },
+          "missing_items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovWorkbenchGunsmithNamedOut"
+            },
+            "type": "array",
+            "title": "Missing Items"
+          },
+          "missing_categories": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/TarkovWorkbenchGunsmithNamedOut"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Missing Categories"
+          },
+          "unmet_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unmet Constraints"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conflicts"
+          },
+          "recoil_sum": {
+            "type": "integer",
+            "title": "Recoil Sum",
+            "default": 0
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovWorkbenchStatsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "TarkovWorkbenchGunsmithChecklistOut"
+      },
+      "TarkovWorkbenchGunsmithNamedOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "TarkovWorkbenchGunsmithNamedOut"
+      },
+      "TarkovWorkbenchGunsmithSolveIn": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Task Id"
+          },
+          "objective_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Id"
+          },
+          "ammo_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ammo Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id"
+        ],
+        "title": "TarkovWorkbenchGunsmithSolveIn"
+      },
+      "TarkovWorkbenchGunsmithSolveOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "objective_id": {
+            "type": "string",
+            "title": "Objective Id",
+            "default": ""
+          },
+          "weapon_id": {
+            "type": "string",
+            "title": "Weapon Id"
+          },
+          "ammo_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ammo Id"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovWorkbenchPairOut"
+            },
+            "type": "array",
+            "title": "Pairs"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovWorkbenchStatsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checklist": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarkovWorkbenchGunsmithChecklistOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "task_id",
+          "weapon_id"
+        ],
+        "title": "TarkovWorkbenchGunsmithSolveOut"
+      },
+      "TarkovWorkbenchGunsmithTaskOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "objective_id": {
+            "type": "string",
+            "title": "Objective Id",
+            "default": ""
+          },
+          "task_name": {
+            "type": "string",
+            "title": "Task Name"
+          },
+          "trader_slug": {
+            "type": "string",
+            "title": "Trader Slug",
+            "default": ""
+          },
+          "trader_name": {
+            "type": "string",
+            "title": "Trader Name",
+            "default": ""
+          },
+          "faction_name": {
+            "type": "string",
+            "title": "Faction Name",
+            "default": "Any"
+          },
+          "weapon_id": {
+            "type": "string",
+            "title": "Weapon Id"
+          },
+          "weapon_name": {
+            "type": "string",
+            "title": "Weapon Name",
+            "default": ""
+          },
+          "weapon_image": {
+            "type": "string",
+            "title": "Weapon Image",
+            "default": ""
+          },
+          "constraints": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Constraints"
+          },
+          "required_items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovWorkbenchGunsmithNamedOut"
+            },
+            "type": "array",
+            "title": "Required Items"
+          },
+          "required_category_groups": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/TarkovWorkbenchGunsmithNamedOut"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Required Category Groups"
+          },
+          "loadable": {
+            "type": "boolean",
+            "title": "Loadable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "task_id",
+          "task_name",
+          "weapon_id"
+        ],
+        "title": "TarkovWorkbenchGunsmithTaskOut"
+      },
+      "TarkovWorkbenchGunsmithTasksOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovWorkbenchGunsmithTaskOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "task_count": {
+            "type": "integer",
+            "title": "Task Count",
+            "default": 0
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TarkovWorkbenchGunsmithTasksOut"
+      },
       "TarkovWorkbenchImageOut": {
         "properties": {
           "kind": {
@@ -39825,6 +41025,13 @@
             },
             "type": "array",
             "title": "Conflicting Ids"
+          },
+          "category_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Category Ids"
           }
         },
         "type": "object",

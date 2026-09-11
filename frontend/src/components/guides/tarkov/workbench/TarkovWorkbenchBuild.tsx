@@ -6,6 +6,8 @@ import {
   fetchTarkovWorkbenchAllowed,
   fetchTarkovWorkbenchCalculate,
   fetchTarkovWorkbenchGun,
+  fetchTarkovWorkbenchGunsmithSolve,
+  fetchTarkovWorkbenchGunsmithTasks,
   type TarkovWorkbenchCommunityBuild,
   type TarkovWorkbenchGun,
   type TarkovWorkbenchPair,
@@ -46,10 +48,22 @@ import {
   WORKBENCH_GUN_COL_SPAN,
 } from "@/lib/tarkovWorkbenchIconLayout";
 import { TarkovWorkbenchCommunityModal } from "./TarkovWorkbenchCommunityModal";
+import { TarkovWorkbenchGunsmithPanel } from "./TarkovWorkbenchGunsmithPanel";
 import { TarkovWorkbenchStatsPane } from "./TarkovWorkbenchStatsPane";
 import styles from "./TarkovWorkbenchBuild.module.css";
+import {
+  collectInstalledCategoryIds,
+  findGunsmithSpec,
+} from "@/lib/tarkovWorkbenchGunsmith";
 
-type Props = { gunId: string; onChangeGun?: () => void };
+type Props = {
+  gunId: string;
+  taskId?: string;
+  objectiveId?: string;
+  onChangeGun?: () => void;
+  onPickGunsmith?: () => void;
+  onClearGunsmith?: () => void;
+};
 
 function partLabel(part: TarkovWorkbenchPart | null | undefined): string {
   return part?.name || part?.short_name || part?.id || "空";
@@ -334,7 +348,14 @@ function WorkbenchIconBoard({
   );
 }
 
-export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
+export function TarkovWorkbenchBuild({
+  gunId,
+  taskId = "",
+  objectiveId = "",
+  onChangeGun,
+  onPickGunsmith,
+  onClearGunsmith,
+}: Props) {
   const navigate = useNavigate();
   const gameMode = useTarkovGameMode();
   const [pairs, setPairs] = useState<TarkovWorkbenchPair[]>([]);
@@ -352,6 +373,15 @@ export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
     retry: 1,
     enabled: Boolean(gunId),
   });
+
+  const gunsmithQuery = useQuery({
+    queryKey: ["guides-tarkov-workbench-gunsmith-tasks", gameMode],
+    queryFn: fetchTarkovWorkbenchGunsmithTasks,
+    enabled: Boolean(taskId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const spec = findGunsmithSpec(gunsmithQuery.data?.items, taskId, objectiveId);
 
   useEffect(() => {
     calcEpoch.current += 1;
@@ -409,6 +439,10 @@ export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
     [pairs],
   );
   const installedParts = useMemo(() => collectInstalledParts(slots), [slots]);
+  const installedCategoryIds = useMemo(
+    () => collectInstalledCategoryIds(installedParts),
+    [installedParts],
+  );
   const conflicts = useMemo(
     () => new Set(stats?.conflicts || []),
     [stats?.conflicts],
@@ -429,6 +463,33 @@ export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
   const applyPairs = (next: TarkovWorkbenchPair[], nextAmmo?: string | null) => {
     void applyPairsAsync(next, nextAmmo);
   };
+
+  const solveMutation = useMutation({
+    mutationFn: () =>
+      fetchTarkovWorkbenchGunsmithSolve({
+        taskId: spec?.task_id || taskId,
+        objectiveId: spec?.objective_id || objectiveId,
+        ammoId,
+      }),
+    onSuccess: (data) => {
+      setActiveSlotId(null);
+      const nextPairs = data.pairs || [];
+      const nextAmmo = data.ammo_id ?? ammoId;
+      const apply = nextPairs.length
+        ? applyPairsAsync(nextPairs, nextAmmo)
+        : Promise.resolve();
+      void apply.then(() => {
+        if (data.status === "optimal") {
+          message.success("已满足枪匠要求");
+        } else {
+          message.warning(data.reason || "当前改装未完全满足要求");
+        }
+      });
+    },
+    onError: (error) => {
+      message.error(apiError(error, "枪匠求解失败"));
+    },
+  });
 
   const unloadSlot = (node: TarkovWorkbenchSlotNode) => {
     if (!node.installed) return;
@@ -529,6 +590,9 @@ export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
           </Link>
         </h2>
         <div className={styles.actions}>
+          {onPickGunsmith ? (
+            <Button onClick={() => onPickGunsmith()}>枪匠任务</Button>
+          ) : null}
           <Button
             onClick={() => {
               closePicker();
@@ -626,6 +690,25 @@ export function TarkovWorkbenchBuild({ gunId, onChangeGun }: Props) {
           ammoOptions={ammoOptions}
           hasConflicts={conflicts.size > 0}
           onAmmoChange={(value) => applyPairs(pairs, value)}
+          lead={
+            spec ? (
+              <TarkovWorkbenchGunsmithPanel
+                spec={spec}
+                stats={stats}
+                installedIds={installedIds}
+                installedCategoryIds={installedCategoryIds}
+                solving={solveMutation.isPending}
+                onSolve={() => solveMutation.mutate()}
+                onClear={() =>
+                  onClearGunsmith
+                    ? onClearGunsmith()
+                    : navigate(tarkovWorkbenchHref(gunId))
+                }
+              />
+            ) : taskId && gunsmithQuery.isFetched && !spec ? (
+              <p className={styles.hint}>没有这条枪匠任务</p>
+            ) : null
+          }
         />
       </div>
       <TarkovWorkbenchCommunityModal

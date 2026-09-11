@@ -20,14 +20,14 @@ users 1 ── 1 members ── * play_sessions / presence_segments
                       └── 0..1 mihoyo_binds ── * mihoyo_checkin_logs
                                          └── * mihoyo_attendance_raws
                       └── * checkin_role_prefs（按平台/角色加入本站 + 自动签到）
-system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps
+system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps · rum_samples
 arknights_operators · arknights_catalog_meta · game_schedule_raws
 tarkov_items_raws · tarkov_maps_raws · tarkov_tasks_raws · tarkov_traders_raws
 tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extras_raws · tarkov_overlay_raws
 tarkov_ammo · tarkov_guns
 tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_objective_dones / tarkov_raid_room_marks
 tarkov_map_places
-tarkov_user_key_owns · tarkov_user_collection_owns · tarkov_user_collection_layouts · tarkov_user_collection_placements · tarkov_user_task_dones · tarkov_user_task_starteds · tarkov_user_task_objective_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
+tarkov_user_key_owns · tarkov_user_collection_owns · tarkov_user_collection_layouts · tarkov_user_collection_placements · tarkov_user_hideout_levels · tarkov_user_task_dones · tarkov_user_task_starteds · tarkov_user_task_objective_dones · tarkov_user_raid_logs · tarkov_user_raid_preps
 minecraft_server_profiles · minecraft_perf_samples · minecraft_perf_rollups · minecraft_presence_segments
 users ── * user_files（用户附件登记；酒馆 `articles/`、头像 `avatars/`）
 users ── * articles ── * article_comments
@@ -69,7 +69,7 @@ articles ── * article_versions
 | `tarkov_crafts_raws` | json.tarkov.dev `/crafts` |
 | `tarkov_extras_raws` | 从 json.tarkov.dev items/maps/tasks dump 抽出的 extras（技能、跳蚤规则、成就等） |
 | `tarkov_overlay_raws` | [tarkov-data-overlay](https://github.com/tarkovtracker-org/tarkov-data-overlay) `dist/overlay.json`。文件含 `modes.regular` / `modes.pve`，PVP/PVE 各存一行；读任务/物品/制作 raw 时内存合入，不改 json.tarkov.dev 各表 |
-| `tarkov_ammo` | 弹药派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正） |
+| `tarkov_ammo` | 弹药派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正 / 曳光 / 碎弹率 / 跳弹率） |
 | `tarkov_guns` | 枪械派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；口径/射速/人机/后坐/`allowed_ammo` 等） |
 | `tarkov_raid_rooms` | 联机大厅房间：登录用户 `POST /raid-rooms` 创建（`public_id` 为 8 位 hex，兼容仍在库里的旧公开桌 `1`…`5` / `pve-1`…`pve-5`）。`listed=1` 且无密码的房出现在大厅分页列表（当前顶栏 `game_mode`、仍有人在座）；私密房 `listed=0` 且必须有密码，大厅不列出，凭房间码加入。`password_hash` 可空（bcrypt）；公开房禁止带密码。房主设密码会下架（变私密），清密码会上架（变公开）。API 只回 `has_password` / `listed`，不回哈希。加入有密码的桌须在 join 带明文；已在座者再 join 不用。**未入座者 GET 房间只看到标题 / 地图 / 人数 / 是否要密码**，不含人员名单、房主 id、认领、标点、钥匙、目标完成与进度；公开大厅条目仍带在座昵称。写操作须入座；房间 WS 须已入座。join / 大厅列表 / 创建有限流（见 `docs/security.md`「塔科夫联机」）。大厅列表按 listed+无密码+有人在座过滤，过期座位定向回收，不全表加载。最后一人离开、房主清空、或断线超过 2 分钟被收回座位后删行（含成员/画板/勾选/钥匙/目标完成/密码）。第一位加入者成为房主；房主离开则转给最早在座者。房主可改模式、移除成员。换图清空画板与声明，人不走。索引 `map_slug`。`host_user_id` 可空，ON DELETE SET NULL |
 | `tarkov_raid_room_members` | 当前在座人员（展示名快照）；复合主键 `(room_id, user_id)`；离开或被房主移除则删行。`last_seen_at` 入座、WS 连接/断开与 WS ping 时刷新；HTTP 拉房间不算心跳。WebSocket 在线集合里的人不踢；不在线且 `last_seen_at` 超过 **2 分钟**则收回座位。`left_at` 列为旧兼容，新写入不再使用。`started_task_ids_json` 为入座后上传的「进行中」任务 id（已去掉完成项），`task_progress_at` 为空表示尚未上传。`room_id` / `user_id` ON DELETE CASCADE |
@@ -78,6 +78,7 @@ articles ── * article_versions
 | `tarkov_user_collection_owns` | 用户 3×4 收集勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。个人中心「3×4收集」标记已获得的收集者道具；写入摆放账时按格子里的道具整表对齐。ON DELETE CASCADE |
 | `tarkov_user_collection_layouts` | 用户 3×4 收集摆放过账号（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode)`。清空格子也会写这一行，GET 带 `saved`，避免空网被本机旧缓存盖回去。ON DELETE CASCADE |
 | `tarkov_user_collection_placements` | 用户 3×4 收集摆放（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。`col`/`row`/`rotated` 为格子坐标。个人中心改格子即覆盖写入。ON DELETE CASCADE |
+| `tarkov_user_hideout_levels` | 用户藏身处模块等级（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, station_id)`。个人中心规划器升降级；缺行时仓库视为 1、其余 0。降级级联压低仍依赖该模块的设施。ON DELETE CASCADE |
 | `tarkov_user_task_dones` | 用户任务完成勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「已完成」，与 `tarkov_user_task_starteds` / `tarkov_user_task_objective_dones` 组成账号进度账。同一任务若同时出现在完成与进行中，完成优先。ON DELETE CASCADE |
 | `tarkov_user_task_starteds` | 用户任务进行中勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「进行中」；换设备无游戏日志时仍从账号拉回。ON DELETE CASCADE |
 | `tarkov_user_task_objective_dones` | 用户任务小步骤勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id, objective_id)`。准备/房间勾选写入账号进度账；整任务进入已完成时按任务目录把该任务全部步骤勾上。取消整任务完成不自动取消小步骤。ON DELETE CASCADE |
@@ -106,7 +107,8 @@ articles ── * article_versions
 | `mihoyo_attendance_raws` | 原神 / 崩坏3 / 星铁 / 绝区零 / 崩坏2 福利签到日历（info + home）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
-| `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档。索引含 `(job_key, started_at)` |
+| `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档、删除超过 14 天的 `rum_samples`。索引含 `(job_key, started_at)` |
+| `rum_samples` | 浏览器 RUM 原始样本：`kind`=`api`（接口转圈）/`img`（第三方图），`url_key` 已归并 id/瓦片，`duration_ms` 为用户侧等待。公开 `POST /api/client-rum` 写入；管理端「用户等待」聚合 p50/p95。保留约 14 天。索引 `(recorded_at)` / `(kind, recorded_at)` |
 | `system_configs` | 非界面 KV（如北京时间迁移标记）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
 | `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |

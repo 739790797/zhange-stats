@@ -19,7 +19,7 @@ alwaysApply: false
 ## 禁止
 
 - 成功且快的 GET 再打 INFO（`zhange.http` 已记写操作 / 4xx / 慢 GET）
-- 平台日志、运行环境、`/health` 的轮询打访问日志
+- 平台日志、运行环境、`/health`、`/api/client-rum` 的轮询或批量上报打访问日志
 - 循环内逐成员 / 逐文件 / 逐 app_id 的 INFO
 - 密钥、Cookie、JWT、验证码、房间密码、上游整段带票响应
 - `print()`（本地验证码除外，生产禁止 `ALLOW_EMAIL_CODE_LOG`）

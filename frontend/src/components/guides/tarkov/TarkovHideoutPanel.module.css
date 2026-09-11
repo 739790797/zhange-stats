@@ -1,0 +1,185 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 8px;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #2a2a2a;
+  background: #14150f;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.cell:hover {
+  border-color: rgba(200, 147, 42, 0.45);
+}
+
+.cellOn {
+  border-color: var(--hb-orange, #c8932a);
+  background: #1c1a12;
+}
+
+.cellTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cellIcon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex: none;
+  background: #101010;
+}
+
+.cellName {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hb-text, #eee9d6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.level {
+  font-size: 12px;
+  color: var(--hb-muted, #b0ae9a);
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.reqList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.detail .reqList {
+  min-width: 0;
+  max-width: none;
+}
+
+.reqTitle {
+  font-size: 12px;
+  color: #c8c8c8;
+}
+
+.reqRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.reqRow img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: none;
+}
+
+.met {
+  color: #7dce8a;
+}
+
+.unmet {
+  color: #e07070;
+}
+
+.unset {
+  color: #b0ae9a;
+}
+
+.reqNote {
+  font-size: 11px;
+  color: #8a8878;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid #2a2a2a;
+}
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detailIcon {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  background: #101010;
+}
+
+.detailName {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--hb-text, #eee9d6);
+}
+
+.detailSub {
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 13px;
+}
+
+.sectionTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #c8c8c8;
+}
+
+.bonusList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bonusRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.bonusName {
+  color: var(--hb-text, #eee9d6);
+}
+
+.bonusValue {
+  color: var(--hb-orange, #c8932a);
+  font-variant-numeric: tabular-nums;
+}
+
+.craftLocked :global(td) {
+  opacity: 0.45;
+}

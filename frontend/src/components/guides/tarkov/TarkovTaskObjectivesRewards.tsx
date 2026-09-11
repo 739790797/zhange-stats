@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { GiftOutlined, UnorderedListOutlined, WarningOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 import {
   TARKOV_MAPS,
@@ -7,6 +6,7 @@ import {
   tarkovMapHref,
   tarkovTaskHref,
   tarkovTraderHref,
+  tarkovWorkbenchHref,
   traderDisplayName,
 } from "@/lib/tarkovHomeNav";
 import {
@@ -14,13 +14,16 @@ import {
   formatTaskExtractLines,
   formatTaskObjectiveExtraLines,
   tarkovObjectiveTypeLabel,
+  tarkovObjectiveTypeTone,
   taskRequirementStatusLabel,
 } from "@/lib/tarkovTaskObjective";
 import { itemDetailHref, itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import { collectRaidPrepFailChips } from "@/lib/tarkovRaidPrep";
+import { isGunsmithObjectiveType } from "@/lib/tarkovWorkbenchGunsmith";
 import type { TarkovTaskDetail } from "@/api/guidesApi";
 import type { components } from "@/api/generated/schema";
+import taskStyles from "./TarkovTasksPanel.module.css";
 import styles from "./TarkovTaskDetailPanel.module.css";
 
 type NamedRef = components["schemas"]["TarkovTaskNamedRefOut"];
@@ -79,28 +82,72 @@ function ObjectiveItem({
   const label = namedLabel(item);
   const body = (
     <>
-      {thumb ? (
-        <span className={styles.objItemVisual}>
-          <img className={styles.objItemIcon} src={thumb} alt="" />
-          {count && count > 1 ? (
-            <span className={styles.objItemCount}>×{count}</span>
-          ) : null}
-        </span>
-      ) : null}
-      <span className={styles.objItemName}>{label}</span>
+      <span className={styles.itemTileIconWrap}>
+        {thumb ? <img className={styles.itemTileIcon} src={thumb} alt="" /> : null}
+        {count && count > 1 ? (
+          <span className={styles.objItemCount}>×{count}</span>
+        ) : null}
+      </span>
+      <span className={styles.itemTileName}>{label}</span>
     </>
   );
   if (item.id && (item.types?.length || item.icon_link)) {
     return (
-      <Link className={styles.objItem} to={itemHref(item)} title={label}>
+      <Link className={styles.itemTile} to={itemHref(item)} title={label}>
         {body}
       </Link>
     );
   }
   return (
-    <span className={styles.objItem} title={label}>
+    <span className={styles.itemTile} title={label}>
       {body}
     </span>
+  );
+}
+
+function splitMetaLine(line: string): { label: string; value: string } {
+  const idx = line.indexOf("：");
+  if (idx > 0) {
+    return { label: line.slice(0, idx), value: line.slice(idx + 1).trim() };
+  }
+  const match = line.match(/^(\S+)\s+(.+)$/);
+  if (match) return { label: match[1], value: match[2] };
+  return { label: line, value: "" };
+}
+
+function MetaStrip({ lines }: { lines: string[] }) {
+  if (!lines.length) return null;
+  return (
+    <div className={styles.metaStrip}>
+      {lines.map((line) => {
+        const { label, value } = splitMetaLine(line);
+        return (
+          <span key={line} className={styles.metaStripItem}>
+            {label}
+            {value ? (
+              <>
+                ：<span className={styles.metaStripValue}>{value}</span>
+              </>
+            ) : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function ItemGrid({
+  label,
+  children,
+}: {
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.itemGridWrap}>
+      {label ? <div className={styles.objGroupLabel}>{label}</div> : null}
+      <div className={styles.itemGrid}>{children}</div>
+    </div>
   );
 }
 
@@ -113,16 +160,18 @@ function ItemGroup({
 }) {
   if (!groups?.length) return null;
   return (
-    <div className={styles.objItems}>
-      <span className={styles.objGroupLabel}>{label}</span>
-      {groups.map((group, index) => (
-        <span key={`${label}-${index}`} className={styles.objOrGroup}>
-          {index > 0 ? <span className={styles.objOr}>或</span> : null}
-          {group.map((item) => (
-            <ObjectiveItem key={item.id || item.name} item={item} />
-          ))}
-        </span>
-      ))}
+    <div className={styles.itemGridWrap}>
+      <div className={styles.objGroupLabel}>{label}</div>
+      <div className={styles.itemGrid}>
+        {groups.map((group, index) => (
+          <span key={`${label}-${index}`} className={styles.itemGridGroup}>
+            {index > 0 ? <span className={styles.itemGridOr}>或</span> : null}
+            {group.map((item) => (
+              <ObjectiveItem key={item.id || item.name} item={item} />
+            ))}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -132,17 +181,17 @@ function RequiredKeyGroups({ groups }: { groups: NamedRef[][] | undefined }) {
   return (
     <>
       {groups.map((group, index) => (
-        <div key={`rk-${index}`} className={styles.objItems}>
-          <span className={styles.objGroupLabel}>
-            {groups.length > 1 ? `钥匙 ${index + 1}` : "所需钥匙"}
-          </span>
+        <ItemGrid
+          key={`rk-${index}`}
+          label={groups.length > 1 ? `钥匙 ${index + 1}` : "所需钥匙"}
+        >
           {group.map((item, itemIndex) => (
-            <span key={item.id || `${index}-${itemIndex}`} className={styles.objOrGroup}>
-              {itemIndex > 0 ? <span className={styles.objOr}>或</span> : null}
+            <span key={item.id || `${index}-${itemIndex}`} className={styles.itemGridGroup}>
+              {itemIndex > 0 ? <span className={styles.itemGridOr}>或</span> : null}
               <ObjectiveItem item={item} />
             </span>
           ))}
-        </div>
+        </ItemGrid>
       ))}
     </>
   );
@@ -173,7 +222,7 @@ function objectivePinCount(obj: Objective): number {
   return zones + spots;
 }
 
-function ObjectiveRow({ obj }: { obj: Objective }) {
+function ObjectiveRow({ obj, taskId }: { obj: Objective; taskId?: string }) {
   const extractLines = formatTaskExtractLines(obj);
   const items = obj.items || [];
   const maps = obj.maps || [];
@@ -196,18 +245,23 @@ function ObjectiveRow({ obj }: { obj: Objective }) {
   const pinCount = objectivePinCount(obj);
   const pinHref = pinCount ? objectivePinHref(obj) : null;
   return (
-    <div className={styles.obj}>
-      <span className={styles.check} aria-hidden>
-        □
-      </span>
+    <div className={styles.objCard} data-tone={tarkovObjectiveTypeTone(obj.type || "")}>
+      <span className={styles.check} aria-hidden />
       <div className={styles.objBody}>
-        <div>
+        <div className={styles.objTitle}>
           {obj.optional ? <span className={styles.tag}>可选</span> : null}
           {obj.found_in_raid ? (
             <span className={styles.tag}>战局内</span>
           ) : null}
-          {typeLabel ? <span className={styles.tag}>{typeLabel}</span> : null}
-          {obj.description || obj.type || obj.id}
+          {typeLabel ? (
+            <span
+              className={`${taskStyles.typeChip} ${styles.objTypeChip}`}
+              data-tone={tarkovObjectiveTypeTone(obj.type || "")}
+            >
+              {typeLabel}
+            </span>
+          ) : null}
+          <span className={styles.objDesc}>{obj.description || obj.type || obj.id}</span>
         </div>
         {maps.length ? (
           <div className={styles.objMaps}>
@@ -231,45 +285,41 @@ function ObjectiveRow({ obj }: { obj: Objective }) {
           </div>
         ) : null}
         {showItems ? (
-          <div className={styles.objItems}>
+          <ItemGrid>
             {items.map((item) => (
               <ObjectiveItem key={item.id} item={item} count={countForSingle} />
             ))}
-          </div>
+          </ItemGrid>
         ) : null}
         {(obj.using_weapon || []).length ? (
-          <div className={styles.objItems}>
-            <span className={styles.objGroupLabel}>使用武器</span>
+          <ItemGrid label="使用武器">
             {(obj.using_weapon || []).map((item) => (
               <ObjectiveItem key={item.id} item={item} />
             ))}
-          </div>
+          </ItemGrid>
         ) : null}
         <ItemGroup label="使用配件" groups={obj.using_weapon_mods} />
         <ItemGroup label="穿着" groups={obj.wearing} />
         {(obj.not_wearing || []).length ? (
-          <div className={styles.objItems}>
-            <span className={styles.objGroupLabel}>禁止穿着</span>
+          <ItemGrid label="禁止穿着">
             {(obj.not_wearing || []).map((item) => (
               <ObjectiveItem key={item.id} item={item} />
             ))}
-          </div>
+          </ItemGrid>
         ) : null}
         {(obj.use_any || []).length ? (
-          <div className={styles.objItems}>
-            <span className={styles.objGroupLabel}>使用任一</span>
+          <ItemGrid label="使用任一">
             {(obj.use_any || []).map((item) => (
               <ObjectiveItem key={item.id} item={item} />
             ))}
-          </div>
+          </ItemGrid>
         ) : null}
         {(obj.contains_all || []).length ? (
-          <div className={styles.objItems}>
-            <span className={styles.objGroupLabel}>必须包含</span>
+          <ItemGrid label="必须包含">
             {(obj.contains_all || []).map((item) => (
               <ObjectiveItem key={item.id} item={item} />
             ))}
-          </div>
+          </ItemGrid>
         ) : null}
         <RequiredKeyGroups groups={obj.required_keys} />
         {(obj.related_tasks || []).length ? (
@@ -325,30 +375,37 @@ function ObjectiveRow({ obj }: { obj: Objective }) {
             )}
           </div>
         ) : null}
-        {boxLines.length ? (
-          <div className={styles.objBox}>
-            {boxLines.map((line) => (
-              <div key={line}>{line}</div>
-            ))}
+        {isGunsmithObjectiveType(obj.type) && taskId ? (
+          <div className={styles.objMaps}>
+            <Link
+              className={styles.inlineLink}
+              to={tarkovWorkbenchHref(undefined, {
+                taskId,
+                objectiveId: obj.id,
+              })}
+            >
+              去工作台求解
+            </Link>
           </div>
         ) : null}
+        {boxLines.length ? <MetaStrip lines={boxLines} /> : null}
       </div>
     </div>
   );
 }
 
 function KeyLink({ item }: { item: NamedRef }) {
-  const label = namedLabel(item);
-  return (
-    <Link className={styles.keyItem} to={itemHref(item)} title={label}>
-      {item.icon_link ? (
-        <img className={styles.keyIcon} src={item.icon_link} alt="" />
-      ) : (
-        <span className={styles.keyIcon} />
-      )}
-      <span className={styles.objItemName}>{label}</span>
-    </Link>
-  );
+  return <ObjectiveItem item={item} />;
+}
+
+function leftoverFailConditions(conditions: FailCondition[]): FailCondition[] {
+  return conditions.filter((row) => {
+    const type = (row.type || "").trim();
+    if (!type) return Boolean((row.description || "").trim());
+    return !["taskStatus", "extract", "useItem", "traderStanding", "shoot"].includes(
+      type,
+    );
+  });
 }
 
 function rewardsHaveContent(rewards: Rewards | undefined): boolean {
@@ -365,11 +422,62 @@ function rewardsHaveContent(rewards: Rewards | undefined): boolean {
   );
 }
 
+function RewardCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.rewardCard}>
+      <div className={styles.rewardCardHead}>{title}</div>
+      <div className={styles.rewardCardBody}>{children}</div>
+    </div>
+  );
+}
+
+function RewardLine({
+  href,
+  icon,
+  name,
+  value,
+  accent,
+}: {
+  href?: string;
+  icon?: string | null;
+  name: ReactNode;
+  value?: ReactNode;
+  accent?: boolean;
+}) {
+  const inner = (
+    <>
+      {icon ? <img className={styles.rewardLineIcon} src={icon} alt="" /> : null}
+      <span className={styles.rewardLineName}>{name}</span>
+      {value != null ? (
+        <span className={accent ? styles.rewardGold : styles.rewardLineValue}>
+          {value}
+        </span>
+      ) : null}
+    </>
+  );
+  if (href) {
+    return (
+      <Link className={styles.rewardLine} to={href}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={styles.rewardLine}>{inner}</div>;
+}
+
 function RewardsBlock({
+  id,
   title,
   rewards,
   experience,
 }: {
+  id?: string;
   title: string;
   rewards: Rewards | undefined;
   experience?: number;
@@ -377,186 +485,161 @@ function RewardsBlock({
   const hasXp = Boolean(experience);
   if (!hasXp && !rewardsHaveContent(rewards)) {
     return (
-      <section className={styles.railCard}>
+      <section id={id} className={styles.section}>
         <h2 className={styles.sectionHead}>
-          <GiftOutlined />
           {title}
+          <span className={styles.sectionRule} aria-hidden />
         </h2>
         <div className={styles.muted}>无奖励数据</div>
       </section>
     );
   }
   return (
-    <section className={styles.railCard}>
+    <section id={id} className={styles.section}>
       <h2 className={styles.sectionHead}>
-        <GiftOutlined />
         {title}
+        <span className={styles.sectionRule} aria-hidden />
       </h2>
-      <div className={styles.rewards}>
+      <div className={styles.rewardGrid}>
         {hasXp ? (
-          <div>
-            <div className={styles.rewardBlock}>经验</div>
-            <div className={styles.xp}>
-              +{Number(experience).toLocaleString("zh-CN")}
-            </div>
-          </div>
-        ) : null}
-        {rewards?.items?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>物品</div>
-            <div className={styles.rewardRow}>
-              {rewards.items.map((item) => (
-                <Link
-                  key={`${item.id}-${item.count}`}
-                  className={styles.rewardItem}
-                  to={itemHref(item)}
-                >
-                  {item.icon_link ? (
-                    <span className={styles.objItemVisual}>
-                      <img className={styles.keyIcon} src={item.icon_link} alt="" />
-                      {item.count > 1 ? (
-                        <span className={styles.objItemCount}>×{item.count}</span>
-                      ) : null}
-                    </span>
-                  ) : null}
-                  <span className={styles.objItemName}>{namedLabel(item)}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
+          <RewardCard title="经验">
+            <RewardLine
+              name="完成经验"
+              value={`+${Number(experience).toLocaleString("zh-CN")} EXP`}
+              accent
+            />
+          </RewardCard>
         ) : null}
         {rewards?.trader_standing?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>商人声望</div>
-            <div className={styles.rewardRow}>
-              {rewards.trader_standing.map((row) => (
-                <span key={`st-${row.id}`}>
-                  {row.slug ? (
-                    <Link className={styles.inlineLink} to={tarkovTraderHref(row.slug)}>
-                      {traderDisplayName(row.slug, row.name || row.id)}
-                    </Link>
-                  ) : (
-                    traderDisplayName(row.slug, row.name || row.id)
-                  )}{" "}
-                  {row.standing > 0 ? "+" : ""}
-                  {row.standing}
-                </span>
-              ))}
-            </div>
-          </div>
+          <RewardCard title="商人声望">
+            {rewards.trader_standing.map((row) => (
+              <RewardLine
+                key={`st-${row.id}`}
+                href={row.slug ? tarkovTraderHref(row.slug) : undefined}
+                name={traderDisplayName(row.slug, row.name || row.id)}
+                value={`${row.standing > 0 ? "+" : ""}${row.standing}`}
+                accent={row.standing > 0}
+              />
+            ))}
+          </RewardCard>
+        ) : null}
+        {rewards?.items?.length ? (
+          <RewardCard title="物品奖励">
+            {rewards.items.map((item) => (
+              <RewardLine
+                key={`${item.id}-${item.count}`}
+                href={itemHref(item)}
+                icon={item.icon_link}
+                name={namedLabel(item)}
+                value={`×${item.count}`}
+                accent={item.count > 1}
+              />
+            ))}
+          </RewardCard>
         ) : null}
         {rewards?.offer_unlock?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>解锁报价</div>
-            <div className={styles.rewardRow}>
-              {rewards.offer_unlock.map((row) => {
-                const trader = row.trader;
-                const item = row.item;
-                return (
-                  <span key={row.id || item?.id} className={styles.rewardUnlock}>
-                    {trader?.slug ? (
-                      <Link className={styles.inlineLink} to={tarkovTraderHref(trader.slug)}>
-                        {traderDisplayName(trader.slug, trader.name || trader.id)}
-                        {row.level ? ` LL${row.level}` : ""}
-                      </Link>
-                    ) : null}
-                    {item ? <ObjectiveItem item={item} /> : null}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+          <RewardCard title="解锁报价">
+            {rewards.offer_unlock.map((row) => {
+              const trader = row.trader;
+              const item = row.item;
+              const traderName = trader
+                ? `${traderDisplayName(trader.slug, trader.name || trader.id)}${
+                    row.level ? ` LL${row.level}` : ""
+                  }`
+                : "";
+              return (
+                <RewardLine
+                  key={row.id || item?.id}
+                  href={item ? itemHref(item) : trader?.slug ? tarkovTraderHref(trader.slug) : undefined}
+                  icon={item?.icon_link}
+                  name={
+                    <>
+                      {traderName}
+                      {traderName && item ? " · " : ""}
+                      {item ? namedLabel(item) : ""}
+                    </>
+                  }
+                />
+              );
+            })}
+          </RewardCard>
         ) : null}
         {rewards?.craft_unlock?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>解锁制作</div>
-            <div className={styles.rewardRow}>
-              {rewards.craft_unlock.map((row) => {
-                const station = row.station;
-                const href = station?.slug ? tarkovHideoutHref(station.slug) : "";
-                return (
-                  <span key={row.id || station?.id} className={styles.rewardUnlock}>
-                    {href ? (
-                      <Link className={styles.inlineLink} to={href}>
-                        {namedLabel(station)}
-                        {row.level ? ` ${row.level} 级` : ""}
-                      </Link>
-                    ) : namedLabel(station) ? (
-                      <span>
-                        {namedLabel(station)}
-                        {row.level ? ` ${row.level} 级` : ""}
-                      </span>
-                    ) : null}
-                    {row.item ? <ObjectiveItem item={row.item} /> : null}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+          <RewardCard title="解锁制作">
+            {rewards.craft_unlock.map((row) => {
+              const station = row.station;
+              const href = station?.slug ? tarkovHideoutHref(station.slug) : "";
+              const stationName = namedLabel(station);
+              return (
+                <RewardLine
+                  key={row.id || station?.id}
+                  href={href || (row.item ? itemHref(row.item) : undefined)}
+                  icon={row.item?.icon_link}
+                  name={
+                    <>
+                      {stationName}
+                      {row.level ? ` ${row.level} 级` : ""}
+                      {stationName && row.item ? " · " : ""}
+                      {row.item ? namedLabel(row.item) : ""}
+                    </>
+                  }
+                />
+              );
+            })}
+          </RewardCard>
         ) : null}
         {rewards?.trader_unlock?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>解锁商人</div>
-            <div className={styles.rewardRow}>
-              {rewards.trader_unlock.map((row) =>
-                row.slug ? (
-                  <Link key={row.id} className={styles.inlineLink} to={tarkovTraderHref(row.slug)}>
-                    {traderDisplayName(row.slug, row.name || row.id)}
-                  </Link>
-                ) : (
-                  <span key={row.id}>{namedLabel(row)}</span>
-                ),
-              )}
-            </div>
-          </div>
+          <RewardCard title="解锁商人">
+            {rewards.trader_unlock.map((row) => (
+              <RewardLine
+                key={row.id}
+                href={row.slug ? tarkovTraderHref(row.slug) : undefined}
+                name={
+                  row.slug
+                    ? traderDisplayName(row.slug, row.name || row.id)
+                    : namedLabel(row)
+                }
+              />
+            ))}
+          </RewardCard>
         ) : null}
         {rewards?.skill_level_reward?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>技能</div>
-            <div className={styles.rewardRow}>
-              {rewards.skill_level_reward.map((row) => (
-                <span key={`${row.name}-${row.level}`}>
-                  {row.name}
-                  {row.level ? ` ${row.level} 级` : ""}
-                </span>
-              ))}
-            </div>
-          </div>
+          <RewardCard title="技能">
+            {rewards.skill_level_reward.map((row) => (
+              <RewardLine
+                key={`${row.name}-${row.level}`}
+                name={row.name}
+                value={row.level ? `${row.level} 级` : undefined}
+              />
+            ))}
+          </RewardCard>
         ) : null}
         {rewards?.achievement?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>成就</div>
-            <div className={styles.rewardRow}>
-              {rewards.achievement.map((row) => (
-                <span key={row.id} className={styles.rewardUnlock}>
-                  {row.image_link ? (
-                    <img className={styles.keyIcon} src={row.image_link} alt="" />
-                  ) : null}
-                  <span>{namedLabel(row)}</span>
-                </span>
-              ))}
-            </div>
-          </div>
+          <RewardCard title="成就">
+            {rewards.achievement.map((row) => (
+              <RewardLine
+                key={row.id}
+                icon={row.image_link}
+                name={namedLabel(row)}
+              />
+            ))}
+          </RewardCard>
         ) : null}
         {rewards?.customization?.length ? (
-          <div>
-            <div className={styles.rewardBlock}>外观</div>
-            <div className={styles.rewardRow}>
-              {rewards.customization.map((row) => (
-                <span key={row.id} className={styles.rewardUnlock}>
-                  {row.image_link ? (
-                    <img className={styles.keyIcon} src={row.image_link} alt="" />
-                  ) : null}
-                  <span>
+          <RewardCard title="外观">
+            {rewards.customization.map((row) => (
+              <RewardLine
+                key={row.id}
+                icon={row.image_link}
+                name={
+                  <>
                     {namedLabel(row)}
-                    {row.customization_type
-                      ? `（${row.customization_type}）`
-                      : ""}
-                  </span>
-                </span>
-              ))}
-            </div>
-          </div>
+                    {row.customization_type ? `（${row.customization_type}）` : ""}
+                  </>
+                }
+              />
+            ))}
+          </RewardCard>
         ) : null}
       </div>
     </section>
@@ -564,68 +647,68 @@ function RewardsBlock({
 }
 
 function FailSection({
+  id,
   conditions,
   restartable,
 }: {
+  id?: string;
   conditions: FailCondition[];
   restartable: boolean;
 }) {
   const chips = collectRaidPrepFailChips(conditions);
-  const leftover = conditions.filter((row) => {
-    const type = (row.type || "").trim();
-    if (!type) return Boolean((row.description || "").trim());
-    return !["taskStatus", "extract", "useItem", "traderStanding", "shoot"].includes(type);
-  });
+  const leftover = leftoverFailConditions(conditions);
   if (!chips.length && !leftover.length && !restartable) return null;
   return (
-    <section className={styles.railCard}>
+    <section id={id} className={styles.section}>
       <h2 className={styles.sectionHead}>
-        <WarningOutlined />
         失败条件
+        <span className={styles.sectionRule} aria-hidden />
       </h2>
-      {restartable ? (
-        <div className={styles.muted}>失败后可重新接取。</div>
-      ) : null}
-      {chips.length ? (
-        <div className={styles.failList}>
-          {chips.map((chip) => (
-            <div key={`${chip.type}-${chip.text}`} className={styles.failRow}>
-              {chip.tasks?.length ? (
-                <>
-                  完成该任务会使
-                  {chip.tasks.map((task, index) => (
-                    <span key={task.id}>
-                      {index > 0 ? "、" : ""}
-                      <Link className={styles.inlineLink} to={tarkovTaskHref(task.id)}>
-                        {task.name}
-                      </Link>
-                    </span>
-                  ))}
-                  失败
-                </>
-              ) : (
-                chip.text
-              )}
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {leftover.map((row) => (
-        <div key={row.id || row.description} className={styles.failRow}>
-          {row.description || row.type}
-        </div>
-      ))}
+      <div className={styles.failBox}>
+        {restartable ? (
+          <div className={styles.muted}>失败后可重新接取。</div>
+        ) : null}
+        {chips.length ? (
+          <div className={styles.failList}>
+            {chips.map((chip) => (
+              <div key={`${chip.type}-${chip.text}`} className={styles.failRow}>
+                {chip.tasks?.length ? (
+                  <>
+                    完成该任务会使
+                    {chip.tasks.map((task, index) => (
+                      <span key={task.id}>
+                        {index > 0 ? "、" : ""}
+                        <Link className={styles.inlineLink} to={tarkovTaskHref(task.id)}>
+                          {task.name}
+                        </Link>
+                      </span>
+                    ))}
+                    失败
+                  </>
+                ) : (
+                  chip.text
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {leftover.map((row) => (
+          <div key={row.id || row.description} className={styles.failRow}>
+            {row.description || row.type}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
 
-/** 左栏海报 / 钥匙 / 奖励，右栏目标。 */
+/** 目标 → 关联任务 → 钥匙 / 奖励 / 失败，纵向铺在主栏。 */
 export function TarkovTaskObjectivesRewards({
   detail,
-  railLead,
+  afterObjectives,
 }: {
   detail: TarkovTaskDetail;
-  railLead?: ReactNode;
+  afterObjectives?: ReactNode;
 }) {
   const objectives = detail.objectives || [];
   const keys = detail.needed_keys || [];
@@ -633,61 +716,76 @@ export function TarkovTaskObjectivesRewards({
   const showStart = rewardsHaveContent(start);
 
   return (
-    <div className={styles.body}>
-      <aside className={styles.rail}>
-        {railLead}
-        {showStart ? <RewardsBlock title="接取奖励" rewards={start} /> : null}
-        {keys.length ? (
-          <section className={styles.railCard}>
-            <h2 className={styles.sectionHead}>所需钥匙</h2>
-            <div className={styles.keys}>
-              {keys.map((row, index) => (
-                <div
-                  key={`${row.map?.id || "map"}-${index}`}
-                  className={styles.keyGroup}
-                >
-                  <div className={styles.keyMap}>
-                    <MapNameLink slug={row.map?.slug} name={row.map?.name} />
-                  </div>
-                  <div className={styles.rewardRow}>
-                    {(row.keys || []).map((key) => (
-                      <KeyLink key={key.id} item={key} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
-        <RewardsBlock
-          title="完成奖励"
-          rewards={detail.finish_rewards}
-          experience={detail.experience}
-        />
-        {rewardsHaveContent(detail.fail_rewards) ? (
-          <RewardsBlock title="失败惩罚" rewards={detail.fail_rewards} />
-        ) : null}
-        <FailSection
-          conditions={detail.fail_conditions || []}
-          restartable={Boolean(detail.restartable)}
-        />
-      </aside>
-
-      <div className={styles.mainCol}>
-        <section className={`${styles.section} ${styles.objectivePanel}`}>
-          <h2 className={styles.sectionHead}>
-            <UnorderedListOutlined />
-            目标
-          </h2>
+    <>
+      <section id="task-objectives" className={styles.section}>
+        <h2 className={styles.sectionHead}>
+          目标
           {objectives.length ? (
-            objectives.map((obj) => (
-              <ObjectiveRow key={obj.id || obj.description} obj={obj} />
-            ))
-          ) : (
-            <div className={styles.muted}>无目标数据</div>
-          )}
+            <span className={styles.sectionCount}>{objectives.length}</span>
+          ) : null}
+          <span className={styles.sectionRule} aria-hidden />
+        </h2>
+        {objectives.length ? (
+          <div className={styles.objList}>
+            {objectives.map((obj) => (
+              <ObjectiveRow
+                key={obj.id || obj.description}
+                obj={obj}
+                taskId={detail.id}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className={styles.muted}>无目标数据</div>
+        )}
+      </section>
+      {afterObjectives}
+      {keys.length ? (
+        <section id="task-keys" className={styles.section}>
+          <h2 className={styles.sectionHead}>
+            所需钥匙
+            <span className={styles.sectionRule} aria-hidden />
+          </h2>
+          <div className={styles.keys}>
+            {keys.map((row, index) => (
+              <div
+                key={`${row.map?.id || "map"}-${index}`}
+                className={styles.keyGroup}
+              >
+                <div className={styles.keyMap}>
+                  <MapNameLink slug={row.map?.slug} name={row.map?.name} />
+                </div>
+                <div className={styles.itemGrid}>
+                  {(row.keys || []).map((key) => (
+                    <KeyLink key={key.id} item={key} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
-      </div>
-    </div>
+      ) : null}
+      {showStart ? (
+        <RewardsBlock id="task-start-rewards" title="接取奖励" rewards={start} />
+      ) : null}
+      <RewardsBlock
+        id="task-finish-rewards"
+        title="完成奖励"
+        rewards={detail.finish_rewards}
+        experience={detail.experience}
+      />
+      {rewardsHaveContent(detail.fail_rewards) ? (
+        <RewardsBlock
+          id="task-fail-rewards"
+          title="失败惩罚"
+          rewards={detail.fail_rewards}
+        />
+      ) : null}
+      <FailSection
+        id="task-fail"
+        conditions={detail.fail_conditions || []}
+        restartable={Boolean(detail.restartable)}
+      />
+    </>
   );
 }

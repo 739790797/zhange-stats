@@ -9,6 +9,7 @@ EMPTY_LINE = {
     "mutex_ids": [],
     "blocked_by": [],
     "prereq_ids": [],
+    "prestige_cycle": 0,
 }
 
 _MAX_HINT_DEPTH = 16
@@ -27,6 +28,17 @@ def _as_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _quest_stem(value: Any) -> str:
+    """new-beginning-5 与 new-beginning 同线，用 dump/overlay 自己的 slug，不改名称。"""
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    head, sep, tail = text.rpartition("-")
+    if sep and tail.isdigit():
+        return head
+    return text
 
 
 def _task_name(task_id: str, raw: dict[str, Any], locale: dict[str, Any]) -> str:
@@ -53,6 +65,28 @@ def _prestige_level(raw: dict[str, Any]) -> int:
                 return _as_int(blob.get(key))
         return 0
     return _as_int(blob)
+
+
+def _has_required_prestige(raw: dict[str, Any]) -> bool:
+    blob = raw.get("requiredPrestige")
+    if blob is None:
+        blob = raw.get("required_prestige")
+    if blob in (None, "", False):
+        return False
+    if isinstance(blob, dict):
+        return any(str(v).strip() for v in blob.values() if v not in (None, "", False))
+    return bool(str(blob).strip())
+
+
+_CN_INT = "一二三四五六七八九十"
+
+
+def prestige_cycle_hint(required_level: int) -> str:
+    """requiredPrestige 是接取门槛；同名线要标的是第几转（门槛 0 → 一转）。"""
+    cycle = required_level + 1 if required_level >= 0 else 1
+    if 1 <= cycle <= 10:
+        return f"{_CN_INT[cycle - 1]}转"
+    return f"{cycle}转"
 
 
 def _requirement_complete(row: dict[str, Any]) -> bool:
@@ -130,9 +164,11 @@ def collect_task_line_specs(
         specs[ident] = {
             "id": ident,
             "name": _task_name(ident, raw, loc),
+            "normalized_stem": _quest_stem(raw.get("normalizedName")),
             "trader_slug": _trader_slug(raw),
             "faction_name": str(raw.get("factionName") or raw.get("faction_name") or "Any"),
             "prestige_level": _prestige_level(raw),
+            "has_prestige_req": _has_required_prestige(raw),
             "prereq_ids": _prereq_ids(raw),
             "fail_complete_ids": _fail_complete_ids(raw),
         }
@@ -195,6 +231,17 @@ def _name_clusters(specs: dict[str, dict[str, Any]]) -> list[list[str]]:
     return [ids for ids in buckets.values() if len(ids) >= 2]
 
 
+def _stem_clusters(specs: dict[str, dict[str, Any]]) -> list[list[str]]:
+    buckets: dict[tuple[str, str], list[str]] = {}
+    for ident, spec in specs.items():
+        stem = str(spec.get("normalized_stem") or "").strip()
+        trader = str(spec.get("trader_slug") or "").strip()
+        if not stem:
+            continue
+        buckets.setdefault((stem, trader), []).append(ident)
+    return [ids for ids in buckets.values() if len(ids) >= 2]
+
+
 def _faction_hints(cluster: list[str], specs: dict[str, dict[str, Any]]) -> dict[str, str] | None:
     factions = {
         ident: str(specs[ident].get("faction_name") or "Any").strip() or "Any"
@@ -211,8 +258,25 @@ def _prestige_hints(cluster: list[str], specs: dict[str, dict[str, Any]]) -> dic
     if len(set(levels.values())) < 2:
         return None
     return {
-        ident: f"声望 {level}" if level else ""
+        ident: prestige_cycle_hint(level)
         for ident, level in levels.items()
+    }
+
+
+def _prestige_cycles(specs: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """有 requiredPrestige，或与其同名同商人的转生线，标第几转（1 起）。"""
+    gated = {
+        ident
+        for ident, spec in specs.items()
+        if _as_int(spec.get("prestige_level")) > 0 or spec.get("has_prestige_req")
+    }
+    family = set(gated)
+    for cluster in (*_name_clusters(specs), *_stem_clusters(specs)):
+        if any(ident in gated for ident in cluster):
+            family.update(cluster)
+    return {
+        ident: (_as_int(specs[ident].get("prestige_level")) + 1) if ident in family else 0
+        for ident in specs
     }
 
 
@@ -257,15 +321,23 @@ def _line_hints(specs: dict[str, dict[str, Any]]) -> dict[str, str]:
             hints.update(prestige)
             continue
         hints.update(_prereq_hints(cluster, specs))
+    for cluster in _stem_clusters(specs):
+        prestige = _prestige_hints(cluster, specs)
+        if prestige is None:
+            continue
+        for ident, hint in prestige.items():
+            if not hints.get(ident):
+                hints[ident] = hint
     return hints
 
 
 def build_task_line_index(specs: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """specs[id] → {line_hint, mutex_ids, blocked_by, prereq_ids}。"""
+    """specs[id] → {line_hint, mutex_ids, blocked_by, prereq_ids, prestige_cycle}。"""
     if not specs:
         return {}
     neigh = _mutex_neighbors(specs)
     hints = _line_hints(specs)
+    cycles = _prestige_cycles(specs)
     out: dict[str, dict[str, Any]] = {}
     for ident in specs:
         mutex_ids = sorted(neigh.get(ident) or ())
@@ -280,6 +352,7 @@ def build_task_line_index(specs: dict[str, dict[str, Any]]) -> dict[str, dict[st
             "mutex_ids": mutex_ids,
             "blocked_by": sorted(blocked),
             "prereq_ids": list(specs[ident].get("prereq_ids") or []),
+            "prestige_cycle": int(cycles.get(ident) or 0),
         }
     return out
 
@@ -301,4 +374,5 @@ def stamp_task_line_fields(
     row["mutex_ids"] = list(meta.get("mutex_ids") or [])
     row["blocked_by"] = list(meta.get("blocked_by") or [])
     row["prereq_ids"] = list(meta.get("prereq_ids") or [])
+    row["prestige_cycle"] = int(meta.get("prestige_cycle") or 0)
     return row

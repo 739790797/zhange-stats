@@ -199,7 +199,9 @@ def _boss_rows(db: Session) -> list[dict[str, Any]]:
         return []
 
 
-def search_site(db: Session, q: str, *, limit: int = SEARCH_LIMIT) -> dict[str, Any]:
+def search_site(
+    db: Session, q: str, *, limit: int = SEARCH_LIMIT, faction: str | None = None
+) -> dict[str, Any]:
     needle = (q or "").strip()
     if not needle:
         return _empty("")
@@ -211,9 +213,9 @@ def search_site(db: Session, q: str, *, limit: int = SEARCH_LIMIT) -> dict[str, 
         limit=limit,
     )
     tasks, task_count = pick_hits(
-        _task_rows(db),
+        tasks_svc.filter_task_rows(_task_rows(db), faction=faction),
         needle,
-        ("name", "normalized_name", "id"),
+        ("name", "normalized_name", "name_en", "wiki_link", "id"),
         limit=limit,
     )
     traders, trader_count = pick_hits(

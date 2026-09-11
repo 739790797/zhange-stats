@@ -179,7 +179,7 @@ WantedBy=timers.target
 
 演练：在非生产或停机窗口 restore 到临时库，确认能登录；把成功日期记在运维笔记即可，不必把备份文件提交进仓库。
 
-请求排障：响应头 `X-Request-ID` 与 journal / 平台日志同一编号。前端白屏会 `POST /api/client-errors`（需登录，限流），写入运行时日志。何时该打 logger 见 [`logging.md`](logging.md)。
+请求排障：响应头 `X-Request-ID` 与 journal / 平台日志同一编号。前端白屏会 `POST /api/client-errors`（需登录，限流），写入运行时日志。用户等待时间看管理端「用户等待」（`POST /api/client-rum`）。何时该打 logger 见 [`logging.md`](logging.md)。
 
 ## Minecraft / Pelican
 

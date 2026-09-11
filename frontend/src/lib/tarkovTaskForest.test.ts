@@ -215,6 +215,21 @@ describe("splitFlowForest", () => {
       split.isolates.map((row) => (row.kind === "task" ? row.node.task.id : "")),
     ).toEqual(["solo"]);
   });
+
+  it("keeps a foreign-prereq root in chains instead of isolates", () => {
+    const forest = buildTaskForest([
+      task("later", "往昔时光-2", { prereq_ids: ["air"] }),
+      task("solo", "一信之缘"),
+    ]);
+    const split = splitFlowForest(forest);
+    expect(
+      split.chains.map((row) => (row.kind === "task" ? row.node.task.id : "")),
+    ).toEqual(["later"]);
+    expect(findNode(split.chains, "later")?.extraPrereqIds).toEqual(["air"]);
+    expect(
+      split.isolates.map((row) => (row.kind === "task" ? row.node.task.id : "")),
+    ).toEqual(["solo"]);
+  });
 });
 
 describe("off-tree prereqs", () => {

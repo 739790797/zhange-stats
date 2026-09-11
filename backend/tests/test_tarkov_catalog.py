@@ -76,6 +76,34 @@ def test_parse_and_filter_by_handbook_category():
     assert catalog.filter_catalog_items(rows, category_ids=[ARMOR_CAT])[0]["name"] == "6B13 装甲"
 
 
+def test_parse_catalog_skips_non_gun_presets_keeps_gun_presets():
+    env = _json_envelope()
+    env["items"]["data"]["items"]["gun1"] = {
+        "id": "gun1",
+        "types": ["gun"],
+        "handbookCategories": {},
+        "properties": {"defaultPreset": "gun1-default"},
+    }
+    env["items"]["data"]["items"]["gun1-default"] = {
+        "id": "gun1-default",
+        "types": ["preset"],
+        "handbookCategories": {},
+        "properties": {"baseItem": "gun1", "default": True},
+    }
+    env["items"]["data"]["items"]["rig-default"] = {
+        "id": "rig-default",
+        "types": ["preset"],
+        "handbookCategories": {ARMOR_CAT: {"id": ARMOR_CAT}},
+        "properties": {"baseItem": "ar1", "default": True},
+    }
+    env["locale"]["gun1 Name"] = "MCX"
+    env["locale"]["gun1-default Name"] = "MCX 默认"
+    env["locale"]["rig-default Name"] = "6B13 默认"
+    rows = catalog.parse_catalog_items(SOURCE_JSON_API, env)
+    assert {r["id"] for r in rows} == {"hs1", "ar1", "grip1", "gun1", "gun1-default"}
+    assert catalog.filter_catalog_items(rows, category_ids=[ARMOR_CAT])[0]["id"] == "ar1"
+
+
 def test_filter_by_type():
     rows = catalog.parse_catalog_items(SOURCE_JSON_API, _json_envelope())
     grips = catalog.filter_catalog_items(rows, types=["pistolGrip"])
@@ -140,10 +168,24 @@ def test_extract_detail_hydrates_item_and_category_refs():
                     "preset1": {
                         "id": "preset1",
                         "types": ["preset"],
+                        "containsItems": [{"item": "plate1", "count": 1}],
+                        "properties": {"default": True, "baseItem": "gun1"},
                     },
                     "plate1": {
                         "id": "plate1",
                         "types": ["armorPlate"],
+                        "weight": 1.25,
+                        "lastLowPrice": 42000,
+                        "properties": {
+                            "class": 4,
+                            "durability": 40,
+                            "maxDurability": 40,
+                            "armorType": "Light",
+                            "material": {"id": "aramid", "name": "Aramid"},
+                            "ergoPenalty": -0.01,
+                            "speedPenalty": -0.02,
+                            "turnPenalty": -0.03,
+                        },
                     },
                 },
                 "itemCategories": {
@@ -176,9 +218,21 @@ def test_extract_detail_hydrates_item_and_category_refs():
     assert props["defaultAmmo"]["types"] == ["ammo"]
     assert props["allowedAmmo"][0]["name"] == ".300 BPZ FMJ"
     assert props["defaultPreset"]["name"] == "MCX 默认"
+    assert props["defaultPreset"]["default"] is True
+    assert props["defaultPreset"]["containsItems"][0]["item"]["id"] == "plate1"
     assert props["presets"][0]["name"] == "MCX 默认"
     assert props["content"] == ["A.P.: 开始会议\n第二句"]
-    assert props["armorSlots"][0]["allowedPlates"][0]["name"] == "SAPI"
+    plate = props["armorSlots"][0]["allowedPlates"][0]
+    assert plate["name"] == "SAPI"
+    assert plate["class"] == 4
+    assert plate["durability"] == 40
+    assert plate["weight"] == 1.25
+    assert plate["lastLowPrice"] == 42000
+    assert plate["armorType"] == "Light"
+    assert plate["material"] == {"id": "aramid", "name": "Aramid"}
+    assert plate["ergoPenalty"] == -0.01
+    assert plate["speedPenalty"] == -0.02
+    assert plate["turnPenalty"] == -0.03
     assert detail["item"]["containsItems"][0]["item"]["name"] == ".300 BPZ FMJ"
     assert detail["item"]["containsItems"][0]["count"] == 30
     assert detail["item"]["conflictingItems"][0]["name"] == "SAPI"
@@ -235,6 +289,100 @@ def test_compact_properties_keeps_grids_drops_slots():
     assert compact["grids"] == [{"width": 4, "height": 5}]
     assert "slots" not in compact
     assert compact["material"] == {"id": "m1", "name": "Aramid"}
+    assert "armored" not in compact
+
+
+def test_compact_properties_marks_armored_rigs():
+    plain = catalog._compact_properties({"capacity": 12, "armorSlots": []})
+    assert "armored" not in plain
+
+    sewn = catalog._compact_properties({"class": 4, "capacity": 10})
+    assert sewn["armored"] is True
+    assert "armorSlots" not in sewn
+
+    plates = catalog._compact_properties(
+        {
+            "capacity": 8,
+            "class": 0,
+            "armorSlots": [{"name": "Front_plate", "allowedPlates": ["plate1"]}],
+        }
+    )
+    assert plates["armored"] is True
+    assert "armorSlots" not in plates
+
+    soft_slot = catalog._compact_properties(
+        {"armorSlots": [{"name": "Soft_armor", "durability": 80}]}
+    )
+    assert soft_slot["armored"] is True
+
+
+def test_compact_properties_prefers_locale_armor_labels():
+    compact = catalog._compact_properties(
+        {
+            "zones": ["Collider Type RibcageUp", "Chest"],
+            "armorType": "Light",
+            "material": "Aramid",
+        },
+        {
+            "Collider Type RibcageUp": "胸腔上部",
+            "Chest": "胸廓",
+            "Light": "轻甲",
+            "Aramid": "芳香族聚酰胺",
+        },
+    )
+    assert compact["zones"] == ["胸腔上部", "胸廓"]
+    assert compact["armorType"] == "轻甲"
+    assert compact["material"] == "芳香族聚酰胺"
+
+
+def test_locale_enum_label_ignores_echo_and_garbled():
+    assert (
+        catalog._locale_enum_label({"RibcageUp": "RibcageUp"}, "RibcageUp")
+        == "RibcageUp"
+    )
+    assert catalog._locale_enum_label({"RibcageUp": "????"}, "RibcageUp") == "RibcageUp"
+    assert (
+        catalog._locale_enum_label(
+            {"RibcageUp": "上肋骨"}, "Collider Type RibcageUp"
+        )
+        == "上肋骨"
+    )
+
+
+def test_extract_detail_uses_locale_for_armor_slots():
+    payload = {
+        "items": {
+            "data": {
+                "items": {
+                    "rig1": {
+                        "id": "rig1",
+                        "types": ["rig"],
+                        "properties": {
+                            "zones": ["Collider Type RibcageUp"],
+                            "armorSlots": [
+                                {
+                                    "name": "Front_plate",
+                                    "zones": ["Collider Type RibcageUp"],
+                                    "allowedPlates": [],
+                                }
+                            ],
+                        },
+                    }
+                }
+            }
+        },
+        "locale": {
+            "rig1 Name": "测试挂",
+            "Front_plate": "前部插板",
+            "Collider Type RibcageUp": "胸腔上部",
+        },
+    }
+    detail = catalog.extract_item_detail(SOURCE_JSON_API, payload, "rig1")
+    assert detail is not None
+    props = detail["properties"]
+    assert props["zones"] == ["胸腔上部"]
+    assert props["armorSlots"][0]["name"] == "前部插板"
+    assert props["armorSlots"][0]["zones"] == ["胸腔上部"]
 
 
 def test_paginate_catalog_items_clamps_page():

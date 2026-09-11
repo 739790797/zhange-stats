@@ -5,6 +5,8 @@ def test_skips_health_and_assets() -> None:
     assert should_log_request("GET", "/health", 200, 5) is False
     assert should_log_request("GET", "/assets/app.js", 200, 5) is False
     assert should_log_request("GET", "/api/settings/runtime-health", 200, 5) is False
+    assert should_log_request("POST", "/api/client-rum", 200, 8) is False
+    assert should_log_request("POST", "/api/client-rum", 500, 8) is False
 
 
 def test_logs_writes_errors_and_slow_gets() -> None:

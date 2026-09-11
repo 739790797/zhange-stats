@@ -15,6 +15,10 @@ class TarkovAmmoItemOut(BaseModel):
     recoil_modifier: float = 0
     light_bleed_modifier: float = 0
     heavy_bleed_modifier: float = 0
+    tracer: bool = False
+    tracer_color: str = ""
+    fragmentation_chance: float = 0
+    ricochet_chance: float = 0
     icon_link: str = ""
     pack_icon_link: str = ""
     pack_item_id: str = ""
@@ -116,6 +120,7 @@ class TarkovWorkbenchPartOut(BaseModel):
     sighting_range: int | None = None
     mag_capacity: int | None = None
     conflicting_ids: list[str] = Field(default_factory=list)
+    category_ids: list[str] = Field(default_factory=list)
 
 
 class TarkovWorkbenchPairOut(BaseModel):
@@ -233,6 +238,68 @@ class TarkovWorkbenchCommunityBuildsOut(BaseModel):
     builds: list[TarkovWorkbenchCommunityBuildOut] = Field(default_factory=list)
 
 
+class TarkovWorkbenchGunsmithNamedOut(BaseModel):
+    id: str
+    name: str = ""
+
+
+class TarkovWorkbenchGunsmithTaskOut(BaseModel):
+    id: str
+    task_id: str
+    objective_id: str = ""
+    task_name: str
+    trader_slug: str = ""
+    trader_name: str = ""
+    faction_name: str = "Any"
+    weapon_id: str
+    weapon_name: str = ""
+    weapon_image: str = ""
+    constraints: dict[str, float] = Field(default_factory=dict)
+    required_items: list[TarkovWorkbenchGunsmithNamedOut] = Field(default_factory=list)
+    required_category_groups: list[list[TarkovWorkbenchGunsmithNamedOut]] = Field(
+        default_factory=list
+    )
+    loadable: bool = False
+
+
+class TarkovWorkbenchGunsmithTasksOut(BaseModel):
+    items: list[TarkovWorkbenchGunsmithTaskOut] = Field(default_factory=list)
+    task_count: int = 0
+    source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
+
+
+class TarkovWorkbenchGunsmithSolveIn(BaseModel):
+    task_id: str = Field(max_length=64)
+    objective_id: str | None = Field(default=None, max_length=64)
+    ammo_id: str | None = Field(default=None, max_length=64)
+
+
+class TarkovWorkbenchGunsmithChecklistOut(BaseModel):
+    ok: bool = False
+    missing_items: list[TarkovWorkbenchGunsmithNamedOut] = Field(default_factory=list)
+    missing_categories: list[list[TarkovWorkbenchGunsmithNamedOut]] = Field(
+        default_factory=list
+    )
+    unmet_constraints: list[str] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
+    recoil_sum: int = 0
+    stats: TarkovWorkbenchStatsOut | None = None
+
+
+class TarkovWorkbenchGunsmithSolveOut(BaseModel):
+    status: str
+    reason: str = ""
+    task_id: str
+    objective_id: str = ""
+    weapon_id: str
+    ammo_id: str | None = None
+    pairs: list[TarkovWorkbenchPairOut] = Field(default_factory=list)
+    stats: TarkovWorkbenchStatsOut | None = None
+    checklist: TarkovWorkbenchGunsmithChecklistOut | None = None
+
+
 class TarkovCatalogItemOut(BaseModel):
     id: str
     name: str
@@ -347,6 +414,7 @@ class TarkovTaskListItemOut(BaseModel):
     objective_count: int = 0
     objective_types: list[str] = Field(default_factory=list)
     line_hint: str = ""
+    prestige_cycle: int = 0
     mutex_ids: list[str] = Field(default_factory=list)
     blocked_by: list[str] = Field(default_factory=list)
     prereq_ids: list[str] = Field(default_factory=list)
@@ -470,6 +538,7 @@ class TarkovRaidPrepTaskOut(TarkovTaskListItemOut):
     needed_keys: list["TarkovTaskNeededKeysOut"] = Field(default_factory=list)
     fail_conditions: list[TarkovTaskFailConditionOut] = Field(default_factory=list)
     has_map_markers: bool = False
+    on_this_map: bool = True
 
 
 class TarkovRaidPrepOut(BaseModel):
@@ -1126,7 +1195,19 @@ class TarkovHideoutTraderReqOut(BaseModel):
 
 class TarkovHideoutSkillReqOut(BaseModel):
     skill: str = ""
+    skill_id: str = ""
     level: int = 0
+
+
+class TarkovHideoutBonusOut(BaseModel):
+    type: str = ""
+    name: str = ""
+    value: float = 0
+    passive: bool = True
+    production: bool = False
+    skill: str = ""
+    skill_id: str = ""
+    slot_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
 
 
 class TarkovHideoutLevelOut(BaseModel):
@@ -1138,6 +1219,7 @@ class TarkovHideoutLevelOut(BaseModel):
     station_requirements: list[TarkovHideoutStationReqOut] = Field(default_factory=list)
     trader_requirements: list[TarkovHideoutTraderReqOut] = Field(default_factory=list)
     skill_requirements: list[TarkovHideoutSkillReqOut] = Field(default_factory=list)
+    bonuses: list[TarkovHideoutBonusOut] = Field(default_factory=list)
 
 
 class TarkovHideoutStationOut(BaseModel):
@@ -1198,6 +1280,7 @@ class TarkovCraftOut(BaseModel):
     station_name: str = ""
     level: int = 0
     duration: int = 0
+    task_unlock: str | None = None
     required_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
     product_item: TarkovGuideItemRefOut
 
@@ -1588,6 +1671,21 @@ class TarkovCollectionOwnsOut(BaseModel):
 
 class TarkovCollectionOwnsIn(BaseModel):
     item_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
+class TarkovHideoutLevelRowOut(BaseModel):
+    station_id: str
+    level: int = 0
+
+
+class TarkovHideoutLevelsOut(BaseModel):
+    levels: list[TarkovHideoutLevelRowOut] = Field(default_factory=list)
+    game_mode: str = "pvp"
+
+
+class TarkovHideoutLevelSetIn(BaseModel):
+    station_id: str = Field(min_length=1, max_length=64)
+    level: int = Field(ge=0, le=20)
 
 
 class TarkovCollectionPlacementOut(BaseModel):

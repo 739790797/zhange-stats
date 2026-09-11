@@ -1,4 +1,4 @@
-"""清理过期 job_runs 与 checkin_logs（默认保留 90 天），并维护 Minecraft 性能聚合档。"""
+"""清理过期 job_runs 与 checkin_logs（默认保留 90 天），维护 Minecraft 性能聚合档，并删除超过 14 天的 RUM 样本。"""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from app.core.database import SessionLocal
 from app.core.timeutil import now_naive
 from app.models.job_run import JobRun
 from app.services.minecraft.perf_rollup import maintain_perf_archive
+from app.services.rum import prune_rum_samples
 from app.services.scheduler_config import load_scheduler_config
 
 logger = logging.getLogger("zhange.job_runs_prune")
@@ -74,12 +75,14 @@ def prune_job_runs(
     db.flush()
     checkin_deleted = prune_checkin_logs(db, retention_days=days)
     mc_perf = maintain_perf_archive(db, prune=True)
+    rum_deleted = prune_rum_samples(db)
     return {
         "deleted": int(job_deleted),
         "retention_days": days,
         "checkin_logs_deleted": checkin_deleted,
         "checkin_logs_total": sum(checkin_deleted.values()),
         "minecraft_perf": mc_perf,
+        "rum_samples_deleted": rum_deleted,
     }
 
 
@@ -88,7 +91,7 @@ def prune_job_wrapper() -> None:
     run = JobRun(
         job_key=JOB_KEY,
         status="running",
-        message="清理过期任务日志、签到日志，并上卷 Minecraft 性能档",
+        message="清理过期任务日志、签到日志、RUM 样本，并上卷 Minecraft 性能档",
         started_at=now_naive(),
     )
     db.add(run)
@@ -111,7 +114,8 @@ def prune_job_wrapper() -> None:
             f"已删除 {stats['deleted']} 条 job_runs、"
             f"{stats['checkin_logs_total']} 条 checkin_logs"
             f"（保留 {stats['retention_days']} 天）；"
-            f"MC 原始采样删除 {stats.get('minecraft_perf', {}).get('raw_deleted', 0)} 条"
+            f"MC 原始采样删除 {stats.get('minecraft_perf', {}).get('raw_deleted', 0)} 条；"
+            f"RUM 样本删除 {stats.get('rum_samples_deleted', 0)} 条"
         )
         run.stats = stats
         run.finished_at = now_naive()

@@ -39,6 +39,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode, useTarkovGameModeControls, parseTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
@@ -146,6 +147,7 @@ import styles from "./TarkovRaidPrepPanel.module.css";
 
 export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const gameMode = useTarkovGameMode();
+  const { faction } = useTarkovPmcFaction();
   const { setMode } = useTarkovGameModeControls();
   const navigate = useNavigate();
   const token = Boolean(useAuthStore((s) => s.user));
@@ -671,11 +673,14 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   );
   const selectedTasks = useMemo(
     () =>
-      selectedTasksFromCatalog(
-        catalogRich,
-        groups.map((row) => row.taskId),
+      filterRaidPrepRows(
+        selectedTasksFromCatalog(
+          catalogRich,
+          groups.map((row) => row.taskId),
+        ),
+        { faction },
       ),
-    [catalogRich, groups],
+    [catalogRich, faction, groups],
   );
   const guideTasks = useMemo(
     () => mergeRaidPrepGuideTasks(selectedTasks, catalogRich, guideTaskId),
@@ -684,8 +689,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const overlayTasks = geometry.items;
   const rows = useMemo(
     () =>
-      filterRaidPrepRows(catalogRich, { q: query }),
-    [catalogRich, query],
+      filterRaidPrepRows(catalogRich, { q: query, faction }),
+    [catalogRich, faction, query],
   );
   const statusGroups = useMemo(() => {
     const grouped = groupRaidPrepRowsByProgress(

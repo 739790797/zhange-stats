@@ -3,7 +3,6 @@ import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
 import type { TarkovBarter, TarkovCraft, TarkovItemDetail } from "@/api/guidesApi";
 import {
-  TARKOV_HIDEOUT_PATH,
   tarkovHideoutHref,
   tarkovTaskHref,
   tarkovTraderHref,
@@ -197,7 +196,7 @@ export function TarkovItemUses({
           count={crafts.length + hideout.length}
           extra={
             hideout.length && !crafts.length ? (
-              <Link className={styles.more} to={TARKOV_HIDEOUT_PATH}>
+              <Link className={styles.more} to={tarkovHideoutHref()}>
                 藏身处
               </Link>
             ) : undefined

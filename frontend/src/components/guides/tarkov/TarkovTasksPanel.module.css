@@ -242,40 +242,25 @@
   background: rgba(224, 112, 112, 0.12);
 }
 
-.typeChip[data-tone="findItem"] {
+.typeChip[data-tone="findItem"],
+.typeChip[data-tone="findQuestItem"] {
   color: #5dcec0;
   border-color: #2a6e66;
   background: rgba(93, 206, 192, 0.12);
 }
 
-.typeChip[data-tone="findQuestItem"] {
-  color: #4ec4d4;
-  border-color: #2a6a74;
-  background: rgba(78, 196, 212, 0.12);
-}
-
-.typeChip[data-tone="giveItem"] {
+.typeChip[data-tone="giveItem"],
+.typeChip[data-tone="giveQuestItem"] {
   color: #d4b05a;
   border-color: #7a6428;
   background: rgba(212, 176, 90, 0.12);
 }
 
-.typeChip[data-tone="giveQuestItem"] {
-  color: #e08940;
-  border-color: #8a4e20;
-  background: rgba(224, 137, 64, 0.12);
-}
-
-.typeChip[data-tone="plantItem"] {
+.typeChip[data-tone="plantItem"],
+.typeChip[data-tone="plantQuestItem"] {
   color: #b888e0;
   border-color: #5c3a78;
   background: rgba(184, 136, 224, 0.12);
-}
-
-.typeChip[data-tone="plantQuestItem"] {
-  color: #d070b8;
-  border-color: #6e3860;
-  background: rgba(208, 112, 184, 0.12);
 }
 
 .typeChip[data-tone="mark"] {

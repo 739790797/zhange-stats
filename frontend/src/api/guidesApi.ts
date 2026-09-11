@@ -76,10 +76,16 @@ export async function fetchTarkovWorkbenchCalculate(opts: {
 export type TarkovWorkbenchImage = components["schemas"]["TarkovWorkbenchImageOut"];
 export type TarkovWorkbenchImageStatus =
   components["schemas"]["TarkovWorkbenchImageStatusOut"];
-export type TarkovWorkbenchCommunityBuilds =
-  components["schemas"]["TarkovWorkbenchCommunityBuildsOut"];
 export type TarkovWorkbenchCommunityBuild =
   components["schemas"]["TarkovWorkbenchCommunityBuildOut"];
+export type TarkovWorkbenchCommunityBuilds =
+  components["schemas"]["TarkovWorkbenchCommunityBuildsOut"];
+export type TarkovWorkbenchGunsmithTasks =
+  components["schemas"]["TarkovWorkbenchGunsmithTasksOut"];
+export type TarkovWorkbenchGunsmithTask =
+  components["schemas"]["TarkovWorkbenchGunsmithTaskOut"];
+export type TarkovWorkbenchGunsmithSolve =
+  components["schemas"]["TarkovWorkbenchGunsmithSolveOut"];
 
 export async function fetchTarkovWorkbenchImageStatus() {
   const { data } = await client.get<TarkovWorkbenchImageStatus>(
@@ -112,6 +118,31 @@ export async function fetchTarkovWorkbenchCommunityBuilds(gunId: string) {
   return data;
 }
 
+export async function fetchTarkovWorkbenchGunsmithTasks() {
+  const { data } = await client.get<TarkovWorkbenchGunsmithTasks>(
+    "/guides/tarkov/workbench/gunsmith-tasks",
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovWorkbenchGunsmithSolve(opts: {
+  taskId: string;
+  objectiveId?: string | null;
+  ammoId?: string | null;
+}) {
+  const { data } = await client.post<TarkovWorkbenchGunsmithSolve>(
+    "/guides/tarkov/workbench/gunsmith-solve",
+    {
+      task_id: opts.taskId,
+      objective_id: opts.objectiveId || null,
+      ammo_id: opts.ammoId ?? null,
+    },
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
 export async function fetchTarkovItemCatalog(opts: {
   categoryIds?: string[];
   types?: string[];
@@ -135,6 +166,29 @@ export async function fetchTarkovItemCatalog(opts: {
   return data;
 }
 
+export async function fetchTarkovItemCatalogAll(opts: {
+  categoryIds?: string[];
+  types?: string[];
+  q?: string;
+}) {
+  const pageSize = 100;
+  const first = await fetchTarkovItemCatalog({ ...opts, page: 1, pageSize });
+  const total = first.item_count;
+  if (total <= first.items.length) return first;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, i) =>
+      fetchTarkovItemCatalog({ ...opts, page: i + 2, pageSize }),
+    ),
+  );
+  return {
+    ...first,
+    items: first.items.concat(...rest.map((row) => row.items)),
+    page: 1,
+    page_size: total,
+  };
+}
+
 export async function fetchTarkovItemDetail(itemId: string) {
   const { data } = await client.get<TarkovItemDetail>(
     `/guides/tarkov/items/${encodeURIComponent(itemId)}`,
@@ -156,10 +210,17 @@ export async function syncTarkovCatalog() {
   return data;
 }
 
-export async function fetchTarkovSiteSearch(q: string) {
+export async function fetchTarkovSiteSearch(
+  q: string,
+  opts?: { faction?: string },
+) {
   const query = (q || "").trim();
+  const faction = (opts?.faction || "").trim();
   const { data } = await client.get<TarkovSiteSearch>("/guides/tarkov/search", {
-    params: { q: query },
+    params: {
+      q: query,
+      ...(faction ? { faction } : {}),
+    },
     timeout: 60_000,
   });
   return data;
@@ -169,6 +230,7 @@ export async function fetchTarkovTasks(opts: {
   q?: string;
   trader?: string;
   map?: string;
+  faction?: string;
   page?: number;
   pageSize?: number;
   layout?: "table" | "all";
@@ -176,12 +238,14 @@ export async function fetchTarkovTasks(opts: {
   const q = (opts.q || "").trim();
   const trader = (opts.trader || "").trim();
   const map = (opts.map || "").trim();
+  const faction = (opts.faction || "").trim();
   const layout = opts.layout === "all" ? "all" : undefined;
   const { data } = await client.get<TarkovTaskCatalog>("/guides/tarkov/tasks", {
     params: {
       ...(q ? { q } : {}),
       ...(trader ? { trader } : {}),
       ...(map ? { map } : {}),
+      ...(faction ? { faction } : {}),
       ...(layout ? { layout } : {}),
       ...(layout === "all"
         ? {}
@@ -338,8 +402,10 @@ export type TarkovHideoutCatalog = components["schemas"]["TarkovHideoutCatalogOu
 export type TarkovHideoutStation = components["schemas"]["TarkovHideoutStationOut"];
 export type TarkovHideoutLevel = components["schemas"]["TarkovHideoutLevelOut"];
 export type TarkovHideoutDetail = components["schemas"]["TarkovHideoutDetailOut"];
+export type TarkovHideoutLevels = components["schemas"]["TarkovHideoutLevelsOut"];
 export type TarkovBarter = components["schemas"]["TarkovBarterOut"];
 export type TarkovCraft = components["schemas"]["TarkovCraftOut"];
+export type TarkovCraftCatalog = components["schemas"]["TarkovCraftCatalogOut"];
 export type TarkovKeyPacks = components["schemas"]["TarkovKeyPacksOut"];
 export type TarkovKeyPackMap = components["schemas"]["TarkovKeyPackMapOut"];
 export type TarkovKeyPackKey = components["schemas"]["TarkovKeyPackKeyOut"];
@@ -458,6 +524,41 @@ export async function fetchTarkovHideoutStation(slug: string) {
     `/guides/tarkov/hideout/${encodeURIComponent(slug)}`,
     { timeout: 180_000 },
   );
+  return data;
+}
+
+export async function fetchTarkovHideoutLevels() {
+  const { data } = await client.get<TarkovHideoutLevels>(
+    "/guides/tarkov/hideout-levels",
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function setTarkovHideoutLevel(stationId: string, level: number) {
+  const { data } = await client.put<TarkovHideoutLevels>(
+    "/guides/tarkov/hideout-levels",
+    { station_id: stationId, level },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovCrafts(opts?: {
+  station?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const { data } = await client.get<TarkovCraftCatalog>("/guides/tarkov/crafts", {
+    params: {
+      station: opts?.station,
+      q: opts?.q,
+      page: opts?.page ?? 1,
+      page_size: opts?.pageSize ?? 100,
+    },
+    timeout: 180_000,
+  });
   return data;
 }
 

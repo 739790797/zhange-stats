@@ -26,6 +26,9 @@ from app.api.guides.schemas import (
     TarkovWorkbenchImageOut,
     TarkovWorkbenchImageStatusOut,
     TarkovWorkbenchCommunityBuildsOut,
+    TarkovWorkbenchGunsmithSolveIn,
+    TarkovWorkbenchGunsmithSolveOut,
+    TarkovWorkbenchGunsmithTasksOut,
     TarkovWorkbenchGunOut,
     TarkovItemDetailOut,
     TarkovItemsSyncOut,
@@ -51,6 +54,8 @@ from app.api.guides.schemas import (
     TarkovMapPlacesOut,
     TarkovHideoutCatalogOut,
     TarkovHideoutDetailOut,
+    TarkovHideoutLevelsOut,
+    TarkovHideoutLevelSetIn,
     TarkovBarterCatalogOut,
     TarkovCraftCatalogOut,
     TarkovGuidesSyncOut,
@@ -87,6 +92,7 @@ from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import guns as gun_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import workbench as workbench_svc
+from app.services.tarkov import workbench_gunsmith as gunsmith_svc
 from app.services.tarkov import workbench_image as workbench_image_svc
 from app.services.tarkov import community as community_svc
 from app.services.tarkov import key_owns as key_owns_svc
@@ -97,10 +103,12 @@ from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import collection as collection_svc
 from app.services.tarkov import collection_owns as collection_owns_svc
 from app.services.tarkov import collection_layout as collection_layout_svc
+from app.services.tarkov import hideout_levels as hideout_levels_svc
 from app.services.tarkov import task_dones as task_dones_svc
 from app.services.tarkov import raid_logs as raid_logs_svc
 from app.services.tarkov import raid_prep_state as raid_prep_state_svc
 from app.services.tarkov import maps as maps_svc
+from app.services.tarkov import overlay as overlay_svc
 from app.services.tarkov import places as places_svc
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
@@ -288,12 +296,15 @@ def guides_tarkov_item_catalog(
 )
 def guides_tarkov_site_search(
     q: str = Query(default="", max_length=80),
+    faction: str | None = Query(default=None, max_length=8),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """攻略站全站搜索：物品 / 任务 / 商人 / BOSS（有 raw 才查，不回源）。"""
     _ = user
-    return TarkovSiteSearchOut.model_validate(search_svc.search_site(db, q))
+    return TarkovSiteSearchOut.model_validate(
+        search_svc.search_site(db, q, faction=faction)
+    )
 
 
 @router.get(
@@ -374,6 +385,10 @@ def guides_tarkov_ammo(
             recoil_modifier=row.recoil_modifier,
             light_bleed_modifier=row.light_bleed_modifier,
             heavy_bleed_modifier=row.heavy_bleed_modifier,
+            tracer=bool(row.tracer),
+            tracer_color=row.tracer_color or "",
+            fragmentation_chance=row.fragmentation_chance,
+            ricochet_chance=row.ricochet_chance,
             icon_link=row.icon_link,
             pack_icon_link=str((packs.get(row.item_id) or {}).get("pack_icon_link") or ""),
             pack_item_id=str((packs.get(row.item_id) or {}).get("pack_item_id") or ""),
@@ -666,6 +681,53 @@ def guides_tarkov_workbench_community_builds(
     return TarkovWorkbenchCommunityBuildsOut.model_validate(data)
 
 
+@router.get(
+    "/workbench/gunsmith-tasks",
+    response_model=TarkovWorkbenchGunsmithTasksOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_gunsmith_tasks(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工作台：从 tasks dump 投影枪匠改装目标（不 vendor 第三方任务包）。"""
+    _ = user
+    try:
+        data = gunsmith_svc.list_gunsmith_tasks(db)
+    except (workbench_svc.TarkovWorkbenchError, tasks_svc.TarkovTasksError) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchGunsmithTasksOut.model_validate(data)
+
+
+@router.post(
+    "/workbench/gunsmith-solve",
+    response_model=TarkovWorkbenchGunsmithSolveOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_workbench_gunsmith_solve(
+    request: Request,
+    body: TarkovWorkbenchGunsmithSolveIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工作台：为一条枪匠目标求一套可交任务的改装。"""
+    ip = client_ip(request)
+    platform_limiter.hit(f"tarkov-gunsmith-solve:ip:{ip}", limit=20, window_sec=60)
+    platform_limiter.hit(
+        f"tarkov-gunsmith-solve:uid:{user.id}", limit=12, window_sec=60
+    )
+    try:
+        data = gunsmith_svc.solve_gunsmith_task(
+            db,
+            body.task_id,
+            body.objective_id,
+            body.ammo_id,
+        )
+    except (workbench_svc.TarkovWorkbenchError, tasks_svc.TarkovTasksError) as exc:
+        raise _workbench_http(exc) from exc
+    return TarkovWorkbenchGunsmithSolveOut.model_validate(data)
+
+
 def _sync_tasks(db: Session) -> dict:
     try:
         return tasks_svc.sync_from_upstream(db)
@@ -703,6 +765,7 @@ def guides_tarkov_task_catalog(
     q: str | None = Query(default=None, max_length=80),
     trader: str | None = Query(default=None, max_length=64),
     map_slug: str | None = Query(default=None, max_length=64, alias="map"),
+    faction: str | None = Query(default=None, max_length=8),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     layout: str | None = Query(default="table", max_length=16),
@@ -719,10 +782,13 @@ def guides_tarkov_task_catalog(
         request,
         "tasks",
         "trader-en",
+        tasks_svc.TASK_CATALOG_FRESHNESS,
+        overlay_svc.overlay_cache_token(db),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
         q,
         trader,
         map_slug,
+        faction,
         page,
         page_size,
         layout,
@@ -735,6 +801,7 @@ def guides_tarkov_task_catalog(
             trader=trader,
             map_slug=map_slug,
             q=q,
+            faction=faction,
             page=page,
             page_size=page_size,
             layout=layout,
@@ -763,7 +830,7 @@ def guides_tarkov_raid_prep(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。"""
+    """联机大厅：列出全部任务。当前图有标点的排前；geometry+ids 才返回点位。"""
     _ = user
     type_list = _parse_csv_ids(types)
     id_list = _parse_csv_ids(ids)[:40]
@@ -775,6 +842,8 @@ def guides_tarkov_raid_prep(
         request,
         "raid-prep",
         "trader-en",
+        tasks_svc.TASK_CATALOG_FRESHNESS,
+        overlay_svc.overlay_cache_token(db),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
         map_slug,
         q,
@@ -1420,6 +1489,58 @@ def guides_tarkov_hideout_detail(
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
     return TarkovHideoutDetailOut.model_validate(detail)
+
+
+def _hideout_stations(db: Session) -> list:
+    try:
+        _source, parsed, _synced, _note = guides_svc.load_parsed_guides(db)
+    except guides_svc.TarkovGuidesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    rows = parsed.get("stations") or []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _hideout_levels_error(exc: hideout_levels_svc.TarkovHideoutLevelsError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/hideout-levels",
+    response_model=TarkovHideoutLevelsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_hideout_levels_list(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """个人中心藏身处规划等级。"""
+    stations = _hideout_stations(db)
+    return TarkovHideoutLevelsOut(
+        levels=hideout_levels_svc.list_levels(db, user.id, stations),
+        game_mode=parse_game_mode(),
+    )
+
+
+@router.put(
+    "/hideout-levels",
+    response_model=TarkovHideoutLevelsOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_hideout_levels_set(
+    body: TarkovHideoutLevelSetIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """升级或降级一个模块；降级会级联压低依赖它的模块。"""
+    stations = _hideout_stations(db)
+    try:
+        rows = hideout_levels_svc.set_level(
+            db, user, stations, body.station_id, body.level
+        )
+    except hideout_levels_svc.TarkovHideoutLevelsError as exc:
+        raise _hideout_levels_error(exc) from exc
+    db.commit()
+    return TarkovHideoutLevelsOut(levels=rows, game_mode=parse_game_mode())
 
 
 @router.get(

@@ -22,13 +22,13 @@
 
 `zhange.http` 管访问日志，业务里不要再抄「这个 GET 成功了」。
 
-**不记：** `/health`、静态资源、头像、运行环境 / 平台日志自己的轮询（否则自动刷新会刷爆）。
+**不记：** `/health`、静态资源、头像、运行环境 / 平台日志自己的轮询、`POST /api/client-rum`（浏览器 RUM 批量上报）。
 
 **必记：** 非 GET（写操作）。
 
 **GET：** 仅状态 ≥400 或耗时 ≥200ms。又快又成功的读请求保持静默。
 
-`X-Request-ID` 写入上下文并回响应头；对一次失败的 API 用这个 ID 在平台日志里搜。前端白屏走 `POST /api/client-errors`（`zhange.client` WARNING），不要另上一套 Sentry。
+`X-Request-ID` 写入上下文并回响应头；对一次失败的 API 用这个 ID 在平台日志里搜。前端白屏走 `POST /api/client-errors`（`zhange.client` WARNING），不要另上一套 Sentry。用户等待时间走浏览器 RUM：`POST /api/client-rum` 落 `rum_samples`，管理端「运行维护 → 用户等待」看 p50/p95，**不要**把每条耗时打进 INFO。
 
 调度任务用 `wrap_scheduled_job`：统一 `scheduled job begin/done/failed`，不要每个 job 再包一层同样的 begin/done。
 
@@ -52,7 +52,7 @@
 
 ## 不该发
 
-- 成功且快的 GET；平台日志 / 运行环境 / `/health` 的轮询
+- 成功且快的 GET；平台日志 / 运行环境 / `/health` 的轮询；RUM 上报
 - 循环里「处理了第 N 个」——签到一轮上百人会把环缓冲顶满
 - 密钥、Cookie、JWT、房间密码、验证码明文（生产 `ALLOW_EMAIL_CODE_LOG` 启动硬拒绝）
 - 上游整段 JSON、含 token 的响应体；QQ 用户信息失败只打 `ret`/`msg`
@@ -69,10 +69,10 @@
 
 ## 前端
 
-不要 `console.log` 业务。用户可见失败用 `apiError`。渲染崩溃：`RouteErrorBoundary` 可 `console.error`，同时 `POST /api/client-errors`。不要把生产堆栈默认送到第三方。
+不要 `console.log` 业务。用户可见失败用 `apiError`。渲染崩溃：`RouteErrorBoundary` 可 `console.error`，同时 `POST /api/client-errors`。接口转圈与第三方图等待走 `POST /api/client-rum`（批量、失败静默）。不要把生产堆栈默认送到第三方。
 
 ## 怎么看
 
-管理端 **运行维护 → 平台日志**：筛级别 / logger / biz / 关键字。默认 INFO+。依赖是否可用看 **运行维护 → 运行环境**，不要把核对项再塞回日志页。
+管理端 **运行维护 → 平台日志**：筛级别 / logger / biz / 关键字。默认 INFO+。依赖是否可用看 **运行维护 → 运行环境**。用户侧等待（接口转圈 / 第三方图）看 **运行维护 → 用户等待**，不要把 RUM 样本打进平台日志。
 
 磁盘：`data/runtime/logs/app.jsonl`。对一次请求：浏览器响应头 `X-Request-ID` 与日志 `context` 同一编号。

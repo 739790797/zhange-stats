@@ -222,8 +222,33 @@ def parse_hideout_stations(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 skill_key = str(req.get("skill") or "")
                 skill_reqs.append(
                     {
+                        "skill_id": skill_key,
                         "skill": _locale_lookup(locale, skill_key) or skill_key,
                         "level": _as_int(req.get("level"), 0),
+                    }
+                )
+            bonuses: list[dict[str, Any]] = []
+            for raw_bonus in level.get("bonuses") or []:
+                if not isinstance(raw_bonus, dict):
+                    continue
+                name_key = str(raw_bonus.get("name") or "")
+                skill_key = str(raw_bonus.get("skill") or "")
+                slot_raw = raw_bonus.get("slotItems") or []
+                slot_ids = [
+                    str(item).strip()
+                    for item in (slot_raw if isinstance(slot_raw, list) else [])
+                    if str(item).strip()
+                ]
+                bonuses.append(
+                    {
+                        "type": str(raw_bonus.get("type") or ""),
+                        "name": _locale_lookup(locale, name_key) or name_key,
+                        "value": _as_float(raw_bonus.get("value"), 0.0),
+                        "passive": bool(raw_bonus.get("passive", True)),
+                        "production": bool(raw_bonus.get("production", False)),
+                        "skill_id": skill_key,
+                        "skill": _locale_lookup(locale, skill_key) or skill_key,
+                        "slot_item_ids": slot_ids,
                     }
                 )
             desc_key = str(level.get("description") or "")
@@ -237,6 +262,7 @@ def parse_hideout_stations(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     "station_requirements": station_reqs,
                     "trader_requirements": trader_reqs,
                     "skill_requirements": skill_reqs,
+                    "bonuses": bonuses,
                 }
             )
         levels.sort(key=lambda r: int(r.get("level") or 0))
@@ -328,6 +354,7 @@ def parse_crafts(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "station_name": station.get("name") or station_id,
                 "level": _as_int(raw.get("level"), 0),
                 "duration": _as_int(raw.get("duration"), 0),
+                "task_unlock": _id_of(raw.get("taskUnlock")) or None,
                 "required_items": required,
                 "product_item": product,
             }
@@ -611,11 +638,30 @@ def list_hideout(db: Session) -> dict[str, Any]:
     for station in stations:
         for level in station.get("levels") or []:
             needed |= _collect_ids(level.get("item_requirements") or [])
+            for bonus in level.get("bonuses") or []:
+                if not isinstance(bonus, dict):
+                    continue
+                for ident in bonus.get("slot_item_ids") or []:
+                    text = str(ident or "").strip()
+                    if text:
+                        needed.add(text)
     items = _lookup_items(db, needed)
     public = []
     for station in stations:
         levels = []
         for level in station.get("levels") or []:
+            bonuses = []
+            for bonus in level.get("bonuses") or []:
+                if not isinstance(bonus, dict):
+                    continue
+                slot_items = [
+                    _enrich_item({"id": ident, "count": 1}, items)
+                    for ident in (bonus.get("slot_item_ids") or [])
+                    if str(ident or "").strip()
+                ]
+                packed = {k: v for k, v in bonus.items() if k != "slot_item_ids"}
+                packed["slot_items"] = slot_items
+                bonuses.append(packed)
             levels.append(
                 {
                     **level,
@@ -623,6 +669,7 @@ def list_hideout(db: Session) -> dict[str, Any]:
                         _enrich_item(req, items)
                         for req in (level.get("item_requirements") or [])
                     ],
+                    "bonuses": bonuses,
                 }
             )
         public.append({**station, "levels": levels})

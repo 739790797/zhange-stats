@@ -1,4 +1,5 @@
-import { Navigate, useParams } from "react-router-dom";
+import { ArrowLeftOutlined } from "@ant-design/icons";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovTaskDetail } from "@/api/guidesApi";
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
@@ -25,14 +26,22 @@ export default function TarkovTaskDetailPage() {
 
   return (
     <div className={styles.inner}>
-      <TarkovItemsBreadcrumb
-        items={[
-          { label: "逃离塔科夫", to: TARKOV_HOME_PATH },
-          { label: "任务", to: TARKOV_TASKS_PATH },
-          { label: title },
-        ]}
-      />
-      <TarkovTaskDetailPanel taskId={taskId} />
+      <div className={styles.taskDetail}>
+        <div className={styles.taskTopBar}>
+          <TarkovItemsBreadcrumb
+            items={[
+              { label: "逃离塔科夫", to: TARKOV_HOME_PATH },
+              { label: "任务", to: TARKOV_TASKS_PATH },
+              { label: title },
+            ]}
+          />
+          <Link className={styles.taskTopBarBack} to={TARKOV_TASKS_PATH}>
+            <ArrowLeftOutlined />
+            返回任务列表
+          </Link>
+        </div>
+        <TarkovTaskDetailPanel taskId={taskId} />
+      </div>
     </div>
   );
 }

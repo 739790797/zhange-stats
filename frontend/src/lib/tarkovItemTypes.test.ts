@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   allItemPages,
+  catalogPageForBrowse,
+  catalogPresetSlug,
+  findHandbookChild,
   handbookCategoryFromIds,
   handbookHrefFromCategoryId,
+  itemBrowseKind,
   itemHrefFromTypes,
+  itemListingHref,
   itemPageBySlug,
   itemTypeHrefFromTypes,
   itemTypeLabelFromTypes,
@@ -29,6 +34,9 @@ describe("itemPageBySlug", () => {
     );
     expect(itemPageBySlug("battle-pass")?.types).toContain("poster");
     expect(itemPageBySlug("helmets")?.types).toEqual(["helmet"]);
+    expect(itemPageBySlug("helmets")?.categoryIds).toContain(
+      "5b47574386f77428ca22b330",
+    );
     const mods = itemPageBySlug("weapon-mods");
     expect(mods?.children.map((c) => c.label)).toEqual([
       "装备配件",
@@ -63,6 +71,9 @@ describe("itemHrefFromTypes", () => {
     expect(itemHrefFromTypes("g1", ["gun"])).toBe(
       "/guides/tarkov/items/guns/g1",
     );
+    expect(itemHrefFromTypes("r1", ["preset", "rig"])).toBe(
+      "/guides/tarkov/items/rigs/r1",
+    );
     expect(itemHrefFromTypes("k1", ["keys"])).toBe(
       "/guides/tarkov/items/keys/k1",
     );
@@ -72,12 +83,21 @@ describe("itemHrefFromTypes", () => {
     expect(itemHrefFromTypes("h1", ["headphones"])).toBe(
       "/guides/tarkov/items/headsets/h1",
     );
+    expect(itemHrefFromTypes("p-default", ["preset"])).toBe(
+      "/guides/tarkov/items/guns/p-default",
+    );
   });
 
   it("reads a category label and listing href from item types", () => {
     expect(itemTypeLabelFromTypes(["suppressor"])).toBe("消音器");
     expect(itemTypeHrefFromTypes(["suppressor"])).toBe(
-      "/guides/tarkov/items/suppressors",
+      itemListingHref("suppressors"),
+    );
+    expect(itemTypeHrefFromTypes(["suppressor"])).toBe(
+      "/guides/tarkov/items/weapon-mods?child=5b5f731a86f774093e6cb4f9",
+    );
+    expect(itemTypeHrefFromTypes(["rig"])).toBe(
+      "/guides/tarkov/items/gear?child=5b5f6f8786f77447ed563642",
     );
   });
 });
@@ -128,20 +148,58 @@ describe("handbookHrefFromCategoryId", () => {
       "/guides/tarkov/items/keys",
     );
     expect(handbookHrefFromCategoryId("5b47574386f77428ca22b33c")).toBe(
-      "/guides/tarkov/items/ammo-packs",
+      "/guides/tarkov/items/ammo?child=5b47574386f77428ca22b33c",
     );
     expect(handbookHrefFromCategoryId("5b5f7a0886f77409407a7f96")).toBe(
-      "/guides/tarkov/items/melee",
+      "/guides/tarkov/items/guns?child=5b5f7a0886f77409407a7f96",
     );
   });
 
   it("maps weapon-mod leaves to dedicated pages or the mods catalog", () => {
     expect(handbookHrefFromCategoryId("5b5f731a86f774093e6cb4f9")).toBe(
-      "/guides/tarkov/items/suppressors",
+      "/guides/tarkov/items/weapon-mods?child=5b5f731a86f774093e6cb4f9",
     );
     expect(handbookHrefFromCategoryId("5b5f754a86f774094242f19b")).toBe(
       "/guides/tarkov/items/weapon-mods?child=5b5f754a86f774094242f19b",
     );
+  });
+});
+
+describe("itemListingHref / catalog columns follow the selected child", () => {
+  it("sends leaf listings to the handbook parent with child=", () => {
+    expect(itemListingHref("rigs")).toBe(
+      "/guides/tarkov/items/gear?child=5b5f6f8786f77447ed563642",
+    );
+    expect(itemListingHref("helmets")).toBe(
+      "/guides/tarkov/items/gear?child=5b47574386f77428ca22b330",
+    );
+    expect(itemListingHref("ammo-packs")).toBe(
+      "/guides/tarkov/items/ammo?child=5b47574386f77428ca22b33c",
+    );
+    expect(itemListingHref("gear")).toBe("/guides/tarkov/items/gear");
+  });
+
+  it("switches ammo packs and melee to the catalog panel", () => {
+    const ammo = itemPageBySlug("ammo");
+    const guns = itemPageBySlug("guns");
+    expect(ammo && guns).toBeTruthy();
+    if (!ammo || !guns) return;
+    const packs = findHandbookChild(ammo.children, "5b47574386f77428ca22b33c");
+    const melee = findHandbookChild(guns.children, "5b5f7a0886f77409407a7f96");
+    expect(itemBrowseKind(ammo, null)).toBe("ammo");
+    expect(itemBrowseKind(ammo, packs || null)).toBe("catalog");
+    expect(catalogPageForBrowse(ammo, packs || null).slug).toBe("ammo-packs");
+    expect(itemBrowseKind(guns, null)).toBe("guns");
+    expect(itemBrowseKind(guns, melee || null)).toBe("catalog");
+  });
+
+  it("uses the rig column preset when 战术胸挂 is selected on gear", () => {
+    const gear = itemPageBySlug("gear");
+    expect(gear).toBeTruthy();
+    if (!gear) return;
+    const rigs = findHandbookChild(gear.children, "5b5f6f8786f77447ed563642");
+    expect(catalogPresetSlug(gear, null)).toBe("gear");
+    expect(catalogPresetSlug(gear, rigs || null)).toBe("rigs");
   });
 });
 

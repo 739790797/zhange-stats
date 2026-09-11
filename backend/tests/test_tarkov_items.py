@@ -35,6 +35,11 @@ class _FakeQuery:
                     r for r in self._rows if str(getattr(r, "icon_link", "") or "")
                 ]
                 continue
+            if key == "tracer":
+                self._rows = [
+                    r for r in self._rows if bool(getattr(r, "tracer", False))
+                ]
+                continue
             if key in ("id", "mode_id"):
                 try:
                     value = int(value)
@@ -114,6 +119,10 @@ def _json_envelope() -> dict:
                             "damage": 40,
                             "penetrationPower": 50,
                             "armorDamage": 55,
+                            "tracer": True,
+                            "tracerColor": "green",
+                            "fragmentationChance": 0.17,
+                            "ricochetChance": 0.05,
                         },
                     },
                     "gun1": {
@@ -155,6 +164,8 @@ def test_parse_json_items_both():
     assert len(ammo_rows) == 1
     assert len(gun_rows) == 1
     assert ammo_rows[0]["item_id"] == "ammo1"
+    assert ammo_rows[0]["tracer"] is True
+    assert ammo_rows[0]["fragmentation_chance"] == pytest.approx(0.17)
     assert gun_rows[0]["item_id"] == "gun1"
 
 
@@ -284,6 +295,7 @@ def test_ensure_ammo_and_guns_share_sync(monkeypatch: pytest.MonkeyPatch):
                     "damage": 1,
                     "penetration": 1,
                     "armor_damage": 1,
+                    "tracer": True,
                 }
             ],
             source=SOURCE_JSON_API,

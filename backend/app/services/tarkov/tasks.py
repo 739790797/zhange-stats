@@ -26,7 +26,7 @@ from app.services.tarkov.game_mode import (
     parse_game_mode,
     run_for_modes,
 )
-from app.services.tarkov.overlay import parsed_cache_key
+from app.services.tarkov.overlay import OVERLAY_PARSE_REV, parsed_cache_key
 from app.services.tarkov.http import download_bytes
 from app.services.tarkov.task_lines import index_task_lines, stamp_task_line_fields
 
@@ -101,6 +101,10 @@ class TarkovTasksError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+# 任务目录 ETag：搜索折词 / overlay 英文 wiki 变更后必须换，避免 304 旧的 3 条
+TASK_CATALOG_FRESHNESS = OVERLAY_PARSE_REV
 
 
 @dataclass(frozen=True)
@@ -486,6 +490,7 @@ def project_task_summary(
         "faction_name": str(raw.get("factionName") or "Any"),
         "task_image_link": str(raw.get("taskImageLink") or ""),
         "wiki_link": str(raw.get("wikiLink") or ""),
+        "name_en": str(raw.get("nameEnglish") or raw.get("name_en") or ""),
         "objective_count": len(objectives),
         "objective_types": unique_objective_types(objectives),
     }
@@ -625,6 +630,14 @@ def _named_ref(
                         or qi.get("baseImageLink")
                         or ""
                     ).strip()
+    if kind == "category" and ident:
+        if isinstance(value, dict) and not slug:
+            slug = str(value.get("normalizedName") or "").strip()
+        loc = _locale_lookup(locale, f"{ident} Name", f"{ident} name")
+        if loc:
+            name = loc
+        elif not name or _is_placeholder_name(ident, name):
+            name = slug.replace("-", " ") if slug else ident
     return {
         "id": ident,
         "slug": slug,
@@ -735,26 +748,77 @@ def _project_health_effect(raw: Any) -> dict[str, Any] | None:
     return {"body_parts": body_parts, "effects": effects, "time": time}
 
 
+_ATTR_MIN_CMP = {">=", ">", "=>"}
+
+
+def _attribute_is_unconstrained(name: str, method: str, value: Any) -> bool:
+    """dump 的 buildAttributes 会带齐字段；≥0 与格仓下限是占位，不是门槛。"""
+    if value is None or value == "":
+        return True
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return False
+    key = "".join(ch for ch in (name or "").strip().lower() if ch.isalnum())
+    cmp = (method or "").strip()
+    if cmp in _ATTR_MIN_CMP and num == 0:
+        return True
+    if key in {"width", "height"} and cmp in _ATTR_MIN_CMP:
+        return True
+    return False
+
+
 def _project_attributes(raw: Any) -> list[dict[str, Any]]:
-    if not isinstance(raw, list):
-        return []
+    entries: list[tuple[str, str, Any]] = []
+    if isinstance(raw, list):
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            name = str(row.get("name") or "").strip()
+            req = row.get("requirement") if isinstance(row.get("requirement"), dict) else row
+            cmp = _project_number_compare(req)
+            if not name and cmp is None:
+                continue
+            entries.append(
+                (
+                    name,
+                    "" if cmp is None else str(cmp.get("compare_method") or ""),
+                    None if cmp is None else cmp.get("value"),
+                )
+            )
+    elif isinstance(raw, dict):
+        for raw_name, spec in raw.items():
+            name = str(raw_name or "").strip()
+            if not name:
+                continue
+            req = spec
+            if isinstance(spec, dict) and isinstance(spec.get("requirement"), dict):
+                req = spec.get("requirement")
+            elif not isinstance(spec, dict):
+                req = {"value": spec}
+            cmp = _project_number_compare(req)
+            entries.append(
+                (
+                    name,
+                    "" if cmp is None else str(cmp.get("compare_method") or ""),
+                    None if cmp is None else cmp.get("value"),
+                )
+            )
     out: list[dict[str, Any]] = []
-    for row in raw:
-        if not isinstance(row, dict):
+    for name, method, value in entries:
+        if not name:
             continue
-        name = str(row.get("name") or "").strip()
-        req = row.get("requirement") if isinstance(row.get("requirement"), dict) else row
-        cmp = _project_number_compare(req)
-        if not name and cmp is None:
+        if _attribute_is_unconstrained(name, method, value):
             continue
-        out.append(
-            {
-                "name": name,
-                "compare_method": "" if cmp is None else str(cmp.get("compare_method") or ""),
-                "value": None if cmp is None else cmp.get("value"),
-            }
-        )
+        out.append({"name": name, "compare_method": method, "value": value})
     return out
+
+
+def _project_objective_attributes(obj: dict[str, Any]) -> list[dict[str, Any]]:
+    attrs = _project_attributes(obj.get("attributes"))
+    if attrs:
+        return attrs
+    return _project_attributes(obj.get("buildAttributes"))
 
 
 def _project_skill(raw: Any) -> tuple[str, int | None]:
@@ -1068,7 +1132,7 @@ def _project_objective(
         "contains_category": _named_refs(
             obj.get("containsCategory"), locale, kind="category"
         ),
-        "attributes": _project_attributes(obj.get("attributes")),
+        "attributes": _project_objective_attributes(obj),
         "health_effect": _project_health_effect(obj.get("healthEffect")),
         "player_health_effect": _project_health_effect(obj.get("playerHealthEffect")),
         "enemy_health_effect": _project_health_effect(obj.get("enemyHealthEffect")),
@@ -1624,18 +1688,74 @@ def parse_task_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+TASK_FACTIONS = ("bear", "usec")
+
+
+def parse_task_faction(raw: str | None) -> str | None:
+    """用户 PMC 阵营：bear / usec。空或无法识别则不过滤。"""
+    text = str(raw or "").strip().lower()
+    if text in TASK_FACTIONS:
+        return text
+    return None
+
+
+def task_matches_faction(row: dict[str, Any], faction: str | None) -> bool:
+    if not faction:
+        return True
+    name = str(row.get("faction_name") or "Any").strip().lower()
+    if not name or name == "any":
+        return True
+    return name == faction
+
+
+def _fold_task_search(text: str) -> str:
+    chars: list[str] = []
+    spaced = False
+    for ch in str(text or "").lower().replace("_", "-").replace("/", "-"):
+        if ch == "-" or ch.isspace():
+            if not spaced:
+                chars.append(" ")
+            spaced = True
+            continue
+        chars.append(ch)
+        spaced = False
+    return "".join(chars).strip()
+
+
+def task_search_haystack(row: dict[str, Any]) -> str:
+    """名称 / slug / wiki 都折成空格，避免 New Beginning 对不上 new-beginning-2。"""
+    parts = [
+        str(row.get("name") or ""),
+        str(row.get("name_en") or ""),
+        str(row.get("normalized_name") or ""),
+        str(row.get("id") or ""),
+        str(row.get("trader_name") or ""),
+        str(row.get("map_name") or ""),
+        str(row.get("wiki_link") or ""),
+        str(row.get("line_hint") or ""),
+    ]
+    raw = " ".join(part for part in parts if part)
+    folded = _fold_task_search(raw)
+    return f"{raw} {folded} {folded.replace(' ', '')}".lower()
+
+
 def filter_task_rows(
     rows: list[dict[str, Any]],
     *,
     trader: str | None = None,
     map_slug: str | None = None,
     q: str | None = None,
+    faction: str | None = None,
 ) -> list[dict[str, Any]]:
     trader_key = (trader or "").strip().lower()
     map_key = (map_slug or "").strip().lower()
-    needle = (q or "").strip().lower()
+    needle = _fold_task_search(q or "")
+    compact_needle = needle.replace(" ", "")
+    faction_key = parse_task_faction(faction)
     out: list[dict[str, Any]] = []
     for row in rows:
+        if not task_matches_faction(row, faction_key):
+            continue
         if trader_key:
             slug = str(row.get("trader_slug") or "").lower()
             tid = str(row.get("trader_id") or "").lower()
@@ -1649,16 +1769,8 @@ def filter_task_rows(
             if map_key not in {slug, mid} and map_key not in mname:
                 continue
         if needle:
-            blob = " ".join(
-                [
-                    str(row.get("name") or ""),
-                    str(row.get("normalized_name") or ""),
-                    str(row.get("id") or ""),
-                    str(row.get("trader_name") or ""),
-                    str(row.get("map_name") or ""),
-                ]
-            ).lower()
-            if needle not in blob:
+            hay = task_search_haystack(row)
+            if needle not in hay and compact_needle not in hay:
                 continue
         out.append(row)
     return out
@@ -1861,6 +1973,7 @@ def list_tasks(
     trader: str | None = None,
     map_slug: str | None = None,
     q: str | None = None,
+    faction: str | None = None,
     page: int = 1,
     page_size: int = TASKS_PAGE_SIZE_DEFAULT,
     layout: str | None = None,
@@ -1871,6 +1984,7 @@ def list_tasks(
         trader=trader,
         map_slug=map_slug,
         q=q,
+        faction=faction,
     )
     ordered = sort_task_rows(filtered)
     layout_key = (layout or TASKS_LAYOUT_TABLE).strip().lower()
@@ -2052,10 +2166,16 @@ RAID_PREP_CATALOG_KEYS = (
     "trader_id",
     "trader_slug",
     "trader_name",
+    "map_slug",
+    "map_name",
     "has_map_markers",
+    "on_this_map",
     "min_player_level",
     "objective_count",
     "objective_types",
+    "line_hint",
+    "prestige_cycle",
+    "faction_name",
 )
 
 
@@ -2065,6 +2185,7 @@ def strip_raid_prep_catalog(row: dict[str, Any]) -> dict[str, Any]:
     out.setdefault("id", "")
     out.setdefault("name", "")
     out.setdefault("has_map_markers", False)
+    out.setdefault("on_this_map", False)
     out["objectives"] = []
     out["needed_keys"] = []
     out["fail_conditions"] = list(row.get("fail_conditions") or [])
@@ -2075,11 +2196,15 @@ def collect_raid_prep_rows(
     payload: dict[str, Any],
     map_slug: str,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """按地图收联机大厅任务；纯投影，不读库。目标已按图裁剪。"""
+    """收联机大厅任务目录：含当前图与无标点/其他图任务。
+
+    当前图目标按图裁剪几何；其他图目标保留 stub。枪匠等无地图任务会出现在每一张图的列表里。
+    """
     keys, ids = map_match_keys(map_slug)
     locale = _locale_map(payload)
     quest_items = _quest_items_map(payload)
     tasks = _tasks_map(payload)
+    line_index = index_task_lines(tasks, locale)
     map_name = ""
     for mid, (slug, name) in MAP_BY_ID.items():
         if slug in keys or mid in ids:
@@ -2096,8 +2221,9 @@ def collect_raid_prep_rows(
             tasks_by_id=tasks,
             include_unlocks=False,
         )
-        if detail is None or not task_hits_map(detail, map_slug):
+        if detail is None:
             continue
+        on_this_map = task_hits_map(detail, map_slug)
         detail = crop_raid_prep_detail_for_map(detail, map_slug)
         rows.append(
             {
@@ -2123,12 +2249,17 @@ def collect_raid_prep_rows(
                 "objectives": list(detail.get("objectives") or []),
                 "needed_keys": list(detail.get("needed_keys") or []),
                 "fail_conditions": list(detail.get("fail_conditions") or []),
-                "has_map_markers": task_has_map_markers(detail, map_slug),
+                "has_map_markers": (
+                    task_has_map_markers(detail, map_slug) if on_this_map else False
+                ),
+                "on_this_map": on_this_map,
             }
         )
+        stamp_task_line_fields(rows[-1], line_index)
     rows.sort(
         key=lambda r: (
             not r.get("has_map_markers"),
+            not r.get("on_this_map"),
             str(r.get("trader_slug") or ""),
             int(r.get("min_player_level") or 0),
             str(r.get("name") or ""),
@@ -2292,6 +2423,7 @@ def list_raid_prep(
     *,
     trader: str | None = None,
     q: str | None = None,
+    faction: str | None = None,
     types: list[str] | None = None,
     geometry: bool = False,
     task_ids: list[str] | None = None,
@@ -2323,6 +2455,7 @@ def list_raid_prep(
         rows,
         trader=trader,
         q=q,
+        faction=faction,
     )
     wanted_types = {
         str(t).strip()
@@ -2336,7 +2469,9 @@ def list_raid_prep(
             if wanted_types.intersection(row.get("objective_types") or [])
         ]
     ordered = sort_task_rows(filtered)
-    ordered.sort(key=lambda r: not r.get("has_map_markers"))
+    ordered.sort(
+        key=lambda r: (not r.get("has_map_markers"), not r.get("on_this_map"))
+    )
     if geometry:
         _enrich_items_from_catalog(
             db, ordered, quest_items=_quest_items_map(payload)
@@ -2374,6 +2509,9 @@ def get_task_detail(
     )
     if detail is None:
         raise TarkovTasksError(f"未找到任务: {task_id}")
+    detail = stamp_task_line_fields(
+        detail, index_task_lines(tasks, _locale_map(payload))
+    )
     detail["source"] = source
     quest_items = _quest_items_map(payload)
     _enrich_items_from_catalog(db, detail, quest_items=quest_items)

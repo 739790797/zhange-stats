@@ -1,29 +1,174 @@
+.wiki {
+  --ammo-icon: 28px;
+  --ammo-row: 36px;
+  --ammo-strip: calc(6 * var(--ammo-row));
+  overflow-x: hidden;
+}
+
+.wiki :global(.ant-table) {
+  font-size: 13px;
+  line-height: 1.25;
+  width: 100% !important;
+}
+
+.wiki :global(.ant-table-container),
+.wiki :global(.ant-table-content),
+.wiki :global(.ant-table-body) {
+  overflow-x: hidden !important;
+}
+
+.wiki :global(.ant-table-container table) {
+  width: 100% !important;
+}
+
+.wiki :global(.ant-table-thead > tr > th) {
+  padding: 6px 4px !important;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.wiki :global(.ant-table-tbody > tr > td) {
+  padding: 0 5px !important;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.wiki :global(.ant-table-column-sorter) {
+  margin-inline-start: 2px;
+}
+
+.wiki :global(.ant-table-thead > tr > th).statTh,
+.wiki :global(.ant-table-tbody > tr > td).statTd {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .defaultBadge {
   flex: none;
   padding: 0 5px;
   background: var(--hb-orange, #c8932a);
   color: #161710;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 16px;
   letter-spacing: 0.04em;
 }
 
-.hoverRow :global(td) {
-  box-shadow: inset 0 0 0 999px rgba(200, 147, 42, 0.22);
+.colHint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: help;
+  max-width: 100%;
+  white-space: nowrap;
+  text-align: center;
 }
 
-.compact :global(.ant-table) {
+.colHintIcon {
+  font-size: 11px;
+  color: #8a8a8a;
+}
+
+.traitMarks {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 1px;
+  flex: none;
+  line-height: 1;
+}
+
+.traitMark {
+  color: #e07070;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.nameCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.25;
+}
+
+.thumb {
+  display: block;
+  width: var(--ammo-icon);
+  height: var(--ammo-icon);
+  flex: none;
+  line-height: 0;
+}
+
+.thumb :global(.ant-image),
+.thumb :global(.ant-image-img) {
+  display: block;
+  width: var(--ammo-icon) !important;
+  height: var(--ammo-icon) !important;
+  line-height: 0;
+}
+
+.wiki :global(.ant-table-thead > tr > th).armorTh,
+.wiki :global(.ant-table-tbody > tr > td).armorTd {
+  width: var(--ammo-strip) !important;
+  min-width: var(--ammo-strip) !important;
+  max-width: var(--ammo-strip) !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.armorHead {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.armorHeadNums {
+  display: flex;
+  width: var(--ammo-strip);
+  margin-left: auto;
+}
+
+.armorHeadNum {
+  flex: none;
+  width: var(--ammo-row);
+  text-align: center;
   font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: help;
 }
 
-.compact :global(.ant-table-thead > tr > th) {
-  padding: 4px 5px !important;
+.armorStrip {
+  display: flex;
+  width: var(--ammo-strip);
+  height: var(--ammo-row);
+  margin-left: auto;
+}
+
+.armorBox {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ammo-row);
+  height: var(--ammo-row);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.compact :global(.ant-table-tbody > tr > td) {
-  padding: 4px 5px !important;
+.hoverRow :global(td) {
+  box-shadow: inset 0 0 0 999px rgba(200, 147, 42, 0.22);
 }
 
 .compact :global(.ant-table-tbody > tr) {

@@ -39,6 +39,10 @@ def test_parse_graphql_ammo():
                     "recoilModifier": -0.1,
                     "lightBleedModifier": 0.2,
                     "heavyBleedModifier": 0.1,
+                    "tracer": True,
+                    "tracerColor": "green",
+                    "fragmentationChance": 0.17,
+                    "ricochetChance": 0.05,
                     "item": {
                         "id": "56dff4ecd2720b5d7b8b456b",
                         "name": "5.45x39mm BS gs",
@@ -60,6 +64,10 @@ def test_parse_graphql_ammo():
     assert rows[0]["recoil_modifier"] == pytest.approx(-0.1)
     assert rows[0]["light_bleed_modifier"] == pytest.approx(0.2)
     assert rows[0]["heavy_bleed_modifier"] == pytest.approx(0.1)
+    assert rows[0]["tracer"] is True
+    assert rows[0]["tracer_color"] == "green"
+    assert rows[0]["fragmentation_chance"] == pytest.approx(0.17)
+    assert rows[0]["ricochet_chance"] == pytest.approx(0.05)
 
 
 def test_parse_graphql_ammo_errors():
@@ -88,6 +96,10 @@ def test_parse_json_api_ammo():
                         "recoilModifier": 0,
                         "lightBleedModifier": 0,
                         "heavyBleedModifier": 0,
+                        "tracer": False,
+                        "tracerColor": "red",
+                        "fragmentationChance": 0.4,
+                        "ricochetChance": 0.2,
                     },
                 }
             }
@@ -103,3 +115,14 @@ def test_parse_json_api_ammo():
     assert rows[0]["short_name"] == "M855"
     assert rows[0]["caliber"] == "5.56x45mm"
     assert rows[0]["initial_speed"] == 922
+    assert rows[0]["tracer"] is False
+    assert rows[0]["tracer_color"] == "red"
+    assert rows[0]["fragmentation_chance"] == pytest.approx(0.4)
+    assert rows[0]["ricochet_chance"] == pytest.approx(0.2)
+
+
+def test_is_subsonic_ammo():
+    assert svc.is_subsonic_ammo(340) is True
+    assert svc.is_subsonic_ammo(343) is False
+    assert svc.is_subsonic_ammo(0) is False
+    assert svc.is_subsonic_ammo(None) is False

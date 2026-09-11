@@ -1,14 +1,26 @@
 /** 对齐 tarkov.dev 任务目标：撤离状态文案、不把 ExpBonus* 当撤离点。 */
 
-/** 上游 objective.type → 列表短标识。未知 type 原样展示。 */
+/**
+ * 物品 / 任务物同一动作收成一条。展示、排序、芯片色都走归并后的 type。
+ */
+export const TARKOV_OBJECTIVE_TYPE_CANON: Readonly<Record<string, string>> = {
+  findQuestItem: "findItem",
+  giveQuestItem: "giveItem",
+  plantQuestItem: "plantItem",
+};
+
+export function canonicalizeObjectiveType(type: string): string {
+  const key = type.trim();
+  if (!key) return "";
+  return TARKOV_OBJECTIVE_TYPE_CANON[key] || key;
+}
+
+/** 上游 objective.type → 两字短标识。未知 type 原样展示。 */
 export const TARKOV_OBJECTIVE_TYPE_LABELS: Record<string, string> = {
   shoot: "击杀",
   findItem: "找到",
-  findQuestItem: "捡取",
   giveItem: "上交",
-  giveQuestItem: "上交任务物",
   plantItem: "藏匿",
-  plantQuestItem: "藏匿任务物",
   mark: "标记",
   visit: "前往",
   extract: "撤离",
@@ -17,11 +29,11 @@ export const TARKOV_OBJECTIVE_TYPE_LABELS: Record<string, string> = {
   sellItem: "出售",
   haveItem: "持有",
   skill: "技能",
-  traderLevel: "商人等级",
-  traderStanding: "商人声望",
+  traderLevel: "忠诚",
+  traderStanding: "声望",
   playerLevel: "等级",
-  hideoutStation: "藏身处",
-  taskStatus: "关联任务",
+  hideoutStation: "藏身",
+  taskStatus: "关联",
   experience: "状态",
   dialogue: "对话",
   globalVariable: "限制",
@@ -31,11 +43,8 @@ export const TARKOV_OBJECTIVE_TYPE_LABELS: Record<string, string> = {
 export const TARKOV_OBJECTIVE_TYPE_ORDER: string[] = [
   "shoot",
   "findItem",
-  "findQuestItem",
   "giveItem",
-  "giveQuestItem",
   "plantItem",
-  "plantQuestItem",
   "mark",
   "visit",
   "extract",
@@ -59,13 +68,13 @@ const OBJECTIVE_TYPE_RANK = new Map(
 );
 
 export function tarkovObjectiveTypeLabel(type: string): string {
-  const key = type.trim();
+  const key = canonicalizeObjectiveType(type);
   if (!key) return "";
   return TARKOV_OBJECTIVE_TYPE_LABELS[key] || key;
 }
 
 export function tarkovObjectiveTypeTone(type: string): string {
-  const key = type.trim();
+  const key = canonicalizeObjectiveType(type);
   if (key && OBJECTIVE_TYPE_RANK.has(key)) return key;
   return "unknown";
 }
@@ -74,7 +83,7 @@ export function orderObjectiveTypes(types: string[] | null | undefined): string[
   const seen = new Set<string>();
   const uniq: string[] = [];
   for (const raw of types || []) {
-    const key = String(raw || "").trim();
+    const key = canonicalizeObjectiveType(String(raw || ""));
     if (!key || seen.has(key)) continue;
     seen.add(key);
     uniq.push(key);
@@ -190,6 +199,12 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   recoil: "后坐",
   accuracy: "精度",
   muzzleVelocity: "初速",
+  durability: "耐久",
+  effectiveDistance: "瞄准距离",
+  magazineCapacity: "弹匣容量",
+  weight: "重量",
+  width: "格仓宽",
+  height: "格仓高",
 };
 
 const EFFECT_LABELS: Record<string, string> = {
@@ -427,9 +442,13 @@ export function formatTaskObjectiveExtraLines(obj: {
   const zones = (obj.zone_names || []).map((row) => String(row).trim()).filter(Boolean);
   if (zones.length) lines.push(`区域：${joinLabels(zones)}`);
   for (const attr of obj.attributes || []) {
-    const name = ATTRIBUTE_LABELS[(attr.name || "").trim()] || (attr.name || "").trim();
+    const rawName = (attr.name || "").trim();
+    const name = ATTRIBUTE_LABELS[rawName] || rawName;
     const cmp = formatTaskCompare(attr.compare_method, attr.value);
-    if (name && cmp) lines.push(`${name} ${cmp}`);
+    if (name && cmp) {
+      const suffix = rawName === "durability" ? "%" : "";
+      lines.push(`${name} ${cmp}${suffix}`);
+    }
   }
   const health = healthEffectLine("自身状态：", obj.health_effect || obj.player_health_effect);
   if (health) lines.push(health);

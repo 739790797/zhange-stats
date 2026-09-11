@@ -1,6 +1,8 @@
 """tarkov-data-overlay：原样落库，读 json.tarkov.dev raw 时内存合入。
 
-不写进 tasks/items/crafts raw；不落第三份合并表。overlay 的 locales 不覆盖 zh。
+不写进 tasks/items/crafts raw；不落第三份合并表。
+只合 overlay 的 tasksAdd / tasks 补丁 / disabled，以及 dump requiredPrestige id → overlay prestige 表。
+不套 overlay locales，不把另一模式 dump 的任务抄进来。
 """
 
 from __future__ import annotations
@@ -25,6 +27,8 @@ OVERLAY_URL = (
     "@main/dist/overlay.json"
 )
 DOWNLOAD_TIMEOUT = 60
+# 合入逻辑变更时递增，打穿进程内 parse cache（物品/制作/任务共用）
+OVERLAY_PARSE_REV = "upstream-only-v1"
 
 _TASK_PATCH_SKIP = frozenset({"objectives", "objectivesAdd", "traderRequirements", "disabled"})
 
@@ -113,6 +117,15 @@ def _section(overlay: dict[str, Any], key: str, *, mode_key: str) -> dict[str, A
     return {**shared, **_as_dict(mode_blob)}
 
 
+def _prestige_by_id(overlay: dict[str, Any], mode_key: str) -> dict[str, Any]:
+    """声望档只写在 modes.regular 时，PVE 也要能解开 dump 的 requiredPrestige id。"""
+    shared = _as_dict(overlay.get("prestige"))
+    modes = _as_dict(overlay.get("modes"))
+    regular = _as_dict(_as_dict(modes.get("regular")).get("prestige"))
+    current = _as_dict(_as_dict(modes.get(mode_key)).get("prestige"))
+    return {**shared, **regular, **current}
+
+
 def _apply_objectives(base: Any, override: dict[str, Any]) -> list[Any]:
     out: list[Any] = []
     patches = override.get("objectives")
@@ -175,10 +188,43 @@ def _apply_task_fields(base: dict[str, Any], override: dict[str, Any]) -> dict[s
     return result
 
 
+def _hydrate_required_prestige(
+    tasks: dict[str, dict[str, Any]],
+    prestige_by_id: dict[str, Any],
+) -> None:
+    """dump 常把 requiredPrestige 写成声望 id；补上 prestigeLevel 才能分同名线。"""
+    if not prestige_by_id:
+        return
+    for raw in tasks.values():
+        blob = raw.get("requiredPrestige")
+        if blob is None:
+            continue
+        if isinstance(blob, dict):
+            if blob.get("prestigeLevel") is not None or blob.get("prestige_level") is not None:
+                continue
+            ident = str(blob.get("id") or "").strip()
+            hit = prestige_by_id.get(ident) if ident else None
+            if not isinstance(hit, dict):
+                continue
+            raw["requiredPrestige"] = {**hit, **blob, "id": ident}
+            continue
+        ident = str(blob).strip()
+        if not ident:
+            continue
+        hit = prestige_by_id.get(ident)
+        if isinstance(hit, dict):
+            merged = dict(hit)
+            merged["id"] = ident
+            raw["requiredPrestige"] = merged
+        else:
+            raw["requiredPrestige"] = {"id": ident}
+
+
 def _apply_tasks(payload: dict[str, Any], overlay: dict[str, Any], mode_key: str) -> dict[str, Any]:
     additions = _section(overlay, "tasksAdd", mode_key=mode_key)
     overrides = _section(overlay, "tasks", mode_key=mode_key)
-    if not additions and not overrides:
+    prestige_by_id = _prestige_by_id(overlay, mode_key)
+    if not additions and not overrides and not prestige_by_id:
         return payload
     parent = _tasks_parent(payload)
     if parent is None:
@@ -203,6 +249,7 @@ def _apply_tasks(payload: dict[str, Any], overlay: dict[str, Any], mode_key: str
         tasks[tid] = _apply_task_fields(base, patch)
     for tid in drop:
         tasks.pop(tid, None)
+    _hydrate_required_prestige(tasks, prestige_by_id)
     holder[key] = tasks
     return payload
 
@@ -331,7 +378,7 @@ def overlay_cache_token(db: Session) -> str:
 
 
 def parsed_cache_key(db: Session, resource_synced: str | None) -> str:
-    return cache_key(resource_synced or "", overlay_cache_token(db))
+    return cache_key(resource_synced or "", overlay_cache_token(db), OVERLAY_PARSE_REV)
 
 
 def apply_loaded_overlay(

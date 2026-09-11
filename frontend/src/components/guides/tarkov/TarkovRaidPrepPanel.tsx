@@ -19,6 +19,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import {
@@ -104,6 +105,7 @@ import styles from "./TarkovRaidPrepPanel.module.css";
 
 export function TarkovRaidPrepPanel() {
   const gameMode = useTarkovGameMode();
+  const { faction } = useTarkovPmcFaction();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const me = useAuthStore((s) => s.user);
@@ -506,13 +508,16 @@ export function TarkovRaidPrepPanel() {
   }, [applySelected, doneTaskIds, logsQuery.data, selected]);
 
   const rows = useMemo(
-    () => filterRaidPrepRows(catalogRich, { q }),
-    [catalogRich, q],
+    () => filterRaidPrepRows(catalogRich, { q, faction }),
+    [catalogRich, faction, q],
   );
 
   const selectedTasks = useMemo(
-    () => selectedTasksFromCatalog(catalogRich, selected),
-    [catalogRich, selected],
+    () =>
+      filterRaidPrepRows(selectedTasksFromCatalog(catalogRich, selected), {
+        faction,
+      }),
+    [catalogRich, faction, selected],
   );
   const guideTasks = useMemo(
     () => mergeRaidPrepGuideTasks(selectedTasks, catalogRich, guideTaskId),

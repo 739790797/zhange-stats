@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.tarkov.task_lines import index_task_lines
+from app.services.tarkov.task_lines import index_task_lines, prestige_cycle_hint
 
 BTR = {
     "id": "656f0f98d80a697f855d34b1",
@@ -127,8 +127,37 @@ def test_faction_and_prestige_hints():
     index = index_task_lines(payload, {})
     assert index["u"]["line_hint"] == "USEC"
     assert index["b"]["line_hint"] == "BEAR"
-    assert index["nb"]["line_hint"] == ""
-    assert index["nb5"]["line_hint"] == "声望 5"
+    assert index["nb"]["line_hint"] == "一转"
+    assert index["nb5"]["line_hint"] == "六转"
+    assert index["nb"]["prestige_cycle"] == 1
+    assert index["nb5"]["prestige_cycle"] == 6
+    assert index["u"]["prestige_cycle"] == 0
+
+
+def test_prestige_stem_cluster_keeps_dump_and_overlay_names() -> None:
+    ragman = {"id": "ragman", "normalizedName": "ragman"}
+    payload = {
+        "nb1": {
+            **_task("nb1", "新起点", trader=ragman),
+            "normalizedName": "new-beginning",
+        },
+        "nb5": {
+            **_task("nb5", "New Beginning", prestige=4, trader=ragman),
+            "normalizedName": "new-beginning-5",
+        },
+    }
+    index = index_task_lines(payload, {})
+    assert index["nb1"]["line_hint"] == "一转"
+    assert index["nb5"]["line_hint"] == "五转"
+    assert index["nb1"]["prestige_cycle"] == 1
+    assert index["nb5"]["prestige_cycle"] == 5
+
+
+def test_prestige_cycle_hint_is_nth_reset_not_requirement():
+    assert prestige_cycle_hint(0) == "一转"
+    assert prestige_cycle_hint(1) == "二转"
+    assert prestige_cycle_hint(4) == "五转"
+    assert prestige_cycle_hint(5) == "六转"
 
 
 def test_locale_names_drive_cluster_and_hint():

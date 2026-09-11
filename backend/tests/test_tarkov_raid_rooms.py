@@ -409,7 +409,7 @@ def test_claim_rejects_task_not_on_map_when_catalog_present() -> None:
 
 
 def test_claim_allows_task_present_on_other_game_mode() -> None:
-    """列表可能走 PVE raw，认领 ContextVar 默认 PVP，海关任务仍应可勾。"""
+    """列表可能走 PVE raw，认领 ContextVar 默认 PVP；非本地图任务也可勾。"""
     db = _session()
     host = _user(db, "host", "甲")
     now = now_naive()
@@ -469,13 +469,7 @@ def test_claim_allows_task_present_on_other_game_mode() -> None:
     tasks_svc._raid_prep_cache.clear()
 
     rooms.claim_task(db, public_id, host, "pve-customs", now=now)
-    try:
-        rooms.claim_task(db, public_id, host, "woods-only", now=now)
-        raised = False
-    except rooms.RaidRoomError as exc:
-        raised = True
-        assert "本地图" in exc.message
-    assert raised
+    rooms.claim_task(db, public_id, host, "woods-only", now=now)
 
 
 def test_claim_union_and_unclaim() -> None:

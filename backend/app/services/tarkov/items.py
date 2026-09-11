@@ -237,10 +237,12 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
 def ensure_items(db: Session) -> None:
     """当前模式 raw 缺失则回源该模式；弹药或枪械派生为空时优先 raw 重算。
 
-    弹药已有行但 icon 全空时（例如新加 icon_link 列），有 raw 则重算一次。
+    弹药已有行但 icon 全空、或曳光尚未投影（新加 tracer 列）时，有 json dump 则重算一次。
     """
-    if get_items_raw(db) is None:
+    raw = get_items_raw(db)
+    if raw is None:
         sync_from_upstream(db, game_mode=parse_game_mode())
+        raw = get_items_raw(db)
 
     need_ammo = ammo_svc.ammo_count(db) == 0
     need_guns = gun_svc.gun_count(db) == 0
@@ -256,7 +258,15 @@ def ensure_items(db: Session) -> None:
         )
         icons_missing = with_icon == 0
 
-    if not need_ammo and not need_guns and not icons_missing:
+    tracer_missing = False
+    if (
+        not need_ammo
+        and raw is not None
+        and (getattr(raw, "source", "") or "").strip() == SOURCE_JSON_API
+    ):
+        tracer_missing = ammo_svc.ammo_tracer_unpopulated(db)
+
+    if not need_ammo and not need_guns and not icons_missing and not tracer_missing:
         return
     if get_items_raw(db) is not None:
         try:

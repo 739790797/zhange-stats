@@ -37,6 +37,33 @@
   line-height: 1.4;
 }
 
+.taskTopBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 20px;
+}
+
+.taskTopBar .crumbs {
+  margin-bottom: 0;
+}
+
+.taskTopBarBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.taskTopBarBack:hover {
+  color: var(--hb-orange, #c8932a);
+}
+
 .crumbSep {
   margin: 0 8px;
   color: #3a3a3a;
@@ -56,6 +83,12 @@
 }
 
 .detailBody {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.taskDetail {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;

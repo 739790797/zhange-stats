@@ -221,6 +221,13 @@
   color: #c8c4b0;
 }
 
+.mapIconImg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
 .mapCard:hover .mapIcon {
   color: var(--hb-orange);
 }

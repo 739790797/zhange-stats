@@ -241,18 +241,24 @@ export type SplitFlowForest<T extends TaskForestItem = TaskForestItem> = {
   isolates: TaskForestChild<T>[];
 };
 
-/** 有后续（或互斥分叉）的根与无前后续的独立卡拆开；任务线按深度从长到短。 */
+function isSequencedRoot<T extends TaskForestItem>(
+  child: TaskForestChild<T>,
+): boolean {
+  if (child.kind === "choice") return true;
+  return (
+    child.node.children.length > 0 || child.node.extraPrereqIds.length > 0
+  );
+}
+
+/** 有后续、互斥分叉或树外前置的根进有序；无前后续的独立卡进无序。任务线按深度从长到短。 */
 export function splitFlowForest<T extends TaskForestItem>(
   forest: readonly TaskForestChild<T>[],
 ): SplitFlowForest<T> {
   const chains: TaskForestChild<T>[] = [];
   const isolates: TaskForestChild<T>[] = [];
   for (const child of forest) {
-    if (child.kind === "choice" || child.node.children.length) {
-      chains.push(child);
-    } else {
-      isolates.push(child);
-    }
+    if (isSequencedRoot(child)) chains.push(child);
+    else isolates.push(child);
   }
   chains.sort((left, right) => {
     const byDepth = forestChildDepth(right) - forestChildDepth(left);

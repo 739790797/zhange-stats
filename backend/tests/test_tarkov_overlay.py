@@ -145,6 +145,128 @@ def test_disabled_tasks_removed_and_tasks_add() -> None:
     assert ids == {"keep", "new_beginning_prestige_5"}
 
 
+def test_prestige_id_hydrated_added_task_keeps_overlay_name() -> None:
+    ragman = {
+        "id": "5ac3b934156ae10c4430e83c",
+        "normalizedName": "ragman",
+        "name": "Ragman",
+    }
+    payload = {
+        "tasks": {
+            "nb1": _task(
+                "nb1",
+                name="nb1 name",
+                normalizedName="new-beginning",
+                trader=ragman,
+            ),
+            "nb2": _task(
+                "nb2",
+                name="nb2 name",
+                normalizedName="new-beginning-2",
+                trader=ragman,
+                requiredPrestige="p1",
+            ),
+        },
+        "locale": {"nb1 name": "新起点", "nb2 name": "新起点"},
+    }
+    overlay = {
+        "tasksAdd": {
+            "nb5": {
+                "id": "nb5",
+                "name": "New Beginning",
+                "normalizedName": "new-beginning-5",
+                "trader": ragman,
+                "requiredPrestige": {"name": "Prestige 4", "prestigeLevel": 4},
+            }
+        },
+        "modes": {
+            "regular": {
+                "prestige": {"p1": {"name": "Prestige 1", "prestigeLevel": 1}}
+            }
+        },
+    }
+    out = apply_overlay("tasks", payload, overlay)
+    assert out["tasks"]["nb2"]["requiredPrestige"]["prestigeLevel"] == 1
+    assert out["tasks"]["nb5"]["name"] == "New Beginning"
+    rows = {row["id"]: row for row in parse_task_rows(out)}
+    assert rows["nb1"]["name"] == "新起点"
+    assert rows["nb1"]["line_hint"] == "一转"
+    assert rows["nb2"]["line_hint"] == "二转"
+    assert rows["nb5"]["name"] == "New Beginning"
+    assert rows["nb5"]["line_hint"] == "五转"
+    assert rows["nb1"]["prestige_cycle"] == 1
+    assert rows["nb2"]["prestige_cycle"] == 2
+    assert rows["nb5"]["prestige_cycle"] == 5
+
+
+def test_overlay_locales_do_not_rewrite_dump_wiki_or_name() -> None:
+    payload = {
+        "tasks": {
+            "nb2": _task(
+                "nb2",
+                name="新起点",
+                wikiLink="https://escapefromtarkov.fandom.com/wiki/Neuanfang",
+            )
+        },
+        "locale": {"nb2 name": "新起点"},
+    }
+    overlay = {
+        "locales": {
+            "en": {
+                "tasks": {
+                    "nb2": {
+                        "name": "New Beginning",
+                        "wikiLink": (
+                            "https://escapefromtarkov.fandom.com/wiki/"
+                            "New_Beginning_(Prestige_2)"
+                        ),
+                    }
+                }
+            }
+        }
+    }
+    out = apply_overlay("tasks", payload, overlay)
+    assert out["tasks"]["nb2"]["name"] == "新起点"
+    assert out["tasks"]["nb2"]["wikiLink"].endswith("Neuanfang")
+    assert "nameEnglish" not in out["tasks"]["nb2"]
+    rows = {row["id"]: row for row in parse_task_rows(out)}
+    assert rows["nb2"]["name"] == "新起点"
+    assert rows["nb2"]["wiki_link"].endswith("Neuanfang")
+
+
+def test_pve_does_not_graft_pvp_dump_tasks() -> None:
+    ragman = {
+        "id": "5ac3b934156ae10c4430e83c",
+        "normalizedName": "ragman",
+        "name": "Ragman",
+    }
+    pve_payload = {
+        "tasks": {
+            "nb1": _task(
+                "nb1",
+                name="nb1 name",
+                normalizedName="new-beginning",
+                trader=ragman,
+            )
+        },
+        "locale": {"nb1 name": "新起点"},
+    }
+    overlay = {
+        "tasksAdd": {
+            "nb5": {
+                "id": "nb5",
+                "name": "New Beginning",
+                "normalizedName": "new-beginning-5",
+                "trader": ragman,
+                "requiredPrestige": {"name": "Prestige 4", "prestigeLevel": 4},
+            }
+        }
+    }
+    with game_mode_scope("pve"):
+        out = apply_overlay("tasks", pve_payload, overlay)
+    assert set(out["tasks"]) == {"nb1", "nb5"}
+
+
 def test_pve_mode_overrides_shared_and_does_not_use_locales() -> None:
     payload = {
         "tasks": {"t1": _task("t1")},
@@ -167,6 +289,7 @@ def test_pve_mode_overrides_shared_and_does_not_use_locales() -> None:
     assert pve["tasks"]["t1"]["objectives"][0]["count"] == 36
     assert pve["locale"]["t1 name"] == "中文名"
     assert pve["tasks"]["t1"]["name"] == "t1"
+    assert "nameEnglish" not in pve["tasks"]["t1"]
 
 
 def test_items_add_skips_existing() -> None:

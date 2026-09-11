@@ -1,5 +1,11 @@
 import { formatCaliberLabel } from "@/lib/tarkovAmmoCategories";
 import {
+  formatArmorMaterial,
+  formatArmorSlotLabel,
+  formatArmorType,
+  formatArmorZoneList,
+} from "@/lib/tarkovArmorLabels";
+import {
   resolveTraderSlug,
   traderDisplayName,
 } from "@/lib/tarkovHomeNav";
@@ -42,6 +48,8 @@ export type CatalogColumnId =
   | "useTime"
   | "uses"
   | "ergo"
+  | "ergoPenalty"
+  | "speedPenalty"
   | "recoil"
   | "loudness"
   | "hp"
@@ -60,8 +68,8 @@ const DEFAULT_COLUMNS: CatalogColumnId[] = [
 const COLUMN_PRESETS: Record<string, CatalogColumnId[]> = {
   backpacks: ["name", "grid", "slots", "weight", "slotRatio", "pricePerSlot", "price"],
   containers: ["name", "grid", "slots", "weight", "slotRatio", "pricePerSlot", "price"],
-  rigs: ["name", "grid", "slots", "class", "weight", "price"],
-  armors: ["name", "class", "zones", "durability", "weight", "price"],
+  rigs: ["name", "slots", "weight", "ergoPenalty", "speedPenalty", "turnPenalty", "price"],
+  armors: ["name", "class", "weight", "ergoPenalty", "speedPenalty", "turnPenalty", "price"],
   helmets: [
     "name",
     "class",
@@ -103,6 +111,8 @@ export const CATALOG_COLUMN_LABELS: Record<CatalogColumnId, string> = {
   zones: "防护部位",
   durability: "耐久",
   ricochet: "跳弹",
+  ergoPenalty: "人机惩罚",
+  speedPenalty: "移速惩罚",
   turnPenalty: "转向",
   blocksHeadset: "挡耳机",
   blindness: "闪光防护",
@@ -130,6 +140,7 @@ const SKIP_PROP_KEYS = new Set([
   "slots",
   "armorSlots",
   "content",
+  "armored",
   "propertiesType",
   "pouches",
   "conflictingSlotIds",
@@ -300,6 +311,91 @@ export function catalogColumnsForSlug(slug: string): CatalogColumnId[] {
   return COLUMN_PRESETS[slug] || DEFAULT_COLUMNS;
 }
 
+export function catalogColumnLabel(slug: string, id: CatalogColumnId): string {
+  if (slug === "rigs" && id === "slots") return "容量";
+  if ((slug === "rigs" || slug === "armors") && id === "turnPenalty") {
+    return "转向惩罚";
+  }
+  return CATALOG_COLUMN_LABELS[id];
+}
+
+export const CATALOG_CLIENT_SORT_SLUGS = new Set(["rigs", "armors"]);
+
+export function catalogSortableColumnIds(
+  slug: string,
+  columns: CatalogColumnId[],
+): CatalogColumnId[] {
+  if (!CATALOG_CLIENT_SORT_SLUGS.has(slug)) return [];
+  return columns.filter((id) => id !== "name");
+}
+
+export type RigKindFilter = "all" | "plain" | "armored";
+
+export function catalogRowIsArmored(row: CatalogPriceRow): boolean {
+  const props = propsOf(row);
+  if (boolProp(props, "armored") === true) return true;
+  const cls = numProp(props, "class");
+  return cls != null && cls > 0;
+}
+
+export function matchRigKindFilter(
+  row: CatalogPriceRow,
+  kind: RigKindFilter,
+): boolean {
+  if (kind === "all") return true;
+  const armored = catalogRowIsArmored(row);
+  return kind === "armored" ? armored : !armored;
+}
+
+export function catalogSortValue(
+  column: CatalogColumnId,
+  row: CatalogPriceRow & { id?: string; name?: string | null; short_name?: string | null; weight?: number | null },
+): string | number | null {
+  const props = propsOf(row);
+  switch (column) {
+    case "name":
+      return (row.name || row.short_name || row.id || "").toString();
+    case "slots":
+      return innerSlots(props);
+    case "class":
+      return numProp(props, "class");
+    case "weight":
+      return row.weight ?? null;
+    case "ergoPenalty":
+      return numProp(props, "ergoPenalty");
+    case "speedPenalty":
+      return numProp(props, "speedPenalty");
+    case "turnPenalty":
+      return numProp(props, "turnPenalty");
+    case "price":
+      return cheapestPrice(row);
+    default:
+      return null;
+  }
+}
+
+export function compareCatalogRows(
+  left: CatalogPriceRow & { id?: string; name?: string | null; short_name?: string | null; weight?: number | null },
+  right: CatalogPriceRow & { id?: string; name?: string | null; short_name?: string | null; weight?: number | null },
+  column: CatalogColumnId,
+  order: "ascend" | "descend",
+): number {
+  const av = catalogSortValue(column, left);
+  const bv = catalogSortValue(column, right);
+  const emptyA = av == null || av === "";
+  const emptyB = bv == null || bv === "";
+  if (emptyA && emptyB) {
+    return String(left.id || "").localeCompare(String(right.id || ""));
+  }
+  if (emptyA) return 1;
+  if (emptyB) return -1;
+  let cmp = 0;
+  if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+  else cmp = String(av).localeCompare(String(bv), "zh");
+  if (cmp === 0) cmp = String(left.id || "").localeCompare(String(right.id || ""));
+  return order === "descend" ? -cmp : cmp;
+}
+
 export function propsOf(
   row: Pick<CatalogPriceRow, "properties">,
 ): Record<string, unknown> {
@@ -415,11 +511,7 @@ export function formatSigned(value: number | null | undefined): string {
 }
 
 function zonesFormat(value: unknown): string {
-  if (!Array.isArray(value)) return typeof value === "string" ? value : "";
-  return value
-    .map((zone) => String(zone || "").trim())
-    .filter(Boolean)
-    .join(" · ");
+  return formatArmorZoneList(value);
 }
 
 function gridsFormat(value: unknown): string {
@@ -494,11 +586,10 @@ export function formatPropValue(key: string, value: unknown): string | null {
     return text || null;
   }
   if (key === "material") {
-    if (typeof value === "string") return value;
-    if (value && typeof value === "object" && "name" in value) {
-      return String((value as { name?: string }).name || "") || null;
-    }
-    return null;
+    return formatArmorMaterial(value) || null;
+  }
+  if (key === "armorType") {
+    return formatArmorType(value) || null;
   }
   if (key === "baseItem" || key === "defaultPreset") {
     if (value && typeof value === "object") {
@@ -945,12 +1036,11 @@ export function extractPlateSlots(
       .map(linkedItem)
       .filter((item): item is LinkedItemRef => Boolean(item));
     if (!plates.length) return;
-    const zones = Array.isArray(row.zones)
-      ? row.zones.map(String).filter(Boolean).join(" · ")
-      : "";
+    const zones = formatArmorZoneList(row.zones);
+    const slotName = formatArmorSlotLabel(String(row.name || zones || "插板槽"));
     groups.push({
       key: `${index}-${String(row.name || zones || "plate")}`,
-      name: String(row.name || zones || "插板槽"),
+      name: slotName,
       plates,
     });
   });

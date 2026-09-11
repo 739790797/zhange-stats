@@ -55,3 +55,25 @@ export function formatWeaponClass(weaponClass: string): string {
   if (!key) return "—";
   return WEAPON_CLASS_LABELS[key] || key;
 }
+
+/** 手册武器子类 → dump `weapon_class`；投掷物 / 近战走物品目录，不在这里。 */
+const HANDBOOK_GUN_WEAPON_CLASSES: Record<string, string[]> = {
+  "5b5f78fc86f77409407a7f90": ["assault-rifle"],
+  "5b5f796a86f774093f2ed3c0": ["smg"],
+  "5b5f794b86f77409407a7f92": ["shotgun"],
+  "5b5f79a486f77409407a7f94": ["machinegun"],
+  "5b5f78e986f77447ed5636b1": ["assault-carbine"],
+  "5b5f79d186f774093f2ed3c2": ["grenade-launcher"],
+  "5b5f791486f774093f2ed3be": ["marksman-rifle"],
+  "5b5f792486f77447ed5636b3": ["handgun", "revolver"],
+  "5b5f798886f77447ed5636b5": ["sniper-rifle"],
+  "5b5f79eb86f77447ed5636b7": ["rocket-launcher"],
+};
+
+export function weaponClassesForHandbookChildId(
+  id: string | null | undefined,
+): string[] | undefined {
+  const key = (id || "").trim();
+  if (!key) return undefined;
+  return HANDBOOK_GUN_WEAPON_CLASSES[key];
+}

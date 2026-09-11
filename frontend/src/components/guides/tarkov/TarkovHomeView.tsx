@@ -5,9 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovSiteSearch } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
-  TARKOV_HOME_ITEM_GROUPS,
+  TARKOV_HOME_ITEMS,
   TARKOV_HOME_PATH,
   TARKOV_HOME_TRADERS,
   TARKOV_MAPS,
@@ -87,17 +88,28 @@ function HomeTile({
   const className = `${styles.mapCard} ${soon ? styles.mapSoon : ""} ${
     goon ? styles.mapGoon : ""
   }`.trim();
+  const isImage = /^(https?:)?\/\//.test(icon);
   const body = (
     <>
-      <svg
-        className={styles.mapIcon}
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        aria-hidden
-      >
-        <path d={icon} fill="currentColor" />
-      </svg>
+      {isImage ? (
+        <img
+          className={styles.mapIconImg}
+          src={icon}
+          alt=""
+          width={18}
+          height={18}
+        />
+      ) : (
+        <svg
+          className={styles.mapIcon}
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          aria-hidden
+        >
+          <path d={icon} fill="currentColor" />
+        </svg>
+      )}
       <span className={styles.mapText}>
         <span className={styles.mapName}>{label}</span>
         {extra}
@@ -191,6 +203,7 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
 export function TarkovHomeView() {
   const navigate = useNavigate();
   const gameMode = useTarkovGameMode();
+  const { faction } = useTarkovPmcFaction();
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
   const [entryOpen, setEntryOpen] = useState(false);
@@ -200,8 +213,9 @@ export function TarkovHomeView() {
   const index = useMemo(() => buildHomeSearchIndex(), []);
   const searching = committed.length > 0;
   const searchQuery = useQuery({
-    queryKey: ["guides-tarkov-search", gameMode, committed],
-    queryFn: () => fetchTarkovSiteSearch(committed),
+    queryKey: ["guides-tarkov-search", gameMode, faction, committed],
+    queryFn: () =>
+      fetchTarkovSiteSearch(committed, { faction: faction || undefined }),
     enabled: searching,
     staleTime: 60_000,
     retry: 1,
@@ -324,28 +338,14 @@ export function TarkovHomeView() {
 
               <section>
                 <SectionHead title="物品" en="Items" />
-                <div className={styles.itemGroups}>
-                  {TARKOV_HOME_ITEM_GROUPS.map((group) => (
-                    <div key={group.id} className={styles.itemGroup}>
-                      <div className={styles.itemGroupHead}>
-                        <span className={styles.itemGroupTitle}>
-                          {group.label}
-                        </span>
-                        {group.en ? (
-                          <span className={styles.itemGroupEn}>{group.en}</span>
-                        ) : null}
-                      </div>
-                      <div className={styles.mapGrid}>
-                        {group.items.map((item) => (
-                          <HomeTile
-                            key={item.id}
-                            href={item.href}
-                            icon={item.icon}
-                            label={item.label}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                <div className={styles.mapGrid}>
+                  {TARKOV_HOME_ITEMS.map((item) => (
+                    <HomeTile
+                      key={item.id}
+                      href={item.href}
+                      icon={item.icon}
+                      label={item.label}
+                    />
                   ))}
                 </div>
               </section>

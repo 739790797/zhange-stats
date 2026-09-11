@@ -16,6 +16,7 @@ export const ANY_TASK_MAP = "any";
 export type TaskListItem = {
   id: string;
   name: string;
+  normalized_name?: string;
   trader_slug?: string;
   trader_name?: string;
   min_player_level?: number;
@@ -207,8 +208,18 @@ function asClockMap(
 
 export function taskMatchesQuery(task: TaskListItem, q: string): boolean {
   if (!q) return true;
-  const hay = `${task.name} ${task.id}`.toLowerCase();
-  return hay.includes(q);
+  const hay = `${task.name} ${task.id} ${task.normalized_name || ""} ${task.line_hint || ""}`
+    .toLowerCase()
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const needle = q
+    .toLowerCase()
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!needle) return true;
+  return hay.includes(needle) || hay.replace(/ /g, "").includes(needle.replace(/ /g, ""));
 }
 
 export function resolveTaskMapId(
@@ -880,32 +891,8 @@ export function markTaskStartedMigrated(
   saveTaskProgress(mode, loadTaskDoneIds(mode), ids, false, true);
 }
 
-export function factionTaskSuffix(value: string | undefined): string {
-  const text = (value || "").trim();
-  if (!text || text === "Any") return "";
-  return ` (${text})`;
-}
-
-export function taskLineHintSuffix(
-  hint: string | undefined,
-  factionName?: string,
-): string {
-  const text = (hint || "").trim();
-  if (!text) return "";
-  const faction = (factionName || "").trim();
-  if (faction && faction !== "Any" && text === faction) return "";
-  return `（${text}）`;
-}
-
-export function displayTaskProgressName(task: {
-  id: string;
-  name?: string | null;
-  faction_name?: string;
-  line_hint?: string | null;
-}): string {
-  const name = (task.name || task.id).trim() || task.id;
-  return `${name}${factionTaskSuffix(task.faction_name)}${taskLineHintSuffix(
-    task.line_hint || "",
-    task.faction_name,
-  )}`;
-}
+export {
+  displayTaskProgressName,
+  factionTaskSuffix,
+  taskLineHintSuffix,
+} from "@/lib/tarkovTaskName";

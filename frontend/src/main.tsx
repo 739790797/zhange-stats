@@ -17,6 +17,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import "@/lib/time";
+import { startRum } from "@/lib/rumCollect";
 import {
   QUERY_PERSIST_KEY,
   QUERY_PERSIST_MAX_AGE_MS,
@@ -80,6 +81,7 @@ const appTree = queryPersister ? (
   </QueryClientProvider>
 );
 
+startRum();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>{appTree}</StrictMode>,
 );

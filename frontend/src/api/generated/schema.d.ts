@@ -3568,6 +3568,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/workbench/gunsmith-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Workbench Gunsmith Tasks
+         * @description 工作台：从 tasks dump 投影枪匠改装目标（不 vendor 第三方任务包）。
+         */
+        get: operations["guides_tarkov_workbench_gunsmith_tasks_api_guides_tarkov_workbench_gunsmith_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/workbench/gunsmith-solve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Workbench Gunsmith Solve
+         * @description 工作台：为一条枪匠目标求一套可交任务的改装。
+         */
+        post: operations["guides_tarkov_workbench_gunsmith_solve_api_guides_tarkov_workbench_gunsmith_solve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/tasks/sync": {
         parameters: {
             query?: never;
@@ -3617,7 +3657,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Raid Prep
-         * @description 联机大厅：按地图列出相关任务。默认目录不含目标正文；geometry+ids 才返回点位。
+         * @description 联机大厅：列出全部任务。当前图有标点的排前；geometry+ids 才返回点位。
          */
         get: operations["guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get"];
         put?: never;
@@ -3990,6 +4030,30 @@ export interface paths {
          */
         get: operations["guides_tarkov_hideout_detail_api_guides_tarkov_hideout__station_slug__get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/hideout-levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Hideout Levels List
+         * @description 个人中心藏身处规划等级。
+         */
+        get: operations["guides_tarkov_hideout_levels_list_api_guides_tarkov_hideout_levels_get"];
+        /**
+         * Guides Tarkov Hideout Levels Set
+         * @description 升级或降级一个模块；降级会级联压低依赖它的模块。
+         */
+        put: operations["guides_tarkov_hideout_levels_set_api_guides_tarkov_hideout_levels_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5067,6 +5131,46 @@ export interface paths {
         put?: never;
         /** Post Csp Report */
         post: operations["post_csp_report_api_csp_report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-rum": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Client Rum
+         * @description 浏览器批量上报等待时间。访客可报；不上平台日志。
+         */
+        post: operations["post_client_rum_api_client_rum_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/rum": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rum Summary
+         * @description 管理端：接口转圈与第三方图的 p50/p95。
+         */
+        get: operations["get_rum_summary_api_settings_rum_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6396,6 +6500,41 @@ export interface components {
             request_id?: string | null;
             /** App Version */
             app_version?: string | null;
+        };
+        /** ClientRumEventIn */
+        ClientRumEventIn: {
+            /** Kind */
+            kind: string;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Status */
+            status?: number | null;
+            /** Method */
+            method?: string | null;
+            /** Transfer Size */
+            transfer_size?: number | null;
+        };
+        /** ClientRumIn */
+        ClientRumIn: {
+            /**
+             * Page
+             * @default
+             */
+            page: string;
+            /** Events */
+            events?: components["schemas"]["ClientRumEventIn"][];
+        };
+        /** ClientRumOut */
+        ClientRumOut: {
+            /** Ok */
+            ok: boolean;
+            /** Accepted */
+            accepted: number;
         };
         /** DeleteAccountRequest */
         DeleteAccountRequest: {
@@ -10267,6 +10406,85 @@ export interface components {
             /** Roles */
             roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
+        /** RumSeriesPointOut */
+        RumSeriesPointOut: {
+            /** At */
+            at: string;
+            /**
+             * Api Count
+             * @default 0
+             */
+            api_count: number;
+            /**
+             * Img Count
+             * @default 0
+             */
+            img_count: number;
+            /** Api P50 Ms */
+            api_p50_ms?: number | null;
+            /** Api P95 Ms */
+            api_p95_ms?: number | null;
+            /** Img P50 Ms */
+            img_p50_ms?: number | null;
+            /** Img P95 Ms */
+            img_p95_ms?: number | null;
+        };
+        /** RumSummaryOut */
+        RumSummaryOut: {
+            /** Hours */
+            hours: number;
+            /** Since */
+            since: string;
+            /** Api Count */
+            api_count: number;
+            /** Img Count */
+            img_count: number;
+            /** Api P50 Ms */
+            api_p50_ms?: number | null;
+            /** Api P95 Ms */
+            api_p95_ms?: number | null;
+            /** Api Max Ms */
+            api_max_ms?: number | null;
+            /** Img P50 Ms */
+            img_p50_ms?: number | null;
+            /** Img P95 Ms */
+            img_p95_ms?: number | null;
+            /** Img Max Ms */
+            img_max_ms?: number | null;
+            /** Api */
+            api?: components["schemas"]["RumSummaryRowOut"][];
+            /** Img */
+            img?: components["schemas"]["RumSummaryRowOut"][];
+            /** Series */
+            series?: components["schemas"]["RumSeriesPointOut"][];
+        };
+        /** RumSummaryRowOut */
+        RumSummaryRowOut: {
+            /** Url Key */
+            url_key: string;
+            /**
+             * Host
+             * @default
+             */
+            host: string;
+            /** Count */
+            count: number;
+            /** Avg Ms */
+            avg_ms: number;
+            /** P50 Ms */
+            p50_ms?: number | null;
+            /** P95 Ms */
+            p95_ms?: number | null;
+            /** Max Ms */
+            max_ms?: number | null;
+            /**
+             * Error Count
+             * @default 0
+             */
+            error_count: number;
+            /** Avg Transfer */
+            avg_transfer?: number | null;
+        };
         /** RuntimeConnTestOut */
         RuntimeConnTestOut: {
             /** Ok */
@@ -11174,6 +11392,26 @@ export interface components {
              */
             heavy_bleed_modifier: number;
             /**
+             * Tracer
+             * @default false
+             */
+            tracer: boolean;
+            /**
+             * Tracer Color
+             * @default
+             */
+            tracer_color: string;
+            /**
+             * Fragmentation Chance
+             * @default 0
+             */
+            fragmentation_chance: number;
+            /**
+             * Ricochet Chance
+             * @default 0
+             */
+            ricochet_chance: number;
+            /**
              * Icon Link
              * @default
              */
@@ -11985,6 +12223,8 @@ export interface components {
              * @default 0
              */
             duration: number;
+            /** Task Unlock */
+            task_unlock?: string | null;
             /** Required Items */
             required_items?: components["schemas"]["TarkovGuideItemRefOut"][];
             product_item: components["schemas"]["TarkovGuideItemRefOut"];
@@ -12210,6 +12450,46 @@ export interface components {
              */
             message: string;
         };
+        /** TarkovHideoutBonusOut */
+        TarkovHideoutBonusOut: {
+            /**
+             * Type
+             * @default
+             */
+            type: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Value
+             * @default 0
+             */
+            value: number;
+            /**
+             * Passive
+             * @default true
+             */
+            passive: boolean;
+            /**
+             * Production
+             * @default false
+             */
+            production: boolean;
+            /**
+             * Skill
+             * @default
+             */
+            skill: string;
+            /**
+             * Skill Id
+             * @default
+             */
+            skill_id: string;
+            /** Slot Items */
+            slot_items?: components["schemas"]["TarkovGuideItemRefOut"][];
+        };
         /** TarkovHideoutCatalogOut */
         TarkovHideoutCatalogOut: {
             /** Items */
@@ -12283,6 +12563,35 @@ export interface components {
             trader_requirements?: components["schemas"]["TarkovHideoutTraderReqOut"][];
             /** Skill Requirements */
             skill_requirements?: components["schemas"]["TarkovHideoutSkillReqOut"][];
+            /** Bonuses */
+            bonuses?: components["schemas"]["TarkovHideoutBonusOut"][];
+        };
+        /** TarkovHideoutLevelRowOut */
+        TarkovHideoutLevelRowOut: {
+            /** Station Id */
+            station_id: string;
+            /**
+             * Level
+             * @default 0
+             */
+            level: number;
+        };
+        /** TarkovHideoutLevelSetIn */
+        TarkovHideoutLevelSetIn: {
+            /** Station Id */
+            station_id: string;
+            /** Level */
+            level: number;
+        };
+        /** TarkovHideoutLevelsOut */
+        TarkovHideoutLevelsOut: {
+            /** Levels */
+            levels?: components["schemas"]["TarkovHideoutLevelRowOut"][];
+            /**
+             * Game Mode
+             * @default pvp
+             */
+            game_mode: string;
         };
         /** TarkovHideoutSkillReqOut */
         TarkovHideoutSkillReqOut: {
@@ -12291,6 +12600,11 @@ export interface components {
              * @default
              */
             skill: string;
+            /**
+             * Skill Id
+             * @default
+             */
+            skill_id: string;
             /**
              * Level
              * @default 0
@@ -13962,6 +14276,11 @@ export interface components {
              * @default
              */
             line_hint: string;
+            /**
+             * Prestige Cycle
+             * @default 0
+             */
+            prestige_cycle: number;
             /** Mutex Ids */
             mutex_ids?: string[];
             /** Blocked By */
@@ -13979,6 +14298,11 @@ export interface components {
              * @default false
              */
             has_map_markers: boolean;
+            /**
+             * On This Map
+             * @default true
+             */
+            on_this_map: boolean;
         };
         /** TarkovRaidRoomClaimOut */
         TarkovRaidRoomClaimOut: {
@@ -14613,6 +14937,11 @@ export interface components {
              * @default
              */
             line_hint: string;
+            /**
+             * Prestige Cycle
+             * @default 0
+             */
+            prestige_cycle: number;
             /** Mutex Ids */
             mutex_ids?: string[];
             /** Blocked By */
@@ -14897,6 +15226,11 @@ export interface components {
              * @default
              */
             line_hint: string;
+            /**
+             * Prestige Cycle
+             * @default 0
+             */
+            prestige_cycle: number;
             /** Mutex Ids */
             mutex_ids?: string[];
             /** Blocked By */
@@ -15723,6 +16057,142 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** TarkovWorkbenchGunsmithChecklistOut */
+        TarkovWorkbenchGunsmithChecklistOut: {
+            /**
+             * Ok
+             * @default false
+             */
+            ok: boolean;
+            /** Missing Items */
+            missing_items?: components["schemas"]["TarkovWorkbenchGunsmithNamedOut"][];
+            /** Missing Categories */
+            missing_categories?: components["schemas"]["TarkovWorkbenchGunsmithNamedOut"][][];
+            /** Unmet Constraints */
+            unmet_constraints?: string[];
+            /** Conflicts */
+            conflicts?: string[];
+            /**
+             * Recoil Sum
+             * @default 0
+             */
+            recoil_sum: number;
+            stats?: components["schemas"]["TarkovWorkbenchStatsOut"] | null;
+        };
+        /** TarkovWorkbenchGunsmithNamedOut */
+        TarkovWorkbenchGunsmithNamedOut: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** TarkovWorkbenchGunsmithSolveIn */
+        TarkovWorkbenchGunsmithSolveIn: {
+            /** Task Id */
+            task_id: string;
+            /** Objective Id */
+            objective_id?: string | null;
+            /** Ammo Id */
+            ammo_id?: string | null;
+        };
+        /** TarkovWorkbenchGunsmithSolveOut */
+        TarkovWorkbenchGunsmithSolveOut: {
+            /** Status */
+            status: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Task Id */
+            task_id: string;
+            /**
+             * Objective Id
+             * @default
+             */
+            objective_id: string;
+            /** Weapon Id */
+            weapon_id: string;
+            /** Ammo Id */
+            ammo_id?: string | null;
+            /** Pairs */
+            pairs?: components["schemas"]["TarkovWorkbenchPairOut"][];
+            stats?: components["schemas"]["TarkovWorkbenchStatsOut"] | null;
+            checklist?: components["schemas"]["TarkovWorkbenchGunsmithChecklistOut"] | null;
+        };
+        /** TarkovWorkbenchGunsmithTaskOut */
+        TarkovWorkbenchGunsmithTaskOut: {
+            /** Id */
+            id: string;
+            /** Task Id */
+            task_id: string;
+            /**
+             * Objective Id
+             * @default
+             */
+            objective_id: string;
+            /** Task Name */
+            task_name: string;
+            /**
+             * Trader Slug
+             * @default
+             */
+            trader_slug: string;
+            /**
+             * Trader Name
+             * @default
+             */
+            trader_name: string;
+            /**
+             * Faction Name
+             * @default Any
+             */
+            faction_name: string;
+            /** Weapon Id */
+            weapon_id: string;
+            /**
+             * Weapon Name
+             * @default
+             */
+            weapon_name: string;
+            /**
+             * Weapon Image
+             * @default
+             */
+            weapon_image: string;
+            /** Constraints */
+            constraints?: {
+                [key: string]: number;
+            };
+            /** Required Items */
+            required_items?: components["schemas"]["TarkovWorkbenchGunsmithNamedOut"][];
+            /** Required Category Groups */
+            required_category_groups?: components["schemas"]["TarkovWorkbenchGunsmithNamedOut"][][];
+            /**
+             * Loadable
+             * @default false
+             */
+            loadable: boolean;
+        };
+        /** TarkovWorkbenchGunsmithTasksOut */
+        TarkovWorkbenchGunsmithTasksOut: {
+            /** Items */
+            items?: components["schemas"]["TarkovWorkbenchGunsmithTaskOut"][];
+            /**
+             * Task Count
+             * @default 0
+             */
+            task_count: number;
+            /** Source */
+            source?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /** TarkovWorkbenchImageOut */
         TarkovWorkbenchImageOut: {
             /** Kind */
@@ -15803,6 +16273,8 @@ export interface components {
             mag_capacity?: number | null;
             /** Conflicting Ids */
             conflicting_ids?: string[];
+            /** Category Ids */
+            category_ids?: string[];
         };
         /** TarkovWorkbenchSlotNodeOut */
         TarkovWorkbenchSlotNodeOut: {
@@ -23044,6 +23516,7 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                faction?: string | null;
                 /** @description PVP（regular）或 PVE */
                 game_mode?: string;
             };
@@ -23476,6 +23949,74 @@ export interface operations {
             };
         };
     };
+    guides_tarkov_workbench_gunsmith_tasks_api_guides_tarkov_workbench_gunsmith_tasks_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchGunsmithTasksOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_workbench_gunsmith_solve_api_guides_tarkov_workbench_gunsmith_solve_post: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovWorkbenchGunsmithSolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovWorkbenchGunsmithSolveOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     guides_tarkov_tasks_sync_api_guides_tarkov_tasks_sync_post: {
         parameters: {
             query?: {
@@ -23514,6 +24055,7 @@ export interface operations {
                 q?: string | null;
                 trader?: string | null;
                 map?: string | null;
+                faction?: string | null;
                 page?: number;
                 page_size?: number;
                 layout?: string | null;
@@ -24298,6 +24840,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovHideoutDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_hideout_levels_list_api_guides_tarkov_hideout_levels_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovHideoutLevelsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_hideout_levels_set_api_guides_tarkov_hideout_levels_put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovHideoutLevelSetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovHideoutLevelsOut"];
                 };
             };
             /** @description Validation Error */
@@ -26884,6 +27494,70 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    post_client_rum_api_client_rum_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientRumIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientRumOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rum_summary_api_settings_rum_get: {
+        parameters: {
+            query?: {
+                hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RumSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -9,7 +9,9 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { tarkovTaskHref, traderDisplayName } from "@/lib/tarkovHomeNav";
+import { displayTaskProgressName } from "@/lib/tarkovTaskName";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import {
   orderObjectiveTypes,
@@ -21,17 +23,12 @@ import tableStyles from "./TarkovDarkTable.module.css";
 import catalog from "./TarkovItemCatalogPanel.module.css";
 import styles from "./TarkovTasksPanel.module.css";
 
-function factionSuffix(value: string | undefined): string {
-  const v = (value || "").trim();
-  if (!v || v === "Any") return "";
-  return ` (${v})`;
-}
-
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 export function TarkovTasksPanel() {
   const gameMode = useTarkovGameMode();
+  const { faction } = useTarkovPmcFaction();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
   const q = (searchParams.get("q") || "").trim();
@@ -67,6 +64,7 @@ export function TarkovTasksPanel() {
     queryKey: [
       "guides-tarkov-tasks",
       gameMode,
+      faction,
       trader,
       q,
       pageNo,
@@ -76,6 +74,7 @@ export function TarkovTasksPanel() {
       fetchTarkovTasks({
         q,
         trader: trader || undefined,
+        faction: faction || undefined,
         page: pageNo,
         pageSize,
       }),
@@ -114,7 +113,12 @@ export function TarkovTasksPanel() {
       key: "name",
       ellipsis: true,
       render: (_: unknown, row) => {
-        const label = row.name || row.normalized_name || row.id;
+        const label = displayTaskProgressName({
+          id: row.id,
+          name: row.name || row.normalized_name || row.id,
+          faction_name: row.faction_name,
+          line_hint: row.line_hint,
+        });
         const traderName = traderDisplayName(row.trader_slug, row.trader_name || row.trader_slug);
         return (
           <span className={styles.taskCell}>
@@ -125,7 +129,6 @@ export function TarkovTasksPanel() {
             )}
             <Link className={styles.taskName} to={tarkovTaskHref(row.id)}>
               {label}
-              {factionSuffix(row.faction_name)}
             </Link>
           </span>
         );
@@ -176,7 +179,9 @@ export function TarkovTasksPanel() {
       width: 120,
       render: (_: unknown, row) => {
         const marks = [
+          row.kappa_required ? "Kappa" : "",
           row.lightkeeper_required ? "灯塔商人" : "",
+          row.prestige_cycle ? "转生" : "",
         ].filter(Boolean);
         if (!marks.length) return "";
         return <span className={styles.endgame}>{marks.join(" · ")}</span>;

@@ -38,7 +38,7 @@ zhange-stats/
 
 `components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AdminHubLayout`、`AuthGuestShell`、`LegalDocView` / `LegalLinks` / `IcpBeianLink` 等跨平台外壳。
 
-`services/` 根上只留横切：`account_anonymize`、`app_updator`、`avatar_store`、`auth_config`、`config_import`、`email*`、`file_manager`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。OCR 进包 `ocr/`，用户附件登记进包 `user_files/`（不要叫 `files`，以免和管理端 `file_manager` 撞名）。不要在根上加 `ocr_*.py` / `user_file_*.py`。
+`services/` 根上只留横切：`account_anonymize`、`app_updator`、`avatar_store`、`auth_config`、`config_import`、`email*`、`file_manager`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`rum`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。OCR 进包 `ocr/`，用户附件登记进包 `user_files/`（不要叫 `files`，以免和管理端 `file_manager` 撞名）。不要在根上加 `ocr_*.py` / `user_file_*.py`。
 
 `pages/`、平台 `api/` 单文件、`models/` 保持现状，不要求再搬家。既有 `services/adapters/`、`services/mihoyo_bbs/` 保持。
 

@@ -1,5 +1,6 @@
-import { EnvironmentOutlined } from "@ant-design/icons";
+import { EnvironmentOutlined, ToolOutlined } from "@ant-design/icons";
 import { memo, useMemo } from "react";
+import { Link } from "react-router-dom";
 import type { TarkovRaidPrepTask } from "@/api/guidesApi";
 import {
   collectRaidPrepFailChips,
@@ -15,7 +16,8 @@ import {
   type RaidPrepTaskProgressStatus,
 } from "@/lib/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
-import { traderDisplayName } from "@/lib/tarkovHomeNav";
+import { tarkovWorkbenchHref, traderDisplayName } from "@/lib/tarkovHomeNav";
+import { isGunsmithObjectiveType, isGunsmithTask } from "@/lib/tarkovWorkbenchGunsmith";
 import { TarkovRaidPrepObjectiveHint } from "@/components/guides/tarkov/TarkovRaidPrepObjectiveHint";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -86,17 +88,34 @@ function TarkovRaidPrepTaskCardInner({
   );
   const mapDone =
     isDone || raidPrepMapObjectivesComplete(row, mapSlug, skipped);
+  const offMapLabel =
+    row.on_this_map === false
+      ? row.map_name
+        ? `其他地图：${row.map_name}`
+        : "无地图标点"
+      : "";
   const meta = compact
     ? []
     : [
         names?.length ? names.join("、") : "",
         floors?.length ? floors.join(" / ") : "",
+        offMapLabel,
       ].filter(Boolean);
   const swatch = color || colorForTaskId(row.id);
+  const gunsmithObjective = (row.objectives || []).find((obj) =>
+    isGunsmithObjectiveType(obj.type),
+  );
+  const gunsmithHref = isGunsmithTask(row.objective_types)
+    ? tarkovWorkbenchHref(undefined, {
+        taskId: row.id,
+        objectiveId: gunsmithObjective?.id,
+      })
+    : "";
   const nameEl = onTitle ? (
     <button
       type="button"
       className={styles.taskName}
+      title={offMapLabel || undefined}
       onClick={(event) => {
         event.stopPropagation();
         onTitle(row.id);
@@ -105,7 +124,9 @@ function TarkovRaidPrepTaskCardInner({
       {title}
     </button>
   ) : (
-    <span className={styles.taskName}>{title}</span>
+    <span className={styles.taskName} title={offMapLabel || undefined}>
+      {title}
+    </span>
   );
 
   return (
@@ -212,6 +233,17 @@ function TarkovRaidPrepTaskCardInner({
         </span>
       )}
       <span className={styles.taskLocateSlot}>
+        {gunsmithHref ? (
+          <Link
+            to={gunsmithHref}
+            className={styles.locateBtn}
+            aria-label="去工作台求解"
+            title="去工作台求解"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ToolOutlined />
+          </Link>
+        ) : null}
         {onLocate &&
         raidPrepTaskCanLocate(row, mapSlug, skipped, {
           taskDone: isDone,

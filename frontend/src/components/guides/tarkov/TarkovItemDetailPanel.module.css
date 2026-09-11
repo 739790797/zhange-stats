@@ -125,6 +125,7 @@
   position: relative;
   max-width: 100%;
   overflow: auto;
+  padding: 3px;
 }
 
 .gridPlaced {
@@ -133,8 +134,11 @@
 
 .gridPocket {
   display: grid;
-  gap: 2px;
   width: max-content;
+  /* 多格口袋中间接缝，比外框淡一档 */
+  background: #a39468;
+  outline: 2px solid #d4c08a;
+  outline-offset: -1px;
 }
 
 .gridCellOn {
@@ -142,7 +146,6 @@
   height: 22px;
   box-sizing: border-box;
   background: #2f2e24;
-  border: 1px solid #c4b089;
 }
 
 .gridCaption {

@@ -254,7 +254,16 @@ export function gridOccupancyCaption(
     parts.push(`容量 ${capacity}`);
   }
   if (pockets.length) {
-    parts.push(pockets.map((pocket) => `${pocket.width}×${pocket.height}`).join(" · "));
+    const counts = new Map<string, number>();
+    for (const pocket of pockets) {
+      const label = `${pocket.width}×${pocket.height}`;
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+    parts.push(
+      [...counts.entries()]
+        .map(([label, n]) => (n > 1 ? `${label} ×${n}` : label))
+        .join(" · "),
+    );
   }
   return parts.join(" · ");
 }

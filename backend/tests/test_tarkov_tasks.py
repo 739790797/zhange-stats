@@ -108,6 +108,7 @@ def test_parse_locale_and_trader_map():
     assert by_id["t3"]["map_name"] == "海关"
     assert by_id["t3"]["min_trader_level"] == 1
     assert by_id["t1"]["line_hint"] == ""
+    assert by_id["t1"]["prestige_cycle"] == 0
     assert by_id["t1"]["mutex_ids"] == []
     assert by_id["t1"]["blocked_by"] == []
     assert by_id["t1"]["prereq_ids"] == ["t2"]
@@ -229,6 +230,32 @@ def test_unique_objective_types_skips_blank_and_dupes():
     ) == ["visit", "shoot"]
 
 
+def test_filter_faction_keeps_any_and_matching():
+    rows = [
+        {"id": "a", "faction_name": "Any", "name": "shared"},
+        {"id": "u", "faction_name": "USEC", "name": "wet usec"},
+        {"id": "b", "faction_name": "BEAR", "name": "wet bear"},
+    ]
+    assert {r["id"] for r in tasks.filter_task_rows(rows, faction="usec")} == {
+        "a",
+        "u",
+    }
+    assert {r["id"] for r in tasks.filter_task_rows(rows, faction="BEAR")} == {
+        "a",
+        "b",
+    }
+    assert {r["id"] for r in tasks.filter_task_rows(rows, faction="")} == {
+        "a",
+        "u",
+        "b",
+    }
+    assert {r["id"] for r in tasks.filter_task_rows(rows, faction="pmc")} == {
+        "a",
+        "u",
+        "b",
+    }
+
+
 def test_filter_trader_search():
     rows = tasks.parse_task_rows(_envelope())
     prapor = tasks.filter_task_rows(rows, trader="prapor")
@@ -237,6 +264,34 @@ def test_filter_trader_search():
     assert [r["id"] for r in hit] == ["t1"]
     streets = tasks.filter_task_rows(rows, map_slug="streets")
     assert [r["id"] for r in streets] == ["t1"]
+
+
+def test_filter_search_folds_hyphen_slug():
+    rows = [
+        {
+            "id": "nb2",
+            "name": "新起点",
+            "normalized_name": "new-beginning-2",
+            "wiki_link": "https://escapefromtarkov.fandom.com/de/wiki/Neuanfang",
+        },
+        {
+            "id": "nb5",
+            "name": "新起点",
+            "normalized_name": "new-beginning-5",
+        },
+        {
+            "id": "debut",
+            "name": "首秀",
+            "normalized_name": "debut",
+        },
+    ]
+    ids = [r["id"] for r in tasks.filter_task_rows(rows, q="New be")]
+    assert ids == ["nb2", "nb5"]
+    assert [r["id"] for r in tasks.filter_task_rows(rows, q="New Beginning")] == [
+        "nb2",
+        "nb5",
+    ]
+    assert [r["id"] for r in tasks.filter_task_rows(rows, q="新起点")] == ["nb2", "nb5"]
 
 
 def test_paginate_clamps_page():
@@ -625,8 +680,10 @@ def test_map_ids_do_not_swap_streets_and_ground_zero():
     }
     _name, streets_rows = tasks.collect_raid_prep_rows(payload, "streets")
     _name, gz_rows = tasks.collect_raid_prep_rows(payload, "ground-zero")
-    assert [r["id"] for r in streets_rows] == ["st"]
-    assert [r["id"] for r in gz_rows] == ["gz"]
+    assert {r["id"] for r in streets_rows} == {"st", "gz"}
+    assert [r["id"] for r in streets_rows if r.get("on_this_map")] == ["st"]
+    assert {r["id"] for r in gz_rows} == {"st", "gz"}
+    assert [r["id"] for r in gz_rows if r.get("on_this_map")] == ["gz"]
 
 
 def test_project_zones_and_possible_locations():
@@ -704,7 +761,11 @@ def test_collect_raid_prep_rows_filters_map():
     }
     name, rows = tasks.collect_raid_prep_rows(payload, "streets")
     assert name == "塔科夫街区"
-    assert [r["id"] for r in rows] == ["on-map"]
+    by_id = {r["id"]: r for r in rows}
+    assert set(by_id) == {"on-map", "other"}
+    assert by_id["on-map"]["on_this_map"] is True
+    assert by_id["other"]["on_this_map"] is False
+    assert [r["id"] for r in rows if r["on_this_map"]] == ["on-map"]
 
 
 def test_project_zones_graphql_map_object():
@@ -1289,4 +1350,87 @@ def test_project_objective_structured_fields():
     assert related["related_status"] == ["complete"]
     assert item["dog_tag_level"] == 4
     assert item["max_durability"] == 50
+
+
+def test_project_build_weapon_build_attributes():
+    detail = tasks.project_task_detail(
+        {
+            "id": "gs",
+            "name": "Gunsmith",
+            "trader": PRAPOR,
+            "objectives": [
+                {
+                    "id": "o-b",
+                    "type": "buildWeapon",
+                    "item": "gun1",
+                    "buildAttributes": {
+                        "accuracy": {"value": 0, "compareMethod": ">="},
+                        "durability": {"value": 60, "compareMethod": ">="},
+                        "ergonomics": {"value": 21, "compareMethod": ">="},
+                        "recoil": {"value": 500, "compareMethod": "<="},
+                        "weight": {"value": 4.8, "compareMethod": "<="},
+                        "width": {"value": 4, "compareMethod": ">="},
+                        "height": {"value": 2, "compareMethod": ">="},
+                    },
+                }
+            ],
+        },
+        {},
+    )
+    assert detail is not None
+    attrs = {row["name"]: row for row in detail["objectives"][0]["attributes"]}
+    assert attrs["ergonomics"]["value"] == 21
+    assert attrs["recoil"]["compare_method"] == "<="
+    assert attrs["durability"]["value"] == 60
+    assert "accuracy" not in attrs
+    assert "width" not in attrs
+    assert "height" not in attrs
+
+
+def test_named_ref_category_uses_locale():
+    ref = tasks._named_ref(
+        "59ba36404bdc2d1c198b456c",
+        {"59ba36404bdc2d1c198b456c Name": "消音器"},
+        kind="category",
+    )
+    assert ref["name"] == "消音器"
+    assert ref["id"] == "59ba36404bdc2d1c198b456c"
+
+
+def test_collect_raid_prep_includes_gunsmith_and_other_maps():
+    mechanic = "5a7c2eca46aef81a7ca2145d"
+    payload = {
+        "tasks": {
+            "on-map": {
+                "id": "on-map",
+                "name": "On streets",
+                "trader": PRAPOR,
+                "map": STREETS,
+                "objectives": [{"id": "v", "type": "visit", "maps": [STREETS]}],
+            },
+            "gunsmith": {
+                "id": "gunsmith",
+                "name": "Gunsmith - Part 1",
+                "trader": mechanic,
+                "objectives": [
+                    {
+                        "id": "o-b",
+                        "type": "buildWeapon",
+                        "item": "gun1",
+                        "containsAll": ["grip1"],
+                    }
+                ],
+            },
+        },
+        "locale": {},
+    }
+    _name, rows = tasks.collect_raid_prep_rows(payload, "streets")
+    by_id = {r["id"]: r for r in rows}
+    assert by_id["on-map"]["on_this_map"] is True
+    assert by_id["gunsmith"]["on_this_map"] is False
+    assert by_id["gunsmith"]["has_map_markers"] is False
+    stripped = tasks.strip_raid_prep_catalog(by_id["gunsmith"])
+    assert "buildWeapon" in stripped["objective_types"]
+    assert stripped["on_this_map"] is False
+
 

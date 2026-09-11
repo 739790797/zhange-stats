@@ -40,6 +40,15 @@ def _payload() -> dict:
                         ],
                         "traderRequirements": [{"trader": PRAPOR, "level": 2}],
                         "skillRequirements": [{"skill": "hideout_mgmt", "level": 3}],
+                        "bonuses": [
+                            {
+                                "type": "ExperienceRate",
+                                "name": "hideout_ExperienceRate",
+                                "value": 0.15,
+                                "passive": True,
+                                "production": False,
+                            }
+                        ],
                     }
                 ],
             },
@@ -63,6 +72,7 @@ def _payload() -> dict:
             "hideout_generator": "发电机",
             "workbench_lv1": "解锁制作",
             "hideout_mgmt": "藏身处管理",
+            "hideout_ExperienceRate": "额外经验",
         },
         "barters": [
             {
@@ -125,7 +135,10 @@ def test_parse_hideout_stations() -> None:
     assert level["trader_requirements"][0]["level"] == 2
     assert level["station_requirements"][0]["station_slug"] == "generator"
     assert level["station_requirements"][0]["station_name"] == "发电机"
+    assert level["skill_requirements"][0]["skill_id"] == "hideout_mgmt"
     assert level["skill_requirements"][0]["skill"] == "藏身处管理"
+    assert level["bonuses"][0]["type"] == "ExperienceRate"
+    assert level["bonuses"][0]["name"] == "额外经验"
 
 
 def test_parse_barters_skips_empty_offer() -> None:

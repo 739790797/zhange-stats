@@ -1,4 +1,4 @@
-import { TARKOV_ITEM_ICON_PATHS } from "@/lib/tarkovItemIcons";
+import { handbookCategoryIconUrl } from "@/lib/tarkovItemImages";
 import {
   ITEMS_BASE_PATH,
   TARKOV_HANDBOOK_ROOTS,
@@ -6,6 +6,7 @@ import {
   handbookHref,
   itemHrefFromTypes,
   itemPageBySlug,
+  type TarkovHandbookRoot,
 } from "@/lib/tarkovItemTypes";
 import { TARKOV_MAP_ICON_PATHS } from "@/lib/tarkovMapIcons";
 import {
@@ -146,7 +147,13 @@ export const TARKOV_GAME_LOGS_PATH = "/guides/tarkov/game-logs";
 export const TARKOV_COLLECTION_PATH = "/guides/tarkov/collection";
 export const TARKOV_ME_PATH = "/guides/tarkov/me";
 
-export const TARKOV_ME_TAB_IDS = ["tasks", "keys", "collection", "logs"] as const;
+export const TARKOV_ME_TAB_IDS = [
+  "tasks",
+  "keys",
+  "collection",
+  "hideout",
+  "logs",
+] as const;
 export type TarkovMeTabId = (typeof TARKOV_ME_TAB_IDS)[number];
 
 export function resolveTarkovMeTab(raw: string | null | undefined): TarkovMeTabId {
@@ -155,7 +162,8 @@ export function resolveTarkovMeTab(raw: string | null | undefined): TarkovMeTabI
     key === "logs" ||
     key === "keys" ||
     key === "tasks" ||
-    key === "collection"
+    key === "collection" ||
+    key === "hideout"
   ) {
     return key;
   }
@@ -198,13 +206,28 @@ export function tarkovMapHref(id: string): string {
   return `${MAPS_HREF}/${encodeURIComponent(id)}`;
 }
 
-export function tarkovHideoutHref(slug: string): string {
-  return `${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(slug)}`;
+export function tarkovHideoutHref(slug?: string): string {
+  const params = new URLSearchParams();
+  params.set("tab", "hideout");
+  const key = (slug || "").trim();
+  if (key) params.set("station", key);
+  return `${TARKOV_ME_PATH}?${params.toString()}`;
 }
 
-export function tarkovWorkbenchHref(gunId?: string): string {
-  if (!gunId) return TARKOV_WORKBENCH_PATH;
-  return `${TARKOV_WORKBENCH_PATH}/${encodeURIComponent(gunId)}`;
+export function tarkovWorkbenchHref(
+  gunId?: string,
+  opts?: { taskId?: string; objectiveId?: string },
+): string {
+  const path = gunId
+    ? `${TARKOV_WORKBENCH_PATH}/${encodeURIComponent(gunId)}`
+    : TARKOV_WORKBENCH_PATH;
+  const params = new URLSearchParams();
+  const taskId = (opts?.taskId || "").trim();
+  const objectiveId = (opts?.objectiveId || "").trim();
+  if (taskId) params.set("task", taskId);
+  if (objectiveId) params.set("obj", objectiveId);
+  const query = params.toString();
+  return query ? `${path}?${params.toString()}` : path;
 }
 
 export function tarkovTaskHref(taskId: string): string {
@@ -751,18 +774,11 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
     status: "ready",
     keywords: ["tasks", "quests"],
   },
-  {
-    id: "hideout",
-    label: "藏身处",
-    href: TARKOV_HIDEOUT_PATH,
-    status: "ready",
-    keywords: ["hideout", "藏身处"],
-  },
   { id: "achievements", label: "成就", href: PROGRESSION_HREF, status: "soon" },
   { id: "prestige", label: "声望", href: PROGRESSION_HREF, status: "soon" },
 ];
 
-/** 塔科夫个人中心：任务 / 钥匙 / 3×4收集 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
+/** 塔科夫个人中心：任务 / 钥匙 / 3×4收集 / 藏身处 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
 export const TARKOV_ME_NAV: TarkovHomeLink = {
   id: "me",
   label: "个人中心",
@@ -779,6 +795,9 @@ export const TARKOV_ME_NAV: TarkovHomeLink = {
     "收集者",
     "收集",
     "kappa",
+    "藏身处",
+    "hideout",
+    "模块升级",
     "钥匙管理",
     "钥匙分类",
     "钥匙分类速查",
@@ -827,75 +846,39 @@ export const TARKOV_TOOLS: TarkovHomeLink[] = [
   },
 ];
 
-/** 顶栏物品下拉：对齐 tarkov.dev 三分组，链到本站手册分类。 */
+const HANDBOOK_NAV_EXTRA_KEYWORDS: Record<string, string[]> = {
+  ammo: ["ammo", "ammobox", "ammo box", "弹药箱"],
+  guns: ["melee", "knife", "grenade"],
+  "weapon-mods": ["mods", "pistol grip", "suppressor", "silencer"],
+  gear: ["headset", "helmet", "rig", "backpack"],
+  meds: ["医疗"],
+};
+
+function handbookNavLink(root: TarkovHandbookRoot): TarkovHomeLink {
+  return {
+    id: root.slug,
+    label: root.label,
+    href: handbookHref(root),
+    status: root.status,
+    keywords: [
+      root.slug,
+      ...handbookChildLabels(root.children),
+      ...(HANDBOOK_NAV_EXTRA_KEYWORDS[root.slug] || []),
+    ],
+  };
+}
+
+/** 顶栏物品下拉：游戏手册一级（与首页物品格同一套）。 */
 export const TARKOV_ITEM_MENU_GROUPS: TarkovHomeGroup[] = [
   {
-    id: "gear",
+    id: "handbook-items",
+    label: "物品",
+    items: TARKOV_HANDBOOK_ROOTS.slice(0, 7).map(handbookNavLink),
+  },
+  {
+    id: "handbook-gear",
     label: "装备",
-    en: "Gear",
-    items: [
-      { id: "headsets", label: "耳机", href: `${ITEMS_BASE_PATH}/headsets`, status: "ready" },
-      { id: "helmets", label: "头盔", href: `${ITEMS_BASE_PATH}/helmets`, status: "ready" },
-      { id: "glasses", label: "眼镜", href: `${ITEMS_BASE_PATH}/glasses`, status: "ready" },
-      { id: "armors", label: "护甲", href: `${ITEMS_BASE_PATH}/armors`, status: "ready" },
-      { id: "rigs", label: "胸挂", href: `${ITEMS_BASE_PATH}/rigs`, status: "ready" },
-      { id: "backpacks", label: "背包", href: `${ITEMS_BASE_PATH}/backpacks`, status: "ready" },
-      { id: "meds", label: "医疗", href: `${ITEMS_BASE_PATH}/meds`, status: "ready" },
-    ],
-  },
-  {
-    id: "weaponry",
-    label: "武器",
-    en: "Weapons",
-    items: [
-      {
-        id: "ammo",
-        label: "子弹",
-        href: `${ITEMS_BASE_PATH}/ammo`,
-        status: "ready",
-        keywords: ["弹药", "ammo"],
-      },
-      {
-        id: "ammo-packs",
-        label: "弹药包",
-        href: `${ITEMS_BASE_PATH}/ammo-packs`,
-        status: "ready",
-        keywords: ["弹药箱", "ammo box", "ammobox"],
-      },
-      { id: "guns", label: "枪支", href: `${ITEMS_BASE_PATH}/guns`, status: "ready" },
-      {
-        id: "melee",
-        label: "近战",
-        href: `${ITEMS_BASE_PATH}/melee`,
-        status: "ready",
-        keywords: ["近战武器", "刀具", "melee", "knife"],
-      },
-      {
-        id: "mods",
-        label: "配件",
-        href: `${ITEMS_BASE_PATH}/weapon-mods`,
-        status: "ready",
-        keywords: [
-          "手枪式握把",
-          "消音器",
-          "pistol grip",
-          "suppressor",
-          "silencer",
-        ],
-      },
-    ],
-  },
-  {
-    id: "tools",
-    label: "装备 & 工具",
-    en: "Gear & Tools",
-    items: [
-      { id: "grenades", label: "手榴弹", href: `${ITEMS_BASE_PATH}/grenades`, status: "ready" },
-      { id: "containers", label: "容器", href: `${ITEMS_BASE_PATH}/containers`, status: "ready" },
-      { id: "barter-items", label: "交换用物品", href: `${ITEMS_BASE_PATH}/barter`, status: "ready" },
-      { id: "keys", label: "钥匙", href: `${ITEMS_BASE_PATH}/keys`, status: "ready" },
-      { id: "provisions", label: "给养品", href: `${ITEMS_BASE_PATH}/provisions`, status: "ready" },
-    ],
+    items: TARKOV_HANDBOOK_ROOTS.slice(7).map(handbookNavLink),
   },
 ];
 
@@ -1002,12 +985,7 @@ export function textMatchesQuery(
 }
 
 export const TARKOV_HANDBOOK_CHIPS: TarkovHomeLink[] = TARKOV_HANDBOOK_ROOTS.map(
-  (root) => ({
-    id: root.slug,
-    label: root.label,
-    href: handbookHref(root),
-    status: root.status,
-  }),
+  handbookNavLink,
 );
 
 export type TarkovHomeItemGroup = {
@@ -1017,23 +995,25 @@ export type TarkovHomeItemGroup = {
   items: TarkovItemCard[];
 };
 
-/** 首页物品三行，与顶栏下拉三大类一致。 */
-export const TARKOV_HOME_ITEM_GROUPS: TarkovHomeItemGroup[] =
-  TARKOV_ITEM_MENU_GROUPS.map((group) => ({
-    id: group.id,
-    label: group.label,
-    en: group.en || "",
-    items: group.items.map((item) => {
-      const icon = TARKOV_ITEM_ICON_PATHS[item.id];
-      if (!icon) {
-        throw new Error(`missing tarkov item icon: ${item.id}`);
-      }
-      return { ...item, icon };
-    }),
-  }));
+/** 首页物品格：手册一级，图标用 handbook 分类图。 */
+export const TARKOV_HOME_ITEMS: TarkovItemCard[] = TARKOV_HANDBOOK_ROOTS.map(
+  (root) => {
+    const icon = handbookCategoryIconUrl(root.id);
+    if (!icon) {
+      throw new Error(`missing tarkov handbook icon: ${root.slug}`);
+    }
+    return { ...handbookNavLink(root), icon };
+  },
+);
 
-export const TARKOV_HOME_ITEMS: TarkovItemCard[] =
-  TARKOV_HOME_ITEM_GROUPS.flatMap((group) => group.items);
+export const TARKOV_HOME_ITEM_GROUPS: TarkovHomeItemGroup[] = [
+  {
+    id: "handbook",
+    label: "物品",
+    en: "Items",
+    items: TARKOV_HOME_ITEMS,
+  },
+];
 
 export function buildHomeSearchIndex(): TarkovSearchHit[] {
   const hits: TarkovSearchHit[] = [];
@@ -1050,16 +1030,6 @@ export function buildHomeSearchIndex(): TarkovSearchHit[] {
   push("进度", TARKOV_PROGRESSION);
   for (const group of TARKOV_ITEM_MENU_GROUPS) {
     push(`物品 · ${group.label}`, group.items);
-  }
-  for (const root of TARKOV_HANDBOOK_ROOTS) {
-    hits.push({
-      id: `handbook-${root.slug}`,
-      label: root.label,
-      href: handbookHref(root),
-      status: root.status,
-      keywords: [root.slug, ...handbookChildLabels(root.children)],
-      group: "手册分类",
-    });
   }
   return hits;
 }
@@ -1230,7 +1200,7 @@ export function tarkovPageTitle(pathname: string, search = ""): string {
   if (path.startsWith("/guides/tarkov/traders")) return "商人";
   if (path.startsWith("/guides/tarkov/bosses")) return "BOSS";
   if (path.startsWith("/guides/tarkov/maps")) return "地图";
-  if (path.startsWith("/guides/tarkov/hideout")) return "藏身处";
+  if (path.startsWith("/guides/tarkov/hideout")) return "个人中心";
   if (path.startsWith(TARKOV_WORKBENCH_PATH)) return "枪械工作台";
   if (path.startsWith(TARKOV_ME_PATH)) return "个人中心";
   if (path.startsWith(TARKOV_KEY_PACKS_PATH)) return "个人中心";

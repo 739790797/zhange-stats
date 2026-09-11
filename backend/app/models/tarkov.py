@@ -137,6 +137,10 @@ class TarkovAmmo(Base):
     recoil_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     light_bleed_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     heavy_bleed_modifier: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    tracer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tracer_color: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    fragmentation_chance: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    ricochet_chance: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     icon_link: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -387,6 +391,26 @@ class TarkovUserCollectionPlacement(Base):
     col: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     row: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rotated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserHideoutLevel(Base):
+    """用户藏身处模块等级：按 PVP/PVE 分开；缺行则仓库 1 / 其余 0。"""
+
+    __tablename__ = "tarkov_user_hideout_levels"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    station_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

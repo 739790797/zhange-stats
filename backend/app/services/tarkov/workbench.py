@@ -417,6 +417,7 @@ def item_summary(item: WbItem) -> dict[str, Any]:
         "sighting_range": item.sighting_range or None,
         "mag_capacity": item.mag_capacity or None,
         "conflicting_ids": sorted(item.conflicting),
+        "category_ids": sorted(item.categories),
     }
 
 

@@ -33,6 +33,7 @@ type Props = {
   ammoOptions: AmmoOption[];
   hasConflicts: boolean;
   onAmmoChange: (ammoId: string) => void;
+  lead?: ReactNode;
 };
 
 const EED_HINT =
@@ -106,6 +107,7 @@ export function TarkovWorkbenchStatsPane({
   ammoOptions,
   hasConflicts,
   onAmmoChange,
+  lead,
 }: Props) {
   const [strength, setStrength] = useState(loadWorkbenchStrengthLevel);
   const [equipPenalty, setEquipPenalty] = useState(
@@ -139,6 +141,7 @@ export function TarkovWorkbenchStatsPane({
 
   return (
     <section className={`${styles.pane} ${styles.statsPane}`} aria-label="属性">
+      {lead}
       <div className={styles.paneHead}>属性</div>
       <div className={styles.stats}>
         <StatRow label="人机">{formatWorkbenchErgo(stats?.ergonomics)}</StatRow>

@@ -15,7 +15,6 @@ import {
   planAccountTaskHydrate,
   keepCatalogTaskProgress,
   mergeObjectivesForTask,
-  displayTaskProgressName,
   isWritableTaskStatus,
   resolveAccountTaskProgress,
   resolveTaskMapId,
@@ -27,6 +26,7 @@ import {
   summarizeTaskProgress,
   taskHitsMap,
   taskLoyaltyLevel,
+  taskMatchesQuery,
   taskPlayerLevelLabel,
 } from "./tarkovTaskTree";
 import type { TaskListItem } from "./tarkovTaskTree";
@@ -55,6 +55,14 @@ describe("task progress", () => {
       failed: 0,
       unreachable: 0,
     });
+  });
+
+  it("matches hyphenated English slugs", () => {
+    const row = task("nb5", "新起点", { normalized_name: "new-beginning-5" });
+    expect(taskMatchesQuery(row, "New Beginning")).toBe(true);
+    expect(taskMatchesQuery(row, "New be")).toBe(true);
+    expect(taskMatchesQuery(row, "新起点")).toBe(true);
+    expect(taskMatchesQuery(row, "wet job")).toBe(false);
   });
 
   it("toggles a single task", () => {
@@ -114,24 +122,6 @@ describe("task progress", () => {
       failed: 0,
       unreachable: 1,
     });
-  });
-
-  it("appends line hint without duplicating faction", () => {
-    expect(
-      displayTaskProgressName({
-        id: "p1",
-        name: "独立的代价",
-        line_hint: "经「横插一杠」",
-      }),
-    ).toBe("独立的代价（经「横插一杠」）");
-    expect(
-      displayTaskProgressName({
-        id: "u",
-        name: "湿活",
-        faction_name: "USEC",
-        line_hint: "USEC",
-      }),
-    ).toBe("湿活 (USEC)");
   });
 
   it("hides ids missing from the live catalog", () => {

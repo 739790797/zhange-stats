@@ -12,6 +12,7 @@
 - 平台凭证 Fernet 加密存库。QQ 回调不要把 JWT 放进 URL
 - 请求 ID：中间件生成或转发 `X-Request-ID`，写入日志上下文并回写响应头。何时打 logger 见 [`logging.md`](logging.md)
 - CSP：默认 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report`）；`CSP_ENFORCE=true` 后 enforce
+- 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员。样本 14 天后由 `job_runs_prune` 删除
 - 生产在管理端「运行环境」或 `config/app.json` 设置 `APP_ENV=production`（安装脚本**不会**代写）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖
 - 限流与短时 KV（扫码会话、森空岛 cred 缓存、塔科夫联机 join/大厅）：生产建议在运行环境设 `REDIS_URL`；本地无 Redis 时进程内降级。多 `app` 实例须共享同一 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可在运行环境打开 `TRUST_X_FORWARDED_FOR`
 - 本地无 SMTP 时需设 `ALLOW_EMAIL_CODE_LOG=true` 才能用日志收验证码；`APP_ENV=production` 时启动会硬拒绝该开关
@@ -60,6 +61,10 @@
 ## 塔科夫工作台社区方案
 
 选枪后可浏览 EFTForge **公开**社区方案（`GET /builds/public?gun_id=`）。只读列表，投影成本站 dump 可装的 `pairs`；不落库（短时 KV 缓存原始 JSON）、不代投票/评论、不热链对方卡图。对方仓库为 MIT，社区用户内容按公开列表展示并署名来源。关闭：`TARKOV_WORKBENCH_COMMUNITY=false`。限流：`GET /api/guides/tarkov/workbench/community-builds` 30/IP/10 分钟、20/账号/10 分钟。
+
+## 塔科夫工作台枪匠求解
+
+枪匠改装目标从本站 tasks dump 的 `buildWeapon` 投影，不 vendor 第三方任务包。`POST /api/guides/tarkov/workbench/gunsmith-solve` 在工作台索引上做约束满足；限流 20/IP/分钟、12/账号/分钟。求解入口在本站任务详情与地图右侧任务卡，结果只在工作台展示。
 
 对外宣传前的环境核对见 [`deploy.md`](deploy.md)「公开运营检查」。
 

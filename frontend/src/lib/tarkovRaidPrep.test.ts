@@ -66,6 +66,7 @@ import {
   raidPrepObjectiveCheckedForViewer,
   sortRaidPrepRowsByProgress,
   groupRaidPrepRowsByProgress,
+  splitRaidPrepRowsByCurrentMap,
   filterRaidPrepRowsByScope,
   countRaidPrepRowsByScope,
   mergeRaidPrepNeededItems,
@@ -1352,6 +1353,13 @@ describe("readable item names", () => {
         normalized_name: "debut",
       }),
     ).toBe("debut");
+    expect(
+      displayRaidPrepTaskName({
+        id: "nb5",
+        name: "New Beginning",
+        line_hint: "五转",
+      }),
+    ).toBe("New Beginning（五转）");
   });
 
   it("numbers overlay points without gluing onto a trailing -2", () => {
@@ -1452,7 +1460,7 @@ describe("raid prep needed items", () => {
     expect(keys[0]?.count).toBe(1);
     expect(items.map((item) => `${item.role}:${item.name}×${item.count}`)).toEqual([
       "上交:金项链×7",
-      "捡取:硬盘×1",
+      "找到:硬盘×1",
       "上交:金项链×2",
     ]);
     expect(items[2].found_in_raid).toBe(true);
@@ -1595,8 +1603,8 @@ describe("raid prep needed items", () => {
       ),
     ).toEqual(["金项链×7", "金项链×2"]);
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
-    expect(rows[0].types).toEqual(["findQuestItem", "giveItem"]);
-    expect(rows[0].objectiveLines).toEqual(["上交", "捡取"]);
+    expect(rows[0].types).toEqual(["findItem", "giveItem"]);
+    expect(rows[0].objectiveLines).toEqual(["上交", "找到"]);
     expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual([
       "findItem",
       "giveItem",
@@ -3174,6 +3182,20 @@ describe("filterRaidPrepRows", () => {
     ]);
     expect(filterRaidPrepRows(rows, { q: "beta" }).map((r) => r.id)).toEqual(["b"]);
   });
+
+  it("hides the other PMC faction and keeps Any", () => {
+    const rows = [
+      { id: "a", name: "Shared", faction_name: "Any" },
+      { id: "u", name: "Wet USEC", faction_name: "USEC" },
+      { id: "b", name: "Wet BEAR", faction_name: "BEAR" },
+    ];
+    expect(
+      filterRaidPrepRows(rows, { faction: "usec" }).map((r) => r.id),
+    ).toEqual(["a", "u"]);
+    expect(
+      filterRaidPrepRows(rows, { faction: "BEAR" }).map((r) => r.id),
+    ).toEqual(["a", "b"]);
+  });
 });
 
 describe("overlay floors", () => {
@@ -3568,6 +3590,20 @@ describe("raid prep packing and settle", () => {
       todo: [{ id: "c" }],
       done: [{ id: "a" }],
     });
+  });
+
+  it("splits in-progress rows into current-map and other-map", () => {
+    expect(
+      splitRaidPrepRowsByCurrentMap([
+        { id: "on", on_this_map: true },
+        { id: "off", on_this_map: false },
+        { id: "also-on" },
+      ]),
+    ).toEqual({
+      onMap: [{ id: "on", on_this_map: true }, { id: "also-on" }],
+      offMap: [{ id: "off", on_this_map: false }],
+    });
+    expect(splitRaidPrepRowsByCurrentMap([])).toEqual({ onMap: [], offMap: [] });
   });
 
   it("merges the same needed item across tasks", () => {

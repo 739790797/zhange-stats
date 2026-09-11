@@ -146,6 +146,23 @@ def _as_float(value: Any) -> float:
         return 0.0
 
 
+def _as_bool(value: Any) -> bool:
+    if value is True or value == 1:
+        return True
+    if isinstance(value, str) and value.strip().lower() in {"1", "true", "yes"}:
+        return True
+    return False
+
+
+# 20°C 海平面音速；Wiki / eftforge 把初速低于此值的弹药标为亚音速（S）。
+SOUND_SPEED_MPS = 343.0
+
+
+def is_subsonic_ammo(initial_speed: Any) -> bool:
+    speed = _as_float(initial_speed)
+    return 0 < speed < SOUND_SPEED_MPS
+
+
 def _clean_item_names(
     item_id: str,
     *,
@@ -180,11 +197,16 @@ def _ammo_row(
     recoil_modifier: Any = 0,
     light_bleed_modifier: Any = 0,
     heavy_bleed_modifier: Any = 0,
+    tracer: Any = False,
+    tracer_color: Any = "",
+    fragmentation_chance: Any = 0,
+    ricochet_chance: Any = 0,
 ) -> dict[str, Any]:
     name, short_name = _clean_item_names(item_id, name=name, short_name=short_name)
     caliber_src = None if caliber_raw is None else str(caliber_raw or "")
     ammo_type = str(ammo_type_raw or "").strip()[:32]
     icon = str(icon_link or "").strip()[:512]
+    color = str(tracer_color or "").strip()[:32]
     return {
         "item_id": item_id[:64],
         "name": name,
@@ -199,6 +221,10 @@ def _ammo_row(
         "recoil_modifier": _as_float(recoil_modifier),
         "light_bleed_modifier": _as_float(light_bleed_modifier),
         "heavy_bleed_modifier": _as_float(heavy_bleed_modifier),
+        "tracer": _as_bool(tracer),
+        "tracer_color": color,
+        "fragmentation_chance": _as_float(fragmentation_chance),
+        "ricochet_chance": _as_float(ricochet_chance),
         "icon_link": icon,
     }
 
@@ -237,6 +263,10 @@ def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 recoil_modifier=raw.get("recoilModifier"),
                 light_bleed_modifier=raw.get("lightBleedModifier"),
                 heavy_bleed_modifier=raw.get("heavyBleedModifier"),
+                tracer=raw.get("tracer"),
+                tracer_color=raw.get("tracerColor"),
+                fragmentation_chance=raw.get("fragmentationChance"),
+                ricochet_chance=raw.get("ricochetChance"),
             )
         )
     return rows
@@ -298,6 +328,10 @@ def parse_json_api_ammo(
                 recoil_modifier=props.get("recoilModifier"),
                 light_bleed_modifier=props.get("lightBleedModifier"),
                 heavy_bleed_modifier=props.get("heavyBleedModifier"),
+                tracer=props.get("tracer"),
+                tracer_color=props.get("tracerColor"),
+                fragmentation_chance=props.get("fragmentationChance"),
+                ricochet_chance=props.get("ricochetChance"),
             )
         )
     return rows
@@ -404,10 +438,26 @@ def replace_derived_ammo_rows(
                 recoil_modifier=float(row.get("recoil_modifier") or 0),
                 light_bleed_modifier=float(row.get("light_bleed_modifier") or 0),
                 heavy_bleed_modifier=float(row.get("heavy_bleed_modifier") or 0),
+                tracer=bool(row.get("tracer") or False),
+                tracer_color=str(row.get("tracer_color") or "")[:32],
+                fragmentation_chance=float(row.get("fragmentation_chance") or 0),
+                ricochet_chance=float(row.get("ricochet_chance") or 0),
                 icon_link=row.get("icon_link") or "",
                 updated_at=synced_at,
             )
         )
+
+
+def ammo_tracer_unpopulated(db: Session) -> bool:
+    """已有派生行但曳光尚未投影（新列默认 false）。json dump 里总会有曳光弹。"""
+    if ammo_count(db) == 0:
+        return False
+    tagged = (
+        db.query(TarkovAmmo)
+        .filter(TarkovAmmo.mode_id == raw_row_id(), TarkovAmmo.tracer.is_(True))
+        .count()
+    )
+    return tagged == 0
 
 
 def ensure_ammo(db: Session) -> list[TarkovAmmo]:

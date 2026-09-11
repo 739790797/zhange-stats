@@ -47,6 +47,7 @@ from app.models.tarkov import (
     TarkovUserCollectionOwn,
     TarkovUserCollectionLayout,
     TarkovUserCollectionPlacement,
+    TarkovUserHideoutLevel,
     TarkovUserTaskDone,
     TarkovUserTaskStarted,
     TarkovUserTaskObjectiveDone,
@@ -65,6 +66,7 @@ from app.models.articles import (
     ArticleTag,
     ArticleVersion,
 )
+from app.models.rum import RumSample
 from app.models.user import User
 from app.models.user_files import UserFile
 
@@ -120,6 +122,7 @@ __all__ = [
     "TarkovUserCollectionOwn",
     "TarkovUserCollectionLayout",
     "TarkovUserCollectionPlacement",
+    "TarkovUserHideoutLevel",
     "TarkovUserTaskDone",
     "TarkovUserTaskStarted",
     "TarkovUserTaskObjectiveDone",
@@ -140,4 +143,5 @@ __all__ = [
     "ArticleComment",
     "ArticleVersion",
     "UserFile",
+    "RumSample",
 ]

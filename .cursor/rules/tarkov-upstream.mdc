@@ -16,6 +16,7 @@ alwaysApply: false
 - 互动地图底图仍用 `frontend/src/data/tarkov-dev-maps.json` + `assets.tarkov.dev`（SVG/瓦片）；容器格仓轮廓用 `frontend/src/data/tarkov-item-grids.json`。二者都是展示资源，不是图鉴 API
 - 工作台改装中间预览：底板用 dump 枪图（工厂预设 / 裸机匣静图），按槽位 `nameId` 在枪图上点选配件（含空槽）。dump 没有整枪照片坐标。默认**不**代理 [image-gen.tarkov-changes.com](https://image-gen.tarkov-changes.com)。旧出图接口仍在，须显式 `TARKOV_WORKBENCH_IMAGE_GEN=true` 才启用。
 - 工作台社区方案：只 **GET** [eftforge.com](https://eftforge.com) `/builds/public?gun_id=`（公开列表），投影成 dump 可装的 `pairs`。不当图鉴源、不代投票/评论、不热链 Gitee 卡图、不落库（短时 KV 除外）。`TARKOV_WORKBENCH_COMMUNITY=false` 可关。
+- 工作台枪匠：从 tasks dump 的 `buildWeapon` 投影约束。json dump 用 `buildAttributes` 对象（人机 / 后坐和 / 重量 / 弹匣 / 有效距离 / 耐久 / 格仓），不是 GraphQL 的 `attributes` 数组；`≥0` 与格仓下限是占位。必装件 / 类别组仍走 `containsAll` · `containsCategory`。**不** vendor EFTForge 手抄 JSON。求解是本站约束满足 + 局部替换，不是对方 HiGHS。pytest 不打真站。
 
 ## 禁止
 
@@ -25,6 +26,7 @@ alwaysApply: false
 - pytest 打真实 json.tarkov.dev / overlay CDN（用夹具）
 - pytest 打真实 image-gen.tarkov-changes.com（出图代理用注入假后端）
 - pytest 打真实 eftforge.com（社区方案用夹具）
+- vendor EFTForge / tarkov-weapon-optimizer 的枪匠 JSON 当本站任务源；枪匠约束从 dump `buildWeapon` 投影
 
 ## 兼容
 

@@ -5,12 +5,13 @@ import { TarkovItemDetailPanel } from "@/components/guides/tarkov/TarkovItemDeta
 import { TarkovItemsBreadcrumb } from "@/components/guides/tarkov/TarkovItemsBreadcrumb";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { collapsedPresetHref } from "@/lib/tarkovItemPlates";
 import {
   ITEMS_BASE_PATH,
   handbookHref,
   handbookRootBySlug,
+  itemListingHref,
   itemPageBySlug,
-  itemTypeHref,
 } from "@/lib/tarkovItemTypes";
 import styles from "@/components/guides/tarkov/TarkovItemsPageShell.module.css";
 
@@ -33,6 +34,11 @@ export default function TarkovItemDetailPage() {
     return <Navigate to={TARKOV_HOME_PATH} replace />;
   }
 
+  const collapseTo = collapsedPresetHref(detailQuery.data);
+  if (collapseTo) {
+    return <Navigate to={collapseTo} replace />;
+  }
+
   const parent = page.parentSlug
     ? handbookRootBySlug(page.parentSlug)
     : undefined;
@@ -40,7 +46,7 @@ export default function TarkovItemDetailPage() {
     { label: "逃离塔科夫", to: TARKOV_HOME_PATH },
     { label: "物品", to: ITEMS_BASE_PATH },
     ...(parent ? [{ label: parent.label, to: handbookHref(parent) }] : []),
-    { label: page.label, to: itemTypeHref(page.slug) },
+    { label: page.label, to: itemListingHref(page.slug) },
     { label: detailQuery.data?.name || "…" },
   ];
 

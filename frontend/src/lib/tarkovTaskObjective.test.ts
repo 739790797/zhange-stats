@@ -16,16 +16,25 @@ import {
 describe("objective type chips", () => {
   it("translates known types and keeps unknown as-is", () => {
     expect(tarkovObjectiveTypeLabel("shoot")).toBe("击杀");
-    expect(tarkovObjectiveTypeLabel("giveQuestItem")).toBe("上交任务物");
+    expect(tarkovObjectiveTypeLabel("giveQuestItem")).toBe("上交");
+    expect(tarkovObjectiveTypeLabel("plantQuestItem")).toBe("藏匿");
+    expect(tarkovObjectiveTypeLabel("findQuestItem")).toBe("找到");
+    expect(tarkovObjectiveTypeLabel("traderLevel")).toBe("忠诚");
+    expect(tarkovObjectiveTypeLabel("traderStanding")).toBe("声望");
+    expect(tarkovObjectiveTypeLabel("taskStatus")).toBe("关联");
     expect(tarkovObjectiveTypeLabel("mysteryType")).toBe("mysteryType");
     expect(tarkovObjectiveTypeTone("visit")).toBe("visit");
+    expect(tarkovObjectiveTypeTone("giveQuestItem")).toBe("giveItem");
     expect(tarkovObjectiveTypeTone("mysteryType")).toBe("unknown");
   });
 
-  it("dedupes and orders types for the table", () => {
+  it("dedupes, canonicalizes, and orders types for the table", () => {
     expect(
       orderObjectiveTypes(["visit", "shoot", "visit", "giveItem", ""]),
     ).toEqual(["shoot", "giveItem", "visit"]);
+    expect(
+      orderObjectiveTypes(["giveQuestItem", "giveItem", "plantQuestItem", "findQuestItem"]),
+    ).toEqual(["findItem", "giveItem", "plantItem"]);
     expect(orderObjectiveTypes(["zzz", "shoot", "aaa"])).toEqual([
       "shoot",
       "aaa",
@@ -94,6 +103,23 @@ describe("task detail extras", () => {
       "人机 ≥30",
       "目标状态：头部 · 疼痛",
       "配件分类：瞄具",
+    ]);
+    expect(
+      formatTaskObjectiveExtraLines({
+        attributes: [
+          { name: "durability", compare_method: ">=", value: 60 },
+          { name: "effectiveDistance", compare_method: ">=", value: 800 },
+          { name: "magazineCapacity", compare_method: ">=", value: 60 },
+          { name: "weight", compare_method: "<=", value: 4.8 },
+          { name: "width", compare_method: "<=", value: 4 },
+        ],
+      }),
+    ).toEqual([
+      "耐久 ≥60%",
+      "瞄准距离 ≥800",
+      "弹匣容量 ≥60",
+      "重量 ≤4.8",
+      "格仓宽 ≤4",
     ]);
   });
 });

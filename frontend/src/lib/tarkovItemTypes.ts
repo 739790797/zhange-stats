@@ -374,7 +374,10 @@ function handbookCategoryIds(root: TarkovHandbookRoot): string[] {
   return ids;
 }
 
-/** 手册一级之下的分类页（顶栏只挂装备/枪支等常用入口，握把/消音器走配件）。 */
+export const ITEMS_DEFAULT_SLUG = "gear";
+export const ITEMS_DEFAULT_PATH = `${ITEMS_BASE_PATH}/${ITEMS_DEFAULT_SLUG}`;
+
+/** 叶子只用于详情 slug、列预设和旧列表跳转，不再作为独立列表页。 */
 export const TARKOV_ITEM_LEAVES: TarkovItemPage[] = [
   {
     slug: "headsets",
@@ -390,7 +393,7 @@ export const TARKOV_ITEM_LEAVES: TarkovItemPage[] = [
     label: "头盔",
     panel: "catalog",
     parentSlug: "gear",
-    categoryIds: [],
+    categoryIds: [handbookChildId("gear", "头部装备")].filter(Boolean),
     types: ["helmet"],
     children: [],
   },
@@ -517,6 +520,67 @@ export function itemPageBySlug(
   return allItemPages().find((p) => p.slug === key);
 }
 
+export function leafPageForCategoryId(
+  id: string | null | undefined,
+): TarkovItemPage | undefined {
+  const key = (id || "").trim();
+  if (!key) return undefined;
+  return TARKOV_ITEM_LEAVES.find((page) => page.categoryIds.includes(key));
+}
+
+export function catalogPresetSlug(
+  page: TarkovItemPage,
+  child: TarkovHandbookChild | null,
+): string {
+  if (child) {
+    const leaf = leafPageForCategoryId(child.id);
+    if (leaf) return leaf.slug;
+  }
+  return page.slug;
+}
+
+/** 列表入口：叶子跳到手册一级 `?child=`，一级保持原路径。 */
+export function itemListingHref(slug: string): string {
+  const page = itemPageBySlug(slug);
+  if (!page) return `${ITEMS_BASE_PATH}/${slug}`;
+  if (!page.parentSlug) return `${ITEMS_BASE_PATH}/${page.slug}`;
+  const parent = handbookRootBySlug(page.parentSlug);
+  if (!parent) return `${ITEMS_BASE_PATH}/${page.slug}`;
+  const childId = page.categoryIds[0];
+  if (!childId) return handbookHref(parent);
+  return `${handbookHref(parent)}?child=${encodeURIComponent(childId)}`;
+}
+
+export type ItemBrowseKind = "ammo" | "guns" | "catalog";
+
+export function itemBrowseKind(
+  page: TarkovItemPage,
+  child: TarkovHandbookChild | null,
+): ItemBrowseKind {
+  if (page.panel === "ammo") {
+    return leafPageForCategoryId(child?.id)?.slug === "ammo-packs"
+      ? "catalog"
+      : "ammo";
+  }
+  if (page.panel === "guns") {
+    const slug = leafPageForCategoryId(child?.id)?.slug;
+    if (slug === "grenades" || slug === "melee") return "catalog";
+    return "guns";
+  }
+  return "catalog";
+}
+
+export function catalogPageForBrowse(
+  page: TarkovItemPage,
+  child: TarkovHandbookChild | null,
+): TarkovItemPage {
+  if (page.panel === "ammo" || page.panel === "guns") {
+    const leaf = child ? leafPageForCategoryId(child.id) : undefined;
+    if (leaf) return { ...leaf, children: [] };
+  }
+  return page;
+}
+
 export function itemDetailHref(typeSlug: string, itemId: string): string {
   return `${ITEMS_BASE_PATH}/${typeSlug}/${encodeURIComponent(itemId)}`;
 }
@@ -526,7 +590,6 @@ const TYPE_TO_ITEM_SLUG: [string, string][] = [
   ["ammoBox", "ammo-packs"],
   ["gun", "guns"],
   ["melee", "melee"],
-  ["preset", "guns"],
   ["keys", "keys"],
   ["key", "keys"],
   ["headset", "headsets"],
@@ -545,18 +608,23 @@ const TYPE_TO_ITEM_SLUG: [string, string][] = [
   ["container", "containers"],
   ["armorPlate", "armors"],
   ["poster", "battle-pass"],
+  ["preset", "guns"],
 ];
+
+export function itemSlugFromTypes(types: string[] | undefined): string {
+  const set = new Set((types || []).map((t) => String(t).trim()));
+  for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
+    if (set.has(type)) return slug;
+  }
+  return "barter";
+}
 
 /** 按物品 types 猜手册路径；详情页按 itemId 加载，slug 只影响面包屑。 */
 export function itemHrefFromTypes(
   itemId: string,
   types: string[] | undefined,
 ): string {
-  const set = new Set((types || []).map((t) => String(t).trim()));
-  for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
-    if (set.has(type)) return itemDetailHref(slug, itemId);
-  }
-  return itemDetailHref("barter", itemId);
+  return itemDetailHref(itemSlugFromTypes(types), itemId);
 }
 
 export function itemTypeLabelFromTypes(
@@ -576,7 +644,7 @@ export function itemTypeHrefFromTypes(
 ): string | null {
   const set = new Set((types || []).map((t) => String(t).trim()));
   for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
-    if (set.has(type)) return itemTypeHref(slug);
+    if (set.has(type)) return itemListingHref(slug);
   }
   return null;
 }
@@ -647,13 +715,6 @@ export function handbookHrefFromCategoryId(id: string): string | null {
   for (const root of TARKOV_HANDBOOK_ROOTS) {
     if (root.id === key) return handbookHref(root);
     if (!findHandbookChild(root.children, key)) continue;
-    const leaf = TARKOV_ITEM_LEAVES.find((page) =>
-      page.categoryIds.includes(key),
-    );
-    if (leaf) return itemTypeHref(leaf.slug);
-    if (root.children.some((child) => child.id === key)) {
-      return handbookHref(root);
-    }
     return `${handbookHref(root)}?child=${encodeURIComponent(key)}`;
   }
   return null;

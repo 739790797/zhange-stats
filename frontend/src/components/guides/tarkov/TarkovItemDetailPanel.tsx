@@ -1,7 +1,7 @@
 import { Image, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Suspense, lazy } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovItemDetail } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
@@ -10,7 +10,6 @@ import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import { inspectImageUrl } from "@/lib/tarkovItemImages";
 import {
   extractContentLines,
-  extractPlateSlots,
   extractRefItemId,
   formatPropertyList,
   isBareTarkovId,
@@ -22,17 +21,23 @@ import {
   type FormattedPropLink,
   type VendorOffer,
 } from "@/lib/tarkovItemFormat";
+import { formatArmorSlotLabel, formatArmorZoneList } from "@/lib/tarkovArmorLabels";
 import {
   gridOccupancyCaption,
   resolveItemGridLayout,
-  type GridLayoutKind,
   type GridPocket,
 } from "@/lib/tarkovItemGrids";
+import {
+  collapsedPresetHref,
+  extractPlateTableRows,
+  platePresetMarks,
+} from "@/lib/tarkovItemPlates";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { itemKeyLockMaps } from "@/lib/tarkovItemLocks";
 import { buildItemFleaQuote } from "@/lib/tarkovItemSources";
 import { TarkovItemRefGrid } from "@/components/guides/tarkov/TarkovGuideItemCell";
 import { TarkovItemKeyLocks } from "@/components/guides/tarkov/TarkovItemKeyLocks";
+import { TarkovItemPlateTable } from "@/components/guides/tarkov/TarkovItemPlateTable";
 import { TarkovItemSources } from "@/components/guides/tarkov/TarkovItemSources";
 import { TarkovItemUses } from "@/components/guides/tarkov/TarkovItemUses";
 import tableStyles from "./TarkovDarkTable.module.css";
@@ -58,12 +63,14 @@ function itemRefLinks(links: FormattedPropLink[]) {
 }
 
 const GRID_CELL = 22;
-const GRID_GAP = 2;
+/** 口袋内格子接缝；外框用 outline，接缝用淡色 gap。 */
+const GRID_GAP = 1;
+const POCKET_STEP = GRID_CELL + 6;
 
 function pocketPixels(pocket: GridPocket) {
   return {
-    left: pocket.col * (GRID_CELL + GRID_GAP),
-    top: pocket.row * (GRID_CELL + GRID_GAP),
+    left: pocket.col * POCKET_STEP,
+    top: pocket.row * POCKET_STEP,
     width: pocket.width * GRID_CELL + Math.max(0, pocket.width - 1) * GRID_GAP,
     height: pocket.height * GRID_CELL + Math.max(0, pocket.height - 1) * GRID_GAP,
   };
@@ -71,10 +78,17 @@ function pocketPixels(pocket: GridPocket) {
 
 function GridPocketCells({ pocket }: { pocket: GridPocket }) {
   const count = pocket.width * pocket.height;
+  const label = `${pocket.width}×${pocket.height}`;
   return (
     <div
       className={styles.gridPocket}
-      style={{ gridTemplateColumns: `repeat(${pocket.width}, ${GRID_CELL}px)` }}
+      style={{
+        gridTemplateColumns: `repeat(${pocket.width}, ${GRID_CELL}px)`,
+        gridTemplateRows: `repeat(${pocket.height}, ${GRID_CELL}px)`,
+        gap: GRID_GAP,
+      }}
+      aria-label={label}
+      title={label}
     >
       {Array.from({ length: count }, (_, cell) => (
         <span key={cell} className={styles.gridCellOn} />
@@ -85,29 +99,12 @@ function GridPocketCells({ pocket }: { pocket: GridPocket }) {
 
 function GridPocketsView({
   pockets,
-  kind,
   caption,
 }: {
   pockets: GridPocket[];
-  kind: GridLayoutKind;
   caption: string;
 }) {
   if (!pockets.length) return null;
-  if (kind === "stacked") {
-    return (
-      <div className={styles.gridBlock}>
-        <div className={styles.gridPockets} role="img" aria-label={caption}>
-          {pockets.map((pocket, index) => (
-            <GridPocketCells
-              key={`${pocket.width}x${pocket.height}-${index}`}
-              pocket={pocket}
-            />
-          ))}
-        </div>
-        {caption ? <span className={styles.gridCaption}>{caption}</span> : null}
-      </div>
-    );
-  }
   let stageW = 0;
   let stageH = 0;
   const placed = pockets.map((pocket, index) => {
@@ -213,8 +210,8 @@ function softArmorRows(props: Record<string, unknown>): ArmorSlotRow[] {
       const durability = Number(row.durability);
       if (!Number.isFinite(durability) || durability <= 0) return null;
       const zones = Array.isArray(row.zones)
-        ? row.zones.map(String).join(" · ")
-        : String(row.name || "—");
+        ? formatArmorZoneList(row.zones)
+        : formatArmorSlotLabel(String(row.name || "")) || "—";
       return {
         key: `${index}-${zones}`,
         class: row.class != null ? String(row.class) : "—",
@@ -269,6 +266,11 @@ export function TarkovItemDetailPanel({
   const detail = detailQuery.data;
   if (!detail) return null;
 
+  const collapseTo = collapsedPresetHref(detail);
+  if (variant !== "embed" && collapseTo) {
+    return <Navigate to={collapseTo} replace />;
+  }
+
   const item = (detail.item || {}) as Record<string, unknown>;
   const properties = (detail.properties || {}) as Record<string, unknown>;
   const { baseItem: baseItemProp, ...restProperties } = properties;
@@ -301,11 +303,21 @@ export function TarkovItemDetailPanel({
   const receiverId =
     extractRefItemId(baseItemProp) || extractRefItemId(item.baseItem);
   const embed = variant === "embed";
+  const baseTypes = Array.isArray((baseItemProp as { types?: unknown })?.types)
+    ? ((baseItemProp as { types?: unknown[] }).types || []).map(String)
+    : [];
   const showReceiverWiki =
     !embed &&
     itemTypes.includes("preset") &&
+    (itemTypes.includes("gun") || baseTypes.includes("gun")) &&
     Boolean(receiverId) &&
     receiverId !== itemId;
+  const hidePresetProps =
+    !itemTypes.includes("gun") && !itemTypes.includes("preset");
+  if (hidePresetProps) {
+    delete restProperties.defaultPreset;
+    delete restProperties.presets;
+  }
   const mergedProps: Record<string, unknown> = {
     weight: item.weight,
     size:
@@ -324,7 +336,8 @@ export function TarkovItemDetailPanel({
   const propRows = formatPropertyList(mergedProps);
   const contained = containedRows(item);
   const armorRows = softArmorRows(properties);
-  const plateGroups = extractPlateSlots(properties);
+  const plateRows = extractPlateTableRows(properties);
+  const plateMarks = platePresetMarks(properties);
   const gridLayout = resolveItemGridLayout(properties, detail.id);
   const pockets = gridLayout.pockets;
   const hasGrid = pockets.length > 0;
@@ -341,7 +354,7 @@ export function TarkovItemDetailPanel({
   const hasAttrExtras = Boolean(
     lockMaps.length ||
       armorRows.length ||
-      plateGroups.length ||
+      plateRows.length ||
       contained.length ||
       contentLines.length,
   );
@@ -351,7 +364,6 @@ export function TarkovItemDetailPanel({
       <span className={styles.propKey}>格仓</span>
       <GridPocketsView
         pockets={pockets}
-        kind={gridLayout.kind}
         caption={gridCaption}
       />
     </div>
@@ -492,23 +504,8 @@ export function TarkovItemDetailPanel({
             </>
           ) : null}
 
-          {plateGroups.length ? (
-            <>
-              <h3 className={styles.attrSub}>兼容护甲板</h3>
-              {plateGroups.map((group) => (
-                <div key={group.key} className={styles.plateGroup}>
-                  <h4 className={styles.plateHead}>{group.name}</h4>
-                  <TarkovItemRefGrid
-                    items={group.plates.map((plate) => ({
-                      id: plate.id,
-                      name: plate.name,
-                      icon_link: plate.icon,
-                      types: plate.types,
-                    }))}
-                  />
-                </div>
-              ))}
-            </>
+          {plateRows.length ? (
+            <TarkovItemPlateTable rows={plateRows} marks={plateMarks} />
           ) : null}
 
           {contained.length ? (

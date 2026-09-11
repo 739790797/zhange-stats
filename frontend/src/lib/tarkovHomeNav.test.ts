@@ -16,7 +16,9 @@ import {
   TARKOV_TOOLS,
   resolveTarkovMeTab,
   tarkovMeHref,
+  tarkovHideoutHref,
   tarkovKeyPackHref,
+  tarkovWorkbenchHref,
   TARKOV_HOME_PATH,
   TARKOV_ADMIN_NAV,
   TARKOV_TOP_NAV,
@@ -66,27 +68,27 @@ describe("filterHomeSearch", () => {
     ).toBe(true);
   });
 
-  it("finds bullets, ammo packs and melee in weaponry", () => {
+  it("finds bullets, ammo packs and melee on handbook ammo/guns", () => {
     expect(filterHomeSearch("子弹", index).some((h) => h.id === "ammo")).toBe(
       true,
     );
     expect(
-      filterHomeSearch("弹药包", index).some((h) => h.id === "ammo-packs"),
+      filterHomeSearch("弹药包", index).some((h) => h.id === "ammo"),
     ).toBe(true);
-    expect(filterHomeSearch("近战", index).some((h) => h.id === "melee")).toBe(
+    expect(filterHomeSearch("近战", index).some((h) => h.id === "guns")).toBe(
       true,
     );
   });
 
   it("sends pistol grips and suppressors to weapon mods", () => {
     expect(
-      filterHomeSearch("手枪式握把", index).some((h) => h.id === "mods"),
+      filterHomeSearch("手枪式握把", index).some((h) => h.id === "weapon-mods"),
     ).toBe(true);
     expect(
-      filterHomeSearch("消音器", index).some((h) => h.id === "mods"),
+      filterHomeSearch("消音器", index).some((h) => h.id === "weapon-mods"),
     ).toBe(true);
     expect(
-      filterHomeSearch("suppressor", index).some((h) => h.id === "mods"),
+      filterHomeSearch("suppressor", index).some((h) => h.id === "weapon-mods"),
     ).toBe(true);
     expect(filterHomeSearch("消音器", index).some((h) => h.id === "suppressors")).toBe(
       false,
@@ -180,6 +182,15 @@ describe("filterHomeSearch", () => {
     ).toBe(true);
     expect(
       filterHomeSearch("application", index).some((h) => h.id === "me"),
+    ).toBe(true);
+  });
+
+  it("finds hideout inside 个人中心", () => {
+    expect(
+      filterHomeSearch("藏身处", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("hideout", index).some((h) => h.id === "me"),
     ).toBe(true);
   });
 
@@ -411,24 +422,33 @@ describe("tarkovMapMarkByName", () => {
 });
 
 describe("TARKOV_HOME_ITEMS", () => {
-  it("mirrors top-nav item columns as three home rows", () => {
-    expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.id)).toEqual([
+  it("uses handbook roots on the home grid and top-nav", () => {
+    expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.id)).toEqual(["handbook"]);
+    expect(TARKOV_HOME_ITEMS.map((i) => i.id)).toEqual([
+      "battle-pass",
+      "quest-items",
+      "money",
+      "maps",
+      "special-equipment",
+      "info-items",
+      "keys",
+      "meds",
+      "provisions",
+      "ammo",
+      "guns",
+      "weapon-mods",
       "gear",
-      "weaponry",
-      "tools",
+      "barter",
     ]);
-    expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.items.map((i) => i.id))).toEqual([
-      ["headsets", "helmets", "glasses", "armors", "rigs", "backpacks", "meds"],
-      ["ammo", "ammo-packs", "guns", "melee", "mods"],
-      ["grenades", "containers", "barter-items", "keys", "provisions"],
-    ]);
-    expect(TARKOV_HOME_ITEMS.map((i) => i.id)).toEqual(
-      TARKOV_HOME_ITEM_GROUPS.flatMap((g) => g.items.map((i) => i.id)),
+    expect(TARKOV_ITEM_MENU_GROUPS.flatMap((g) => g.items.map((i) => i.id))).toEqual(
+      TARKOV_HOME_ITEMS.map((i) => i.id),
     );
   });
 
-  it("uses compact-grid SVG path icons", () => {
-    expect(TARKOV_HOME_ITEMS.every((item) => item.icon.length > 20)).toBe(true);
+  it("uses handbook category icons", () => {
+    expect(TARKOV_HOME_ITEMS.every((item) => item.icon.includes("handbook-category-"))).toBe(
+      true,
+    );
   });
 });
 
@@ -508,10 +528,7 @@ describe("TARKOV_TOP_NAV", () => {
       href: "/guides/tarkov/tasks",
       status: "ready",
     });
-    expect(TARKOV_PROGRESSION.find((p) => p.id === "hideout")).toMatchObject({
-      href: "/guides/tarkov/hideout",
-      status: "ready",
-    });
+    expect(TARKOV_PROGRESSION.find((p) => p.id === "hideout")).toBeUndefined();
     expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toBeUndefined();
     expect(TARKOV_TOP_NAV.find((i) => i.id === "bosses")?.groups?.map((g) => g.id)).toEqual(
       ["boss", "other"],
@@ -625,7 +642,7 @@ describe("tarkovPageTitle", () => {
       "地图信息",
     );
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
-    expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
+    expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/workbench")).toBe("枪械工作台");
     expect(tarkovPageTitle("/guides/tarkov/workbench/abc")).toBe("枪械工作台");
     expect(tarkovPageTitle("/guides/tarkov/me")).toBe("个人中心");
@@ -653,16 +670,35 @@ describe("tarkovGuideShellFills", () => {
   });
 });
 
+describe("tarkovWorkbenchHref", () => {
+  it("builds workbench hrefs with optional gunsmith query", () => {
+    expect(tarkovWorkbenchHref()).toBe("/guides/tarkov/workbench");
+    expect(tarkovWorkbenchHref("ak74")).toBe("/guides/tarkov/workbench/ak74");
+    expect(tarkovWorkbenchHref(undefined, { taskId: "gs" })).toBe(
+      "/guides/tarkov/workbench?task=gs",
+    );
+    expect(
+      tarkovWorkbenchHref("ak74", { taskId: "gs", objectiveId: "o1" }),
+    ).toBe("/guides/tarkov/workbench/ak74?task=gs&obj=o1");
+  });
+});
+
 describe("tarkov me tabs", () => {
   it("defaults unknown tabs to keys and builds hrefs", () => {
     expect(resolveTarkovMeTab(null)).toBe("tasks");
     expect(resolveTarkovMeTab("tasks")).toBe("tasks");
     expect(resolveTarkovMeTab("keys")).toBe("keys");
     expect(resolveTarkovMeTab("collection")).toBe("collection");
+    expect(resolveTarkovMeTab("hideout")).toBe("hideout");
     expect(resolveTarkovMeTab("logs")).toBe("logs");
     expect(resolveTarkovMeTab("nope")).toBe("tasks");
     expect(tarkovMeHref("logs")).toBe("/guides/tarkov/me?tab=logs");
     expect(tarkovMeHref("collection")).toBe("/guides/tarkov/me?tab=collection");
+    expect(tarkovMeHref("hideout")).toBe("/guides/tarkov/me?tab=hideout");
+    expect(tarkovHideoutHref()).toBe("/guides/tarkov/me?tab=hideout");
+    expect(tarkovHideoutHref("workbench")).toBe(
+      "/guides/tarkov/me?tab=hideout&station=workbench",
+    );
     expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
     expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
     expect(tarkovKeyPackHref({ q: "Dorm 114", map: "customs" })).toBe(
