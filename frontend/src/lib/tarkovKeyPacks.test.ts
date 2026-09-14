@@ -328,8 +328,7 @@ describe("formatKeySourceTags", () => {
       "flea",
     ]);
     expect(tags[0]).toMatchObject({ label: "以物易物", hint: "Therapist 1级" });
-    expect(tags[1].href).toContain("tab=hideout");
-    expect(tags[1].href).toContain("station=intelligence-center");
+    expect(tags[1].href).toBe("/guides/tarkov/hideout/intelligence-center");
     expect(tags[2].href).toContain("/tasks/task-1");
     expect(tags[3].hint).toContain("88,000");
     expect(tags[3].hint).not.toMatch(/级/);

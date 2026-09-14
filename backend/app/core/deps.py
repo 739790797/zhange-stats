@@ -19,22 +19,60 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+def load_user_by_access_token(
+    db: Session,
+    token: str,
+    *,
+    with_member: bool = False,
+) -> User | None:
+    principal = decode_access_token(token)
+    if principal is None:
+        return None
+    q = db.query(User)
+    if with_member:
+        q = q.options(joinedload(User.member))
+    user = q.filter(User.id == principal.user_id).first()
+    if not user or user_is_anonymized(user):
+        return None
+    return user
+
+
+def access_token_from_request(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> User:
-    via_bearer = False
-    token: str | None = None
+    credentials: HTTPAuthorizationCredentials | None = None,
+) -> tuple[str | None, bool]:
+    """Cookie 或 Bearer。via_bearer 供 CSRF：Cookie 会话的写操作才校验。"""
     if (
         credentials is not None
         and credentials.scheme.lower() == "bearer"
         and credentials.credentials
     ):
-        token = credentials.credentials
-        via_bearer = True
-    else:
-        token = (request.cookies.get(ACCESS_COOKIE) or "").strip() or None
+        return credentials.credentials, True
+    auth = (request.headers.get("authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip() or None
+        return token, True
+    token = (request.cookies.get(ACCESS_COOKIE) or "").strip() or None
+    return token, False
+
+
+def get_optional_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User | None:
+    """公开接口：有有效会话则带上用户，否则当访客。不挂 HTTPBearer，避免 OpenAPI 标成需登录。"""
+    token, _via_bearer = access_token_from_request(request)
+    if not token:
+        return None
+    return load_user_by_access_token(db, token, with_member=True)
+
+
+def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    token, via_bearer = access_token_from_request(request, credentials)
 
     if not token:
         raise HTTPException(
@@ -49,18 +87,8 @@ def get_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="CSRF 校验失败",
             )
-    principal = decode_access_token(token)
-    if not principal or (principal.user_id is None and not principal.username):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="未登录或令牌无效",
-        )
-    q = db.query(User).options(joinedload(User.member))
-    if principal.user_id is not None:
-        user = q.filter(User.id == principal.user_id).first()
-    else:
-        user = q.filter(User.username == principal.username).first()
-    if not user or user_is_anonymized(user):
+    user = load_user_by_access_token(db, token, with_member=True)
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="未登录或令牌无效",

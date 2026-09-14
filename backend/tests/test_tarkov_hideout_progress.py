@@ -9,7 +9,9 @@ from app.services.tarkov.hideout_progress import (
     can_set_level,
     default_level,
     filled_levels,
+    parse_game_edition,
     skill_req_met,
+    stash_floor_for_edition,
     station_req_met,
     trader_req_met,
 )
@@ -116,5 +118,43 @@ def test_future_trader_skill_unset_until_user_data() -> None:
     assert skill_req_met(req_s, None) is None
     assert trader_req_met(req_t, {"prapor": 2}) is True
     assert trader_req_met(req_t, {"prapor": 1}) is False
+    assert trader_req_met(req_t, {"mechanic": 4}) is None
     assert skill_req_met(req_s, {"HideoutManagement": 5}) is True
     assert station_req_met({"station_id": "gen", "level": 1}, {"gen": 1}, {}) is True
+
+
+def test_eod_stash_floor_skips_prereqs() -> None:
+    assert parse_game_edition("blue") == "eod"
+    assert stash_floor_for_edition("eod") == 4
+    stations = [
+        _station(
+            "stash",
+            "stash",
+            [
+                {"level": 1, "station_requirements": []},
+                {
+                    "level": 2,
+                    "station_requirements": [{"station_id": "gen", "level": 1}],
+                },
+                {
+                    "level": 3,
+                    "station_requirements": [{"station_id": "gen", "level": 2}],
+                },
+                {
+                    "level": 4,
+                    "station_requirements": [{"station_id": "gen", "level": 3}],
+                },
+            ],
+        ),
+        _station(
+            "gen",
+            "generator",
+            [{"level": 1, "station_requirements": []}],
+        ),
+    ]
+    levels = filled_levels(stations, {}, stash_floor=4)
+    assert levels["stash"] == 4
+    assert default_level(stations[0], stash_floor=4) == 4
+    assert apply_level(stations, levels, "stash", 3, stash_floor=4)["stash"] == 4
+    by_id = {row["id"]: row for row in stations}
+    assert can_set_level(by_id["stash"], 3, levels, by_id, stash_floor=4) is False

@@ -8,9 +8,15 @@ import { PageHeader } from "@/components/PageHeader";
 import { apiError } from "@/lib/apiError";
 import { formatRumMs } from "@/lib/rumCollect";
 import {
+  RUM_BIZ_ALL,
   rumBarHeight,
   rumBarPoints,
+  rumBizBarPoints,
+  rumBizFilterOptions,
+  rumRowsForBiz,
+  rumTrendDomain,
   rumTrendPoints,
+  type RumBarPoint,
 } from "@/lib/rumCharts";
 
 /* DualAxes 用 children 配双轴，不是 React 子节点 */
@@ -42,28 +48,111 @@ function formatAxisTick(ms: number, hours: number) {
   return `${parts.month}-${parts.day} ${clock}`;
 }
 
+function RumP50P95Bar({
+  data,
+  height,
+  token,
+}: {
+  data: RumBarPoint[];
+  height: number;
+  token: { colorPrimary: string; colorWarning: string };
+}) {
+  return (
+    <Bar
+      data={data}
+      height={height}
+      autoFit
+      xField="label"
+      yField="ms"
+      colorField="metric"
+      group
+      legend={{ color: {} }}
+      scale={{
+        color: {
+          relations: [
+            ["p50", token.colorPrimary],
+            ["p95", token.colorWarning],
+          ],
+        },
+      }}
+      axis={{
+        x: { title: false },
+        y: {
+          title: false,
+          labelFormatter: (v: number) => formatRumMs(v),
+        },
+      }}
+      tooltip={{
+        items: [
+          {
+            field: "ms",
+            valueFormatter: (v: number) => formatRumMs(v),
+          },
+        ],
+      }}
+    />
+  );
+}
+
 export default function RumPage() {
   const { token } = theme.useToken();
   const [hours, setHours] = useState(24);
+  const [apiBiz, setApiBiz] = useState(RUM_BIZ_ALL);
+  const [imgBiz, setImgBiz] = useState(RUM_BIZ_ALL);
   const query = useQuery({
     queryKey: ["rum-summary", hours],
     queryFn: () => fetchRumSummary(hours),
   });
   const data = query.data;
   const trend = useMemo(() => rumTrendPoints(data?.series), [data?.series]);
-  const apiBars = useMemo(() => rumBarPoints(data?.api), [data?.api]);
-  const imgBars = useMemo(() => rumBarPoints(data?.img), [data?.img]);
-  const hasTrend = trend.some((p) => p.count > 0);
-  const xMin = trend[0]?.t;
-  const xMax = trend[trend.length - 1]?.t;
+  const trendDomain = useMemo(() => rumTrendDomain(data?.series), [data?.series]);
+  const apiBizOptions = useMemo(
+    () => rumBizFilterOptions(data?.api_biz),
+    [data?.api_biz],
+  );
+  const imgBizOptions = useMemo(
+    () => rumBizFilterOptions(data?.img_biz),
+    [data?.img_biz],
+  );
+  const activeApiBiz =
+    apiBiz !== RUM_BIZ_ALL && apiBizOptions.some((item) => item.value === apiBiz)
+      ? apiBiz
+      : RUM_BIZ_ALL;
+  const activeImgBiz =
+    imgBiz !== RUM_BIZ_ALL && imgBizOptions.some((item) => item.value === imgBiz)
+      ? imgBiz
+      : RUM_BIZ_ALL;
+  const apiRows = useMemo(
+    () => rumRowsForBiz(data?.api, activeApiBiz),
+    [data?.api, activeApiBiz],
+  );
+  const imgRows = useMemo(
+    () => rumRowsForBiz(data?.img, activeImgBiz),
+    [data?.img, activeImgBiz],
+  );
+  const apiBars = useMemo(() => rumBarPoints(apiRows), [apiRows]);
+  const imgBars = useMemo(() => rumBarPoints(imgRows), [imgRows]);
+  const bizBars = useMemo(() => rumBizBarPoints(data?.api_biz), [data?.api_biz]);
+  const hasTrend = trend.length > 0;
+  const xMin = trendDomain.min;
+  const xMax = trendDomain.max;
   const apiBarRows = Math.round(apiBars.length / 2);
   const imgBarRows = Math.round(imgBars.length / 2);
+  const bizBarRows = Math.round(bizBars.length / 2);
+  const apiBizRadio = [
+    { label: "全部", value: RUM_BIZ_ALL },
+    ...apiBizOptions,
+  ];
+  const imgBizRadio = [
+    { label: "全部", value: RUM_BIZ_ALL },
+    ...imgBizOptions,
+  ];
 
   return (
     <div>
       <PageHeader
         title="用户等待"
-        subtitle="浏览器实测：接口转圈与第三方图加载（含网络/CDN）。访客也会上报。"
+        subtitle="浏览器实测：接口转圈与第三方图加载（含网络/CDN）。接口按侧栏业务分类。访客也会上报。"
         extra={
           <Space wrap>
             <Radio.Group
@@ -132,13 +221,50 @@ export default function RumPage() {
           </Card>
         </Col>
       </Row>
-      <Card size="small" title="等待趋势" style={{ marginBottom: 16 }}>
+      <Card
+        size="small"
+        title="等待趋势"
+        extra={
+          hasTrend ? (
+            <Space size={16}>
+              <Typography.Text type="secondary">
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 8,
+                    height: 8,
+                    marginRight: 6,
+                    borderRadius: 2,
+                    background: token.colorPrimary,
+                  }}
+                />
+                接口
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 8,
+                    height: 8,
+                    marginRight: 6,
+                    borderRadius: 2,
+                    background: token.colorWarning,
+                  }}
+                />
+                第三方图
+              </Typography.Text>
+            </Space>
+          ) : null
+        }
+        style={{ marginBottom: 16 }}
+      >
         {hasTrend ? (
           <DualAxes
             height={280}
             autoFit
             data={trend}
             xField="t"
+            legend={false}
             scale={{
               x: {
                 type: "linear",
@@ -146,12 +272,6 @@ export default function RumPage() {
                 domainMax: xMax,
                 tickCount: 6,
                 nice: false,
-              },
-              color: {
-                relations: [
-                  ["接口", token.colorPrimary],
-                  ["第三方图", token.colorWarning],
-                ],
               },
             }}
             axis={{
@@ -169,24 +289,23 @@ export default function RumPage() {
               {
                 type: "interval",
                 yField: "count",
-                colorField: "series",
-                stack: true,
                 scale: {
-                  y: { domainMin: 0, independent: true, nice: true },
+                  y: { domainMin: 0, independent: true, nice: true, key: "count" },
                 },
                 axis: { y: { title: "次数", position: "left" } },
-                style: { fillOpacity: 0.35 },
+                style: { fill: token.colorPrimary, fillOpacity: 0.35 },
                 tooltip: {
-                  items: [{ field: "count", name: "次数" }],
+                  items: [
+                    { field: "api_count", name: "接口次数" },
+                    { field: "img_count", name: "第三方图次数" },
+                  ],
                 },
               },
               {
                 type: "line",
-                yField: "p95",
-                colorField: "series",
-                shapeField: "smooth",
+                yField: "api_p95",
                 scale: {
-                  y: { domainMin: 0, independent: true, nice: true },
+                  y: { domainMin: 0, independent: true, nice: true, key: "p95" },
                 },
                 axis: {
                   y: {
@@ -195,12 +314,30 @@ export default function RumPage() {
                     labelFormatter: (v: number) => formatRumMs(v),
                   },
                 },
-                style: { lineWidth: 2 },
+                style: { stroke: token.colorPrimary, lineWidth: 2 },
                 tooltip: {
                   items: [
                     {
-                      field: "p95",
-                      name: "p95",
+                      field: "api_p95",
+                      name: "接口 p95",
+                      valueFormatter: (v: number) => formatRumMs(v),
+                    },
+                  ],
+                },
+              },
+              {
+                type: "line",
+                yField: "img_p95",
+                scale: {
+                  y: { domainMin: 0, independent: true, nice: true, key: "p95" },
+                },
+                axis: { y: false },
+                style: { stroke: token.colorWarning, lineWidth: 2 },
+                tooltip: {
+                  items: [
+                    {
+                      field: "img_p95",
+                      name: "第三方图 p95",
                       valueFormatter: (v: number) => formatRumMs(v),
                     },
                   ],
@@ -214,42 +351,33 @@ export default function RumPage() {
           </Typography.Text>
         )}
       </Card>
+      {bizBars.length ? (
+        <Card size="small" title="接口按业务（p50 / p95）" style={{ marginBottom: 16 }}>
+          <RumP50P95Bar
+            data={bizBars}
+            height={rumBarHeight(bizBarRows)}
+            token={token}
+          />
+        </Card>
+      ) : null}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <Card size="small" title="最慢接口（p50 / p95）">
+            {apiBizOptions.length > 1 ? (
+              <Radio.Group
+                size="small"
+                optionType="button"
+                value={activeApiBiz}
+                onChange={(e) => setApiBiz(String(e.target.value))}
+                options={apiBizRadio}
+                style={{ marginBottom: 12, flexWrap: "wrap", rowGap: 8 }}
+              />
+            ) : null}
             {apiBars.length ? (
-              <Bar
+              <RumP50P95Bar
                 data={apiBars}
                 height={rumBarHeight(apiBarRows)}
-                autoFit
-                xField="label"
-                yField="ms"
-                colorField="metric"
-                group
-                legend={{ color: {} }}
-                scale={{
-                  color: {
-                    relations: [
-                      ["p50", token.colorPrimary],
-                      ["p95", token.colorWarning],
-                    ],
-                  },
-                }}
-                axis={{
-                  x: { title: false },
-                  y: {
-                    title: false,
-                    labelFormatter: (v: number) => formatRumMs(v),
-                  },
-                }}
-                tooltip={{
-                  items: [
-                    {
-                      field: "ms",
-                      valueFormatter: (v: number) => formatRumMs(v),
-                    },
-                  ],
-                }}
+                token={token}
               />
             ) : (
               <Typography.Text type="secondary">
@@ -260,39 +388,21 @@ export default function RumPage() {
         </Col>
         <Col xs={24} lg={12}>
           <Card size="small" title="最慢第三方图（p50 / p95）">
+            {imgBizOptions.length > 1 ? (
+              <Radio.Group
+                size="small"
+                optionType="button"
+                value={activeImgBiz}
+                onChange={(e) => setImgBiz(String(e.target.value))}
+                options={imgBizRadio}
+                style={{ marginBottom: 12, flexWrap: "wrap", rowGap: 8 }}
+              />
+            ) : null}
             {imgBars.length ? (
-              <Bar
+              <RumP50P95Bar
                 data={imgBars}
                 height={rumBarHeight(imgBarRows)}
-                autoFit
-                xField="label"
-                yField="ms"
-                colorField="metric"
-                group
-                legend={{ color: {} }}
-                scale={{
-                  color: {
-                    relations: [
-                      ["p50", token.colorPrimary],
-                      ["p95", token.colorWarning],
-                    ],
-                  },
-                }}
-                axis={{
-                  x: { title: false },
-                  y: {
-                    title: false,
-                    labelFormatter: (v: number) => formatRumMs(v),
-                  },
-                }}
-                tooltip={{
-                  items: [
-                    {
-                      field: "ms",
-                      valueFormatter: (v: number) => formatRumMs(v),
-                    },
-                  ],
-                }}
+                token={token}
               />
             ) : (
               <Typography.Text type="secondary">

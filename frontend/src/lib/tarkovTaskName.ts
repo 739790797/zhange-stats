@@ -6,6 +6,13 @@ export function factionTaskSuffix(value: string | undefined): string {
   return ` (${text})`;
 }
 
+/** 详情页阵营：Any / 空值显示「任意」，其余保留 USEC / BEAR。 */
+export function taskFactionLabel(value: string | undefined): string {
+  const text = (value || "").trim();
+  if (!text || text.toLowerCase() === "any") return "任意";
+  return text;
+}
+
 export function taskLineHintSuffix(
   hint: string | undefined,
   factionName?: string,

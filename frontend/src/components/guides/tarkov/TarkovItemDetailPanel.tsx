@@ -38,8 +38,7 @@ import { buildItemFleaQuote } from "@/lib/tarkovItemSources";
 import { TarkovItemRefGrid } from "@/components/guides/tarkov/TarkovGuideItemCell";
 import { TarkovItemKeyLocks } from "@/components/guides/tarkov/TarkovItemKeyLocks";
 import { TarkovItemPlateTable } from "@/components/guides/tarkov/TarkovItemPlateTable";
-import { TarkovItemSources } from "@/components/guides/tarkov/TarkovItemSources";
-import { TarkovItemUses } from "@/components/guides/tarkov/TarkovItemUses";
+import { TarkovItemRelations } from "@/components/guides/tarkov/TarkovItemRelations";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovItemDetailPanel.module.css";
 
@@ -231,7 +230,7 @@ function bestTraderOffer(offers: VendorOffer[]): VendorOffer | null {
   }, null);
 }
 
-/** 常规排版：基础信息 → 属性 → 来源 → 用途；机匣是关联物品，放在四段之后。 */
+/** 常规排版：基础信息 → 属性 → 交易 → 任务 → 制作 → 藏身处 → 掉落；机匣放最后。 */
 export function TarkovItemDetailPanel({
   itemId,
   variant = "full",
@@ -291,10 +290,9 @@ export function TarkovItemDetailPanel({
   const traderBuys = namedTraderOffers(buyOffers);
   const traderSells = namedTraderOffers(sellOffers);
   const bestSell = bestTraderOffer(traderSells);
-  const fleaBuy = buildItemFleaQuote(item, { fallbackOffers: buySplit.flea });
-  const fleaSell = buildItemFleaQuote(item, {
+  const flea = buildItemFleaQuote(item, {
     withChange: true,
-    fallbackOffers: sellSplit.flea,
+    fallbackOffers: [...buySplit.flea, ...sellSplit.flea],
   });
   const lockMaps = itemKeyLockMaps(detail);
   const itemTypes = Array.isArray(item.types)
@@ -538,16 +536,10 @@ export function TarkovItemDetailPanel({
       ) : null}
 
       {!embed ? (
-        <TarkovItemSources
+        <TarkovItemRelations
           detail={detail}
-          flea={fleaBuy}
+          flea={flea}
           traderBuys={traderBuys}
-        />
-      ) : null}
-      {!embed ? (
-        <TarkovItemUses
-          detail={detail}
-          flea={fleaSell}
           traderSells={traderSells}
           bestSell={bestSell}
         />

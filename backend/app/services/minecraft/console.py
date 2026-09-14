@@ -14,9 +14,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.core.security import decode_access_token
+from app.core.deps import load_user_by_access_token
 from app.core.session_cookies import access_token_from_websocket
-from app.models.user import User
 from app.services.minecraft import pelican as pelican
 from app.services.integrations_config import get_pelican_credentials
 from app.services.platform_features import is_feature_enabled
@@ -125,20 +124,12 @@ async def _connect_wings(socket_url: str, panel_origin: str) -> Any:
 
 def _load_console_session(token: str) -> tuple[str, str, str]:
     """校验管理员后返回 panel_base, client_token, server_uuid。"""
-    principal = decode_access_token(token)
-    if not principal or (principal.user_id is None and not principal.username):
-        raise PermissionError("unauth")
     db: Session = SessionLocal()
     try:
         if not is_feature_enabled(db, "guides.minecraft"):
             raise PermissionError("feature")
-        if principal.user_id is not None:
-            user = db.query(User).filter(User.id == principal.user_id).first()
-        else:
-            user = db.query(User).filter(User.username == principal.username).first()
+        user = load_user_by_access_token(db, token)
         if user is None:
-            raise PermissionError("unauth")
-        if user.anonymized_at is not None:
             raise PermissionError("unauth")
         if not user.is_admin_user:
             raise PermissionError("forbidden")

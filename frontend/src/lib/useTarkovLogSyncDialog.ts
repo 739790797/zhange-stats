@@ -6,7 +6,7 @@ import type { TarkovLogSyncRange } from "@/lib/tarkovLogSyncRange";
 import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 
 const DEFAULT_TITLE =
-  "本机解析日志，只把任务状态回填到账号，不会上传原文。先选日期范围，默认本赛季。";
+  "本机解析日志，只把任务状态回填到账号，不会上传原文。先选日期范围，默认全部启动记录。";
 
 export function useTarkovLogSyncDialog() {
   const live = useTarkovLiveWatch();

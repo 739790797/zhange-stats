@@ -85,6 +85,7 @@ import { parseTarkovScreenshotName } from "@/lib/tarkovScreenshotPos";
 import { nowBeijingStamp } from "@/lib/time";
 import {
   loadTaskDoneIds,
+  loadTaskFailedIds,
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
@@ -94,10 +95,13 @@ import {
   unionTaskProgress,
 } from "@/lib/tarkovTaskTree";
 import {
+  buildQuestLogCatalog,
+  emptyQuestLogCatalog,
   foldSessionQuests,
   mergeQuestProgressFromFolded,
   questProgressDelta,
   type FoldedQuestEntry,
+  type QuestLogCatalog,
 } from "@/lib/tarkovTaskLogSync";
 import { useTarkovTaskAccountSync } from "@/lib/useTarkovTaskAccountSync";
 
@@ -127,7 +131,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const logTickBusyRef = useRef(false);
   const syncAbortRef = useRef<AbortController | null>(null);
   const gameModeRef = useRef(gameMode);
-  const knownIdsRef = useRef<Set<string> | undefined>(undefined);
+  const catalogRef = useRef<QuestLogCatalog>(emptyQuestLogCatalog());
   gameModeRef.current = gameMode;
 
   const [shotPerm, setShotPerm] = useState<LiveWatchPerm>(
@@ -160,44 +164,61 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     enabled: supported && logPerm === "granted",
     retry: 1,
   });
-  knownIdsRef.current = catalogQuery.data?.items
-    ? new Set(catalogQuery.data.items.map((item) => item.id))
-    : undefined;
+  catalogRef.current = catalogQuery.data?.items
+    ? buildQuestLogCatalog(catalogQuery.data.items)
+    : emptyQuestLogCatalog();
 
   const loadQuestBase = useCallback(() => {
     const mode = gameModeRef.current;
     const prevDone = loadTaskDoneIds(mode);
     const prevStarted = loadTaskStartedIds(mode);
+    const prevFailed = loadTaskFailedIds(mode);
     const cached = queryClient.getQueryData<{
       task_ids?: string[];
       started_ids?: string[];
+      failed_ids?: string[];
       objective_dones?: Array<{ task_id: string; objective_id: string }>;
     }>(["guides-tarkov-task-dones", mode]);
     return unionTaskProgress(
-      { done: prevDone, started: prevStarted },
+      { done: prevDone, started: prevStarted, failed: prevFailed },
       {
         done: cached?.task_ids,
         started: cached?.started_ids,
+        failed: cached?.failed_ids,
       },
     );
   }, [queryClient]);
 
   const commitQuestProgress = useCallback(
     (
-      base: { done: string[]; started: string[] },
-      next: { done: string[]; started: string[]; changed: boolean },
+      base: { done: string[]; started: string[]; failed: string[] },
+      next: {
+        done: string[];
+        started: string[];
+        failed: string[];
+        changed: boolean;
+      },
       opts?: { put?: boolean },
     ) => {
       const mode = gameModeRef.current;
       const syncedAt = nowBeijingStamp();
       saveTaskSyncMark(mode, syncedAt);
       if (next.changed) {
-        saveTaskProgress(mode, next.done, next.started);
+        saveTaskProgress(
+          mode,
+          next.done,
+          next.started,
+          false,
+          false,
+          undefined,
+          next.failed,
+        );
       }
       notifyTarkovTaskProgress({
         mode,
         done: next.changed ? next.done : base.done,
         started: next.changed ? next.started : base.started,
+        failed: next.changed ? next.failed : base.failed,
         objectives: loadTaskObjectivePairs(mode),
         syncedAt,
         changed: next.changed,
@@ -213,39 +234,56 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             next.done,
             next.started,
             loadTaskObjectivePairs(mode),
+            next.failed,
           ),
         );
       }
       if (opts?.put === false) return;
       void writeTarkovTaskDones(next.done, {
         startedIds: next.started,
+        failedIds: next.failed,
       })
         .then((data) => {
           const objectives = data.objective_dones || loadTaskObjectivePairs(mode);
+          const merged = unionTaskProgress(
+            {
+              done: next.done,
+              started: next.started,
+              failed: next.failed,
+            },
+            {
+              done: data.task_ids,
+              started: data.started_ids,
+              failed: data.failed_ids,
+            },
+          );
           saveTaskProgress(
             mode,
-            data.task_ids || next.done,
-            data.started_ids || next.started,
+            merged.done,
+            merged.started,
             true,
             true,
             objectives,
+            merged.failed,
           );
           queryClient.setQueryData(
             ["guides-tarkov-task-dones", mode],
             taskProgressQueryData(
-              data.task_ids || next.done,
-              data.started_ids || next.started,
+              merged.done,
+              merged.started,
               objectives,
+              merged.failed,
             ),
           );
           notifyTarkovTaskProgress({
             mode,
-            done: data.task_ids || next.done,
-            started: data.started_ids || next.started,
+            done: merged.done,
+            started: merged.started,
+            failed: merged.failed,
             objectives,
             syncedAt,
             changed: true,
-            completedIds: addedIdList(base.done, data.task_ids || next.done),
+            completedIds: addedIdList(base.done, merged.done),
             source: "log",
           });
         })
@@ -265,7 +303,8 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         base.started,
         sessions,
         gameModeRef.current,
-        knownIdsRef.current,
+        catalogRef.current,
+        base.failed,
       );
       commitQuestProgress(base, next);
     },
@@ -717,12 +756,23 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       syncAbortRef.current = abort;
       setLogSyncBusy(true);
       logTickBusyRef.current = true;
-      const emptyDelta = { done: 0, started: 0, unfinished: 0 };
+      const emptyDelta = { done: 0, started: 0, failed: 0, unfinished: 0 };
       try {
         const ready = await ensureLogsHandle();
         if (!ready.ok) return { ok: false, hint: ready.hint };
         if (abort.signal.aborted) return { ok: false, hint: "已取消同步。" };
         const handle = ready.handle;
+        if (
+          !catalogRef.current.knownIds?.size &&
+          !catalogRef.current.mutexById.size
+        ) {
+          try {
+            const data = await fetchTarkovTasks({ layout: "all" });
+            catalogRef.current = buildQuestLogCatalog(data.items || []);
+          } catch {
+            /* 无图鉴时仍回放，失败一律记 failed */
+          }
+        }
         const { sessions } = await readLogsIndex(handle);
         const targets = filterSessionStubsByRange(
           takeSessionStubs(sessions, 0),
@@ -739,6 +789,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         const mode = gameModeRef.current;
         const prevDone = loadTaskDoneIds(mode);
         const prevStarted = loadTaskStartedIds(mode);
+        const prevFailed = loadTaskFailedIds(mode);
         const hadSync = Boolean(loadTaskSyncAt(mode));
         const base = loadQuestBase();
         let folded: Map<string, FoldedQuestEntry> = new Map();
@@ -777,16 +828,19 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
               base.started,
               folded,
               questEvents,
-              knownIdsRef.current,
+              catalogRef.current,
+              base.failed,
             );
             commitQuestProgress(
               base,
               {
                 done: mid.done,
                 started: mid.started,
+                failed: mid.failed,
                 changed:
                   !sameIdLists(base.done, mid.done) ||
-                  !sameIdLists(base.started, mid.started),
+                  !sameIdLists(base.started, mid.started) ||
+                  !sameIdLists(base.failed, mid.failed),
               },
               { put: false },
             );
@@ -810,14 +864,21 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             base.started,
             folded,
             questEvents,
-            knownIdsRef.current,
+            catalogRef.current,
+            base.failed,
           );
           const changed =
             !sameIdLists(base.done, merged.done) ||
-            !sameIdLists(base.started, merged.started);
+            !sameIdLists(base.started, merged.started) ||
+            !sameIdLists(base.failed, merged.failed);
           commitQuestProgress(
             base,
-            { done: merged.done, started: merged.started, changed },
+            {
+              done: merged.done,
+              started: merged.started,
+              failed: merged.failed,
+              changed,
+            },
           );
           const importPlan = planRaidLogImportRows(
             endedRaidKeysRef.current,
@@ -837,10 +898,18 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         }
         const nextDone = loadTaskDoneIds(mode);
         const nextStarted = loadTaskStartedIds(mode);
+        const nextFailed = loadTaskFailedIds(mode);
         let hint = formatLiveLogBackfillHint(
           processed,
           hadSync ? "incremental" : "backfill",
-          questProgressDelta(prevDone, prevStarted, nextDone, nextStarted),
+          questProgressDelta(
+            prevDone,
+            prevStarted,
+            nextDone,
+            nextStarted,
+            prevFailed,
+            nextFailed,
+          ),
           { questEvents, skipped },
         );
         if (abort.signal.aborted) {

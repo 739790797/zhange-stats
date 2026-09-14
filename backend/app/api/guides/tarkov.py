@@ -56,6 +56,8 @@ from app.api.guides.schemas import (
     TarkovHideoutDetailOut,
     TarkovHideoutLevelsOut,
     TarkovHideoutLevelSetIn,
+    TarkovProfileIn,
+    TarkovProfileOut,
     TarkovBarterCatalogOut,
     TarkovCraftCatalogOut,
     TarkovGuidesSyncOut,
@@ -104,6 +106,7 @@ from app.services.tarkov import collection as collection_svc
 from app.services.tarkov import collection_owns as collection_owns_svc
 from app.services.tarkov import collection_layout as collection_layout_svc
 from app.services.tarkov import hideout_levels as hideout_levels_svc
+from app.services.tarkov import profile as profile_svc
 from app.services.tarkov import task_dones as task_dones_svc
 from app.services.tarkov import raid_logs as raid_logs_svc
 from app.services.tarkov import raid_prep_state as raid_prep_state_svc
@@ -182,6 +185,20 @@ def _catalog_ok(response: Response, etag: str, body: object) -> object:
     return body
 
 
+def _hit_ip(
+    request: Request,
+    key: str,
+    *,
+    limit: int,
+    window_sec: int,
+) -> None:
+    platform_limiter.hit(
+        f"{key}:ip:{client_ip(request)}",
+        limit=limit,
+        window_sec=window_sec,
+    )
+
+
 def _sync_items(db: Session) -> dict:
     try:
         return items_svc.sync_from_upstream(db)
@@ -240,10 +257,8 @@ def guides_tarkov_item_catalog(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。"""
-    _ = user
     try:
         items_svc.ensure_items(db)
     except items_svc.TarkovItemsError as exc:
@@ -295,13 +310,13 @@ def guides_tarkov_item_catalog(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_site_search(
+    request: Request,
     q: str = Query(default="", max_length=80),
     faction: str | None = Query(default=None, max_length=8),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """攻略站全站搜索：物品 / 任务 / 商人 / BOSS（有 raw 才查，不回源）。"""
-    _ = user
+    _hit_ip(request, "tarkov-search", limit=40, window_sec=60)
     return TarkovSiteSearchOut.model_validate(
         search_svc.search_site(db, q, faction=faction)
     )
@@ -315,10 +330,8 @@ def guides_tarkov_site_search(
 def guides_tarkov_item_detail(
     item_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """通用物品详情：从 items raw 返回完整 item / properties。"""
-    _ = user
     try:
         detail = catalog_svc.get_item_detail(db, item_id)
     except items_svc.TarkovItemsError as exc:
@@ -357,10 +370,8 @@ def guides_tarkov_ammo(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """弹药穿透/伤害表（派生读模型）。空库时走共享 items 同步。"""
-    _ = user
     try:
         ammo_svc.ensure_ammo(db)
     except ammo_svc.TarkovAmmoError as exc:
@@ -416,10 +427,8 @@ def guides_tarkov_ammo(
 def guides_tarkov_ammo_detail(
     item_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """弹药详情：从 items raw 返回完整 item / properties。"""
-    _ = user
     try:
         detail = items_svc.get_ammo_item_detail(db, item_id)
     except items_svc.TarkovItemsError as exc:
@@ -471,10 +480,8 @@ def guides_tarkov_guns(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """枪械总表（派生读模型）。空库时走共享 items 同步。"""
-    _ = user
     try:
         gun_svc.ensure_guns(db)
     except gun_svc.TarkovGunError as exc:
@@ -553,10 +560,8 @@ def _workbench_http(exc: Exception) -> HTTPException:
 def guides_tarkov_workbench_gun(
     gun_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """工作台：枪槽位树、工厂预设 pairs、弹药候选与当前属性。"""
-    _ = user
     try:
         data = workbench_svc.get_gun(db, gun_id)
     except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
@@ -573,14 +578,9 @@ def guides_tarkov_workbench_allowed(
     request: Request,
     body: TarkovWorkbenchAllowedIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """工作台：批量解析槽位允许配件。"""
-    ip = client_ip(request)
-    platform_limiter.hit(f"tarkov-workbench-allowed:ip:{ip}", limit=60, window_sec=60)
-    platform_limiter.hit(
-        f"tarkov-workbench-allowed:uid:{user.id}", limit=60, window_sec=60
-    )
+    _hit_ip(request, "tarkov-workbench-allowed", limit=60, window_sec=60)
     try:
         slots = workbench_svc.allowed_items_for_slots(db, body.slot_ids)
     except (workbench_svc.TarkovWorkbenchError, items_svc.TarkovItemsError) as exc:
@@ -597,14 +597,9 @@ def guides_tarkov_workbench_calculate(
     request: Request,
     body: TarkovWorkbenchCalculateIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """工作台：按已装 pairs 算属性与槽位树。"""
-    ip = client_ip(request)
-    platform_limiter.hit(f"tarkov-workbench-calc:ip:{ip}", limit=60, window_sec=60)
-    platform_limiter.hit(
-        f"tarkov-workbench-calc:uid:{user.id}", limit=60, window_sec=60
-    )
+    _hit_ip(request, "tarkov-workbench-calc", limit=60, window_sec=60)
     pairs = [(row.slot_id, row.item_id) for row in body.pairs]
     try:
         data = workbench_svc.calculate(db, body.gun_id, pairs, body.ammo_id)
@@ -618,11 +613,8 @@ def guides_tarkov_workbench_calculate(
     response_model=TarkovWorkbenchImageStatusOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-def guides_tarkov_workbench_image_status(
-    user: User = Depends(get_current_user),
-):
+def guides_tarkov_workbench_image_status():
     """工作台出图代理是否开启、是否正在生成。"""
-    _ = user
     return TarkovWorkbenchImageStatusOut.model_validate(
         workbench_image_svc.image_status()
     )
@@ -662,14 +654,9 @@ def guides_tarkov_workbench_community_builds(
     request: Request,
     gun_id: str = Query(..., min_length=1, max_length=64),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """工作台：按枪读取 EFTForge 公开社区方案（不落库、不代投票）。"""
-    ip = client_ip(request)
-    platform_limiter.hit(f"tarkov-community:ip:{ip}", limit=30, window_sec=600)
-    platform_limiter.hit(
-        f"tarkov-community:uid:{user.id}", limit=20, window_sec=600
-    )
+    _hit_ip(request, "tarkov-community", limit=30, window_sec=600)
     try:
         data = community_svc.list_public_builds(db, gun_id)
     except (
@@ -688,10 +675,8 @@ def guides_tarkov_workbench_community_builds(
 )
 def guides_tarkov_workbench_gunsmith_tasks(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """工作台：从 tasks dump 投影枪匠改装目标（不 vendor 第三方任务包）。"""
-    _ = user
     try:
         data = gunsmith_svc.list_gunsmith_tasks(db)
     except (workbench_svc.TarkovWorkbenchError, tasks_svc.TarkovTasksError) as exc:
@@ -708,14 +693,9 @@ def guides_tarkov_workbench_gunsmith_solve(
     request: Request,
     body: TarkovWorkbenchGunsmithSolveIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """工作台：为一条枪匠目标求一套可交任务的改装。"""
-    ip = client_ip(request)
-    platform_limiter.hit(f"tarkov-gunsmith-solve:ip:{ip}", limit=20, window_sec=60)
-    platform_limiter.hit(
-        f"tarkov-gunsmith-solve:uid:{user.id}", limit=12, window_sec=60
-    )
+    _hit_ip(request, "tarkov-gunsmith-solve", limit=20, window_sec=60)
     try:
         data = gunsmith_svc.solve_gunsmith_task(
             db,
@@ -770,10 +750,8 @@ def guides_tarkov_task_catalog(
     page_size: int = Query(default=50, ge=1, le=100),
     layout: str | None = Query(default="table", max_length=16),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """任务目录：商人 / 地图 / 关键词过滤。layout=all 时不分页，返回筛选后的全量。"""
-    _ = user
     try:
         tasks_svc.ensure_tasks(db)
     except tasks_svc.TarkovTasksError as exc:
@@ -828,10 +806,8 @@ def guides_tarkov_raid_prep(
     geometry: bool = Query(default=False),
     ids: str | None = Query(default=None, max_length=1200),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """联机大厅：列出全部任务。当前图有标点的排前；geometry+ids 才返回点位。"""
-    _ = user
     type_list = _parse_csv_ids(types)
     id_list = _parse_csv_ids(ids)[:40]
     try:
@@ -983,7 +959,6 @@ def guides_tarkov_raid_prep_state_put(
 def guides_tarkov_task_detail(
     task_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """任务详情：目标、奖励（投影，不含多边形）。"""
     try:
@@ -1032,10 +1007,8 @@ def guides_tarkov_trader_catalog(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """商人目录：头像 / 英文名 / 报价数量。"""
-    _ = user
     try:
         traders_svc.ensure_traders(db)
     except traders_svc.TarkovTradersError as exc:
@@ -1069,10 +1042,8 @@ def guides_tarkov_trader_detail(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """商人详情：简介、补货时间、忠诚等级现金报价。"""
-    _ = user
     try:
         detail = traders_svc.get_trader_detail(
             db,
@@ -1125,10 +1096,8 @@ def guides_tarkov_boss_catalog(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """BOSS 目录：头像 / 英文名 / 出生地图。"""
-    _ = user
     try:
         bosses_svc.ensure_maps(db)
     except bosses_svc.TarkovBossesError as exc:
@@ -1155,10 +1124,8 @@ def guides_tarkov_boss_catalog(
 def guides_tarkov_boss_detail(
     boss_slug: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """BOSS 详情：行为、地图、刷新概率、生命值、配装。"""
-    _ = user
     try:
         detail = bosses_svc.get_boss_detail(db, boss_slug)
     except bosses_svc.TarkovBossesError as exc:
@@ -1185,10 +1152,8 @@ def guides_tarkov_map_catalog(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """地图目录：时长 / 人数 / 缩略图（读 bosses maps raw）。"""
-    _ = user
     try:
         if maps_svc.get_maps_raw(db) is None:
             maps_svc.ensure_maps(db)
@@ -1218,10 +1183,8 @@ def guides_tarkov_map_detail(
     loot_loose: bool = Query(default=False),
     loot_containers: bool = Query(default=False),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """地图详情：撤离点/BOSS/门锁等坐标与底图信息；散落物/容器默认不下发。"""
-    _ = user
     try:
         if maps_svc.get_maps_raw(db) is None:
             maps_svc.ensure_maps(db)
@@ -1273,10 +1236,8 @@ def guides_tarkov_map_loot(
     loot_loose: bool = Query(default=False),
     loot_containers: bool = Query(default=False),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """地图散落物/容器图层；只解析当前 slug。"""
-    _ = user
     try:
         if maps_svc.get_maps_raw(db) is None:
             maps_svc.ensure_maps(db)
@@ -1319,10 +1280,8 @@ def _places_error(exc: places_svc.TarkovMapPlacesError) -> HTTPException:
 def guides_tarkov_map_places(
     map_slug: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """某图自定义地名（变体与父图共用）。"""
-    _ = user
     try:
         key = places_svc.place_map_key(map_slug)
         items = places_svc.list_places(db, map_slug)
@@ -1447,10 +1406,8 @@ def guides_tarkov_hideout_catalog(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """藏身处模块与升级材料。"""
-    _ = user
     try:
         guides_svc.ensure_guides(db)
     except guides_svc.TarkovGuidesError as exc:
@@ -1477,10 +1434,8 @@ def guides_tarkov_hideout_catalog(
 def guides_tarkov_hideout_detail(
     station_slug: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """单个藏身处模块的全部等级。"""
-    _ = user
     try:
         detail = guides_svc.get_hideout_station(db, station_slug)
     except guides_svc.TarkovGuidesError as exc:
@@ -1543,6 +1498,47 @@ def guides_tarkov_hideout_levels_set(
     return TarkovHideoutLevelsOut(levels=rows, game_mode=parse_game_mode())
 
 
+def _profile_error(exc: profile_svc.TarkovProfileError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/profile",
+    response_model=TarkovProfileOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_profile_get(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """个人中心资料：阵营、版本、角色等级、商人好感。"""
+    return TarkovProfileOut.model_validate(profile_svc.get_profile(db, user.id))
+
+
+@router.put(
+    "/profile",
+    response_model=TarkovProfileOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_profile_put(
+    body: TarkovProfileIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """保存个人资料；蓝边会把仓库抬到 4 级。"""
+    try:
+        stations = _hideout_stations(db)
+    except HTTPException:
+        stations = []
+    patch = body.model_dump(exclude_unset=True)
+    try:
+        row = profile_svc.update_profile(db, user, patch, stations)
+    except profile_svc.TarkovProfileError as exc:
+        raise _profile_error(exc) from exc
+    db.commit()
+    return TarkovProfileOut.model_validate(row)
+
+
 @router.get(
     "/barters",
     response_model=TarkovBarterCatalogOut,
@@ -1556,10 +1552,8 @@ def guides_tarkov_barter_catalog(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """商人以物易物。"""
-    _ = user
     try:
         guides_svc.ensure_guides(db)
     except guides_svc.TarkovGuidesError as exc:
@@ -1600,10 +1594,8 @@ def guides_tarkov_craft_catalog(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """藏身处制作。"""
-    _ = user
     try:
         guides_svc.ensure_guides(db)
     except guides_svc.TarkovGuidesError as exc:
@@ -1643,10 +1635,8 @@ def guides_tarkov_loot_tiers(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """战利品等级：跳蚤每格价分档。"""
-    _ = user
     try:
         items_svc.ensure_items(db)
     except items_svc.TarkovItemsError as exc:
@@ -1682,10 +1672,8 @@ def guides_tarkov_key_packs(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """钥匙分类速查：门锁 / 入场钥按地图分包；附带用途（任务需要 / 门锁类型）。"""
-    _ = user
     try:
         items_svc.ensure_items(db)
         if maps_svc.get_maps_raw(db) is None:
@@ -1928,10 +1916,8 @@ def guides_tarkov_collection(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     """3×4 收集：收集者任务需上交的道具，按目标顺序。"""
-    _ = user
     try:
         items_svc.ensure_items(db)
         tasks_svc.ensure_tasks(db)
@@ -2063,18 +2049,20 @@ def _task_dones_error(exc: task_dones_svc.TarkovTaskDonesError) -> HTTPException
 
 
 def _task_progress_out(db: Session, user: User) -> TarkovTaskDonesOut:
-    done, started, objectives = task_dones_svc.account_progress(db, user.id)
+    done, started, failed, objectives = task_dones_svc.account_progress(db, user.id)
     catalog = tasks_svc.catalog_task_id_set(db)
-    done, started = task_dones_svc.filter_visible_progress(
+    done, started, failed = task_dones_svc.filter_visible_progress(
         done,
         started,
         catalog,
+        failed,
     )
     if catalog is not None:
         objectives = [item for item in objectives if item["task_id"] in catalog]
     return TarkovTaskDonesOut(
         task_ids=done,
         started_ids=started,
+        failed_ids=failed,
         objective_dones=objectives,
     )
 
@@ -2102,13 +2090,14 @@ def guides_tarkov_task_dones_write(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """合并或整表替换当前模式的完成 / 进行中 / 小步骤。省略 started_ids 或 objective_dones 则不改对应集合。"""
+    """合并或整表替换当前模式的完成 / 进行中 / 失败 / 小步骤。省略 started_ids、failed_ids 或 objective_dones 则不改对应集合。"""
     task_dones_svc.write_progress(
         db,
         user,
         body.task_ids,
         body.started_ids,
         replace=body.replace,
+        failed_ids=body.failed_ids,
         objective_dones=(
             [item.model_dump() for item in body.objective_dones]
             if body.objective_dones is not None

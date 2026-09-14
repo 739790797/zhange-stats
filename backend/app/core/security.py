@@ -14,9 +14,9 @@ ALGORITHM = "HS256"
 
 @dataclass(frozen=True)
 class AccessPrincipal:
-    """JWT 身份。新票 sub=user_id；旧票 sub=username。"""
+    """JWT 身份。`sub` 为 user_id。"""
 
-    user_id: int | None
+    user_id: int
     username: str | None
 
 
@@ -32,7 +32,7 @@ def create_access_token(
     subject: str,
     expires_minutes: int | None = None,
     *,
-    user_id: int | None = None,
+    user_id: int,
 ) -> str:
     from app.services.auth_config import get_access_token_expire_minutes
 
@@ -42,11 +42,11 @@ def create_access_token(
         if expires_minutes is not None
         else get_access_token_expire_minutes()
     )
-    payload: dict = {"exp": expire, "username": subject}
-    if user_id is not None:
-        payload["sub"] = str(int(user_id))
-    else:
-        payload["sub"] = subject
+    payload: dict = {
+        "exp": expire,
+        "sub": str(int(user_id)),
+        "username": subject,
+    }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -57,11 +57,11 @@ def decode_access_token(token: str) -> AccessPrincipal | None:
     except InvalidTokenError:
         return None
     sub = payload.get("sub")
+    if sub is None:
+        return None
+    text = str(sub)
+    if not text.isdigit():
+        return None
     username_claim = payload.get("username")
     username = str(username_claim) if username_claim else None
-    if sub is None:
-        return AccessPrincipal(user_id=None, username=username) if username else None
-    text = str(sub)
-    if text.isdigit():
-        return AccessPrincipal(user_id=int(text), username=username or None)
-    return AccessPrincipal(user_id=None, username=text)
+    return AccessPrincipal(user_id=int(text), username=username)

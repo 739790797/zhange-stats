@@ -292,6 +292,8 @@
 
 .cardTitle {
   display: block;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: inherit;
   font-size: 13px;
@@ -302,6 +304,31 @@
 
 a.cardTitle:hover {
   color: var(--hb-orange, #c8932a);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cardTrader {
+  box-sizing: border-box;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  overflow: hidden;
+  border: 1px solid #3a3d30;
+  background: #101010;
+}
+
+.cardTrader :global(span),
+.cardTrader :global(img) {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 .cardMeta {

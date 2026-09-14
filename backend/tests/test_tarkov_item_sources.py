@@ -116,12 +116,13 @@ def _task_rows() -> list[dict]:
             "name": "Find Bolts",
             "trader": PRAPOR,
             "objectives": [
-                {
-                    "id": "o1",
-                    "description": "上交螺栓",
-                    "item": "bolt",
-                    "count": 8,
-                }
+                    {
+                        "id": "o1",
+                        "description": "上交螺栓",
+                        "item": "bolt",
+                        "count": 8,
+                        "foundInRaid": True,
+                    }
             ],
             "neededKeys": [{"map": "factory", "keys": ["target"]}],
         },
@@ -158,6 +159,36 @@ def test_collect_item_sources_from_barter_craft_and_quest() -> None:
     finish = next(row for row in sources["quest_rewards"] if row["id"] == "t-finish")
     assert finish["name"] == "首秀"
     assert finish["trader_slug"] == "prapor"
+    assert finish["steps"] == [
+        {
+            "id": "t-finish-finish",
+            "type": QUEST_KIND_FINISH,
+            "count": 2,
+            "found_in_raid": None,
+            "text": "",
+        }
+    ]
+
+
+def test_collect_item_sources_merges_start_and_finish_steps() -> None:
+    sources = collect_item_sources(
+        "gift",
+        tasks=[
+            {
+                "id": "t-both",
+                "name": "Both Ends",
+                "trader": PRAPOR,
+                "startRewards": {"items": [{"item": "gift", "count": 1}]},
+                "finishRewards": {"items": [{"item": "gift", "count": 2}]},
+            }
+        ],
+    )
+    assert len(sources["quest_rewards"]) == 1
+    assert [step["type"] for step in sources["quest_rewards"][0]["steps"]] == [
+        QUEST_KIND_START,
+        QUEST_KIND_FINISH,
+    ]
+    assert [step["count"] for step in sources["quest_rewards"][0]["steps"]] == [1, 2]
 
 
 def test_collect_item_sources_ignores_requirement_side() -> None:
@@ -175,6 +206,55 @@ def test_collect_item_sources_ignores_requirement_side() -> None:
 
 def test_collect_item_sources_empty_id() -> None:
     assert collect_item_sources("") == empty_item_sources()
+
+
+def test_collect_item_barters_fill_task_unlock_name() -> None:
+    payload = _guides_payload()
+    payload["barters"][0]["taskUnlock"] = "t-finish"
+    barters = parse_barters(payload)
+    locale = {"t-finish Name": "首秀"}
+    sources = collect_item_sources(
+        "target",
+        barters=barters,
+        tasks=_task_rows(),
+        locale=locale,
+    )
+    assert sources["barters"][0]["task_unlock"] == "t-finish"
+    assert sources["barters"][0]["task_unlock_name"] == "首秀"
+    uses = collect_item_uses(
+        "bolt",
+        barters=barters,
+        tasks=_task_rows(),
+        locale=locale,
+    )
+    assert uses["barters"][0]["task_unlock_name"] == "首秀"
+    unnamed = collect_item_sources("target", barters=parse_barters(_guides_payload()))
+    assert unnamed["barters"][0]["task_unlock"] == "task-1"
+    assert unnamed["barters"][0]["task_unlock_name"] == ""
+
+
+def test_collect_item_crafts_fill_task_unlock_name() -> None:
+    payload = _guides_payload()
+    payload["crafts"][0]["taskUnlock"] = "t-finish"
+    crafts = parse_crafts(payload)
+    locale = {"t-finish Name": "首秀"}
+    sources = collect_item_sources(
+        "target",
+        crafts=crafts,
+        tasks=_task_rows(),
+        locale=locale,
+    )
+    assert sources["crafts"][0]["task_unlock"] == "t-finish"
+    assert sources["crafts"][0]["task_unlock_name"] == "首秀"
+    uses = collect_item_uses(
+        "bolt",
+        crafts=crafts,
+        tasks=_task_rows(),
+        locale=locale,
+    )
+    assert uses["crafts"][0]["task_unlock_name"] == "首秀"
+    unnamed = collect_item_sources("target", crafts=parse_crafts(_guides_payload()))
+    assert unnamed["crafts"][0]["task_unlock_name"] == ""
 
 
 def test_collect_item_uses_from_requirement_hideout_and_tasks() -> None:
@@ -195,11 +275,183 @@ def test_collect_item_uses_from_requirement_hideout_and_tasks() -> None:
             "station_name": "工作台",
             "level": 1,
             "count": 4,
+            "found_in_raid": False,
         }
     ]
     assert uses["tasks"][0]["id"] == "t-use"
     assert uses["tasks"][0]["count"] == 8
     assert uses["tasks"][0]["notes"] == ["上交螺栓"]
+    assert uses["tasks"][0]["found_in_raid"] is True
+    assert uses["tasks"][0]["steps"] == [
+        {
+            "id": "o1",
+            "type": "",
+            "count": 8,
+            "found_in_raid": True,
+            "text": "上交螺栓",
+        }
+    ]
+
+
+def test_collect_item_uses_does_not_double_count_find_and_give() -> None:
+    """找到 + 上交是同一批物品，需求数量取上交，不把两条 count 相加。"""
+    uses = collect_item_uses(
+        "battery",
+        tasks=[
+            {
+                "id": "t-pair",
+                "name": "管制材料",
+                "trader": PRAPOR,
+                "objectives": [
+                    {
+                        "id": "find",
+                        "type": "findItem",
+                        "description": "在战局中找到物品",
+                        "item": "battery",
+                        "count": 1,
+                        "foundInRaid": True,
+                    },
+                    {
+                        "id": "give",
+                        "type": "giveItem",
+                        "description": "上交物品",
+                        "item": "battery",
+                        "count": 1,
+                    },
+                    {
+                        "id": "find-other",
+                        "type": "findItem",
+                        "item": "shell",
+                        "count": 1,
+                    },
+                ],
+            }
+        ],
+    )
+    assert uses["tasks"][0]["id"] == "t-pair"
+    assert uses["tasks"][0]["count"] == 1
+    assert uses["tasks"][0]["found_in_raid"] is True
+    assert [(step["type"], step["count"]) for step in uses["tasks"][0]["steps"]] == [
+        ("findItem", 1),
+        ("giveItem", 1),
+    ]
+    assert [step["text"] for step in uses["tasks"][0]["steps"]] == [
+        "在战局中找到物品",
+        "上交物品",
+    ]
+
+    find_only = collect_item_uses(
+        "battery",
+        tasks=[
+            {
+                "id": "t-find",
+                "name": "只找",
+                "trader": PRAPOR,
+                "objectives": [
+                    {
+                        "id": "find",
+                        "type": "findItem",
+                        "item": "battery",
+                        "count": 3,
+                    }
+                ],
+            }
+        ],
+    )
+    assert find_only["tasks"][0]["count"] == 3
+
+
+def test_collect_item_uses_resolves_objective_locale_text() -> None:
+    """dump 目标 description 是 locale key 时，步骤 text 用中文原文，不当成空。"""
+    uses = collect_item_uses(
+        "gpu",
+        tasks=[
+            {
+                "id": "t-sell",
+                "name": "奠定基石",
+                "trader": PRAPOR,
+                "objectives": [
+                    {
+                        "id": "sell-prapor",
+                        "type": "sellItem",
+                        "description": "sell-prapor description",
+                        "item": "gpu",
+                        "count": 50,
+                    }
+                ],
+            }
+        ],
+        locale={"sell-prapor description": "卖任何物品给Prapor"},
+    )
+    assert uses["tasks"][0]["steps"][0]["text"] == "卖任何物品给Prapor"
+    missing = collect_item_uses(
+        "gpu",
+        tasks=[
+            {
+                "id": "t-sell",
+                "name": "奠定基石",
+                "trader": PRAPOR,
+                "objectives": [
+                    {
+                        "id": "sell-prapor",
+                        "type": "sellItem",
+                        "description": "sell-prapor description",
+                        "item": "gpu",
+                        "count": 50,
+                    }
+                ],
+            }
+        ],
+    )
+    assert missing["tasks"][0]["steps"][0]["text"] == ""
+
+
+def test_collect_item_uses_splits_hideout_found_in_raid() -> None:
+    payload = _guides_payload()
+    payload["hideout"][STATION_ID]["levels"].append(
+        {
+            "id": "lv2",
+            "level": 2,
+            "itemRequirements": [
+                {"item": "bolt", "count": 1},
+                {
+                    "item": "bolt",
+                    "count": 3,
+                    "attributes": {"foundInRaid": True},
+                },
+            ],
+        }
+    )
+    uses = collect_item_uses(
+        "bolt",
+        stations=parse_hideout_stations(payload),
+    )
+    assert uses["hideout"] == [
+        {
+            "station_id": STATION_ID,
+            "station_slug": "workbench",
+            "station_name": "工作台",
+            "level": 1,
+            "count": 4,
+            "found_in_raid": False,
+        },
+        {
+            "station_id": STATION_ID,
+            "station_slug": "workbench",
+            "station_name": "工作台",
+            "level": 2,
+            "count": 1,
+            "found_in_raid": False,
+        },
+        {
+            "station_id": STATION_ID,
+            "station_slug": "workbench",
+            "station_name": "工作台",
+            "level": 2,
+            "count": 3,
+            "found_in_raid": True,
+        },
+    ]
 
 
 def test_collect_item_uses_needed_keys_and_wearing() -> None:
@@ -215,6 +467,9 @@ def test_collect_item_uses_needed_keys_and_wearing() -> None:
     assert [row["id"] for row in uses["crafts"]] == ["c-other"]
     assert uses["hideout"] == []
     assert {row["id"] for row in uses["tasks"]} == {"t-use", "t-wear"}
+    by_id = {row["id"]: row for row in uses["tasks"]}
+    assert [step["type"] for step in by_id["t-use"]["steps"]] == ["neededKeys"]
+    assert [step["type"] for step in by_id["t-wear"]["steps"]] == ["wearing"]
 
 
 def test_collect_item_uses_empty_id() -> None:

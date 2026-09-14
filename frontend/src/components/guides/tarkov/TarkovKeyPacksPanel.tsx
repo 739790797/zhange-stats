@@ -14,6 +14,7 @@ import { TarkovGuideItemCell } from "@/components/guides/tarkov/TarkovGuideItemC
 import { TarkovKeyOcrModal } from "@/components/guides/tarkov/TarkovKeyOcrModal";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { tarkovMeHref } from "@/lib/tarkovHomeNav";
 import { newOcrIds } from "@/lib/tarkovOcr";
 import { useAuthStore } from "@/stores/authStore";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
@@ -131,12 +132,12 @@ function UsageCell({ row }: { row: TarkovKeyPackKey }) {
   );
 }
 
-export function TarkovKeyPacksPanel() {
+export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = (searchParams.get("q") || "").trim();
-  const have = readOwnedFilter(searchParams.get("have"));
+  const have = wiki ? "all" : readOwnedFilter(searchParams.get("have"));
   const mapRaw = searchParams.get("map");
   const pageNo = readPositiveInt(searchParams.get("page"), 1);
   const pageSize = readAllowedInt(
@@ -149,8 +150,13 @@ export function TarkovKeyPacksPanel() {
   const migratedRef = useRef(false);
   const user = useAuthStore((s) => s.user);
   const [ocrOpen, setOcrOpen] = useState(false);
-  const [ownedIds, setOwnedIds] = useState<string[]>(() => loadOwnedIds());
-  const owned = useMemo(() => new Set(ownedIds), [ownedIds]);
+  const [ownedIds, setOwnedIds] = useState<string[]>(() =>
+    wiki ? [] : loadOwnedIds(),
+  );
+  const owned = useMemo(
+    () => (wiki ? new Set<string>() : new Set(ownedIds)),
+    [wiki, ownedIds],
+  );
   const ownedIdsRef = useRef(ownedIds);
   ownedIdsRef.current = ownedIds;
   const touchedRef = useRef(false);
@@ -168,6 +174,7 @@ export function TarkovKeyPacksPanel() {
     queryKey: ["guides-tarkov-key-owns"],
     queryFn: fetchTarkovKeyOwns,
     staleTime: 60_000,
+    enabled: !wiki && Boolean(user),
   });
 
   const mergeMut = useMutation({
@@ -191,6 +198,7 @@ export function TarkovKeyPacksPanel() {
   });
 
   useEffect(() => {
+    if (wiki) return;
     const server = ownsQuery.data?.item_ids;
     if (!ownsQuery.isSuccess || server == null || migratedRef.current) return;
     migratedRef.current = true;
@@ -201,7 +209,7 @@ export function TarkovKeyPacksPanel() {
       return;
     }
     applyOwns(server);
-  }, [ownsQuery.isSuccess, ownsQuery.data, mergeMut, applyOwns]);
+  }, [wiki, ownsQuery.isSuccess, ownsQuery.data, mergeMut, applyOwns]);
 
   useEffect(() => {
     setKeyword(q);
@@ -289,8 +297,8 @@ export function TarkovKeyPacksPanel() {
   const allCounts = packOwnedCount(allKeys, owned);
 
   const columns = useMemo<ColumnsType<TarkovKeyPackKey>>(
-    () => [
-      {
+    () => {
+      const ownedCol: ColumnsType<TarkovKeyPackKey>[number] = {
         title: "我有",
         key: "owned",
         width: 56,
@@ -316,7 +324,8 @@ export function TarkovKeyPacksPanel() {
             </button>
           );
         },
-      },
+      };
+      const rest: ColumnsType<TarkovKeyPackKey> = [
       {
         title: "钥匙",
         key: "name",
@@ -402,8 +411,10 @@ export function TarkovKeyPacksPanel() {
         key: "usage",
         render: (_: unknown, row) => <UsageCell row={row} />,
       },
-    ],
-    [owned, toggleOwned],
+    ];
+      return wiki ? rest : [ownedCol, ...rest];
+    },
+    [owned, toggleOwned, wiki],
   );
 
   if (catalogQuery.isLoading && !catalogQuery.data) {
@@ -428,6 +439,12 @@ export function TarkovKeyPacksPanel() {
   return (
     <div className={trade.stack}>
       <div className={styles.queryRow}>
+        {wiki ? (
+          <p className={styles.wikiHint}>
+            分类百科，不含拥有状态。
+            <Link to={tarkovMeHref("keys")}>去个人中心标记我有</Link>
+          </p>
+        ) : null}
         <input
           className={`${trade.search} ${styles.search}`}
           value={keyword}
@@ -435,13 +452,16 @@ export function TarkovKeyPacksPanel() {
           placeholder="搜索钥匙、任务或用途"
           aria-label="搜索钥匙、任务或用途"
         />
-        <button
-          type="button"
-          className={styles.ocrBtn}
-          onClick={() => setOcrOpen(true)}
-        >
-          截图识别
-        </button>
+        {wiki ? null : (
+          <button
+            type="button"
+            className={styles.ocrBtn}
+            onClick={() => setOcrOpen(true)}
+          >
+            截图识别
+          </button>
+        )}
+        {wiki ? null : (
         <div className={trade.chipBar} role="group" aria-label="拥有筛选">
           {FILTERS.map((item) => (
             <button
@@ -455,6 +475,7 @@ export function TarkovKeyPacksPanel() {
             </button>
           ))}
         </div>
+        )}
       </div>
       <div className={styles.rail} role="list" aria-label="地图">
         <button
@@ -467,12 +488,12 @@ export function TarkovKeyPacksPanel() {
           <span className={styles.packName}>全部</span>
           <span
             className={`${styles.packCount}${
-              allCounts.total > 0 && allCounts.have === allCounts.total
+              !wiki && allCounts.total > 0 && allCounts.have === allCounts.total
                 ? ` ${styles.packCountDone}`
                 : ""
             }`}
           >
-            {allCounts.have}/{allCounts.total}
+            {wiki ? allCounts.total : `${allCounts.have}/${allCounts.total}`}
           </span>
         </button>
         {packs.map((pack) => {
@@ -494,9 +515,13 @@ export function TarkovKeyPacksPanel() {
               />
               <span className={styles.packName}>{pack.name}</span>
               <span
-                className={`${styles.packCount}${count.total > 0 && count.have === count.total ? ` ${styles.packCountDone}` : ""}`}
+                className={`${styles.packCount}${
+                  !wiki && count.total > 0 && count.have === count.total
+                    ? ` ${styles.packCountDone}`
+                    : ""
+                }`}
               >
-                {count.have}/{count.total}
+                {wiki ? count.total : `${count.have}/${count.total}`}
               </span>
             </button>
           );
@@ -528,14 +553,18 @@ export function TarkovKeyPacksPanel() {
             }}
             loading={catalogQuery.isFetching && !catalogQuery.data}
             scroll={{ x: 1080 }}
-            rowClassName={(row) => (owned.has(row.id) ? "owned" : "")}
-            onRow={(row) => ({
-              onClick: (event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest("a, button, .ant-image")) return;
-                toggleOwned(row.id);
-              },
-            })}
+            rowClassName={(row) => (wiki ? "" : owned.has(row.id) ? "owned" : "")}
+            onRow={
+              wiki
+                ? undefined
+                : (row) => ({
+                    onClick: (event) => {
+                      const target = event.target as HTMLElement;
+                      if (target.closest("a, button, .ant-image")) return;
+                      toggleOwned(row.id);
+                    },
+                  })
+            }
             locale={{
               emptyText: allMaps
                 ? allKeys.length
@@ -548,6 +577,7 @@ export function TarkovKeyPacksPanel() {
           />
         </div>
       </div>
+      {wiki ? null : (
       <TarkovKeyOcrModal
         open={ocrOpen}
         onClose={() => setOcrOpen(false)}
@@ -566,6 +596,7 @@ export function TarkovKeyPacksPanel() {
           saveOwnedIds(next, true);
         }}
       />
+      )}
     </div>
   );
 }

@@ -418,6 +418,7 @@ class TarkovTaskListItemOut(BaseModel):
     mutex_ids: list[str] = Field(default_factory=list)
     blocked_by: list[str] = Field(default_factory=list)
     prereq_ids: list[str] = Field(default_factory=list)
+    restartable: bool = False
 
 
 class TarkovTaskCatalogOut(BaseModel):
@@ -651,7 +652,6 @@ class TarkovTaskDetailOut(TarkovTaskListItemOut):
     )
     needed_keys: list[TarkovTaskNeededKeysOut] = Field(default_factory=list)
     fail_conditions: list[TarkovTaskFailConditionOut] = Field(default_factory=list)
-    restartable: bool = False
     required_prestige: TarkovTaskPrestigeOut | None = None
     available_delay_seconds_min: int | None = None
     available_delay_seconds_max: int | None = None
@@ -1252,6 +1252,7 @@ class TarkovBarterOut(BaseModel):
     trader_name: str = ""
     min_trader_level: int = 0
     task_unlock: str | None = None
+    task_unlock_name: str = ""
     required_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
     offered_item: TarkovGuideItemRefOut
 
@@ -1281,8 +1282,19 @@ class TarkovCraftOut(BaseModel):
     level: int = 0
     duration: int = 0
     task_unlock: str | None = None
+    task_unlock_name: str = ""
     required_items: list[TarkovGuideItemRefOut] = Field(default_factory=list)
     product_item: TarkovGuideItemRefOut
+
+
+class TarkovItemTaskStepOut(BaseModel):
+    """物品在该任务里的单条相关步骤（找到 / 上交 / 接取奖励等）。"""
+
+    id: str = ""
+    type: str = ""
+    count: float | None = None
+    found_in_raid: bool | None = None
+    text: str = ""
 
 
 class TarkovItemQuestRewardOut(BaseModel):
@@ -1293,6 +1305,7 @@ class TarkovItemQuestRewardOut(BaseModel):
     trader_name: str = ""
     kind: str = "finish"
     count: float = 1
+    steps: list[TarkovItemTaskStepOut] = Field(default_factory=list)
 
 
 class TarkovItemDropSourceOut(BaseModel):
@@ -1325,6 +1338,7 @@ class TarkovItemHideoutUseOut(BaseModel):
     station_name: str = ""
     level: int = 0
     count: float = 1
+    found_in_raid: bool = False
 
 
 class TarkovItemTaskUseOut(BaseModel):
@@ -1335,6 +1349,8 @@ class TarkovItemTaskUseOut(BaseModel):
     trader_name: str = ""
     notes: list[str] = Field(default_factory=list)
     count: float | None = None
+    found_in_raid: bool | None = None
+    steps: list[TarkovItemTaskStepOut] = Field(default_factory=list)
 
 
 class TarkovItemUsesOut(BaseModel):
@@ -1688,6 +1704,21 @@ class TarkovHideoutLevelSetIn(BaseModel):
     level: int = Field(ge=0, le=20)
 
 
+class TarkovProfileOut(BaseModel):
+    pmc_faction: str = ""
+    game_edition: str = "standard"
+    player_level: int = 1
+    trader_levels: dict[str, int] = Field(default_factory=dict)
+    game_mode: str = "pvp"
+
+
+class TarkovProfileIn(BaseModel):
+    pmc_faction: str | None = Field(default=None, max_length=8)
+    game_edition: str | None = Field(default=None, max_length=16)
+    player_level: int | None = Field(default=None, ge=1, le=79)
+    trader_levels: dict[str, int] | None = None
+
+
 class TarkovCollectionPlacementOut(BaseModel):
     item_id: str
     col: int
@@ -1721,12 +1752,14 @@ class TarkovTaskObjectiveDonePair(BaseModel):
 class TarkovTaskDonesOut(BaseModel):
     task_ids: list[str] = Field(default_factory=list)
     started_ids: list[str] = Field(default_factory=list)
+    failed_ids: list[str] = Field(default_factory=list)
     objective_dones: list[TarkovTaskObjectiveDonePair] = Field(default_factory=list)
 
 
 class TarkovTaskDonesIn(BaseModel):
     task_ids: list[str] = Field(default_factory=list, max_length=800)
     started_ids: list[str] | None = Field(default=None, max_length=800)
+    failed_ids: list[str] | None = Field(default=None, max_length=800)
     objective_dones: list[TarkovTaskObjectiveDonePair] | None = Field(
         default=None, max_length=8000
     )

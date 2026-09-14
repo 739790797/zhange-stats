@@ -387,15 +387,18 @@ def test_disabled_overlay_task_hidden_from_progress_not_deleted() -> None:
             replace=True,
         )
         catalog = tasks_svc.catalog_task_id_set(db)
-        stored_done, stored_started = dones.list_progress(db, user.id)
-        shown_done, shown_started = dones.filter_visible_progress(
+        stored_done, stored_started, stored_failed = dones.list_progress(db, user.id)
+        shown_done, shown_started, shown_failed = dones.filter_visible_progress(
             stored_done,
             stored_started,
             catalog,
+            stored_failed,
         )
     assert catalog == {"keep", "live"}
     assert stored_done == ["gone", "keep"]
     assert stored_started == ["live"]
+    assert stored_failed == []
     assert shown_done == ["keep"]
     assert shown_started == ["live"]
+    assert shown_failed == []
     assert dones.list_task_ids(db, user.id) == ["gone", "keep"]

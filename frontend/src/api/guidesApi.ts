@@ -403,6 +403,8 @@ export type TarkovHideoutStation = components["schemas"]["TarkovHideoutStationOu
 export type TarkovHideoutLevel = components["schemas"]["TarkovHideoutLevelOut"];
 export type TarkovHideoutDetail = components["schemas"]["TarkovHideoutDetailOut"];
 export type TarkovHideoutLevels = components["schemas"]["TarkovHideoutLevelsOut"];
+export type TarkovProfile = components["schemas"]["TarkovProfileOut"];
+export type TarkovProfileIn = components["schemas"]["TarkovProfileIn"];
 export type TarkovBarter = components["schemas"]["TarkovBarterOut"];
 export type TarkovCraft = components["schemas"]["TarkovCraftOut"];
 export type TarkovCraftCatalog = components["schemas"]["TarkovCraftCatalogOut"];
@@ -539,6 +541,22 @@ export async function setTarkovHideoutLevel(stationId: string, level: number) {
   const { data } = await client.put<TarkovHideoutLevels>(
     "/guides/tarkov/hideout-levels",
     { station_id: stationId, level },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function fetchTarkovProfile() {
+  const { data } = await client.get<TarkovProfile>("/guides/tarkov/profile", {
+    timeout: 30_000,
+  });
+  return data;
+}
+
+export async function updateTarkovProfile(body: TarkovProfileIn) {
+  const { data } = await client.put<TarkovProfile>(
+    "/guides/tarkov/profile",
+    body,
     { timeout: 30_000 },
   );
   return data;
@@ -821,6 +839,7 @@ export async function writeTarkovTaskDones(
   opts?: {
     replace?: boolean;
     startedIds?: string[];
+    failedIds?: string[];
     objectiveDones?: Array<{ task_id: string; objective_id: string }>;
   },
 ) {
@@ -832,6 +851,7 @@ export async function writeTarkovTaskDones(
       ...(opts?.startedIds !== undefined
         ? { started_ids: opts.startedIds }
         : {}),
+      ...(opts?.failedIds !== undefined ? { failed_ids: opts.failedIds } : {}),
       ...(opts?.objectiveDones !== undefined
         ? { objective_dones: opts.objectiveDones }
         : {}),

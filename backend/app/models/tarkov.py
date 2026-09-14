@@ -231,7 +231,6 @@ class TarkovRaidRoomMember(Base):
         nullable=False,
         server_default=func.now(),
     )
-    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     started_task_ids_json: Mapped[str] = mapped_column(
         Text, nullable=False, default="[]"
     )
@@ -267,6 +266,25 @@ class TarkovUserTaskDone(Base):
     """用户任务完成：按 PVP/PVE 分开勾选，供个人中心任务树。"""
 
     __tablename__ = "tarkov_user_task_dones"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TarkovUserTaskFailed(Base):
+    """用户任务失败：按 PVP/PVE 分开。永久失败（互斥/不可重开）；可重开失败仍记进行中。"""
+
+    __tablename__ = "tarkov_user_task_faileds"
 
     user_id: Mapped[int] = mapped_column(
         Integer,
@@ -398,8 +416,34 @@ class TarkovUserCollectionPlacement(Base):
     )
 
 
+class TarkovUserProfile(Base):
+    """用户个人资料：阵营 / 版本 / 等级 / 商人好感，按 PVP/PVE 分开。"""
+
+    __tablename__ = "tarkov_user_profiles"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    pmc_faction: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    game_edition: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="standard"
+    )
+    player_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    trader_levels: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class TarkovUserHideoutLevel(Base):
-    """用户藏身处模块等级：按 PVP/PVE 分开；缺行则仓库 1 / 其余 0。"""
+    """用户藏身处模块等级：按 PVP/PVE 分开；缺行则仓库 1（蓝边 4）/ 其余 0。"""
 
     __tablename__ = "tarkov_user_hideout_levels"
 

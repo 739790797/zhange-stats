@@ -131,29 +131,47 @@ describe("task progress", () => {
         ["live", "gone-start"],
         ["keep", "live"],
       ),
-    ).toEqual({ done: ["keep"], started: ["live"] });
+    ).toEqual({ done: ["keep"], started: ["live"], failed: [] });
     expect(
       keepCatalogTaskProgress(["gone"], ["gone-start"], null),
-    ).toEqual({ done: ["gone"], started: ["gone-start"] });
+    ).toEqual({ done: ["gone"], started: ["gone-start"], failed: [] });
   });
 
   it("sets a specific status", () => {
     expect(setTaskStatus([], [], "p1", "active")).toEqual({
       done: [],
       started: ["p1"],
+      failed: [],
     });
     expect(setTaskStatus([], ["p1"], "p1", "done")).toEqual({
       done: ["p1"],
       started: [],
+      failed: [],
     });
     expect(setTaskStatus(["p1"], [], "p1", "todo")).toEqual({
       done: [],
       started: [],
+      failed: [],
     });
     expect(setTaskStatus(["p1"], ["p2"], "p2", "done")).toEqual({
       done: ["p1", "p2"],
       started: [],
+      failed: [],
     });
+    expect(setTaskStatus([], ["p1"], "p1", "todo", ["dead"])).toEqual({
+      done: [],
+      started: [],
+      failed: ["dead"],
+    });
+  });
+
+  it("treats an explicit failed set as failed before mutex", () => {
+    expect(
+      resolveTaskStatus("chem", new Set(), new Set(), undefined, new Set(["chem"])),
+    ).toBe("failed");
+    expect(
+      resolveTaskStatus("chem", new Set(["chem"]), new Set(), undefined, new Set(["chem"])),
+    ).toBe("done");
   });
 });
 
@@ -290,6 +308,7 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["local-done"],
       started: ["local-start"],
+      failed: [],
       objectives: [],
       upload: true,
     });
@@ -303,6 +322,7 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["account-done", "shared", "raid-done"],
       started: ["account-start", "raid-start"],
+      failed: [],
       objectives: [],
       upload: true,
     });
@@ -316,16 +336,36 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["account-done"],
       started: ["account-start"],
+      failed: [],
       objectives: [],
       upload: false,
+    });
+    expect(
+      planAccountTaskHydrate({
+        serverDone: [],
+        serverStarted: [],
+        serverFailed: ["old-fail"],
+        localFailed: ["log-fail"],
+      }),
+    ).toEqual({
+      done: [],
+      started: [],
+      failed: ["old-fail", "log-fail"],
+      objectives: [],
+      upload: true,
     });
     saveTaskProgress("pvp", [], []);
     expect(
       resolveAccountTaskProgress(
-        { task_ids: ["remote"], started_ids: ["live"] },
+        { task_ids: ["remote"], started_ids: ["live"], failed_ids: ["dead"] },
         "pvp",
       ),
-    ).toEqual({ done: ["remote"], started: ["live"], objectives: [] });
+    ).toEqual({
+      done: ["remote"],
+      started: ["live"],
+      failed: ["dead"],
+      objectives: [],
+    });
   });
 
   it("unions objective pairs and keeps pvp/pve apart", () => {
@@ -349,6 +389,7 @@ describe("task dones storage", () => {
     ).toEqual({
       done: ["t1"],
       started: [],
+      failed: [],
       objectives: [
         { task_id: "t1", objective_id: "cam-b" },
         { task_id: "t1", objective_id: "cam-a" },

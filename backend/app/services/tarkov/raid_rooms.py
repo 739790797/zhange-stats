@@ -696,7 +696,6 @@ def _seated_members(db: Session, room_id: int) -> list[TarkovRaidRoomMember]:
         db.query(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.room_id == room_id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .order_by(
             TarkovRaidRoomMember.joined_at.asc(),
@@ -730,7 +729,6 @@ def _transfer_or_clear(db: Session, room: TarkovRaidRoom) -> dict[str, Any] | No
         db.query(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.room_id == room.id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .order_by(
             TarkovRaidRoomMember.joined_at.asc(),
@@ -763,7 +761,6 @@ def _active_member_count(db: Session, room_id: int) -> int:
         .select_from(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.room_id == room_id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .scalar()
         or 0
@@ -777,7 +774,6 @@ def _active_member_counts(db: Session, room_ids: list[int]) -> dict[int, int]:
         db.query(TarkovRaidRoomMember.room_id, func.count())
         .filter(
             TarkovRaidRoomMember.room_id.in_(room_ids),
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .group_by(TarkovRaidRoomMember.room_id)
         .all()
@@ -793,7 +789,7 @@ def _require_active_member(
     now: datetime | None = None,
 ) -> TarkovRaidRoomMember:
     row = _member(db, room.id, user.id)
-    if row is None or row.left_at is not None:
+    if row is None:
         raise RaidRoomError("尚未加入该房间", 403)
     del now
     return row
@@ -880,8 +876,8 @@ def serialize_room(
     )
     viewer_id = viewer.id if viewer is not None else None
     viewer_member = next((row for row in members if viewer_id == row.user_id), None)
-    is_member = bool(viewer_member and viewer_member.left_at is None)
-    occupants = [row for row in members if row.left_at is None]
+    is_member = viewer_member is not None
+    occupants = members
     is_host = viewer_id is not None and viewer_id == room.host_user_id
     if viewer is not None and not is_member:
         return _serialize_room_preview(
@@ -969,7 +965,7 @@ def serialize_room(
                 "user_id": row.user_id,
                 "display_name": names.get(row.user_id) or row.display_name,
                 "is_host": row.user_id == room.host_user_id,
-                "in_room": row.left_at is None,
+                "in_room": True,
                 "online": row.user_id in online,
                 "joined_at": _iso(row.joined_at),
             }
@@ -1033,7 +1029,6 @@ def serialize_lobby_item(
         db.query(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.room_id == room.id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .order_by(
             TarkovRaidRoomMember.joined_at.asc(),
@@ -1101,7 +1096,6 @@ def _live_member_room_ids(db: Session, user_id: int) -> set[int]:
         db.query(TarkovRaidRoomMember.room_id)
         .filter(
             TarkovRaidRoomMember.user_id == user_id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .all()
     )
@@ -1120,7 +1114,6 @@ def _vacate_other_slots(
         db.query(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.user_id == user.id,
-            TarkovRaidRoomMember.left_at.is_(None),
             TarkovRaidRoomMember.room_id != keep_room_id,
         )
         .all()
@@ -1157,7 +1150,7 @@ def touch_member(
     except RaidRoomError:
         return
     row = _member(db, room.id, user.id)
-    if row is None or row.left_at is not None:
+    if row is None:
         return
     row.last_seen_at = stamp
     db.flush()
@@ -1183,7 +1176,6 @@ def prune_stale_members(
         db.query(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.room_id == room.id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .all()
     )
@@ -1312,11 +1304,10 @@ def prune_idle_rooms(
         for row in (
             db.query(TarkovRaidRoomMember.room_id)
             .filter(
-                TarkovRaidRoomMember.left_at.is_(None),
                 or_(
                     TarkovRaidRoomMember.last_seen_at.is_(None),
                     TarkovRaidRoomMember.last_seen_at < cutoff,
-                ),
+                )
             )
             .distinct()
             .all()
@@ -1367,7 +1358,6 @@ def list_live_rooms(
     has_occupant = (
         exists()
         .where(TarkovRaidRoomMember.room_id == TarkovRaidRoom.id)
-        .where(TarkovRaidRoomMember.left_at.is_(None))
     )
     q = db.query(TarkovRaidRoom).filter(
         TarkovRaidRoom.listed.is_(True),
@@ -1422,7 +1412,6 @@ def occupant_public_ids(db: Session, user_id: int) -> list[str]:
         .join(TarkovRaidRoomMember, TarkovRaidRoomMember.room_id == TarkovRaidRoom.id)
         .filter(
             TarkovRaidRoomMember.user_id == int(user_id),
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .all()
     )
@@ -1456,7 +1445,7 @@ def publish_occupant_key_owns(db: Session, user: User) -> None:
 def get_room(
     db: Session,
     public_id: str,
-    user: User,
+    user: User | None,
     *,
     now: datetime | None = None,
     online_user_ids: set[int] | None = None,
@@ -1468,10 +1457,16 @@ def get_room(
         room,
         now=stamp,
         online_user_ids=online_user_ids,
-        keep_user_id=user.id,
+        keep_user_id=user.id if user is not None else None,
     )
     if not _room_alive(db, room):
         raise RaidRoomError("房间不存在", 404)
+    if user is None:
+        return _serialize_room_preview(
+            room,
+            member_count=_active_member_count(db, room.id),
+            is_host=False,
+        )
     return serialize_room(db, room, viewer=user, online_user_ids=online_user_ids)
 
 
@@ -1524,7 +1519,7 @@ def join_room(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     row = _member(db, room.id, user.id)
-    already_in = row is not None and row.left_at is None
+    already_in = row is not None
     if not already_in:
         _assert_join_password(room, password)
     vacated_rooms = _vacate_other_slots(db, user, room.id, now=stamp)
@@ -1542,14 +1537,6 @@ def join_room(
                 last_seen_at=stamp,
             )
         )
-        joined_now = True
-    elif row.left_at is not None:
-        if _active_member_count(db, room.id) >= MAX_MEMBERS:
-            raise RaidRoomError("房间已满", 409)
-        row.left_at = None
-        row.display_name = _display_name(user)
-        row.joined_at = stamp
-        row.last_seen_at = stamp
         joined_now = True
     else:
         row.display_name = _display_name(user)
@@ -1575,7 +1562,7 @@ def can_user_edit_room(
     if not (room.map_slug or "").strip():
         return False
     row = _member(db, room.id, user.id)
-    return row is not None and row.left_at is None
+    return row is not None
 
 
 def leave_room(
@@ -1588,7 +1575,7 @@ def leave_room(
     del now
     room = _get_room(db, public_id)
     row = _member(db, room.id, user.id)
-    if row is not None and row.left_at is None:
+    if row is not None:
         db.delete(row)
         db.flush()
     if room.host_user_id == user.id:
@@ -1630,7 +1617,7 @@ def remove_member(
     if uid == host.id:
         raise RaidRoomError("不能移除自己", 400)
     row = _member(db, room.id, uid)
-    if row is None or row.left_at is not None:
+    if row is None:
         raise RaidRoomError("该成员不在房间内", 404)
     db.delete(row)
     _drop_member_contrib(db, room.id, uid)
@@ -1654,7 +1641,7 @@ def transfer_host(
     if uid == host.id:
         raise RaidRoomError("不能转让给自己", 400)
     row = _member(db, room.id, uid)
-    if row is None or row.left_at is not None:
+    if row is None:
         raise RaidRoomError("该成员不在房间内", 404)
     room.host_user_id = row.user_id
     room.host_display_name = row.display_name
@@ -1859,7 +1846,6 @@ def seed_claims_from_progress(
         db.query(TarkovRaidRoomMember)
         .filter(
             TarkovRaidRoomMember.room_id == room.id,
-            TarkovRaidRoomMember.left_at.is_(None),
         )
         .all()
     )

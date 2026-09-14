@@ -1336,6 +1336,12 @@ def test_outsider_get_hides_board() -> None:
     assert host_view["marks"]
     assert host_view["host_user_id"] == host.id
     assert host_view["key_brings"][0]["item_id"] == "key-1"
+    guest_preview = rooms.get_room(db, pid, None, now=now)
+    assert guest_preview["is_member"] is False
+    assert guest_preview["claims"] == []
+    assert guest_preview["occupants"] == []
+    assert guest_preview["host_user_id"] is None
+    assert guest_preview["member_count"] == 1
 
 
 def test_private_room_get_hides_board_until_join() -> None:

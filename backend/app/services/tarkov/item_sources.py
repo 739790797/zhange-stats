@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 
 QUEST_KIND_START = "start"
 QUEST_KIND_FINISH = "finish"
+# 找到后再上交 / 藏匿 / 出售是同一批物品，需求数量只算消耗侧。
+_ITEM_SPEND_OBJECTIVE_TYPES = frozenset(
+    {
+        "giveItem",
+        "giveQuestItem",
+        "plantItem",
+        "plantQuestItem",
+        "sellItem",
+    }
+)
 
 _task_source_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
 _task_source_lock = threading.Lock()
@@ -118,6 +128,87 @@ def _task_label(raw: dict[str, Any], locale: dict[str, Any]) -> str:
     return name or task_id
 
 
+def _task_name_map(
+    tasks: list[dict[str, Any]] | None,
+    locale: dict[str, Any],
+) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for raw in tasks or []:
+        if not isinstance(raw, dict):
+            continue
+        task_id = str(raw.get("id") or "").strip()
+        if task_id:
+            out[task_id] = _task_label(raw, locale)
+    return out
+
+
+def _fill_unlock_names(
+    rows: list[dict[str, Any]],
+    labels: dict[str, str],
+) -> None:
+    for row in rows:
+        task_id = str(row.get("task_unlock") or "").strip()
+        row["task_unlock_name"] = labels.get(task_id, "") if task_id else ""
+
+
+def _item_task_step(
+    step_id: str,
+    step_type: str,
+    count: float | None,
+    found_in_raid: bool | None,
+    text: str = "",
+) -> dict[str, Any]:
+    return {
+        "id": step_id,
+        "type": step_type,
+        "count": count,
+        "found_in_raid": found_in_raid,
+        "text": text,
+    }
+
+
+def _objective_step_type(obj: dict[str, Any], item_id: str) -> str:
+    typed = str(obj.get("type") or "").strip()
+    if typed:
+        return typed
+    if item_id in _iter_nested_item_ids(obj.get("wearing")):
+        return "wearing"
+    if item_id in _iter_nested_item_ids(obj.get("usingWeapon")):
+        return "usingWeapon"
+    groups = obj.get("requiredKeys")
+    if groups is None:
+        groups = obj.get("required_keys")
+    if item_id in _iter_nested_item_ids(groups):
+        return "neededKeys"
+    return ""
+
+
+def _merge_task_relation_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        tid = str(row.get("id") or "").strip()
+        if not tid:
+            continue
+        if tid not in merged:
+            copied = dict(row)
+            copied["steps"] = [
+                dict(step) if isinstance(step, dict) else step
+                for step in (row.get("steps") or [])
+            ]
+            merged[tid] = copied
+            order.append(tid)
+            continue
+        merged[tid]["steps"].extend(
+            dict(step) if isinstance(step, dict) else step
+            for step in (row.get("steps") or [])
+            if isinstance(step, dict) or step
+        )
+    return [merged[tid] for tid in order]
+
+
 def _quest_reward_row(
     raw: dict[str, Any],
     locale: dict[str, Any],
@@ -137,6 +228,9 @@ def _quest_reward_row(
         "trader_name": tname.split("（", 1)[0] if tname else slug or trader_id,
         "kind": kind,
         "count": count,
+        "steps": [
+            _item_task_step(f"{task_id}-{kind}", kind, count, None),
+        ],
     }
 
 
@@ -154,6 +248,7 @@ def collect_item_sources(
     if not ident:
         return out
     loc = locale if isinstance(locale, dict) else {}
+    unlock_names = _task_name_map(tasks, loc)
 
     for row in barters or []:
         if not isinstance(row, dict):
@@ -206,6 +301,9 @@ def collect_item_sources(
             str(row.get("id") or ""),
         )
     )
+    _fill_unlock_names(out["barters"], unlock_names)
+    _fill_unlock_names(out["crafts"], unlock_names)
+    out["quest_rewards"] = _merge_task_relation_rows(out["quest_rewards"])
     kind_rank = {QUEST_KIND_FINISH: 0, QUEST_KIND_START: 1}
     out["quest_rewards"].sort(
         key=lambda row: (
@@ -216,6 +314,14 @@ def collect_item_sources(
         )
     )
     return out
+
+
+def _objective_found_in_raid(obj: dict[str, Any]) -> bool | None:
+    if "foundInRaid" in obj:
+        return bool(obj.get("foundInRaid"))
+    if "found_in_raid" in obj:
+        return bool(obj.get("found_in_raid"))
+    return None
 
 
 def _objective_note(obj: dict[str, Any], locale: dict[str, Any]) -> str:
@@ -277,6 +383,45 @@ def _task_needs_item_keys(raw: dict[str, Any], item_id: str) -> bool:
     return False
 
 
+def _positive_objective_count(obj: dict[str, Any]) -> float | None:
+    count = obj.get("count")
+    if count is None:
+        return None
+    try:
+        number = float(count)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0:
+        return None
+    return number
+
+
+def _task_item_need_count(
+    objectives: list[Any],
+    item_id: str,
+) -> float | None:
+    spend = 0.0
+    spend_hit = False
+    total = 0.0
+    counted = False
+    for obj in objectives:
+        if not isinstance(obj, dict) or not _objective_mentions_item(obj, item_id):
+            continue
+        number = _positive_objective_count(obj)
+        if number is None:
+            continue
+        counted = True
+        total += number
+        if str(obj.get("type") or "").strip() in _ITEM_SPEND_OBJECTIVE_TYPES:
+            spend_hit = True
+            spend += number
+    if spend_hit:
+        return _as_count(spend, 1)
+    if counted:
+        return _as_count(total, 1)
+    return None
+
+
 def _task_use_row(
     raw: dict[str, Any],
     locale: dict[str, Any],
@@ -284,10 +429,12 @@ def _task_use_row(
 ) -> dict[str, Any] | None:
     notes: list[str] = []
     seen_notes: set[str] = set()
-    total = 0.0
-    counted = False
-    hit = _task_needs_item_keys(raw, item_id)
-    for obj in raw.get("objectives") or []:
+    steps: list[dict[str, Any]] = []
+    fir: bool | None = None
+    key_hit = _task_needs_item_keys(raw, item_id)
+    hit = key_hit
+    objectives = raw.get("objectives") or []
+    for obj in objectives:
         if not isinstance(obj, dict) or not _objective_mentions_item(obj, item_id):
             continue
         hit = True
@@ -295,25 +442,42 @@ def _task_use_row(
         if note and note not in seen_notes and len(notes) < 6:
             seen_notes.add(note)
             notes.append(note)
-        count = obj.get("count")
-        if count is None:
-            continue
-        try:
-            number = float(count)
-        except (TypeError, ValueError):
-            continue
-        if number > 0:
-            counted = True
-            total += number
+        flag = _objective_found_in_raid(obj)
+        if flag is True:
+            fir = True
+        elif flag is False and fir is not True:
+            fir = False
+        number = _positive_objective_count(obj)
+        steps.append(
+            _item_task_step(
+                str(obj.get("id") or ""),
+                _objective_step_type(obj, item_id),
+                _as_count(number, 1) if number is not None else None,
+                flag,
+                note,
+            )
+        )
+    if key_hit and not any(str(step.get("type") or "") == "neededKeys" for step in steps):
+        steps.append(
+            _item_task_step(
+                f"{str(raw.get('id') or '').strip()}-key",
+                "neededKeys",
+                None,
+                None,
+            )
+        )
     if not hit:
         return None
     row = _quest_reward_row(raw, locale, kind="require", count=1)
     row.pop("kind", None)
     row["notes"] = notes
-    if counted:
-        row["count"] = _as_count(total, 1)
-    else:
+    row["found_in_raid"] = fir
+    row["steps"] = steps
+    need = _task_item_need_count(objectives, item_id)
+    if need is None:
         row.pop("count", None)
+    else:
+        row["count"] = need
     return row
 
 
@@ -328,31 +492,36 @@ def _hideout_use_rows(
         for level in station.get("levels") or []:
             if not isinstance(level, dict):
                 continue
-            total = 0.0
-            hit = False
+            totals: dict[bool, float] = {}
             for req in level.get("item_requirements") or []:
                 if not isinstance(req, dict):
                     continue
                 if str(req.get("id") or "").strip() != item_id:
                     continue
-                hit = True
-                total += _as_count(req.get("count"), 1)
-            if not hit:
+                fir = bool(req.get("found_in_raid"))
+                totals[fir] = totals.get(fir, 0) + _as_count(req.get("count"), 1)
+            if not totals:
                 continue
-            out.append(
-                {
-                    "station_id": str(station.get("id") or ""),
-                    "station_slug": str(station.get("slug") or ""),
-                    "station_name": str(station.get("name") or ""),
-                    "level": int(level.get("level") or 0),
-                    "count": _as_count(total, 1),
-                }
-            )
+            for fir in (False, True):
+                total = totals.get(fir)
+                if total is None:
+                    continue
+                out.append(
+                    {
+                        "station_id": str(station.get("id") or ""),
+                        "station_slug": str(station.get("slug") or ""),
+                        "station_name": str(station.get("name") or ""),
+                        "level": int(level.get("level") or 0),
+                        "count": _as_count(total, 1),
+                        "found_in_raid": fir,
+                    }
+                )
     out.sort(
         key=lambda row: (
             str(row.get("station_name") or ""),
             int(row.get("level") or 0),
             str(row.get("station_slug") or ""),
+            int(bool(row.get("found_in_raid"))),
         )
     )
     return out
@@ -373,6 +542,7 @@ def collect_item_uses(
     if not ident:
         return out
     loc = locale if isinstance(locale, dict) else {}
+    unlock_names = _task_name_map(tasks, loc)
 
     for row in barters or []:
         if not isinstance(row, dict):
@@ -419,6 +589,8 @@ def collect_item_uses(
             str(row.get("id") or ""),
         )
     )
+    _fill_unlock_names(out["barters"], unlock_names)
+    _fill_unlock_names(out["crafts"], unlock_names)
     out["tasks"].sort(
         key=lambda row: (
             str(row.get("trader_slug") or ""),

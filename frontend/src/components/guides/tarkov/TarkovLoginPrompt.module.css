@@ -1,0 +1,33 @@
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 36rem;
+  padding: 20px 0;
+}
+
+.text {
+  margin: 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  background: var(--hb-panel, #22241a);
+  color: #eee9d6;
+  font-size: 13px;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.cta:hover {
+  color: #fff;
+  border-color: var(--hb-orange, #c8932a);
+}

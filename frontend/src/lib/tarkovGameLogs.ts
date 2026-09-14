@@ -199,19 +199,15 @@ export function logMapHref(mapId: string): string {
   return MAPS_HREF;
 }
 
+const APPLICATION_LOG_RE = /(?:^|[\\/ ])application(?:_\d+)?\.log$/i;
+const NOTIFICATIONS_LOG_RE = /(?:^|[\\/ ])(?:push-)?notifications(?:_\d+)?\.log$/i;
+
 export function isApplicationLogFileName(name: string): boolean {
-  const n = (name || "").toLowerCase();
-  return n.endsWith("application.log") || n.endsWith("application_000.log");
+  return APPLICATION_LOG_RE.test((name || "").trim());
 }
 
 export function isNotificationsLogFileName(name: string): boolean {
-  const n = (name || "").toLowerCase();
-  return (
-    n.endsWith("notifications.log") ||
-    n.endsWith("notifications_000.log") ||
-    n.endsWith("push-notifications.log") ||
-    n.endsWith("push-notifications_000.log")
-  );
+  return NOTIFICATIONS_LOG_RE.test((name || "").trim());
 }
 
 export function isReadableTarkovLogFileName(name: string): boolean {

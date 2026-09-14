@@ -19,6 +19,8 @@ import {
   useTarkovLastLogPhase,
 } from "@/lib/useTarkovLiveWatch";
 import { tarkovMapViewerLayerProps } from "@/lib/tarkovMapViewerDetail";
+import { isAdminUser } from "@/lib/isAdminUser";
+import { useAuthStore } from "@/stores/authStore";
 import { PanelFallback } from "@/components/RouteFallback";
 import styles from "./TarkovMapsPanel.module.css";
 
@@ -105,6 +107,7 @@ function TarkovMapDetailReady({
 }) {
   const [searchParams] = useSearchParams();
   const maintain = parseTarkovMaintainMode(searchParams.get("maintain"));
+  const isAdmin = isAdminUser(useAuthStore((s) => s.user));
   const [floor, setFloor] = useState("");
   const editor = useTarkovMapPlaceEditor({
     slug,
@@ -114,7 +117,7 @@ function TarkovMapDetailReady({
   });
   const variantHref = (id: string) =>
     maintain ? tarkovMapMaintainHref(id, maintain) : tarkovMapHref(id);
-  const showPlaceEditor = Boolean(maintain);
+  const showPlaceEditor = Boolean(maintain) && isAdmin;
 
   return (
     <div className={`${styles.stack} ${styles.stackFill}`}>

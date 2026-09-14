@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.models.rum import RumSample
 from app.services.rum import (
     RumEventIn,
+    classify_rum_biz,
     ingest_rum_events,
     normalize_api_url,
     normalize_img_url,
     percentile_nearest,
     prune_rum_samples,
+    rum_biz_label,
     rum_series_step,
     summarize_rum,
     truncate_to_step,
@@ -119,10 +121,21 @@ def test_ingest_and_summarize_percentiles() -> None:
     assert api_row["count"] == 3
     assert api_row["error_count"] == 1
     assert api_row["p50_ms"] == 400
+    assert api_row["biz"] == "tarkov"
+    assert api_row["biz_label"] == "逃离塔科夫"
     img_row = summary["img"][0]
     assert img_row["url_key"] == "https://assets.tarkov.dev/maps/{map}/**.png"
+    assert img_row["biz"] == "tarkov"
     assert img_row["count"] == 2
     assert img_row["avg_transfer"] == 1000
+    tarkov_biz = next(r for r in summary["api_biz"] if r["biz"] == "tarkov")
+    assert tarkov_biz["count"] == 3
+    assert tarkov_biz["error_count"] == 1
+    site_biz = next(r for r in summary["api_biz"] if r["biz"] == "site")
+    assert site_biz["count"] == 1
+    img_biz = summary["img_biz"][0]
+    assert img_biz["biz"] == "tarkov"
+    assert img_biz["count"] == 2
     filled = [p for p in summary["series"] if p["api_count"] or p["img_count"]]
     assert len(filled) == 1
     assert filled[0]["api_count"] == 4
@@ -175,6 +188,73 @@ def test_ingest_drops_bad_events() -> None:
         ],
     )
     assert n == 0
+
+
+def test_classify_rum_biz_matches_sidebar() -> None:
+    assert classify_rum_biz("api", "GET /api/guides/tarkov/items/{id}") == "tarkov"
+    assert classify_rum_biz("api", "GET /api/guides/minecraft/status") == "minecraft"
+    assert classify_rum_biz("api", "GET /api/steam/now") == "steam"
+    assert classify_rum_biz("api", "POST /api/profile/steam/preview") == "steam"
+    assert classify_rum_biz("api", "GET /api/skland/status") == "skland"
+    assert classify_rum_biz("api", "GET /api/skland/endfield/box") == "skland"
+    assert classify_rum_biz("api", "GET /api/taygedo/status") == "taygedo"
+    assert classify_rum_biz("api", "GET /api/kujiequ/status") == "kujiequ"
+    assert classify_rum_biz("api", "GET /api/mihoyo/status") == "mihoyo"
+    assert classify_rum_biz("api", "GET /api/exilium/status") == "exilium"
+    assert classify_rum_biz("api", "GET /api/articles") == "tavern"
+    assert classify_rum_biz("api", "GET /api/profile/daily-tasks") == "daily"
+    assert classify_rum_biz("api", "GET /api/profile/daily-task-logs") == "daily"
+    assert classify_rum_biz("api", "GET /api/auth/me") == "account"
+    assert classify_rum_biz("api", "GET /api/profile/me") == "account"
+    assert classify_rum_biz("api", "GET /api/members/{id}") == "account"
+    assert classify_rum_biz("api", "GET /api/setup/status") == "site"
+    assert classify_rum_biz("api", "GET /api/settings/site/public") == "site"
+    assert classify_rum_biz("api", "GET /api/users") == "site"
+    assert classify_rum_biz("api", "GET /api/unknown") == "other"
+    assert classify_rum_biz("img", "", "assets.tarkov.dev") == "tarkov"
+    assert (
+        classify_rum_biz(
+            "img",
+            "https://shared.akamai.steamstatic.com/store_item_assets/x.png",
+            "shared.akamai.steamstatic.com",
+        )
+        == "steam"
+    )
+    assert rum_biz_label("tarkov") == "逃离塔科夫"
+    assert rum_biz_label("") == "其他"
+
+
+def test_summarize_keeps_slow_rows_per_biz() -> None:
+    db = _session()
+    now = datetime(2026, 9, 11, 12, 0, 0)
+    events = [
+        RumEventIn(
+            kind="api",
+            url="/api/guides/tarkov/items/1",
+            duration_ms=900,
+            status=200,
+            method="GET",
+        ),
+        RumEventIn(
+            kind="api",
+            url="/api/setup/status",
+            duration_ms=80,
+            status=200,
+            method="GET",
+        ),
+        RumEventIn(
+            kind="api",
+            url="/api/auth/me",
+            duration_ms=40,
+            status=200,
+            method="GET",
+        ),
+    ]
+    ingest_rum_events(db, page="/", recorded_at=now, events=events)
+    db.commit()
+    summary = summarize_rum(db, hours=24, now=now, limit=1)
+    assert [r["biz"] for r in summary["api"]] == ["tarkov", "site", "account"]
+    assert [r["biz"] for r in summary["api_biz"]] == ["tarkov", "site", "account"]
 
 
 def test_prune_rum_keeps_two_weeks() -> None:

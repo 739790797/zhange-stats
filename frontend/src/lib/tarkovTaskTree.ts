@@ -29,6 +29,7 @@ export type TaskListItem = {
   mutex_ids?: string[];
   blocked_by?: string[];
   prereq_ids?: string[];
+  restartable?: boolean;
 };
 
 export type TaskLineRef = {
@@ -76,6 +77,7 @@ export type TarkovTaskDonesState = {
   pvp?: string[];
   pve?: string[];
   started?: { pvp?: string[]; pve?: string[] };
+  failed?: { pvp?: string[]; pve?: string[] };
   migrated?: { pvp?: boolean; pve?: boolean };
   startedMigrated?: { pvp?: boolean; pve?: boolean };
   syncedAt?: { pvp?: string; pve?: string };
@@ -86,12 +88,14 @@ export type TarkovTaskDonesState = {
 export type AccountTaskProgress = {
   task_ids?: string[];
   started_ids?: string[];
+  failed_ids?: string[];
   objective_dones?: TaskObjectivePair[];
 };
 
 export type AccountTaskHydratePlan = {
   done: string[];
   started: string[];
+  failed: string[];
   objectives: TaskObjectivePair[];
   upload: boolean;
 };
@@ -102,7 +106,7 @@ function asIdList(value: unknown): string[] {
   const out: string[] = [];
   for (const raw of value) {
     if (typeof raw !== "string") continue;
-    const ident = raw.trim();
+    const ident = raw.trim().toLowerCase();
     if (!ident || seen.has(ident)) continue;
     seen.add(ident);
     out.push(ident);
@@ -328,17 +332,18 @@ export function summarizeTaskProgress(
   items: TaskListItem[],
   done: ReadonlySet<string>,
   started: ReadonlySet<string> = new Set(),
+  failed: ReadonlySet<string> = new Set(),
 ): TaskProgressSummary {
   let completed = 0;
   let active = 0;
-  let failed = 0;
+  let failedCount = 0;
   let unreachable = 0;
   let incomplete = 0;
   for (const item of items) {
-    const status = resolveTaskStatus(item.id, done, started, item);
+    const status = resolveTaskStatus(item.id, done, started, item, failed);
     if (status === "done") completed += 1;
     else if (status === "active") active += 1;
-    else if (status === "failed") failed += 1;
+    else if (status === "failed") failedCount += 1;
     else if (status === "unreachable") unreachable += 1;
     else incomplete += 1;
   }
@@ -347,7 +352,7 @@ export function summarizeTaskProgress(
     incomplete,
     active,
     completed,
-    failed,
+    failed: failedCount,
     unreachable,
   };
 }
@@ -401,7 +406,7 @@ function lineIdHits(
 ): boolean {
   if (!ids?.length) return false;
   for (const raw of ids) {
-    const ident = String(raw || "").trim();
+    const ident = String(raw || "").trim().toLowerCase();
     if (!ident) continue;
     for (const pool of pools) {
       if (pool.has(ident)) return true;
@@ -415,9 +420,11 @@ export function resolveTaskStatus(
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
   line?: TaskLineRef | null,
+  failed: ReadonlySet<string> = new Set(),
 ): TaskStatusKind {
-  const ident = String(taskId || "").trim();
+  const ident = String(taskId || "").trim().toLowerCase();
   if (ident && done.has(ident)) return "done";
+  if (ident && failed.has(ident)) return "failed";
   if (lineIdHits(line?.mutex_ids, done)) return "failed";
   if (lineIdHits(line?.blocked_by, done, started)) return "unreachable";
   if (ident && started.has(ident)) return "active";
@@ -429,16 +436,21 @@ export function setTaskStatus(
   startedIds: readonly string[],
   taskId: string,
   status: TaskWritableStatus,
-): { done: string[]; started: string[] } {
-  const ident = taskId.trim();
-  const done = new Set(doneIds);
-  const started = new Set(startedIds.filter((id) => !done.has(id)));
-  if (!ident) return { done: [...done], started: [...started] };
+  failedIds: readonly string[] = [],
+): { done: string[]; started: string[]; failed: string[] } {
+  const ident = taskId.trim().toLowerCase();
+  const done = new Set(asIdList(doneIds));
+  const failed = new Set(asIdList(failedIds).filter((id) => !done.has(id)));
+  const started = new Set(
+    asIdList(startedIds).filter((id) => !done.has(id) && !failed.has(id)),
+  );
+  if (!ident) return { done: [...done], started: [...started], failed: [...failed] };
   done.delete(ident);
   started.delete(ident);
+  failed.delete(ident);
   if (status === "done") done.add(ident);
   else if (status === "active") started.add(ident);
-  return { done: [...done], started: [...started] };
+  return { done: [...done], started: [...started], failed: [...failed] };
 }
 
 /** 写下拉状态到本机进度，并通知联机大厅 / 个人中心刷新。 */
@@ -447,22 +459,37 @@ export function commitTaskStatus(
   taskId: string,
   status: TaskWritableStatus,
   fillObjectiveIds?: readonly string[],
-): { done: string[]; started: string[]; objectives: TaskObjectivePair[] } {
+): {
+  done: string[];
+  started: string[];
+  failed: string[];
+  objectives: TaskObjectivePair[];
+} {
   const next = setTaskStatus(
     loadTaskDoneIds(mode),
     loadTaskStartedIds(mode),
     taskId,
     status,
+    loadTaskFailedIds(mode),
   );
   let objectives = loadTaskObjectivePairs(mode);
   if (status === "done" && fillObjectiveIds?.length) {
     objectives = mergeObjectivesForTask(objectives, taskId, fillObjectiveIds);
   }
-  saveTaskProgress(mode, next.done, next.started, false, false, objectives);
+  saveTaskProgress(
+    mode,
+    next.done,
+    next.started,
+    false,
+    false,
+    objectives,
+    next.failed,
+  );
   notifyTarkovTaskProgress({
     mode,
     done: next.done,
     started: next.started,
+    failed: next.failed,
     objectives,
     changed: true,
     source: "user",
@@ -584,6 +611,20 @@ export function parseTaskStartedState(
   return [];
 }
 
+export function parseTaskFailedState(
+  raw: string | null | undefined,
+  mode: TarkovGameMode,
+): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Partial<TarkovTaskDonesState> | string[];
+    if (Array.isArray(parsed) || !parsed || parsed.v !== 1) return [];
+    return asIdList(parsed.failed?.[mode]);
+  } catch {
+    return [];
+  }
+}
+
 export function loadTaskDoneIds(mode: TarkovGameMode): string[] {
   try {
     return parseTaskDonesState(
@@ -606,6 +647,17 @@ export function loadTaskStartedIds(mode: TarkovGameMode): string[] {
   }
 }
 
+export function loadTaskFailedIds(mode: TarkovGameMode): string[] {
+  try {
+    return parseTaskFailedState(
+      localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY),
+      mode,
+    );
+  } catch {
+    return [];
+  }
+}
+
 function readState(): TarkovTaskDonesState {
   try {
     const raw = localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY);
@@ -620,6 +672,10 @@ function readState(): TarkovTaskDonesState {
         started: {
           pvp: asIdList(parsed.started?.pvp),
           pve: asIdList(parsed.started?.pve),
+        },
+        failed: {
+          pvp: asIdList(parsed.failed?.pvp),
+          pve: asIdList(parsed.failed?.pve),
         },
         migrated: parsed.migrated,
         startedMigrated: parsed.startedMigrated,
@@ -687,10 +743,17 @@ export function saveTaskProgress(
   migrated = false,
   startedMigrated = false,
   objectives?: readonly TaskObjectivePair[],
+  failedIds?: readonly string[],
 ): void {
   const state = readState();
-  state[mode] = asIdList(doneIds);
-  state.started = { ...state.started, [mode]: asIdList(startedIds) };
+  const cleaned = cleanTaskProgress(
+    doneIds,
+    startedIds,
+    failedIds !== undefined ? failedIds : state.failed?.[mode] || [],
+  );
+  state[mode] = cleaned.done;
+  state.started = { ...state.started, [mode]: cleaned.started };
+  state.failed = { ...state.failed, [mode]: cleaned.failed };
   if (migrated) {
     state.migrated = { ...state.migrated, [mode]: true };
   }
@@ -706,20 +769,37 @@ export function saveTaskProgress(
   writeState(state);
 }
 
+export function cleanTaskProgress(
+  doneIds: readonly string[],
+  startedIds: readonly string[],
+  failedIds: readonly string[] = [],
+): { done: string[]; started: string[]; failed: string[] } {
+  const done = asIdList(doneIds);
+  const doneSet = new Set(done);
+  const failed = asIdList(failedIds).filter((id) => !doneSet.has(id));
+  const failedSet = new Set(failed);
+  const started = asIdList(startedIds).filter(
+    (id) => !doneSet.has(id) && !failedSet.has(id),
+  );
+  return { done, started, failed };
+}
+
 export function taskProgressQueryData(
   doneIds: readonly string[],
   startedIds: readonly string[],
   objectives?: readonly TaskObjectivePair[],
+  failedIds: readonly string[] = [],
 ): {
   task_ids: string[];
   started_ids: string[];
+  failed_ids: string[];
   objective_dones: TaskObjectivePair[];
 } {
-  const done = asIdList(doneIds);
-  const doneSet = new Set(done);
+  const cleaned = cleanTaskProgress(doneIds, startedIds, failedIds);
   return {
-    task_ids: done,
-    started_ids: asIdList(startedIds).filter((id) => !doneSet.has(id)),
+    task_ids: cleaned.done,
+    started_ids: cleaned.started,
+    failed_ids: cleaned.failed,
     objective_dones: asObjectivePairs(objectives),
   };
 }
@@ -729,51 +809,65 @@ export function keepCatalogTaskProgress(
   doneIds: readonly string[],
   startedIds: readonly string[],
   catalogIds?: ReadonlySet<string> | readonly string[] | null,
-): { done: string[]; started: string[] } {
+  failedIds: readonly string[] = [],
+): { done: string[]; started: string[]; failed: string[] } {
   if (catalogIds == null) {
-    return {
-      done: asIdList(doneIds),
-      started: asIdList(startedIds),
-    };
+    return cleanTaskProgress(doneIds, startedIds, failedIds);
   }
-  const catalog = catalogIds instanceof Set ? catalogIds : new Set(asIdList(catalogIds));
+  const catalog =
+    catalogIds instanceof Set
+      ? new Set([...catalogIds].map((id) => id.trim().toLowerCase()).filter(Boolean))
+      : new Set(asIdList(catalogIds));
   if (!catalog.size) {
-    return {
-      done: asIdList(doneIds),
-      started: asIdList(startedIds),
-    };
+    return cleanTaskProgress(doneIds, startedIds, failedIds);
   }
-  const cleaned = taskProgressQueryData(
+  return cleanTaskProgress(
     asIdList(doneIds).filter((id) => catalog.has(id)),
     asIdList(startedIds).filter((id) => catalog.has(id)),
+    asIdList(failedIds).filter((id) => catalog.has(id)),
   );
-  return { done: cleaned.task_ids, started: cleaned.started_ids };
 }
 
 export function unionTaskProgress(
-  left: { done?: readonly string[]; started?: readonly string[] },
-  right: { done?: readonly string[]; started?: readonly string[] },
-): { done: string[]; started: string[] } {
-  const done = asIdList([...(left.done || []), ...(right.done || [])]);
-  const doneSet = new Set(done);
-  const started = asIdList([
-    ...(left.started || []),
-    ...(right.started || []),
-  ]).filter((id) => !doneSet.has(id));
-  return { done, started };
+  left: {
+    done?: readonly string[];
+    started?: readonly string[];
+    failed?: readonly string[];
+  },
+  right: {
+    done?: readonly string[];
+    started?: readonly string[];
+    failed?: readonly string[];
+  },
+): { done: string[]; started: string[]; failed: string[] } {
+  return cleanTaskProgress(
+    [...(left.done || []), ...(right.done || [])],
+    [...(left.started || []), ...(right.started || [])],
+    [...(left.failed || []), ...(right.failed || [])],
+  );
 }
 
 export function planAccountTaskHydrate(input: {
   serverDone: readonly string[];
   serverStarted: readonly string[];
+  serverFailed?: readonly string[] | null;
   serverObjectives?: readonly TaskObjectivePair[] | null;
   localDone?: readonly string[] | null;
   localStarted?: readonly string[] | null;
+  localFailed?: readonly string[] | null;
   localObjectives?: readonly TaskObjectivePair[] | null;
 }): AccountTaskHydratePlan {
   const merged = unionTaskProgress(
-    { done: input.serverDone, started: input.serverStarted },
-    { done: input.localDone || [], started: input.localStarted || [] },
+    {
+      done: input.serverDone,
+      started: input.serverStarted,
+      failed: input.serverFailed || [],
+    },
+    {
+      done: input.localDone || [],
+      started: input.localStarted || [],
+      failed: input.localFailed || [],
+    },
   );
   const objectives = unionObjectivePairs(
     asObjectivePairs(input.serverObjectives),
@@ -783,6 +877,7 @@ export function planAccountTaskHydrate(input: {
     input.serverDone,
     input.serverStarted,
     input.serverObjectives || [],
+    input.serverFailed || [],
   );
   return {
     ...merged,
@@ -790,6 +885,7 @@ export function planAccountTaskHydrate(input: {
     upload:
       !sameIdLists(merged.done, server.task_ids) ||
       !sameIdLists(merged.started, server.started_ids) ||
+      !sameIdLists(merged.failed, server.failed_ids) ||
       !sameObjectiveLists(objectives, server.objective_dones),
   };
 }
@@ -797,25 +893,34 @@ export function planAccountTaskHydrate(input: {
 export function resolveAccountTaskProgress(
   data: AccountTaskProgress | null | undefined,
   mode: TarkovGameMode,
-): { done: string[]; started: string[]; objectives: TaskObjectivePair[] } {
+): {
+  done: string[];
+  started: string[];
+  failed: string[];
+  objectives: TaskObjectivePair[];
+} {
   if (!data) {
     return {
       done: loadTaskDoneIds(mode),
       started: loadTaskStartedIds(mode),
+      failed: loadTaskFailedIds(mode),
       objectives: loadTaskObjectivePairs(mode),
     };
   }
   const plan = planAccountTaskHydrate({
     serverDone: data.task_ids || [],
     serverStarted: data.started_ids || [],
+    serverFailed: data.failed_ids || [],
     serverObjectives: data.objective_dones || [],
     localDone: loadTaskDoneIds(mode),
     localStarted: loadTaskStartedIds(mode),
+    localFailed: loadTaskFailedIds(mode),
     localObjectives: loadTaskObjectivePairs(mode),
   });
   return {
     done: plan.done,
     started: plan.started,
+    failed: plan.failed,
     objectives: plan.objectives,
   };
 }

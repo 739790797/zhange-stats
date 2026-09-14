@@ -13,17 +13,27 @@ export function TarkovGuideItemCell({
   item,
   showCount = true,
   showPrice = false,
+  alwaysCount = false,
+  highlight = false,
 }: {
   item: TarkovGuideItemRef;
   showCount?: boolean;
   showPrice?: boolean;
+  alwaysCount?: boolean;
+  highlight?: boolean;
 }) {
   const label = item.name || item.short_name || item.id;
   const thumb = transparentThumbUrl(item.icon_link);
   const hd = hdPreviewUrl(item.icon_link) || thumb;
   const count = Number(item.count || 1);
+  const countLabel = (item.types || []).includes("money")
+    ? count.toLocaleString("zh-CN")
+    : String(count);
+  const showQty = showCount && (alwaysCount || count !== 1);
   return (
-    <span className={catalog.nameCell}>
+    <span
+      className={`${catalog.nameCell} ${highlight ? styles.highlight : ""}`}
+    >
       {thumb ? (
         <Image
           src={thumb}
@@ -41,7 +51,7 @@ export function TarkovGuideItemCell({
           className={catalog.nameLink}
           to={itemHrefFromTypes(item.id, item.types || [])}
         >
-          {showCount && count !== 1 ? `${count}× ${label}` : label}
+          {showQty ? `${countLabel}× ${label}` : label}
         </Link>
         {item.found_in_raid ? (
           <span className={styles.fir}>战局内找到</span>
@@ -95,8 +105,12 @@ export function TarkovItemRefGrid({
 
 export function TarkovGuideItemStack({
   items,
+  highlightId,
+  alwaysCount = false,
 }: {
   items: TarkovGuideItemRef[] | undefined;
+  highlightId?: string;
+  alwaysCount?: boolean;
 }) {
   if (!items?.length) return <span>—</span>;
   return (
@@ -106,6 +120,8 @@ export function TarkovGuideItemStack({
           key={`${item.id}-${index}`}
           item={item}
           showCount
+          alwaysCount={alwaysCount}
+          highlight={Boolean(highlightId) && item.id === highlightId}
         />
       ))}
     </div>

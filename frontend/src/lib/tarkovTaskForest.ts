@@ -304,6 +304,58 @@ export function collectPrereqClosure<T extends TaskForestItem>(
   return [...out.values()];
 }
 
+function nativeTaskIds<T extends TaskForestItem>(items: readonly T[]): Set<string> {
+  const out = new Set<string>();
+  for (const item of items) {
+    const ident = String(item.id || "").trim();
+    if (ident) out.add(ident);
+  }
+  return out;
+}
+
+function pruneNodeToNativeLine<T extends TaskForestItem>(
+  node: TaskForestNode<T>,
+  nativeIds: ReadonlySet<string>,
+): TaskForestNode<T> | null {
+  const children = pruneForestToNativeLines(node.children, nativeIds);
+  if (!nativeIds.has(node.task.id) && !children.length) return null;
+  return { ...node, children };
+}
+
+/** 外商前置挂在本商后续前面；只当额外前置、没有本商后代的外商卡不进棋盘。 */
+export function pruneForestToNativeLines<T extends TaskForestItem>(
+  children: readonly TaskForestChild<T>[],
+  nativeIds: ReadonlySet<string>,
+): TaskForestChild<T>[] {
+  const out: TaskForestChild<T>[] = [];
+  for (const child of children) {
+    if (child.kind === "choice") {
+      const options = child.options
+        .map((option) => pruneNodeToNativeLine(option, nativeIds))
+        .filter((row): row is TaskForestNode<T> => Boolean(row));
+      if (options.length >= 2) {
+        out.push({ kind: "choice", options });
+      } else if (options.length === 1) {
+        out.push({ kind: "task", node: options[0] });
+      }
+      continue;
+    }
+    const node = pruneNodeToNativeLine(child.node, nativeIds);
+    if (node) out.push({ kind: "task", node });
+  }
+  return out;
+}
+
+/** 本商任务加上跨商人前置，串成有序链。 */
+export function buildTraderTaskForest<T extends TaskForestItem>(
+  native: readonly T[],
+  catalog: ReadonlyMap<string, T>,
+): TaskForestChild<T>[] {
+  const nativeIds = nativeTaskIds(native);
+  const forest = buildTaskForest(collectPrereqClosure(native, catalog));
+  return pruneForestToNativeLines(forest, nativeIds);
+}
+
 export function buildTaskForest<T extends TaskForestItem>(
   items: readonly T[],
 ): TaskForestChild<T>[] {

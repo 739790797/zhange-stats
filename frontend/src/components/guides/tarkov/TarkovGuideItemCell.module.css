@@ -21,6 +21,13 @@
   gap: 8px;
 }
 
+.highlight {
+  box-sizing: border-box;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--hb-orange, #c8932a);
+  background: #1a160c;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

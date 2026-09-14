@@ -21,7 +21,7 @@ from app.api.guides.schemas import (
     TarkovRaidRoomTaskProgressIn,
 )
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_optional_user
 from app.core.platform_deps import require_feature
 from app.core.rate_limit import client_ip, platform_limiter
 from app.models.user import User
@@ -94,24 +94,25 @@ def list_tarkov_raid_rooms(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_optional_user),
 ) -> TarkovRaidRoomLobbyOut:
     """分页列出当前模式的公开房间（listed、无密码、仍有人在座）。
 
     限流：每 IP / 每账号 40 次/分钟。私密房不出现；自己的私密房在 `mine`。
     """
     ip = client_ip(request)
-    lobby_ip, lobby_uid = rooms_svc.lobby_rate_limit_keys(ip, user.id)
     platform_limiter.hit(
-        lobby_ip,
+        f"tarkov-raid-lobby:ip:{ip}",
         limit=rooms_svc.LOBBY_RATE_LIMIT,
         window_sec=rooms_svc.LOBBY_RATE_WINDOW_SEC,
     )
-    platform_limiter.hit(
-        lobby_uid,
-        limit=rooms_svc.LOBBY_RATE_LIMIT,
-        window_sec=rooms_svc.LOBBY_RATE_WINDOW_SEC,
-    )
+    if user is not None:
+        _, lobby_uid = rooms_svc.lobby_rate_limit_keys(ip, user.id)
+        platform_limiter.hit(
+            lobby_uid,
+            limit=rooms_svc.LOBBY_RATE_LIMIT,
+            window_sec=rooms_svc.LOBBY_RATE_WINDOW_SEC,
+        )
     online_by_public_id = {
         pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
     }
@@ -228,7 +229,7 @@ def set_tarkov_raid_room_map(
 def get_tarkov_raid_room(
     public_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_optional_user),
 ) -> TarkovRaidRoomDetailOut:
     """取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。"""
     try:

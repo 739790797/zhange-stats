@@ -4,7 +4,7 @@
 
 - 登录以邮箱为主，也支持 QQ 登录一键开号（回调只带一次性 `ticket`，前端再换会话 Cookie）；无邮箱时可稍后完善
 - 默认 JWT 有效期 **24 小时**（管理端「安全」可调，写入 `config/auth.json`）。到期需重新登录，没有 refresh token
-- 新签发的 JWT：`sub` 为 **user_id**（数字字符串），另带 `username`。旧票 `sub` 仍是用户名，解码时按是否纯数字区分
+- 签发的 JWT：`sub` 为 **user_id**（数字字符串），另带 `username`
 - 浏览器会话：登录 / 注册 / QQ 换票 / 安装向导 `Set-Cookie` `zhange_access`（HttpOnly、`SameSite=Lax`、生产 `Secure`、`Path=/`）。前端 **不** 把 JWT 写入 localStorage，axios **不** 塞 `Authorization`。可变方法须带 `X-CSRF-Token`（与可读 Cookie `zhange_csrf` Double Submit）。脚本 / OpenAPI 仍可用 `Authorization: Bearer`（此时免 CSRF）。`POST /api/auth/logout` 清 Cookie。QQ 回调仍只带 ticket
 - 生产 CORS：同域部署一般不必放行；若跨源，用 `CORS_ORIGIN_REGEX` 收紧，不要沿用默认 localhost/Tauri 正则
 - 管理员登录即可改配置、系统更新、删用户；**不再**要求邮箱步进验证码。管理员会话被盗即等于能改配置。继续靠 HttpOnly Cookie、CSRF、生产 `Secure`、短 JWT。注册 / 绑定邮箱 / 找回 / 注销账号的**用户侧**验证码保留。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。用户侧发码限流 10/IP、5/账号、5/邮箱 / 10 分钟；校验失败再限 12/账号、12/邮箱 / 10 分钟
@@ -12,7 +12,7 @@
 - 平台凭证 Fernet 加密存库。QQ 回调不要把 JWT 放进 URL
 - 请求 ID：中间件生成或转发 `X-Request-ID`，写入日志上下文并回写响应头。何时打 logger 见 [`logging.md`](logging.md)
 - CSP：默认 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report`）；`CSP_ENFORCE=true` 后 enforce
-- 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员。样本 14 天后由 `job_runs_prune` 删除
+- 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员，接口按侧栏业务分类。样本 14 天后由 `job_runs_prune` 删除
 - 生产在管理端「运行环境」或 `config/app.json` 设置 `APP_ENV=production`（安装脚本**不会**代写）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖
 - 限流与短时 KV（扫码会话、森空岛 cred 缓存、塔科夫联机 join/大厅）：生产建议在运行环境设 `REDIS_URL`；本地无 Redis 时进程内降级。多 `app` 实例须共享同一 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可在运行环境打开 `TRUST_X_FORWARDED_FOR`
 - 本地无 SMTP 时需设 `ALLOW_EMAIL_CODE_LOG=true` 才能用日志收验证码；`APP_ENV=production` 时启动会硬拒绝该开关
@@ -32,11 +32,20 @@
 - **站内头像**：裁剪为正方形 JPEG 后覆盖写 `avatars/{member_id}.jpg`，登记同一张 `user_files`（`namespace=avatars`）。公开 URL 仍是 `/uploads/avatars/{id}.jpg?v=`，**不要**把流水号写进路径。删头像或注销标 `deleted` 并清盘
 - 功能开关 `tavern`（任务配置「战鸽数据」；与站点模型更新同组）；关闭后公开 API 403、侧栏「社区」隐藏
 
+## 塔科夫图鉴与工具
+
+公开页 `/guides/tarkov`（未登录可看首页、物品/弹药/地图/商人/BOSS、任务目录与详情、搜索、藏身处目录百科、钥匙分类百科、工作台读枪/算属性/枪匠求解/社区方案、三狗状态、联机大厅列表与房间预览）。个人中心六个 Tab、OCR、出图代理、创建/加入房间与房间 WS 须登录；页内用登录卡，不整站踢去 `/login`。Minecraft 仍须登录。
+
+- **读权限**：图鉴 GET、搜索、工作台 `allowed-items` / `calculate` / `community-builds` / `gunsmith-solve`、三狗 GET、大厅列表与房间预览不要求登录 Cookie / Bearer。仍 `require_feature("guides.tarkov")`。非成员（含未登录）`GET` 房间只回预览，不含棋盘/人员
+- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务完成 / 日志摘要 / 云端 raid-prep state、OCR、`build-image`、创建加入房间须登录
+- **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：搜索 40/IP/分钟；工作台 allowed/calculate 60/IP/分钟；community-builds 30/IP/10 分钟；gunsmith-solve 20/IP/分钟；三狗 40/IP/分钟；大厅列表 40/IP/分钟（登录用户另计账号）
+- 功能开关 `guides.tarkov`；关闭后公开 API 403。访客侧栏靠 `allowGuest` 露出入口，不打需登录的 `/platform-features/effective`
+
 ## 塔科夫联机
 
 公开页 `/legal/terms`、`/legal/privacy`（未登录可看；文案在 `frontend/src/lib/legalDocs.ts`）。邮箱注册须勾选同意；登录 / QQ 登录旁注明即表示同意。页脚备案号由运营者配置（管理端「安全设置」），留空不展示。
 
-- **读权限**：未入座 `GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、地图、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠。公开大厅列表仍展示公开房的在座昵称。房间 WebSocket 须已入座
+- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、地图、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠。公开大厅列表仍展示公开房的在座昵称。房间 WebSocket 须已入座。访客不能占座
 - **写权限**：认领 / 标点 / 设密等须在座；密码只在 **join** 时校验
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：创建 20/IP/10 分钟、10/账号/10 分钟；加入（含密码错误）10/IP+房间/10 分钟、10/账号+房间/10 分钟；大厅列表 40/IP/分钟、40/账号/分钟
 - **大厅查询**：只加载当前顶栏模式、`listed` 且无密码、仍有人在座的房；过期座位按 `last_seen` 定向回收，不把全部房间扫进内存

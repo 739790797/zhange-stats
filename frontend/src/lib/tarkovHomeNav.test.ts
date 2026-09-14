@@ -161,7 +161,22 @@ describe("filterHomeSearch", () => {
     ).toBe(true);
   });
 
+  it("finds profile inside 个人中心", () => {
+    expect(
+      filterHomeSearch("个人资料", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(
+      filterHomeSearch("商人好感", index).some((h) => h.id === "me"),
+    ).toBe(true);
+    expect(filterHomeSearch("蓝边", index).some((h) => h.id === "me")).toBe(
+      true,
+    );
+  });
+
   it("finds key packs inside 个人中心", () => {
+    expect(
+      filterHomeSearch("钥匙分类", index).some((h) => h.id === "key-packs"),
+    ).toBe(true);
     expect(
       filterHomeSearch("钥匙分类", index).some((h) => h.id === "me"),
     ).toBe(true);
@@ -186,6 +201,9 @@ describe("filterHomeSearch", () => {
   });
 
   it("finds hideout inside 个人中心", () => {
+    expect(
+      filterHomeSearch("藏身处", index).some((h) => h.id === "hideout"),
+    ).toBe(true);
     expect(
       filterHomeSearch("藏身处", index).some((h) => h.id === "me"),
     ).toBe(true);
@@ -423,7 +441,8 @@ describe("tarkovMapMarkByName", () => {
 
 describe("TARKOV_HOME_ITEMS", () => {
   it("uses handbook roots on the home grid and top-nav", () => {
-    expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.id)).toEqual(["handbook"]);
+    expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.id)).toEqual(["kit", "loot"]);
+    expect(TARKOV_HOME_ITEM_GROUPS.map((g) => g.label)).toEqual(["装具", "物资"]);
     expect(TARKOV_HOME_ITEMS.map((i) => i.id)).toEqual([
       "battle-pass",
       "quest-items",
@@ -440,9 +459,30 @@ describe("TARKOV_HOME_ITEMS", () => {
       "gear",
       "barter",
     ]);
-    expect(TARKOV_ITEM_MENU_GROUPS.flatMap((g) => g.items.map((i) => i.id))).toEqual(
-      TARKOV_HOME_ITEMS.map((i) => i.id),
+    const menuIds = TARKOV_ITEM_MENU_GROUPS.flatMap((g) => g.items.map((i) => i.id));
+    const homeGroupIds = TARKOV_HOME_ITEM_GROUPS.flatMap((g) =>
+      g.items.map((i) => i.id),
     );
+    expect([...menuIds].sort()).toEqual([...TARKOV_HOME_ITEMS.map((i) => i.id)].sort());
+    expect(homeGroupIds).toEqual(menuIds);
+    expect(TARKOV_ITEM_MENU_GROUPS[0]?.items.map((i) => i.id)).toEqual([
+      "guns",
+      "ammo",
+      "weapon-mods",
+      "gear",
+      "special-equipment",
+      "meds",
+      "provisions",
+    ]);
+    expect(TARKOV_ITEM_MENU_GROUPS[1]?.items.map((i) => i.id)).toEqual([
+      "keys",
+      "maps",
+      "info-items",
+      "quest-items",
+      "money",
+      "battle-pass",
+      "barter",
+    ]);
   });
 
   it("uses handbook category icons", () => {
@@ -599,7 +639,6 @@ describe("TARKOV_TOOLS", () => {
       href: "/guides/tarkov",
       status: "ready",
     });
-    expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("key-packs");
     expect(TARKOV_TOOLS.map((item) => item.id)).not.toContain("game-logs");
     expect(TARKOV_TOOLS[0]).toMatchObject({
       id: "ammo-chart",
@@ -613,6 +652,18 @@ describe("TARKOV_TOOLS", () => {
       status: "ready",
     });
     expect(TARKOV_TOOLS[1]).toMatchObject({
+      id: "hideout",
+      label: "藏身处",
+      href: "/guides/tarkov/hideout",
+      status: "ready",
+    });
+    expect(TARKOV_TOOLS[2]).toMatchObject({
+      id: "key-packs",
+      label: "钥匙分类",
+      href: "/guides/tarkov/key-packs",
+      status: "ready",
+    });
+    expect(TARKOV_TOOLS[3]).toMatchObject({
       id: "workbench",
       label: "枪械工作台",
       href: "/guides/tarkov/workbench",
@@ -620,6 +671,8 @@ describe("TARKOV_TOOLS", () => {
     });
     expect(TARKOV_TOOLS.map((item) => item.id)).toEqual([
       "ammo-chart",
+      "hideout",
+      "key-packs",
       "workbench",
     ]);
   });
@@ -642,11 +695,11 @@ describe("tarkovPageTitle", () => {
       "地图信息",
     );
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
-    expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("个人中心");
+    expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
     expect(tarkovPageTitle("/guides/tarkov/workbench")).toBe("枪械工作台");
     expect(tarkovPageTitle("/guides/tarkov/workbench/abc")).toBe("枪械工作台");
     expect(tarkovPageTitle("/guides/tarkov/me")).toBe("个人中心");
-    expect(tarkovPageTitle("/guides/tarkov/key-packs")).toBe("个人中心");
+    expect(tarkovPageTitle("/guides/tarkov/key-packs")).toBe("钥匙分类");
     expect(tarkovPageTitle("/guides/tarkov/game-logs")).toBe("个人中心");
     expect(tarkovPageTitle("/guides/tarkov/collection")).toBe("个人中心");
   });
@@ -689,20 +742,22 @@ describe("tarkov me tabs", () => {
     expect(resolveTarkovMeTab("tasks")).toBe("tasks");
     expect(resolveTarkovMeTab("keys")).toBe("keys");
     expect(resolveTarkovMeTab("collection")).toBe("collection");
+    expect(resolveTarkovMeTab("profile")).toBe("profile");
     expect(resolveTarkovMeTab("hideout")).toBe("hideout");
     expect(resolveTarkovMeTab("logs")).toBe("logs");
     expect(resolveTarkovMeTab("nope")).toBe("tasks");
     expect(tarkovMeHref("logs")).toBe("/guides/tarkov/me?tab=logs");
     expect(tarkovMeHref("collection")).toBe("/guides/tarkov/me?tab=collection");
+    expect(tarkovMeHref("profile")).toBe("/guides/tarkov/me?tab=profile");
     expect(tarkovMeHref("hideout")).toBe("/guides/tarkov/me?tab=hideout");
-    expect(tarkovHideoutHref()).toBe("/guides/tarkov/me?tab=hideout");
+    expect(tarkovHideoutHref()).toBe("/guides/tarkov/hideout");
     expect(tarkovHideoutHref("workbench")).toBe(
-      "/guides/tarkov/me?tab=hideout&station=workbench",
+      "/guides/tarkov/hideout/workbench",
     );
     expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
     expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
     expect(tarkovKeyPackHref({ q: "Dorm 114", map: "customs" })).toBe(
-      "/guides/tarkov/me?tab=keys&map=customs&q=Dorm+114",
+      "/guides/tarkov/key-packs?map=customs&q=Dorm+114",
     );
   });
 });
@@ -713,5 +768,9 @@ describe("TARKOV_ITEM_MENU_GROUPS", () => {
     expect(links.every((l) => l.status === "ready")).toBe(true);
     const hrefs = links.map((l) => l.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("does not reuse 物品 or 装备 as column headers", () => {
+    expect(TARKOV_ITEM_MENU_GROUPS.map((g) => g.label)).toEqual(["装具", "物资"]);
   });
 });

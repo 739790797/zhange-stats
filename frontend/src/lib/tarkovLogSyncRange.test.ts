@@ -3,12 +3,14 @@ import type { TarkovLogSessionStub } from "./tarkovGameLogs";
 import {
   defaultLogSyncRange,
   filterSessionStubsByRange,
+  formatCrossWipeHint,
   formatLogSyncRangeDays,
   formatLogSyncSessionCount,
   rangeStartsBeforeCurrentWipe,
   resolveLogSyncRange,
   sessionStartedAtInRange,
   sessionStubDateBounds,
+  wipesTouchedBySessions,
 } from "./tarkovLogSyncRange";
 import type { TarkovWipeStart } from "./tarkovWipeLength";
 
@@ -22,10 +24,11 @@ function stub(folder: string, startedAt: string | null): TarkovLogSessionStub {
 }
 
 describe("defaultLogSyncRange", () => {
-  it("defaults to the current wipe start in Beijing through end of today", () => {
+  it("defaults to every session from the earliest wipe through end of today", () => {
     const now = new Date("2026-09-05T12:00:00+08:00");
     expect(defaultLogSyncRange(now, WIPES)).toEqual({
-      from: "2025-11-15 17:00:00",
+      all: true,
+      from: "2025-07-09 15:00:00",
       to: "2026-09-05 23:59:59",
     });
   });
@@ -33,6 +36,21 @@ describe("defaultLogSyncRange", () => {
 
 describe("resolveLogSyncRange", () => {
   const now = new Date("2026-09-05T12:00:00+08:00");
+
+  it("uses all sessions as the default preset", () => {
+    expect(resolveLogSyncRange({ preset: "all" }, now, WIPES)).toEqual({
+      all: true,
+      from: "2025-07-09 15:00:00",
+      to: "2026-09-05 23:59:59",
+    });
+  });
+
+  it("keeps the current wipe as an explicit preset", () => {
+    expect(resolveLogSyncRange({ preset: "wipe" }, now, WIPES)).toEqual({
+      from: "2025-11-15 17:00:00",
+      to: "2026-09-05 23:59:59",
+    });
+  });
 
   it("uses seven inclusive Beijing calendar days", () => {
     expect(resolveLogSyncRange({ preset: "7d" }, now, WIPES)).toEqual({
@@ -91,6 +109,20 @@ describe("filterSessionStubsByRange", () => {
     ).toEqual(["log_2025.11.15_17-00-00", "log_2026.08.30_23-50-00"]);
   });
 
+  it("keeps undated folders when the range is all", () => {
+    const stubs = [
+      stub("log_unknown", null),
+      stub("log_2025.07.01_10-00-00", "2025-07-01 10:00:00"),
+    ];
+    expect(
+      filterSessionStubsByRange(stubs, {
+        all: true,
+        from: "2017-01-01 00:00:00",
+        to: "2026-09-05 23:59:59",
+      }).map((row) => row.folder),
+    ).toEqual(["log_unknown", "log_2025.07.01_10-00-00"]);
+  });
+
   it("treats the range as inclusive on both ends", () => {
     expect(sessionStartedAtInRange("2025-11-15 17:00:00", range)).toBe(true);
     expect(sessionStartedAtInRange("2026-09-05 23:59:59", range)).toBe(true);
@@ -138,5 +170,27 @@ describe("formatLogSyncSessionCount", () => {
       from: "2025-11-15 17:00:00",
       to: "2026-09-05 23:59:59",
     })).toBe("2025-11-15 ～ 2026-09-05");
+    expect(formatLogSyncRangeDays({
+      all: true,
+      from: "2017-01-01 00:00:00",
+      to: "2026-09-05 23:59:59",
+    })).toBe("全部");
+  });
+});
+
+describe("wipesTouchedBySessions", () => {
+  it("names every wipe that has a dated session", () => {
+    const wipes = wipesTouchedBySessions(
+      [
+        stub("old", "2025-07-10 12:00:00"),
+        stub("now", "2026-01-02 08:00:00"),
+        stub("skip", null),
+      ],
+      WIPES,
+    );
+    expect(wipes.map((row) => row.name)).toEqual(["0.16.8.0", "1.0.0.0"]);
+    expect(formatCrossWipeHint(wipes)).toContain("0.16.8.0");
+    expect(formatCrossWipeHint(wipes)).toContain("1.0.0.0");
+    expect(formatCrossWipeHint(wipes.slice(0, 1))).toBe("");
   });
 });

@@ -90,6 +90,7 @@ import {
   commitTaskObjective,
   commitTaskStatus,
   loadTaskDoneIds,
+  loadTaskFailedIds,
   loadTaskStartedIds,
   resolveAccountTaskProgress,
   taskProgressQueryData,
@@ -140,6 +141,7 @@ import { TarkovRaidSessionMap } from "@/components/guides/tarkov/TarkovRaidSessi
 import { TarkovRaidWorkspace } from "@/components/guides/tarkov/TarkovRaidWorkspace";
 import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
+import { TarkovLoginPrompt } from "@/components/guides/tarkov/TarkovLoginPrompt";
 import type { TarkovMapFocusRequest } from "@/components/guides/tarkov/TarkovMapViewer";
 import { useAuthStore } from "@/stores/authStore";
 import catalogCss from "./TarkovItemCatalogPanel.module.css";
@@ -466,6 +468,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     queryKey: ["guides-tarkov-task-dones", gameMode],
     queryFn: fetchTarkovTaskDones,
     staleTime: 30_000,
+    enabled: Boolean(me),
   });
   const stateQuery = useQuery({
     queryKey: ["guides-tarkov-raid-prep-state", gameMode, mapId],
@@ -717,10 +720,16 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       const next = commitTaskStatus(gameMode, taskId, status, fillIds);
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(next.done, next.started, next.objectives),
+        taskProgressQueryData(
+          next.done,
+          next.started,
+          next.objectives,
+          next.failed,
+        ),
       );
       void writeTarkovTaskDones(next.done, {
         startedIds: next.started,
+        failedIds: next.failed,
         objectiveDones: next.objectives,
       }).catch(() => {});
     },
@@ -1121,6 +1130,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         : {
             done: loadTaskDoneIds(gameMode),
             started: loadTaskStartedIds(gameMode),
+            failed: loadTaskFailedIds(gameMode),
             objectives: pairs,
           };
       queryClient.setQueryData(
@@ -1129,11 +1139,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           progress.done,
           progress.started,
           progress.objectives,
+          progress.failed,
         ),
       );
       const applyServer = (data: {
         task_ids?: string[];
         started_ids?: string[];
+        failed_ids?: string[];
         objective_dones?: typeof pairs;
       }) => {
         if (seq !== objToggleSeqRef.current) return;
@@ -1143,6 +1155,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             data.task_ids || loadTaskDoneIds(gameMode),
             data.started_ids || loadTaskStartedIds(gameMode),
             data.objective_dones || pairs,
+            data.failed_ids || loadTaskFailedIds(gameMode),
           ),
         );
       };
@@ -1512,6 +1525,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               showIcon
               message="你还不是房间成员"
               description={
+                token ? (
                 <div className={styles.joinGate}>
                   {room.has_password ? (
                     <Input.Password
@@ -1534,6 +1548,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     {joinMut.isPending ? "加入中…" : "加入房间"}
                   </button>
                 </div>
+                ) : (
+                  <TarkovLoginPrompt feature="加入房间后才能看棋盘、认领任务和标点" />
+                )
               }
             />
           ) : null}

@@ -19,6 +19,7 @@ alwaysApply: false
 - `AdminRoute` 走 `isAdminUser`：只信 `role === admin`（与后端 `User.is_admin_user` 一致）；API 的 `is_admin` 是派生字段，仅旧缓存缺 `role` 时回退
 - `PlatformRoute` 受 `platform_features` 控制；未登录可读的页用 `allowGuest`，避免去打需登录的 `/platform-features/effective`
 - 战鸽酒馆列表/详情走 `AppLayout`（与工作台同一套侧栏 / 移动端顶栏）；`/` 重定向到 `/tavern`，与 `/tavern/:slug` 同在 `PrivateRoute` 外以便未登录可读。写文章 `/tavern/write` 须登录作者；`/tavern/admin` 酒馆管理在社区组、仅管理员
+- 逃离塔科夫整棵 `/guides/tarkov` 在 `PrivateRoute` 外，`TarkovGuidesOutlet` 用 `allowGuest`；图鉴/百科/工作台计算/大厅预览未登录可读，个人中心与开房入座用壳内登录卡。Minecraft 仍须登录。关功能靠 API `require_feature` 403，不要给访客开一份完整 effective 接口
 
 ## 数据与 UI
 

@@ -18,6 +18,17 @@
 | [`.cursor/rules/db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | 已有：Alembic |
 | [`.cursor/rules/testing.mdc`](../.cursor/rules/testing.mdc) | 自测分层 / 补测门槛（2026-08-25） |
 
+## 落地收口
+
+原始正文从第 1 节起保留备查，**不要当现行规范或待办**。下列「第二期 / 待确认」已按推荐项落地：
+
+- 未单写 `.cursor/rules/security-ops.mdc`：安全约定在架构索引 + [`docs/security.md`](security.md)
+- `frontend/src/api/generated/README.md` 已改为 OpenAPI 契约源
+- 遗留 `apiError` 手拆已清（2026-08-05）
+- Cookie + CSRF 已于 [`hardening-roadmap.md`](hardening-roadmap.md) 8 期落地（原文「未做 CSRF」作废）
+
+第 11 节决策点落地时均选推荐项：仅架构索引 `alwaysApply`；`frontend-api-errors` 独立文件；改 generated README；顺手清一轮 apiError。
+
 以下为原始方案正文（归档备查）。
 
 ---
@@ -284,7 +295,7 @@ Cursor 对 alwaysApply 过载会稀释注意力。本方案建议：
 
 ---
 
-## 11. 待你确认的决策点
+## 11. 待你确认的决策点（落地前问卷，已全部按推荐项执行）
 
 落地前请拍板（默认推荐已标出）：
 

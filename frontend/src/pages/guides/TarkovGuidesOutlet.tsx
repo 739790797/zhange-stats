@@ -9,7 +9,7 @@ import { TarkovGuideShell } from "@/components/guides/tarkov/TarkovGuideShell";
 export default function TarkovGuidesOutlet() {
   const { pathname } = useLocation();
   return (
-    <PlatformRoute featureId="guides.tarkov">
+    <PlatformRoute featureId="guides.tarkov" allowGuest>
       <TarkovGuideShell>
         <Suspense fallback={<RouteFallback />}>
           <RouteErrorBoundary resetKey={pathname}>

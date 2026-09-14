@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTarkovRaidRoom, joinTarkovRaidRoom } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import {
-  TARKOV_HOME_PATH,
   TARKOV_RAID_PREP_PATH,
   tarkovRaidRoomHref,
 } from "@/lib/tarkovHomeNav";
@@ -25,6 +24,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { TarkovRaidSeatBoard } from "@/components/guides/tarkov/TarkovRaidSeatBoard";
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
+import { TarkovLoginPrompt } from "@/components/guides/tarkov/TarkovLoginPrompt";
 import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
 import mapStyles from "./TarkovMapsPanel.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
@@ -150,13 +150,6 @@ export function TarkovRaidPrepEntryModal({
     setPassword("");
   }, [open, stepProp, displayName]);
 
-  const requireAuth = () => {
-    onClose();
-    navigate("/login", {
-      state: { from: { pathname: TARKOV_HOME_PATH } },
-    });
-  };
-
   const pickSolo = (mapId: string) => {
     if (onSoloMap) {
       onSoloMap(mapId);
@@ -220,14 +213,11 @@ export function TarkovRaidPrepEntryModal({
       classNames={{ body: styles.entryModalBody }}
     >
       {step === "create" ? (
+        loggedIn ? (
         <form
           className={styles.entryCreate}
           onSubmit={(event) => {
             event.preventDefault();
-            if (!loggedIn) {
-              requireAuth();
-              return;
-            }
             if (createBlocked) return;
             createMut.mutate();
           }}
@@ -300,6 +290,9 @@ export function TarkovRaidPrepEntryModal({
             {createMut.isPending ? "创建中…" : "创建房间"}
           </button>
         </form>
+        ) : (
+          <TarkovLoginPrompt feature="创建联机房间" />
+        )
       ) : null}
 
       {step === "solo" ? (
@@ -313,14 +306,11 @@ export function TarkovRaidPrepEntryModal({
 
       {step === "join" ? (
         <div className={styles.lobby}>
+          {loggedIn ? (
           <form
             className={styles.joinForm}
             onSubmit={(event) => {
               event.preventDefault();
-              if (!loggedIn) {
-                requireAuth();
-                return;
-              }
               const parsed = parseRaidRoomPublicId(joinText, gameMode);
               if (!parsed) {
                 setJoinError("填写房间码或粘贴房间链接");
@@ -348,12 +338,14 @@ export function TarkovRaidPrepEntryModal({
               {joinByCodeMut.isPending ? "加入中…" : "加入"}
             </button>
           </form>
+          ) : (
+            <TarkovLoginPrompt feature="用房间码加入" />
+          )}
           {joinError ? (
             <Alert type="error" showIcon message={joinError} />
           ) : null}
           <TarkovRaidSeatBoard
             onEntered={onClose}
-            loginFrom={TARKOV_HOME_PATH}
           />
         </div>
       ) : null}

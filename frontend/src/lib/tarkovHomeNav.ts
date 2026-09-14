@@ -148,6 +148,7 @@ export const TARKOV_COLLECTION_PATH = "/guides/tarkov/collection";
 export const TARKOV_ME_PATH = "/guides/tarkov/me";
 
 export const TARKOV_ME_TAB_IDS = [
+  "profile",
   "tasks",
   "keys",
   "collection",
@@ -159,6 +160,7 @@ export type TarkovMeTabId = (typeof TARKOV_ME_TAB_IDS)[number];
 export function resolveTarkovMeTab(raw: string | null | undefined): TarkovMeTabId {
   const key = (raw || "").trim();
   if (
+    key === "profile" ||
     key === "logs" ||
     key === "keys" ||
     key === "tasks" ||
@@ -179,12 +181,12 @@ export function tarkovKeyPackHref(opts?: {
   map?: string;
 }): string {
   const params = new URLSearchParams();
-  params.set("tab", "keys");
   const map = (opts?.map || "").trim();
   const q = (opts?.q || "").trim();
   if (map) params.set("map", map);
   if (q) params.set("q", q);
-  return `${TARKOV_ME_PATH}?${params.toString()}`;
+  const query = params.toString();
+  return query ? `${TARKOV_KEY_PACKS_PATH}?${query}` : TARKOV_KEY_PACKS_PATH;
 }
 const PROGRESSION_HREF = "/guides/tarkov/progression";
 export const TARKOV_TASKS_PATH = "/guides/tarkov/tasks";
@@ -207,11 +209,9 @@ export function tarkovMapHref(id: string): string {
 }
 
 export function tarkovHideoutHref(slug?: string): string {
-  const params = new URLSearchParams();
-  params.set("tab", "hideout");
   const key = (slug || "").trim();
-  if (key) params.set("station", key);
-  return `${TARKOV_ME_PATH}?${params.toString()}`;
+  if (!key) return TARKOV_HIDEOUT_PATH;
+  return `${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(key)}`;
 }
 
 export function tarkovWorkbenchHref(
@@ -778,7 +778,7 @@ export const TARKOV_PROGRESSION: TarkovHomeLink[] = [
   { id: "prestige", label: "声望", href: PROGRESSION_HREF, status: "soon" },
 ];
 
-/** 塔科夫个人中心：任务 / 钥匙 / 3×4收集 / 藏身处 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
+/** 塔科夫个人中心：个人资料 / 任务 / 钥匙 / 3×4收集 / 藏身处 / 日志路径（搜索仍收录；工具栏走顶栏入口）。 */
 export const TARKOV_ME_NAV: TarkovHomeLink = {
   id: "me",
   label: "个人中心",
@@ -786,6 +786,15 @@ export const TARKOV_ME_NAV: TarkovHomeLink = {
   status: "ready",
   icon: "◎",
   keywords: [
+    "个人资料",
+    "商人好感",
+    "角色等级",
+    "白边",
+    "蓝边",
+    "阵营",
+    "USEC",
+    "BEAR",
+    "EOD",
     "任务管理",
     "任务树",
     "任务进度",
@@ -837,6 +846,22 @@ export const TARKOV_TOOLS: TarkovHomeLink[] = [
     keywords: ["弹药对照", "穿透", "散点", "ammo", "筛选"],
   },
   {
+    id: "hideout",
+    label: "藏身处",
+    href: TARKOV_HIDEOUT_PATH,
+    status: "ready",
+    icon: "⌂",
+    keywords: ["藏身处", "hideout", "模块", "升级", "图鉴"],
+  },
+  {
+    id: "key-packs",
+    label: "钥匙分类",
+    href: TARKOV_KEY_PACKS_PATH,
+    status: "ready",
+    icon: "⚿",
+    keywords: ["钥匙分类", "钥匙用途", "开哪扇门", "任务钥匙", "门锁", "打包"],
+  },
+  {
     id: "workbench",
     label: "枪械工作台",
     href: TARKOV_WORKBENCH_PATH,
@@ -868,17 +893,53 @@ function handbookNavLink(root: TarkovHandbookRoot): TarkovHomeLink {
   };
 }
 
-/** 顶栏物品下拉：游戏手册一级（与首页物品格同一套）。 */
+function handbookRootsBySlug(slugs: readonly string[]): TarkovHandbookRoot[] {
+  return slugs.map((slug) => {
+    const root = TARKOV_HANDBOOK_ROOTS.find((item) => item.slug === slug);
+    if (!root) {
+      throw new Error(`missing handbook root: ${slug}`);
+    }
+    return root;
+  });
+}
+
+/**
+ * 顶栏下拉分组（不是游戏手册顺序对半切）。
+ * 装具：进局穿戴/射击/消耗；物资：搜刮、任务、交换。避免栏目名「物品」和大类「装备」撞名。
+ */
+export const TARKOV_ITEM_MENU_KIT_SLUGS = [
+  "guns",
+  "ammo",
+  "weapon-mods",
+  "gear",
+  "special-equipment",
+  "meds",
+  "provisions",
+] as const;
+
+export const TARKOV_ITEM_MENU_LOOT_SLUGS = [
+  "keys",
+  "maps",
+  "info-items",
+  "quest-items",
+  "money",
+  "battle-pass",
+  "barter",
+] as const;
+
+/** 顶栏物品下拉：与首页物品分区同一套一级入口。 */
 export const TARKOV_ITEM_MENU_GROUPS: TarkovHomeGroup[] = [
   {
-    id: "handbook-items",
-    label: "物品",
-    items: TARKOV_HANDBOOK_ROOTS.slice(0, 7).map(handbookNavLink),
+    id: "kit",
+    label: "装具",
+    en: "Loadout",
+    items: handbookRootsBySlug(TARKOV_ITEM_MENU_KIT_SLUGS).map(handbookNavLink),
   },
   {
-    id: "handbook-gear",
-    label: "装备",
-    items: TARKOV_HANDBOOK_ROOTS.slice(7).map(handbookNavLink),
+    id: "loot",
+    label: "物资",
+    en: "Loot",
+    items: handbookRootsBySlug(TARKOV_ITEM_MENU_LOOT_SLUGS).map(handbookNavLink),
   },
 ];
 
@@ -1006,12 +1067,28 @@ export const TARKOV_HOME_ITEMS: TarkovItemCard[] = TARKOV_HANDBOOK_ROOTS.map(
   },
 );
 
+function homeItemsBySlugs(slugs: readonly string[]): TarkovItemCard[] {
+  return slugs.map((slug) => {
+    const item = TARKOV_HOME_ITEMS.find((card) => card.id === slug);
+    if (!item) {
+      throw new Error(`missing handbook card: ${slug}`);
+    }
+    return item;
+  });
+}
+
 export const TARKOV_HOME_ITEM_GROUPS: TarkovHomeItemGroup[] = [
   {
-    id: "handbook",
-    label: "物品",
-    en: "Items",
-    items: TARKOV_HOME_ITEMS,
+    id: "kit",
+    label: "装具",
+    en: "Loadout",
+    items: homeItemsBySlugs(TARKOV_ITEM_MENU_KIT_SLUGS),
+  },
+  {
+    id: "loot",
+    label: "物资",
+    en: "Loot",
+    items: homeItemsBySlugs(TARKOV_ITEM_MENU_LOOT_SLUGS),
   },
 ];
 
@@ -1200,10 +1277,10 @@ export function tarkovPageTitle(pathname: string, search = ""): string {
   if (path.startsWith("/guides/tarkov/traders")) return "商人";
   if (path.startsWith("/guides/tarkov/bosses")) return "BOSS";
   if (path.startsWith("/guides/tarkov/maps")) return "地图";
-  if (path.startsWith("/guides/tarkov/hideout")) return "个人中心";
+  if (path.startsWith("/guides/tarkov/hideout")) return "藏身处";
   if (path.startsWith(TARKOV_WORKBENCH_PATH)) return "枪械工作台";
   if (path.startsWith(TARKOV_ME_PATH)) return "个人中心";
-  if (path.startsWith(TARKOV_KEY_PACKS_PATH)) return "个人中心";
+  if (path.startsWith(TARKOV_KEY_PACKS_PATH)) return "钥匙分类";
   if (path.startsWith(TARKOV_GAME_LOGS_PATH)) return "个人中心";
   if (path.startsWith(TARKOV_COLLECTION_PATH)) return "个人中心";
   if (path.startsWith("/guides/tarkov/progression")) return "进度";

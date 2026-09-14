@@ -8,7 +8,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
-import { TARKOV_HOME_PATH, tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
+import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
 import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
 import { colorForUserId, raidPrepMapOptions } from "@/lib/tarkovRaidPrep";
 import { raidRoomIsFull } from "@/lib/tarkovRaidRooms";
@@ -40,12 +40,10 @@ function SeatThumb({ slug }: { slug: string }) {
 
 type Props = {
   onEntered?: () => void;
-  loginFrom?: string;
 };
 
 export function TarkovRaidSeatBoard({
   onEntered,
-  loginFrom = TARKOV_HOME_PATH,
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -76,8 +74,7 @@ export function TarkovRaidSeatBoard({
       });
       return data;
     },
-    enabled: loggedIn,
-    refetchInterval: loggedIn ? visibleRefetchInterval(15_000, hidden) : false,
+    refetchInterval: visibleRefetchInterval(15_000, hidden),
     retry: 1,
   });
 
@@ -107,19 +104,8 @@ export function TarkovRaidSeatBoard({
     navigate(tarkovRaidRoomHref(publicId));
   };
 
-  const requireAuth = () => {
-    onEntered?.();
-    navigate("/login", {
-      state: { from: { pathname: loginFrom } },
-    });
-  };
-
   const clickRoom = (room: TarkovRaidRoomLobbyItem) => {
-    if (!loggedIn) {
-      requireAuth();
-      return;
-    }
-    if (room.is_member) {
+    if (!loggedIn || room.is_member) {
       enterRoom(room.public_id);
       return;
     }
@@ -136,11 +122,8 @@ export function TarkovRaidSeatBoard({
           {apiError(roomsQuery.error, "房间列表加载失败")}
         </p>
       ) : null}
-      {!roomsQuery.isLoading && loggedIn && items.length === 0 ? (
+      {!roomsQuery.isLoading && items.length === 0 ? (
         <p className={styles.empty}>暂无公开房间，用房间码加入或自己创建一个</p>
-      ) : null}
-      {!loggedIn ? (
-        <p className={styles.empty}>登录后可查看公开房间</p>
       ) : null}
       <div className={styles.list}>
         {items.map((room) => {
@@ -194,7 +177,7 @@ export function TarkovRaidSeatBoard({
           );
         })}
       </div>
-      {loggedIn && total > pageSize ? (
+      {total > pageSize ? (
         <div className={styles.pager}>
           <button
             type="button"

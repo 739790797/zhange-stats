@@ -493,6 +493,7 @@ def project_task_summary(
         "name_en": str(raw.get("nameEnglish") or raw.get("name_en") or ""),
         "objective_count": len(objectives),
         "objective_types": unique_objective_types(objectives),
+        "restartable": _as_bool(raw.get("restartable")),
     }
 
 

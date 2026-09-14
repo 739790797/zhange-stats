@@ -81,6 +81,8 @@ describe("session folder names", () => {
         "2026.08.31_19-08-07_1.1.0.1.46911 push-notifications_000.log",
       ),
     ).toBe(true);
+    expect(isNotificationsLogFileName("notifications_001.log")).toBe(true);
+    expect(isApplicationLogFileName("application_002.log")).toBe(true);
     expect(isReadableTarkovLogFileName("output.log")).toBe(false);
   });
 });

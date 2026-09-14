@@ -25,7 +25,64 @@ URL_KEY_MAX = 256
 HOST_MAX = 128
 PAGE_MAX = 256
 SUMMARY_ROW_LIMIT = 200
+SUMMARY_ROW_LIMIT_PER_BIZ = 24
 KEEP_DAYS = 14
+
+# 与侧栏业务对齐：游戏 / 平台 / 社区 / 我的 / 管理
+RUM_BIZ_LABELS: dict[str, str] = {
+    "tarkov": "逃离塔科夫",
+    "minecraft": "Minecraft",
+    "steam": "Steam",
+    "skland": "森空岛",
+    "taygedo": "塔吉多",
+    "kujiequ": "库街区",
+    "mihoyo": "米游社",
+    "exilium": "追放",
+    "tavern": "战鸽酒馆",
+    "daily": "我的日常",
+    "account": "账号与资料",
+    "site": "站点与运维",
+    "other": "其他",
+}
+
+_API_BIZ_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("guides/tarkov", "tarkov"),
+    ("guides/minecraft", "minecraft"),
+    ("profile/steam", "steam"),
+    ("profile/daily-tasks", "daily"),
+    ("profile/daily-task-logs", "daily"),
+    ("steam", "steam"),
+    ("skland", "skland"),
+    ("taygedo", "taygedo"),
+    ("kujiequ", "kujiequ"),
+    ("mihoyo", "mihoyo"),
+    ("exilium", "exilium"),
+    ("articles", "tavern"),
+    ("auth", "account"),
+    ("profile", "account"),
+    ("members", "account"),
+    ("users", "site"),
+    ("settings", "site"),
+    ("setup", "site"),
+    ("client-errors", "site"),
+    ("client-rum", "site"),
+)
+
+_IMG_HOST_MARKERS: tuple[tuple[str, str], ...] = (
+    ("tarkov.dev", "tarkov"),
+    ("tarkov-market.com", "tarkov"),
+    ("steamstatic.com", "steam"),
+    ("steamcommunity.com", "steam"),
+    ("steampowered.com", "steam"),
+    ("steamcdn", "steam"),
+    ("mihoyo.com", "mihoyo"),
+    ("miyoushe.com", "mihoyo"),
+    ("hoyoverse.com", "mihoyo"),
+    ("kurogame.com", "kujiequ"),
+    ("kurobbs.com", "kujiequ"),
+    ("skland.com", "skland"),
+    ("hypergryph.com", "skland"),
+)
 
 _UUID_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
@@ -129,6 +186,41 @@ def normalize_method(raw: str | None) -> str:
     if method not in HTTP_METHODS:
         return "GET"
     return method
+
+
+def rum_biz_label(biz: str) -> str:
+    key = (biz or "").strip() or "other"
+    return RUM_BIZ_LABELS.get(key, RUM_BIZ_LABELS["other"])
+
+
+def _path_has_prefix(path: str, prefix: str) -> bool:
+    return path == prefix or path.startswith(prefix + "/")
+
+
+def _api_path_rest(url_key: str) -> str:
+    text = (url_key or "").strip()
+    path = text.split(" ", 1)[-1] if text else ""
+    path = path.split("#", 1)[0].split("?", 1)[0]
+    if path.startswith("/api/"):
+        return path[5:].lstrip("/")
+    if path.startswith("/api"):
+        return path[4:].lstrip("/")
+    return path.lstrip("/")
+
+
+def classify_rum_biz(kind: str, url_key: str, host: str = "") -> str:
+    """把已归并的 url_key 映射到侧栏业务，供管理端分类。"""
+    if kind == KIND_IMG:
+        blob = f"{host} {url_key}".lower()
+        for marker, biz in _IMG_HOST_MARKERS:
+            if marker in blob:
+                return biz
+        return "other"
+    rest = _api_path_rest(url_key).lower()
+    for prefix, biz in _API_BIZ_PREFIXES:
+        if _path_has_prefix(rest, prefix):
+            return biz
+    return "other"
 
 
 def _as_duration_ms(value: Any) -> int | None:
@@ -244,6 +336,7 @@ class _Acc:
     transfer_sum: int = 0
     transfer_n: int = 0
     host: str = ""
+    biz: str = ""
 
 
 def _row_out(
@@ -252,13 +345,17 @@ def _row_out(
     host: str,
     acc: _Acc,
     kind: str,
+    biz: str = "",
 ) -> dict[str, Any]:
     durs = acc.durations
     count = len(durs)
     avg = int(round(sum(durs) / count)) if count else 0
+    biz_id = biz or classify_rum_biz(kind, url_key, host)
     out: dict[str, Any] = {
         "url_key": url_key,
         "host": host,
+        "biz": biz_id,
+        "biz_label": rum_biz_label(biz_id),
         "count": count,
         "avg_ms": avg,
         "p50_ms": percentile_nearest(durs, 0.50),
@@ -270,6 +367,22 @@ def _row_out(
         ),
     }
     return out
+
+
+def _biz_out(*, biz: str, acc: _Acc, kind: str) -> dict[str, Any]:
+    durs = acc.durations
+    count = len(durs)
+    avg = int(round(sum(durs) / count)) if count else 0
+    return {
+        "biz": biz,
+        "label": rum_biz_label(biz),
+        "count": count,
+        "avg_ms": avg,
+        "p50_ms": percentile_nearest(durs, 0.50),
+        "p95_ms": percentile_nearest(durs, 0.95),
+        "max_ms": max(durs) if durs else None,
+        "error_count": acc.errors if kind == KIND_API else 0,
+    }
 
 
 def rum_series_step(hours: int) -> timedelta:
@@ -297,6 +410,21 @@ def truncate_to_step(dt: datetime, step: timedelta) -> datetime:
     total_min = n.hour * 60 + n.minute
     aligned = (total_min // minute_step) * minute_step
     return n.replace(hour=aligned // 60, minute=aligned % 60, second=0, microsecond=0)
+
+
+def _as_naive_dt(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return to_naive(value)
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return to_naive(parsed)
 
 
 def _series_points(
@@ -355,36 +483,75 @@ def summarize_rum(
         .all()
     )
     groups: dict[tuple[str, str, str], _Acc] = defaultdict(_Acc)
+    biz_groups: dict[tuple[str, str], _Acc] = defaultdict(_Acc)
     buckets: dict[tuple[datetime, str], list[int]] = defaultdict(list)
     api_durs: list[int] = []
     img_durs: list[int] = []
     for kind, url_key, host, duration_ms, status_code, transfer_size, recorded_at in rows:
         dur = int(duration_ms)
-        key = (str(kind), str(url_key), str(host or ""))
+        kind_s = str(kind)
+        url_s = str(url_key)
+        host_s = str(host or "")
+        key = (kind_s, url_s, host_s)
         acc = groups[key]
         acc.durations.append(dur)
-        acc.host = str(host or "")
-        if isinstance(recorded_at, datetime):
-            buckets[(truncate_to_step(recorded_at, step), str(kind))].append(dur)
-        if kind == KIND_API:
+        acc.host = host_s
+        if not acc.biz:
+            acc.biz = classify_rum_biz(kind_s, url_s, host_s)
+        bacc = biz_groups[(kind_s, acc.biz)]
+        bacc.durations.append(dur)
+        at = _as_naive_dt(recorded_at)
+        if at is not None:
+            buckets[(truncate_to_step(at, step), kind_s)].append(dur)
+        if kind_s == KIND_API:
             api_durs.append(dur)
             code = int(status_code) if status_code is not None else 0
             if code == 0 or code >= 400:
                 acc.errors += 1
+                bacc.errors += 1
         else:
             img_durs.append(dur)
             if transfer_size:
-                acc.transfer_sum += int(transfer_size)
+                n = int(transfer_size)
+                acc.transfer_sum += n
                 acc.transfer_n += 1
+                bacc.transfer_sum += n
+                bacc.transfer_n += 1
+
+    per_biz = min(limit, SUMMARY_ROW_LIMIT_PER_BIZ)
 
     def _kind_rows(kind: str) -> list[dict[str, Any]]:
-        items: list[dict[str, Any]] = []
+        by_biz: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for (k, url_key, host), acc in groups.items():
             if k != kind:
                 continue
-            items.append(_row_out(url_key=url_key, host=host, acc=acc, kind=kind))
+            by_biz[acc.biz].append(
+                _row_out(
+                    url_key=url_key,
+                    host=host,
+                    acc=acc,
+                    kind=kind,
+                    biz=acc.biz,
+                )
+            )
+        items: list[dict[str, Any]] = []
+        for biz_rows in by_biz.values():
+            biz_rows.sort(
+                key=lambda r: (int(r["p95_ms"] or 0), int(r["count"])),
+                reverse=True,
+            )
+            items.extend(biz_rows[:per_biz])
         items.sort(key=lambda r: (int(r["p95_ms"] or 0), int(r["count"])), reverse=True)
-        return items[:limit]
+        return items
+
+    def _kind_biz(kind: str) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for (k, biz), acc in biz_groups.items():
+            if k != kind:
+                continue
+            items.append(_biz_out(biz=biz, acc=acc, kind=kind))
+        items.sort(key=lambda r: (int(r["p95_ms"] or 0), int(r["count"])), reverse=True)
+        return items
 
     return {
         "hours": hours,
@@ -399,6 +566,8 @@ def summarize_rum(
         "img_max_ms": max(img_durs) if img_durs else None,
         "api": _kind_rows(KIND_API),
         "img": _kind_rows(KIND_IMG),
+        "api_biz": _kind_biz(KIND_API),
+        "img_biz": _kind_biz(KIND_IMG),
         "series": _series_points(
             since=since, moment=moment, step=step, buckets=buckets
         ),

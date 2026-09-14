@@ -236,66 +236,6 @@ export default function App() {
                     </PlatformRoute>
                   }
                 />
-                <Route element={<PrivateRoute />}>
-                <Route
-                  path="/steam"
-                  element={
-                    <PlatformRoute featureId="steam">
-                      <SteamCalendarPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route path="/friends" element={<HomeRedirect />} />
-                <Route
-                  path="/skland"
-                  element={
-                    <PlatformRoute featureId="skland">
-                      <SklandPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route
-                  path="/taygedo"
-                  element={
-                    <PlatformRoute featureId="taygedo">
-                      <TaygedoPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route
-                  path="/exilium"
-                  element={
-                    <PlatformRoute featureId="exilium">
-                      <ExiliumPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route
-                  path="/kujiequ"
-                  element={
-                    <PlatformRoute featureId="kujiequ">
-                      <KujiequPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route
-                  path="/mihoyo"
-                  element={
-                    <PlatformRoute featureId="mihoyo">
-                      <MihoyoPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route path="/members" element={<HomeRedirect />} />
-                <Route
-                  path="/members/:id"
-                  element={
-                    <PlatformRoute featureId="steam">
-                      <MemberDetailPage />
-                    </PlatformRoute>
-                  }
-                />
-                <Route path="/daily" element={<MyDailyPage />} />
                 <Route path="/guides/tarkov" element={<TarkovGuidesOutlet />}>
                   <Route index element={<TarkovHomePage />} />
                   <Route path="items" element={<TarkovItemsHubPage />} />
@@ -315,7 +255,11 @@ export default function App() {
                   <Route path="raid-prep" element={<TarkovRaidPrepPage />} />
                   <Route
                     path="raid-prep/pulse-demo"
-                    element={<TarkovRaidPulseDemoPage />}
+                    element={
+                      <AdminPage>
+                        <TarkovRaidPulseDemoPage />
+                      </AdminPage>
+                    }
                   />
                   <Route
                     path="raid-prep/rooms/:publicId"
@@ -388,6 +332,66 @@ export default function App() {
                     element={<TarkovProgressionPage />}
                   />
                 </Route>
+                <Route element={<PrivateRoute />}>
+                <Route
+                  path="/steam"
+                  element={
+                    <PlatformRoute featureId="steam">
+                      <SteamCalendarPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route path="/friends" element={<HomeRedirect />} />
+                <Route
+                  path="/skland"
+                  element={
+                    <PlatformRoute featureId="skland">
+                      <SklandPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route
+                  path="/taygedo"
+                  element={
+                    <PlatformRoute featureId="taygedo">
+                      <TaygedoPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route
+                  path="/exilium"
+                  element={
+                    <PlatformRoute featureId="exilium">
+                      <ExiliumPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route
+                  path="/kujiequ"
+                  element={
+                    <PlatformRoute featureId="kujiequ">
+                      <KujiequPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route
+                  path="/mihoyo"
+                  element={
+                    <PlatformRoute featureId="mihoyo">
+                      <MihoyoPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route path="/members" element={<HomeRedirect />} />
+                <Route
+                  path="/members/:id"
+                  element={
+                    <PlatformRoute featureId="steam">
+                      <MemberDetailPage />
+                    </PlatformRoute>
+                  }
+                />
+                <Route path="/daily" element={<MyDailyPage />} />
                 <Route
                   path="/guides/minecraft"
                   element={
@@ -460,8 +464,8 @@ export default function App() {
                     element={<SystemUpdatePage />}
                   />
                 </Route>
-                <Route path="*" element={<NotFoundPage />} />
                 </Route>
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>
           </Suspense>

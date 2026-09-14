@@ -37,6 +37,7 @@ describe("isTarkovCatalogGet", () => {
     expect(isTarkovCatalogGet("get", "/guides/tarkov/hideout-levels")).toBe(
       false,
     );
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/profile")).toBe(false);
     expect(isTarkovCatalogGet("post", "/guides/tarkov/maps")).toBe(false);
   });
 });

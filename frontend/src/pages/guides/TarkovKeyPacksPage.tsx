@@ -1,9 +1,10 @@
-import { Navigate, useSearchParams } from "react-router-dom";
-import { TARKOV_ME_PATH } from "@/lib/tarkovHomeNav";
+import { TarkovKeyPacksPanel } from "@/components/guides/tarkov/TarkovKeyPacksPanel";
+import { TarkovItemsPageShell } from "@/components/guides/tarkov/TarkovItemsPageShell";
 
 export default function TarkovKeyPacksPage() {
-  const [params] = useSearchParams();
-  const next = new URLSearchParams(params);
-  next.set("tab", "keys");
-  return <Navigate to={`${TARKOV_ME_PATH}?${next.toString()}`} replace />;
+  return (
+    <TarkovItemsPageShell crumbs={[]} sectionLabel="钥匙分类" title="钥匙分类">
+      <TarkovKeyPacksPanel wiki />
+    </TarkovItemsPageShell>
+  );
 }

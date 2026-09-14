@@ -358,86 +358,85 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
         </div>
       </header>
 
-      <div className={styles.stats}>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>商人</div>
-          <div className={styles.statValueRow}>
-            {detail.trader_slug ? (
-              <span className={styles.statAvatar}>
-                <TarkovTraderThumb
-                  slug={detail.trader_slug}
-                  size={28}
-                  title={traderEnglish}
-                />
-              </span>
-            ) : null}
-            <div className={styles.statCopy}>
-              {traderHref ? (
-                <Link className={styles.statNameLink} to={traderHref}>
-                  {traderEnglish || "—"}
-                </Link>
-              ) : (
-                <span className={styles.statValue}>{traderEnglish || "—"}</span>
-              )}
-              {traderSub ? <div className={styles.statSub}>{traderSub}</div> : null}
-            </div>
-          </div>
-        </div>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>地图</div>
-          {mapMark ? (
-            <Link
-              className={styles.mapTile}
-              to={mapLink}
-              title={
-                mapMark.english
-                  ? `${mapMark.label}（${mapMark.english}）`
-                  : mapMark.label
-              }
-            >
-              {mapMark.icon ? (
-                <svg
-                  className={styles.mapTileIcon}
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  aria-hidden
-                >
-                  <path d={mapMark.icon} fill="currentColor" />
-                </svg>
-              ) : null}
-              <span className={styles.mapTileName}>{mapMark.label}</span>
-            </Link>
-          ) : (
-            <div className={styles.statValue}>—</div>
-          )}
-        </div>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>任务类型</div>
-          {typeKeys.length ? (
-            <div className={taskStyles.typeList}>
-              {typeKeys.map((type) => (
-                <span
-                  key={type}
-                  className={taskStyles.typeChip}
-                  data-tone={tarkovObjectiveTypeTone(type)}
-                >
-                  {tarkovObjectiveTypeLabel(type)}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <div className={styles.statValue}>—</div>
-          )}
-        </div>
-        <div className={styles.statCard}>
-          <div className={styles.statLabel}>阵营</div>
-          <div className={styles.statValue}>{factionLabel}</div>
-        </div>
-      </div>
-
       <div className={styles.body}>
         <div className={styles.mainCol}>
+          <div className={styles.stats}>
+            <div className={styles.statCard}>
+              <div className={styles.statLabel}>商人</div>
+              <div className={styles.statValueRow}>
+                {detail.trader_slug ? (
+                  <span className={styles.statAvatar}>
+                    <TarkovTraderThumb
+                      slug={detail.trader_slug}
+                      size={28}
+                      title={traderEnglish}
+                    />
+                  </span>
+                ) : null}
+                <div className={styles.statCopy}>
+                  {traderHref ? (
+                    <Link className={styles.statNameLink} to={traderHref}>
+                      {traderEnglish || "—"}
+                    </Link>
+                  ) : (
+                    <span className={styles.statValue}>{traderEnglish || "—"}</span>
+                  )}
+                  {traderSub ? <div className={styles.statSub}>{traderSub}</div> : null}
+                </div>
+              </div>
+            </div>
+            <div className={styles.statCard}>
+              <div className={styles.statLabel}>地图</div>
+              {mapMark ? (
+                <Link
+                  className={styles.mapTile}
+                  to={mapLink}
+                  title={
+                    mapMark.english
+                      ? `${mapMark.label}（${mapMark.english}）`
+                      : mapMark.label
+                  }
+                >
+                  {mapMark.icon ? (
+                    <svg
+                      className={styles.mapTileIcon}
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                      aria-hidden
+                    >
+                      <path d={mapMark.icon} fill="currentColor" />
+                    </svg>
+                  ) : null}
+                  <span className={styles.mapTileName}>{mapMark.label}</span>
+                </Link>
+              ) : (
+                <div className={styles.statValue}>—</div>
+              )}
+            </div>
+            <div className={styles.statCard}>
+              <div className={styles.statLabel}>任务类型</div>
+              {typeKeys.length ? (
+                <div className={taskStyles.typeList}>
+                  {typeKeys.map((type) => (
+                    <span
+                      key={type}
+                      className={taskStyles.typeChip}
+                      data-tone={tarkovObjectiveTypeTone(type)}
+                    >
+                      {tarkovObjectiveTypeLabel(type)}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.statValue}>—</div>
+              )}
+            </div>
+            <div className={styles.statCard}>
+              <div className={styles.statLabel}>阵营</div>
+              <div className={styles.statValue}>{factionLabel}</div>
+            </div>
+          </div>
           {intro ? <div className={styles.intro}>{intro}</div> : null}
           <TarkovTaskObjectivesRewards
             detail={detail}

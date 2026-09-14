@@ -113,6 +113,7 @@ def test_parse_locale_and_trader_map():
     assert by_id["t1"]["blocked_by"] == []
     assert by_id["t1"]["prereq_ids"] == ["t2"]
     assert by_id["t2"]["prereq_ids"] == []
+    assert by_id["t1"]["restartable"] is False
 
 
 def test_garbled_zh_locale_falls_back_to_english_name():

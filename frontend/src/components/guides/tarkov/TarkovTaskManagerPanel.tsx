@@ -13,10 +13,9 @@ import { TarkovTaskFlowBoard } from "@/components/guides/tarkov/TarkovTaskFlowBo
 import { apiError } from "@/lib/apiError";
 import { nowBeijingStamp } from "@/lib/time";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useAuthStore } from "@/stores/authStore";
 import {
-  TARKOV_PMC_FACTIONS,
   filterTasksByFaction,
-  tarkovPmcFactionLabel,
   useTarkovPmcFaction,
 } from "@/lib/tarkovPmcFaction";
 import { tarkovTaskHref, traderDisplayName } from "@/lib/tarkovHomeNav";
@@ -40,6 +39,7 @@ import {
   isWritableTaskStatus,
   keepCatalogTaskProgress,
   loadTaskDoneIds,
+  loadTaskFailedIds,
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
@@ -49,6 +49,7 @@ import {
   saveTaskSyncMark,
   setTaskStatus,
   summarizeTaskProgress,
+  cleanTaskProgress,
   taskMatchesQuery,
   taskProgressQueryData,
   TASK_STATUS_KINDS,
@@ -58,7 +59,7 @@ import {
   type TraderTaskGroup,
 } from "@/lib/tarkovTaskTree";
 import {
-  buildTaskForest,
+  buildTraderTaskForest,
   countForestTasks,
   filterTaskForest,
   loadTaskProgressView,
@@ -88,17 +89,20 @@ function rankTask(
   task: TarkovTaskListItem,
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
+  failed: ReadonlySet<string> = new Set(),
 ): number {
-  return TASK_STATUS_RANK[resolveTaskStatus(task.id, done, started, task)];
+  return TASK_STATUS_RANK[resolveTaskStatus(task.id, done, started, task, failed)];
 }
 
 function sortTasksForBoard(
   items: TarkovTaskListItem[],
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
+  failed: ReadonlySet<string> = new Set(),
 ): TarkovTaskListItem[] {
   return [...items].sort((a, b) => {
-    const diff = rankTask(a, done, started) - rankTask(b, done, started);
+    const diff =
+      rankTask(a, done, started, failed) - rankTask(b, done, started, failed);
     if (diff !== 0) return diff;
     return (a.name || a.id).localeCompare(b.name || b.id, "zh-CN");
   });
@@ -142,15 +146,17 @@ function TaskStatusSelect({
   task,
   done,
   started,
+  failed,
   onSetStatus,
 }: {
   task: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(task.id, done, started, task);
+  const status = resolveTaskStatus(task.id, done, started, task, failed);
   const derived = !isWritableTaskStatus(status);
   return (
     <select
@@ -209,17 +215,19 @@ function TaskRow({
   task,
   done,
   started,
+  failed,
   onSetStatus,
   typeColumns,
 }: {
   task: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   typeColumns: string[];
 }) {
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(task.id, done, started, task);
+  const status = resolveTaskStatus(task.id, done, started, task, failed);
   const typeSet = new Set(orderObjectiveTypes(task.objective_types));
   return (
     <tr className={`${styles.row} ${statusRowClass(status)}`}>
@@ -233,6 +241,7 @@ function TaskRow({
           task={task}
           done={done}
           started={started}
+          failed={failed}
           onSetStatus={onSetStatus}
         />
       </td>
@@ -266,7 +275,8 @@ function MapGlyph({ icon }: { icon: string }) {
 
 export function TarkovTaskManagerPanel() {
   const gameMode = useTarkovGameMode();
-  const { faction, setFaction } = useTarkovPmcFaction();
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
+  const { faction } = useTarkovPmcFaction();
   const logSync = useTarkovLogSyncDialog();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -280,10 +290,15 @@ export function TarkovTaskManagerPanel() {
   const [startedIds, setStartedIds] = useState<string[]>(() =>
     loadTaskStartedIds(gameMode),
   );
+  const [failedIds, setFailedIds] = useState<string[]>(() =>
+    loadTaskFailedIds(gameMode),
+  );
   const doneIdsRef = useRef(doneIds);
   const startedIdsRef = useRef(startedIds);
+  const failedIdsRef = useRef(failedIds);
   doneIdsRef.current = doneIds;
   startedIdsRef.current = startedIds;
+  failedIdsRef.current = failedIds;
   const [saving, setSaving] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(() => loadTaskSyncAt(gameMode));
   const [flowHighlightTrader, setFlowHighlightTrader] = useState("");
@@ -296,6 +311,7 @@ export function TarkovTaskManagerPanel() {
   useEffect(() => {
     setDoneIds(loadTaskDoneIds(gameMode));
     setStartedIds(loadTaskStartedIds(gameMode));
+    setFailedIds(loadTaskFailedIds(gameMode));
     setLastSyncAt(loadTaskSyncAt(gameMode));
     hydratedModeRef.current = "";
     touchedRef.current = false;
@@ -308,26 +324,35 @@ export function TarkovTaskManagerPanel() {
       migrated = true,
       startedMigrated = false,
       objectives?: Array<{ task_id: string; objective_id: string }>,
+      nextFailed?: string[],
     ) => {
-      const cleanedStarted = nextStarted.filter((id) => !nextDone.includes(id));
-      doneIdsRef.current = nextDone;
-      startedIdsRef.current = cleanedStarted;
-      setDoneIds(nextDone);
-      setStartedIds(cleanedStarted);
+      const cleaned = cleanTaskProgress(
+        nextDone,
+        nextStarted,
+        nextFailed ?? failedIdsRef.current,
+      );
+      doneIdsRef.current = cleaned.done;
+      startedIdsRef.current = cleaned.started;
+      failedIdsRef.current = cleaned.failed;
+      setDoneIds(cleaned.done);
+      setStartedIds(cleaned.started);
+      setFailedIds(cleaned.failed);
       saveTaskProgress(
         gameMode,
-        nextDone,
-        cleanedStarted,
+        cleaned.done,
+        cleaned.started,
         migrated,
         startedMigrated,
         objectives,
+        cleaned.failed,
       );
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
         taskProgressQueryData(
-          nextDone,
-          cleanedStarted,
+          cleaned.done,
+          cleaned.started,
           objectives ?? loadTaskObjectivePairs(gameMode),
+          cleaned.failed,
         ),
       );
     },
@@ -341,7 +366,14 @@ export function TarkovTaskManagerPanel() {
       if (detail.syncedAt) setLastSyncAt(detail.syncedAt);
       if (detail.changed === false) return;
       touchedRef.current = true;
-      applyProgress(detail.done, detail.started, true, false, detail.objectives);
+      applyProgress(
+        detail.done,
+        detail.started,
+        true,
+        false,
+        detail.objectives,
+        detail.failed,
+      );
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
     return () => window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
@@ -351,6 +383,7 @@ export function TarkovTaskManagerPanel() {
     (data: {
       task_ids?: string[];
       started_ids?: string[];
+      failed_ids?: string[];
       objective_dones?: Array<{ task_id: string; objective_id: string }>;
     }) => {
       applyProgress(
@@ -359,6 +392,7 @@ export function TarkovTaskManagerPanel() {
         true,
         true,
         data.objective_dones,
+        data.failed_ids,
       );
     },
     [applyProgress],
@@ -369,12 +403,18 @@ export function TarkovTaskManagerPanel() {
     queryFn: fetchTarkovTaskDones,
     staleTime: 60_000,
     retry: 1,
+    enabled: loggedIn,
   });
 
   const writeMut = useMutation({
-    mutationFn: (payload: { done: string[]; started: string[] }) =>
+    mutationFn: (payload: {
+      done: string[];
+      started: string[];
+      failed: string[];
+    }) =>
       writeTarkovTaskDones(payload.done, {
         startedIds: payload.started,
+        failedIds: payload.failed,
         objectiveDones: loadTaskObjectivePairs(gameMode),
       }),
     onSuccess: (data) => applyServerProgress(data),
@@ -391,7 +431,14 @@ export function TarkovTaskManagerPanel() {
     hydratedModeRef.current = gameMode;
     if (touchedRef.current) return;
     const next = resolveAccountTaskProgress(donesQuery.data, gameMode);
-    applyProgress(next.done, next.started, false, false, next.objectives);
+    applyProgress(
+      next.done,
+      next.started,
+      false,
+      false,
+      next.objectives,
+      next.failed,
+    );
   }, [applyProgress, donesQuery.data, donesQuery.isSuccess, gameMode]);
 
   useEffect(() => {
@@ -446,8 +493,9 @@ export function TarkovTaskManagerPanel() {
         doneIds,
         startedIds,
         catalogQuery.data ? knownIds : null,
+        failedIds,
       ),
-    [catalogQuery.data, doneIds, knownIds, startedIds],
+    [catalogQuery.data, doneIds, failedIds, knownIds, startedIds],
   );
   const done = useMemo(
     () => new Set(visibleProgress.done),
@@ -455,6 +503,10 @@ export function TarkovTaskManagerPanel() {
   );
   const started = useMemo(
     () => new Set(visibleProgress.started),
+    [visibleProgress],
+  );
+  const failed = useMemo(
+    () => new Set(visibleProgress.failed),
     [visibleProgress],
   );
 
@@ -480,8 +532,9 @@ export function TarkovTaskManagerPanel() {
         progressView === "tree" ? items : scopedItems,
         done,
         started,
+        failed,
       ),
-    [done, items, progressView, scopedItems, started],
+    [done, failed, items, progressView, scopedItems, started],
   );
   const itemById = useMemo(() => {
     const map = new Map<string, TarkovTaskListItem>();
@@ -500,7 +553,7 @@ export function TarkovTaskManagerPanel() {
     return groupTasksByTrader(items, traderChips, done, {})
       .map((group) => {
         const native = group.items as TarkovTaskListItem[];
-        const built = buildTaskForest(native);
+        const built = buildTraderTaskForest(native, itemById);
         const forest = needle
           ? filterTaskForest(built, (row) => taskMatchesQuery(row, needle))
           : built;
@@ -508,12 +561,12 @@ export function TarkovTaskManagerPanel() {
           traderSlug: group.traderSlug,
           traderName: group.traderName,
           forest,
-          count: summarizeTaskProgress(native, done, started),
+          count: summarizeTaskProgress(native, done, started, failed),
           visible: countForestTasks(forest),
         };
       })
       .filter((row) => row.visible > 0);
-  }, [done, items, q, started, traderChips]);
+  }, [done, failed, itemById, items, q, started, traderChips]);
   const typeColumns = useMemo(
     () => collectTypeColumns(scopedItems),
     [scopedItems],
@@ -526,11 +579,11 @@ export function TarkovTaskManagerPanel() {
           return {
             item,
             labels: { english: traderDisplayName(item.slug, item.name) },
-            count: summarizeTaskProgress(rows, done, started),
+            count: summarizeTaskProgress(rows, done, started, failed),
           };
         })
         .filter((row) => row.count.total > 0),
-    [done, itemsByTrader, started, traders],
+    [done, failed, itemsByTrader, started, traders],
   );
 
   const setTraderFilter = (nextTrader: string | null) => {
@@ -593,6 +646,7 @@ export function TarkovTaskManagerPanel() {
       new Set(doneIdsRef.current),
       new Set(startedIdsRef.current),
       task,
+      new Set(failedIdsRef.current),
     );
     if (current === status) return;
     if (!isWritableTaskStatus(current)) return;
@@ -601,17 +655,23 @@ export function TarkovTaskManagerPanel() {
       startedIdsRef.current,
       taskId,
       status,
+      failedIdsRef.current,
     );
     touchedRef.current = true;
-    applyProgress(next.done, next.started);
+    applyProgress(next.done, next.started, true, false, undefined, next.failed);
     notifyTarkovTaskProgress({
       mode: gameMode,
       done: next.done,
       started: next.started,
+      failed: next.failed,
       changed: true,
       source: "user",
     });
-    writeMut.mutate({ done: next.done, started: next.started });
+    writeMut.mutate({
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+    });
   };
 
   const stampSync = () => {
@@ -622,6 +682,7 @@ export function TarkovTaskManagerPanel() {
       mode: gameMode,
       done: doneIdsRef.current,
       started: startedIdsRef.current,
+      failed: failedIdsRef.current,
       syncedAt: marked.syncedAt,
       changed: false,
       source: "user",
@@ -633,10 +694,21 @@ export function TarkovTaskManagerPanel() {
     if (saving || writeMut.isPending) return;
     setSaving(true);
     touchedRef.current = true;
-    applyProgress(doneIdsRef.current, startedIdsRef.current);
+    applyProgress(
+      doneIdsRef.current,
+      startedIdsRef.current,
+      true,
+      false,
+      undefined,
+      failedIdsRef.current,
+    );
     stampSync();
     writeMut.mutate(
-      { done: doneIdsRef.current, started: startedIdsRef.current },
+      {
+        done: doneIdsRef.current,
+        started: startedIdsRef.current,
+        failed: failedIdsRef.current,
+      },
       {
         onSettled: () => setSaving(false),
       },
@@ -786,28 +858,6 @@ export function TarkovTaskManagerPanel() {
                     </button>
                   </td>
                 </tr>
-                <tr role="radiogroup" aria-label="PMC 阵营">
-                  {TARKOV_PMC_FACTIONS.map((id) => (
-                    <td key={id}>
-                      <button
-                        type="button"
-                        role="radio"
-                        className={`${styles.viewBtn}${
-                          faction === id ? ` ${styles.viewOn}` : ""
-                        }`}
-                        aria-checked={faction === id}
-                        title={
-                          faction === id
-                            ? "再点一次显示全部阵营"
-                            : `只显示 ${tarkovPmcFactionLabel(id)} 可接任务`
-                        }
-                        onClick={() => setFaction(faction === id ? "" : id)}
-                      >
-                        {tarkovPmcFactionLabel(id)}
-                      </button>
-                    </td>
-                  ))}
-                </tr>
                 <tr>
                   <td>
                     <button
@@ -905,6 +955,7 @@ export function TarkovTaskManagerPanel() {
               lanes={treeBoards}
               done={done}
               started={started}
+              failed={failed}
               itemById={itemById}
               highlightTrader={flowHighlightTrader}
               highlightTask={flowHighlightTask}
@@ -921,9 +972,11 @@ export function TarkovTaskManagerPanel() {
                   itemsByTrader.get(group.traderSlug) ?? group.items,
                   done,
                   started,
+                  failed,
                 )}
                 done={done}
                 started={started}
+                failed={failed}
                 typeColumns={typeColumns}
                 onSetStatus={changeStatus}
               />
@@ -948,6 +1001,7 @@ function TraderGroup({
   count,
   done,
   started,
+  failed,
   typeColumns,
   onSetStatus,
 }: {
@@ -955,6 +1009,7 @@ function TraderGroup({
   count: TaskProgressSummary;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   typeColumns: string[];
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
@@ -964,6 +1019,7 @@ function TraderGroup({
     group.items as TarkovTaskListItem[],
     done,
     started,
+    failed,
   );
   return (
     <section className={styles.group}>
@@ -1022,6 +1078,7 @@ function TraderGroup({
               task={item}
               done={done}
               started={started}
+              failed={failed}
               typeColumns={typeColumns}
               onSetStatus={onSetStatus}
             />

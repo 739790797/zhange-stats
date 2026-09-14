@@ -82,15 +82,17 @@ function StatusSelect({
   task,
   done,
   started,
+  failed,
   onSetStatus,
 }: {
   task: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(task.id, done, started, task);
+  const status = resolveTaskStatus(task.id, done, started, task, failed);
   const derived = !isWritableTaskStatus(status);
   return (
     <select
@@ -155,10 +157,12 @@ type TaskCardFaceProps = {
   task: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   id?: string;
   highlight?: boolean;
   dim?: boolean;
+  showTrader?: boolean;
   ribbonKinds?: readonly FlowRibbonKind[];
   open?: boolean;
   onActivate?: () => void;
@@ -170,10 +174,12 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
       task,
       done,
       started,
+      failed,
       onSetStatus,
       id,
       highlight,
       dim,
+      showTrader,
       ribbonKinds,
       open,
       onActivate,
@@ -184,8 +190,12 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
     ref,
   ) {
     const label = displayTaskProgressName(task);
-    const status = resolveTaskStatus(task.id, done, started, task);
+    const status = resolveTaskStatus(task.id, done, started, task, failed);
     const hasRibbon = Boolean(ribbonKinds?.length);
+    const traderSlug = (task.trader_slug || "").trim();
+    const traderTitle = traderSlug
+      ? traderDisplayName(traderSlug, task.trader_name || traderSlug)
+      : "";
     return (
       <article
         {...rest}
@@ -212,13 +222,20 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
             aria-hidden
           />
         ) : null}
-        <Link
-          className={styles.cardTitle}
-          to={tarkovTaskHref(task.id)}
-          onClick={(event) => event.stopPropagation()}
-        >
-          {label}
-        </Link>
+        <div className={styles.cardHead}>
+          {showTrader && traderSlug ? (
+            <span className={styles.cardTrader}>
+              <TarkovTraderThumb slug={traderSlug} size={20} title={traderTitle} />
+            </span>
+          ) : null}
+          <Link
+            className={styles.cardTitle}
+            to={tarkovTaskHref(task.id)}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {label}
+          </Link>
+        </div>
         <div className={styles.cardMeta}>
           <div className={styles.cardReq}>
             <span>等级要求：</span>
@@ -232,6 +249,7 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
             task={task}
             done={done}
             started={started}
+            failed={failed}
             onSetStatus={onSetStatus}
           />
         </div>
@@ -244,12 +262,14 @@ function PeekTask({
   item,
   done,
   started,
+  failed,
   onSetStatus,
   onJump,
 }: {
   item: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   onJump: () => void;
 }) {
@@ -258,26 +278,40 @@ function PeekTask({
       task={item}
       done={done}
       started={started}
+      failed={failed}
       onSetStatus={onSetStatus}
+      showTrader
       onActivate={onJump}
     />
   );
+}
+
+function flowCardDomId(taskId: string, traderSlug: string, laneTraderSlug: string): string {
+  const native = (traderSlug || "") === (laneTraderSlug || "");
+  if (native) return tarkovFlowTaskAnchor(taskId);
+  return `${tarkovFlowTaskAnchor(taskId)}-in-${laneTraderSlug || "none"}`;
 }
 
 function FlowCard({
   node,
   done,
   started,
+  failed,
   itemById,
   highlight,
+  showTrader,
+  laneTraderSlug,
   onSetStatus,
   onJumpTask,
 }: {
   node: TaskForestNode<TarkovTaskListItem>;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   itemById: ReadonlyMap<string, TarkovTaskListItem>;
   highlight: boolean;
+  showTrader: boolean;
+  laneTraderSlug: string;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   onJumpTask: (taskId: string) => void;
 }) {
@@ -309,10 +343,12 @@ function FlowCard({
       task={task}
       done={done}
       started={started}
+      failed={failed}
       onSetStatus={onSetStatus}
-      id={tarkovFlowTaskAnchor(task.id)}
+      id={flowCardDomId(task.id, task.trader_slug || "", laneTraderSlug)}
       highlight={highlight}
       dim={!node.matched}
+      showTrader={showTrader}
       ribbonKinds={ribbonKinds}
       open={open}
     />
@@ -348,6 +384,7 @@ function FlowCard({
                   item={item}
                   done={done}
                   started={started}
+                  failed={failed}
                   onSetStatus={onSetStatus}
                   onJump={() => {
                     setOpen(false);
@@ -370,6 +407,7 @@ function FlowCard({
                   item={item}
                   done={done}
                   started={started}
+                  failed={failed}
                   onSetStatus={onSetStatus}
                   onJump={() => {
                     setOpen(false);
@@ -392,6 +430,7 @@ function FlowCard({
                   item={item}
                   done={done}
                   started={started}
+                  failed={failed}
                   onSetStatus={onSetStatus}
                   onJump={() => {
                     setOpen(false);
@@ -413,18 +452,24 @@ function FlowBranch({
   forest,
   done,
   started,
+  failed,
   itemById,
   highlightTask,
   rooted,
+  showTrader,
+  laneTraderSlug,
   onSetStatus,
   onJumpTask,
 }: {
   forest: TaskForestChild<TarkovTaskListItem>[];
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   itemById: ReadonlyMap<string, TarkovTaskListItem>;
   highlightTask: string;
   rooted?: boolean;
+  showTrader: boolean;
+  laneTraderSlug: string;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   onJumpTask: (taskId: string) => void;
 }) {
@@ -451,8 +496,11 @@ function FlowBranch({
                   node={node}
                   done={done}
                   started={started}
+                  failed={failed}
                   itemById={itemById}
                   highlightTask={highlightTask}
+                  showTrader={showTrader}
+                  laneTraderSlug={laneTraderSlug}
                   onSetStatus={onSetStatus}
                   onJumpTask={onJumpTask}
                 />
@@ -465,8 +513,11 @@ function FlowBranch({
             node={child.node}
             done={done}
             started={started}
+            failed={failed}
             itemById={itemById}
             highlightTask={highlightTask}
+            showTrader={showTrader}
+            laneTraderSlug={laneTraderSlug}
             onSetStatus={onSetStatus}
             onJumpTask={onJumpTask}
           />
@@ -480,16 +531,22 @@ function FlowColumn({
   node,
   done,
   started,
+  failed,
   itemById,
   highlightTask,
+  showTrader,
+  laneTraderSlug,
   onSetStatus,
   onJumpTask,
 }: {
   node: TaskForestNode<TarkovTaskListItem>;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   itemById: ReadonlyMap<string, TarkovTaskListItem>;
   highlightTask: string;
+  showTrader: boolean;
+  laneTraderSlug: string;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   onJumpTask: (taskId: string) => void;
 }) {
@@ -500,8 +557,11 @@ function FlowColumn({
         node={node}
         done={done}
         started={started}
+        failed={failed}
         itemById={itemById}
         highlight={highlightTask === node.task.id}
+        showTrader={showTrader}
+        laneTraderSlug={laneTraderSlug}
         onSetStatus={onSetStatus}
         onJumpTask={onJumpTask}
       />
@@ -515,8 +575,11 @@ function FlowColumn({
             forest={node.children}
             done={done}
             started={started}
+            failed={failed}
             itemById={itemById}
             highlightTask={highlightTask}
+            showTrader={showTrader}
+            laneTraderSlug={laneTraderSlug}
             onSetStatus={onSetStatus}
             onJumpTask={onJumpTask}
           />
@@ -530,16 +593,20 @@ function FlowLaneBody({
   forest,
   done,
   started,
+  failed,
   itemById,
   highlightTask,
+  laneTraderSlug,
   onSetStatus,
   onJumpTask,
 }: {
   forest: TaskForestChild<TarkovTaskListItem>[];
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   itemById: ReadonlyMap<string, TarkovTaskListItem>;
   highlightTask: string;
+  laneTraderSlug: string;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   onJumpTask: (taskId: string) => void;
 }) {
@@ -554,8 +621,11 @@ function FlowLaneBody({
             forest={split.chains}
             done={done}
             started={started}
+            failed={failed}
             itemById={itemById}
             highlightTask={highlightTask}
+            showTrader
+            laneTraderSlug={laneTraderSlug}
             onSetStatus={onSetStatus}
             onJumpTask={onJumpTask}
           />
@@ -574,8 +644,11 @@ function FlowLaneBody({
                   node={child.node}
                   done={done}
                   started={started}
+                  failed={failed}
                   itemById={itemById}
                   highlightTask={highlightTask}
+                  showTrader={false}
+                  laneTraderSlug={laneTraderSlug}
                   onSetStatus={onSetStatus}
                   onJumpTask={onJumpTask}
                 />
@@ -592,6 +665,7 @@ export function TarkovTaskFlowBoard({
   lanes,
   done,
   started,
+  failed,
   itemById,
   highlightTrader,
   highlightTask,
@@ -602,6 +676,7 @@ export function TarkovTaskFlowBoard({
   lanes: TarkovTaskFlowLane[];
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
   itemById: ReadonlyMap<string, TarkovTaskListItem>;
   highlightTrader: string;
   highlightTask: string;
@@ -668,8 +743,10 @@ export function TarkovTaskFlowBoard({
               forest={lane.forest}
               done={done}
               started={started}
+              failed={failed}
               itemById={itemById}
               highlightTask={highlightTask}
+              laneTraderSlug={lane.traderSlug}
               onSetStatus={onSetStatus}
               onJumpTask={onJumpTask}
             />

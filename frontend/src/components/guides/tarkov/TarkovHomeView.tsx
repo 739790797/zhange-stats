@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovSiteSearch } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
@@ -8,8 +8,7 @@ import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { transparentThumbUrl } from "@/lib/tarkovItemImages";
 import {
-  TARKOV_HOME_ITEMS,
-  TARKOV_HOME_PATH,
+  TARKOV_HOME_ITEM_GROUPS,
   TARKOV_HOME_TRADERS,
   TARKOV_MAPS,
   buildHomeSearchIndex,
@@ -31,7 +30,6 @@ import {
 import { TarkovGoonSightingHint } from "@/components/guides/tarkov/TarkovGoonTrackerBanner";
 import { sameGoonMap } from "@/lib/tarkovGoonTracker";
 import { useTarkovGoonTracker } from "@/lib/useTarkovGoonTracker";
-import { useAuthStore } from "@/stores/authStore";
 import styles from "./TarkovHomeView.module.css";
 
 function SearchIcon() {
@@ -201,10 +199,8 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
 }
 
 export function TarkovHomeView() {
-  const navigate = useNavigate();
   const gameMode = useTarkovGameMode();
   const { faction } = useTarkovPmcFaction();
-  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
   const [entryOpen, setEntryOpen] = useState(false);
   const [entryStep, setEntryStep] = useState<RaidPrepEntryStep>("create");
@@ -240,12 +236,6 @@ export function TarkovHomeView() {
   const waiting = searching && searchQuery.isLoading && !searchQuery.data;
 
   const openEntry = (step: RaidPrepEntryStep) => {
-    if (!loggedIn) {
-      navigate("/login", {
-        state: { from: { pathname: TARKOV_HOME_PATH } },
-      });
-      return;
-    }
     setEntryStep(step);
     setEntryOpen(true);
   };
@@ -338,14 +328,24 @@ export function TarkovHomeView() {
 
               <section>
                 <SectionHead title="物品" en="Items" />
-                <div className={styles.mapGrid}>
-                  {TARKOV_HOME_ITEMS.map((item) => (
-                    <HomeTile
-                      key={item.id}
-                      href={item.href}
-                      icon={item.icon}
-                      label={item.label}
-                    />
+                <div className={styles.itemGroups}>
+                  {TARKOV_HOME_ITEM_GROUPS.map((group) => (
+                    <div key={group.id}>
+                      <p className={styles.itemGroupHead}>
+                        {group.label}
+                        <span className={styles.sectionEn}>{group.en}</span>
+                      </p>
+                      <div className={styles.mapGrid}>
+                        {group.items.map((item) => (
+                          <HomeTile
+                            key={item.id}
+                            href={item.href}
+                            icon={item.icon}
+                            label={item.label}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>

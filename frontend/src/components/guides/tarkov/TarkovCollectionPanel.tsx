@@ -15,6 +15,7 @@ import {
   saveTarkovCollectionLayout,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { useAuthStore } from "@/stores/authStore";
 import {
   applyTarkovCollectionOwnsCache,
   canPlaceCollectionItem,
@@ -290,6 +291,7 @@ function CollectionItemCard({
 export function TarkovCollectionPanel() {
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [layout, setLayout] = useState<CollectionLayout | null>(null);
   const [unplacedRotated, setUnplacedRotated] = useState<Record<string, boolean>>(
     {},
@@ -325,6 +327,7 @@ export function TarkovCollectionPanel() {
     queryKey: collectionLayoutQueryKey(gameMode),
     queryFn: fetchTarkovCollectionLayout,
     retry: 1,
+    enabled: loggedIn,
   });
 
   const persistLayout = useCallback(

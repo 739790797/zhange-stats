@@ -176,6 +176,8 @@
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  flex: none;
+  width: 100%;
   background: var(--hb-panel, #22241a);
   border: 1px solid var(--hb-border, #3a3d30);
 }

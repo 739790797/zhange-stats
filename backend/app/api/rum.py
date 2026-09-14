@@ -42,6 +42,8 @@ class ClientRumOut(BaseModel):
 class RumSummaryRowOut(BaseModel):
     url_key: str
     host: str = ""
+    biz: str = ""
+    biz_label: str = ""
     count: int
     avg_ms: int
     p50_ms: int | None = None
@@ -49,6 +51,17 @@ class RumSummaryRowOut(BaseModel):
     max_ms: int | None = None
     error_count: int = 0
     avg_transfer: int | None = None
+
+
+class RumBizSummaryOut(BaseModel):
+    biz: str
+    label: str
+    count: int
+    avg_ms: int = 0
+    p50_ms: int | None = None
+    p95_ms: int | None = None
+    max_ms: int | None = None
+    error_count: int = 0
 
 
 class RumSeriesPointOut(BaseModel):
@@ -74,6 +87,8 @@ class RumSummaryOut(BaseModel):
     img_max_ms: int | None = None
     api: list[RumSummaryRowOut] = Field(default_factory=list)
     img: list[RumSummaryRowOut] = Field(default_factory=list)
+    api_biz: list[RumBizSummaryOut] = Field(default_factory=list)
+    img_biz: list[RumBizSummaryOut] = Field(default_factory=list)
     series: list[RumSeriesPointOut] = Field(default_factory=list)
 
 
@@ -111,6 +126,6 @@ def get_rum_summary(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> RumSummaryOut:
-    """管理端：接口转圈与第三方图的 p50/p95。"""
+    """管理端：接口转圈与第三方图的 p50/p95，接口按业务分类。"""
     data = summarize_rum(db, hours=hours)
     return RumSummaryOut.model_validate(data)

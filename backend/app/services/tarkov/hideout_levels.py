@@ -12,11 +12,13 @@ from app.models.tarkov import TarkovUserHideoutLevel
 from app.models.user import User
 from app.services.tarkov.game_mode import current_game_mode, parse_game_mode
 from app.services.tarkov.hideout_progress import (
+    STASH_FLOOR_STANDARD,
     STATION_ID_MAX,
     apply_level,
     default_level,
     filled_levels,
 )
+from app.services.tarkov.profile import get_stash_floor
 
 
 class TarkovHideoutLevelsError(Exception):
@@ -35,6 +37,15 @@ def normalize_station_id(raw: str | None) -> str:
     if not ident or len(ident) > STATION_ID_MAX:
         raise TarkovHideoutLevelsError("藏身处模块 id 无效")
     return ident
+
+
+def _stash_floor(
+    db: Session,
+    user_id: int,
+    *,
+    game_mode: str | None = None,
+) -> int:
+    return get_stash_floor(db, user_id, game_mode=game_mode)
 
 
 def _stored_map(
@@ -67,7 +78,12 @@ def list_levels(
     *,
     game_mode: str | None = None,
 ) -> list[dict[str, Any]]:
-    filled = filled_levels(stations, _stored_map(db, user_id, game_mode=game_mode))
+    floor = _stash_floor(db, user_id, game_mode=game_mode)
+    filled = filled_levels(
+        stations,
+        _stored_map(db, user_id, game_mode=game_mode),
+        stash_floor=floor,
+    )
     return [
         {"station_id": ident, "level": level}
         for ident, level in sorted(filled.items(), key=lambda item: item[0])
@@ -100,7 +116,7 @@ def _persist(
         station = by_id.get(ident)
         if station is None:
             continue
-        if int(level) == default_level(station):
+        if int(level) == default_level(station, stash_floor=STASH_FLOOR_STANDARD):
             continue
         keep.add(ident)
         row = existing.get(ident)
@@ -137,8 +153,27 @@ def set_level(
 ) -> list[dict[str, Any]]:
     ident = normalize_station_id(station_id)
     stored = _stored_map(db, user.id, game_mode=game_mode)
+    floor = _stash_floor(db, user.id, game_mode=game_mode)
     try:
-        filled = apply_level(stations, stored, ident, level)
+        filled = apply_level(
+            stations, stored, ident, level, stash_floor=floor
+        )
     except ValueError as exc:
         raise TarkovHideoutLevelsError(str(exc)) from exc
+    return _persist(db, user, stations, filled, game_mode=game_mode)
+
+
+def ensure_stash_floor(
+    db: Session,
+    user: User,
+    stations: list[dict[str, Any]] | None,
+    *,
+    game_mode: str | None = None,
+) -> list[dict[str, Any]]:
+    """蓝边把仓库抬到版本地板；已高于地板的不降。"""
+    if not stations:
+        return list_levels(db, user.id, stations, game_mode=game_mode)
+    stored = _stored_map(db, user.id, game_mode=game_mode)
+    floor = _stash_floor(db, user.id, game_mode=game_mode)
+    filled = filled_levels(stations, stored, stash_floor=floor)
     return _persist(db, user, stations, filled, game_mode=game_mode)

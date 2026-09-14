@@ -12,12 +12,14 @@ import {
 } from "@/lib/tarkovLiveWatch";
 import {
   loadTaskDoneIds,
+  loadTaskFailedIds,
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   planAccountTaskHydrate,
   sameObjectiveLists,
   saveTaskProgress,
   taskProgressQueryData,
+  unionTaskProgress,
 } from "@/lib/tarkovTaskTree";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -46,7 +48,8 @@ export function useTarkovTaskAccountSync() {
     const onProgress = (event: Event) => {
       const detail = (event as CustomEvent<TarkovTaskProgressDetail>).detail;
       if (!detail || detail.mode !== gameMode || detail.changed === false) return;
-      if (hydratingRef.current || detail.source !== "user") return;
+      if (hydratingRef.current) return;
+      if (detail.source !== "user" && detail.source !== "log") return;
       skipRef.current = true;
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
@@ -63,17 +66,21 @@ export function useTarkovTaskAccountSync() {
     const plan = planAccountTaskHydrate({
       serverDone: query.data.task_ids || [],
       serverStarted: query.data.started_ids || [],
+      serverFailed: query.data.failed_ids || [],
       serverObjectives: query.data.objective_dones || [],
       localDone: loadTaskDoneIds(gameMode),
       localStarted: loadTaskStartedIds(gameMode),
+      localFailed: loadTaskFailedIds(gameMode),
       localObjectives: loadTaskObjectivePairs(gameMode),
     });
     const prevDone = loadTaskDoneIds(gameMode);
     const prevStarted = loadTaskStartedIds(gameMode);
+    const prevFailed = loadTaskFailedIds(gameMode);
     const prevObjectives = loadTaskObjectivePairs(gameMode);
     const changed =
       !sameIdLists(prevDone, plan.done) ||
       !sameIdLists(prevStarted, plan.started) ||
+      !sameIdLists(prevFailed, plan.failed) ||
       !sameObjectiveLists(prevObjectives, plan.objectives);
     saveTaskProgress(
       gameMode,
@@ -82,16 +89,23 @@ export function useTarkovTaskAccountSync() {
       !plan.upload,
       !plan.upload,
       plan.objectives,
+      plan.failed,
     );
     queryClient.setQueryData(
       ["guides-tarkov-task-dones", gameMode],
-      taskProgressQueryData(plan.done, plan.started, plan.objectives),
+      taskProgressQueryData(
+        plan.done,
+        plan.started,
+        plan.objectives,
+        plan.failed,
+      ),
     );
     if (changed) {
       notifyTarkovTaskProgress({
         mode: gameMode,
         done: plan.done,
         started: plan.started,
+        failed: plan.failed,
         objectives: plan.objectives,
         changed: true,
         source: "hydrate",
@@ -101,16 +115,40 @@ export function useTarkovTaskAccountSync() {
     if (!plan.upload) return;
     void writeTarkovTaskDones(plan.done, {
       startedIds: plan.started,
+      failedIds: plan.failed,
       objectiveDones: plan.objectives,
     })
       .then((data) => {
-        const done = data.task_ids || plan.done;
-        const started = data.started_ids || plan.started;
+        const merged = unionTaskProgress(
+          {
+            done: plan.done,
+            started: plan.started,
+            failed: plan.failed,
+          },
+          {
+            done: data.task_ids,
+            started: data.started_ids,
+            failed: data.failed_ids,
+          },
+        );
         const objectives = data.objective_dones || plan.objectives;
-        saveTaskProgress(gameMode, done, started, true, true, objectives);
+        saveTaskProgress(
+          gameMode,
+          merged.done,
+          merged.started,
+          true,
+          true,
+          objectives,
+          merged.failed,
+        );
         queryClient.setQueryData(
           ["guides-tarkov-task-dones", gameMode],
-          taskProgressQueryData(done, started, objectives),
+          taskProgressQueryData(
+            merged.done,
+            merged.started,
+            objectives,
+            merged.failed,
+          ),
         );
       })
       .catch(() => {

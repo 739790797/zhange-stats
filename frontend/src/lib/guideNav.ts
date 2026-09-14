@@ -8,6 +8,8 @@ export type GuideNavLeaf = {
   label: string;
   featureId: string;
   icon?: PlatformIconName;
+  /** 未登录侧栏也露出（图鉴公开页）。 */
+  allowGuest?: boolean;
 };
 
 export type GuideNavGroup = {
@@ -28,6 +30,7 @@ export const GUIDE_NAV: GuideNavNode[] = [
     label: "逃离塔科夫",
     featureId: "guides.tarkov",
     icon: "tarkov",
+    allowGuest: true,
   },
   {
     kind: "leaf",

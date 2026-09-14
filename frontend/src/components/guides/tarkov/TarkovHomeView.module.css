@@ -130,6 +130,24 @@
   letter-spacing: 0.16em;
 }
 
+.itemGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.itemGroupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  color: #c0be9a;
+  font-family: var(--hb-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
 .sectionExtra {
   margin-left: auto;
   color: #a8aa96;

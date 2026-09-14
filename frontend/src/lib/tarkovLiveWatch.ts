@@ -11,6 +11,7 @@ import {
 import {
   formatQuestSyncDeltaLine,
   mergeQuestProgressFromLogs,
+  type QuestLogCatalog,
   type QuestProgressDelta,
 } from "@/lib/tarkovTaskLogSync";
 import { formatBeijing } from "@/lib/time";
@@ -22,6 +23,7 @@ export type TarkovTaskProgressDetail = {
   mode: TarkovGameMode;
   done: string[];
   started: string[];
+  failed?: string[];
   syncedAt?: string;
   changed?: boolean;
   /** 相对上一轮新完成的整任务 id；小步骤仍靠账号进度账 / 手勾，日志事件只有整任务。 */
@@ -122,6 +124,7 @@ export function planLogSessionReads(
 export type LiveQuestProgressPlan = {
   done: string[];
   started: string[];
+  failed: string[];
   changed: boolean;
   eventCount: number;
   latestEventAt: string;
@@ -132,21 +135,25 @@ export function nextLiveQuestProgress(
   startedIds: readonly string[],
   sessions: Array<{ parsed: TarkovLogParseResult }>,
   gameMode: TarkovGameMode,
-  knownIds?: ReadonlySet<string>,
+  catalog?: QuestLogCatalog | ReadonlySet<string>,
+  failedIds: readonly string[] = [],
 ): LiveQuestProgressPlan {
   const merged = mergeQuestProgressFromLogs(
     doneIds,
     startedIds,
     sessions,
     gameMode,
-    knownIds,
+    catalog,
+    failedIds,
   );
   return {
     done: merged.done,
     started: merged.started,
+    failed: merged.failed,
     changed:
       !sameIdLists(doneIds, merged.done) ||
-      !sameIdLists(startedIds, merged.started),
+      !sameIdLists(startedIds, merged.started) ||
+      !sameIdLists(failedIds, merged.failed),
     eventCount: merged.eventCount,
     latestEventAt: merged.latestEventAt,
   };
@@ -225,7 +232,8 @@ export function formatLiveLogBackfillHint(
   if (
     extras?.questEvents === 0 &&
     delta.done === 0 &&
-    delta.started === 0
+    delta.started === 0 &&
+    (delta.failed ?? 0) === 0
   ) {
     line +=
       "。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）";

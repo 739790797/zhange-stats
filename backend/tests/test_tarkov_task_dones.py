@@ -88,7 +88,7 @@ def test_merge_progress_keeps_account_rows() -> None:
         replace=True,
         game_mode="pvp",
     )
-    done, started = dones.write_progress(
+    done, started, _failed = dones.write_progress(
         db,
         user,
         ["raid-done"],
@@ -111,16 +111,17 @@ def test_started_is_account_ledger_and_done_wins() -> None:
         "s2",
     ]
     dones.add_done(db, user, "done-later", game_mode="pvp")
-    done, started = dones.list_progress(db, user.id, game_mode="pvp")
+    done, started, failed = dones.list_progress(db, user.id, game_mode="pvp")
     assert done == ["done-later"]
     assert started == ["s1", "s2"]
+    assert failed == []
     assert dones.list_started_ids(db, user.id, game_mode="pve") == ["pve-s"]
 
 
 def test_write_progress_replace_and_merge_started() -> None:
     db = _session()
     user = _user(db, "a", "甲")
-    done, started = dones.write_progress(
+    done, started, _failed = dones.write_progress(
         db,
         user,
         ["d1"],
@@ -130,7 +131,7 @@ def test_write_progress_replace_and_merge_started() -> None:
     )
     assert done == ["d1"]
     assert started == ["s1"]
-    done, started = dones.write_progress(
+    done, started, _failed = dones.write_progress(
         db,
         user,
         ["d2"],
@@ -140,7 +141,7 @@ def test_write_progress_replace_and_merge_started() -> None:
     )
     assert done == ["d1", "d2"]
     assert started == ["s1", "s2"]
-    done, started = dones.write_progress(
+    done, started, _failed = dones.write_progress(
         db,
         user,
         ["d2"],
@@ -150,7 +151,7 @@ def test_write_progress_replace_and_merge_started() -> None:
     )
     assert done == ["d2"]
     assert started == ["s1", "s2"]
-    done, started = dones.write_progress(
+    done, started, _failed = dones.write_progress(
         db,
         user,
         ["d2"],
@@ -163,20 +164,24 @@ def test_write_progress_replace_and_merge_started() -> None:
 
 
 def test_filter_visible_progress_hides_unknown_keeps_order() -> None:
-    done, started = dones.filter_visible_progress(
+    done, started, failed = dones.filter_visible_progress(
         ["gone", "keep", "also-gone"],
         ["keep-start", "gone-start"],
-        {"keep", "keep-start"},
+        {"keep", "keep-start", "keep-fail"},
+        ["keep-fail", "gone-fail"],
     )
     assert done == ["keep"]
     assert started == ["keep-start"]
-    raw_done, raw_started = dones.filter_visible_progress(
+    assert failed == ["keep-fail"]
+    raw_done, raw_started, raw_failed = dones.filter_visible_progress(
         ["gone"],
         ["gone-start"],
         None,
+        ["gone-fail"],
     )
     assert raw_done == ["gone"]
     assert raw_started == ["gone-start"]
+    assert raw_failed == ["gone-fail"]
 
 
 def test_objective_dones_merge_replace_and_toggle() -> None:
@@ -322,3 +327,51 @@ def test_write_progress_omitting_objectives_keeps_rows() -> None:
         objective_dones=[],
     )
     assert dones.list_objective_dones(db, user.id, game_mode="pvp") == []
+
+
+def test_failed_merge_replace_and_done_wins() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    dones.write_progress(
+        db,
+        user,
+        ["keep-done"],
+        ["live"],
+        replace=True,
+        game_mode="pvp",
+        failed_ids=["dead", "keep-done"],
+    )
+    done, started, failed = dones.list_progress(db, user.id, game_mode="pvp")
+    assert done == ["keep-done"]
+    assert started == ["live"]
+    assert failed == ["dead"]
+    dones.write_progress(
+        db,
+        user,
+        [],
+        ["revived"],
+        replace=False,
+        game_mode="pvp",
+        failed_ids=["dead", "revived"],
+    )
+    done, started, failed = dones.list_progress(db, user.id, game_mode="pvp")
+    assert "revived" not in started
+    assert "dead" in failed
+    assert "revived" in failed
+    dones.add_done(db, user, "dead", game_mode="pvp")
+    done, started, failed = dones.list_progress(db, user.id, game_mode="pvp")
+    assert "dead" in done
+    assert "dead" not in failed
+    dones.write_progress(
+        db,
+        user,
+        ["keep-done", "dead"],
+        ["live"],
+        replace=True,
+        game_mode="pvp",
+        failed_ids=["only-fail"],
+    )
+    done, started, failed = dones.list_progress(db, user.id, game_mode="pvp")
+    assert done == ["keep-done", "dead"]
+    assert started == ["live"]
+    assert failed == ["only-fail"]

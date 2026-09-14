@@ -1,12 +1,14 @@
-import { Alert, Button, Spin, Table, Tooltip, message } from "antd";
+import { CalculatorOutlined } from "@ant-design/icons";
+import { Alert, Button, Spin, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useMemo, useState, type ReactNode } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchTarkovCrafts,
   fetchTarkovHideout,
   fetchTarkovHideoutLevels,
+  fetchTarkovProfile,
   setTarkovHideoutLevel,
   type TarkovCraft,
   type TarkovHideoutLevel,
@@ -14,35 +16,47 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { useAuthStore } from "@/stores/authStore";
 import {
+  TARKOV_HIDEOUT_PATH,
+  tarkovMeHref,
   traderDisplayName,
   traderIconUrl,
 } from "@/lib/tarkovHomeNav";
-import { formatDurationSeconds, formatMoney } from "@/lib/tarkovItemFormat";
+import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import {
-  guideItemFleaCost,
-  type TarkovGuideItemRef,
-} from "@/lib/tarkovGuideItemCost";
+  tarkovStashFloor,
+  traderLevelsForHideout,
+} from "@/lib/tarkovProfile";
+import { formatDurationSeconds, formatMoney } from "@/lib/tarkovItemFormat";
 import { TarkovGuideItemStack } from "@/components/guides/tarkov/TarkovGuideItemCell";
+import { TarkovHideoutCalcModal } from "@/components/guides/tarkov/TarkovHideoutCalcModal";
+import { TarkovHideoutTree } from "@/components/guides/tarkov/TarkovHideoutTree";
 import {
   applyHideoutLevel,
-  canSetHideoutLevel,
-  currentHideoutLevelSpec,
+  buildHideoutBonusTable,
   filledHideoutLevels,
-  formatHideoutBonusValue,
+  formatHideoutBonusCell,
+  hideoutBonusLabel,
   hideoutDefaultLevel,
+  hideoutLevelSpec,
   hideoutLevelsFromRows,
   hideoutMaxLevel,
   hideoutReqStatus,
+  hideoutUpgradeItemKey,
+  hideoutUpgradeMaterialItems,
+  hideoutItemNeedsFleaBuy,
+  hideoutUpgradeFleaCost,
   indexHideoutStations,
-  itemReqMet,
-  nextHideoutLevelSpec,
+  isHideoutMoneyItem,
   skillReqMet,
   stationReqMet,
   traderReqMet,
+  type HideoutItemReq,
   type HideoutReqStatus,
   type HideoutStationSpec,
 } from "@/lib/tarkovHideoutProgress";
+import { hideoutRoman } from "@/lib/tarkovHideoutTree";
 import tableStyles from "./TarkovDarkTable.module.css";
 import trade from "./TarkovGuideTrade.module.css";
 import styles from "./TarkovHideoutPanel.module.css";
@@ -83,25 +97,68 @@ function statusClass(status: HideoutReqStatus): string {
   return styles.unset;
 }
 
+function reqCheckMark(status: HideoutReqStatus): { mark: string; label: string } {
+  if (status === "met") return { mark: "√", label: "已满足" };
+  if (status === "unmet") return { mark: "×", label: "未满足" };
+  return { mark: "·", label: "未维护" };
+}
+
+function HideoutReqCheck({
+  status,
+  icon,
+  wiki,
+  children,
+}: {
+  status: HideoutReqStatus;
+  icon?: ReactNode;
+  wiki?: boolean;
+  children: ReactNode;
+}) {
+  if (wiki) {
+    return (
+      <li className={styles.reqRow}>
+        {icon}
+        <span className={styles.reqText}>{children}</span>
+      </li>
+    );
+  }
+  const { mark, label } = reqCheckMark(status);
+  return (
+    <li className={`${styles.reqRow} ${statusClass(status)}`}>
+      <span className={styles.reqMark} aria-label={label}>
+        {mark}
+      </span>
+      {icon}
+      <span className={styles.reqText}>{children}</span>
+    </li>
+  );
+}
+
 function HideoutReqList({
   spec,
   levels,
   byId,
+  traderLevels,
   showItems = true,
   title,
   showFooter = true,
+  wiki = false,
 }: {
   spec: Level;
   levels: Record<string, number>;
   byId: Map<string, HideoutStationSpec>;
+  traderLevels?: Record<string, number>;
   showItems?: boolean;
   title?: string;
   showFooter?: boolean;
+  wiki?: boolean;
 }) {
   const stations = spec.station_requirements || [];
   const traders = spec.trader_requirements || [];
   const skills = spec.skill_requirements || [];
-  const items = showItems ? spec.item_requirements || [] : [];
+  const items = showItems
+    ? hideoutUpgradeMaterialItems(spec.item_requirements)
+    : [];
   const noReqs =
     !stations.length &&
     !traders.length &&
@@ -111,71 +168,90 @@ function HideoutReqList({
     <div className={styles.reqList}>
       {title ? <div className={styles.reqTitle}>{title}</div> : null}
       {noReqs ? <div className={styles.unset}>无前置</div> : null}
-      {stations.map((req) => {
-        const other = byId.get((req.station_id || "").trim());
-        const status = hideoutReqStatus(stationReqMet(req, levels, byId));
-        return (
-          <div
-            key={`${req.station_id}-${req.level}`}
-            className={`${styles.reqRow} ${statusClass(status)}`}
-          >
-            {other?.image_link ? (
-              <img src={other.image_link} alt="" />
-            ) : null}
-            <span>
-              {req.station_name || other?.name || req.station_slug} Lv.
-              {req.level}
-            </span>
-          </div>
-        );
-      })}
-      {traders.map((req) => {
-        const status = hideoutReqStatus(traderReqMet(req, undefined));
-        const slug = req.slug || req.id || "";
-        return (
-          <div
-            key={`${req.id}-${req.level}`}
-            className={`${styles.reqRow} ${statusClass(status)}`}
-          >
-            {slug ? <img src={traderIconUrl(slug)} alt="" /> : null}
-            <span>
-              {traderDisplayName(req.slug, req.name)} LL{req.level}
-              {status === "unset" ? " · 未维护" : ""}
-            </span>
-          </div>
-        );
-      })}
-      {skills.map((req) => {
-        const status = hideoutReqStatus(skillReqMet(req, undefined));
-        return (
-          <div
-            key={`${req.skill_id || req.skill}-${req.level}`}
-            className={`${styles.reqRow} ${statusClass(status)}`}
-          >
-            <span>
-              {req.skill || req.skill_id} {req.level}
-              {status === "unset" ? " · 未维护" : ""}
-            </span>
-          </div>
-        );
-      })}
+      {stations.length || traders.length || skills.length ? (
+        <ul className={styles.reqChecks} aria-label="升级要求">
+          {stations.map((req) => {
+            const other = byId.get((req.station_id || "").trim());
+            const status = hideoutReqStatus(stationReqMet(req, levels, byId));
+            return (
+              <HideoutReqCheck
+                key={`${req.station_id}-${req.level}`}
+                status={status}
+                wiki={wiki}
+                icon={
+                  other?.image_link ? <img src={other.image_link} alt="" /> : null
+                }
+              >
+                {req.station_name || other?.name || req.station_slug} Lv.
+                {req.level}
+              </HideoutReqCheck>
+            );
+          })}
+          {traders.map((req) => {
+            const status = hideoutReqStatus(traderReqMet(req, traderLevels));
+            const slug = req.slug || req.id || "";
+            return (
+              <HideoutReqCheck
+                key={`${req.id}-${req.level}`}
+                status={status}
+                wiki={wiki}
+                icon={slug ? <img src={traderIconUrl(slug)} alt="" /> : null}
+              >
+                {traderDisplayName(req.slug, req.name)} LL{req.level}
+                {!wiki && status === "unset" ? " · 未维护" : ""}
+              </HideoutReqCheck>
+            );
+          })}
+          {skills.map((req) => {
+            const status = hideoutReqStatus(skillReqMet(req, undefined));
+            return (
+              <HideoutReqCheck
+                key={`${req.skill_id || req.skill}-${req.level}`}
+                status={status}
+                wiki={wiki}
+              >
+                {req.skill || req.skill_id} {req.level}
+                {!wiki && status === "unset" ? " · 未维护" : ""}
+              </HideoutReqCheck>
+            );
+          })}
+        </ul>
+      ) : null}
       {items.map((req) => {
-        const status = hideoutReqStatus(itemReqMet(req, undefined));
-        const label = [req.name || req.id, req.found_in_raid ? "战局内" : ""]
+        const ident = (req.id || "").trim();
+        const label = [
+          req.name || req.short_name || ident,
+          req.found_in_raid ? "战局内" : "",
+        ]
           .filter(Boolean)
           .join(" · ");
-        return (
-          <div
-            key={`${req.id}-${req.count}`}
-            className={`${styles.reqRow} ${statusClass(status)}`}
-          >
+        const body = (
+          <>
             {req.icon_link ? <img src={req.icon_link} alt="" /> : null}
             <span>
-              {req.count && req.count !== 1 ? `${req.count}× ` : ""}
+              {req.count && req.count !== 1
+                ? `${isHideoutMoneyItem(req) ? Number(req.count).toLocaleString("zh-CN") : req.count}× `
+                : ""}
               {label}
-              {status === "unset" ? " · 未登记仓库" : ""}
             </span>
-          </div>
+          </>
+        );
+        if (!ident) {
+          return (
+            <div key={`${label}-${req.count}`} className={styles.reqRow}>
+              {body}
+            </div>
+          );
+        }
+        return (
+          <Link
+            key={`${ident}-${req.count}-${req.found_in_raid ? "fir" : "any"}`}
+            className={`${styles.reqRow} ${styles.reqItem}`}
+            to={itemHrefFromTypes(ident, req.types || [])}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {body}
+          </Link>
         );
       })}
       {showFooter && spec.construction_time ? (
@@ -183,56 +259,171 @@ function HideoutReqList({
           建造 {formatDurationSeconds(spec.construction_time)}
         </div>
       ) : null}
-      {showFooter ? (
+      {showFooter && !wiki ? (
         <div className={styles.reqNote}>
-          商人好感与技能将在个人资料可维护后计入绿灯。
+          {traderLevels ? (
+            "技能尚未维护，暂不计入绿灯。"
+          ) : (
+            <>
+              商人好感在
+              <Link to={tarkovMeHref("profile")}>个人资料</Link>
+              维护后计入绿灯。
+            </>
+          )}
         </div>
       ) : null}
     </div>
   );
 }
 
-function HideoutReqTooltip({
-  station,
+function HideoutBonusList({
+  table,
   current,
-  levels,
-  byId,
+  focus,
 }: {
-  station: Station;
+  table: ReturnType<typeof buildHideoutBonusTable>;
   current: number;
-  levels: Record<string, number>;
-  byId: Map<string, HideoutStationSpec>;
+  focus: number;
 }) {
-  const next = nextHideoutLevelSpec(station, current) as Level | undefined;
-  if (!next) {
-    return <div className={styles.reqTitle}>已满级</div>;
+  return (
+    <ul className={styles.bonusList} aria-label="效果">
+      {table.rows.map((row) => (
+        <li key={row.key} className={styles.bonusRow}>
+          <div className={styles.bonusName}>{hideoutBonusLabel(row)}</div>
+          {row.slot_items?.some((item) => item.id) ? (
+            <div className={styles.bonusSlots}>
+              {(row.slot_items || []).map((item) => {
+                const ident = (item.id || "").trim();
+                if (!ident) return null;
+                return (
+                  <Link
+                    key={ident}
+                    className={styles.bonusSlot}
+                    to={itemHrefFromTypes(ident, item.types || [])}
+                  >
+                    {item.icon_link ? <img src={item.icon_link} alt="" /> : null}
+                    <span>{item.short_name || item.name || ident}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
+          <ul className={styles.bonusLevels}>
+            {table.levels.map((level, index) => {
+              const isFocus = level === focus;
+              const isBuilt = level === current;
+              const mark = isFocus
+                ? isBuilt
+                  ? " 当前"
+                  : " 选中"
+                : isBuilt
+                  ? " 已建"
+                  : "";
+              return (
+                <li
+                  key={level}
+                  className={`${styles.bonusLv}${
+                    isFocus ? ` ${styles.bonusLvNow}` : ""
+                  }`}
+                >
+                  <span>
+                    Lv.{level}
+                    {mark}
+                  </span>
+                  <span>{formatHideoutBonusCell(row.type, row.values[index])}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function HideoutMaterialList({ items }: { items: HideoutItemReq[] }) {
+  if (!items.length) {
+    return <div className={styles.detailSub}>无额外材料。</div>;
   }
   return (
-    <HideoutReqList
-      spec={next}
-      levels={levels}
-      byId={byId}
-      title={`升到 Lv.${next.level} 需要`}
-    />
+    <ul className={styles.itemList} aria-label="升级材料">
+      {items.map((req) => {
+        const ident = (req.id || "").trim();
+        const key = hideoutUpgradeItemKey(req) || `${req.name}-${req.count}`;
+        const label = [
+          req.name || req.short_name || ident,
+          req.found_in_raid ? "战局内" : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const countText =
+          req.count && req.count !== 1
+            ? `${isHideoutMoneyItem(req) ? Number(req.count).toLocaleString("zh-CN") : req.count}× `
+            : "";
+        const flea = isHideoutMoneyItem(req)
+          ? formatMoney(req.count)
+          : hideoutItemNeedsFleaBuy(req)
+            ? formatMoney(req.flea_price)
+            : "—";
+        const body = (
+          <>
+            {req.icon_link ? <img src={req.icon_link} alt="" /> : null}
+            <span className={styles.itemName}>
+              {countText}
+              {label}
+            </span>
+            <span className={styles.itemFlea}>{flea}</span>
+          </>
+        );
+        if (!ident) {
+          return (
+            <li key={key} className={styles.itemRow}>
+              {body}
+            </li>
+          );
+        }
+        return (
+          <li key={key}>
+            <Link
+              className={`${styles.itemRow} ${styles.reqItem}`}
+              to={itemHrefFromTypes(ident, req.types || [])}
+            >
+              {body}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
 function StationDetail({
   station,
   current,
+  focusLevel,
   levels,
   byId,
+  traderLevels,
+  wiki = false,
 }: {
   station: Station;
   current: number;
+  focusLevel?: number;
   levels: Record<string, number>;
   byId: Map<string, HideoutStationSpec>;
+  traderLevels?: Record<string, number>;
+  wiki?: boolean;
 }) {
   const gameMode = useTarkovGameMode();
-  const currentSpec = currentHideoutLevelSpec(station, current) as
-    | Level
-    | undefined;
-  const nextSpec = nextHideoutLevelSpec(station, current) as Level | undefined;
+  const high = hideoutMaxLevel(station);
+  const selected = (() => {
+    const raw = Math.trunc(Number(focusLevel) || 0);
+    if (raw >= 1) return high ? Math.min(raw, high) : raw;
+    return Math.max(current, 1);
+  })();
+  const spec = hideoutLevelSpec(station, selected) as Level | undefined;
+  const roman = hideoutRoman(selected);
+  const built = current >= selected;
   const craftsQuery = useQuery({
     queryKey: ["guides-tarkov-crafts", gameMode, station.slug || station.id],
     queryFn: () => fetchStationCrafts(station.slug || station.id),
@@ -246,8 +437,9 @@ function StationDetail({
       (a, b) => Number(a.level || 0) - Number(b.level || 0),
     );
   }, [craftsQuery.data]);
-  const bonuses = currentSpec?.bonuses || [];
-  const nextCost = nextSpec ? guideItemFleaCost(nextSpec.item_requirements) : null;
+  const bonusTable = useMemo(() => buildHideoutBonusTable(station), [station]);
+  const cost = spec ? hideoutUpgradeFleaCost(spec.item_requirements) : null;
+  const materialItems = hideoutUpgradeMaterialItems(spec?.item_requirements);
 
   const craftColumns: ColumnsType<Craft> = [
     {
@@ -280,105 +472,85 @@ function StationDetail({
 
   return (
     <div className={styles.detail}>
-      <div className={styles.detailHead}>
-        {station.image_link ? (
-          <img className={styles.detailIcon} src={station.image_link} alt="" />
-        ) : null}
-        <div>
-          <h3 className={styles.detailName}>{station.name}</h3>
-          <div className={styles.detailSub}>
-            当前 Lv.{current}
-            {hideoutMaxLevel(station)
-              ? ` / ${hideoutMaxLevel(station)}`
-              : ""}
-            {currentSpec?.description ? ` · ${currentSpec.description}` : ""}
+      <div className={styles.detailMain}>
+        <div className={styles.detailHead}>
+          {station.image_link ? (
+            <img className={styles.detailIcon} src={station.image_link} alt="" />
+          ) : null}
+          <div>
+            <h3 className={styles.detailName}>
+              {station.name}
+              {roman ? ` ${roman}` : ""}
+            </h3>
+            <div className={styles.detailSub}>
+              {`Lv.${selected}`}
+              {high ? ` / ${high}` : ""}
+              {wiki
+                ? spec?.description
+                  ? ` · ${spec.description}`
+                  : ""
+                : `${
+                    built
+                      ? " · 已建成"
+                      : current > 0
+                        ? ` · 已建到 Lv.${current}`
+                        : " · 尚未建造"
+                  }${spec?.description ? ` · ${spec.description}` : ""}`}
+            </div>
           </div>
         </div>
-      </div>
 
-      {bonuses.length ? (
-        <section>
-          <h4 className={styles.sectionTitle}>当前功能</h4>
-          <div className={styles.bonusList}>
-            {bonuses.map((bonus, index) => (
-              <div
-                key={`${bonus.type}-${index}`}
-                className={styles.bonusRow}
-              >
-                <span className={styles.bonusName}>
-                  {bonus.name || bonus.type}
-                  {bonus.skill ? `（${bonus.skill}）` : ""}
-                </span>
-                <span className={styles.bonusValue}>
-                  {formatHideoutBonusValue(bonus.type || "", Number(bonus.value || 0))}
-                </span>
-              </div>
-            ))}
-          </div>
-          {bonuses.some((bonus) => bonus.slot_items?.length) ? (
-            <TarkovGuideItemStack
-              items={bonuses.flatMap((bonus) => bonus.slot_items || [])}
+        {bonusTable.rows.length ? (
+          <section>
+            <h4 className={styles.sectionTitle}>效果</h4>
+            <HideoutBonusList
+              table={bonusTable}
+              current={current}
+              focus={selected}
             />
-          ) : null}
-        </section>
-      ) : current > 0 ? (
-        <div className={styles.detailSub}>该等级没有列出加成。</div>
-      ) : (
-        <div className={styles.detailSub}>尚未建造。</div>
-      )}
+          </section>
+        ) : selected > 0 ? (
+          <div className={styles.detailSub}>该等级没有列出加成。</div>
+        ) : null}
 
-      {nextSpec ? (
-        <section>
-          <h4 className={styles.sectionTitle}>
-            升到 Lv.{nextSpec.level}
-            {nextSpec.construction_time
-              ? ` · ${formatDurationSeconds(nextSpec.construction_time)}`
-              : ""}
-            {nextCost != null ? ` · ${formatMoney(nextCost)}` : ""}
-          </h4>
-          {nextSpec.description ? (
-            <div className={styles.detailSub}>{nextSpec.description}</div>
-          ) : null}
-          <HideoutReqList
-            spec={nextSpec}
-            levels={levels}
-            byId={byId}
-            showItems={false}
-            showFooter={false}
-          />
-          <div className={styles.detailSub}>
-            商人好感、技能与仓库材料本期只展示，不挡升级。
-          </div>
-          {nextSpec.item_requirements?.length ? (
-            <div className={tableStyles.table}>
-              <Table<TarkovGuideItemRef>
-                rowKey={(row) => row.id}
-                columns={[
-                  {
-                    title: "材料",
-                    key: "item",
-                    render: (_: unknown, row) => (
-                      <TarkovGuideItemStack items={[row]} />
-                    ),
-                  },
-                  {
-                    title: "跳蚤",
-                    key: "flea",
-                    width: 120,
-                    align: "right" as const,
-                    render: (_: unknown, row) => formatMoney(row.flea_price),
-                  },
-                ]}
-                dataSource={nextSpec.item_requirements}
-                pagination={false}
-                size="small"
+        {spec ? (
+          <>
+            <section>
+              <h4 className={styles.sectionTitle}>
+                {roman ? `${roman} ` : ""}建造要求
+                <span className={styles.needMeta}>
+                  {` · Lv.${selected}`}
+                  {spec.construction_time
+                    ? ` · ${formatDurationSeconds(spec.construction_time)}`
+                    : ""}
+                </span>
+              </h4>
+              <HideoutReqList
+                spec={spec}
+                levels={levels}
+                byId={byId}
+                traderLevels={traderLevels}
+                showItems={false}
+                showFooter={false}
+                wiki={wiki}
               />
-            </div>
-          ) : (
-            <div className={styles.detailSub}>无额外材料。</div>
-          )}
-        </section>
-      ) : null}
+            </section>
+            <section>
+              <h4 className={styles.sectionTitle}>
+                {roman ? `${roman} ` : ""}建造材料
+                {cost != null ? (
+                  <span className={styles.needMeta}>
+                    {` · 跳蚤 ${formatMoney(cost)}`}
+                  </span>
+                ) : null}
+              </h4>
+              <HideoutMaterialList items={materialItems} />
+            </section>
+          </>
+        ) : (
+          <div className={styles.detailSub}>该等级没有建造数据。</div>
+        )}
+      </div>
 
       {craftsQuery.isLoading ? (
         <Spin />
@@ -386,7 +558,9 @@ function StationDetail({
         <section>
           <h4 className={styles.sectionTitle}>制作</h4>
           <div className={styles.detailSub}>
-            本设施全部配方；高于当前等级的行灰显预告。
+            {wiki
+              ? "本设施全部配方。"
+              : "本设施全部配方；高于当前已建等级的行灰显预告。"}
           </div>
           <div className={tableStyles.table}>
             <Table<Craft>
@@ -395,8 +569,11 @@ function StationDetail({
               dataSource={crafts}
               pagination={false}
               size="small"
-              rowClassName={(row) =>
-                Number(row.level || 0) > current ? styles.craftLocked : ""
+              rowClassName={
+                wiki
+                  ? undefined
+                  : (row) =>
+                      Number(row.level || 0) > current ? styles.craftLocked : ""
               }
             />
           </div>
@@ -406,10 +583,19 @@ function StationDetail({
   );
 }
 
-export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
+export function TarkovHideoutPanel({
+  stationSlug,
+  wiki = false,
+}: {
+  stationSlug?: string;
+  wiki?: boolean;
+}) {
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
+  const [calcOpen, setCalcOpen] = useState(false);
   const selectedKey =
     (stationSlug || searchParams.get("station") || "").trim();
 
@@ -424,8 +610,22 @@ export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
     queryFn: fetchTarkovHideoutLevels,
     staleTime: 30_000,
     retry: 1,
+    enabled: !wiki && loggedIn,
+  });
+  const profileQuery = useQuery({
+    queryKey: ["guides-tarkov-profile", gameMode],
+    queryFn: fetchTarkovProfile,
+    staleTime: 30_000,
+    retry: 1,
+    enabled: !wiki && loggedIn,
   });
 
+  const stashFloor = wiki
+    ? tarkovStashFloor(undefined)
+    : tarkovStashFloor(profileQuery.data?.game_edition);
+  const traderLevels = wiki
+    ? undefined
+    : traderLevelsForHideout(profileQuery.data?.trader_levels);
   const stations = (catalogQuery.data?.items || EMPTY_STATIONS) as Station[];
   const byId = useMemo(() => indexHideoutStations(stations), [stations]);
   const levels = useMemo(
@@ -433,13 +633,26 @@ export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
       filledHideoutLevels(
         stations,
         hideoutLevelsFromRows(levelsQuery.data?.levels),
+        stashFloor,
       ),
-    [stations, levelsQuery.data],
+    [stations, levelsQuery.data, stashFloor],
   );
   const selected =
     stations.find(
       (row) => row.slug === selectedKey || row.id === selectedKey,
     ) || null;
+  const selectedLevel = (() => {
+    if (!selected) return undefined;
+    const high = hideoutMaxLevel(selected);
+    const raw = Number(searchParams.get("level") || "");
+    if (Number.isFinite(raw) && raw >= 1) {
+      const value = Math.trunc(raw);
+      return high ? Math.min(value, high) : value;
+    }
+    const current =
+      levels[selected.id] ?? hideoutDefaultLevel(selected, stashFloor);
+    return Math.max(current, 1);
+  })();
 
   const mutation = useMutation({
     mutationFn: ({ stationId, level }: { stationId: string; level: number }) =>
@@ -455,28 +668,53 @@ export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
     },
   });
 
-  const setSelected = (slug: string) => {
+  const setSelected = (slug: string, level?: number) => {
+    if (wiki) {
+      if (!slug) {
+        navigate(TARKOV_HIDEOUT_PATH, { replace: true });
+        return;
+      }
+      const params = new URLSearchParams();
+      if (level && level > 0) params.set("level", String(level));
+      const query = params.toString();
+      navigate(
+        `${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(slug)}${
+          query ? `?${query}` : ""
+        }`,
+        { replace: true },
+      );
+      return;
+    }
     if (stationSlug) return;
     const next = new URLSearchParams(searchParams);
-    if (!slug) next.delete("station");
-    else next.set("station", slug);
+    if (!slug) {
+      next.delete("station");
+      next.delete("level");
+    } else {
+      next.set("station", slug);
+      if (level && level > 0) next.set("level", String(level));
+      else next.delete("level");
+    }
     setSearchParams(next, { replace: true });
   };
 
-  const changeLevel = (station: Station, delta: 1 | -1) => {
+  const changeLevel = (station: HideoutStationSpec, delta: 1 | -1) => {
     const ident = (station.id || "").trim();
     if (!ident || mutation.isPending) return;
-    const current = levels[ident] ?? hideoutDefaultLevel(station);
+    const current = levels[ident] ?? hideoutDefaultLevel(station, stashFloor);
     const target = current + delta;
     try {
-      applyHideoutLevel(stations, levels, ident, target);
+      applyHideoutLevel(stations, levels, ident, target, stashFloor);
     } catch {
       return;
     }
     mutation.mutate({ stationId: ident, level: target });
   };
 
-  if (catalogQuery.isLoading || levelsQuery.isLoading) {
+  if (
+    catalogQuery.isLoading ||
+    (!wiki && (levelsQuery.isLoading || profileQuery.isLoading))
+  ) {
     return (
       <div className={trade.status}>
         <Spin />
@@ -495,7 +733,7 @@ export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
     );
   }
 
-  if (levelsQuery.isError) {
+  if (!wiki && levelsQuery.isError) {
     return (
       <Alert
         type="error"
@@ -508,95 +746,48 @@ export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
 
   return (
     <div className={trade.stack}>
-      <div className={styles.grid}>
-        {stations.map((station) => {
-          const ident = station.id || "";
-          const current = levels[ident] ?? hideoutDefaultLevel(station);
-          const on = selected?.id === ident;
-          const canUp = canSetHideoutLevel(
-            station,
-            current + 1,
-            levels,
-            byId,
-          );
-          const canDown = current > hideoutDefaultLevel(station);
-          return (
-            <Tooltip
-              key={ident}
-              placement="bottom"
-              mouseEnterDelay={0.25}
-              title={
-                <HideoutReqTooltip
-                  station={station}
-                  current={current}
-                  levels={levels}
-                  byId={byId}
-                />
-              }
-            >
-              <div
-                className={`${styles.cell}${on ? ` ${styles.cellOn}` : ""}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelected(station.slug || ident)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelected(station.slug || ident);
-                  }
-                }}
-              >
-                <div className={styles.cellTop}>
-                  {station.image_link ? (
-                    <img
-                      className={styles.cellIcon}
-                      src={station.image_link}
-                      alt=""
-                    />
-                  ) : null}
-                  <span className={styles.cellName}>{station.name}</span>
-                </div>
-                <div className={styles.cellMeta}>
-                  <span className={styles.level}>Lv.{current}</span>
-                  <span className={styles.actions}>
-                    <Button
-                      type="link"
-                      size="small"
-                      disabled={!canDown || mutation.isPending}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        changeLevel(station, -1);
-                      }}
-                    >
-                      降
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      disabled={!canUp || mutation.isPending}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        changeLevel(station, 1);
-                      }}
-                    >
-                      升
-                    </Button>
-                  </span>
-                </div>
-              </div>
-            </Tooltip>
-          );
-        })}
+      <div className={styles.toolbar}>
+        {wiki ? (
+          <p className={styles.wikiHint}>
+            目录百科，不含个人进度。
+            <Link to={tarkovMeHref("hideout")}>去个人中心规划</Link>
+          </p>
+        ) : (
+          <span />
+        )}
+        <Button
+          icon={<CalculatorOutlined />}
+          onClick={() => setCalcOpen(true)}
+        >
+          材料计算
+        </Button>
       </div>
+      <TarkovHideoutTree
+        stations={stations}
+        levels={levels}
+        byId={byId}
+        stashFloor={stashFloor}
+        selectedId={selected?.id}
+        selectedLevel={selectedLevel}
+        pending={mutation.isPending}
+        wiki={wiki}
+        onSelect={setSelected}
+        onChangeLevel={wiki ? undefined : changeLevel}
+      />
       {selected ? (
         <StationDetail
           station={selected}
-          current={levels[selected.id] ?? hideoutDefaultLevel(selected)}
+          current={levels[selected.id] ?? hideoutDefaultLevel(selected, stashFloor)}
+          focusLevel={selectedLevel}
           levels={levels}
           byId={byId}
+          traderLevels={traderLevels}
+          wiki={wiki}
         />
       ) : (
-        <div className={styles.detailSub}>点击设施查看功能与制作。</div>
+        <div className={styles.detailSub}>
+          悬停格子可预览前置与路线；点击查看详情，再点取消选中。
+        </div>
       )}
       <div className={trade.meta}>
         {catalogQuery.data?.station_count ?? stations.length} 个模块
@@ -604,6 +795,11 @@ export function TarkovHideoutPanel({ stationSlug }: { stationSlug?: string }) {
           ? ` · 同步 ${catalogQuery.data.synced_at}`
           : ""}
       </div>
+      <TarkovHideoutCalcModal
+        open={calcOpen}
+        stations={stations}
+        onCancel={() => setCalcOpen(false)}
+      />
     </div>
   );
 }

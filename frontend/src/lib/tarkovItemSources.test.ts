@@ -7,12 +7,25 @@ import {
   dropSourceSectionLabel,
   hasFleaQuote,
   itemDropSection,
+  itemHasBarterRelations,
+  itemHasCraftRelations,
+  itemHasDropRelations,
+  itemHasHideoutRelations,
+  itemHasQuestRelations,
   itemHasSources,
   itemHasUses,
+  previewRows,
   questKindChip,
+  questRelationSteps,
+  questStepCountText,
+  questStepDisplayText,
+  questStepPrimaryText,
+  questStepLabel,
   questRewardKindLabel,
   requiredItemCount,
+  requiredItemFoundInRaid,
   splitItemDropSources,
+  craftRecipeSourceLabel,
 } from "./tarkovItemSources";
 
 function drop(
@@ -105,6 +118,37 @@ describe("tarkovItemSources", () => {
     ).toBe(true);
   });
 
+  it("splits relation buckets for the detail sections", () => {
+    const sources = {
+      barters: [{ id: "b1" } as never],
+      crafts: [],
+      quest_rewards: [{ id: "t1" } as never],
+      drops: [drop({ id: "bossKilla", slug: "killa" })],
+    };
+    const uses = {
+      barters: [],
+      crafts: [{ id: "c1" } as never],
+      hideout: [{ station_slug: "workbench" } as never],
+      tasks: [],
+    };
+    expect(itemHasBarterRelations(sources, uses)).toBe(true);
+    expect(itemHasQuestRelations(sources, uses)).toBe(true);
+    expect(itemHasCraftRelations(sources, uses)).toBe(true);
+    expect(itemHasHideoutRelations(uses)).toBe(true);
+    expect(itemHasDropRelations(sources)).toBe(true);
+    expect(itemHasBarterRelations({}, {})).toBe(false);
+    expect(itemHasQuestRelations(sources, { ...uses, tasks: [{ id: "need" } as never] })).toBe(
+      true,
+    );
+  });
+
+  it("previewRows caps until expanded", () => {
+    expect(previewRows([1, 2, 3], false, 2)).toEqual([1, 2]);
+    expect(previewRows([1, 2, 3], true, 2)).toEqual([1, 2, 3]);
+    expect(previewRows([1, 2], false, 8)).toEqual([1, 2]);
+    expect(previewRows(undefined, false, 8)).toEqual([]);
+  });
+
   it("labels quest reward kinds", () => {
     expect(questRewardKindLabel("start")).toBe("接取奖励");
     expect(questRewardKindLabel("finish")).toBe("完成奖励");
@@ -113,6 +157,60 @@ describe("tarkovItemSources", () => {
     expect(questKindChip("finish")).toBe("完成");
     expect(questKindChip("require")).toBe("需求");
     expect(questKindChip("build")).toBe("建造");
+  });
+
+  it("labels each quest relation step without summing find and give", () => {
+    expect(questStepLabel("findItem")).toBe("找到");
+    expect(questStepLabel("giveItem")).toBe("上交");
+    expect(questStepLabel("giveQuestItem")).toBe("上交");
+    expect(questStepLabel("start")).toBe("接取奖励");
+    expect(questStepLabel("finish")).toBe("完成奖励");
+    expect(questStepLabel("neededKeys")).toBe("钥匙");
+    expect(questStepLabel("wearing")).toBe("穿戴");
+    expect(questStepLabel("")).toBe("相关");
+    expect(questStepCountText(1)).toBe("×1");
+    expect(questStepCountText(150)).toBe("×150");
+    expect(questStepCountText(null)).toBe("");
+    expect(
+      questRelationSteps({
+        steps: [
+          { type: "findItem", count: 1 },
+          { type: "giveItem", count: 1 },
+        ],
+        count: 1,
+      }).map((step) => `${questStepLabel(step.type)} ${questStepCountText(step.count)}`.trim()),
+    ).toEqual(["找到 ×1", "上交 ×1"]);
+    expect(questStepPrimaryText({ type: "sellItem", count: 50 })).toBe("出售");
+    expect(questStepDisplayText({ type: "sellItem", count: 50 })).toBe(
+      "出售 ×50",
+    );
+    expect(
+      questStepPrimaryText({
+        type: "sellItem",
+        count: 50,
+        text: "向 BTR 驾驶员出售物品",
+      }),
+    ).toBe("向 BTR 驾驶员出售物品");
+    expect(
+      questStepDisplayText({
+        type: "sellItem",
+        count: 50,
+        text: "向 BTR 驾驶员出售物品",
+      }),
+    ).toBe("向 BTR 驾驶员出售物品 ×50");
+    expect(questStepDisplayText({ type: "finish", count: 1, text: "" })).toBe(
+      "完成奖励 ×1",
+    );
+    expect(questRelationSteps({ kind: "finish", count: 2 })).toEqual([
+      { type: "finish", count: 2, found_in_raid: undefined },
+    ]);
+  });
+
+  it("labels craft recipe source", () => {
+    expect(craftRecipeSourceLabel(null)).toBe("默认");
+    expect(craftRecipeSourceLabel("")).toBe("默认");
+    expect(craftRecipeSourceLabel("t1", "枪匠")).toBe("枪匠");
+    expect(craftRecipeSourceLabel("t1", "  ")).toBe("任务解锁");
   });
 
   it("sums required count for this item", () => {
@@ -127,6 +225,19 @@ describe("tarkovItemSources", () => {
       ),
     ).toBe(3);
     expect(requiredItemCount([], "bolt")).toBe(0);
+    expect(
+      requiredItemFoundInRaid(
+        [
+          { id: "bolt", found_in_raid: false },
+          { id: "bolt", found_in_raid: true },
+          { id: "other", found_in_raid: true },
+        ],
+        "bolt",
+      ),
+    ).toBe(true);
+    expect(
+      requiredItemFoundInRaid([{ id: "bolt", found_in_raid: false }], "bolt"),
+    ).toBe(false);
   });
 
   it("splits drops into Boss vs 非 Boss", () => {

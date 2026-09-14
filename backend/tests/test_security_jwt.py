@@ -1,4 +1,10 @@
-from app.core.security import create_access_token, decode_access_token
+from datetime import timedelta
+
+import jwt
+
+from app.core.config import get_settings
+from app.core.security import ALGORITHM, create_access_token, decode_access_token
+from app.core.timeutil import utc_now
 
 
 def test_new_token_uses_user_id_sub(monkeypatch) -> None:
@@ -13,16 +19,18 @@ def test_new_token_uses_user_id_sub(monkeypatch) -> None:
     assert principal.username == "alice"
 
 
-def test_legacy_username_token_still_decodes(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.services.auth_config.get_access_token_expire_minutes",
-        lambda: 60,
+def test_legacy_username_sub_rejected() -> None:
+    settings = get_settings()
+    token = jwt.encode(
+        {
+            "exp": utc_now() + timedelta(minutes=60),
+            "sub": "bob",
+            "username": "bob",
+        },
+        settings.SECRET_KEY,
+        algorithm=ALGORITHM,
     )
-    token = create_access_token("bob")
-    principal = decode_access_token(token)
-    assert principal is not None
-    assert principal.user_id is None
-    assert principal.username == "bob"
+    assert decode_access_token(token) is None
 
 
 def test_invalid_token_returns_none() -> None:

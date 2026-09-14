@@ -70,6 +70,34 @@
   color: var(--hb-orange, #c8932a);
 }
 
+.expand {
+  height: auto;
+  padding: 0;
+  color: var(--hb-muted, #b0ae9a);
+  font-size: 12px;
+}
+
+.expand:hover {
+  color: var(--hb-orange, #c8932a);
+}
+
+.fir {
+  padding: 1px 6px;
+  border: 1px solid var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
+  color: var(--hb-orange, #c8932a);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
 .fleaQuote {
   display: flex;
   flex-wrap: wrap;
@@ -239,9 +267,69 @@
   color: #e0b45a;
 }
 
+.muted {
+  color: var(--hb-muted, #b0ae9a);
+}
+
+.sourceLink {
+  color: var(--hb-orange, #c8932a);
+  text-decoration: none;
+}
+
+.sourceLink:hover {
+  color: #e0b45a;
+}
+
 .blockTable :global(.ant-table-container) {
   border-inline-start: none !important;
   border-top: none !important;
+}
+
+.blockTable :global(.ant-table),
+.blockTable :global(.ant-table table) {
+  width: 100% !important;
+}
+
+.blockTable :global(.ant-table-tbody > tr > td) {
+  vertical-align: top;
+}
+
+.taskLink {
+  color: #eee9d6;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.taskLink:hover {
+  color: var(--hb-orange, #c8932a);
+}
+
+.questSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.questStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #eee9d6;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.questStepText {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.questStepCount {
+  flex: none;
+  color: #a8a28c;
+  font-variant-numeric: tabular-nums;
 }
 
 .quests {
@@ -348,6 +436,10 @@ a.quest:hover .questName {
 }
 
 .dropGroupTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin: 4px 0 10px;
   color: #d8d4c0;
   font-size: 12px;

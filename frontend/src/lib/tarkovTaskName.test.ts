@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { displayTaskProgressName } from "./tarkovTaskName";
+import { displayTaskProgressName, taskFactionLabel } from "./tarkovTaskName";
+
+describe("taskFactionLabel", () => {
+  it("maps empty and Any to 任意", () => {
+    expect(taskFactionLabel("")).toBe("任意");
+    expect(taskFactionLabel("Any")).toBe("任意");
+    expect(taskFactionLabel("any")).toBe("任意");
+  });
+
+  it("keeps USEC and BEAR", () => {
+    expect(taskFactionLabel("USEC")).toBe("USEC");
+    expect(taskFactionLabel("BEAR")).toBe("BEAR");
+  });
+});
 
 describe("displayTaskProgressName", () => {
   it("appends line hint without duplicating faction", () => {

@@ -11,6 +11,18 @@
   height: 40px;
 }
 
+.wikiHint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--hb-muted, #b0ae9a);
+}
+
+.wikiHint a {
+  margin-left: 8px;
+  color: var(--hb-orange, #c8932a);
+}
+
 .ocrBtn {
   flex: none;
   height: 40px;

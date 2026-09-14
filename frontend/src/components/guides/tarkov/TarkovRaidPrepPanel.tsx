@@ -84,6 +84,7 @@ import {
   commitTaskObjective,
   commitTaskStatus,
   loadTaskDoneIds,
+  loadTaskFailedIds,
   loadTaskStartedIds,
   resolveAccountTaskProgress,
   taskProgressQueryData,
@@ -148,11 +149,13 @@ export function TarkovRaidPrepPanel() {
     queryKey: ["guides-tarkov-key-owns"],
     queryFn: fetchTarkovKeyOwns,
     staleTime: 60_000,
+    enabled: Boolean(me),
   });
   const taskDonesQuery = useQuery({
     queryKey: ["guides-tarkov-task-dones", gameMode],
     queryFn: fetchTarkovTaskDones,
     staleTime: 30_000,
+    enabled: Boolean(me),
   });
   const stateQuery = useQuery({
     queryKey: ["guides-tarkov-raid-prep-state", gameMode, mapId],
@@ -201,6 +204,7 @@ export function TarkovRaidPrepPanel() {
         : {
             done: loadTaskDoneIds(gameMode),
             started: loadTaskStartedIds(gameMode),
+            failed: loadTaskFailedIds(gameMode),
             objectives: pairs,
           };
       queryClient.setQueryData(
@@ -209,11 +213,13 @@ export function TarkovRaidPrepPanel() {
           progress.done,
           progress.started,
           progress.objectives,
+          progress.failed,
         ),
       );
       const applyServer = (data: {
         task_ids?: string[];
         started_ids?: string[];
+        failed_ids?: string[];
         objective_dones?: typeof pairs;
       }) => {
         if (seq !== objToggleSeqRef.current) return;
@@ -223,6 +229,7 @@ export function TarkovRaidPrepPanel() {
             data.task_ids || loadTaskDoneIds(gameMode),
             data.started_ids || loadTaskStartedIds(gameMode),
             data.objective_dones || pairs,
+            data.failed_ids || loadTaskFailedIds(gameMode),
           ),
         );
       };
@@ -571,10 +578,16 @@ export function TarkovRaidPrepPanel() {
       }
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(next.done, next.started, next.objectives),
+        taskProgressQueryData(
+          next.done,
+          next.started,
+          next.objectives,
+          next.failed,
+        ),
       );
       void writeTarkovTaskDones(next.done, {
         startedIds: next.started,
+        failedIds: next.failed,
         objectiveDones: next.objectives,
       })
         .then((data) => {
@@ -585,6 +598,7 @@ export function TarkovRaidPrepPanel() {
               data.task_ids || next.done,
               data.started_ids || next.started,
               objectives,
+              data.failed_ids || next.failed,
             ),
           );
           const local = readRaidPrepObjectiveDoneWithLegacy(
@@ -913,13 +927,15 @@ export function TarkovRaidPrepPanel() {
             onKeyword={setKeyword}
             leading={
               <div className={styles.dockLeadActions}>
-                <button
-                  type="button"
-                  className={styles.changeMapBtn}
-                  onClick={() => setOcrOpen(true)}
-                >
-                  截图识别
-                </button>
+                {me ? (
+                  <button
+                    type="button"
+                    className={styles.changeMapBtn}
+                    onClick={() => setOcrOpen(true)}
+                  >
+                    截图识别
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={styles.changeMapBtn}
@@ -983,7 +999,7 @@ export function TarkovRaidPrepPanel() {
         onSoloMap={setMap}
       />
       <TarkovRaidPrepOcrModal
-        open={ocrOpen}
+        open={Boolean(me) && ocrOpen}
         onClose={() => setOcrOpen(false)}
         mapSlug={mapId}
         selectedIds={selected}

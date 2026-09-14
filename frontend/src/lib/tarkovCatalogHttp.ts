@@ -9,6 +9,7 @@ const SKIP_SUBSTRINGS = [
   "/collection-layout",
   "/task-dones",
   "/hideout-levels",
+  "/profile",
   "/raid-logs",
   "/raid-prep/state",
 ];

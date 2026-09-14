@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.timeutil import now_naive
 from app.models.tarkov import (
     TarkovUserTaskDone,
+    TarkovUserTaskFailed,
     TarkovUserTaskObjectiveDone,
     TarkovUserTaskStarted,
 )
@@ -29,7 +30,7 @@ class TarkovTaskDonesError(Exception):
 
 
 def normalize_task_id(raw: str | None) -> str:
-    ident = str(raw or "").strip()
+    ident = str(raw or "").strip().lower()
     if not ident or len(ident) > TASK_ID_MAX:
         raise TarkovTaskDonesError("任务 id 无效")
     return ident
@@ -80,36 +81,67 @@ def list_started_ids(
     return [str(row[0]) for row in rows]
 
 
+def list_failed_ids(
+    db: Session,
+    user_id: int,
+    *,
+    game_mode: str | None = None,
+) -> list[str]:
+    mode = _mode(game_mode)
+    rows = (
+        db.query(TarkovUserTaskFailed.task_id)
+        .filter(
+            TarkovUserTaskFailed.user_id == user_id,
+            TarkovUserTaskFailed.game_mode == mode,
+        )
+        .order_by(
+            TarkovUserTaskFailed.created_at.asc(),
+            TarkovUserTaskFailed.task_id.asc(),
+        )
+        .all()
+    )
+    return [str(row[0]) for row in rows]
+
+
 def list_progress(
     db: Session,
     user_id: int,
     *,
     game_mode: str | None = None,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     done = list_task_ids(db, user_id, game_mode=game_mode)
     done_set = set(done)
+    failed = [
+        ident
+        for ident in list_failed_ids(db, user_id, game_mode=game_mode)
+        if ident not in done_set
+    ]
+    failed_set = set(failed)
     started = [
         ident
         for ident in list_started_ids(db, user_id, game_mode=game_mode)
-        if ident not in done_set
+        if ident not in done_set and ident not in failed_set
     ]
-    return done, started
+    return done, started, failed
 
 
 def filter_visible_progress(
     done: list[str],
     started: list[str],
     catalog: set[str] | None,
-) -> tuple[list[str], list[str]]:
+    failed: list[str] | None = None,
+) -> tuple[list[str], list[str], list[str]]:
     """进度账是冗余 id 表。目录里没有的（overlay disabled 等）只隐藏、不删行。
 
     catalog 为 None 表示图鉴不可用，原样返回。
     """
+    failed_ids = failed or []
     if catalog is None:
-        return done, started
+        return done, started, failed_ids
     return (
         [ident for ident in done if ident in catalog],
         [ident for ident in started if ident in catalog],
+        [ident for ident in failed_ids if ident in catalog],
     )
 
 
@@ -144,9 +176,9 @@ def account_progress(
     user_id: int,
     *,
     game_mode: str | None = None,
-) -> tuple[list[str], list[str], list[dict[str, str]]]:
-    done, started = list_progress(db, user_id, game_mode=game_mode)
-    return done, started, list_objective_dones(db, user_id, game_mode=game_mode)
+) -> tuple[list[str], list[str], list[str], list[dict[str, str]]]:
+    done, started, failed = list_progress(db, user_id, game_mode=game_mode)
+    return done, started, failed, list_objective_dones(db, user_id, game_mode=game_mode)
 
 
 def _started_rows(
@@ -162,6 +194,34 @@ def _started_rows(
         )
         .all()
     )
+
+
+def _failed_rows(
+    db: Session,
+    user_id: int,
+    mode: str,
+) -> list[TarkovUserTaskFailed]:
+    return (
+        db.query(TarkovUserTaskFailed)
+        .filter(
+            TarkovUserTaskFailed.user_id == user_id,
+            TarkovUserTaskFailed.game_mode == mode,
+        )
+        .all()
+    )
+
+
+def _drop_failed(
+    db: Session,
+    user_id: int,
+    mode: str,
+    task_ids: set[str],
+) -> None:
+    if not task_ids:
+        return
+    for row in _failed_rows(db, user_id, mode):
+        if str(row.task_id) in task_ids:
+            db.delete(row)
 
 
 def _drop_started(
@@ -209,6 +269,7 @@ def add_done(
         db.flush()
         added = True
     _drop_started(db, user.id, mode, {ident})
+    _drop_failed(db, user.id, mode, {ident})
     db.flush()
     fill_objectives_for_done_tasks(
         db, user, [ident], game_mode=mode, now=now or now_naive()
@@ -285,6 +346,7 @@ def merge_dones(
         have.add(ident)
     db.flush()
     _drop_started(db, user.id, mode, have)
+    _drop_failed(db, user.id, mode, have)
     db.flush()
     fill_objectives_for_done_tasks(
         db, user, incoming, game_mode=mode, now=stamp
@@ -329,6 +391,7 @@ def replace_dones(
         )
     db.flush()
     _drop_started(db, user.id, mode, wanted)
+    _drop_failed(db, user.id, mode, wanted)
     db.flush()
     fill_objectives_for_done_tasks(
         db, user, incoming, game_mode=mode, now=stamp
@@ -362,7 +425,9 @@ def merge_starteds(
         )
         have.add(ident)
     db.flush()
-    _done, started = list_progress(db, user.id, game_mode=mode)
+    _drop_failed(db, user.id, mode, set(incoming))
+    db.flush()
+    _done, started, _failed = list_progress(db, user.id, game_mode=mode)
     return started
 
 
@@ -396,8 +461,78 @@ def replace_starteds(
             )
         )
     db.flush()
-    _done, started = list_progress(db, user.id, game_mode=mode)
+    _drop_failed(db, user.id, mode, wanted)
+    db.flush()
+    _done, started, _failed = list_progress(db, user.id, game_mode=mode)
     return started
+
+
+def merge_faileds(
+    db: Session,
+    user: User,
+    task_ids: list[Any],
+    *,
+    game_mode: str | None = None,
+    now: datetime | None = None,
+) -> list[str]:
+    mode = _mode(game_mode)
+    stamp = now or now_naive()
+    done = set(list_task_ids(db, user.id, game_mode=mode))
+    incoming = [ident for ident in _incoming_ids(task_ids) if ident not in done]
+    have = set(list_failed_ids(db, user.id, game_mode=mode))
+    for ident in incoming:
+        if ident in have:
+            continue
+        db.add(
+            TarkovUserTaskFailed(
+                user_id=user.id,
+                game_mode=mode,
+                task_id=ident,
+                created_at=stamp,
+            )
+        )
+        have.add(ident)
+    db.flush()
+    _drop_started(db, user.id, mode, set(incoming))
+    db.flush()
+    _done, _started, failed = list_progress(db, user.id, game_mode=mode)
+    return failed
+
+
+def replace_faileds(
+    db: Session,
+    user: User,
+    task_ids: list[Any],
+    *,
+    game_mode: str | None = None,
+    now: datetime | None = None,
+) -> list[str]:
+    mode = _mode(game_mode)
+    stamp = now or now_naive()
+    done = set(list_task_ids(db, user.id, game_mode=mode))
+    incoming = [ident for ident in _incoming_ids(task_ids) if ident not in done]
+    wanted = set(incoming)
+    rows = _failed_rows(db, user.id, mode)
+    have = {str(row.task_id) for row in rows}
+    for row in rows:
+        if str(row.task_id) not in wanted:
+            db.delete(row)
+    for ident in incoming:
+        if ident in have:
+            continue
+        db.add(
+            TarkovUserTaskFailed(
+                user_id=user.id,
+                game_mode=mode,
+                task_id=ident,
+                created_at=stamp,
+            )
+        )
+    db.flush()
+    _drop_started(db, user.id, mode, wanted)
+    db.flush()
+    _done, _started, failed = list_progress(db, user.id, game_mode=mode)
+    return failed
 
 
 def _incoming_objective_pairs(items: list[Any] | None) -> list[tuple[str, str]]:
@@ -602,11 +737,14 @@ def write_progress(
     game_mode: str | None = None,
     now: datetime | None = None,
     objective_dones: list[Any] | None = None,
-) -> tuple[list[str], list[str]]:
+    failed_ids: list[Any] | None = None,
+) -> tuple[list[str], list[str], list[str]]:
     if replace:
         replace_dones(db, user, task_ids, game_mode=game_mode, now=now)
         if started_ids is not None:
             replace_starteds(db, user, started_ids, game_mode=game_mode, now=now)
+        if failed_ids is not None:
+            replace_faileds(db, user, failed_ids, game_mode=game_mode, now=now)
         if objective_dones is not None:
             replace_objective_dones(
                 db, user, objective_dones, game_mode=game_mode, now=now
@@ -615,6 +753,8 @@ def write_progress(
         merge_dones(db, user, task_ids, game_mode=game_mode, now=now)
         if started_ids is not None:
             merge_starteds(db, user, started_ids, game_mode=game_mode, now=now)
+        if failed_ids is not None:
+            merge_faileds(db, user, failed_ids, game_mode=game_mode, now=now)
         if objective_dones is not None:
             merge_objective_dones(
                 db, user, objective_dones, game_mode=game_mode, now=now

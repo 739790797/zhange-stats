@@ -7,11 +7,11 @@ import logging
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.deps import load_user_by_access_token
 from app.core.session_cookies import access_token_from_websocket
-from app.core.security import decode_access_token
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
 from app.services.tarkov import raid_rooms as rooms_svc
@@ -25,21 +25,12 @@ CLOSE_NOT_FOUND = 4404
 
 
 def _load_user(token: str) -> User:
-    principal = decode_access_token(token)
-    if not principal or (principal.user_id is None and not principal.username):
-        raise PermissionError("unauth")
     db: Session = SessionLocal()
     try:
         if not is_feature_enabled(db, "guides.tarkov"):
             raise PermissionError("feature")
-        query = db.query(User).options(joinedload(User.member))
-        if principal.user_id is not None:
-            user = query.filter(User.id == principal.user_id).first()
-        else:
-            user = query.filter(User.username == principal.username).first()
+        user = load_user_by_access_token(db, token, with_member=True)
         if user is None:
-            raise PermissionError("unauth")
-        if user.anonymized_at is not None:
             raise PermissionError("unauth")
         db.expunge(user)
         return user

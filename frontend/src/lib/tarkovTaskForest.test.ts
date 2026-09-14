@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TARKOV_TASK_PROGRESS_VIEW_KEY,
   buildTaskForest,
+  buildTraderTaskForest,
   collectPrereqClosure,
   countForestTasks,
   filterTaskForest,
@@ -194,6 +195,77 @@ describe("buildTaskForest", () => {
     ]);
     expect(collectIds(forest).sort()).toEqual(["a", "b"]);
     expect(countForestTasks(forest)).toBe(2);
+  });
+});
+
+describe("buildTraderTaskForest", () => {
+  it("nests a foreign prereq in front of the native follow-up", () => {
+    const later = task("later", "往昔时光-2", {
+      trader_slug: "prapor",
+      prereq_ids: ["air"],
+    });
+    const air = task("air", "航空包裹", { trader_slug: "skier" });
+    const forest = buildTraderTaskForest(
+      [later],
+      new Map([
+        ["later", later],
+        ["air", air],
+      ]),
+    );
+    const airNode = findNode(forest, "air");
+    expect(airNode?.task.trader_slug).toBe("skier");
+    expect(findNode(airNode?.children || [], "later")).toBeTruthy();
+    expect(findNode(forest, "later")?.extraPrereqIds).toEqual([]);
+    expect(
+      splitFlowForest(forest).chains.map((row) =>
+        row.kind === "task" ? row.node.task.id : "",
+      ),
+    ).toEqual(["air"]);
+  });
+
+  it("keeps a longer foreign prereq chain in front of the native task", () => {
+    const native = task("later", "往昔时光-2", {
+      trader_slug: "prapor",
+      prereq_ids: ["air"],
+    });
+    const air = task("air", "航空包裹", {
+      trader_slug: "skier",
+      prereq_ids: ["old"],
+    });
+    const old = task("old", "往昔时光-1", { trader_slug: "skier" });
+    const forest = buildTraderTaskForest(
+      [native],
+      new Map([
+        ["later", native],
+        ["air", air],
+        ["old", old],
+      ]),
+    );
+    const oldNode = findNode(forest, "old");
+    expect(findNode(oldNode?.children || [], "air")).toBeTruthy();
+    expect(
+      findNode(findNode(oldNode?.children || [], "air")?.children || [], "later"),
+    ).toBeTruthy();
+  });
+
+  it("does not dump a foreign extra-prereq as an isolate when a native parent exists", () => {
+    const a = task("a", "本商前置", { trader_slug: "prapor" });
+    const c = task("c", "后续", {
+      trader_slug: "prapor",
+      prereq_ids: ["a", "p"],
+    });
+    const p = task("p", "外商前置", { trader_slug: "skier" });
+    const forest = buildTraderTaskForest(
+      [a, c],
+      new Map([
+        ["a", a],
+        ["c", c],
+        ["p", p],
+      ]),
+    );
+    expect(findNode(forest, "c")?.extraPrereqIds).toEqual(["p"]);
+    expect(findNode(forest, "p")).toBeUndefined();
+    expect(collectIds(forest).sort()).toEqual(["a", "c"]);
   });
 });
 

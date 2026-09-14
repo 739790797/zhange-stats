@@ -8409,11 +8409,6 @@
         "summary": "List Tarkov Raid Rooms",
         "description": "分页列出当前模式的公开房间（listed、无密码、仍有人在座）。\n\n限流：每 IP / 每账号 40 次/分钟。私密房不出现；自己的私密房在 `mine`。",
         "operationId": "list_tarkov_raid_rooms_api_guides_tarkov_raid_rooms_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -8663,11 +8658,6 @@
         "summary": "Get Tarkov Raid Room",
         "description": "取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。",
         "operationId": "get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "public_id",
@@ -10149,11 +10139,6 @@
         "summary": "Guides Tarkov Goons",
         "description": "当前模式三狗最近出现的地图；数据来自 Stammtisch 聚合。",
         "operationId": "guides_tarkov_goons_api_guides_tarkov_goons_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -10305,11 +10290,6 @@
         "summary": "Guides Tarkov Item Catalog",
         "description": "手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。",
         "operationId": "guides_tarkov_item_catalog_api_guides_tarkov_items_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "category_ids",
@@ -10429,11 +10409,6 @@
         "summary": "Guides Tarkov Site Search",
         "description": "攻略站全站搜索：物品 / 任务 / 商人 / BOSS（有 raw 才查，不回源）。",
         "operationId": "guides_tarkov_site_search_api_guides_tarkov_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "q",
@@ -10509,11 +10484,6 @@
         "summary": "Guides Tarkov Item Detail",
         "description": "通用物品详情：从 items raw 返回完整 item / properties。",
         "operationId": "guides_tarkov_item_detail_api_guides_tarkov_items__item_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "item_id",
@@ -10570,11 +10540,6 @@
         "summary": "Guides Tarkov Ammo",
         "description": "弹药穿透/伤害表（派生读模型）。空库时走共享 items 同步。",
         "operationId": "guides_tarkov_ammo_api_guides_tarkov_ammo_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -10622,11 +10587,6 @@
         "summary": "Guides Tarkov Ammo Detail",
         "description": "弹药详情：从 items raw 返回完整 item / properties。",
         "operationId": "guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "item_id",
@@ -10735,11 +10695,6 @@
         "summary": "Guides Tarkov Guns",
         "description": "枪械总表（派生读模型）。空库时走共享 items 同步。",
         "operationId": "guides_tarkov_guns_api_guides_tarkov_guns_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -10839,11 +10794,6 @@
         "summary": "Guides Tarkov Workbench Gun",
         "description": "工作台：枪槽位树、工厂预设 pairs、弹药候选与当前属性。",
         "operationId": "guides_tarkov_workbench_gun_api_guides_tarkov_workbench_guns__gun_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "gun_id",
@@ -10900,11 +10850,6 @@
         "summary": "Guides Tarkov Workbench Allowed",
         "description": "工作台：批量解析槽位允许配件。",
         "operationId": "guides_tarkov_workbench_allowed_api_guides_tarkov_workbench_slots_allowed_items_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -10962,11 +10907,6 @@
         "summary": "Guides Tarkov Workbench Calculate",
         "description": "工作台：按已装 pairs 算属性与槽位树。",
         "operationId": "guides_tarkov_workbench_calculate_api_guides_tarkov_workbench_calculate_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -11024,11 +10964,6 @@
         "summary": "Guides Tarkov Workbench Image Status",
         "description": "工作台出图代理是否开启、是否正在生成。",
         "operationId": "guides_tarkov_workbench_image_status_api_guides_tarkov_workbench_build_image_status_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -11138,11 +11073,6 @@
         "summary": "Guides Tarkov Workbench Community Builds",
         "description": "工作台：按枪读取 EFTForge 公开社区方案（不落库、不代投票）。",
         "operationId": "guides_tarkov_workbench_community_builds_api_guides_tarkov_workbench_community_builds_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "gun_id",
@@ -11201,11 +11131,6 @@
         "summary": "Guides Tarkov Workbench Gunsmith Tasks",
         "description": "工作台：从 tasks dump 投影枪匠改装目标（不 vendor 第三方任务包）。",
         "operationId": "guides_tarkov_workbench_gunsmith_tasks_api_guides_tarkov_workbench_gunsmith_tasks_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -11253,11 +11178,6 @@
         "summary": "Guides Tarkov Workbench Gunsmith Solve",
         "description": "工作台：为一条枪匠目标求一套可交任务的改装。",
         "operationId": "guides_tarkov_workbench_gunsmith_solve_api_guides_tarkov_workbench_gunsmith_solve_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -11367,11 +11287,6 @@
         "summary": "Guides Tarkov Task Catalog",
         "description": "任务目录：商人 / 地图 / 关键词过滤。layout=all 时不分页，返回筛选后的全量。",
         "operationId": "guides_tarkov_task_catalog_api_guides_tarkov_tasks_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "q",
@@ -11528,11 +11443,6 @@
         "summary": "Guides Tarkov Raid Prep",
         "description": "联机大厅：列出全部任务。当前图有标点的排前；geometry+ids 才返回点位。",
         "operationId": "guides_tarkov_raid_prep_api_guides_tarkov_raid_prep_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "map",
@@ -11871,11 +11781,6 @@
         "summary": "Guides Tarkov Task Detail",
         "description": "任务详情：目标、奖励（投影，不含多边形）。",
         "operationId": "guides_tarkov_task_detail_api_guides_tarkov_tasks__task_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "task_id",
@@ -11984,11 +11889,6 @@
         "summary": "Guides Tarkov Trader Catalog",
         "description": "商人目录：头像 / 英文名 / 报价数量。",
         "operationId": "guides_tarkov_trader_catalog_api_guides_tarkov_traders_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -12036,11 +11936,6 @@
         "summary": "Guides Tarkov Trader Detail",
         "description": "商人详情：简介、补货时间、忠诚等级现金报价。",
         "operationId": "guides_tarkov_trader_detail_api_guides_tarkov_traders__trader_slug__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "trader_slug",
@@ -12207,11 +12102,6 @@
         "summary": "Guides Tarkov Boss Catalog",
         "description": "BOSS 目录：头像 / 英文名 / 出生地图。",
         "operationId": "guides_tarkov_boss_catalog_api_guides_tarkov_bosses_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -12259,11 +12149,6 @@
         "summary": "Guides Tarkov Boss Detail",
         "description": "BOSS 详情：行为、地图、刷新概率、生命值、配装。",
         "operationId": "guides_tarkov_boss_detail_api_guides_tarkov_bosses__boss_slug__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "boss_slug",
@@ -12320,11 +12205,6 @@
         "summary": "Guides Tarkov Map Catalog",
         "description": "地图目录：时长 / 人数 / 缩略图（读 bosses maps raw）。",
         "operationId": "guides_tarkov_map_catalog_api_guides_tarkov_maps_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -12372,11 +12252,6 @@
         "summary": "Guides Tarkov Map Detail",
         "description": "地图详情：撤离点/BOSS/门锁等坐标与底图信息；散落物/容器默认不下发。",
         "operationId": "guides_tarkov_map_detail_api_guides_tarkov_maps__map_slug__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "map_slug",
@@ -12453,11 +12328,6 @@
         "summary": "Guides Tarkov Map Loot",
         "description": "地图散落物/容器图层；只解析当前 slug。",
         "operationId": "guides_tarkov_map_loot_api_guides_tarkov_maps__map_slug__loot_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "map_slug",
@@ -12534,11 +12404,6 @@
         "summary": "Guides Tarkov Map Places",
         "description": "某图自定义地名（变体与父图共用）。",
         "operationId": "guides_tarkov_map_places_api_guides_tarkov_maps__map_slug__places_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "map_slug",
@@ -12935,11 +12800,6 @@
         "summary": "Guides Tarkov Hideout Catalog",
         "description": "藏身处模块与升级材料。",
         "operationId": "guides_tarkov_hideout_catalog_api_guides_tarkov_hideout_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -12987,11 +12847,6 @@
         "summary": "Guides Tarkov Hideout Detail",
         "description": "单个藏身处模块的全部等级。",
         "operationId": "guides_tarkov_hideout_detail_api_guides_tarkov_hideout__station_slug__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "station_slug",
@@ -13152,6 +13007,118 @@
         }
       }
     },
+    "/api/guides/tarkov/profile": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Profile Get",
+        "description": "个人中心资料：阵营、版本、角色等级、商人好感。",
+        "operationId": "guides_tarkov_profile_get_api_guides_tarkov_profile_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovProfileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Profile Put",
+        "description": "保存个人资料；蓝边会把仓库抬到 4 级。",
+        "operationId": "guides_tarkov_profile_put_api_guides_tarkov_profile_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovProfileIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovProfileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/barters": {
       "get": {
         "tags": [
@@ -13160,11 +13127,6 @@
         "summary": "Guides Tarkov Barter Catalog",
         "description": "商人以物易物。",
         "operationId": "guides_tarkov_barter_catalog_api_guides_tarkov_barters_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "q",
@@ -13269,11 +13231,6 @@
         "summary": "Guides Tarkov Craft Catalog",
         "description": "藏身处制作。",
         "operationId": "guides_tarkov_craft_catalog_api_guides_tarkov_crafts_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "q",
@@ -13378,11 +13335,6 @@
         "summary": "Guides Tarkov Loot Tiers",
         "description": "战利品等级：跳蚤每格价分档。",
         "operationId": "guides_tarkov_loot_tiers_api_guides_tarkov_loot_tiers_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "q",
@@ -13487,11 +13439,6 @@
         "summary": "Guides Tarkov Key Packs",
         "description": "钥匙分类速查：门锁 / 入场钥按地图分包；附带用途（任务需要 / 门锁类型）。",
         "operationId": "guides_tarkov_key_packs_api_guides_tarkov_key_packs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -13831,11 +13778,6 @@
         "summary": "Guides Tarkov Collection",
         "description": "3×4 收集：收集者任务需上交的道具，按目标顺序。",
         "operationId": "guides_tarkov_collection_api_guides_tarkov_collection_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "game_mode",
@@ -14269,7 +14211,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Write",
-        "description": "合并或整表替换当前模式的完成 / 进行中 / 小步骤。省略 started_ids 或 objective_dones 则不改对应集合。",
+        "description": "合并或整表替换当前模式的完成 / 进行中 / 失败 / 小步骤。省略 started_ids、failed_ids 或 objective_dones 则不改对应集合。",
         "operationId": "guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put",
         "security": [
           {
@@ -17525,7 +17467,7 @@
           "observability"
         ],
         "summary": "Get Rum Summary",
-        "description": "管理端：接口转圈与第三方图的 p50/p95。",
+        "description": "管理端：接口转圈与第三方图的 p50/p95，接口按业务分类。",
         "operationId": "get_rum_summary_api_settings_rum_get",
         "security": [
           {
@@ -28558,6 +28500,72 @@
         ],
         "title": "RoleMembershipTreeOut"
       },
+      "RumBizSummaryOut": {
+        "properties": {
+          "biz": {
+            "type": "string",
+            "title": "Biz"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "avg_ms": {
+            "type": "integer",
+            "title": "Avg Ms",
+            "default": 0
+          },
+          "p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Ms"
+          },
+          "p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Ms"
+          },
+          "max_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ms"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "biz",
+          "label",
+          "count"
+        ],
+        "title": "RumBizSummaryOut"
+      },
       "RumSeriesPointOut": {
         "properties": {
           "at": {
@@ -28723,6 +28731,20 @@
             "type": "array",
             "title": "Img"
           },
+          "api_biz": {
+            "items": {
+              "$ref": "#/components/schemas/RumBizSummaryOut"
+            },
+            "type": "array",
+            "title": "Api Biz"
+          },
+          "img_biz": {
+            "items": {
+              "$ref": "#/components/schemas/RumBizSummaryOut"
+            },
+            "type": "array",
+            "title": "Img Biz"
+          },
           "series": {
             "items": {
               "$ref": "#/components/schemas/RumSeriesPointOut"
@@ -28749,6 +28771,16 @@
           "host": {
             "type": "string",
             "title": "Host",
+            "default": ""
+          },
+          "biz": {
+            "type": "string",
+            "title": "Biz",
+            "default": ""
+          },
+          "biz_label": {
+            "type": "string",
+            "title": "Biz Label",
             "default": ""
           },
           "count": {
@@ -31361,6 +31393,11 @@
             ],
             "title": "Task Unlock"
           },
+          "task_unlock_name": {
+            "type": "string",
+            "title": "Task Unlock Name",
+            "default": ""
+          },
           "required_items": {
             "items": {
               "$ref": "#/components/schemas/TarkovGuideItemRefOut"
@@ -32719,6 +32756,11 @@
             ],
             "title": "Task Unlock"
           },
+          "task_unlock_name": {
+            "type": "string",
+            "title": "Task Unlock Name",
+            "default": ""
+          },
           "required_items": {
             "items": {
               "$ref": "#/components/schemas/TarkovGuideItemRefOut"
@@ -33696,6 +33738,11 @@
             "type": "number",
             "title": "Count",
             "default": 1
+          },
+          "found_in_raid": {
+            "type": "boolean",
+            "title": "Found In Raid",
+            "default": false
           }
         },
         "type": "object",
@@ -33847,6 +33894,13 @@
             "type": "number",
             "title": "Count",
             "default": 1
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovItemTaskStepOut"
+            },
+            "type": "array",
+            "title": "Steps"
           }
         },
         "type": "object",
@@ -33889,6 +33943,50 @@
         "type": "object",
         "title": "TarkovItemSourcesOut",
         "description": "物品获取途径：从 barters / crafts / tasks / maps.mobs dump 反查，items dump 本身没有这些字段。"
+      },
+      "TarkovItemTaskStepOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": ""
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "found_in_raid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found In Raid"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "TarkovItemTaskStepOut",
+        "description": "物品在该任务里的单条相关步骤（找到 / 上交 / 接取奖励等）。"
       },
       "TarkovItemTaskUseOut": {
         "properties": {
@@ -33933,6 +34031,24 @@
               }
             ],
             "title": "Count"
+          },
+          "found_in_raid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found In Raid"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovItemTaskStepOut"
+            },
+            "type": "array",
+            "title": "Steps"
           }
         },
         "type": "object",
@@ -36289,6 +36405,96 @@
         "type": "object",
         "title": "TarkovMapVariantOut"
       },
+      "TarkovProfileIn": {
+        "properties": {
+          "pmc_faction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pmc Faction"
+          },
+          "game_edition": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Edition"
+          },
+          "player_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 79.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Level"
+          },
+          "trader_levels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trader Levels"
+          }
+        },
+        "type": "object",
+        "title": "TarkovProfileIn"
+      },
+      "TarkovProfileOut": {
+        "properties": {
+          "pmc_faction": {
+            "type": "string",
+            "title": "Pmc Faction",
+            "default": ""
+          },
+          "game_edition": {
+            "type": "string",
+            "title": "Game Edition",
+            "default": "standard"
+          },
+          "player_level": {
+            "type": "integer",
+            "title": "Player Level",
+            "default": 1
+          },
+          "trader_levels": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Trader Levels"
+          },
+          "game_mode": {
+            "type": "string",
+            "title": "Game Mode",
+            "default": "pvp"
+          }
+        },
+        "type": "object",
+        "title": "TarkovProfileOut"
+      },
       "TarkovRaidLogIn": {
         "properties": {
           "folder": {
@@ -36790,6 +36996,11 @@
             },
             "type": "array",
             "title": "Prereq Ids"
+          },
+          "restartable": {
+            "type": "boolean",
+            "title": "Restartable",
+            "default": false
           },
           "objectives": {
             "items": {
@@ -38162,6 +38373,11 @@
             "type": "array",
             "title": "Prereq Ids"
           },
+          "restartable": {
+            "type": "boolean",
+            "title": "Restartable",
+            "default": false
+          },
           "source": {
             "anyOf": [
               {
@@ -38223,11 +38439,6 @@
             },
             "type": "array",
             "title": "Fail Conditions"
-          },
-          "restartable": {
-            "type": "boolean",
-            "title": "Restartable",
-            "default": false
           },
           "required_prestige": {
             "anyOf": [
@@ -38323,6 +38534,21 @@
             ],
             "title": "Started Ids"
           },
+          "failed_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 800
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Ids"
+          },
           "objective_dones": {
             "anyOf": [
               {
@@ -38362,6 +38588,13 @@
             },
             "type": "array",
             "title": "Started Ids"
+          },
+          "failed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Ids"
           },
           "objective_dones": {
             "items": {
@@ -38714,6 +38947,11 @@
             },
             "type": "array",
             "title": "Prereq Ids"
+          },
+          "restartable": {
+            "type": "boolean",
+            "title": "Restartable",
+            "default": false
           }
         },
         "type": "object",

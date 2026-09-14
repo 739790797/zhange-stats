@@ -1,72 +1,20 @@
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 8px;
-}
-
-.cell {
+.toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 8px;
-  border: 1px solid #2a2a2a;
-  background: #14150f;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.cell:hover {
-  border-color: rgba(200, 147, 42, 0.45);
-}
-
-.cellOn {
-  border-color: var(--hb-orange, #c8932a);
-  background: #1c1a12;
-}
-
-.cellTop {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.cellIcon {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  flex: none;
-  background: #101010;
-}
-
-.cellName {
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--hb-text, #eee9d6);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cellMeta {
-  display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
 }
 
-.level {
-  font-size: 12px;
-  color: var(--hb-muted, #b0ae9a);
+.wikiHint {
+  margin: 0;
+  font-size: 13px;
+  color: #c8c8c8;
 }
 
-.actions {
-  display: flex;
-  gap: 4px;
+.wikiHint a {
+  margin-left: 8px;
+  color: #c8932a;
 }
 
 .reqList {
@@ -87,11 +35,44 @@
   color: #c8c8c8;
 }
 
+.reqChecks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .reqRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  margin: 0;
+  padding: 6px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.reqChecks .reqRow + .reqRow {
+  border-top: 1px solid #2a2a2a;
+}
+
+.reqMark {
+  flex: none;
+  width: 1em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reqText {
+  min-width: 0;
+}
+
+a.reqItem {
+  color: var(--hb-orange, #c8932a);
+  text-decoration: none;
+}
+
+a.reqItem:hover {
+  color: #e0b45a;
 }
 
 .reqRow img {
@@ -118,12 +99,24 @@
   color: #8a8878;
 }
 
+.reqNote a {
+  color: var(--hb-orange, #c8932a);
+}
+
 .detail {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding-top: 8px;
   border-top: 1px solid #2a2a2a;
+}
+
+.detailMain {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(100%, 36rem);
+  margin: 0 auto;
 }
 
 .detailHead {
@@ -158,26 +151,115 @@
   color: #c8c8c8;
 }
 
-.bonusList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.needMeta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--hb-muted, #b0ae9a);
+}
+
+.bonusList,
+.bonusLevels,
+.itemList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bonusRow + .bonusRow,
+.itemList > li + li {
+  border-top: 1px solid #2a2a2a;
 }
 
 .bonusRow {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
 }
 
 .bonusName {
   color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.bonusValue {
-  color: var(--hb-orange, #c8932a);
+.bonusLevels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bonusLv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
+  color: var(--hb-muted, #b0ae9a);
+}
+
+.bonusLvNow {
+  color: var(--hb-orange, #c8932a);
+  font-weight: 650;
+}
+
+.bonusSlots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.bonusSlot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--hb-orange, #c8932a);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.bonusSlot:hover {
+  color: #e0b45a;
+}
+
+.bonusSlot img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: inherit;
+  text-decoration: none;
+}
+
+.itemRow img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex: none;
+}
+
+.itemName {
+  min-width: 0;
+  flex: 1;
+}
+
+.itemFlea {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--hb-muted, #b0ae9a);
+}
+
+a.itemRow:hover .itemName {
+  color: #e0b45a;
 }
 
 .craftLocked :global(td) {

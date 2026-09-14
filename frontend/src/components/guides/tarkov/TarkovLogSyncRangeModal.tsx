@@ -6,11 +6,13 @@ import { nowBeijing, parseBeijing } from "@/lib/time";
 import type { TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
 import {
   filterSessionStubsByRange,
+  formatCrossWipeHint,
   formatLogSyncRangeDays,
   formatLogSyncSessionCount,
   rangeStartsBeforeCurrentWipe,
   resolveLogSyncRange,
   sessionStubDateBounds,
+  wipesTouchedBySessions,
   type TarkovLogSyncPreset,
   type TarkovLogSyncRange,
 } from "@/lib/tarkovLogSyncRange";
@@ -18,6 +20,7 @@ import { currentWipeStart } from "@/lib/tarkovWipeLength";
 import styles from "./TarkovLogSyncRangeModal.module.css";
 
 const PRESETS: Array<{ id: TarkovLogSyncPreset; label: string }> = [
+  { id: "all", label: "全部" },
   { id: "wipe", label: "本赛季" },
   { id: "7d", label: "近 7 天" },
   { id: "30d", label: "近 30 天" },
@@ -40,17 +43,16 @@ export function TarkovLogSyncRangeModal({
   const wipe = useMemo(() => currentWipeStart(), []);
   const bounds = useMemo(() => sessionStubDateBounds(sessions), [sessions]);
   const today = nowBeijing().format("YYYY-MM-DD");
-  const [preset, setPreset] = useState<TarkovLogSyncPreset>("wipe");
+  const [preset, setPreset] = useState<TarkovLogSyncPreset>("all");
   const [customFrom, setCustomFrom] = useState(today);
   const [customTo, setCustomTo] = useState(today);
 
   useEffect(() => {
     if (!open) return;
-    setPreset("wipe");
-    const wipeRange = resolveLogSyncRange({ preset: "wipe" });
-    setCustomFrom(parseBeijing(wipeRange.from).format("YYYY-MM-DD"));
-    setCustomTo(bounds.max || parseBeijing(wipeRange.to).format("YYYY-MM-DD"));
-  }, [open, bounds.max]);
+    setPreset("all");
+    setCustomFrom(bounds.min || today);
+    setCustomTo(bounds.max || today);
+  }, [bounds.max, bounds.min, open, today]);
 
   const range = useMemo(
     () =>
@@ -66,6 +68,11 @@ export function TarkovLogSyncRangeModal({
     [range, sessions],
   );
   const priorWipe = rangeStartsBeforeCurrentWipe(range);
+  const crossWipes = useMemo(
+    () => wipesTouchedBySessions(matched),
+    [matched],
+  );
+  const crossWipeHint = formatCrossWipeHint(crossWipes);
   const pickerValue = useMemo((): [Dayjs, Dayjs] => {
     return [parseBeijing(customFrom), parseBeijing(customTo)];
   }, [customFrom, customTo]);
@@ -95,9 +102,9 @@ export function TarkovLogSyncRangeModal({
       classNames={{ body: styles.body }}
     >
       <p className={styles.lead}>
-        本机解析启动文件夹，只把任务状态回填到账号，不会上传日志原文。默认只读本赛季
-        {wipe?.name ? `（${wipe.name}）` : ""}
-        ，避免上个 wipe 的完成记录污染当前进度。
+        本机解析启动文件夹，只把任务状态回填到账号，不会上传日志原文。默认读取这个目录里的全部启动记录
+        {wipe?.name ? `；当前赛季是 ${wipe.name}` : ""}
+        。
       </p>
       <div className={styles.presets} role="radiogroup" aria-label="日期范围">
         {PRESETS.map((row) => (
@@ -144,6 +151,7 @@ export function TarkovLogSyncRangeModal({
             ? "。这些文件夹没有可识别的启动日期"
             : "。这个目录里没有启动记录"}
       </p>
+      {crossWipeHint ? <p className={styles.warn}>{crossWipeHint}</p> : null}
       {priorWipe ? (
         <p className={styles.warn}>
           自定义范围早于本赛季，会带上旧赛季完成记录。

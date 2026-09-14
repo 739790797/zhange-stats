@@ -291,7 +291,11 @@ export function AppLayout() {
   const guideItems = useMemo(() => {
     const mapNode = (node: GuideNavNode): NonNullable<MenuProps["items"]>[number] | null => {
       if (node.kind === "leaf") {
-        if (!isFeatureOn(features, node.featureId)) return null;
+        if (loggedIn) {
+          if (!isFeatureOn(features, node.featureId)) return null;
+        } else if (!node.allowGuest) {
+          return null;
+        }
         return {
           key: node.path,
           icon: node.icon ? <PlatformIcon name={node.icon} /> : undefined,
@@ -313,7 +317,7 @@ export function AppLayout() {
     return GUIDE_NAV.map(mapNode).filter(
       (x): x is NonNullable<typeof x> => x != null,
     );
-  }, [features]);
+  }, [features, loggedIn]);
 
   const communityItems = [
     ...(!loggedIn || isFeatureOn(features, TAVERN_FEATURE_ID)

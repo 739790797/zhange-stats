@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountHasQuestState,
   applyQuestLogState,
+  buildQuestLogCatalog,
   collectQuestEventsFromSessions,
   foldQuestEvents,
   foldSessionQuests,
@@ -46,8 +47,10 @@ describe("replayQuestEvents", () => {
       ev("started", "t2", "2026-01-01 11:00:00"),
       ev("failed", "t2", "2026-01-01 13:00:00"),
     ]);
-    expect(state.get("t1")).toBe("completed");
-    expect(state.get("t2")).toBe("failed");
+    expect(state.get("t1")?.kind).toBe("completed");
+    expect(state.get("t1")?.everCompleted).toBe(true);
+    expect(state.get("t2")?.kind).toBe("failed");
+    expect(state.get("t2")?.everCompleted).toBe(false);
   });
 });
 
@@ -58,7 +61,10 @@ describe("accountHasQuestState", () => {
     expect(accountHasQuestState(done, started, "done", "completed")).toBe(true);
     expect(accountHasQuestState(done, started, "done", "started")).toBe(true);
     expect(accountHasQuestState(done, started, "active", "started")).toBe(true);
-    expect(accountHasQuestState(done, started, "active", "failed")).toBe(true);
+    expect(accountHasQuestState(done, started, "active", "failed")).toBe(false);
+    expect(
+      accountHasQuestState(done, started, "active", "failed", new Set(["active"])),
+    ).toBe(true);
     expect(accountHasQuestState(done, started, "active", "completed")).toBe(
       false,
     );
@@ -81,6 +87,7 @@ describe("applyQuestLogState", () => {
     );
     expect(merged.done.sort()).toEqual(["old", "t1"]);
     expect(merged.started).toEqual(["t2"]);
+    expect(merged.failed).toEqual([]);
   });
 
   it("keeps hex quest ids even when the catalog is stale", () => {
@@ -100,7 +107,7 @@ describe("applyQuestLogState", () => {
     expect(merged.started).toEqual([]);
   });
 
-  it("keeps a failed attempt as in-progress instead of wiping it", () => {
+  it("records a failed attempt as failed unless the task is restartable", () => {
     const merged = applyQuestLogState(
       [],
       ["t2"],
@@ -110,6 +117,26 @@ describe("applyQuestLogState", () => {
       ]),
     );
     expect(merged.done).toEqual([]);
+    expect(merged.started).toEqual([]);
+    expect(merged.failed.sort()).toEqual(["t1", "t2"]);
+  });
+
+  it("keeps a restartable failure as in-progress", () => {
+    const catalog = buildQuestLogCatalog([
+      { id: "t1", restartable: true },
+      { id: "t2", restartable: true },
+    ]);
+    const merged = applyQuestLogState(
+      [],
+      ["t2"],
+      new Map([
+        ["t1", "failed"],
+        ["t2", "failed"],
+      ]),
+      catalog,
+    );
+    expect(merged.done).toEqual([]);
+    expect(merged.failed).toEqual([]);
     expect(merged.started.sort()).toEqual(["t1", "t2"]);
   });
 
@@ -125,7 +152,28 @@ describe("applyQuestLogState", () => {
       ]),
     );
     expect(merged.done.sort()).toEqual(["done", "old-complete"]);
-    expect(merged.started.sort()).toEqual(["active", "old-start"]);
+    expect(merged.started.sort()).toEqual(["old-start"]);
+    expect(merged.failed).toEqual(["active"]);
+  });
+
+  it("sticks a later start/fail after a completed log and fails mutex neighbors", () => {
+    const catalog = buildQuestLogCatalog([
+      { id: "chem", mutex_ids: ["curio", "big"], prereq_ids: ["pre"] },
+      { id: "curio", mutex_ids: ["chem", "big"] },
+      { id: "big", mutex_ids: ["chem", "curio"] },
+      { id: "pre" },
+    ]);
+    const folded = foldQuestEvents(new Map(), [
+      ev("completed", "chem", "2026-01-01 10:00:00"),
+      ev("started", "chem", "2026-01-01 12:00:00"),
+      ev("failed", "chem", "2026-01-01 13:00:00"),
+    ]);
+    expect(folded.get("chem")?.kind).toBe("failed");
+    expect(folded.get("chem")?.everCompleted).toBe(true);
+    const merged = applyQuestLogState([], [], folded, catalog);
+    expect(merged.done.sort()).toEqual(["chem", "pre"]);
+    expect(merged.failed.sort()).toEqual(["big", "curio"]);
+    expect(merged.started).toEqual([]);
   });
 });
 
@@ -178,6 +226,7 @@ describe("mergeQuestProgressFromLogs", () => {
     );
     expect(merged.done).toEqual(["b"]);
     expect(merged.started).toEqual(["a"]);
+    expect(merged.failed).toEqual([]);
     expect(merged.eventCount).toBe(2);
     expect(merged.latestEventAt).toBe("2026-01-01 11:00:00");
   });
@@ -205,6 +254,7 @@ describe("mergeQuestProgressFromLogs", () => {
     );
     expect(merged.done.sort()).toEqual(["missed", "old"]);
     expect(merged.started).toEqual(["fresh"]);
+    expect(merged.failed).toEqual([]);
     expect(merged.eventCount).toBe(4);
   });
 });
@@ -222,6 +272,7 @@ describe("foldQuestEvents", () => {
     expect(second.get("t1")).toEqual({
       kind: "completed",
       at: "2026-01-01 12:00:00",
+      everCompleted: true,
     });
     expect(second.get("t2")?.kind).toBe("started");
   });
@@ -269,6 +320,7 @@ describe("mergeQuestProgressFromFolded", () => {
     const merged = mergeQuestProgressFromFolded([], [], next, eventCount);
     expect(merged.done).toEqual(["b"]);
     expect(merged.started).toEqual(["a"]);
+    expect(merged.failed).toEqual([]);
     expect(merged.eventCount).toBe(2);
     expect(merged.latestEventAt).toBe("2026-01-01 11:00:00");
   });
@@ -288,11 +340,13 @@ describe("questProgressDelta", () => {
     expect(questProgressDelta(["a"], ["b", "c"], ["a", "b"], ["c"])).toEqual({
       done: 1,
       started: -1,
+      failed: 0,
       unfinished: 0,
     });
     expect(questProgressDelta([], [], ["a"], ["b", "c"])).toEqual({
       done: 1,
       started: 2,
+      failed: 0,
       unfinished: -3,
     });
     expect(formatSignedDelta(3)).toBe("+3");
@@ -302,15 +356,17 @@ describe("questProgressDelta", () => {
       formatQuestSyncDeltaLine("incremental", {
         done: 2,
         started: -1,
+        failed: 0,
         unfinished: -1,
       }),
-    ).toBe("已增量同步 已完成 +2，进行中 -1，未完成 -1");
+    ).toBe("已增量同步 已完成 +2，进行中 -1，失败 0，未完成 -1");
     expect(
       formatQuestSyncDeltaLine("backfill", {
         done: 72,
         started: 14,
+        failed: 0,
         unfinished: -86,
       }),
-    ).toBe("已从日志回填 已完成 +72，进行中 +14，未完成 -86");
+    ).toBe("已从日志回填 已完成 +72，进行中 +14，失败 0，未完成 -86");
   });
 });

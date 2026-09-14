@@ -44,6 +44,7 @@ describe("formatLiveLogBackfillHint", () => {
       formatLiveLogBackfillHint(0, "backfill", {
         done: 0,
         started: 0,
+        failed: 0,
         unfinished: 0,
       }),
     ).toBe("这个目录里没有启动记录。");
@@ -51,18 +52,19 @@ describe("formatLiveLogBackfillHint", () => {
       formatLiveLogBackfillHint(3, "backfill", {
         done: 2,
         started: 1,
+        failed: 0,
         unfinished: -3,
       }),
-    ).toBe("已从日志回填 已完成 +2，进行中 +1，未完成 -3（3 次启动）");
+    ).toBe("已从日志回填 已完成 +2，进行中 +1，失败 0，未完成 -3（3 次启动）");
     expect(
       formatLiveLogBackfillHint(
         2,
         "backfill",
-        { done: 0, started: 0, unfinished: 0 },
+        { done: 0, started: 0, failed: 0, unfinished: 0 },
         { questEvents: 0, skipped: 1 },
       ),
     ).toBe(
-      "已从日志回填 已完成 0，进行中 0，未完成 0（2 次启动），1 个日志文件过大已跳过。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）",
+      "已从日志回填 已完成 0，进行中 0，失败 0，未完成 0（2 次启动），1 个日志文件过大已跳过。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）",
     );
   });
 });
@@ -147,6 +149,7 @@ describe("nextLiveQuestProgress", () => {
     ).toEqual({
       done: ["done"],
       started: ["active"],
+      failed: [],
       changed: false,
       eventCount: 2,
       latestEventAt: "2026-01-01 11:00:00",
@@ -179,6 +182,7 @@ describe("nextLiveQuestProgress", () => {
     ).toEqual({
       done: [],
       started: ["q1"],
+      failed: [],
       changed: true,
       eventCount: 1,
       latestEventAt: "2026-01-01 10:00:00",
