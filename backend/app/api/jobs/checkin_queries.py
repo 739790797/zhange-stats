@@ -229,8 +229,6 @@ def query_user_checkin_tasks(
                                 if meta.get("checkin_date") is not None
                                 else None
                             ),
-                            last_checkin_ok=meta.get("ok"),
-                            last_checkin_summary=meta.get("summary"),
                             bound_at=_fmt_dt(bind.bound_at),
                         )
                     )
@@ -262,8 +260,6 @@ def query_user_checkin_tasks(
                             if latest_meta.get("checkin_date") is not None
                             else None
                         ),
-                        last_checkin_ok=latest_meta.get("ok"),
-                        last_checkin_summary=latest_meta.get("summary"),
                         bound_at=_fmt_dt(bind.bound_at),
                     )
                 )
@@ -413,9 +409,6 @@ def attach_last_checkin_to_result_dicts(
             if m.get("checkin_date") is not None
             else None
         )
-        item["last_checkin_ok"] = m.get("ok")
-        item["last_checkin_summary"] = m.get("summary")
-        item["last_checkin_awards"] = m.get("awards") or []
         out.append(item)
     return out
 

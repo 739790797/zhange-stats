@@ -1,5 +1,6 @@
 import { createContext } from "react";
 import type { TarkovLogPhasePayload, TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
+import type { QuestLogSyncReview } from "@/lib/tarkovTaskLogSync";
 import type { TarkovLogSyncOpts } from "@/lib/tarkovLogSyncRange";
 import type { TarkovScreenshotPos } from "@/lib/tarkovScreenshotPos";
 
@@ -36,7 +37,11 @@ export type TarkovLiveWatchValue = {
     sessions: TarkovLogSessionStub[];
   }>;
   /** 按日期范围排队解析启动文件夹；只上传任务 id。 */
-  syncLogs: (opts?: TarkovLogSyncOpts) => Promise<{ ok: boolean; hint: string }>;
+  syncLogs: (opts?: TarkovLogSyncOpts) => Promise<{
+    ok: boolean;
+    hint: string;
+    review?: QuestLogSyncReview;
+  }>;
   cancelLogSync: () => void;
 };
 

@@ -5,7 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   fetchTarkovTaskDones,
   fetchTarkovTasks,
-  writeTarkovTaskDones,
+  writeTaskProgressLedger,
   type TarkovTaskListItem,
 } from "@/api/guidesApi";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
@@ -27,8 +27,10 @@ import {
 import {
   TARKOV_TASK_PROGRESS_EVENT,
   notifyTarkovTaskProgress,
+  sameIdLists,
   type TarkovTaskProgressDetail,
 } from "@/lib/tarkovLiveWatch";
+import { applyTaskLineLedger, taskLineIndexFromTasks } from "@/lib/tarkovTaskLineLedger";
 import { formatLastQuestSyncLine } from "@/lib/tarkovTaskLogSync";
 import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
 import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
@@ -37,12 +39,15 @@ import {
   displayTaskProgressName,
   groupTasksByTrader,
   isWritableTaskStatus,
+  isDerivedTaskStatus,
   keepCatalogTaskProgress,
   loadTaskDoneIds,
   loadTaskFailedIds,
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
+  collectClosedTaskIds,
+  ledgerIdsToClear,
   resolveAccountTaskProgress,
   resolveTaskStatus,
   saveTaskProgress,
@@ -50,6 +55,7 @@ import {
   setTaskStatus,
   summarizeTaskProgress,
   cleanTaskProgress,
+  taskIsAvailable,
   taskMatchesQuery,
   taskProgressQueryData,
   TASK_STATUS_KINDS,
@@ -77,21 +83,21 @@ function requestStatus(error: unknown): number | undefined {
   return (error as { response?: { status?: number } }).response?.status;
 }
 
-const TASK_STATUS_RANK: Record<TaskStatusKind, number> = {
-  active: 0,
-  todo: 1,
-  failed: 2,
-  unreachable: 3,
-  done: 4,
-};
-
 function rankTask(
   task: TarkovTaskListItem,
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
   failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string>,
 ): number {
-  return TASK_STATUS_RANK[resolveTaskStatus(task.id, done, started, task, failed)];
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed);
+  if (status === "active") return 0;
+  if (status === "todo") {
+    return taskIsAvailable(task, done, started, failed, closed) ? 1 : 2;
+  }
+  if (status === "failed") return 3;
+  if (status === "unreachable") return 4;
+  return 5;
 }
 
 function sortTasksForBoard(
@@ -99,10 +105,11 @@ function sortTasksForBoard(
   done: ReadonlySet<string>,
   started: ReadonlySet<string>,
   failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string>,
 ): TarkovTaskListItem[] {
   return [...items].sort((a, b) => {
     const diff =
-      rankTask(a, done, started, failed) - rankTask(b, done, started, failed);
+      rankTask(a, done, started, failed, closed) - rankTask(b, done, started, failed, closed);
     if (diff !== 0) return diff;
     return (a.name || a.id).localeCompare(b.name || b.id, "zh-CN");
   });
@@ -147,17 +154,19 @@ function TaskStatusSelect({
   done,
   started,
   failed,
+  closed,
   onSetStatus,
 }: {
   task: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
   failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(task.id, done, started, task, failed);
-  const derived = !isWritableTaskStatus(status);
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed);
+  const derived = isDerivedTaskStatus(task.id, done, started, task, failed, closed);
   return (
     <select
       className={`${styles.statusSelect}${
@@ -216,6 +225,7 @@ function TaskRow({
   done,
   started,
   failed,
+  closed,
   onSetStatus,
   typeColumns,
 }: {
@@ -223,11 +233,12 @@ function TaskRow({
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
   failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   typeColumns: string[];
 }) {
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(task.id, done, started, task, failed);
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed);
   const typeSet = new Set(orderObjectiveTypes(task.objective_types));
   return (
     <tr className={`${styles.row} ${statusRowClass(status)}`}>
@@ -242,6 +253,7 @@ function TaskRow({
           done={done}
           started={started}
           failed={failed}
+          closed={closed}
           onSetStatus={onSetStatus}
         />
       </td>
@@ -411,13 +423,59 @@ export function TarkovTaskManagerPanel() {
       done: string[];
       started: string[];
       failed: string[];
+      prevDone: string[];
+      prevStarted: string[];
+      prevFailed: string[];
     }) =>
-      writeTarkovTaskDones(payload.done, {
-        startedIds: payload.started,
-        failedIds: payload.failed,
-        objectiveDones: loadTaskObjectivePairs(gameMode),
-      }),
-    onSuccess: (data) => applyServerProgress(data),
+      writeTaskProgressLedger(
+        {
+          done: payload.done,
+          started: payload.started,
+          failed: payload.failed,
+          objectives: loadTaskObjectivePairs(gameMode),
+        },
+        {
+          done: payload.prevDone,
+          started: payload.prevStarted,
+          failed: payload.prevFailed,
+        },
+      ),
+    onSuccess: (data, payload) => {
+      applyProgress(
+        payload.done,
+        payload.started,
+        true,
+        true,
+        data.objective_dones,
+        payload.failed,
+      );
+      const extras = ledgerIdsToClear(
+        {
+          done: data.task_ids,
+          started: data.started_ids,
+          failed: data.failed_ids,
+        },
+        {
+          done: payload.done,
+          started: payload.started,
+          failed: payload.failed,
+        },
+      );
+      if (!extras.length) return;
+      void writeTaskProgressLedger(
+        {
+          done: payload.done,
+          started: payload.started,
+          failed: payload.failed,
+          objectives: data.objective_dones,
+        },
+        {
+          done: data.task_ids,
+          started: data.started_ids,
+          failed: data.failed_ids,
+        },
+      ).catch(() => {});
+    },
     onError: async (error) => {
       if (requestStatus(error) === 401) return;
       const result = await donesQuery.refetch();
@@ -471,6 +529,61 @@ export function TarkovTaskManagerPanel() {
     () => catalogQuery.data?.items ?? [],
     [catalogQuery.data],
   );
+  const lineIndex = useMemo(
+    () => taskLineIndexFromTasks(catalogItems),
+    [catalogItems],
+  );
+
+  useEffect(() => {
+    if (!lineIndex.mutexById.size && !lineIndex.blockedById.size) return;
+    if (loggedIn && !donesQuery.isSuccess) return;
+    const prev = {
+      done: doneIdsRef.current,
+      started: startedIdsRef.current,
+      failed: failedIdsRef.current,
+    };
+    const next = applyTaskLineLedger(
+      prev.done,
+      prev.started,
+      prev.failed,
+      lineIndex,
+    );
+    if (
+      sameIdLists(next.done, prev.done) &&
+      sameIdLists(next.started, prev.started) &&
+      sameIdLists(next.failed, prev.failed)
+    ) {
+      return;
+    }
+    applyProgress(next.done, next.started, true, false, undefined, next.failed);
+    notifyTarkovTaskProgress({
+      mode: gameMode,
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+      changed: true,
+      source: "user",
+    });
+    if (!loggedIn) return;
+    writeMut.mutate({
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+      prevDone: prev.done,
+      prevStarted: prev.started,
+      prevFailed: prev.failed,
+    });
+  }, [
+    applyProgress,
+    doneIds,
+    donesQuery.isSuccess,
+    failedIds,
+    gameMode,
+    loggedIn,
+    lineIndex,
+    startedIds,
+    writeMut,
+  ]);
   const items = useMemo(
     () => filterTasksByFaction(catalogItems, faction),
     [catalogItems, faction],
@@ -487,16 +600,21 @@ export function TarkovTaskManagerPanel() {
     () => new Set(catalogItems.map((item) => item.id)),
     [catalogItems],
   );
-  const visibleProgress = useMemo(
-    () =>
-      keepCatalogTaskProgress(
-        doneIds,
-        startedIds,
-        catalogQuery.data ? knownIds : null,
-        failedIds,
-      ),
-    [catalogQuery.data, doneIds, failedIds, knownIds, startedIds],
-  );
+  const visibleProgress = useMemo(() => {
+    const cataloged = keepCatalogTaskProgress(
+      doneIds,
+      startedIds,
+      catalogQuery.data ? knownIds : null,
+      failedIds,
+    );
+    if (!lineIndex.mutexById.size && !lineIndex.blockedById.size) return cataloged;
+    return applyTaskLineLedger(
+      cataloged.done,
+      cataloged.started,
+      cataloged.failed,
+      lineIndex,
+    );
+  }, [catalogQuery.data, doneIds, failedIds, knownIds, lineIndex, startedIds]);
   const done = useMemo(
     () => new Set(visibleProgress.done),
     [visibleProgress],
@@ -508,6 +626,10 @@ export function TarkovTaskManagerPanel() {
   const failed = useMemo(
     () => new Set(visibleProgress.failed),
     [visibleProgress],
+  );
+  const closed = useMemo(
+    () => collectClosedTaskIds(items, done, started, failed),
+    [items, done, started, failed],
   );
 
   const itemsByTrader = useMemo(() => {
@@ -641,21 +763,40 @@ export function TarkovTaskManagerPanel() {
   const changeStatus = (taskId: string, status: TaskStatusKind) => {
     if (!isWritableTaskStatus(status)) return;
     const task = items.find((row) => row.id === taskId);
+    const prev = {
+      done: doneIdsRef.current,
+      started: startedIdsRef.current,
+      failed: failedIdsRef.current,
+    };
     const current = resolveTaskStatus(
       taskId,
-      new Set(doneIdsRef.current),
-      new Set(startedIdsRef.current),
+      new Set(prev.done),
+      new Set(prev.started),
       task,
-      new Set(failedIdsRef.current),
+      new Set(prev.failed),
+      closed,
     );
     if (current === status) return;
-    if (!isWritableTaskStatus(current)) return;
+    if (
+      isDerivedTaskStatus(
+        taskId,
+        new Set(prev.done),
+        new Set(prev.started),
+        task,
+        new Set(prev.failed),
+        closed,
+      )
+    ) {
+      return;
+    }
     const next = setTaskStatus(
-      doneIdsRef.current,
-      startedIdsRef.current,
+      prev.done,
+      prev.started,
       taskId,
       status,
-      failedIdsRef.current,
+      prev.failed,
+      task?.mutex_ids,
+      catalogItems,
     );
     touchedRef.current = true;
     applyProgress(next.done, next.started, true, false, undefined, next.failed);
@@ -671,6 +812,9 @@ export function TarkovTaskManagerPanel() {
       done: next.done,
       started: next.started,
       failed: next.failed,
+      prevDone: prev.done,
+      prevStarted: prev.started,
+      prevFailed: prev.failed,
     });
   };
 
@@ -708,6 +852,9 @@ export function TarkovTaskManagerPanel() {
         done: doneIdsRef.current,
         started: startedIdsRef.current,
         failed: failedIdsRef.current,
+        prevDone: doneIdsRef.current,
+        prevStarted: startedIdsRef.current,
+        prevFailed: failedIdsRef.current,
       },
       {
         onSettled: () => setSaving(false),
@@ -956,6 +1103,7 @@ export function TarkovTaskManagerPanel() {
               done={done}
               started={started}
               failed={failed}
+              closed={closed}
               itemById={itemById}
               highlightTrader={flowHighlightTrader}
               highlightTask={flowHighlightTask}
@@ -977,6 +1125,7 @@ export function TarkovTaskManagerPanel() {
                 done={done}
                 started={started}
                 failed={failed}
+                closed={closed}
                 typeColumns={typeColumns}
                 onSetStatus={changeStatus}
               />
@@ -1002,6 +1151,7 @@ function TraderGroup({
   done,
   started,
   failed,
+  closed,
   typeColumns,
   onSetStatus,
 }: {
@@ -1010,6 +1160,7 @@ function TraderGroup({
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
   failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
   typeColumns: string[];
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
@@ -1020,6 +1171,7 @@ function TraderGroup({
     done,
     started,
     failed,
+    closed,
   );
   return (
     <section className={styles.group}>
@@ -1079,6 +1231,7 @@ function TraderGroup({
               done={done}
               started={started}
               failed={failed}
+              closed={closed}
               typeColumns={typeColumns}
               onSetStatus={onSetStatus}
             />

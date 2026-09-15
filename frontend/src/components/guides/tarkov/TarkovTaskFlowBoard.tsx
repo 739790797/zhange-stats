@@ -1,6 +1,6 @@
 /** 个人中心任务进度：有序任务横向链、无序任务网格；商人栏仍纵向。 */
 
-import { forwardRef, useEffect, useRef, useState, type HTMLAttributes } from "react";
+import { forwardRef, useContext, useEffect, useRef, useState, createContext, type HTMLAttributes } from "react";
 import { Link } from "react-router-dom";
 import { Popover } from "antd";
 import type { TarkovTaskListItem } from "@/api/guidesApi";
@@ -8,6 +8,7 @@ import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb"
 import { tarkovTaskHref, traderDisplayName } from "@/lib/tarkovHomeNav";
 import {
   displayTaskProgressName,
+  isDerivedTaskStatus,
   isWritableTaskStatus,
   resolveTaskStatus,
   TASK_STATUS_KINDS,
@@ -78,22 +79,41 @@ function LoyaltyMark({ level }: { level: number | null | undefined }) {
   );
 }
 
+const FlowClosedCtx = createContext<ReadonlySet<string> | undefined>(undefined);
+
 function StatusSelect({
   task,
   done,
   started,
   failed,
+  closed,
   onSetStatus,
 }: {
   task: TarkovTaskListItem;
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
   failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
 }) {
+  const derivedClosed = useContext(FlowClosedCtx);
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(task.id, done, started, task, failed);
-  const derived = !isWritableTaskStatus(status);
+  const status = resolveTaskStatus(
+    task.id,
+    done,
+    started,
+    task,
+    failed,
+    closed ?? derivedClosed,
+  );
+  const derived = isDerivedTaskStatus(
+    task.id,
+    done,
+    started,
+    task,
+    failed,
+    closed ?? derivedClosed,
+  );
   return (
     <select
       className={styles.statusSelect}
@@ -158,6 +178,7 @@ type TaskCardFaceProps = {
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
   failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
   onSetStatus: (taskId: string, status: TaskStatusKind) => void;
   id?: string;
   highlight?: boolean;
@@ -175,6 +196,7 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
       done,
       started,
       failed,
+      closed,
       onSetStatus,
       id,
       highlight,
@@ -189,8 +211,16 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
     },
     ref,
   ) {
+    const derivedClosed = useContext(FlowClosedCtx);
     const label = displayTaskProgressName(task);
-    const status = resolveTaskStatus(task.id, done, started, task, failed);
+    const status = resolveTaskStatus(
+      task.id,
+      done,
+      started,
+      task,
+      failed,
+      closed ?? derivedClosed,
+    );
     const hasRibbon = Boolean(ribbonKinds?.length);
     const traderSlug = (task.trader_slug || "").trim();
     const traderTitle = traderSlug
@@ -666,6 +696,7 @@ export function TarkovTaskFlowBoard({
   done,
   started,
   failed,
+  closed,
   itemById,
   highlightTrader,
   highlightTask,
@@ -677,6 +708,7 @@ export function TarkovTaskFlowBoard({
   done: ReadonlySet<string>;
   started: ReadonlySet<string>;
   failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
   itemById: ReadonlyMap<string, TarkovTaskListItem>;
   highlightTrader: string;
   highlightTask: string;
@@ -712,6 +744,7 @@ export function TarkovTaskFlowBoard({
   }
 
   return (
+    <FlowClosedCtx.Provider value={closed}>
     <div ref={rootRef} className={styles.stack}>
       {lanes.map((lane) => {
         const title =
@@ -754,5 +787,6 @@ export function TarkovTaskFlowBoard({
         );
       })}
     </div>
+    </FlowClosedCtx.Provider>
   );
 }

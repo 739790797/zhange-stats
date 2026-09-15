@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRaidsFromEvents,
   classifyLogsRoot,
+  classifyLogSessionMode,
   classifyScreenshotsRoot,
   formatBindPath,
   formatLatestLogPreview,
@@ -14,8 +15,10 @@ import {
   joinBindPath,
   mergeBindPath,
   historyRaidsFromSessions,
+  identitiesFromParsed,
   isApplicationLogFileName,
   isNotificationsLogFileName,
+  isOutputLogFileName,
   isReadableTarkovLogFileName,
   isNewerScreenshot,
   isScreenshotFileName,
@@ -32,8 +35,6 @@ import {
   logEventLabel,
   logMapHref,
   logMapLabel,
-  logFileByteBudget,
-  planLogFileRead,
   mapLogLocationToMapId,
   mapLogSceneToMapId,
   parseLogRaidMode,
@@ -46,6 +47,7 @@ import {
   sessionModeLabel,
   takeSessionStubs,
   toRaidLogImportRows,
+  versionFromLogLine,
 } from "./tarkovGameLogs";
 
 const MATCH_LINE =
@@ -83,7 +85,10 @@ describe("session folder names", () => {
     ).toBe(true);
     expect(isNotificationsLogFileName("notifications_001.log")).toBe(true);
     expect(isApplicationLogFileName("application_002.log")).toBe(true);
-    expect(isReadableTarkovLogFileName("output.log")).toBe(false);
+    expect(isReadableTarkovLogFileName("output.log")).toBe(true);
+    expect(isOutputLogFileName("output.log")).toBe(true);
+    expect(isOutputLogFileName("output_001.log")).toBe(true);
+    expect(isOutputLogFileName("notifications.log")).toBe(false);
   });
 });
 
@@ -353,14 +358,111 @@ describe("parseTarkovLogText", () => {
         kind: "started",
         at: "2024-02-05 19:03:08.398",
         taskId: "5ac346a886f7744e1b083d67",
+        line: "2024-02-05 19:03:08.398|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        sessionMode: "regular",
       },
       {
         kind: "completed",
         at: "2024-02-05 19:04:00.000",
         taskId: "5ac346a886f7744e1b083d67",
+        line: "2024-02-05 19:04:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        sessionMode: "regular",
       },
     ]);
     expect(latestLogActivityAt(parsed)).toBe("2024-02-05 19:04:00.000");
+  });
+
+  it("stamps quests with the Session mode active at that clock, not the last mode in the folder", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [
+          "2024-02-05 19:00:00.000|x|Info|application|Session mode: regular",
+          "2024-02-05 19:00:01.000|x|Info|application|SelectProfile ProfileId:aa11bb22cc33dd44ee55ff66 AccountId:123",
+          "2024-02-05 20:00:00.000|x|Info|application|Session mode: Pve",
+          "2024-02-05 20:00:01.000|x|Info|application|SelectProfile ProfileId:11223344556677889900aabb AccountId:123",
+        ].join("\n"),
+      },
+      {
+        name: "notifications.log",
+        text: [
+          "2024-02-05 19:03:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+          '{ "type": "new_message", "message": { "type": 12, "templateId": "5ac346a886f7744e1b083d67 description" } }',
+          "2024-02-05 20:03:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+          '{ "type": "new_message", "message": { "type": 10, "templateId": "625d6ffaf7308432be1d44c5 description" } }',
+        ].join("\n"),
+      },
+    ]);
+    expect(parsed.sessionMode).toBe("Pve");
+    expect(parsed.quests).toEqual([
+      {
+        kind: "completed",
+        at: "2024-02-05 19:03:00.000",
+        taskId: "5ac346a886f7744e1b083d67",
+        line: "2024-02-05 19:03:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        sessionMode: "regular",
+        profileId: "aa11bb22cc33dd44ee55ff66",
+      },
+      {
+        kind: "started",
+        at: "2024-02-05 20:03:00.000",
+        taskId: "625d6ffaf7308432be1d44c5",
+        line: "2024-02-05 20:03:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        sessionMode: "Pve",
+        profileId: "11223344556677889900aabb",
+      },
+    ]);
+  });
+
+  it("records identities with version and does not mix session modes in one folder", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [
+          "2024-02-05 19:00:00.000|0.14.0.0.28375|Info|application|Session mode: regular",
+          "2024-02-05 19:00:01.000|0.14.0.0.28375|Info|application|SelectProfile ProfileId:aa11bb22cc33dd44ee55ff66 AccountId:123",
+          "2024-02-05 20:00:00.000|0.14.1.0.29000|Info|application|Session mode: Pve",
+          "2024-02-05 20:00:01.000|0.14.1.0.29000|Info|application|SelectProfile ProfileId:11223344556677889900aabb AccountId:123",
+        ].join("\n"),
+      },
+    ]);
+    expect(identitiesFromParsed(parsed, "log_2024.02.05_19-00-00")).toEqual([
+      {
+        at: "2024-02-05 19:00:01.000",
+        sessionMode: "regular",
+        profileId: "aa11bb22cc33dd44ee55ff66",
+        accountId: "123",
+        version: "0.14.0.0",
+        folder: "log_2024.02.05_19-00-00",
+      },
+      {
+        at: "2024-02-05 20:00:01.000",
+        sessionMode: "Pve",
+        profileId: "11223344556677889900aabb",
+        accountId: "123",
+        version: "0.14.1.0",
+        folder: "log_2024.02.05_19-00-00",
+      },
+    ]);
+  });
+
+  it("drops truncated ChatMessage JSON and ignores flea type 4", () => {
+    const parsed = parseTarkovLogText(
+      [
+        "2024-02-05 19:03:08.398|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        '{ "type": "new_message", "message": { "type": 10, "templateId": "5ac346a886f7744e1b083d67 description"',
+        "2024-02-05 19:05:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        '{ "type": "new_message", "message": { "type": 4, "templateId": "5bdabfb886f7743e152e867e 0" } }',
+      ].join("\n"),
+    );
+    expect(parsed.quests).toEqual([]);
+    expect(parsed.drops).toEqual([
+      {
+        at: "2024-02-05 19:03:08.398",
+        reason: "json_bad",
+        line: "2024-02-05 19:03:08.398|x|Info|push-notifications|Got notification | ChatMessageReceived",
+      },
+    ]);
   });
 
   it("reads PascalCase quest messages used in newer clients", () => {
@@ -375,24 +477,9 @@ describe("parseTarkovLogText", () => {
         kind: "completed",
         at: "2026-09-05 20:00:00.000",
         taskId: "5ac346a886f7744e1b083d67",
+        line: "2026-09-05 20:00:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
       },
     ]);
-  });
-
-  it("reads oversized notification logs from the tail instead of skipping", () => {
-    expect(planLogFileRead("application.log", 33 * 1024 * 1024)).toEqual({
-      skip: true,
-      offset: 0,
-    });
-    expect(planLogFileRead("notifications.log", 40 * 1024 * 1024)).toEqual({
-      skip: false,
-      offset: 0,
-    });
-    expect(planLogFileRead("push-notifications.log", 100 * 1024 * 1024)).toEqual({
-      skip: false,
-      offset: 100 * 1024 * 1024 - 48 * 1024 * 1024,
-    });
-    expect(logFileByteBudget("notifications.log")).toBe(96 * 1024 * 1024);
   });
 
   it("closes a raid from notifications UserMatchOver JSON", () => {
@@ -527,6 +614,49 @@ describe("parseTarkovLogText", () => {
         ],
       }),
     ).toMatchObject({ kind: "raid_started", mapId: "woods" });
+  });
+
+  it("closes a raid from output.log GameStopping when UserMatchOver is missing", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join(
+          "\n",
+        ),
+      },
+      {
+        name: "output.log",
+        text: "2023-12-29 19:41:12.000|x|Info|application|EFT.NetworkGame`1:GameStopping()",
+      },
+    ]);
+    expect(parsed.raids[0]).toMatchObject({
+      raidId: "PQXKR6",
+      endedAt: "2023-12-29 19:41:12.000",
+      mapId: "shoreline",
+    });
+    expect(logPhaseFromParsed(parsed)).toMatchObject({ kind: "raid_exited" });
+  });
+
+  it("does not inherit the previous map for an offline raid without Location", () => {
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "application.log",
+        text: [
+          MATCH_LINE,
+          "2023-12-29 19:03:40.000|x|Info|application|GameStarted",
+          "2023-12-29 19:41:00.000|x|Info|notifications|Got notification | UserMatchOver",
+          '{ "location": "Shoreline", "shortId": "PQXKR6" }',
+          "2023-12-29 20:00:00.000|x|Info|application|TRACE-NetworkGameCreate profileStatus: 'RaidMode: Offline, shortId: LOCAL1'",
+          "2023-12-29 20:00:10.000|x|Info|application|GameStarted",
+        ].join("\n"),
+      },
+    ]);
+    expect(latestLogMapId(parsed)).toBe("");
+    expect(logPhaseFromParsed(parsed)).toMatchObject({
+      kind: "raid_started",
+      raidMode: "offline",
+      mapId: "",
+    });
   });
 
   it("opens a new raid after exit on map_loading with a known map", () => {
@@ -698,6 +828,15 @@ describe("history helpers", () => {
     );
     expect(raidModeLabel("offline")).toBe("离线");
     expect(sessionModeLabel("pve")).toBe("PvE");
+    expect(sessionModeLabel("seasonal")).toBe("赛季");
+    expect(sessionModeLabel("szn")).toBe("赛季");
+    expect(classifyLogSessionMode("regular")).toBe("pvp");
+    expect(classifyLogSessionMode("PvpSeason")).toBe("seasonal");
+    expect(classifyLogSessionMode("mystery")).toBe("unknown");
+    expect(classifyLogSessionMode("")).toBe("");
+    expect(versionFromLogLine("2023-12-29 19:03:00.000 +01:00|0.14.0.0.28375|Info|")).toBe(
+      "0.14.0.0",
+    );
     expect(logEventLabel("raid_started")).toBe("开战");
     expect(parseLogRaidMode("Local")).toBe("offline");
     expect(

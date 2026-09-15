@@ -234,11 +234,6 @@ export function tarkovTaskHref(taskId: string): string {
   return `${TARKOV_TASKS_PATH}/${encodeURIComponent(taskId)}`;
 }
 
-export function tarkovRaidPrepHref(mapId?: string): string {
-  if (!mapId) return TARKOV_RAID_PREP_PATH;
-  return `${TARKOV_RAID_PREP_PATH}?map=${encodeURIComponent(mapId)}`;
-}
-
 export function tarkovRaidRoomHref(publicId: string): string {
   return `${TARKOV_RAID_PREP_PATH}/rooms/${encodeURIComponent(publicId)}`;
 }
@@ -1044,10 +1039,6 @@ export function textMatchesQuery(
   }
   return false;
 }
-
-export const TARKOV_HANDBOOK_CHIPS: TarkovHomeLink[] = TARKOV_HANDBOOK_ROOTS.map(
-  handbookNavLink,
-);
 
 export type TarkovHomeItemGroup = {
   id: string;

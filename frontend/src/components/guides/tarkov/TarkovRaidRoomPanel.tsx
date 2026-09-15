@@ -15,7 +15,7 @@ import {
   fetchTarkovRaidRoom,
   putTarkovRaidPrepState,
   fetchTarkovTaskDones,
-  writeTarkovTaskDones,
+  writeTaskProgressLedger,
   addTarkovTaskObjectiveDone,
   removeTarkovTaskDone,
   removeTarkovTaskObjectiveDone,
@@ -717,7 +717,19 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       const task = catalogRich.find((row) => row.id === taskId);
       const fillIds =
         status === "done" && task ? raidPrepAllObjectiveIds(task) : undefined;
-      const next = commitTaskStatus(gameMode, taskId, status, fillIds);
+      const prev = {
+        done: loadTaskDoneIds(gameMode),
+        started: loadTaskStartedIds(gameMode),
+        failed: loadTaskFailedIds(gameMode),
+      };
+      const next = commitTaskStatus(
+        gameMode,
+        taskId,
+        status,
+        fillIds,
+        task?.mutex_ids,
+        catalogRich,
+      );
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
         taskProgressQueryData(
@@ -727,11 +739,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           next.failed,
         ),
       );
-      void writeTarkovTaskDones(next.done, {
-        startedIds: next.started,
-        failedIds: next.failed,
-        objectiveDones: next.objectives,
-      }).catch(() => {});
+      void writeTaskProgressLedger(
+        {
+          done: next.done,
+          started: next.started,
+          failed: next.failed,
+          objectives: next.objectives,
+        },
+        prev,
+      ).catch(() => {});
     },
     [catalogRich, doneTaskIds, gameMode, queryClient, startedTaskIds],
   );
@@ -1126,7 +1142,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         plan.nextChecked,
       );
       const progress = plan.reopenTask
-        ? commitTaskStatus(gameMode, taskId, "active")
+        ? commitTaskStatus(gameMode, taskId, "active", undefined, undefined, catalogRich)
         : {
             done: loadTaskDoneIds(gameMode),
             started: loadTaskStartedIds(gameMode),
@@ -1173,6 +1189,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     },
     [
       canEdit,
+      catalogRich,
       doneTaskIds,
       gameMode,
       objDone,

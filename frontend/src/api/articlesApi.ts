@@ -6,12 +6,10 @@ export type ArticleListItem = components["schemas"]["ArticleListItemOut"];
 export type ArticleDetail = components["schemas"]["ArticleDetailOut"];
 export type ArticleComment = components["schemas"]["ArticleCommentOut"];
 export type ArticleCategory = components["schemas"]["ArticleCategoryOut"];
-export type ArticleTerm = components["schemas"]["ArticleTermOut"];
 export type ArticleWriteIn = components["schemas"]["ArticleWriteIn"];
 export type ArticlePatchIn = components["schemas"]["ArticlePatchIn"];
 export type ArticleCommentCreateIn = components["schemas"]["ArticleCommentCreateIn"];
 export type ArticleCategoryWriteIn = components["schemas"]["ArticleCategoryWriteIn"];
-export type ArticleTagWriteIn = components["schemas"]["ArticleTagWriteIn"];
 export type ArticleCapability = components["schemas"]["ArticleCapabilityOut"];
 export type ArticleAuthor = components["schemas"]["ArticleAuthorOut"];
 export type ArticleVersionListItem = components["schemas"]["ArticleVersionListItemOut"];
@@ -78,11 +76,6 @@ export async function fetchArticleCategories() {
   return data;
 }
 
-export async function fetchArticleTags() {
-  const { data } = await client.get<ArticleTerm[]>("/articles/tags");
-  return data;
-}
-
 export async function createArticle(body: ArticleWriteIn) {
   const { data } = await client.post<ArticleDetail>("/articles", body);
   return data;
@@ -146,11 +139,6 @@ export async function patchArticleCategory(
 
 export async function deleteArticleCategory(categoryId: number) {
   await client.delete(`/articles/categories/${categoryId}`);
-}
-
-export async function createArticleTag(body: ArticleTagWriteIn) {
-  const { data } = await client.post<ArticleTerm>("/articles/tags", body);
-  return data;
 }
 
 export async function fetchArticleCapabilities() {

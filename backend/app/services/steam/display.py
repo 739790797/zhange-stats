@@ -39,11 +39,9 @@ def force_set_steam_persona_name(
     persona_name: str | None,
     *,
     user: User | None = None,
-    update_display: bool = True,
     avatar_url: str | None = None,
 ) -> None:
-    """绑定 Steam 时写入 Steam 专用资料（update_display 已废弃，保留参数兼容）。"""
-    del update_display  # 不再覆盖站内 display_name / nickname / avatar_url
+    """绑定 Steam 时写入 Steam 专用资料，不覆盖站内 display_name。"""
     target = user if user is not None else member.user
     if target is not None and member.user is None:
         member.user = target

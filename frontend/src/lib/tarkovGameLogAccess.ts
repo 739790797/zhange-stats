@@ -2,14 +2,13 @@ import {
   classifyLogsRoot,
   formatBindPath,
   isNewerScreenshot,
+  isApplicationLogFileName,
   isReadableTarkovLogFileName,
   isScreenshotFileName,
   screenshotNamesToInspect,
-  screenshotNamesToPrune,
   listSessionStubs,
   logWalkCandidatesFrom,
   mergeBindPath,
-  planLogFileRead,
   screenshotWalkCandidatesFrom,
   type TarkovLogSessionStub,
 } from "@/lib/tarkovGameLogs";
@@ -65,7 +64,6 @@ export type TarkovLogSessionRead = {
   folder: string;
   files: TarkovLogFileRead[];
   fingerprint: string;
-  skipped: string[];
 };
 
 type PickerWindow = Window & {
@@ -154,22 +152,6 @@ async function idbSet(key: string, value: unknown): Promise<void> {
   }
 }
 
-async function idbDelete(key: string): Promise<void> {
-  const db = await openDb();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const req = db
-        .transaction(STORE, "readwrite")
-        .objectStore(STORE)
-        .delete(key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error || new Error("清除授权目录失败"));
-    });
-  } finally {
-    db.close();
-  }
-}
-
 export async function loadStoredLogsDir(): Promise<ReadableDir | null> {
   try {
     const handle = await idbGet<ReadableDir>(LOGS_HANDLE_KEY);
@@ -197,12 +179,6 @@ export async function saveLogsDisplayPath(path: string): Promise<void> {
   await idbSet(LOGS_PATH_KEY, path);
 }
 
-export async function clearStoredLogsDir(): Promise<void> {
-  await idbDelete(LOGS_HANDLE_KEY);
-  await idbDelete(LOGS_PATH_KEY);
-  notifyTarkovLiveDirsChanged();
-}
-
 export async function loadStoredScreenshotsDir(): Promise<ReadableDir | null> {
   try {
     const handle = await idbGet<ReadableDir>(SHOTS_HANDLE_KEY);
@@ -228,12 +204,6 @@ export async function loadStoredScreenshotsPath(): Promise<string> {
 
 export async function saveScreenshotsDisplayPath(path: string): Promise<void> {
   await idbSet(SHOTS_PATH_KEY, path);
-}
-
-export async function clearStoredScreenshotsDir(): Promise<void> {
-  await idbDelete(SHOTS_HANDLE_KEY);
-  await idbDelete(SHOTS_PATH_KEY);
-  notifyTarkovLiveDirsChanged();
 }
 
 async function queryDirPermission(
@@ -317,11 +287,6 @@ export async function pickScreenshotsDirectory(
     mode: "readwrite",
     startIn: startIn || "documents",
   });
-}
-
-export function isFileSystemObserverSupported(): boolean {
-  if (typeof window === "undefined") return false;
-  return typeof (window as ObserverWindow).FileSystemObserver === "function";
 }
 
 export async function observeDirectory(
@@ -506,12 +471,6 @@ export async function resolveScreenshotsDirDetailed(
   );
 }
 
-export async function listLogSessions(
-  handle: ReadableDir,
-): Promise<TarkovLogSessionStub[]> {
-  return (await readLogsIndex(handle)).sessions;
-}
-
 export async function readLogsIndex(handle: ReadableDir): Promise<{
   resolved: ResolvedTarkovDir;
   sessions: TarkovLogSessionStub[];
@@ -574,52 +533,30 @@ export async function peekSessionFingerprint(
 export async function readSessionLogs(
   handle: ReadableDir,
   folder: string,
+  opts?: { fileName?: (name: string) => boolean },
 ): Promise<TarkovLogSessionRead> {
   const handles = await sessionFileHandles(handle, folder);
   const files: TarkovLogFileRead[] = [];
-  const skipped: string[] = [];
   for (const fileHandle of handles) {
+    if (opts?.fileName && !opts.fileName(fileHandle.name)) continue;
     const file = await fileHandle.getFile();
-    const plan = planLogFileRead(fileHandle.name, file.size);
-    if (plan.skip) {
-      skipped.push(fileHandle.name);
-      continue;
-    }
-    const blob = plan.offset > 0 ? file.slice(plan.offset) : file;
     files.push({
       name: fileHandle.name,
-      text: await blob.text(),
+      text: await file.text(),
       lastModified: file.lastModified,
       size: file.size,
     });
   }
   files.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name));
   const fingerprint = joinFingerprint(files.map((file) => fileFingerprint(file)));
-  return { folder, files, fingerprint, skipped };
+  return { folder, files, fingerprint };
 }
 
-export async function listRecentScreenshots(
+export async function readSessionApplicationLogs(
   handle: ReadableDir,
-  limit = 12,
-): Promise<TarkovScreenshotStub[]> {
-  const { dir } = await resolveScreenshotsDirDetailed(handle);
-  const entries = await listDirEntries(dir);
-  const files: TarkovScreenshotStub[] = [];
-  for (const entry of entries) {
-    if (entry.kind !== "file" || !isScreenshotFileName(entry.name)) continue;
-    const fileHandle =
-      entry.getFile != null
-        ? (entry as ReadableFile)
-        : await dir.getFileHandle(entry.name);
-    const file = await fileHandle.getFile();
-    files.push({
-      name: file.name,
-      lastModified: file.lastModified,
-      size: file.size,
-    });
-  }
-  files.sort((a, b) => b.lastModified - a.lastModified);
-  return files.slice(0, Math.max(0, limit));
+  folder: string,
+): Promise<TarkovLogSessionRead> {
+  return readSessionLogs(handle, folder, { fileName: isApplicationLogFileName });
 }
 
 export type TarkovScreenshotRead = TarkovScreenshotStub & { file: File };
@@ -658,18 +595,6 @@ export async function removeScreenshotFiles(
     }
   }
   return removed;
-}
-
-export async function pruneConsumedScreenshots(
-  dir: ReadableDir,
-  names: readonly string[],
-  keepLatest: string | null,
-  keepMax: number,
-): Promise<string[]> {
-  return removeScreenshotFiles(
-    dir,
-    screenshotNamesToPrune(names, keepLatest, keepMax),
-  );
 }
 
 export async function listScreenshotFileNames(

@@ -1681,17 +1681,6 @@ def set_room_map(
     return serialize_room(db, room, viewer=user)
 
 
-def close_room(
-    db: Session,
-    public_id: str,
-    user: User,
-    *,
-    now: datetime | None = None,
-) -> dict[str, Any]:
-    """兼容旧名：清空房间。"""
-    return reset_room(db, public_id, user, now=now)
-
-
 def claim_task(
     db: Session,
     public_id: str,

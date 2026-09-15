@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTarkovTaskDones, writeTarkovTaskDones } from "@/api/guidesApi";
+import { fetchTarkovTaskDones, writeTaskProgressLedger } from "@/api/guidesApi";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
@@ -19,8 +19,10 @@ import {
   sameObjectiveLists,
   saveTaskProgress,
   taskProgressQueryData,
-  unionTaskProgress,
+  loadTaskClearedDone,
+  ledgerIdsToClear,
 } from "@/lib/tarkovTaskTree";
+import { mutexIndexFromTasks } from "@/lib/tarkovTaskMutex";
 import { useAuthStore } from "@/stores/authStore";
 
 export function useTarkovTaskAccountSync() {
@@ -63,6 +65,9 @@ export function useTarkovTaskAccountSync() {
     if (hydrateKeyRef.current === key) return;
     hydrateKeyRef.current = key;
     hydratingRef.current = true;
+    const catalog = queryClient.getQueryData<{
+      items?: Array<{ id?: string | null; mutex_ids?: string[] | null }>;
+    }>(["guides-tarkov-task-list", gameMode]);
     const plan = planAccountTaskHydrate({
       serverDone: query.data.task_ids || [],
       serverStarted: query.data.started_ids || [],
@@ -72,6 +77,10 @@ export function useTarkovTaskAccountSync() {
       localStarted: loadTaskStartedIds(gameMode),
       localFailed: loadTaskFailedIds(gameMode),
       localObjectives: loadTaskObjectivePairs(gameMode),
+      clearedDone: loadTaskClearedDone(gameMode),
+      mutexById: catalog?.items?.length
+        ? mutexIndexFromTasks(catalog.items)
+        : undefined,
     });
     const prevDone = loadTaskDoneIds(gameMode);
     const prevStarted = loadTaskStartedIds(gameMode);
@@ -113,42 +122,60 @@ export function useTarkovTaskAccountSync() {
     }
     hydratingRef.current = false;
     if (!plan.upload) return;
-    void writeTarkovTaskDones(plan.done, {
-      startedIds: plan.started,
-      failedIds: plan.failed,
-      objectiveDones: plan.objectives,
-    })
+    void writeTaskProgressLedger(
+      {
+        done: plan.done,
+        started: plan.started,
+        failed: plan.failed,
+        objectives: plan.objectives,
+      },
+      {
+        done: query.data.task_ids || [],
+        started: query.data.started_ids || [],
+        failed: query.data.failed_ids || [],
+      },
+    )
       .then((data) => {
-        const merged = unionTaskProgress(
+        const objectives = data.objective_dones || plan.objectives;
+        saveTaskProgress(
+          gameMode,
+          plan.done,
+          plan.started,
+          true,
+          true,
+          objectives,
+          plan.failed,
+        );
+        queryClient.setQueryData(
+          ["guides-tarkov-task-dones", gameMode],
+          taskProgressQueryData(
+            plan.done,
+            plan.started,
+            objectives,
+            plan.failed,
+          ),
+        );
+        const extras = ledgerIdsToClear(
+          {
+            done: data.task_ids,
+            started: data.started_ids,
+            failed: data.failed_ids,
+          },
+          plan,
+        );
+        if (!extras.length) return;
+        return writeTaskProgressLedger(
           {
             done: plan.done,
             started: plan.started,
             failed: plan.failed,
+            objectives,
           },
           {
             done: data.task_ids,
             started: data.started_ids,
             failed: data.failed_ids,
           },
-        );
-        const objectives = data.objective_dones || plan.objectives;
-        saveTaskProgress(
-          gameMode,
-          merged.done,
-          merged.started,
-          true,
-          true,
-          objectives,
-          merged.failed,
-        );
-        queryClient.setQueryData(
-          ["guides-tarkov-task-dones", gameMode],
-          taskProgressQueryData(
-            merged.done,
-            merged.started,
-            objectives,
-            merged.failed,
-          ),
         );
       })
       .catch(() => {

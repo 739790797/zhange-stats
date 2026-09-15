@@ -114,13 +114,6 @@
   gap: 10px;
 }
 
-.gridPockets {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-}
-
 .gridStage {
   position: relative;
   max-width: 100%;
@@ -231,43 +224,6 @@
   color: #c8c4a8;
   font-size: 14px;
   line-height: 1.7;
-}
-
-.contained {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-}
-
-.containedLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--hb-orange, #c8932a);
-  text-decoration: none;
-  font-size: 13px;
-}
-
-.containedLink:hover {
-  color: #e0b45a;
-}
-
-.containedIcon {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  background: #101010;
-}
-
-.plateGroup {
-  margin-bottom: 16px;
-}
-
-.plateHead {
-  margin: 0 0 8px;
-  color: #c8c4b0;
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .contentBox {

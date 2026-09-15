@@ -12,6 +12,7 @@ import {
   formatQuestSyncDeltaLine,
   mergeQuestProgressFromLogs,
   type QuestLogCatalog,
+  type QuestLogSyncReview,
   type QuestProgressDelta,
 } from "@/lib/tarkovTaskLogSync";
 import { formatBeijing } from "@/lib/time";
@@ -91,27 +92,14 @@ export function addedIdList(
   return next.filter((id) => Boolean(id) && !have.has(id));
 }
 
+/** 轮询只盯最新启动夹；换新夹时再读刚结束的上一夹。历史回填走「同步日志」。 */
 export function planLogSessionReads(
   newestFolder: string | null,
   newestFingerprint: string,
   prev: LogPollCursor | null,
-  allFolders: readonly string[] = [],
 ): { skip: boolean; folders: string[] } {
   if (!newestFolder) return { skip: true, folders: [] };
-  if (!prev) {
-    const seen = new Set<string>();
-    const folders: string[] = [];
-    for (const folder of allFolders) {
-      const ident = folder.trim();
-      if (!ident || seen.has(ident)) continue;
-      seen.add(ident);
-      folders.push(ident);
-    }
-    return {
-      skip: false,
-      folders: folders.length ? folders : [newestFolder],
-    };
-  }
+  if (!prev) return { skip: false, folders: [newestFolder] };
   if (prev.folder === newestFolder && prev.fingerprint === newestFingerprint) {
     return { skip: true, folders: [] };
   }
@@ -137,14 +125,17 @@ export function nextLiveQuestProgress(
   gameMode: TarkovGameMode,
   catalog?: QuestLogCatalog | ReadonlySet<string>,
   failedIds: readonly string[] = [],
+  clearedDone?: ReadonlyMap<string, string>,
+  replay?: { profileId?: string },
 ): LiveQuestProgressPlan {
   const merged = mergeQuestProgressFromLogs(
     doneIds,
     startedIds,
     sessions,
-    gameMode,
+    { gameMode, profileId: replay?.profileId },
     catalog,
     failedIds,
+    clearedDone,
   );
   return {
     done: merged.done,
@@ -199,6 +190,7 @@ export function planRaidLogImport(
 export type LiveLogSyncResult = {
   ok: boolean;
   hint: string;
+  review?: QuestLogSyncReview;
 };
 
 export type LogSyncScan = { done: number; total: number };
@@ -222,13 +214,10 @@ export function formatLiveLogBackfillHint(
   sessionCount: number,
   kind: "incremental" | "backfill",
   delta: QuestProgressDelta,
-  extras?: { questEvents?: number; skipped?: number },
+  extras?: { questEvents?: number },
 ): string {
   if (sessionCount <= 0) return "这个目录里没有启动记录。";
   let line = `${formatQuestSyncDeltaLine(kind, delta)}（${sessionCount} 次启动）`;
-  if (extras?.skipped) {
-    line += `，${extras.skipped} 个日志文件过大已跳过`;
-  }
   if (
     extras?.questEvents === 0 &&
     delta.done === 0 &&

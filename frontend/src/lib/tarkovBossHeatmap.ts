@@ -915,10 +915,3 @@ export function buildBossHeatmap(
 
   return { bosses, maps, cells, drilldowns };
 }
-
-export function heatmapDrilldown(
-  model: HeatmapModel,
-  slug: string,
-): HeatmapMapDrilldown | null {
-  return model.drilldowns[slug] || null;
-}

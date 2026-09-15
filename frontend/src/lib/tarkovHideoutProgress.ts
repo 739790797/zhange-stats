@@ -459,14 +459,6 @@ export function nextHideoutLevelSpec(
   return hideoutLevelSpec(station, current + 1);
 }
 
-export function currentHideoutLevelSpec(
-  station: HideoutStationSpec | undefined,
-  current: number,
-): HideoutLevelSpec | undefined {
-  if (current <= 0) return undefined;
-  return hideoutLevelSpec(station, current);
-}
-
 export type HideoutUpgradeStationRef = {
   id: string;
   name: string;

@@ -16,9 +16,6 @@ from zoneinfo import ZoneInfo
 BEIJING = ZoneInfo("Asia/Shanghai")
 UTC = timezone.utc
 
-# 兼容旧名
-TZ = BEIJING
-
 
 def now() -> datetime:
     """当前北京时间（aware）。"""

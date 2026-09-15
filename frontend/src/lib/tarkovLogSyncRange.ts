@@ -16,6 +16,13 @@ export type TarkovLogSyncRange = {
   to: string;
   /** 全部启动记录，含没有 startedAt 的文件夹。 */
   all?: boolean;
+  /** Read Past Logs：版本 + ProfileId + Session mode。 */
+  breakpoint?: {
+    version: string;
+    profileId: string;
+    sessionMode: string;
+    at: string;
+  };
 };
 
 export type TarkovLogSyncRangeInput = {

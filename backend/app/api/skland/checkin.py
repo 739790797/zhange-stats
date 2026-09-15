@@ -30,7 +30,6 @@ from app.schemas import (
     SklandBindSmsSendRequest,
     SklandBindSmsSendResponse,
     SklandBindUpdate,
-    SklandCheckinLogOut,
     SklandCheckinResponse,
     SklandCheckinResultItem,
     SklandQrPollResponse,
@@ -94,17 +93,6 @@ def skland_status(
         soft_roles_on_none_ok=True,
         role_pref_platform="skland",
     )
-
-
-@router.get("/logs", response_model=list[SklandCheckinLogOut])
-def skland_logs(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    limit: int = Query(default=30, ge=1, le=100),
-):
-    """兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。"""
-    _ = (db, user, limit)
-    return []
 
 
 @router.post("/bind", response_model=SklandStatusOut)

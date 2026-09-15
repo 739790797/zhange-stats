@@ -30,7 +30,6 @@ from app.schemas import (
     KujiequBindSmsSendResponse,
     KujiequBindTokenRequest,
     KujiequBindUpdate,
-    KujiequCheckinLogOut,
     KujiequCheckinResponse,
     KujiequCheckinResultItem,
     KujiequExchangeItemOut,
@@ -97,17 +96,6 @@ def kujiequ_status(
         extra_fields={"phone_mask": bind.phone_mask if bind else None},
         role_pref_platform="kujiequ",
     )
-
-
-@router.get("/logs", response_model=list[KujiequCheckinLogOut])
-def kujiequ_logs(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    limit: int = Query(default=30, ge=1, le=100),
-):
-    """兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。"""
-    _ = (db, user, limit)
-    return []
 
 
 @router.post("/bind/token", response_model=KujiequStatusOut)

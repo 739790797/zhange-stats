@@ -154,15 +154,6 @@ def _as_bool(value: Any) -> bool:
     return False
 
 
-# 20°C 海平面音速；Wiki / eftforge 把初速低于此值的弹药标为亚音速（S）。
-SOUND_SPEED_MPS = 343.0
-
-
-def is_subsonic_ammo(initial_speed: Any) -> bool:
-    speed = _as_float(initial_speed)
-    return 0 < speed < SOUND_SPEED_MPS
-
-
 def _clean_item_names(
     item_id: str,
     *,
@@ -469,13 +460,3 @@ def ensure_ammo(db: Session) -> list[TarkovAmmo]:
     except items_svc.TarkovItemsError as exc:
         raise TarkovAmmoError(str(exc)) from exc
     return list_ammo(db)
-
-
-def sync_from_upstream(db: Session) -> dict[str, Any]:
-    """委托共享 items 回源（一次同步弹药+枪械）。"""
-    from app.services.tarkov import items as items_svc
-
-    try:
-        return items_svc.sync_from_upstream(db)
-    except items_svc.TarkovItemsError as exc:
-        raise TarkovAmmoError(str(exc)) from exc

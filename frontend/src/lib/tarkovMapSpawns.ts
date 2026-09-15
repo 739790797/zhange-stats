@@ -28,10 +28,6 @@ export function tarkovSpawnIconAnchor(kind: TarkovSpawnKind): [number, number] {
   return kind === "pmc" ? [12, 24] : [12, 12];
 }
 
-export function tarkovSpawnTooltipAnchor(kind: TarkovSpawnKind): [number, number] {
-  return kind === "pmc" ? [0, -24] : [0, -12];
-}
-
 export function spawnKindsPresent(input: {
   spawns?: ReadonlyArray<{ kind?: string | null }>;
   bosses?: ReadonlyArray<unknown>;

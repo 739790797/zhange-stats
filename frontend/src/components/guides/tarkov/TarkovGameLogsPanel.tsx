@@ -1,5 +1,5 @@
 import { Alert, Button, Input, InputNumber, Spin, message } from "antd";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   displayPathForResolved,
   isFileSystemAccessSupported,
@@ -32,6 +32,12 @@ import {
   saveScreenshotPrunePref,
   screenshotPruneVerifyResult,
 } from "@/lib/tarkovGameLogs";
+import {
+  loadOfflineMapId,
+  saveOfflineMapId,
+  TARKOV_OFFLINE_MAP_EVENT,
+} from "@/lib/tarkovOfflineMap";
+import { raidPrepMapOptions } from "@/lib/tarkovRaidPrep";
 import styles from "./TarkovGameLogsPanel.module.css";
 
 type Perm = "unknown" | "none" | "prompt" | "granted";
@@ -67,8 +73,19 @@ export function TarkovGameLogsPanel() {
   const [action, setAction] = useState<Action>("");
   const [error, setError] = useState("");
   const [active, setActive] = useState<BindField>("shots");
+  const [offlineMapId, setOfflineMapId] = useState(loadOfflineMapId);
   const dirNameRef = useRef("");
   const shotLabelRef = useRef("");
+
+  const mapOptions = useMemo(() => raidPrepMapOptions(), []);
+
+  useEffect(() => {
+    const onOfflineMap = () => setOfflineMapId(loadOfflineMapId());
+    window.addEventListener(TARKOV_OFFLINE_MAP_EVENT, onOfflineMap);
+    return () => {
+      window.removeEventListener(TARKOV_OFFLINE_MAP_EVENT, onOfflineMap);
+    };
+  }, []);
 
   const busy = Boolean(action);
   dirNameRef.current = dirName;
@@ -455,6 +472,27 @@ export function TarkovGameLogsPanel() {
           </Button>
         </div>
         <p className={styles.hint}>常见位置：{TARKOV_LOGS_PATH_HINT}</p>
+      </div>
+      <div className={styles.row}>
+        <label className={styles.label} htmlFor="tarkov-offline-map">
+          离线地图
+        </label>
+        <select
+          id="tarkov-offline-map"
+          className={styles.mapSelect}
+          value={offlineMapId}
+          onChange={(event) => setOfflineMapId(saveOfflineMapId(event.target.value))}
+        >
+          <option value="">日志有图才切</option>
+          {mapOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <p className={styles.hint}>
+          本地 / 离线战局常常没有 Location。选好地图后，进图或离线开战时会挂截图坐标；回菜单不会强切。
+        </p>
       </div>
     </div>
   );

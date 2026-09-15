@@ -33,7 +33,11 @@ import {
   type CatalogPriceRow,
   type RigKindFilter,
 } from "@/lib/tarkovItemFormat";
-import { hdPreviewUrl, transparentThumbUrl } from "@/lib/tarkovItemImages";
+import {
+  handbookCategoryIconUrl,
+  hdPreviewUrl,
+  transparentThumbUrl,
+} from "@/lib/tarkovItemImages";
 import {
   catalogPresetSlug,
   findHandbookChild,
@@ -514,6 +518,41 @@ function nodeContainsId(node: TarkovHandbookChild, id: string | null): boolean {
   return Boolean(findHandbookChild([node], id));
 }
 
+function AllCatIcon() {
+  return (
+    <svg
+      className={styles.catIconSvg}
+      viewBox="0 0 16 16"
+      width={22}
+      height={22}
+      aria-hidden
+    >
+      <rect x="1.25" y="1.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+      <rect x="9.25" y="1.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+      <rect x="1.25" y="9.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+      <rect x="9.25" y="9.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CatIcon({ id }: { id: string | null }) {
+  const src = id ? handbookCategoryIconUrl(id) : "";
+  const [broken, setBroken] = useState(false);
+  if (!id) return <AllCatIcon />;
+  if (!src || broken) return <span className={styles.catIconSlot} aria-hidden />;
+  return (
+    <img
+      className={styles.catIcon}
+      src={src}
+      alt=""
+      width={22}
+      height={22}
+      draggable={false}
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 function CatButton({
   id,
   label,
@@ -535,7 +574,8 @@ function CatButton({
       }`}
       onClick={() => onSelect(id)}
     >
-      {label}
+      <CatIcon id={id} />
+      <span className={styles.catLabel}>{label}</span>
     </button>
   );
 }
@@ -605,9 +645,10 @@ function CatTree({
   depth: number;
 }) {
   if (!nodes.length) return null;
+  const ordered = [...nodes].sort((a, b) => a.order - b.order);
   return (
     <div className={depth === 0 ? styles.treeRoots : styles.treeKids}>
-      {nodes.map((node) => (
+      {ordered.map((node) => (
         <CatNode
           key={node.id}
           node={node}

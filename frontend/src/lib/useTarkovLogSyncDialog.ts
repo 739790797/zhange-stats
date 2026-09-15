@@ -6,7 +6,7 @@ import type { TarkovLogSyncRange } from "@/lib/tarkovLogSyncRange";
 import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 
 const DEFAULT_TITLE =
-  "本机解析日志，只把任务状态回填到账号，不会上传原文。先选日期范围，默认全部启动记录。";
+  "本机解析日志，只把任务状态回填到账号，不会上传原文。默认从本赛季当前角色第一次出现读到现在。";
 
 export function useTarkovLogSyncDialog() {
   const live = useTarkovLiveWatch();
@@ -41,6 +41,7 @@ export function useTarkovLogSyncDialog() {
     (range: TarkovLogSyncRange) => {
       setOpen(false);
       void live.syncLogs(range).then((result) => {
+        if (result.review?.rows.length || result.review?.dropHint) return;
         if (!result.hint) return;
         if (result.ok) message.success(result.hint);
         else message.error(result.hint);

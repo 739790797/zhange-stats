@@ -1,7 +1,4 @@
-/** 塔科夫截图识别：文本归一化、模糊打分、进度文案。匹配规则按闭集宁缺毋滥。 */
-
-const OCR_TOKEN_RE = /[0-9a-zA-Z]+|[\u4e00-\u9fff]+/g;
-const OCR_COMPACT_RE = /[\s\-_.·•]+/g;
+/** 塔科夫截图识别：模糊打分、进度文案。匹配规则按闭集宁缺毋滥。 */
 
 export function formatOcrProgress(status: string, progress?: number): string {
   const key = (status || "").toLowerCase();
@@ -37,73 +34,6 @@ export function formatKeyOcrEngines(engines?: string[] | null): string {
     .map((id) => KEY_OCR_ENGINE_LABELS[id] || id.trim())
     .filter(Boolean);
   return [...new Set(names)].join(" / ");
-}
-
-/** 与后端 search.compact_text 对齐，便于 OCR「医疗隐私-5」对目录「医疗隐私 - Part 5」。 */
-export function compactOcrText(text: string): string {
-  return (text || "")
-    .trim()
-    .toLowerCase()
-    .replace(OCR_COMPACT_RE, "")
-    .replace(/part/g, "");
-}
-
-export function ocrSearchTokens(text: string): string[] {
-  const out: string[] = [];
-  for (const match of (text || "").matchAll(OCR_TOKEN_RE)) {
-    out.push(match[0].toLowerCase());
-  }
-  return out;
-}
-
-/** 去空白、标点、全角，便于比对。 */
-export function normalizeOcrText(value: string): string {
-  return (value || "")
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[\s\u3000]+/g, "")
-    .replace(
-      /[·•・．.。,，、:：;；!！?？"'“”‘’（）()【】[\]<>《》\-_—–−_/\\|]+/g,
-      "",
-    )
-    .replace(/…+/g, "");
-}
-
-/** 越小越靠前；null 表示未命中。 */
-export function ocrHitRank(needle: string, ...fields: string[]): number | null {
-  const compactQ = compactOcrText(needle);
-  const tokens = ocrSearchTokens(needle);
-  if (!compactQ && !tokens.length) return null;
-  let best: number | null = null;
-  for (const field of fields) {
-    const hay = String(field || "");
-    if (!hay) continue;
-    const compactH = compactOcrText(hay);
-    const lowerH = hay.toLowerCase();
-    if (compactQ && compactH === compactQ) return 0;
-    if (compactQ && compactH.startsWith(compactQ)) {
-      best = best === null ? 1 : Math.min(best, 1);
-      continue;
-    }
-    if (compactQ && compactH.includes(compactQ)) {
-      const ratio = compactQ.length / Math.max(compactH.length, 1);
-      if (compactQ.length >= 4 || ratio >= 0.55) {
-        best = best === null ? 2 : Math.min(best, 2);
-      }
-      continue;
-    }
-    if (compactQ && compactQ.includes(compactH) && compactH.length >= 4) {
-      best = best === null ? 2 : Math.min(best, 2);
-      continue;
-    }
-    if (
-      tokens.length &&
-      tokens.every((t) => lowerH.includes(t) || compactH.includes(t))
-    ) {
-      best = best === null ? 3 : Math.min(best, 3);
-    }
-  }
-  return best;
 }
 
 export function ocrLevenshtein(a: string, b: string): number {

@@ -10,7 +10,7 @@ import {
   fetchTarkovRaidPrep,
   fetchTarkovRaidPrepState,
   fetchTarkovTaskDones,
-  writeTarkovTaskDones,
+  writeTaskProgressLedger,
   addTarkovTaskObjectiveDone,
   removeTarkovTaskDone,
   removeTarkovTaskObjectiveDone,
@@ -83,6 +83,7 @@ import { useRaidPrepGeometry } from "@/lib/useRaidPrepGeometry";
 import {
   commitTaskObjective,
   commitTaskStatus,
+  ledgerIdsToClear,
   loadTaskDoneIds,
   loadTaskFailedIds,
   loadTaskStartedIds,
@@ -200,7 +201,7 @@ export function TarkovRaidPrepPanel() {
         plan.nextChecked,
       );
       const progress = plan.reopenTask
-        ? commitTaskStatus(gameMode, taskId, "active")
+        ? commitTaskStatus(gameMode, taskId, "active", undefined, undefined, catalogRich)
         : {
             done: loadTaskDoneIds(gameMode),
             started: loadTaskStartedIds(gameMode),
@@ -564,7 +565,19 @@ export function TarkovRaidPrepPanel() {
       const task = catalogRich.find((row) => row.id === taskId);
       const fillIds =
         status === "done" && task ? raidPrepAllObjectiveIds(task) : undefined;
-      const next = commitTaskStatus(gameMode, taskId, status, fillIds);
+      const prev = {
+        done: loadTaskDoneIds(gameMode),
+        started: loadTaskStartedIds(gameMode),
+        failed: loadTaskFailedIds(gameMode),
+      };
+      const next = commitTaskStatus(
+        gameMode,
+        taskId,
+        status,
+        fillIds,
+        task?.mutex_ids,
+        catalogRich,
+      );
       if (fillIds?.length) {
         const local = readRaidPrepObjectiveDoneWithLegacy(
           objDoneScope,
@@ -585,22 +598,49 @@ export function TarkovRaidPrepPanel() {
           next.failed,
         ),
       );
-      void writeTarkovTaskDones(next.done, {
-        startedIds: next.started,
-        failedIds: next.failed,
-        objectiveDones: next.objectives,
-      })
+      void writeTaskProgressLedger(
+        {
+          done: next.done,
+          started: next.started,
+          failed: next.failed,
+          objectives: next.objectives,
+        },
+        prev,
+      )
         .then((data) => {
           const objectives = data.objective_dones || next.objectives;
           queryClient.setQueryData(
             ["guides-tarkov-task-dones", gameMode],
             taskProgressQueryData(
-              data.task_ids || next.done,
-              data.started_ids || next.started,
+              next.done,
+              next.started,
               objectives,
-              data.failed_ids || next.failed,
+              next.failed,
             ),
           );
+          const extras = ledgerIdsToClear(
+            {
+              done: data.task_ids,
+              started: data.started_ids,
+              failed: data.failed_ids,
+            },
+            next,
+          );
+          if (extras.length) {
+            void writeTaskProgressLedger(
+              {
+                done: next.done,
+                started: next.started,
+                failed: next.failed,
+                objectives,
+              },
+              {
+                done: data.task_ids,
+                started: data.started_ids,
+                failed: data.failed_ids,
+              },
+            ).catch(() => {});
+          }
           const local = readRaidPrepObjectiveDoneWithLegacy(
             objDoneScope,
             objDoneLegacy,

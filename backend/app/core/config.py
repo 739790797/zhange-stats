@@ -67,9 +67,6 @@ class Settings(BaseSettings):
     TRUST_X_FORWARDED_FOR: bool = False
 
     STEAM_API_KEY: str = ""
-    STEAM_POLL_INTERVAL_MINUTES: int = 3
-    STEAM_POLL_ENABLED: bool = True
-    MINECRAFT_POLL_INTERVAL_MINUTES: int = 1
     # 可选手动覆盖 OAuth 回调基址；留空则从请求 Host / Origin / X-Forwarded-* 推断
     PUBLIC_BACKEND_URL: str = ""
     PUBLIC_FRONTEND_URL: str = ""
@@ -82,49 +79,6 @@ class Settings(BaseSettings):
     QQ_APP_ID: str = ""
     QQ_APP_KEY: str = ""
 
-    # 森空岛每日签到（明日方舟 / 终末地）— 默认北京时间 00:01
-    SKLAND_CHECKIN_ENABLED: bool = True
-    SKLAND_CHECKIN_HOUR: int = 0
-    SKLAND_CHECKIN_MINUTE: int = 1
-    # 明日方舟盒子练度日更（默认 00:20，可与签到错开）
-    ARKNIGHTS_BOX_SYNC_ENABLED: bool = True
-    ARKNIGHTS_BOX_SYNC_HOUR: int = 0
-    ARKNIGHTS_BOX_SYNC_MINUTE: int = 20
-    # 明日方舟开源图鉴（ArknightsGameResource character_table，默认 04:00）
-    ARKNIGHTS_CATALOG_SYNC_ENABLED: bool = True
-    ARKNIGHTS_CATALOG_SYNC_HOUR: int = 4
-    ARKNIGHTS_CATALOG_SYNC_MINUTE: int = 0
-    # 森空岛活动日历（game-schedule，默认 05:00）
-    GAME_SCHEDULE_SYNC_ENABLED: bool = True
-    GAME_SCHEDULE_SYNC_HOUR: int = 5
-    GAME_SCHEDULE_SYNC_MINUTE: int = 0
-    # 逃离塔科夫全量（物品+任务+商人+BOSS+藏身处+门锁缓存，默认 04:25）
-    TARKOV_FULL_SYNC_ENABLED: bool = True
-    TARKOV_FULL_SYNC_HOUR: int = 4
-    TARKOV_FULL_SYNC_MINUTE: int = 25
-    # 分项定时默认关，避免与全量重复拉上游；接口仍可单独回源
-    TARKOV_ITEMS_SYNC_ENABLED: bool = False
-    TARKOV_ITEMS_SYNC_HOUR: int = 4
-    TARKOV_ITEMS_SYNC_MINUTE: int = 30
-    TARKOV_TASKS_SYNC_ENABLED: bool = False
-    TARKOV_TASKS_SYNC_HOUR: int = 4
-    TARKOV_TASKS_SYNC_MINUTE: int = 35
-    TARKOV_TRADERS_SYNC_ENABLED: bool = False
-    TARKOV_TRADERS_SYNC_HOUR: int = 4
-    TARKOV_TRADERS_SYNC_MINUTE: int = 40
-    TARKOV_BOSSES_SYNC_ENABLED: bool = False
-    TARKOV_BOSSES_SYNC_HOUR: int = 4
-    TARKOV_BOSSES_SYNC_MINUTE: int = 45
-    TARKOV_GUIDES_SYNC_ENABLED: bool = False
-    TARKOV_GUIDES_SYNC_HOUR: int = 4
-    TARKOV_GUIDES_SYNC_MINUTE: int = 50
-    # 兼容旧调度字段名；调度已合并为 TARKOV_ITEMS_*
-    TARKOV_AMMO_SYNC_ENABLED: bool = True
-    TARKOV_AMMO_SYNC_HOUR: int = 4
-    TARKOV_AMMO_SYNC_MINUTE: int = 30
-    TARKOV_GUN_SYNC_ENABLED: bool = True
-    TARKOV_GUN_SYNC_HOUR: int = 4
-    TARKOV_GUN_SYNC_MINUTE: int = 40
     # 工作台第三方出图默认关；工作台中间叠配件图标。仅排障才 true
     TARKOV_WORKBENCH_IMAGE_GEN: bool = False
     # 工作台社区方案：按枪按需 GET EFTForge 公开列表，不落库
@@ -132,22 +86,6 @@ class Settings(BaseSettings):
     EFTFORGE_BASE_URL: str = "https://eftforge.com"
     # 必须无头，避免给用户弹出第三方出图站。仅排障可设 false
     TARKOV_WORKBENCH_IMAGE_HEADLESS: bool = True
-    # 塔吉多每日签到（异环）
-    TAYGEDO_CHECKIN_ENABLED: bool = True
-    TAYGEDO_CHECKIN_HOUR: int = 0
-    TAYGEDO_CHECKIN_MINUTE: int = 1
-    # 追放社区每日签到
-    EXILIUM_CHECKIN_ENABLED: bool = True
-    EXILIUM_CHECKIN_HOUR: int = 0
-    EXILIUM_CHECKIN_MINUTE: int = 1
-    # 库街区每日签到（社区 + 鸣潮/战双）
-    KUJIEQU_CHECKIN_ENABLED: bool = True
-    KUJIEQU_CHECKIN_HOUR: int = 0
-    KUJIEQU_CHECKIN_MINUTE: int = 1
-
-    MIHOYO_CHECKIN_ENABLED: bool = True
-    MIHOYO_CHECKIN_HOUR: int = 0
-    MIHOYO_CHECKIN_MINUTE: int = 1
     # 运行时数据目录（密钥/日志等；相对路径相对安装根，默认 data/runtime）
     DATA_DIR: str = DEFAULT_DATA_DIR
     # 应用日志：级别 / 内存环缓冲 / JSONL 持久化（DATA_DIR/logs/app.jsonl）

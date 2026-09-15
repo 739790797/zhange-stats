@@ -48,10 +48,6 @@ export function getTarkovGameMode(): TarkovGameMode {
   return runtimeMode;
 }
 
-export function setTarkovGameModeRuntime(mode: TarkovGameMode) {
-  applyRuntimeMode(mode);
-}
-
 /** 写入 localStorage，请求拦截器与顶栏共用这一份。 */
 export function persistTarkovGameMode(mode: TarkovGameMode): TarkovGameMode {
   const parsed = applyRuntimeMode(mode);

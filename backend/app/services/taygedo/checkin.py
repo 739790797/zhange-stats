@@ -56,7 +56,7 @@ from app.services.taygedo.client import (
     login_with_password,
     login_with_sms,
     mask_phone,
-    refresh_access_token,
+    recover_session_tokens,
 )
 
 logger = logging.getLogger(__name__)
@@ -378,7 +378,17 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
         return get_bind_for_member(db, member_id)
 
     def load_session(self, db: Session, bind: TaygedoBind) -> TaygedoCredentials:
-        return _load_creds(bind)
+        from app.services.taygedo.attendance import ensure_session
+
+        creds = _load_creds(bind)
+        working = ensure_session(creds)
+        if (
+            working.access_token != creds.access_token
+            or working.refresh_token != creds.refresh_token
+        ):
+            # orchestrator 在打上游前会 commit，须先把轮换后的 refresh 写回 bind
+            _save_creds(bind, working)
+        return working
 
     def save_session(
         self, db: Session, bind: TaygedoBind, session: TaygedoCredentials
@@ -453,7 +463,7 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
             except TaygedoApiError as exc:
                 if "登录" in (exc.message or "") or exc.code in (401, 402):
                     try:
-                        working = refresh_access_token(working)
+                        working = recover_session_tokens(working)
                         result = checkin_target(
                             working, game_code=game_code, role=role
                         )
@@ -594,8 +604,8 @@ def get_taygedo_attendance_calendar_for_member(
 
     from app.core.timeutil import BEIJING, now as beijing_now
     from app.services.raw_payload_monitor import note_raw_payload
-    from app.services.taygedo.attendance import fetch_game_attendance_bundle
-    from app.services.taygedo.client import ensure_access_token, list_game_roles
+    from app.services.taygedo.attendance import ensure_session, fetch_game_attendance_bundle
+    from app.services.taygedo.client import list_game_roles
 
     game_code = str(game_code or "").strip()
     if game_code not in _CALENDAR_GAMES:
@@ -607,7 +617,7 @@ def get_taygedo_attendance_calendar_for_member(
 
     creds = _load_creds(bind)
     try:
-        working = ensure_access_token(creds)
+        working = ensure_session(creds)
         game_name = "异环" if game_code == GAME_NTE else "幻塔"
         roles = list_game_roles(working, game_code, game_name)
     except TaygedoApiError as exc:

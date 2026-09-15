@@ -9,6 +9,8 @@ EMPTY_LINE = {
     "mutex_ids": [],
     "blocked_by": [],
     "prereq_ids": [],
+    "fail_prereq_ids": [],
+    "fail_or_complete_ids": [],
     "prestige_cycle": 0,
 }
 
@@ -89,32 +91,63 @@ def prestige_cycle_hint(required_level: int) -> str:
     return f"{cycle}转"
 
 
-def _requirement_complete(row: dict[str, Any]) -> bool:
-    """流程图只认「完成前置」。active / failed 不是先后边。"""
-    statuses = [
+def _requirement_statuses(row: dict[str, Any]) -> set[str]:
+    return {
         str(item).strip().lower()
         for item in (row.get("status") or [])
         if str(item).strip()
-    ]
-    return (not statuses) or ("complete" in statuses)
+    }
 
 
-def _prereq_ids(raw: dict[str, Any]) -> list[str]:
+def _requirement_kind(row: dict[str, Any]) -> str:
+    """complete = 流程图边；fail / flex 只给列表可用性，不进图。"""
+    statuses = _requirement_statuses(row)
+    if not statuses:
+        return "complete"
+    has_complete = "complete" in statuses
+    has_failed = "failed" in statuses or "fail" in statuses
+    if has_complete and has_failed:
+        return "flex"
+    if has_complete:
+        return "complete"
+    if has_failed:
+        return "fail"
+    return "skip"
+
+
+def _requirement_task_id(row: dict[str, Any]) -> str:
+    ident = _id_of(row.get("task"))
+    if ident:
+        return ident
+    return _id_of(row.get("taskId"))
+
+
+def _requirement_ids(raw: dict[str, Any], kind: str) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for row in raw.get("taskRequirements") or []:
         if not isinstance(row, dict):
             continue
-        if not _requirement_complete(row):
+        if _requirement_kind(row) != kind:
             continue
-        ident = _id_of(row.get("task"))
-        if not ident:
-            ident = _id_of(row.get("taskId"))
+        ident = _requirement_task_id(row)
         if not ident or ident in seen:
             continue
         seen.add(ident)
         out.append(ident)
     return out
+
+
+def _prereq_ids(raw: dict[str, Any]) -> list[str]:
+    return _requirement_ids(raw, "complete")
+
+
+def _fail_prereq_ids(raw: dict[str, Any]) -> list[str]:
+    return _requirement_ids(raw, "fail")
+
+
+def _fail_or_complete_ids(raw: dict[str, Any]) -> list[str]:
+    return _requirement_ids(raw, "flex")
 
 
 def _fail_complete_ids(raw: dict[str, Any]) -> list[str]:
@@ -170,6 +203,8 @@ def collect_task_line_specs(
             "prestige_level": _prestige_level(raw),
             "has_prestige_req": _has_required_prestige(raw),
             "prereq_ids": _prereq_ids(raw),
+            "fail_prereq_ids": _fail_prereq_ids(raw),
+            "fail_or_complete_ids": _fail_or_complete_ids(raw),
             "fail_complete_ids": _fail_complete_ids(raw),
         }
     return specs
@@ -352,6 +387,8 @@ def build_task_line_index(specs: dict[str, dict[str, Any]]) -> dict[str, dict[st
             "mutex_ids": mutex_ids,
             "blocked_by": sorted(blocked),
             "prereq_ids": list(specs[ident].get("prereq_ids") or []),
+            "fail_prereq_ids": list(specs[ident].get("fail_prereq_ids") or []),
+            "fail_or_complete_ids": list(specs[ident].get("fail_or_complete_ids") or []),
             "prestige_cycle": int(cycles.get(ident) or 0),
         }
     return out
@@ -374,5 +411,7 @@ def stamp_task_line_fields(
     row["mutex_ids"] = list(meta.get("mutex_ids") or [])
     row["blocked_by"] = list(meta.get("blocked_by") or [])
     row["prereq_ids"] = list(meta.get("prereq_ids") or [])
+    row["fail_prereq_ids"] = list(meta.get("fail_prereq_ids") or [])
+    row["fail_or_complete_ids"] = list(meta.get("fail_or_complete_ids") or [])
     row["prestige_cycle"] = int(meta.get("prestige_cycle") or 0)
     return row

@@ -343,7 +343,7 @@ def test_recognize_maps_tile_boxes_onto_source() -> None:
 
 
 def test_easyocr_rows_become_lines() -> None:
-    from app.services.tarkov.key_ocr_engine import _lines_from_easyocr
+    from app.services.ocr.engines import _lines_from_easyocr
 
     rows = [([[10, 20], [90, 20], [90, 40], [10, 40]], "西203", 0.9)]
     lines = _lines_from_easyocr(rows)

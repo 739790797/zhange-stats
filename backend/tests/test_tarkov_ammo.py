@@ -119,10 +119,3 @@ def test_parse_json_api_ammo():
     assert rows[0]["tracer_color"] == "red"
     assert rows[0]["fragmentation_chance"] == pytest.approx(0.4)
     assert rows[0]["ricochet_chance"] == pytest.approx(0.2)
-
-
-def test_is_subsonic_ammo():
-    assert svc.is_subsonic_ammo(340) is True
-    assert svc.is_subsonic_ammo(343) is False
-    assert svc.is_subsonic_ammo(0) is False
-    assert svc.is_subsonic_ammo(None) is False

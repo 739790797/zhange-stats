@@ -52,7 +52,7 @@ def test_sync_downloads_when_revision_changes(tmp_path: Path) -> None:
         (folder / spec.name).write_bytes(b"x")
 
     (tmp_path / models_svc.REVISION_NAME).write_text("old", encoding="utf-8")
-    out = models_svc.sync_key_ocr_models(
+    out = models_svc.sync_ocr_models(
         dest=tmp_path,
         fetch_remote=fetch,
         download=download,
@@ -82,7 +82,7 @@ def test_sync_skips_when_current(tmp_path: Path) -> None:
     def download(spec: WeightSpec, folder: Path) -> None:
         raise AssertionError("should not download")
 
-    out = models_svc.sync_key_ocr_models(
+    out = models_svc.sync_ocr_models(
         dest=tmp_path,
         fetch_remote=fetch,
         download=download,
@@ -158,7 +158,7 @@ def test_sync_allows_one_family_to_fail(tmp_path: Path, monkeypatch: pytest.Monk
         (dest / spec.name).write_bytes(b"x")
 
     monkeypatch.setattr(models_svc, "download_weight", boom)
-    out = models_svc.sync_key_ocr_models(
+    out = models_svc.sync_ocr_models(
         dest=tmp_path,
         fetch_remote=lambda: "rev",
         specs=specs,
@@ -186,7 +186,7 @@ def test_sync_redownloads_when_checksum_fails(tmp_path: Path) -> None:
         dest.mkdir(parents=True, exist_ok=True)
         (dest / item.name).write_bytes(b"ok")
 
-    out = models_svc.sync_key_ocr_models(
+    out = models_svc.sync_ocr_models(
         dest=tmp_path,
         fetch_remote=lambda: "same",
         download=download,

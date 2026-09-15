@@ -74,6 +74,17 @@
   width: 72px;
 }
 
+.mapSelect {
+  width: 100%;
+  max-width: 320px;
+  padding: 6px 8px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1c14;
+  color: #eee9d6;
+  font: inherit;
+  font-size: 13px;
+}
+
 @media (max-width: 640px) {
   .field {
     flex-wrap: wrap;

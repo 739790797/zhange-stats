@@ -196,7 +196,6 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         member,
         profile.persona_name,
         user=user,
-        update_display=False,
         avatar_url=profile.avatar_url,
     )
     return profile.persona_name

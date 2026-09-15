@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas.checkin import CheckinAwardItem, CheckinLogOut, CheckinResultItem
+from app.schemas.checkin import CheckinAwardItem, CheckinResultItem
 
 
 class SklandBindRequest(BaseModel):
@@ -206,8 +206,6 @@ class SklandStatusOut(BaseModel):
     token_error: str | None = None
     roles: list[SklandRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
-    # 兼容旧字段名（前端已切 today_results）
-    today_logs: list[CheckinLogOut] = Field(default_factory=list)
 
 
 class SklandQrStartResponse(BaseModel):

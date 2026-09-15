@@ -16,6 +16,7 @@ import {
   keepCatalogTaskProgress,
   mergeObjectivesForTask,
   isWritableTaskStatus,
+  isDerivedTaskStatus,
   resolveAccountTaskProgress,
   resolveTaskMapId,
   resolveTaskStatus,
@@ -23,13 +24,17 @@ import {
   saveTaskProgress,
   saveTaskSyncMark,
   setTaskObjective,
+  ledgerIdsToClear,
+  loadTaskClearedDone,
   summarizeTaskProgress,
   taskHitsMap,
+  taskIsAvailable,
   taskLoyaltyLevel,
   taskMatchesQuery,
   taskPlayerLevelLabel,
 } from "./tarkovTaskTree";
 import type { TaskListItem } from "./tarkovTaskTree";
+import { mutexIndexFromTasks } from "./tarkovTaskMutex";
 
 function task(
   id: string,
@@ -94,8 +99,18 @@ describe("task progress", () => {
     expect(
       resolveTaskStatus("choose", new Set(), new Set(["choose"]), mutex),
     ).toBe("active");
-    expect(isWritableTaskStatus("failed")).toBe(false);
+    expect(isWritableTaskStatus("failed")).toBe(true);
+    expect(isWritableTaskStatus("unreachable")).toBe(false);
     expect(isWritableTaskStatus("todo")).toBe(true);
+    expect(
+      isDerivedTaskStatus("price1", new Set(["choose"]), new Set(), mutex),
+    ).toBe(true);
+    expect(
+      isDerivedTaskStatus("price1", new Set(), new Set(), mutex, new Set(["price1"])),
+    ).toBe(false);
+    expect(
+      isDerivedTaskStatus("price2", new Set(["bat1"]), new Set(), fork),
+    ).toBe(true);
   });
 
   it("counts failed and unreachable outside incomplete", () => {
@@ -120,6 +135,67 @@ describe("task progress", () => {
       active: 0,
       completed: 0,
       failed: 0,
+      unreachable: 1,
+    });
+  });
+
+  it("counts a child as unreachable when its prereq failed", () => {
+    const rows = [
+      task("pre", "前置"),
+      task("child", "后续", { prereq_ids: ["pre"] }),
+    ];
+    expect(
+      summarizeTaskProgress(rows, new Set(), new Set(), new Set(["pre"])),
+    ).toEqual({
+      total: 2,
+      incomplete: 0,
+      active: 0,
+      completed: 0,
+      failed: 1,
+      unreachable: 1,
+    });
+  });
+
+  it("unlocks fail-prereq tasks and treats fail-or-complete as availability only", () => {
+    const failUnlock = task("next", "失败解锁", { fail_prereq_ids: ["pre"] });
+    const flex = task("flex", "完成或失败", { fail_or_complete_ids: ["pre"] });
+    const pre = task("pre", "前置");
+    expect(taskIsAvailable(failUnlock, new Set(), new Set(), new Set(["pre"]))).toBe(
+      true,
+    );
+    expect(taskIsAvailable(failUnlock, new Set(["pre"]), new Set(), new Set())).toBe(
+      false,
+    );
+    expect(
+      resolveTaskStatus("next", new Set(["pre"]), new Set(), failUnlock, new Set()),
+    ).toBe("unreachable");
+    expect(taskIsAvailable(flex, new Set(["pre"]), new Set(), new Set())).toBe(true);
+    expect(taskIsAvailable(flex, new Set(), new Set(), new Set(["pre"]))).toBe(true);
+    expect(taskIsAvailable(flex, new Set(), new Set(), new Set())).toBe(false);
+    expect(
+      summarizeTaskProgress(
+        [pre, failUnlock],
+        new Set(),
+        new Set(),
+        new Set(["pre"]),
+      ),
+    ).toEqual({
+      total: 2,
+      incomplete: 1,
+      active: 0,
+      completed: 0,
+      failed: 1,
+      unreachable: 0,
+    });
+    expect(
+      summarizeTaskProgress(
+        [pre, failUnlock],
+        new Set(["pre"]),
+        new Set(),
+        new Set(),
+      ),
+    ).toMatchObject({
+      completed: 1,
       unreachable: 1,
     });
   });
@@ -163,6 +239,59 @@ describe("task progress", () => {
       started: [],
       failed: ["dead"],
     });
+    expect(setTaskStatus(["p1"], [], "p1", "failed")).toEqual({
+      done: [],
+      started: [],
+      failed: ["p1"],
+    });
+    expect(
+      setTaskStatus(
+        ["chem", "curio", "big"],
+        [],
+        "chem",
+        "done",
+        [],
+        ["curio", "big"],
+      ),
+    ).toEqual({
+      done: ["chem"],
+      started: [],
+      failed: ["curio", "big"],
+    });
+    expect(
+      setTaskStatus(
+        [],
+        ["child"],
+        "grand",
+        "done",
+        [],
+        undefined,
+        [
+          { id: "pre" },
+          { id: "child", prereq_ids: ["pre"] },
+          { id: "grand", prereq_ids: ["child"] },
+        ],
+      ),
+    ).toEqual({
+      done: ["grand", "child", "pre"],
+      started: [],
+      failed: [],
+    });
+  });
+
+  it("lists ledger ids that merge PUT cannot drop", () => {
+    expect(
+      ledgerIdsToClear(
+        { done: ["keep", "drop"], started: ["live"], failed: ["dead"] },
+        { done: ["keep"], started: ["drop"], failed: [] },
+      ),
+    ).toEqual(["drop", "live", "dead"]);
+    expect(
+      ledgerIdsToClear(
+        { done: ["a"], started: [], failed: [] },
+        { done: ["a", "b"], started: [], failed: [] },
+      ),
+    ).toEqual([]);
   });
 
   it("treats an explicit failed set as failed before mutex", () => {
@@ -296,6 +425,24 @@ describe("task dones storage", () => {
     expect(loadTaskStartedIds("pvp")).toEqual(["s"]);
   });
 
+  it("stamps cleared done ids so hydrate and logs cannot bounce them back", () => {
+    saveTaskProgress("pvp", ["keep", "drop"], []);
+    saveTaskProgress("pvp", ["keep"], []);
+    expect(loadTaskClearedDone("pvp").has("drop")).toBe(true);
+    expect(loadTaskDoneIds("pvp")).toEqual(["keep"]);
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["keep", "drop"],
+        serverStarted: [],
+        localDone: ["keep"],
+        localStarted: [],
+        clearedDone: loadTaskClearedDone("pvp"),
+      }).done,
+    ).toEqual(["keep"]);
+    saveTaskProgress("pvp", ["keep", "drop"], []);
+    expect(loadTaskClearedDone("pvp").has("drop")).toBe(false);
+  });
+
   it("hydrates by union so a new PC cannot wipe the account", () => {
     saveTaskProgress("pvp", ["local-done"], ["local-start"]);
     expect(
@@ -346,6 +493,8 @@ describe("task dones storage", () => {
         serverStarted: [],
         serverFailed: ["old-fail"],
         localFailed: ["log-fail"],
+        localDone: [],
+        localStarted: [],
       }),
     ).toEqual({
       done: [],
@@ -365,6 +514,29 @@ describe("task dones storage", () => {
       started: ["live"],
       failed: ["dead"],
       objectives: [],
+    });
+  });
+
+  it("keeps only one completed task in a mutex group when hydrating", () => {
+    const mutexById = mutexIndexFromTasks([
+      { id: "chem", mutex_ids: ["curio", "big"] },
+      { id: "curio", mutex_ids: ["chem", "big"] },
+      { id: "big", mutex_ids: ["chem", "curio"] },
+    ]);
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["chem", "curio", "big"],
+        serverStarted: [],
+        localDone: [],
+        localStarted: [],
+        mutexById,
+      }),
+    ).toEqual({
+      done: ["big"],
+      started: [],
+      failed: ["chem", "curio"],
+      objectives: [],
+      upload: true,
     });
   });
 

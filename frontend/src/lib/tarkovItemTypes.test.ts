@@ -201,6 +201,21 @@ describe("itemListingHref / catalog columns follow the selected child", () => {
     expect(catalogPresetSlug(gear, null)).toBe("gear");
     expect(catalogPresetSlug(gear, rigs || null)).toBe("rigs");
   });
+
+  it("lists gear children head-to-toe then carry", () => {
+    expect(itemPageBySlug("gear")?.children.map((child) => child.label)).toEqual([
+      "头部装备",
+      "眼部装备",
+      "面部装备",
+      "战术胸挂",
+      "防弹衣",
+      "耳机",
+      "背包",
+      "容器",
+      "安全箱",
+      "装备组件",
+    ]);
+  });
 });
 
 describe("TARKOV_ITEM_LEAVES", () => {

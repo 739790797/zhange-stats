@@ -3,7 +3,13 @@
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
 import { notifyTarkovTaskProgress, sameIdLists } from "@/lib/tarkovLiveWatch";
 import { TARKOV_MAPS } from "@/lib/tarkovHomeNav";
-import { laterBeijingClock } from "@/lib/time";
+import { laterBeijingClock, nowBeijingStamp } from "@/lib/time";
+import { applyMutexLedger, mutexIndexFromTasks } from "@/lib/tarkovTaskMutex";
+import {
+  setTaskLineStatus,
+  taskLineIndexFromTasks,
+  type TaskLineSpec,
+} from "@/lib/tarkovTaskLineLedger";
 import {
   mapSlugKeys,
   normalizeRaidPrepMapId,
@@ -29,12 +35,17 @@ export type TaskListItem = {
   mutex_ids?: string[];
   blocked_by?: string[];
   prereq_ids?: string[];
+  fail_prereq_ids?: string[];
+  fail_or_complete_ids?: string[];
   restartable?: boolean;
 };
 
 export type TaskLineRef = {
   mutex_ids?: readonly string[] | null;
   blocked_by?: readonly string[] | null;
+  prereq_ids?: readonly string[] | null;
+  fail_prereq_ids?: readonly string[] | null;
+  fail_or_complete_ids?: readonly string[] | null;
 };
 
 export type TaskListFilter = {
@@ -83,6 +94,8 @@ export type TarkovTaskDonesState = {
   syncedAt?: { pvp?: string; pve?: string };
   cursorAt?: { pvp?: string; pve?: string };
   objectives?: { pvp?: TaskObjectivePair[]; pve?: TaskObjectivePair[] };
+  /** 用户从已完成改走的任务 id → 北京墙钟；日志回放不得用更早的完成事件粘回去。 */
+  clearedDone?: { pvp?: Record<string, string>; pve?: Record<string, string> };
 };
 
 export type AccountTaskProgress = {
@@ -99,6 +112,20 @@ export type AccountTaskHydratePlan = {
   objectives: TaskObjectivePair[];
   upload: boolean;
 };
+
+function asStampMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [rawId, rawAt] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const ident = rawId.trim().toLowerCase();
+    const at = typeof rawAt === "string" ? rawAt.trim() : "";
+    if (!ident || !at) continue;
+    out[ident] = at;
+  }
+  return out;
+}
 
 function asIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -328,19 +355,81 @@ export function collectTaskMapChips(items: TaskListItem[]): TaskMapChip[] {
   return chips;
 }
 
+/** 前置已失败 / 无法完成的后续：展示成无法完成。 */
+export function collectClosedTaskIds(
+  items: ReadonlyArray<TaskListItem>,
+  done: ReadonlySet<string>,
+  started: ReadonlySet<string> = new Set(),
+  failed: ReadonlySet<string> = new Set(),
+): Set<string> {
+  const byId = new Map<string, TaskListItem>();
+  for (const item of items) {
+    const id = String(item.id || "").trim().toLowerCase();
+    if (id) byId.set(id, item);
+  }
+  const closed = new Set<string>();
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [id, item] of byId) {
+      if (done.has(id) || closed.has(id)) continue;
+      const status = resolveTaskStatus(id, done, started, item, failed);
+      if (status === "failed" || status === "unreachable") {
+        closed.add(id);
+        grew = true;
+        continue;
+      }
+      for (const raw of item.prereq_ids || []) {
+        const pid = String(raw || "").trim().toLowerCase();
+        if (pid && closed.has(pid)) {
+          closed.add(id);
+          grew = true;
+          break;
+        }
+      }
+      if (closed.has(id)) continue;
+      let failLocked = false;
+      for (const raw of item.fail_prereq_ids || []) {
+        const pid = String(raw || "").trim().toLowerCase();
+        if (!pid) continue;
+        if (done.has(pid) || (closed.has(pid) && !failed.has(pid))) {
+          failLocked = true;
+          break;
+        }
+      }
+      if (failLocked) {
+        closed.add(id);
+        grew = true;
+        continue;
+      }
+      for (const raw of item.fail_or_complete_ids || []) {
+        const pid = String(raw || "").trim().toLowerCase();
+        if (!pid || done.has(pid) || failed.has(pid)) continue;
+        if (closed.has(pid)) {
+          closed.add(id);
+          grew = true;
+          break;
+        }
+      }
+    }
+  }
+  return closed;
+}
+
 export function summarizeTaskProgress(
   items: TaskListItem[],
   done: ReadonlySet<string>,
   started: ReadonlySet<string> = new Set(),
   failed: ReadonlySet<string> = new Set(),
 ): TaskProgressSummary {
+  const closed = collectClosedTaskIds(items, done, started, failed);
   let completed = 0;
   let active = 0;
   let failedCount = 0;
   let unreachable = 0;
   let incomplete = 0;
   for (const item of items) {
-    const status = resolveTaskStatus(item.id, done, started, item, failed);
+    const status = resolveTaskStatus(item.id, done, started, item, failed, closed);
     if (status === "done") completed += 1;
     else if (status === "active") active += 1;
     else if (status === "failed") failedCount += 1;
@@ -357,7 +446,12 @@ export function summarizeTaskProgress(
   };
 }
 
-export const TASK_WRITABLE_STATUS_KINDS = ["todo", "active", "done"] as const;
+export const TASK_WRITABLE_STATUS_KINDS = [
+  "todo",
+  "active",
+  "done",
+  "failed",
+] as const;
 export type TaskWritableStatus = (typeof TASK_WRITABLE_STATUS_KINDS)[number];
 
 export const TASK_STATUS_KINDS = [
@@ -380,7 +474,28 @@ export const TASK_STATUS_LABELS: Record<TaskStatusKind, string> = {
 export function isWritableTaskStatus(
   status: TaskStatusKind,
 ): status is TaskWritableStatus {
-  return status === "todo" || status === "active" || status === "done";
+  return (
+    status === "todo" ||
+    status === "active" ||
+    status === "done" ||
+    status === "failed"
+  );
+}
+
+/** 互斥失败 / 被挡住：由其它任务推出来，手改会立刻弹回。 */
+export function isDerivedTaskStatus(
+  taskId: string,
+  done: ReadonlySet<string>,
+  started: ReadonlySet<string>,
+  line?: TaskLineRef | null,
+  failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string> | null,
+): boolean {
+  const status = resolveTaskStatus(taskId, done, started, line, failed, closed);
+  if (status === "unreachable") return true;
+  if (status !== "failed") return false;
+  const ident = String(taskId || "").trim().toLowerCase();
+  return Boolean(ident) && !failed.has(ident);
 }
 
 export function taskPlayerLevelLabel(level: number | null | undefined): string {
@@ -421,14 +536,42 @@ export function resolveTaskStatus(
   started: ReadonlySet<string>,
   line?: TaskLineRef | null,
   failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string> | null,
 ): TaskStatusKind {
   const ident = String(taskId || "").trim().toLowerCase();
   if (ident && done.has(ident)) return "done";
   if (ident && failed.has(ident)) return "failed";
   if (lineIdHits(line?.mutex_ids, done)) return "failed";
   if (lineIdHits(line?.blocked_by, done, started)) return "unreachable";
+  if (ident && closed?.has(ident)) return "unreachable";
+  if (lineIdHits(line?.fail_prereq_ids, done)) return "unreachable";
   if (ident && started.has(ident)) return "active";
   return "todo";
+}
+
+/** 完成前置已齐、失败前置已失败（或完成/失败二选一已满足）时才能接。 */
+export function taskIsAvailable(
+  task: TaskLineRef & { id?: string | null },
+  done: ReadonlySet<string>,
+  started: ReadonlySet<string> = new Set(),
+  failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string> | null,
+): boolean {
+  const status = resolveTaskStatus(task.id || "", done, started, task, failed, closed);
+  if (status !== "todo") return false;
+  for (const raw of task.prereq_ids || []) {
+    const id = String(raw || "").trim().toLowerCase();
+    if (id && !done.has(id)) return false;
+  }
+  for (const raw of task.fail_prereq_ids || []) {
+    const id = String(raw || "").trim().toLowerCase();
+    if (id && !failed.has(id)) return false;
+  }
+  for (const raw of task.fail_or_complete_ids || []) {
+    const id = String(raw || "").trim().toLowerCase();
+    if (id && !done.has(id) && !failed.has(id)) return false;
+  }
+  return true;
 }
 
 export function setTaskStatus(
@@ -437,7 +580,19 @@ export function setTaskStatus(
   taskId: string,
   status: TaskWritableStatus,
   failedIds: readonly string[] = [],
+  mutexIds?: readonly string[] | null,
+  catalog?: readonly TaskLineSpec[] | null,
 ): { done: string[]; started: string[]; failed: string[] } {
+  if (catalog?.length) {
+    return setTaskLineStatus(
+      doneIds,
+      startedIds,
+      taskId,
+      status,
+      failedIds,
+      taskLineIndexFromTasks(catalog),
+    );
+  }
   const ident = taskId.trim().toLowerCase();
   const done = new Set(asIdList(doneIds));
   const failed = new Set(asIdList(failedIds).filter((id) => !done.has(id)));
@@ -450,7 +605,20 @@ export function setTaskStatus(
   failed.delete(ident);
   if (status === "done") done.add(ident);
   else if (status === "active") started.add(ident);
-  return { done: [...done], started: [...started], failed: [...failed] };
+  else if (status === "failed") failed.add(ident);
+  const mutexById = mutexIndexFromTasks([
+    { id: ident, mutex_ids: mutexIds || [] },
+  ]);
+  if (!mutexById.size) {
+    return { done: [...done], started: [...started], failed: [...failed] };
+  }
+  return applyMutexLedger(
+    [...done],
+    [...started],
+    [...failed],
+    mutexById,
+    status === "done" ? [ident] : [],
+  );
 }
 
 /** 写下拉状态到本机进度，并通知联机大厅 / 个人中心刷新。 */
@@ -459,6 +627,8 @@ export function commitTaskStatus(
   taskId: string,
   status: TaskWritableStatus,
   fillObjectiveIds?: readonly string[],
+  mutexIds?: readonly string[] | null,
+  catalog?: readonly TaskLineSpec[] | null,
 ): {
   done: string[];
   started: string[];
@@ -471,6 +641,8 @@ export function commitTaskStatus(
     taskId,
     status,
     loadTaskFailedIds(mode),
+    mutexIds,
+    catalog,
   );
   let objectives = loadTaskObjectivePairs(mode);
   if (status === "done" && fillObjectiveIds?.length) {
@@ -685,6 +857,10 @@ function readState(): TarkovTaskDonesState {
           pvp: asObjectivePairs(parsed.objectives?.pvp),
           pve: asObjectivePairs(parsed.objectives?.pve),
         },
+        clearedDone: {
+          pvp: asStampMap(parsed.clearedDone?.pvp),
+          pve: asStampMap(parsed.clearedDone?.pve),
+        },
       };
     }
   } catch {
@@ -711,12 +887,6 @@ export function saveTaskDoneIds(
   if (migrated) {
     state.migrated = { ...state.migrated, [mode]: true };
   }
-  writeState(state);
-}
-
-export function saveTaskStartedIds(mode: TarkovGameMode, ids: string[]): void {
-  const state = readState();
-  state.started = { ...state.started, [mode]: asIdList(ids) };
   writeState(state);
 }
 
@@ -751,9 +921,20 @@ export function saveTaskProgress(
     startedIds,
     failedIds !== undefined ? failedIds : state.failed?.[mode] || [],
   );
+  const prevDone = new Set(asIdList(state[mode]));
+  const nextDone = new Set(cleaned.done);
+  const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
+  const stamp = nowBeijingStamp();
+  for (const id of prevDone) {
+    if (!nextDone.has(id)) modeCleared[id] = stamp;
+  }
+  for (const id of nextDone) {
+    delete modeCleared[id];
+  }
   state[mode] = cleaned.done;
   state.started = { ...state.started, [mode]: cleaned.started };
   state.failed = { ...state.failed, [mode]: cleaned.failed };
+  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
   if (migrated) {
     state.migrated = { ...state.migrated, [mode]: true };
   }
@@ -828,6 +1009,49 @@ export function keepCatalogTaskProgress(
   );
 }
 
+export function loadTaskClearedDone(mode: TarkovGameMode): Map<string, string> {
+  return new Map(Object.entries(readState().clearedDone?.[mode] || {}));
+}
+
+/** merge PUT 只加不删；这些 id 要从账号账上 DELETE 掉，手改未完成才能站住。 */
+export function ledgerIdsToClear(
+  prev: {
+    done?: readonly string[];
+    started?: readonly string[];
+    failed?: readonly string[];
+  },
+  next: {
+    done?: readonly string[];
+    started?: readonly string[];
+    failed?: readonly string[];
+  },
+): string[] {
+  const nextDone = new Set(asIdList(next.done));
+  const nextStarted = new Set(asIdList(next.started));
+  const nextFailed = new Set(asIdList(next.failed));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (id: string) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push(id);
+  };
+  for (const id of asIdList(prev.done)) {
+    if (!nextDone.has(id)) push(id);
+  }
+  for (const id of asIdList(prev.started)) {
+    if (!nextDone.has(id) && !nextStarted.has(id) && !nextFailed.has(id)) {
+      push(id);
+    }
+  }
+  for (const id of asIdList(prev.failed)) {
+    if (!nextDone.has(id) && !nextStarted.has(id) && !nextFailed.has(id)) {
+      push(id);
+    }
+  }
+  return out;
+}
+
 export function unionTaskProgress(
   left: {
     done?: readonly string[];
@@ -856,6 +1080,8 @@ export function planAccountTaskHydrate(input: {
   localStarted?: readonly string[] | null;
   localFailed?: readonly string[] | null;
   localObjectives?: readonly TaskObjectivePair[] | null;
+  clearedDone?: ReadonlyMap<string, string> | null;
+  mutexById?: ReadonlyMap<string, readonly string[]> | null;
 }): AccountTaskHydratePlan {
   const merged = unionTaskProgress(
     {
@@ -869,6 +1095,18 @@ export function planAccountTaskHydrate(input: {
       failed: input.localFailed || [],
     },
   );
+  const cleared = input.clearedDone;
+  const done = cleared
+    ? merged.done.filter((id) => !cleared.has(id))
+    : merged.done;
+  const cleaned = input.mutexById?.size
+    ? applyMutexLedger(
+        done,
+        merged.started,
+        merged.failed,
+        input.mutexById,
+      )
+    : cleanTaskProgress(done, merged.started, merged.failed);
   const objectives = unionObjectivePairs(
     asObjectivePairs(input.serverObjectives),
     asObjectivePairs(input.localObjectives),
@@ -880,12 +1118,12 @@ export function planAccountTaskHydrate(input: {
     input.serverFailed || [],
   );
   return {
-    ...merged,
+    ...cleaned,
     objectives,
     upload:
-      !sameIdLists(merged.done, server.task_ids) ||
-      !sameIdLists(merged.started, server.started_ids) ||
-      !sameIdLists(merged.failed, server.failed_ids) ||
+      !sameIdLists(cleaned.done, server.task_ids) ||
+      !sameIdLists(cleaned.started, server.started_ids) ||
+      !sameIdLists(cleaned.failed, server.failed_ids) ||
       !sameObjectiveLists(objectives, server.objective_dones),
   };
 }
@@ -893,6 +1131,7 @@ export function planAccountTaskHydrate(input: {
 export function resolveAccountTaskProgress(
   data: AccountTaskProgress | null | undefined,
   mode: TarkovGameMode,
+  mutexById?: ReadonlyMap<string, readonly string[]> | null,
 ): {
   done: string[];
   started: string[];
@@ -900,10 +1139,16 @@ export function resolveAccountTaskProgress(
   objectives: TaskObjectivePair[];
 } {
   if (!data) {
-    return {
+    const local = {
       done: loadTaskDoneIds(mode),
       started: loadTaskStartedIds(mode),
       failed: loadTaskFailedIds(mode),
+    };
+    const next = mutexById?.size
+      ? applyMutexLedger(local.done, local.started, local.failed, mutexById)
+      : local;
+    return {
+      ...next,
       objectives: loadTaskObjectivePairs(mode),
     };
   }
@@ -916,6 +1161,8 @@ export function resolveAccountTaskProgress(
     localStarted: loadTaskStartedIds(mode),
     localFailed: loadTaskFailedIds(mode),
     localObjectives: loadTaskObjectivePairs(mode),
+    clearedDone: loadTaskClearedDone(mode),
+    mutexById,
   });
   return {
     done: plan.done,
@@ -949,51 +1196,6 @@ export function saveTaskSyncMark(
   }
   writeState(state);
   return { syncedAt: stamped, cursorAt: nextCursor };
-}
-
-export function takeLocalTaskDonesForMigrate(
-  mode: TarkovGameMode,
-): string[] | null {
-  try {
-    const raw = localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<TarkovTaskDonesState> | string[];
-    if (Array.isArray(parsed)) {
-      return mode === "pvp" && parsed.length ? asIdList(parsed) : null;
-    }
-    if (parsed && parsed.v === 1 && parsed.migrated?.[mode]) return null;
-    const ids = parseTaskDonesState(raw, mode);
-    return ids.length ? ids : null;
-  } catch {
-    return null;
-  }
-}
-
-export function takeLocalTaskStartedForMigrate(
-  mode: TarkovGameMode,
-): string[] | null {
-  try {
-    const raw = localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<TarkovTaskDonesState> | string[];
-    if (Array.isArray(parsed) || !parsed || parsed.v !== 1) return null;
-    if (parsed.startedMigrated?.[mode]) return null;
-    const ids = parseTaskStartedState(raw, mode);
-    return ids.length ? ids : null;
-  } catch {
-    return null;
-  }
-}
-
-export function markTaskDonesMigrated(mode: TarkovGameMode, ids: string[]): void {
-  saveTaskDoneIds(mode, ids, true);
-}
-
-export function markTaskStartedMigrated(
-  mode: TarkovGameMode,
-  ids: string[],
-): void {
-  saveTaskProgress(mode, loadTaskDoneIds(mode), ids, false, true);
 }
 
 export {

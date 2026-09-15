@@ -3,15 +3,21 @@ import {
   accountHasQuestState,
   applyQuestLogState,
   buildQuestLogCatalog,
+  buildQuestLogSyncReview,
   collectQuestEventsFromSessions,
+  collectQuestReplayDrops,
   foldQuestEvents,
   foldSessionQuests,
   formatLastQuestSyncLine,
+  formatQuestLogDropHint,
+  formatQuestLogEventLine,
+  formatQuestLogStatusChange,
   formatQuestSyncDeltaLine,
   formatSignedDelta,
   mergeQuestProgressFromFolded,
   questProgressDelta,
   mergeQuestProgressFromLogs,
+  questsMatchingReplay,
   replayQuestEvents,
   sessionModeMatchesGameMode,
 } from "./tarkovTaskLogSync";
@@ -26,16 +32,18 @@ function ev(
 }
 
 describe("sessionModeMatchesGameMode", () => {
-  it("maps regular / pvp / pve and treats blank as current mode", () => {
+  it("maps regular / pvp / pve and drops blank or unknown modes", () => {
     expect(sessionModeMatchesGameMode("regular", "pvp")).toBe(true);
     expect(sessionModeMatchesGameMode("pvp", "pvp")).toBe(true);
     expect(sessionModeMatchesGameMode("pve", "pve")).toBe(true);
     expect(sessionModeMatchesGameMode("pve", "pvp")).toBe(false);
     expect(sessionModeMatchesGameMode("regular", "pve")).toBe(false);
-    expect(sessionModeMatchesGameMode("", "pve")).toBe(true);
-    expect(sessionModeMatchesGameMode(undefined, "pvp")).toBe(true);
-    expect(sessionModeMatchesGameMode("seasonal", "pvp")).toBe(true);
-    expect(sessionModeMatchesGameMode("seasonal", "pve")).toBe(false);
+    expect(sessionModeMatchesGameMode("", "pve")).toBe(false);
+    expect(sessionModeMatchesGameMode(undefined, "pvp")).toBe(false);
+    expect(sessionModeMatchesGameMode("unknown", "pvp")).toBe(false);
+    expect(sessionModeMatchesGameMode("seasonal", "pvp")).toBe(false);
+    expect(sessionModeMatchesGameMode("szn", "pvp")).toBe(false);
+    expect(sessionModeMatchesGameMode("pvpseason", "pve")).toBe(false);
   });
 });
 
@@ -175,6 +183,85 @@ describe("applyQuestLogState", () => {
     expect(merged.failed.sort()).toEqual(["big", "curio"]);
     expect(merged.started).toEqual([]);
   });
+
+  it("does not keep the chemical-4 trio completed together", () => {
+    const catalog = buildQuestLogCatalog([
+      { id: "chem", mutex_ids: ["curio", "big"] },
+      { id: "curio", mutex_ids: ["chem", "big"] },
+      { id: "big", mutex_ids: ["chem", "curio"] },
+    ]);
+    const folded = foldQuestEvents(new Map(), [
+      ev("completed", "chem", "2026-01-01 10:00:00"),
+      ev("completed", "curio", "2026-01-01 11:00:00"),
+      ev("completed", "big", "2026-01-01 12:00:00"),
+    ]);
+    const merged = applyQuestLogState([], [], folded, catalog);
+    expect(merged.done).toEqual(["big"]);
+    expect(merged.failed.sort()).toEqual(["chem", "curio"]);
+    expect(merged.started).toEqual([]);
+  });
+
+  it("does not re-complete a task the user unmarked unless logs are newer", () => {
+    const folded = foldQuestEvents(new Map(), [
+      ev("completed", "t1", "2026-01-01 10:00:00"),
+    ]);
+    const cleared = new Map([["t1", "2026-01-01 12:00:00"]]);
+    expect(applyQuestLogState(["t1"], [], folded, undefined, [], cleared)).toEqual({
+      done: [],
+      started: [],
+      failed: [],
+    });
+    expect(
+      applyQuestLogState(
+        [],
+        [],
+        folded,
+        undefined,
+        [],
+        new Map([["t1", "2026-01-01 09:00:00"]]),
+      ).done,
+    ).toEqual(["t1"]);
+  });
+
+  it("does not glue a later start after the user unmarked complete", () => {
+    const folded = foldQuestEvents(new Map(), [
+      ev("completed", "t1", "2026-01-01 10:00:00"),
+      ev("started", "t1", "2026-01-01 13:00:00"),
+    ]);
+    expect(folded.get("t1")?.kind).toBe("started");
+    expect(folded.get("t1")?.everCompleted).toBe(true);
+    expect(folded.get("t1")?.completedAt).toBe("2026-01-01 10:00:00");
+    expect(
+      applyQuestLogState(
+        [],
+        [],
+        folded,
+        undefined,
+        [],
+        new Map([["t1", "2026-01-01 12:00:00"]]),
+      ),
+    ).toEqual({
+      done: [],
+      started: ["t1"],
+      failed: [],
+    });
+  });
+
+  it("drops blocked follow-ups once their blocker is done or started", () => {
+    const catalog = buildQuestLogCatalog([
+      { id: "bat1" },
+      { id: "price2", blocked_by: ["bat1"] },
+    ]);
+    const folded = foldQuestEvents(new Map(), [
+      ev("completed", "price2", "2026-01-01 10:00:00"),
+      ev("completed", "bat1", "2026-01-01 11:00:00"),
+    ]);
+    expect(applyQuestLogState([], [], folded, catalog)).toEqual({
+      done: ["bat1"],
+      started: [],
+      failed: [],
+    });
+  });
 });
 
 describe("collectQuestEventsFromSessions", () => {
@@ -201,6 +288,34 @@ describe("collectQuestEventsFromSessions", () => {
       "pvp",
     );
     expect(events.map((row) => row.taskId)).toEqual(["pvp-q"]);
+  });
+
+  it("splits a folder that switched Session mode mid-session", () => {
+    const parsed = {
+      events: [],
+      raids: [],
+      sessionMode: "Pve",
+      quests: [
+        {
+          kind: "completed" as const,
+          taskId: "pvp-q",
+          at: "2026-01-01 10:00:00",
+          sessionMode: "regular",
+        },
+        {
+          kind: "started" as const,
+          taskId: "pve-q",
+          at: "2026-01-01 11:00:00",
+          sessionMode: "Pve",
+        },
+      ],
+    };
+    expect(
+      collectQuestEventsFromSessions([{ parsed }], "pvp").map((row) => row.taskId),
+    ).toEqual(["pvp-q"]);
+    expect(
+      collectQuestEventsFromSessions([{ parsed }], "pve").map((row) => row.taskId),
+    ).toEqual(["pve-q"]);
   });
 });
 
@@ -273,6 +388,7 @@ describe("foldQuestEvents", () => {
       kind: "completed",
       at: "2026-01-01 12:00:00",
       everCompleted: true,
+      completedAt: "2026-01-01 12:00:00",
     });
     expect(second.get("t2")?.kind).toBe("started");
   });
@@ -301,6 +417,119 @@ describe("foldSessionQuests", () => {
     );
     expect(folded.eventCount).toBe(1);
     expect(folded.next.get("pvp-q")?.kind).toBe("completed");
+  });
+
+  it("keeps matching quests when the folder later switched mode", () => {
+    const folded = foldSessionQuests(
+      new Map(),
+      {
+        sessionMode: "Pve",
+        quests: [
+          {
+            kind: "completed",
+            taskId: "pvp-q",
+            at: "2026-01-01 10:00:00",
+            sessionMode: "regular",
+          },
+          {
+            kind: "started",
+            taskId: "pve-q",
+            at: "2026-01-01 11:00:00",
+            sessionMode: "Pve",
+          },
+        ],
+      },
+      "pvp",
+    );
+    expect(folded.eventCount).toBe(1);
+    expect(folded.next.get("pvp-q")?.kind).toBe("completed");
+    expect(folded.next.has("pve-q")).toBe(false);
+  });
+
+  it("does not fold seasonal quests into the PVP ledger", () => {
+    const folded = foldSessionQuests(
+      new Map(),
+      {
+        sessionMode: "seasonal",
+        quests: [
+          {
+            kind: "completed",
+            taskId: "szn-q",
+            at: "2026-01-01 10:00:00",
+            sessionMode: "SZN",
+            profileId: "season-pmc",
+          },
+        ],
+      },
+      "pvp",
+    );
+    expect(folded.eventCount).toBe(0);
+    expect(folded.next.size).toBe(0);
+  });
+});
+
+describe("questsMatchingReplay", () => {
+  it("keeps the current profile and reports drop reasons", () => {
+    const parsed = {
+      sessionMode: "",
+      quests: [
+        {
+          kind: "completed" as const,
+          taskId: "mine",
+          at: "2026-01-01 12:00:00",
+          sessionMode: "regular",
+          profileId: "aaa",
+        },
+        {
+          kind: "started" as const,
+          taskId: "other",
+          at: "2026-01-01 12:01:00",
+          sessionMode: "regular",
+          profileId: "bbb",
+        },
+        {
+          kind: "started" as const,
+          taskId: "szn",
+          at: "2026-01-01 12:02:00",
+          sessionMode: "seasonal",
+          profileId: "aaa",
+        },
+        {
+          kind: "started" as const,
+          taskId: "blank",
+          at: "2026-01-01 12:03:00",
+          profileId: "aaa",
+        },
+      ],
+      drops: [
+        {
+          at: "2026-01-01 11:00:00",
+          reason: "json_bad" as const,
+        },
+        {
+          at: "2026-01-01 12:04:00",
+          reason: "json_bad" as const,
+        },
+      ],
+    };
+    const filter = {
+      gameMode: "pvp" as const,
+      profileId: "aaa",
+      fromAt: "2026-01-01 12:00:00",
+    };
+    expect(questsMatchingReplay(parsed, filter).map((row) => row.taskId)).toEqual([
+      "mine",
+    ]);
+    const drops = collectQuestReplayDrops(parsed, filter);
+    expect(drops.map((row) => row.reason).sort()).toEqual([
+      "json_bad",
+      "no_session_mode",
+      "profile",
+      "seasonal",
+    ]);
+    expect(formatQuestLogDropHint(drops)).toBe(
+      "丢弃 4 条：JSON 坏块 1，其他角色 1，赛季 1，无 Session mode 1",
+    );
   });
 });
 
@@ -368,5 +597,50 @@ describe("questProgressDelta", () => {
         unfinished: -86,
       }),
     ).toBe("已从日志回填 已完成 +72，进行中 +14，失败 0，未完成 -86");
+  });
+});
+
+describe("buildQuestLogSyncReview", () => {
+  it("keeps the timestamped log line and labels the status jump", () => {
+    expect(
+      formatQuestLogEventLine(
+        ev("completed", "t1", "2026-01-01 10:00:00"),
+      ),
+    ).toBe("2026-01-01 10:00:00 ChatMessageReceived completed");
+    expect(formatQuestLogStatusChange("todo", "done")).toBe("未完成→已完成");
+    const rows = buildQuestLogSyncReview(
+      [
+        {
+          kind: "started",
+          taskId: "t1",
+          at: "2026-01-01 10:00:00",
+          line: "2026-01-01 10:00:00.000|x|Info|Got notification | ChatMessageReceived",
+        },
+        {
+          kind: "completed",
+          taskId: "t1",
+          at: "2026-01-01 11:00:00",
+          line: "2026-01-01 11:00:00.000|x|Info|Got notification | ChatMessageReceived",
+        },
+      ],
+      { done: [], started: [], failed: [] },
+      { items: [{ id: "t1", name: "惩罚者 - 1" }] },
+    );
+    expect(rows.map((row) => ({
+      line: row.line,
+      taskName: row.taskName,
+      change: row.change,
+    }))).toEqual([
+      {
+        line: "2026-01-01 10:00:00.000|x|Info|Got notification | ChatMessageReceived",
+        taskName: "惩罚者 - 1",
+        change: "未完成→进行中",
+      },
+      {
+        line: "2026-01-01 11:00:00.000|x|Info|Got notification | ChatMessageReceived",
+        taskName: "惩罚者 - 1",
+        change: "进行中→已完成",
+      },
+    ]);
   });
 });

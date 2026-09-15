@@ -61,10 +61,10 @@ describe("formatLiveLogBackfillHint", () => {
         2,
         "backfill",
         { done: 0, started: 0, failed: 0, unfinished: 0 },
-        { questEvents: 0, skipped: 1 },
+        { questEvents: 0 },
       ),
     ).toBe(
-      "已从日志回填 已完成 0，进行中 0，失败 0，未完成 0（2 次启动），1 个日志文件过大已跳过。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）",
+      "已从日志回填 已完成 0，进行中 0，失败 0，未完成 0（2 次启动）。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）",
     );
   });
 });
@@ -78,7 +78,7 @@ describe("sameIdLists", () => {
 });
 
 describe("planLogSessionReads", () => {
-  it("reads newest, then only when the folder or fingerprint changes", () => {
+  it("watches only the newest launch, plus the previous folder once when it changes", () => {
     expect(planLogSessionReads(null, "", null)).toEqual({
       skip: true,
       folders: [],
@@ -86,10 +86,6 @@ describe("planLogSessionReads", () => {
     expect(planLogSessionReads("a", "f1", null)).toEqual({
       skip: false,
       folders: ["a"],
-    });
-    expect(planLogSessionReads("a", "f1", null, ["a", "b", "c"])).toEqual({
-      skip: false,
-      folders: ["a", "b", "c"],
     });
     expect(
       planLogSessionReads("a", "f1", { folder: "a", fingerprint: "f1" }),
@@ -99,12 +95,6 @@ describe("planLogSessionReads", () => {
     ).toEqual({ skip: false, folders: ["a"] });
     expect(
       planLogSessionReads("b", "f2", { folder: "a", fingerprint: "f1" }),
-    ).toEqual({ skip: false, folders: ["a", "b"] });
-    expect(
-      planLogSessionReads("b", "f2", { folder: "a", fingerprint: "f1" }, [
-        "b",
-        "c",
-      ]),
     ).toEqual({ skip: false, folders: ["a", "b"] });
   });
 });
@@ -225,6 +215,39 @@ describe("nextLiveQuestProgress", () => {
     });
   });
 
+  it("does not bounce a user-unmarked task back to done from old log events", () => {
+    expect(
+      nextLiveQuestProgress(
+        [],
+        [],
+        [
+          {
+            parsed: {
+              events: [],
+              raids: [],
+              sessionMode: "pve",
+              quests: [
+                {
+                  kind: "completed",
+                  taskId: "t1",
+                  at: "2026-01-01 10:00:00",
+                },
+              ],
+            },
+          },
+        ],
+        "pve",
+        undefined,
+        [],
+        new Map([["t1", "2026-01-01 12:00:00"]]),
+      ),
+    ).toMatchObject({
+      done: [],
+      started: [],
+      changed: false,
+    });
+  });
+
   it("does not un-complete an account task from an older start event", () => {
     expect(
       nextLiveQuestProgress(
@@ -281,6 +304,49 @@ describe("nextLiveQuestProgress", () => {
     ).toMatchObject({
       done: ["old-done", "raid-only"],
       started: ["old-start"],
+      changed: true,
+      eventCount: 1,
+    });
+  });
+
+  it("filters live replay to the current profile", () => {
+    expect(
+      nextLiveQuestProgress(
+        [],
+        [],
+        [
+          {
+            parsed: {
+              events: [],
+              raids: [],
+              sessionMode: "regular",
+              quests: [
+                {
+                  kind: "completed",
+                  taskId: "mine",
+                  at: "2026-09-01 16:00:00",
+                  sessionMode: "regular",
+                  profileId: "aaa",
+                },
+                {
+                  kind: "completed",
+                  taskId: "other",
+                  at: "2026-09-01 16:01:00",
+                  sessionMode: "regular",
+                  profileId: "bbb",
+                },
+              ],
+            },
+          },
+        ],
+        "pvp",
+        undefined,
+        [],
+        undefined,
+        { profileId: "aaa" },
+      ),
+    ).toMatchObject({
+      done: ["mine"],
       changed: true,
       eventCount: 1,
     });

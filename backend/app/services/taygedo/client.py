@@ -231,6 +231,39 @@ def native_app_headers(creds: TaygedoCredentials) -> dict[str, str]:
     }
 
 
+def _usercenter_headers(
+    *,
+    authorization: str,
+    device_id: str,
+    uid: str,
+    extra: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """用户中心 login / refreshToken 共用请求头（ds + 现行 appVersion）。"""
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": authorization,
+        "appVersion": TAYGEDO_APP_VER,
+        "platform": "android",
+        "uid": uid,
+        "deviceId": device_id,
+        "ds": _make_ds(),
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "okhttp/4.12.0",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def _copy_bind_identity(
+    session: TaygedoCredentials, creds: TaygedoCredentials
+) -> TaygedoCredentials:
+    session.phone = creds.phone
+    session.laohu_token = creds.laohu_token
+    session.laohu_user_id = creds.laohu_user_id
+    return session
+
+
 def login_with_password(phone: str, password: str) -> TaygedoCredentials:
     phone = (phone or "").strip()
     password = (password or "").strip()
@@ -382,18 +415,12 @@ def _user_center_login(token: str, user_id: str, device_id: str) -> TaygedoCrede
     status, data = _http(
         "POST",
         f"{TAYGEDO_BASE}/usercenter/api/login",
-        headers={
-            "Accept": "application/json, text/plain, */*",
-            "Authorization": "",
-            "appVersion": TAYGEDO_APP_VER,
-            "platform": "android",
-            "uid": "0",
-            "debug-uid": "3",
-            "deviceId": device_id,
-            "ds": _make_ds(),
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "okhttp/4.12.0",
-        },
+        headers=_usercenter_headers(
+            authorization="",
+            device_id=device_id,
+            uid="0",
+            extra={"debug-uid": "3"},
+        ),
         body=_form_encode(
             {
                 "token": token,
@@ -426,13 +453,11 @@ def refresh_access_token(creds: TaygedoCredentials) -> TaygedoCredentials:
     status, data = _http(
         "POST",
         f"{TAYGEDO_BASE}/usercenter/api/refreshToken",
-        headers={
-            "authorization": creds.refresh_token,
-            "deviceid": creds.device_id,
-            "appversion": "1.1.0",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "okhttp/4.12.0",
-        },
+        headers=_usercenter_headers(
+            authorization=creds.refresh_token,
+            device_id=creds.device_id,
+            uid=creds.uid,
+        ),
         body="",
     )
     if status == 402:
@@ -459,10 +484,31 @@ def refresh_access_token(creds: TaygedoCredentials) -> TaygedoCredentials:
     )
 
 
+def relogin_with_laohu(creds: TaygedoCredentials) -> TaygedoCredentials | None:
+    """用绑定里的老虎通行证再换用户中心票。缺字段则返回 None。"""
+    token = (creds.laohu_token or "").strip()
+    user_id = (creds.laohu_user_id or "").strip()
+    if not token or not user_id:
+        return None
+    session = _user_center_login(token, user_id, creds.device_id)
+    return _copy_bind_identity(session, creds)
+
+
+def recover_session_tokens(creds: TaygedoCredentials) -> TaygedoCredentials:
+    """access 失效后换票：先 refreshToken，失败再用老虎通行证重登用户中心。"""
+    try:
+        return refresh_access_token(creds)
+    except TaygedoApiError:
+        recovered = relogin_with_laohu(creds)
+        if recovered is None:
+            raise
+        return recovered
+
+
 def ensure_access_token(creds: TaygedoCredentials) -> TaygedoCredentials:
     if creds.access_token:
         return creds
-    return refresh_access_token(creds)
+    return recover_session_tokens(creds)
 
 
 def list_game_roles(creds: TaygedoCredentials, game_id: str, game_name: str) -> list[TaygedoRole]:
@@ -471,14 +517,7 @@ def list_game_roles(creds: TaygedoCredentials, game_id: str, game_name: str) -> 
     status, data = _http(
         "GET",
         f"{TAYGEDO_BASE}/usercenter/api/v2/getGameRoles?gameId={urllib.parse.quote(game_id)}",
-        headers={
-            "platform": "android",
-            "authorization": creds.access_token,
-            "uid": creds.uid,
-            "deviceid": creds.device_id,
-            "appversion": "1.1.0",
-            "User-Agent": "okhttp/4.12.0",
-        },
+        headers=native_app_headers(creds),
     )
     if status != 200 or data.get("code") != 0:
         msg = str(data.get("msg") or data.get("message") or f"获取{game_name}角色失败")

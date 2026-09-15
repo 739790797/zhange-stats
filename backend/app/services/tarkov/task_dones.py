@@ -18,7 +18,7 @@ from app.models.user import User
 from app.services.tarkov.game_mode import current_game_mode, parse_game_mode
 
 TASK_ID_MAX = 64
-MERGE_MAX = 800
+MERGE_MAX = 2000
 OBJECTIVE_MERGE_MAX = 8000
 
 
@@ -284,6 +284,7 @@ def remove_done(
     *,
     game_mode: str | None = None,
 ) -> tuple[list[str], bool]:
+    """从完成 / 进行中 / 失败三本账里拿掉该任务，使其回到未完成。"""
     ident = normalize_task_id(task_id)
     mode = _mode(game_mode)
     row = (
@@ -295,11 +296,24 @@ def remove_done(
         )
         .one_or_none()
     )
+    started_rows = [
+        item for item in _started_rows(db, user.id, mode) if str(item.task_id) == ident
+    ]
+    failed_rows = [
+        item for item in _failed_rows(db, user.id, mode) if str(item.task_id) == ident
+    ]
     removed = False
     if row is not None:
         db.delete(row)
-        db.flush()
         removed = True
+    for item in started_rows:
+        db.delete(item)
+        removed = True
+    for item in failed_rows:
+        db.delete(item)
+        removed = True
+    if removed:
+        db.flush()
     return list_task_ids(db, user.id, game_mode=mode), removed
 
 
@@ -332,6 +346,7 @@ def merge_dones(
     stamp = now or now_naive()
     incoming = _incoming_ids(task_ids)
     have = set(list_task_ids(db, user.id, game_mode=mode))
+    added: list[str] = []
     for ident in incoming:
         if ident in have:
             continue
@@ -344,12 +359,13 @@ def merge_dones(
             )
         )
         have.add(ident)
+        added.append(ident)
     db.flush()
     _drop_started(db, user.id, mode, have)
     _drop_failed(db, user.id, mode, have)
     db.flush()
     fill_objectives_for_done_tasks(
-        db, user, incoming, game_mode=mode, now=stamp
+        db, user, added, game_mode=mode, now=stamp
     )
     return list_task_ids(db, user.id, game_mode=mode)
 
@@ -378,6 +394,7 @@ def replace_dones(
     for row in rows:
         if str(row.task_id) not in wanted:
             db.delete(row)
+    added: list[str] = []
     for ident in incoming:
         if ident in have:
             continue
@@ -389,12 +406,13 @@ def replace_dones(
                 created_at=stamp,
             )
         )
+        added.append(ident)
     db.flush()
     _drop_started(db, user.id, mode, wanted)
     _drop_failed(db, user.id, mode, wanted)
     db.flush()
     fill_objectives_for_done_tasks(
-        db, user, incoming, game_mode=mode, now=stamp
+        db, user, added, game_mode=mode, now=stamp
     )
     return list_task_ids(db, user.id, game_mode=mode)
 
@@ -759,11 +777,4 @@ def write_progress(
             merge_objective_dones(
                 db, user, objective_dones, game_mode=game_mode, now=now
             )
-    fill_objectives_for_done_tasks(
-        db,
-        user,
-        list_task_ids(db, user.id, game_mode=game_mode),
-        game_mode=game_mode,
-        now=now,
-    )
     return list_progress(db, user.id, game_mode=game_mode)

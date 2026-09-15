@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.checkin import CheckinLogOut, CheckinResultItem, CheckinResponse
+from app.schemas.checkin import CheckinResultItem, CheckinResponse
 
 
 class ExiliumBindPasswordRequest(BaseModel):
@@ -41,7 +41,6 @@ class ExiliumRoleOut(BaseModel):
     channel_name: str
 
 
-ExiliumCheckinLogOut = CheckinLogOut
 ExiliumCheckinResultItem = CheckinResultItem
 ExiliumCheckinResponse = CheckinResponse
 
@@ -57,7 +56,6 @@ class ExiliumStatusOut(BaseModel):
     token_error: str | None = None
     roles: list[ExiliumRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
-    today_logs: list[CheckinLogOut] = Field(default_factory=list)
 
 class ExiliumExchangeItemOut(BaseModel):
     exchange_id: int

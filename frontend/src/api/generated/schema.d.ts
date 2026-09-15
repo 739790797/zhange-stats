@@ -1509,26 +1509,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/skland/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Skland Logs
-         * @description 兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。
-         */
-        get: operations["skland_logs_api_skland_logs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/skland/bind": {
         parameters: {
             query?: never;
@@ -1898,26 +1878,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/taygedo/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Taygedo Logs
-         * @description 兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。
-         */
-        get: operations["taygedo_logs_api_taygedo_logs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/taygedo/bind/password": {
         parameters: {
             query?: never;
@@ -2147,26 +2107,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/exilium/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Exilium Logs
-         * @description 兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。
-         */
-        get: operations["exilium_logs_api_exilium_logs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/exilium/bind/password": {
         parameters: {
             query?: never;
@@ -2351,26 +2291,6 @@ export interface paths {
         };
         /** Kujiequ Status */
         get: operations["kujiequ_status_api_kujiequ_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/kujiequ/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Kujiequ Logs
-         * @description 兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。
-         */
-        get: operations["kujiequ_logs_api_kujiequ_logs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2583,23 +2503,6 @@ export interface paths {
         };
         /** Mihoyo Status */
         get: operations["mihoyo_status_api_mihoyo_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/mihoyo/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Mihoyo Logs */
-        get: operations["mihoyo_logs_api_mihoyo_logs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3388,26 +3291,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/ammo/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Guides Tarkov Ammo Sync
-         * @description 管理员：与 /items/sync 相同（兼容旧客户端）。
-         */
-        post: operations["guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/guides/tarkov/guns": {
         parameters: {
             query?: never;
@@ -3422,26 +3305,6 @@ export interface paths {
         get: operations["guides_tarkov_guns_api_guides_tarkov_guns_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/guides/tarkov/guns/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Guides Tarkov Guns Sync
-         * @description 管理员：与 /items/sync 相同（兼容旧客户端）。
-         */
-        post: operations["guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4117,26 +3980,6 @@ export interface paths {
          * @description 藏身处制作。
          */
         get: operations["guides_tarkov_craft_catalog_api_guides_tarkov_crafts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/guides/tarkov/loot-tiers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Guides Tarkov Loot Tiers
-         * @description 战利品等级：跳蚤每格价分档。
-         */
-        get: operations["guides_tarkov_loot_tiers_api_guides_tarkov_loot_tiers_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6363,44 +6206,6 @@ export interface components {
             /** Checked At */
             checked_at?: string | null;
         };
-        /**
-         * CheckinLogOut
-         * @description 签到记录公共结构（森空岛 / 塔吉多等共用）。
-         */
-        CheckinLogOut: {
-            /** Id */
-            id: number;
-            /** Game Code */
-            game_code: string;
-            /** Game Name */
-            game_name: string;
-            /** Role Uid */
-            role_uid: string;
-            /** Role Name */
-            role_name?: string | null;
-            /** Channel Name */
-            channel_name?: string | null;
-            /** Status */
-            status: string;
-            /**
-             * Status Label
-             * @default
-             */
-            status_label: string;
-            /** Message */
-            message?: string | null;
-            /** Awards Text */
-            awards_text?: string | null;
-            /** Awards */
-            awards?: components["schemas"]["CheckinAwardItem"][];
-            /** Checkin Date */
-            checkin_date: string;
-            /**
-             * Checked At
-             * Format: date-time
-             */
-            checked_at: string;
-        };
         /** CheckinLogsPageOut */
         CheckinLogsPageOut: {
             /** Total */
@@ -6481,12 +6286,6 @@ export interface components {
             last_checkin_at?: string | null;
             /** Last Checkin Date */
             last_checkin_date?: string | null;
-            /** Last Checkin Ok */
-            last_checkin_ok?: boolean | null;
-            /** Last Checkin Summary */
-            last_checkin_summary?: string | null;
-            /** Last Checkin Awards */
-            last_checkin_awards?: components["schemas"]["CheckinAwardItem"][];
         };
         /** CheckinRolePrefUpdate */
         CheckinRolePrefUpdate: {
@@ -7174,8 +6973,6 @@ export interface components {
             roles?: components["schemas"]["ExiliumRoleOut"][];
             /** Today Results */
             today_results?: components["schemas"]["CheckinResultItem"][];
-            /** Today Logs */
-            today_logs?: components["schemas"]["CheckinLogOut"][];
         };
         /** FileBrowseEntryOut */
         FileBrowseEntryOut: {
@@ -8050,8 +7847,6 @@ export interface components {
             roles?: components["schemas"]["KujiequRoleOut"][];
             /** Today Results */
             today_results?: components["schemas"]["CheckinResultItem"][];
-            /** Today Logs */
-            today_logs?: components["schemas"]["CheckinLogOut"][];
         };
         /** LinkExistingAccountRequest */
         LinkExistingAccountRequest: {
@@ -8581,8 +8376,6 @@ export interface components {
             roles?: components["schemas"]["MihoyoRoleOut"][];
             /** Today Results */
             today_results?: components["schemas"]["CheckinResultItem"][];
-            /** Today Logs */
-            today_logs?: components["schemas"]["CheckinLogOut"][];
         };
         /** MinecraftAppliedModOut */
         MinecraftAppliedModOut: {
@@ -11036,8 +10829,6 @@ export interface components {
             roles?: components["schemas"]["SklandRoleOut"][];
             /** Today Results */
             today_results?: components["schemas"]["CheckinResultItem"][];
-            /** Today Logs */
-            today_logs?: components["schemas"]["CheckinLogOut"][];
         };
         /** SteamAppIcon */
         SteamAppIcon: {
@@ -11489,25 +11280,6 @@ export interface components {
              * @default
              */
             pack_item_id: string;
-        };
-        /** TarkovAmmoSyncOut */
-        TarkovAmmoSyncOut: {
-            /** Ammo Count */
-            ammo_count: number;
-            /**
-             * Gun Count
-             * @default 0
-             */
-            gun_count: number;
-            /** Source */
-            source?: string | null;
-            /** Synced At */
-            synced_at?: string | null;
-            /**
-             * Message
-             * @default ok
-             */
-            message: string;
         };
         /** TarkovBarterCatalogOut */
         TarkovBarterCatalogOut: {
@@ -12504,25 +12276,6 @@ export interface components {
              */
             icon_link: string;
         };
-        /** TarkovGunSyncOut */
-        TarkovGunSyncOut: {
-            /**
-             * Ammo Count
-             * @default 0
-             */
-            ammo_count: number;
-            /** Gun Count */
-            gun_count: number;
-            /** Source */
-            source?: string | null;
-            /** Synced At */
-            synced_at?: string | null;
-            /**
-             * Message
-             * @default ok
-             */
-            message: string;
-        };
         /** TarkovHideoutBonusOut */
         TarkovHideoutBonusOut: {
             /**
@@ -13289,81 +13042,6 @@ export interface components {
             synced_at?: string | null;
             /** Note */
             note?: string | null;
-        };
-        /** TarkovLootTierCatalogOut */
-        TarkovLootTierCatalogOut: {
-            /** Items */
-            items?: components["schemas"]["TarkovLootTierItemOut"][];
-            /**
-             * Item Count
-             * @default 0
-             */
-            item_count: number;
-            /**
-             * Page
-             * @default 1
-             */
-            page: number;
-            /**
-             * Page Size
-             * @default 100
-             */
-            page_size: number;
-            /** Source */
-            source?: string | null;
-            /** Synced At */
-            synced_at?: string | null;
-            /** Note */
-            note?: string | null;
-        };
-        /** TarkovLootTierItemOut */
-        TarkovLootTierItemOut: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /**
-             * Short Name
-             * @default
-             */
-            short_name: string;
-            /**
-             * Icon Link
-             * @default
-             */
-            icon_link: string;
-            /** Types */
-            types?: string[];
-            /**
-             * Width
-             * @default 1
-             */
-            width: number;
-            /**
-             * Height
-             * @default 1
-             */
-            height: number;
-            /**
-             * Slots
-             * @default 1
-             */
-            slots: number;
-            /**
-             * Price
-             * @default 0
-             */
-            price: number;
-            /**
-             * Price Per Slot
-             * @default 0
-             */
-            price_per_slot: number;
-            /**
-             * Tier
-             * @default E
-             */
-            tier: string;
         };
         /** TarkovMapBossLocationOut */
         TarkovMapBossLocationOut: {
@@ -14436,6 +14114,10 @@ export interface components {
             blocked_by?: string[];
             /** Prereq Ids */
             prereq_ids?: string[];
+            /** Fail Prereq Ids */
+            fail_prereq_ids?: string[];
+            /** Fail Or Complete Ids */
+            fail_or_complete_ids?: string[];
             /**
              * Restartable
              * @default false
@@ -15102,6 +14784,10 @@ export interface components {
             blocked_by?: string[];
             /** Prereq Ids */
             prereq_ids?: string[];
+            /** Fail Prereq Ids */
+            fail_prereq_ids?: string[];
+            /** Fail Or Complete Ids */
+            fail_or_complete_ids?: string[];
             /**
              * Restartable
              * @default false
@@ -15395,6 +15081,10 @@ export interface components {
             blocked_by?: string[];
             /** Prereq Ids */
             prereq_ids?: string[];
+            /** Fail Prereq Ids */
+            fail_prereq_ids?: string[];
+            /** Fail Or Complete Ids */
+            fail_or_complete_ids?: string[];
             /**
              * Restartable
              * @default false
@@ -16787,8 +16477,6 @@ export interface components {
             roles?: components["schemas"]["TaygedoRoleOut"][];
             /** Today Results */
             today_results?: components["schemas"]["CheckinResultItem"][];
-            /** Today Logs */
-            today_logs?: components["schemas"]["CheckinLogOut"][];
         };
         /** TokenResponse */
         TokenResponse: {
@@ -16930,10 +16618,6 @@ export interface components {
             last_checkin_at?: string | null;
             /** Last Checkin Date */
             last_checkin_date?: string | null;
-            /** Last Checkin Ok */
-            last_checkin_ok?: boolean | null;
-            /** Last Checkin Summary */
-            last_checkin_summary?: string | null;
             /** Today Status */
             today_status?: string | null;
             /** Today Status Label */
@@ -20081,37 +19765,6 @@ export interface operations {
             };
         };
     };
-    skland_logs_api_skland_logs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CheckinLogOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     skland_bind_api_skland_bind_post: {
         parameters: {
             query?: never;
@@ -20758,37 +20411,6 @@ export interface operations {
             };
         };
     };
-    taygedo_logs_api_taygedo_logs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CheckinLogOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     taygedo_bind_password_api_taygedo_bind_password_post: {
         parameters: {
             query?: never;
@@ -21255,37 +20877,6 @@ export interface operations {
             };
         };
     };
-    exilium_logs_api_exilium_logs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     exilium_bind_password_api_exilium_bind_password_post: {
         parameters: {
             query?: never;
@@ -21662,37 +21253,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KujiequStatusOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    kujiequ_logs_api_kujiequ_logs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CheckinLogOut"][];
                 };
             };
             /** @description Validation Error */
@@ -22126,37 +21686,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MihoyoStatusOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    mihoyo_logs_api_mihoyo_logs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -23809,38 +23338,6 @@ export interface operations {
             };
         };
     };
-    guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post: {
-        parameters: {
-            query?: {
-                /** @description PVP（regular）或 PVE */
-                game_mode?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TarkovAmmoSyncOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     guides_tarkov_guns_api_guides_tarkov_guns_get: {
         parameters: {
             query?: {
@@ -23860,38 +23357,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovGunCatalogOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post: {
-        parameters: {
-            query?: {
-                /** @description PVP（regular）或 PVE */
-                game_mode?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TarkovGunSyncOut"];
                 };
             };
             /** @description Validation Error */
@@ -25211,42 +24676,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovCraftCatalogOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    guides_tarkov_loot_tiers_api_guides_tarkov_loot_tiers_get: {
-        parameters: {
-            query?: {
-                q?: string | null;
-                tier?: string | null;
-                page?: number;
-                page_size?: number;
-                /** @description PVP（regular）或 PVE */
-                game_mode?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TarkovLootTierCatalogOut"];
                 };
             };
             /** @description Validation Error */

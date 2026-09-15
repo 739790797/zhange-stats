@@ -97,17 +97,6 @@ def exilium_status(
     )
 
 
-@router.get("/logs")
-def exilium_logs(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    limit: int = Query(default=30, ge=1, le=100),
-):
-    """兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。"""
-    _ = (db, user, limit)
-    return []
-
-
 @router.post("/bind/password", response_model=ExiliumStatusOut)
 def exilium_bind_password(
     payload: ExiliumBindPasswordRequest,

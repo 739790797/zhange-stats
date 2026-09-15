@@ -4408,62 +4408,6 @@
         }
       }
     },
-    "/api/skland/logs": {
-      "get": {
-        "tags": [
-          "skland",
-          "skland"
-        ],
-        "summary": "Skland Logs",
-        "description": "兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。",
-        "operationId": "skland_logs_api_skland_logs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 30,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CheckinLogOut"
-                  },
-                  "title": "Response Skland Logs Api Skland Logs Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/skland/bind": {
       "post": {
         "tags": [
@@ -5553,61 +5497,6 @@
         }
       }
     },
-    "/api/taygedo/logs": {
-      "get": {
-        "tags": [
-          "taygedo"
-        ],
-        "summary": "Taygedo Logs",
-        "description": "兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。",
-        "operationId": "taygedo_logs_api_taygedo_logs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 30,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CheckinLogOut"
-                  },
-                  "title": "Response Taygedo Logs Api Taygedo Logs Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/taygedo/bind/password": {
       "post": {
         "tags": [
@@ -6335,55 +6224,6 @@
         }
       }
     },
-    "/api/exilium/logs": {
-      "get": {
-        "tags": [
-          "exilium"
-        ],
-        "summary": "Exilium Logs",
-        "description": "兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。",
-        "operationId": "exilium_logs_api_exilium_logs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 30,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/exilium/bind/password": {
       "post": {
         "tags": [
@@ -6939,61 +6779,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KujiequStatusOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kujiequ/logs": {
-      "get": {
-        "tags": [
-          "kujiequ"
-        ],
-        "summary": "Kujiequ Logs",
-        "description": "兼容占位：历史列表已弃用；今日状态见 status（读 *_checkin_logs 缓存）。",
-        "operationId": "kujiequ_logs_api_kujiequ_logs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 30,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CheckinLogOut"
-                  },
-                  "title": "Response Kujiequ Logs Api Kujiequ Logs Get"
                 }
               }
             }
@@ -7677,54 +7462,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/MihoyoStatusOut"
                 }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/mihoyo/logs": {
-      "get": {
-        "tags": [
-          "mihoyo"
-        ],
-        "summary": "Mihoyo Logs",
-        "operationId": "mihoyo_logs_api_mihoyo_logs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 30,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
               }
             }
           },
@@ -10635,58 +10372,6 @@
         }
       }
     },
-    "/api/guides/tarkov/ammo/sync": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Guides Tarkov Ammo Sync",
-        "description": "管理员：与 /items/sync 相同（兼容旧客户端）。",
-        "operationId": "guides_tarkov_ammo_sync_api_guides_tarkov_ammo_sync_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovAmmoSyncOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/guides/tarkov/guns": {
       "get": {
         "tags": [
@@ -10717,58 +10402,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovGunCatalogOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/guides/tarkov/guns/sync": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Guides Tarkov Guns Sync",
-        "description": "管理员：与 /items/sync 相同（兼容旧客户端）。",
-        "operationId": "guides_tarkov_guns_sync_api_guides_tarkov_guns_sync_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovGunSyncOut"
                 }
               }
             }
@@ -13310,110 +12943,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovCraftCatalogOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/guides/tarkov/loot-tiers": {
-      "get": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Guides Tarkov Loot Tiers",
-        "description": "战利品等级：跳蚤每格价分档。",
-        "operationId": "guides_tarkov_loot_tiers_api_guides_tarkov_loot_tiers_get",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 80
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "name": "tier",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 8
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Tier"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1,
-              "title": "Page"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 100,
-              "title": "Page Size"
-            }
-          },
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovLootTierCatalogOut"
                 }
               }
             }
@@ -20007,107 +19536,6 @@
         ],
         "title": "CheckinLogItemOut"
       },
-      "CheckinLogOut": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "game_code": {
-            "type": "string",
-            "title": "Game Code"
-          },
-          "game_name": {
-            "type": "string",
-            "title": "Game Name"
-          },
-          "role_uid": {
-            "type": "string",
-            "title": "Role Uid"
-          },
-          "role_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Role Name"
-          },
-          "channel_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Channel Name"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "status_label": {
-            "type": "string",
-            "title": "Status Label",
-            "default": ""
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message"
-          },
-          "awards_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Awards Text"
-          },
-          "awards": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinAwardItem"
-            },
-            "type": "array",
-            "title": "Awards"
-          },
-          "checkin_date": {
-            "type": "string",
-            "title": "Checkin Date"
-          },
-          "checked_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Checked At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "game_code",
-          "game_name",
-          "role_uid",
-          "status",
-          "checkin_date",
-          "checked_at"
-        ],
-        "title": "CheckinLogOut",
-        "description": "签到记录公共结构（森空岛 / 塔吉多等共用）。"
-      },
       "CheckinLogsPageOut": {
         "properties": {
           "total": {
@@ -20324,35 +19752,6 @@
               }
             ],
             "title": "Last Checkin Date"
-          },
-          "last_checkin_ok": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Ok"
-          },
-          "last_checkin_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Summary"
-          },
-          "last_checkin_awards": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinAwardItem"
-            },
-            "type": "array",
-            "title": "Last Checkin Awards"
           }
         },
         "type": "object",
@@ -21816,13 +21215,6 @@
             },
             "type": "array",
             "title": "Today Results"
-          },
-          "today_logs": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinLogOut"
-            },
-            "type": "array",
-            "title": "Today Logs"
           }
         },
         "type": "object",
@@ -23785,13 +23177,6 @@
             },
             "type": "array",
             "title": "Today Results"
-          },
-          "today_logs": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinLogOut"
-            },
-            "type": "array",
-            "title": "Today Logs"
           }
         },
         "type": "object",
@@ -25109,13 +24494,6 @@
             },
             "type": "array",
             "title": "Today Results"
-          },
-          "today_logs": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinLogOut"
-            },
-            "type": "array",
-            "title": "Today Logs"
           }
         },
         "type": "object",
@@ -30026,13 +29404,6 @@
             },
             "type": "array",
             "title": "Today Results"
-          },
-          "today_logs": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinLogOut"
-            },
-            "type": "array",
-            "title": "Today Logs"
           }
         },
         "type": "object",
@@ -31237,51 +30608,6 @@
           "penetration"
         ],
         "title": "TarkovAmmoItemOut"
-      },
-      "TarkovAmmoSyncOut": {
-        "properties": {
-          "ammo_count": {
-            "type": "integer",
-            "title": "Ammo Count"
-          },
-          "gun_count": {
-            "type": "integer",
-            "title": "Gun Count",
-            "default": 0
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "synced_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synced At"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "default": "ok"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ammo_count"
-        ],
-        "title": "TarkovAmmoSyncOut"
       },
       "TarkovBarterCatalogOut": {
         "properties": {
@@ -33153,51 +32479,6 @@
         ],
         "title": "TarkovGunItemOut"
       },
-      "TarkovGunSyncOut": {
-        "properties": {
-          "ammo_count": {
-            "type": "integer",
-            "title": "Ammo Count",
-            "default": 0
-          },
-          "gun_count": {
-            "type": "integer",
-            "title": "Gun Count"
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "synced_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synced At"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "default": "ok"
-          }
-        },
-        "type": "object",
-        "required": [
-          "gun_count"
-        ],
-        "title": "TarkovGunSyncOut"
-      },
       "TarkovHideoutBonusOut": {
         "properties": {
           "type": {
@@ -34648,132 +33929,6 @@
         },
         "type": "object",
         "title": "TarkovKeyPacksOut"
-      },
-      "TarkovLootTierCatalogOut": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovLootTierItemOut"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "item_count": {
-            "type": "integer",
-            "title": "Item Count",
-            "default": 0
-          },
-          "page": {
-            "type": "integer",
-            "title": "Page",
-            "default": 1
-          },
-          "page_size": {
-            "type": "integer",
-            "title": "Page Size",
-            "default": 100
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "synced_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synced At"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "title": "TarkovLootTierCatalogOut"
-      },
-      "TarkovLootTierItemOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "short_name": {
-            "type": "string",
-            "title": "Short Name",
-            "default": ""
-          },
-          "icon_link": {
-            "type": "string",
-            "title": "Icon Link",
-            "default": ""
-          },
-          "types": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Types"
-          },
-          "width": {
-            "type": "integer",
-            "title": "Width",
-            "default": 1
-          },
-          "height": {
-            "type": "integer",
-            "title": "Height",
-            "default": 1
-          },
-          "slots": {
-            "type": "integer",
-            "title": "Slots",
-            "default": 1
-          },
-          "price": {
-            "type": "integer",
-            "title": "Price",
-            "default": 0
-          },
-          "price_per_slot": {
-            "type": "integer",
-            "title": "Price Per Slot",
-            "default": 0
-          },
-          "tier": {
-            "type": "string",
-            "title": "Tier",
-            "default": "E"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "TarkovLootTierItemOut"
       },
       "TarkovMapBossLocationOut": {
         "properties": {
@@ -36997,6 +36152,20 @@
             "type": "array",
             "title": "Prereq Ids"
           },
+          "fail_prereq_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fail Prereq Ids"
+          },
+          "fail_or_complete_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fail Or Complete Ids"
+          },
           "restartable": {
             "type": "boolean",
             "title": "Restartable",
@@ -38373,6 +37542,20 @@
             "type": "array",
             "title": "Prereq Ids"
           },
+          "fail_prereq_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fail Prereq Ids"
+          },
+          "fail_or_complete_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fail Or Complete Ids"
+          },
           "restartable": {
             "type": "boolean",
             "title": "Restartable",
@@ -38947,6 +38130,20 @@
             },
             "type": "array",
             "title": "Prereq Ids"
+          },
+          "fail_prereq_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fail Prereq Ids"
+          },
+          "fail_or_complete_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fail Or Complete Ids"
           },
           "restartable": {
             "type": "boolean",
@@ -42064,13 +41261,6 @@
             },
             "type": "array",
             "title": "Today Results"
-          },
-          "today_logs": {
-            "items": {
-              "$ref": "#/components/schemas/CheckinLogOut"
-            },
-            "type": "array",
-            "title": "Today Logs"
           }
         },
         "type": "object",
@@ -42443,28 +41633,6 @@
               }
             ],
             "title": "Last Checkin Date"
-          },
-          "last_checkin_ok": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Ok"
-          },
-          "last_checkin_summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Checkin Summary"
           },
           "today_status": {
             "anyOf": [

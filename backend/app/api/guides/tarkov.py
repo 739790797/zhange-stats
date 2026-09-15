@@ -13,12 +13,10 @@ from app.api.guides.schemas import (
     TarkovAmmoCatalogOut,
     TarkovAmmoDetailOut,
     TarkovAmmoItemOut,
-    TarkovAmmoSyncOut,
     TarkovCatalogItemOut,
     TarkovCatalogOut,
     TarkovGunCatalogOut,
     TarkovGunItemOut,
-    TarkovGunSyncOut,
     TarkovWorkbenchAllowedIn,
     TarkovWorkbenchAllowedOut,
     TarkovWorkbenchCalculateIn,
@@ -61,7 +59,6 @@ from app.api.guides.schemas import (
     TarkovBarterCatalogOut,
     TarkovCraftCatalogOut,
     TarkovGuidesSyncOut,
-    TarkovLootTierCatalogOut,
     TarkovKeyPacksOut,
     TarkovKeyOwnsIn,
     TarkovKeyOwnsOut,
@@ -451,26 +448,6 @@ def guides_tarkov_ammo_detail(
     )
 
 
-@router.post(
-    "/ammo/sync",
-    response_model=TarkovAmmoSyncOut,
-    dependencies=[Depends(require_feature("guides.tarkov"))],
-)
-def guides_tarkov_ammo_sync(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    """管理员：与 /items/sync 相同（兼容旧客户端）。"""
-    result = _sync_items(db)
-    return TarkovAmmoSyncOut(
-        ammo_count=int(result.get("ammo_count") or 0),
-        gun_count=int(result.get("gun_count") or 0),
-        source=result.get("source"),
-        synced_at=result.get("synced_at"),
-        message="ok",
-    )
-
-
 @router.get(
     "/guns",
     response_model=TarkovGunCatalogOut,
@@ -519,26 +496,6 @@ def guides_tarkov_guns(
             synced_at=synced_at,
             note=note,
         ),
-    )
-
-
-@router.post(
-    "/guns/sync",
-    response_model=TarkovGunSyncOut,
-    dependencies=[Depends(require_feature("guides.tarkov"))],
-)
-def guides_tarkov_guns_sync(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    """管理员：与 /items/sync 相同（兼容旧客户端）。"""
-    result = _sync_items(db)
-    return TarkovGunSyncOut(
-        ammo_count=int(result.get("ammo_count") or 0),
-        gun_count=int(result.get("gun_count") or 0),
-        source=result.get("source"),
-        synced_at=result.get("synced_at"),
-        message="ok",
     )
 
 
@@ -1619,47 +1576,6 @@ def guides_tarkov_craft_catalog(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return _catalog_ok(
         response, etag, TarkovCraftCatalogOut.model_validate(result)
-    )
-
-
-@router.get(
-    "/loot-tiers",
-    response_model=TarkovLootTierCatalogOut,
-    dependencies=[Depends(require_feature("guides.tarkov"))],
-)
-def guides_tarkov_loot_tiers(
-    request: Request,
-    response: Response,
-    q: str | None = Query(default=None, max_length=80),
-    tier: str | None = Query(default=None, max_length=8),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=100, ge=1, le=200),
-    db: Session = Depends(get_db),
-):
-    """战利品等级：跳蚤每格价分档。"""
-    try:
-        items_svc.ensure_items(db)
-    except items_svc.TarkovItemsError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    etag, hit = _catalog_fresh(
-        request,
-        "loot-tiers",
-        _raw_synced(items_svc.get_items_raw(db)),
-        q,
-        tier,
-        page,
-        page_size,
-    )
-    if hit is not None:
-        return hit
-    try:
-        result = catalog_svc.list_loot_tiers(
-            db, q=q, tier=tier, page=page, page_size=page_size
-        )
-    except items_svc.TarkovItemsError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovLootTierCatalogOut.model_validate(result)
     )
 
 

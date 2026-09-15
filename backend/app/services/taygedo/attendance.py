@@ -32,7 +32,9 @@ from app.services.taygedo.client import (
     ensure_access_token,
     list_all_game_roles,
     native_app_headers,
+    recover_session_tokens,
     refresh_access_token,
+    relogin_with_laohu,
 )
 
 logger = logging.getLogger(__name__)
@@ -291,7 +293,7 @@ def _app_signed_today(creds: TaygedoCredentials) -> bool | None:
 
 
 def ensure_session(creds: TaygedoCredentials) -> TaygedoCredentials:
-    """校验/刷新登录态；单设备挤下线后 refresh 失败则明确报凭证失效。"""
+    """校验/刷新登录态。access 失效先 refreshToken，再老虎通行证换票。"""
     working = ensure_access_token(creds)
     try:
         _get_app_sign_state(working)
@@ -299,17 +301,23 @@ def ensure_session(creds: TaygedoCredentials) -> TaygedoCredentials:
     except TaygedoApiError as exc:
         if not is_auth_failure(code=exc.code, message=exc.message):
             raise
+    last: TaygedoApiError | None = None
+    try:
         working = refresh_access_token(working)
-        _get_app_sign_state(working)  # 仍失败则抛出
+        _get_app_sign_state(working)
         return working
-
-
-def _app_awards_from_exp_records(
-    creds: TaygedoCredentials, *, community_id: int = COMMUNITY_ID
-) -> tuple[str | None, list[dict[str, Any]]]:
-    """兼容旧调用：社区签到奖励改走任务中心塔塔币，不再读经验流水。"""
-    _ = community_id
-    return _app_signin_awards_from_tasks(creds)
+    except TaygedoApiError as exc:
+        last = exc
+    try:
+        recovered = relogin_with_laohu(working)
+    except TaygedoApiError:
+        recovered = None
+    if recovered is None:
+        if last is not None:
+            raise last
+        raise TaygedoApiError("登录态已失效，请重新绑定塔吉多")
+    _get_app_sign_state(recovered)
+    return recovered
 
 
 def _task_gold_reward(
@@ -1239,7 +1247,7 @@ def list_checkin_targets(
         roles = list_all_game_roles(working)
     except TaygedoApiError as exc:
         if is_auth_failure(code=exc.code, message=exc.message):
-            working = refresh_access_token(working)
+            working = recover_session_tokens(working)
             roles = list_all_game_roles(working)
         else:
             raise

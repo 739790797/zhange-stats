@@ -44,14 +44,6 @@ class TarkovAmmoCatalogOut(BaseModel):
     note: str | None = None
 
 
-class TarkovAmmoSyncOut(BaseModel):
-    ammo_count: int
-    gun_count: int = 0
-    source: str | None = None
-    synced_at: str | None = None
-    message: str = Field(default="ok")
-
-
 class TarkovItemsSyncOut(BaseModel):
     ammo_count: int
     gun_count: int
@@ -98,14 +90,6 @@ class TarkovGunCatalogOut(BaseModel):
     source: str | None = None
     synced_at: str | None = None
     note: str | None = None
-
-
-class TarkovGunSyncOut(BaseModel):
-    ammo_count: int = 0
-    gun_count: int
-    source: str | None = None
-    synced_at: str | None = None
-    message: str = Field(default="ok")
 
 
 class TarkovWorkbenchPartOut(BaseModel):
@@ -418,6 +402,8 @@ class TarkovTaskListItemOut(BaseModel):
     mutex_ids: list[str] = Field(default_factory=list)
     blocked_by: list[str] = Field(default_factory=list)
     prereq_ids: list[str] = Field(default_factory=list)
+    fail_prereq_ids: list[str] = Field(default_factory=list)
+    fail_or_complete_ids: list[str] = Field(default_factory=list)
     restartable: bool = False
 
 
@@ -1389,30 +1375,6 @@ class TarkovGuidesSyncOut(BaseModel):
     source: str | None = None
     synced_at: str | None = None
     message: str = Field(default="ok")
-
-
-class TarkovLootTierItemOut(BaseModel):
-    id: str
-    name: str
-    short_name: str = ""
-    icon_link: str = ""
-    types: list[str] = Field(default_factory=list)
-    width: int = 1
-    height: int = 1
-    slots: int = 1
-    price: int = 0
-    price_per_slot: int = 0
-    tier: str = "E"
-
-
-class TarkovLootTierCatalogOut(BaseModel):
-    items: list[TarkovLootTierItemOut] = Field(default_factory=list)
-    item_count: int = 0
-    page: int = 1
-    page_size: int = 100
-    source: str | None = None
-    synced_at: str | None = None
-    note: str | None = None
 
 
 class TarkovKeyPackBarterOut(BaseModel):

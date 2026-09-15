@@ -105,16 +105,6 @@ def mihoyo_status(
     )
 
 
-@router.get("/logs")
-def mihoyo_logs(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    limit: int = Query(default=30, ge=1, le=100),
-):
-    _ = (db, user, limit)
-    return []
-
-
 @router.post("/bind/sms/send", response_model=MihoyoBindSmsSendResponse)
 def mihoyo_bind_sms_send(
     payload: MihoyoBindSmsSendRequest,

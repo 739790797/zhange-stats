@@ -38,7 +38,6 @@ export { tarkovRaidRoomHref, colorForUserId };
 export const RAID_ROOM_SLOT_COUNT = 5;
 export const RAID_ROOM_SLOT_IDS = ["1", "2", "3", "4", "5"] as const;
 
-const RAID_ROOM_SLOT_ID_RE = /^(?:pve-)?[1-5]$/i;
 const RAID_ROOM_PUBLIC_ID_RE = /^(?:(?:pve-)?[1-5]|[a-z0-9]{8,16})$/i;
 
 export function raidRoomSlotPublicId(
@@ -91,10 +90,6 @@ export function normalizeRaidRoomPublicId(raw: string): string {
   if (!key || key === "solo") return "";
   if (RAID_ROOM_PUBLIC_ID_RE.test(key)) return key;
   return "";
-}
-
-export function isRaidRoomSlotId(publicId: string): boolean {
-  return RAID_ROOM_SLOT_ID_RE.test(publicId);
 }
 
 /** 单人准备的假房间 id：不进大厅席位、不连 WS。 */
@@ -1461,7 +1456,6 @@ export const PULSE_DEMO_ROOM_PUBLIC_ID = "pulse-demo";
 export const PULSE_DEMO_MAP_ID = "customs";
 export const PULSE_DEMO_TICK_MIN_MS = 2_200;
 export const PULSE_DEMO_TICK_MAX_MS = 6_500;
-export const PULSE_DEMO_TICK_MS = PULSE_DEMO_TICK_MAX_MS;
 /** 未登录看演示时，任务「我」与地图 author 共用这个正数 id。 */
 export const PULSE_DEMO_SELF_ID = 900000;
 

@@ -149,8 +149,6 @@ export function isLikelyTarkovItemId(value: string): boolean {
   return HEX_ITEM_ID.test(value.trim());
 }
 
-export const TARKOV_HAZARD_KIND_LABELS = HAZARD_KIND_LABELS;
-
 export function defaultTarkovMapKindFlags(): TarkovMapKindFlags {
   return {};
 }

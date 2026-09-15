@@ -57,45 +57,12 @@ const SHORT_ID_RE = /shortId:\s*([A-Z0-9]{6})/;
 const RAID_MODE_RE = /RaidMode:\s*(\w+)/i;
 const SCENE_RE = /scene preset path:\s*(maps\/[a-zA-Z0-9_]+\.bundle)/i;
 const SESSION_MODE_RE = /Session mode:\s*([^\s|]+)/i;
-
-export const TARKOV_GAME_LOG_MAX_FILE_BYTES = 32 * 1024 * 1024;
-
-/** 任务事件在 notifications.log； flea 多的号很容易超过 32MB。 */
-export const TARKOV_GAME_LOG_NOTIFICATIONS_MAX_BYTES = 96 * 1024 * 1024;
-
-/** 超大通知日志只读尾部，避免整文件拖死标签页。 */
-export const TARKOV_GAME_LOG_NOTIFICATIONS_TAIL_BYTES = 48 * 1024 * 1024;
-
-export function logFileByteBudget(name: string): number {
-  return isNotificationsLogFileName(name)
-    ? TARKOV_GAME_LOG_NOTIFICATIONS_MAX_BYTES
-    : TARKOV_GAME_LOG_MAX_FILE_BYTES;
-}
-
-/** 普通日志超限跳过；通知日志超限改读尾部，避免任务事件整份丢掉。 */
-export function planLogFileRead(
-  name: string,
-  size: number,
-): { skip: boolean; offset: number } {
-  const n = Number(size) || 0;
-  if (n <= 0) return { skip: true, offset: 0 };
-  const budget = logFileByteBudget(name);
-  if (n <= budget) return { skip: false, offset: 0 };
-  if (isNotificationsLogFileName(name)) {
-    return {
-      skip: false,
-      offset: Math.max(0, n - TARKOV_GAME_LOG_NOTIFICATIONS_TAIL_BYTES),
-    };
-  }
-  return { skip: true, offset: 0 };
-}
-
-export const TARKOV_GAME_LOG_SCAN_LIMITS = [40, 120, 0] as const;
-
-export type TarkovGameLogScanLimit = (typeof TARKOV_GAME_LOG_SCAN_LIMITS)[number];
+const SELECT_PROFILE_RE =
+  /(?:Select(?:ed)?Profile|PrepareSelectedProfileLocally|CompleteSelectedProfile) ProfileId:([A-Za-z0-9]+) AccountId:(\d+)/;
 
 export type TarkovLogEventKind =
   | "session_mode"
+  | "profile"
   | "map_loading"
   | "matching"
   | "match_found"
@@ -115,6 +82,9 @@ export type TarkovLogEvent = {
   raidId?: string;
   raidMode?: TarkovLogRaidMode;
   sessionMode?: string;
+  profileId?: string;
+  accountId?: string;
+  version?: string;
 };
 
 export type TarkovLogRaid = {
@@ -135,6 +105,37 @@ export type TarkovLogQuestEvent = {
   kind: TarkovLogQuestKind;
   at: string;
   taskId: string;
+  /** 带时间戳的通知首行，供同步结果表展示。 */
+  line?: string;
+  /** 该事件时刻 application.log 里的 Session mode；空则回放时丢弃。 */
+  sessionMode?: string;
+  profileId?: string;
+};
+
+export type TarkovLogQuestDropReason =
+  | "json_bad"
+  | "no_session_mode"
+  | "unknown_mode"
+  | "seasonal"
+  | "profile";
+
+export type TarkovLogQuestDrop = {
+  at: string;
+  reason: TarkovLogQuestDropReason;
+  line?: string;
+  sessionMode?: string;
+  profileId?: string;
+};
+
+export type TarkovLogSessionKind = "pvp" | "pve" | "seasonal" | "unknown";
+
+export type TarkovLogIdentity = {
+  at: string;
+  sessionMode: string;
+  profileId: string;
+  accountId: string;
+  version: string;
+  folder?: string;
 };
 
 export type TarkovLogParseResult = {
@@ -142,11 +143,13 @@ export type TarkovLogParseResult = {
   raids: TarkovLogRaid[];
   sessionMode?: string;
   quests?: TarkovLogQuestEvent[];
+  drops?: TarkovLogQuestDrop[];
 };
 
 export type TarkovLogSessionStub = {
   folder: string;
   startedAt: string | null;
+  identities?: TarkovLogIdentity[];
 };
 
 export type TarkovLogRootKind = "logs" | "install" | "session" | "unknown";
@@ -201,6 +204,9 @@ export function logMapHref(mapId: string): string {
 
 const APPLICATION_LOG_RE = /(?:^|[\\/ ])application(?:_\d+)?\.log$/i;
 const NOTIFICATIONS_LOG_RE = /(?:^|[\\/ ])(?:push-)?notifications(?:_\d+)?\.log$/i;
+const OUTPUT_LOG_RE = /(?:^|[\\/ ])output(?:_\d+)?\.log$/i;
+const LOG_VERSION_RE = /\|(\d+\.\d+\.\d+\.\d+)(?:\.\d+)?\|/;
+const GAME_STOPPING_MARKER = "EFT.NetworkGame`1:GameStopping()";
 
 export function isApplicationLogFileName(name: string): boolean {
   return APPLICATION_LOG_RE.test((name || "").trim());
@@ -210,8 +216,38 @@ export function isNotificationsLogFileName(name: string): boolean {
   return NOTIFICATIONS_LOG_RE.test((name || "").trim());
 }
 
+export function isOutputLogFileName(name: string): boolean {
+  return OUTPUT_LOG_RE.test((name || "").trim());
+}
+
 export function isReadableTarkovLogFileName(name: string): boolean {
-  return isApplicationLogFileName(name) || isNotificationsLogFileName(name);
+  return (
+    isApplicationLogFileName(name) ||
+    isNotificationsLogFileName(name) ||
+    isOutputLogFileName(name)
+  );
+}
+
+export function classifyLogSessionMode(
+  raw: string | undefined,
+): TarkovLogSessionKind | "" {
+  const key = (raw || "").trim().toLowerCase();
+  if (!key) return "";
+  if (key === "pve") return "pve";
+  if (key === "pvp" || key === "regular") return "pvp";
+  if (
+    key === "seasonal" ||
+    key === "pvp-season" ||
+    key === "pvpseason" ||
+    key === "szn"
+  ) {
+    return "seasonal";
+  }
+  return "unknown";
+}
+
+export function versionFromLogLine(line: string, fallback = ""): string {
+  return LOG_VERSION_RE.exec(line)?.[1] || fallback;
 }
 
 export function isSessionFolderName(name: string): boolean {
@@ -623,6 +659,14 @@ export function sessionModeLabel(mode: string): string {
   const key = (mode || "").trim().toLowerCase();
   if (key === "pve") return "PvE";
   if (key === "regular" || key === "pvp") return "正式";
+  if (
+    key === "seasonal" ||
+    key === "pvp-season" ||
+    key === "pvpseason" ||
+    key === "szn"
+  ) {
+    return "赛季";
+  }
   return mode.trim();
 }
 
@@ -648,7 +692,7 @@ export function logEventLabel(kind: string): string {
 }
 
 export function isRaidFacingEvent(event: TarkovLogEvent): boolean {
-  return event.kind !== "session_mode";
+  return event.kind !== "session_mode" && event.kind !== "profile";
 }
 
 function attachMap(
@@ -708,7 +752,7 @@ export function buildRaidsFromEvents(
   };
 
   for (const event of events) {
-    if (event.kind === "session_mode") continue;
+    if (event.kind === "session_mode" || event.kind === "profile") continue;
     if (event.kind === "match_found") {
       awaitNewMatch = false;
       if (
@@ -894,16 +938,139 @@ function parseChatQuest(
   text: string,
   lineStart: number,
   at: string,
-): TarkovLogQuestEvent | null {
+  line: string,
+): { quest: TarkovLogQuestEvent | null; drop: TarkovLogQuestDrop | null } {
   const until = nextLogLineIndex(text, lineStart + 1);
   const block = text.slice(lineStart, until);
   const jsonText = extractJsonObject(block, 0, 512_000);
-  if (!jsonText) return null;
-  try {
-    return questEventFromMessage(JSON.parse(jsonText), at);
-  } catch {
-    return null;
+  if (!jsonText) {
+    return {
+      quest: null,
+      drop: { at, reason: "json_bad", line: line.trim() || undefined },
+    };
   }
+  try {
+    return { quest: questEventFromMessage(JSON.parse(jsonText), at), drop: null };
+  } catch {
+    return {
+      quest: null,
+      drop: { at, reason: "json_bad", line: line.trim() || undefined },
+    };
+  }
+}
+
+type LogSessionIdentity = {
+  at: string;
+  sessionMode: string;
+  profileId: string;
+  accountId: string;
+  version: string;
+};
+
+function logSessionIdentityTimeline(
+  events: readonly TarkovLogEvent[],
+): LogSessionIdentity[] {
+  const timeline: LogSessionIdentity[] = [];
+  let sessionMode = "";
+  let profileId = "";
+  let accountId = "";
+  let version = "";
+  for (const event of events) {
+    if (event.kind === "session_mode") {
+      sessionMode = (event.sessionMode || "").trim();
+      profileId = "";
+      accountId = "";
+      if (event.version) version = event.version;
+      timeline.push({
+        at: event.at || "",
+        sessionMode,
+        profileId,
+        accountId,
+        version,
+      });
+      continue;
+    }
+    if (event.kind === "profile") {
+      profileId = (event.profileId || "").trim();
+      accountId = (event.accountId || "").trim();
+      if (event.version) version = event.version;
+      timeline.push({
+        at: event.at || "",
+        sessionMode,
+        profileId,
+        accountId,
+        version,
+      });
+    }
+  }
+  return timeline;
+}
+
+export function identitiesFromEvents(
+  events: readonly TarkovLogEvent[],
+  folder = "",
+): TarkovLogIdentity[] {
+  const out: TarkovLogIdentity[] = [];
+  for (const row of logSessionIdentityTimeline(events)) {
+    if (!row.profileId) continue;
+    const kind = classifyLogSessionMode(row.sessionMode);
+    if (!kind || kind === "unknown") continue;
+    out.push({
+      at: row.at,
+      sessionMode: row.sessionMode,
+      profileId: row.profileId,
+      accountId: row.accountId,
+      version: row.version,
+      folder,
+    });
+  }
+  return out;
+}
+
+export function identitiesFromParsed(
+  parsed: Pick<TarkovLogParseResult, "events"> | null | undefined,
+  folder = "",
+): TarkovLogIdentity[] {
+  return identitiesFromEvents(parsed?.events || [], folder);
+}
+
+function identityAt(
+  timeline: readonly LogSessionIdentity[],
+  at: string,
+): LogSessionIdentity | undefined {
+  const clock = at || "";
+  let found: LogSessionIdentity | undefined;
+  for (const row of timeline) {
+    if ((row.at || "") <= clock) found = row;
+  }
+  return found;
+}
+
+function stampQuestsWithSession(
+  quests: readonly TarkovLogQuestEvent[],
+  events: readonly TarkovLogEvent[],
+): TarkovLogQuestEvent[] {
+  const timeline = logSessionIdentityTimeline(events);
+  if (!timeline.length) return [...quests];
+  return quests.map((quest) => {
+    const ident = identityAt(timeline, quest.at || "");
+    if (!ident) return quest;
+    return {
+      ...quest,
+      sessionMode: ident.sessionMode || undefined,
+      profileId: ident.profileId || undefined,
+    };
+  });
+}
+
+function lastSessionModeFromEvents(events: readonly TarkovLogEvent[]): string {
+  let sessionMode = "";
+  for (const event of events) {
+    if (event.kind === "session_mode" && event.sessionMode) {
+      sessionMode = event.sessionMode;
+    }
+  }
+  return sessionMode;
 }
 
 function nextLogLineIndex(text: string, from: number): number {
@@ -954,7 +1121,9 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
   const source = (text || "").replace(/\r\n/g, "\n");
   const events: TarkovLogEvent[] = [];
   const quests: TarkovLogQuestEvent[] = [];
+  const drops: TarkovLogQuestDrop[] = [];
   let sessionMode = "";
+  let version = "";
   const lines = source.split("\n");
   let offset = 0;
 
@@ -963,14 +1132,38 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
     offset += line.length + 1;
     const tsMatch = TS_RE.exec(line);
     const at = tsMatch?.[1] || events[events.length - 1]?.at || quests[quests.length - 1]?.at || "";
+    version = versionFromLogLine(line, version);
+    if (line.includes(GAME_STOPPING_MARKER)) {
+      events.push({ kind: "raid_exited", at });
+      continue;
+    }
     if (SESSION_MODE_RE.test(line)) {
       sessionMode = (SESSION_MODE_RE.exec(line)?.[1] || "").trim();
-      events.push({ kind: "session_mode", at, sessionMode });
+      events.push({ kind: "session_mode", at, sessionMode, version: version || undefined });
+      continue;
+    }
+    const profileMatch = SELECT_PROFILE_RE.exec(line);
+    if (profileMatch) {
+      events.push({
+        kind: "profile",
+        at,
+        profileId: profileMatch[1],
+        accountId: profileMatch[2],
+        version: version || undefined,
+      });
+      if (line.includes("PrepareSelectedProfileLocally")) {
+        events.push({ kind: "raid_exited", at });
+      }
       continue;
     }
     if (line.includes("Got notification | ChatMessageReceived")) {
-      const quest = parseChatQuest(source, lineStart, at);
-      if (quest) quests.push(quest);
+      const parsed = parseChatQuest(source, lineStart, at, line);
+      if (parsed.quest) {
+        const stamped = line.trim();
+        quests.push(stamped ? { ...parsed.quest, line: stamped } : parsed.quest);
+      } else if (parsed.drop) {
+        drops.push(parsed.drop);
+      }
       continue;
     }
     if (line.includes("Got notification | UserMatchOver")) {
@@ -1016,10 +1209,6 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
       events.push({ kind: "raid_started", at });
       continue;
     }
-    if (line.includes("PrepareSelectedProfileLocally")) {
-      events.push({ kind: "raid_exited", at });
-      continue;
-    }
     if (
       line.includes("Network game matching aborted") ||
       line.includes("Network game matching cancelled")
@@ -1028,12 +1217,25 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
     }
   }
 
+  const stamped = stampQuestsWithSession(quests, events);
   return {
     events,
     raids: buildRaidsFromEvents(events),
-    sessionMode: sessionMode || undefined,
-    quests,
+    sessionMode: lastSessionModeFromEvents(events) || sessionMode || undefined,
+    quests: stamped,
+    drops,
   };
+}
+
+function parseOutputLogStopping(text: string): TarkovLogEvent[] {
+  const source = (text || "").replace(/\r\n/g, "\n");
+  const events: TarkovLogEvent[] = [];
+  for (const line of source.split("\n")) {
+    if (!line.includes(GAME_STOPPING_MARKER)) continue;
+    const at = TS_RE.exec(line)?.[1] || events[events.length - 1]?.at || "";
+    events.push({ kind: "raid_exited", at });
+  }
+  return events;
 }
 
 export function parseTarkovLogBundle(
@@ -1041,15 +1243,19 @@ export function parseTarkovLogBundle(
 ): TarkovLogParseResult {
   const events: TarkovLogEvent[] = [];
   const quests: TarkovLogQuestEvent[] = [];
-  let sessionMode = "";
+  const drops: TarkovLogQuestDrop[] = [];
   const ordered = [...parts].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { numeric: true }),
   );
   for (const part of ordered) {
+    if (isOutputLogFileName(part.name)) {
+      events.push(...parseOutputLogStopping(part.text));
+      continue;
+    }
     const parsed = parseTarkovLogText(part.text);
-    if (parsed.sessionMode) sessionMode = parsed.sessionMode;
     events.push(...parsed.events);
     quests.push(...(parsed.quests ?? []));
+    drops.push(...(parsed.drops ?? []));
   }
   events.sort((a, b) => {
     const cmp = (a.at || "").localeCompare(b.at || "");
@@ -1057,11 +1263,13 @@ export function parseTarkovLogBundle(
     return eventOrder(a.kind) - eventOrder(b.kind);
   });
   quests.sort((a, b) => (a.at || "").localeCompare(b.at || ""));
+  const stamped = stampQuestsWithSession(quests, events);
   return {
     events,
     raids: buildRaidsFromEvents(events),
-    sessionMode: sessionMode || undefined,
-    quests,
+    sessionMode: lastSessionModeFromEvents(events) || undefined,
+    quests: stamped,
+    drops,
   };
 }
 
@@ -1069,20 +1277,22 @@ function eventOrder(kind: TarkovLogEventKind): number {
   switch (kind) {
     case "session_mode":
       return 0;
-    case "map_loading":
+    case "profile":
       return 1;
-    case "matching":
+    case "map_loading":
       return 2;
-    case "match_found":
+    case "matching":
       return 3;
-    case "raid_starting":
+    case "match_found":
       return 4;
-    case "raid_started":
+    case "raid_starting":
       return 5;
-    case "matching_aborted":
+    case "raid_started":
       return 6;
-    case "raid_exited":
+    case "matching_aborted":
       return 7;
+    case "raid_exited":
+      return 8;
     default:
       return 8;
   }
@@ -1140,22 +1350,27 @@ export function raidLogEndedKey(row: {
 export function toRaidLogImportRows(
   sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
 ): TarkovRaidLogImportRow[] {
-  const modeByFolder = new Map(
-    sessions.map((session) => [session.folder, session.parsed.sessionMode || ""]),
+  const parsedByFolder = new Map(
+    sessions.map((session) => [session.folder, session.parsed]),
   );
-  return historyRaidsFromSessions(sessions).map((raid) => ({
-    folder: raid.folder,
-    raid_id: raid.raidId || "",
-    location: raid.location || "",
-    map_id: raid.mapId || "",
-    map_label: raid.mapLabel || "",
-    raid_mode: raid.raidMode,
-    session_mode: modeByFolder.get(raid.folder) || "",
-    started_at: raid.startedAt || "",
-    ended_at: raid.endedAt || "",
-    reconnected: Boolean(raid.reconnected),
-    aborted: Boolean(raid.aborted),
-  }));
+  return historyRaidsFromSessions(sessions).map((raid) => {
+    const parsed = parsedByFolder.get(raid.folder);
+    const timeline = parsed ? logSessionIdentityTimeline(parsed.events || []) : [];
+    const ident = identityAt(timeline, raid.startedAt || raid.endedAt || "");
+    return {
+      folder: raid.folder,
+      raid_id: raid.raidId || "",
+      location: raid.location || "",
+      map_id: raid.mapId || "",
+      map_label: raid.mapLabel || "",
+      raid_mode: raid.raidMode,
+      session_mode: ident?.sessionMode || parsed?.sessionMode || "",
+      started_at: raid.startedAt || "",
+      ended_at: raid.endedAt || "",
+      reconnected: Boolean(raid.reconnected),
+      aborted: Boolean(raid.aborted),
+    };
+  });
 }
 
 export function formatLogClock(raw: string): string {
@@ -1178,6 +1393,7 @@ export type TarkovLogPhasePayload = {
   mapLabel: string;
   raidId: string;
   at: string;
+  raidMode?: TarkovLogRaidMode;
 };
 
 function lastRaidFacingEvent(
@@ -1228,6 +1444,7 @@ export function logPhaseFromParsed(
       mapLabel: raid.mapLabel || "",
       raidId: raid.raidId || "",
       at: raid.endedAt || raid.startedAt || lastRaidFacingEvent(parsed)?.at || "",
+      raidMode: raid.raidMode,
     };
   }
   const event = lastRaidFacingEvent(parsed);
@@ -1238,18 +1455,16 @@ export function logPhaseFromParsed(
     mapLabel: event.mapLabel || "",
     raidId: event.raidId || "",
     at: event.at || "",
+    raidMode: event.raidMode,
   };
 }
 
-/** 最近一场或最近一条带地图的事件。 */
+/** 当前有意义战局的地图；空图不回落到上一场，方便离线手选。 */
 export function latestLogMapId(
   parsed: TarkovLogParseResult | null | undefined,
 ): string {
-  const raids = parsed?.raids || [];
-  for (let i = raids.length - 1; i >= 0; i -= 1) {
-    const id = (raids[i]?.mapId || "").trim();
-    if (id) return id;
-  }
+  const raid = latestMeaningfulRaid(parsed?.raids || []);
+  if (raid) return (raid.mapId || "").trim();
   const events = parsed?.events || [];
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const id = (events[i]?.mapId || "").trim();
@@ -1284,9 +1499,4 @@ export function formatLatestLogPreview(
   }
   if (!stub) return "";
   return stub.startedAt || stub.folder;
-}
-
-export function scanLimitLabel(limit: TarkovGameLogScanLimit): string {
-  if (limit === 0) return "全部";
-  return `最近 ${limit}`;
 }

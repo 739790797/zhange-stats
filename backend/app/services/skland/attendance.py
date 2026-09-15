@@ -214,13 +214,6 @@ def _endfield_awards(
     return endfield_awards_from_sign_resp(resp)
 
 
-# 兼容旧名
-def _awards_from_calendar_get(
-    resp: dict[str, Any], *, day, with_icons: bool = False
-) -> tuple[str | None, list[dict[str, Any]]]:
-    return _awards_from_claim_records(resp, day=day, with_icons=with_icons)
-
-
 def friendly_error_message(msg: str) -> str:
     text = (msg or "").strip() or "未知错误"
     low = text.lower()

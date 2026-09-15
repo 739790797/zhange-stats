@@ -48,6 +48,24 @@ def test_add_remove_and_reject_blank() -> None:
             dones.add_done(db, user, "  ")
 
 
+def test_remove_done_clears_started_and_failed() -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    dones.merge_starteds(db, user, ["live"], game_mode="pvp")
+    dones.merge_faileds(db, user, ["dead"], game_mode="pvp")
+    dones.add_done(db, user, "done", game_mode="pvp")
+    _, dropped_live = dones.remove_done(db, user, "live", game_mode="pvp")
+    _, dropped_dead = dones.remove_done(db, user, "dead", game_mode="pvp")
+    _, dropped_done = dones.remove_done(db, user, "done", game_mode="pvp")
+    assert dropped_live is True
+    assert dropped_dead is True
+    assert dropped_done is True
+    done, started, failed = dones.list_progress(db, user.id, game_mode="pvp")
+    assert done == []
+    assert started == []
+    assert failed == []
+
+
 def test_modes_are_isolated() -> None:
     db = _session()
     user = _user(db, "a", "甲")
@@ -294,6 +312,40 @@ def test_completing_task_fills_catalog_objectives(monkeypatch: pytest.MonkeyPatc
     }
     assert ("keep", "step") in later
     assert ("quest-2", "manual") in later
+
+
+def test_write_progress_fill_only_new_done_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    calls: list[list[str]] = []
+
+    def fake_catalog(_db, task_ids):
+        idents = [ident for ident in task_ids if ident]
+        calls.append(idents)
+        return {ident: [f"{ident}-x"] for ident in idents}
+
+    monkeypatch.setattr(
+        "app.services.tarkov.tasks.catalog_objective_ids",
+        fake_catalog,
+    )
+    dones.add_done(db, user, "quest-1", game_mode="pvp")
+    assert calls == [["quest-1"]]
+    dones.write_progress(
+        db,
+        user,
+        ["quest-1", "quest-2"],
+        None,
+        replace=False,
+        game_mode="pvp",
+        objective_dones=None,
+    )
+    assert calls == [["quest-1"], ["quest-2"]]
+    pairs = {
+        (row["task_id"], row["objective_id"])
+        for row in dones.list_objective_dones(db, user.id, game_mode="pvp")
+    }
+    assert ("quest-1", "quest-1-x") in pairs
+    assert ("quest-2", "quest-2-x") in pairs
 
 
 def test_write_progress_omitting_objectives_keeps_rows() -> None:

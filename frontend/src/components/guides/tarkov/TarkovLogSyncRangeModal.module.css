@@ -52,6 +52,24 @@
   line-height: 1.5;
 }
 
+.breakLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--hb-text, #eee9d6);
+  font-size: 13px;
+}
+
+.breakSelect {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--hb-border, #3a3d30);
+  background: #1a1c14;
+  color: var(--hb-text, #eee9d6);
+  font: inherit;
+  font-size: 13px;
+}
+
 .warn {
   margin: 0;
   color: var(--hb-orange, #c8932a);

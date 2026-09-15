@@ -477,9 +477,6 @@ def sync_ocr_models(
         _SYNC_LOCK.release()
 
 
-sync_key_ocr_models = sync_ocr_models
-
-
 def _write_job_run(
     run_id: int,
     *,

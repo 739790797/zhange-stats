@@ -72,6 +72,32 @@ def test_btr_mutex_symmetrized_and_price_blocked_by_other_battery():
     assert index["stick"]["prereq_ids"] == []
 
 
+def test_fail_prereq_ids_are_availability_only():
+    payload = {
+        "a": _task("a", "甲"),
+        "b": {
+            **_task("b", "乙"),
+            "taskRequirements": [{"task": "a", "status": ["failed"]}],
+        },
+        "c": {
+            **_task("c", "丙"),
+            "taskRequirements": [
+                {"task": "a", "status": ["failed", "complete"]},
+            ],
+        },
+        "d": _task("d", "丁", prereqs=["a"]),
+    }
+    index = index_task_lines(payload, {})
+    assert index["b"]["prereq_ids"] == []
+    assert index["b"]["fail_prereq_ids"] == ["a"]
+    assert index["b"]["fail_or_complete_ids"] == []
+    assert index["c"]["prereq_ids"] == []
+    assert index["c"]["fail_prereq_ids"] == []
+    assert index["c"]["fail_or_complete_ids"] == ["a"]
+    assert index["d"]["prereq_ids"] == ["a"]
+    assert index["d"]["fail_prereq_ids"] == []
+
+
 def test_prereq_ids_ignore_active_only_requirements():
     payload = {
         "start": _task("start", "开始"),

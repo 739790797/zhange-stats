@@ -378,12 +378,6 @@ def generate_ds_x4(*, query: str = "", body: str = "") -> str:
     return f"{ts},{rnd},{chk}"
 
 
-def generate_ds_discuss(gid: str) -> str:
-    """兼容旧调用：POST 讨论区签到 body。"""
-    body = json.dumps({"gids": gid}, separators=(",", ":"), ensure_ascii=False)
-    return generate_ds_x6(body=body)
-
-
 def parse_cookie_string(raw: str) -> dict[str, str]:
     text = (raw or "").strip()
     if not text:

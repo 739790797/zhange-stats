@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.checkin import CheckinAwardItem, CheckinLogOut, CheckinResultItem, CheckinResponse
+from app.schemas.checkin import CheckinAwardItem, CheckinResultItem, CheckinResponse
 
 
 class MihoyoBindSmsSendRequest(BaseModel):
@@ -63,7 +63,6 @@ class MihoyoRoleOut(BaseModel):
     channel_name: str
 
 
-MihoyoCheckinLogOut = CheckinLogOut
 MihoyoCheckinResultItem = CheckinResultItem
 MihoyoCheckinResponse = CheckinResponse
 
@@ -79,7 +78,6 @@ class MihoyoStatusOut(BaseModel):
     token_error: str | None = None
     roles: list[MihoyoRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
-    today_logs: list[CheckinLogOut] = Field(default_factory=list)
 
 
 class MihoyoBindPasswordResponse(BaseModel):

@@ -142,8 +142,6 @@ class UserCheckinTaskOut(BaseModel):
     channel_name: str | None = None
     last_checkin_at: str | None = None
     last_checkin_date: str | None = None
-    last_checkin_ok: bool | None = None
-    last_checkin_summary: str | None = None
     # 今日签到状态（查询缓存或执行结果，与「是否执行」独立）
     today_status: str | None = None
     today_status_label: str | None = None

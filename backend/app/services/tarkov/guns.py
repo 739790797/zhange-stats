@@ -444,12 +444,3 @@ def ensure_guns(db: Session) -> list[TarkovGun]:
     except items_svc.TarkovItemsError as exc:
         raise TarkovGunError(str(exc)) from exc
     return list_guns(db)
-
-
-def sync_from_upstream(db: Session) -> dict[str, Any]:
-    from app.services.tarkov import items as items_svc
-
-    try:
-        return items_svc.sync_from_upstream(db)
-    except items_svc.TarkovItemsError as exc:
-        raise TarkovGunError(str(exc)) from exc

@@ -11,7 +11,6 @@ import {
   orderObjectiveTypes,
   tarkovExitStatusLabel,
   tarkovObjectiveTypeLabel,
-  TARKOV_OBJECTIVE_TYPE_CANON,
 } from "@/lib/tarkovTaskObjective";
 
 /** 与后端 MAP_SLUG_EQUIV_GROUPS 对齐。 */
@@ -66,10 +65,6 @@ export const RAID_PREP_STATUS_SELECT_OPTIONS: readonly {
 
 /** 原文写明「任意」且候选不少于这么多种时，收成一条，文案用目标描述。 */
 export const RAID_PREP_ANY_OF_MIN = 4;
-
-/** 准备总结：物品 / 任务物成对合成一列。 */
-export const RAID_PREP_SUMMARY_TYPE_MERGE: Readonly<Record<string, string>> =
-  TARKOV_OBJECTIVE_TYPE_CANON;
 
 /** 要带进战局的目标列（跟「所需钥匙」一组，排在找到/上交前面）。 */
 export const RAID_PREP_SUMMARY_BRING_TYPES = [
@@ -4134,9 +4129,6 @@ export function raidPrepVirtualWindow(opts: {
     padBottom: Math.max(0, (count - end) * rowHeight),
   };
 }
-
-export const RAID_PREP_REST_VIRTUAL_MIN = 24;
-export const RAID_PREP_REST_ROW_PX = 40;
 
 export function missingRaidPrepGeometryIds(
   cached: Readonly<Record<string, { id?: string }>> | null | undefined,

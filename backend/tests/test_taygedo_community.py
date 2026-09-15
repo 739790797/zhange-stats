@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # 先加载 client，避免 attendance↔client 循环导入
 import app.services.taygedo.client  # noqa: F401
 from app.services.taygedo.attendance import (
@@ -12,6 +14,7 @@ from app.services.taygedo.attendance import (
     _parse_shop_goods,
     _tasks_extra_text,
     checkin_target,
+    ensure_session,
     exchange_shop_goods,
     list_checkin_targets,
     list_recommend_posts,
@@ -25,6 +28,7 @@ from app.services.taygedo.client import (
     GAME_NTE,
     GAME_NTE_NAME,
     TAYGEDO_APP_VER,
+    TaygedoApiError,
     TaygedoCredentials,
     TaygedoRole,
 )
@@ -499,3 +503,109 @@ def test_exchange_shop_goods_uses_app_headers_and_count() -> None:
     assert "gameId=1289" in captured["body"]
     assert "roleId=219000995082" in captured["body"]
     assert "count=1" in captured["body"]
+
+
+def test_ensure_session_refreshes_on_auth_failure() -> None:
+    fresh = TaygedoCredentials(
+        uid="u100",
+        device_id="dev",
+        access_token="fresh",
+        refresh_token="new-r",
+    )
+    with (
+        patch(
+            "app.services.taygedo.attendance._get_app_sign_state",
+            side_effect=[TaygedoApiError("过期", code=401), True],
+        ),
+        patch(
+            "app.services.taygedo.attendance.refresh_access_token",
+            return_value=fresh,
+        ) as refresh,
+        patch(
+            "app.services.taygedo.attendance.relogin_with_laohu",
+            return_value=None,
+        ) as relogin,
+    ):
+        out = ensure_session(_creds())
+    refresh.assert_called_once()
+    relogin.assert_not_called()
+    assert out.access_token == "fresh"
+
+
+def test_ensure_session_falls_back_to_laohu_after_refresh_fails() -> None:
+    recovered = TaygedoCredentials(
+        uid="u100",
+        device_id="dev",
+        access_token="via-laohu",
+        refresh_token="r2",
+        phone="13800000000",
+        laohu_token="ltok",
+        laohu_user_id="42",
+    )
+    with (
+        patch(
+            "app.services.taygedo.attendance._get_app_sign_state",
+            side_effect=[TaygedoApiError("过期", code=401), True],
+        ),
+        patch(
+            "app.services.taygedo.attendance.refresh_access_token",
+            side_effect=TaygedoApiError("refreshToken 已失效", code=402),
+        ),
+        patch(
+            "app.services.taygedo.attendance.relogin_with_laohu",
+            return_value=recovered,
+        ) as relogin,
+    ):
+        out = ensure_session(
+            TaygedoCredentials(
+                uid="u100",
+                device_id="dev",
+                access_token="atok",
+                refresh_token="rtok",
+                laohu_token="ltok",
+                laohu_user_id="42",
+            )
+        )
+    relogin.assert_called_once()
+    assert out.access_token == "via-laohu"
+
+
+def test_ensure_session_raises_when_refresh_and_laohu_fail() -> None:
+    with (
+        patch(
+            "app.services.taygedo.attendance._get_app_sign_state",
+            side_effect=TaygedoApiError("过期", code=401),
+        ),
+        patch(
+            "app.services.taygedo.attendance.refresh_access_token",
+            side_effect=TaygedoApiError("refreshToken 已失效", code=402),
+        ),
+        patch(
+            "app.services.taygedo.attendance.relogin_with_laohu",
+            return_value=None,
+        ),
+    ):
+        with pytest.raises(TaygedoApiError, match="refreshToken"):
+            ensure_session(_creds())
+
+
+def test_adapter_load_session_persists_rotated_tokens() -> None:
+    from app.services.taygedo.checkin import TaygedoCheckinAdapter
+
+    bind = MagicMock()
+    old = _creds()
+    fresh = TaygedoCredentials(
+        uid="u100",
+        device_id="dev",
+        access_token="fresh",
+        refresh_token="new-r",
+    )
+    db = MagicMock()
+    with (
+        patch("app.services.taygedo.checkin._load_creds", return_value=old),
+        patch("app.services.taygedo.attendance.ensure_session", return_value=fresh),
+        patch("app.services.taygedo.checkin._save_creds") as save,
+    ):
+        out = TaygedoCheckinAdapter().load_session(db, bind)
+    save.assert_called_once_with(bind, fresh)
+    assert out.access_token == "fresh"

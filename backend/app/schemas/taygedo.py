@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas.checkin import CheckinAwardItem, CheckinLogOut, CheckinResultItem, CheckinResponse
+from app.schemas.checkin import CheckinAwardItem, CheckinResultItem, CheckinResponse
 
 
 class TaygedoBindPasswordRequest(BaseModel):
@@ -44,7 +44,6 @@ class TaygedoRoleOut(BaseModel):
     channel_name: str
 
 
-TaygedoCheckinLogOut = CheckinLogOut
 TaygedoCheckinResultItem = CheckinResultItem
 TaygedoCheckinResponse = CheckinResponse
 
@@ -60,7 +59,6 @@ class TaygedoStatusOut(BaseModel):
     token_error: str | None = None
     roles: list[TaygedoRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
-    today_logs: list[CheckinLogOut] = Field(default_factory=list)
 
 
 class TaygedoAttendanceDayOut(BaseModel):

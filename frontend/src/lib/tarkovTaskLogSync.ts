@@ -3,10 +3,23 @@
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
 import type {
   TarkovLogParseResult,
+  TarkovLogQuestDrop,
   TarkovLogQuestEvent,
   TarkovLogQuestKind,
 } from "@/lib/tarkovGameLogs";
+import { classifyLogSessionMode } from "@/lib/tarkovGameLogs";
 import { compareBeijingClock, formatBeijing, laterBeijingClock } from "@/lib/time";
+import { applyMutexLedger } from "@/lib/tarkovTaskMutex";
+import {
+  dropBlockedProgress,
+  taskLineIndexFromTasks,
+} from "@/lib/tarkovTaskLineLedger";
+import { displayTaskProgressName } from "@/lib/tarkovTaskName";
+import {
+  resolveTaskStatus,
+  TASK_STATUS_LABELS,
+  type TaskStatusKind,
+} from "@/lib/tarkovTaskTree";
 
 export type QuestLogState = TarkovLogQuestKind;
 
@@ -22,6 +35,7 @@ export type QuestLogCatalog = {
   restartableIds: ReadonlySet<string>;
   mutexById: ReadonlyMap<string, readonly string[]>;
   prereqById: ReadonlyMap<string, readonly string[]>;
+  blockedById: ReadonlyMap<string, readonly string[]>;
 };
 
 export function emptyQuestLogCatalog(): QuestLogCatalog {
@@ -29,6 +43,7 @@ export function emptyQuestLogCatalog(): QuestLogCatalog {
     restartableIds: new Set(),
     mutexById: new Map(),
     prereqById: new Map(),
+    blockedById: new Map(),
   };
 }
 
@@ -38,56 +53,130 @@ export function buildQuestLogCatalog(
     restartable?: boolean | null;
     mutex_ids?: readonly string[] | null;
     prereq_ids?: readonly string[] | null;
+    blocked_by?: readonly string[] | null;
   }>,
 ): QuestLogCatalog {
   const knownIds = new Set<string>();
   const restartableIds = new Set<string>();
-  const mutexById = new Map<string, string[]>();
-  const prereqById = new Map<string, string[]>();
+  const line = taskLineIndexFromTasks(items);
   for (const item of items) {
     const id = normalizeQuestId(String(item.id || ""));
     if (!id) continue;
     knownIds.add(id);
     if (item.restartable) restartableIds.add(id);
-    const mutex = [
-      ...new Set(
-        (item.mutex_ids || []).map((raw) => normalizeQuestId(String(raw || ""))),
-      ),
-    ].filter(Boolean);
-    if (mutex.length) mutexById.set(id, mutex);
-    const prereqs = [
-      ...new Set(
-        (item.prereq_ids || []).map((raw) => normalizeQuestId(String(raw || ""))),
-      ),
-    ].filter(Boolean);
-    if (prereqs.length) prereqById.set(id, prereqs);
   }
-  return { knownIds, restartableIds, mutexById, prereqById };
+  return {
+    knownIds,
+    restartableIds,
+    mutexById: line.mutexById,
+    prereqById: line.prereqById,
+    blockedById: line.blockedById,
+  };
 }
 
 export function sessionModeMatchesGameMode(
   sessionMode: string | undefined,
   gameMode: TarkovGameMode,
 ): boolean {
-  const key = (sessionMode || "").trim().toLowerCase();
-  if (!key) return true;
-  if (key === "pve") return gameMode === "pve";
-  if (
-    key === "pvp" ||
-    key === "regular" ||
-    key === "seasonal" ||
-    key === "pvp-season" ||
-    key === "pvpseason"
-  ) {
-    return gameMode === "pvp";
+  const kind = classifyLogSessionMode(sessionMode);
+  if (kind === "pve") return gameMode === "pve";
+  if (kind === "pvp") return gameMode === "pvp";
+  return false;
+}
+
+export type QuestReplayFilter = {
+  gameMode: TarkovGameMode;
+  profileId?: string;
+  fromAt?: string;
+};
+
+export function questReplayDropReason(
+  quest: TarkovLogQuestEvent,
+  parsed: Pick<TarkovLogParseResult, "sessionMode">,
+  filter: QuestReplayFilter,
+): TarkovLogQuestDrop["reason"] | null {
+  const mode = quest.sessionMode || parsed.sessionMode;
+  const kind = classifyLogSessionMode(mode);
+  if (!kind) return "no_session_mode";
+  if (kind === "unknown") return "unknown_mode";
+  if (kind === "seasonal") return "seasonal";
+  if (!sessionModeMatchesGameMode(mode, filter.gameMode)) return null;
+  const wantProfile = (filter.profileId || "").trim();
+  if (wantProfile && (quest.profileId || "").trim() !== wantProfile) {
+    return "profile";
   }
-  return true;
+  return null;
+}
+
+export function questsMatchingReplay(
+  parsed: Pick<TarkovLogParseResult, "sessionMode" | "quests">,
+  filter: QuestReplayFilter,
+): TarkovLogQuestEvent[] {
+  const fromAt = (filter.fromAt || "").trim();
+  const out: TarkovLogQuestEvent[] = [];
+  for (const quest of parsed.quests || []) {
+    if (fromAt && (quest.at || "") < fromAt) continue;
+    if (questReplayDropReason(quest, parsed, filter)) continue;
+    const mode = quest.sessionMode || parsed.sessionMode;
+    if (!sessionModeMatchesGameMode(mode, filter.gameMode)) continue;
+    out.push(quest);
+  }
+  return out;
+}
+
+export function collectQuestReplayDrops(
+  parsed: Pick<TarkovLogParseResult, "sessionMode" | "quests" | "drops">,
+  filter: QuestReplayFilter,
+): TarkovLogQuestDrop[] {
+  const fromAt = (filter.fromAt || "").trim();
+  const out: TarkovLogQuestDrop[] = [];
+  for (const drop of parsed.drops || []) {
+    if (fromAt && (drop.at || "") < fromAt) continue;
+    out.push(drop);
+  }
+  for (const quest of parsed.quests || []) {
+    if (fromAt && (quest.at || "") < fromAt) continue;
+    const reason = questReplayDropReason(quest, parsed, filter);
+    if (!reason) continue;
+    out.push({
+      at: quest.at || "",
+      reason,
+      line: quest.line,
+      sessionMode: quest.sessionMode || parsed.sessionMode,
+      profileId: quest.profileId,
+    });
+  }
+  return out;
+}
+
+const DROP_REASON_LABEL: Record<TarkovLogQuestDrop["reason"], string> = {
+  json_bad: "JSON 坏块",
+  no_session_mode: "无 Session mode",
+  unknown_mode: "未知模式",
+  seasonal: "赛季",
+  profile: "其他角色",
+};
+
+export function formatQuestLogDropHint(
+  drops: readonly TarkovLogQuestDrop[],
+): string {
+  if (!drops.length) return "";
+  const counts = new Map<TarkovLogQuestDrop["reason"], number>();
+  for (const drop of drops) {
+    counts.set(drop.reason, (counts.get(drop.reason) || 0) + 1);
+  }
+  const bits = [...counts.entries()]
+    .filter(([, n]) => n > 0)
+    .map(([reason, n]) => `${DROP_REASON_LABEL[reason]} ${n}`);
+  return `丢弃 ${drops.length} 条：${bits.join("，")}`;
 }
 
 export type FoldedQuestEntry = {
   kind: QuestLogState;
   at: string;
   everCompleted: boolean;
+  /** 最后一次 completed 事件时间；互斥组里后完成的留下。 */
+  completedAt?: string;
 };
 
 function asIdSet(ids: Iterable<string>): Set<string> {
@@ -133,6 +222,17 @@ function isRestartable(id: string, catalog?: QuestLogCatalog): boolean {
   return Boolean(catalog?.restartableIds.has(id));
 }
 
+function shouldHonorClearedDone(
+  id: string,
+  logAt: string,
+  clearedDone?: ReadonlyMap<string, string>,
+): boolean {
+  const clearedAt = clearedDone?.get(id) || "";
+  if (!clearedAt) return false;
+  if (!logAt.trim()) return true;
+  return compareBeijingClock(clearedAt, logAt) >= 0;
+}
+
 function markDone(
   id: string,
   nextDone: Set<string>,
@@ -140,21 +240,35 @@ function markDone(
   nextFailed: Set<string>,
   catalog: QuestLogCatalog | undefined,
   walking: Set<string>,
+  clearedDone?: ReadonlyMap<string, string>,
+  logAt = "",
 ): void {
   if (!id || walking.has(id)) return;
+  if (shouldHonorClearedDone(id, logAt, clearedDone)) return;
   walking.add(id);
   nextDone.add(id);
   nextStarted.delete(id);
   nextFailed.delete(id);
   for (const other of catalog?.mutexById.get(id) || []) {
-    if (!other || nextDone.has(other)) continue;
+    if (!other) continue;
+    if (shouldHonorClearedDone(other, logAt, clearedDone)) continue;
+    nextDone.delete(other);
     nextFailed.add(other);
     nextStarted.delete(other);
   }
   if (walking.size > PREREQ_WALK_MAX) return;
   for (const prereq of catalog?.prereqById.get(id) || []) {
     if (!prereq || nextDone.has(prereq)) continue;
-    markDone(prereq, nextDone, nextStarted, nextFailed, catalog, walking);
+    markDone(
+      prereq,
+      nextDone,
+      nextStarted,
+      nextFailed,
+      catalog,
+      walking,
+      clearedDone,
+      logAt,
+    );
   }
 }
 
@@ -164,6 +278,7 @@ export function applyQuestLogState(
   logState: ReadonlyMap<string, QuestLogState | FoldedQuestEntry>,
   knownIds?: ReadonlySet<string> | QuestLogCatalog,
   failedIds: Iterable<string> = [],
+  clearedDone?: ReadonlyMap<string, string>,
 ): { done: string[]; started: string[]; failed: string[] } {
   const catalog: QuestLogCatalog | undefined =
     knownIds && typeof knownIds === "object" && "mutexById" in knownIds
@@ -203,9 +318,27 @@ export function applyQuestLogState(
           };
     const restartable = isRestartable(taskId, catalog);
     if (folded.everCompleted) {
-      markDone(taskId, nextDone, nextStarted, nextFailed, catalog, walking);
-      walking.clear();
-      continue;
+      const completedAt = logCompletedAt(folded);
+      if (shouldHonorClearedDone(taskId, completedAt, clearedDone)) {
+        nextDone.delete(taskId);
+        if (folded.kind === "completed") {
+          walking.clear();
+          continue;
+        }
+      } else {
+        markDone(
+          taskId,
+          nextDone,
+          nextStarted,
+          nextFailed,
+          catalog,
+          walking,
+          clearedDone,
+          completedAt || folded.at,
+        );
+        walking.clear();
+        continue;
+      }
     }
     if (
       accountHasQuestState(
@@ -236,24 +369,88 @@ export function applyQuestLogState(
     nextStarted.delete(id);
     nextFailed.delete(id);
   }
+  if (clearedDone) {
+    for (const [id, at] of clearedDone) {
+      if (!id || !nextDone.has(id)) continue;
+      const folded = logState.get(id);
+      const logAt =
+        folded == null
+          ? ""
+          : logCompletedAt(
+              typeof folded === "string"
+                ? folded
+                : folded,
+            );
+      const ever =
+        typeof folded === "object"
+          ? Boolean(folded.everCompleted) || folded.kind === "completed"
+          : folded === "completed";
+      if (!ever || shouldHonorClearedDone(id, logAt, new Map([[id, at]]))) {
+        nextDone.delete(id);
+      }
+    }
+  }
   for (const id of nextFailed) nextStarted.delete(id);
-  return {
+  const raw = {
     done: [...nextDone],
     started: [...nextStarted],
     failed: [...nextFailed],
   };
+  let next = raw;
+  if (catalog?.mutexById.size) {
+    const ranked: Array<{ id: string; at: string }> = [];
+    for (const [rawId, rawState] of logState) {
+      const taskId = normalizeQuestId(rawId);
+      if (!taskId || !logEverCompleted(rawState)) continue;
+      ranked.push({ id: taskId, at: logCompletedAt(rawState) });
+    }
+    ranked.sort((a, b) => {
+      const cmp = (a.at || "").localeCompare(b.at || "");
+      return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
+    });
+    next = applyMutexLedger(
+      raw.done,
+      raw.started,
+      raw.failed,
+      catalog.mutexById,
+      ranked.map((row) => row.id),
+    );
+  }
+  if (catalog?.blockedById.size) {
+    next = dropBlockedProgress(
+      next.done,
+      next.started,
+      next.failed,
+      catalog.blockedById,
+    );
+  }
+  return next;
+}
+
+function logEverCompleted(raw: QuestLogState | FoldedQuestEntry): boolean {
+  if (typeof raw === "string") return raw === "completed";
+  return Boolean(raw.everCompleted) || raw.kind === "completed";
+}
+
+function logCompletedAt(raw: QuestLogState | FoldedQuestEntry): string {
+  if (typeof raw === "string") return "";
+  if (!logEverCompleted(raw)) return "";
+  if (raw.completedAt) return raw.completedAt;
+  if (raw.kind === "completed") return raw.at || "";
+  return "";
 }
 
 export function collectQuestEventsFromSessions(
   sessions: Array<{ parsed: TarkovLogParseResult }>,
-  gameMode: TarkovGameMode,
+  gameModeOrFilter: TarkovGameMode | QuestReplayFilter,
 ): TarkovLogQuestEvent[] {
+  const filter =
+    typeof gameModeOrFilter === "string"
+      ? { gameMode: gameModeOrFilter }
+      : gameModeOrFilter;
   const out: TarkovLogQuestEvent[] = [];
   for (const session of sessions) {
-    if (!sessionModeMatchesGameMode(session.parsed.sessionMode, gameMode)) {
-      continue;
-    }
-    out.push(...(session.parsed.quests || []));
+    out.push(...questsMatchingReplay(session.parsed, filter));
   }
   out.sort((a, b) => (a.at || "").localeCompare(b.at || ""));
   return out;
@@ -333,6 +530,7 @@ export function applyQuestLogStateFromEvents(
   events: readonly TarkovLogQuestEvent[],
   catalog?: QuestLogCatalog,
   failedIds: Iterable<string> = [],
+  clearedDone?: ReadonlyMap<string, string>,
 ): { done: string[]; started: string[]; failed: string[] } {
   return applyQuestLogState(
     doneIds,
@@ -340,6 +538,7 @@ export function applyQuestLogStateFromEvents(
     foldQuestEvents(new Map(), events),
     catalog,
     failedIds,
+    clearedDone,
   );
 }
 
@@ -347,11 +546,12 @@ export function mergeQuestProgressFromLogs(
   doneIds: Iterable<string>,
   startedIds: Iterable<string>,
   sessions: Array<{ parsed: TarkovLogParseResult }>,
-  gameMode: TarkovGameMode,
+  gameModeOrFilter: TarkovGameMode | QuestReplayFilter,
   catalog?: QuestLogCatalog | ReadonlySet<string>,
   failedIds: Iterable<string> = [],
+  clearedDone?: ReadonlyMap<string, string>,
 ): QuestLogMergeResult {
-  const events = collectQuestEventsFromSessions(sessions, gameMode);
+  const events = collectQuestEventsFromSessions(sessions, gameModeOrFilter);
   const rules =
     catalog && typeof catalog === "object" && "mutexById" in catalog
       ? catalog
@@ -364,6 +564,7 @@ export function mergeQuestProgressFromLogs(
     foldQuestEvents(new Map(), events),
     rules,
     failedIds,
+    clearedDone,
   );
   return {
     ...applied,
@@ -388,13 +589,21 @@ export function foldQuestEvents(
     const existing = next.get(id);
     if (existing && compareBeijingClock(existing.at, at) > 0) {
       if (event.kind === "completed") {
-        next.set(id, { ...existing, everCompleted: true });
+        next.set(id, {
+          ...existing,
+          everCompleted: true,
+          completedAt: laterBeijingClock(existing.completedAt || "", at),
+        });
       }
       continue;
     }
     const everCompleted =
       event.kind === "completed" || Boolean(existing?.everCompleted);
-    next.set(id, { kind: event.kind, at, everCompleted });
+    const completedAt =
+      event.kind === "completed"
+        ? laterBeijingClock(existing?.completedAt || "", at)
+        : existing?.completedAt;
+    next.set(id, { kind: event.kind, at, everCompleted, completedAt });
   }
   return next;
 }
@@ -402,19 +611,17 @@ export function foldQuestEvents(
 export function foldSessionQuests(
   prev: ReadonlyMap<string, FoldedQuestEntry>,
   parsed: Pick<TarkovLogParseResult, "sessionMode" | "quests">,
-  gameMode: TarkovGameMode,
+  gameModeOrFilter: TarkovGameMode | QuestReplayFilter,
 ): { next: Map<string, FoldedQuestEntry>; eventCount: number } {
-  if (!sessionModeMatchesGameMode(parsed.sessionMode, gameMode)) {
+  const filter =
+    typeof gameModeOrFilter === "string"
+      ? { gameMode: gameModeOrFilter }
+      : gameModeOrFilter;
+  const events = questsMatchingReplay(parsed, filter);
+  if (!events.length) {
     return { next: new Map(prev), eventCount: 0 };
   }
-  const events = parsed.quests || [];
   return { next: foldQuestEvents(prev, events), eventCount: events.length };
-}
-
-export function questStateFromFolded(
-  folded: ReadonlyMap<string, FoldedQuestEntry>,
-): Map<string, FoldedQuestEntry> {
-  return new Map(folded);
 }
 
 export function mergeQuestProgressFromFolded(
@@ -424,6 +631,7 @@ export function mergeQuestProgressFromFolded(
   eventCount: number,
   catalog?: QuestLogCatalog | ReadonlySet<string>,
   failedIds: Iterable<string> = [],
+  clearedDone?: ReadonlyMap<string, string>,
 ): QuestLogMergeResult {
   const rules =
     catalog && typeof catalog === "object" && "mutexById" in catalog
@@ -437,6 +645,7 @@ export function mergeQuestProgressFromFolded(
     folded,
     rules,
     failedIds,
+    clearedDone,
   );
   let latestEventAt = "";
   for (const row of folded.values()) {
@@ -447,4 +656,121 @@ export function mergeQuestProgressFromFolded(
     eventCount,
     latestEventAt,
   };
+}
+
+export type QuestLogNameItem = {
+  id?: string | null;
+  name?: string | null;
+  faction_name?: string | null;
+  line_hint?: string | null;
+  mutex_ids?: readonly string[] | null;
+  blocked_by?: readonly string[] | null;
+};
+
+export type QuestLogSyncReviewRow = {
+  at: string;
+  line: string;
+  taskId: string;
+  taskName: string;
+  from: TaskStatusKind;
+  to: TaskStatusKind;
+  change: string;
+};
+
+export type QuestLogSyncReview = {
+  hint: string;
+  rows: QuestLogSyncReviewRow[];
+  dropHint?: string;
+  drops?: TarkovLogQuestDrop[];
+};
+
+export function formatQuestLogEventLine(event: TarkovLogQuestEvent): string {
+  const line = (event.line || "").trim();
+  if (line) return line;
+  const at = (event.at || "").trim();
+  const kind = event.kind || "";
+  if (at && kind) return `${at} ChatMessageReceived ${kind}`;
+  if (at) return at;
+  return kind ? `ChatMessageReceived ${kind}` : "";
+}
+
+export function formatQuestLogStatusChange(
+  from: TaskStatusKind,
+  to: TaskStatusKind,
+): string {
+  return `${TASK_STATUS_LABELS[from]}→${TASK_STATUS_LABELS[to]}`;
+}
+
+export function buildQuestLogSyncReview(
+  events: readonly TarkovLogQuestEvent[],
+  base: {
+    done?: readonly string[];
+    started?: readonly string[];
+    failed?: readonly string[];
+  },
+  opts?: {
+    catalog?: QuestLogCatalog;
+    items?: readonly QuestLogNameItem[];
+    clearedDone?: ReadonlyMap<string, string>;
+  },
+): QuestLogSyncReviewRow[] {
+  const byId = new Map<string, QuestLogNameItem>();
+  for (const item of opts?.items || []) {
+    const id = normalizeQuestId(String(item.id || ""));
+    if (id) byId.set(id, item);
+  }
+  const ordered = [...events].sort((a, b) =>
+    (a.at || "").localeCompare(b.at || ""),
+  );
+  let done = [...(base.done || [])];
+  let started = [...(base.started || [])];
+  let failed = [...(base.failed || [])];
+  const rows: QuestLogSyncReviewRow[] = [];
+  for (const event of ordered) {
+    const taskId = normalizeQuestId(event.taskId);
+    if (!taskId) continue;
+    const item = byId.get(taskId);
+    const from = resolveTaskStatus(
+      taskId,
+      new Set(done),
+      new Set(started),
+      item,
+      new Set(failed),
+    );
+    const next = applyQuestLogStateFromEvents(
+      done,
+      started,
+      [event],
+      opts?.catalog,
+      failed,
+      opts?.clearedDone,
+    );
+    done = next.done;
+    started = next.started;
+    failed = next.failed;
+    const to = resolveTaskStatus(
+      taskId,
+      new Set(done),
+      new Set(started),
+      item,
+      new Set(failed),
+    );
+    rows.push({
+      at: event.at || "",
+      line: formatQuestLogEventLine(event),
+      taskId,
+      taskName: item
+        ? displayTaskProgressName({
+            id: taskId,
+            name: item.name,
+            faction_name: item.faction_name,
+            line_hint: item.line_hint,
+          })
+        : taskId,
+      from,
+      to,
+      change: formatQuestLogStatusChange(from, to),
+    });
+  }
+  return rows;
 }

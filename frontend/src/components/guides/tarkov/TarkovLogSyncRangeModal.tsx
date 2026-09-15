@@ -5,6 +5,15 @@ import { datePickerLocale } from "@/locales/zhCN";
 import { nowBeijing, parseBeijing } from "@/lib/time";
 import type { TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
 import {
+  collectLogBreakpoints,
+  defaultLogBreakpoint,
+  formatLogBreakpointLabel,
+  latestIdentityForMode,
+  sessionStubMatchesBreakpoint,
+  type TarkovLogBreakpoint,
+} from "@/lib/tarkovLogBreakpoints";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import {
   filterSessionStubsByRange,
   formatCrossWipeHint,
   formatLogSyncRangeDays,
@@ -12,6 +21,7 @@ import {
   rangeStartsBeforeCurrentWipe,
   resolveLogSyncRange,
   sessionStubDateBounds,
+  wipeStartBeijingClock,
   wipesTouchedBySessions,
   type TarkovLogSyncPreset,
   type TarkovLogSyncRange,
@@ -34,25 +44,48 @@ type Props = {
   onConfirm: (range: TarkovLogSyncRange) => void;
 };
 
+function breakpointValue(row: TarkovLogBreakpoint): string {
+  return `${row.version}|${row.profileId}|${row.sessionMode}|${row.at}`;
+}
+
 export function TarkovLogSyncRangeModal({
   open,
   sessions,
   onCancel,
   onConfirm,
 }: Props) {
+  const gameMode = useTarkovGameMode();
   const wipe = useMemo(() => currentWipeStart(), []);
   const bounds = useMemo(() => sessionStubDateBounds(sessions), [sessions]);
   const today = nowBeijing().format("YYYY-MM-DD");
   const [preset, setPreset] = useState<TarkovLogSyncPreset>("all");
   const [customFrom, setCustomFrom] = useState(today);
   const [customTo, setCustomTo] = useState(today);
+  const [breakpointKey, setBreakpointKey] = useState("");
+  const [lackedDefault, setLackedDefault] = useState(false);
+
+  const identities = useMemo(
+    () => sessions.flatMap((stub) => stub.identities || []),
+    [sessions],
+  );
+  const breakpoints = useMemo(
+    () => collectLogBreakpoints(identities),
+    [identities],
+  );
 
   useEffect(() => {
     if (!open) return;
     setPreset("all");
     setCustomFrom(bounds.min || today);
     setCustomTo(bounds.max || today);
-  }, [bounds.max, bounds.min, open, today]);
+    const picked = defaultLogBreakpoint(breakpoints, {
+      gameMode,
+      wipeFrom: wipeStartBeijingClock(wipe),
+      latest: latestIdentityForMode(identities, gameMode),
+    });
+    setBreakpointKey(picked ? breakpointValue(picked) : "");
+    setLackedDefault(!picked);
+  }, [bounds.max, bounds.min, breakpoints, gameMode, identities, open, today, wipe]);
 
   const range = useMemo(
     () =>
@@ -63,9 +96,16 @@ export function TarkovLogSyncRangeModal({
       }),
     [customFrom, customTo, preset],
   );
+  const selectedBreakpoint = useMemo(
+    () => breakpoints.find((row) => breakpointValue(row) === breakpointKey) || null,
+    [breakpointKey, breakpoints],
+  );
   const matched = useMemo(
-    () => filterSessionStubsByRange(sessions, range),
-    [range, sessions],
+    () =>
+      filterSessionStubsByRange(sessions, range).filter((stub) =>
+        sessionStubMatchesBreakpoint(stub, selectedBreakpoint),
+      ),
+    [range, selectedBreakpoint, sessions],
   );
   const priorWipe = rangeStartsBeforeCurrentWipe(range);
   const crossWipes = useMemo(
@@ -91,21 +131,53 @@ export function TarkovLogSyncRangeModal({
             type="button"
             className={styles.ok}
             disabled={!matched.length}
-            onClick={() => onConfirm(range)}
+            onClick={() =>
+              onConfirm({
+                ...range,
+                breakpoint: selectedBreakpoint
+                  ? {
+                      version: selectedBreakpoint.version,
+                      profileId: selectedBreakpoint.profileId,
+                      sessionMode: selectedBreakpoint.sessionMode,
+                      at: selectedBreakpoint.at,
+                    }
+                  : undefined,
+              })
+            }
           >
             开始同步
           </button>
         </div>
       }
-      width={440}
+      width={520}
       destroyOnClose
       classNames={{ body: styles.body }}
     >
       <p className={styles.lead}>
-        本机解析启动文件夹，只把任务状态回填到账号，不会上传日志原文。默认读取这个目录里的全部启动记录
-        {wipe?.name ? `；当前赛季是 ${wipe.name}` : ""}
+        本机解析启动文件夹，只把任务状态回填到账号，不会上传日志原文。默认从当前
+        {gameMode === "pve" ? " PvE" : " 正式"}角色在本赛季第一次出现的启动读到现在
+        {wipe?.name ? `（${wipe.name}）` : ""}
         。
       </p>
+      {breakpoints.length ? (
+        <label className={styles.breakLabel}>
+          从这次启动起
+          <select
+            className={styles.breakSelect}
+            value={breakpointKey}
+            onChange={(event) => setBreakpointKey(event.target.value)}
+          >
+            <option value="">不按角色过滤</option>
+            {breakpoints.map((row) => (
+              <option key={breakpointValue(row)} value={breakpointValue(row)}>
+                {formatLogBreakpointLabel(row)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <p className={styles.meta}>这些日志里还没有读到 ProfileId / Session mode。</p>
+      )}
       <div className={styles.presets} role="radiogroup" aria-label="日期范围">
         {PRESETS.map((row) => (
           <button
@@ -152,6 +224,12 @@ export function TarkovLogSyncRangeModal({
             : "。这个目录里没有启动记录"}
       </p>
       {crossWipeHint ? <p className={styles.warn}>{crossWipeHint}</p> : null}
+      {lackedDefault && !selectedBreakpoint ? (
+        <p className={styles.warn}>
+          日志里没有当前模式的角色断点，这次按日期范围读，仍只写入本页正式 / PvE
+          账，赛季进度不会并进来。
+        </p>
+      ) : null}
       {priorWipe ? (
         <p className={styles.warn}>
           自定义范围早于本赛季，会带上旧赛季完成记录。

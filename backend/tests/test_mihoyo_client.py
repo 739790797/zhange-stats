@@ -20,7 +20,6 @@ from app.services.mihoyo.auth import (
 )
 from app.services.mihoyo.client import (
     MihoyoApiError,
-    generate_ds_discuss,
     generate_ds_sign,
     parse_cookie_string,
 )
@@ -39,15 +38,6 @@ def test_generate_ds_sign_format():
     assert len(parts) == 3
     assert parts[0].isdigit()
     assert len(parts[1]) == 6
-    assert len(parts[2]) == 32
-
-
-def test_generate_ds_discuss_format():
-    ds = generate_ds_discuss("2")
-    parts = ds.split(",")
-    assert len(parts) == 3
-    assert parts[0].isdigit()
-    assert parts[1].isdigit()
     assert len(parts[2]) == 32
 
 

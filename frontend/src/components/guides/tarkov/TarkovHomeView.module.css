@@ -294,24 +294,9 @@
   margin-bottom: 8px;
 }
 
-.itemGroupTitle {
-  color: #c8c4b0;
-  font-family: var(--hb-display);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+.traderGrid {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
 }
-
-.itemGroupEn {
-  color: #6a6c58;
-  font-family: var(--hb-mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-}
-
-  .traderGrid {
-    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  }
 
 .traderCard {
   display: flex;

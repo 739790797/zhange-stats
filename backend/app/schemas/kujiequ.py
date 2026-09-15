@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 
 from app.schemas.checkin import (
     CheckinAwardItem,
-    CheckinLogOut,
     CheckinResponse,
     CheckinResultItem,
 )
@@ -46,7 +45,6 @@ class KujiequRoleOut(BaseModel):
     channel_name: str
 
 
-KujiequCheckinLogOut = CheckinLogOut
 KujiequCheckinResultItem = CheckinResultItem
 KujiequCheckinResponse = CheckinResponse
 
@@ -62,7 +60,6 @@ class KujiequStatusOut(BaseModel):
     token_error: str | None = None
     roles: list[KujiequRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
-    today_logs: list[CheckinLogOut] = Field(default_factory=list)
 
 
 class KujiequExchangeItemOut(BaseModel):
