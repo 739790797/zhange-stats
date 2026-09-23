@@ -14,6 +14,8 @@ from app.services.checkin.adapter import (
 )
 from app.services.checkin.common import CheckinResult
 from app.services.checkin.orchestrator import (
+    _job_lock_for,
+    checkin_job_wrapper,
     query_today_for_bind,
     run_checkin_for_bind,
 )
@@ -216,6 +218,66 @@ def test_query_today_uses_cache(monkeypatch) -> None:
     out = query_today_for_bind(adapter, MagicMock(), bind, force=False)
     assert out["ok"] is True
     assert adapter.queries == 0
+
+
+def test_checkin_job_releases_lock_when_pool_times_out(monkeypatch) -> None:
+    """开库失败不能占住平台锁，否则下一分钟会静默跳过。"""
+    adapter = _FakeAdapter()
+    adapter.platform = "lock-release"
+    opens = {"n": 0}
+
+    def open_session():
+        opens["n"] += 1
+        raise TimeoutError("QueuePool limit reached")
+
+    monkeypatch.setattr("app.core.database.SessionLocal", open_session)
+
+    checkin_job_wrapper(adapter)
+    checkin_job_wrapper(adapter)
+
+    assert opens["n"] == 2
+    lock = _job_lock_for(adapter.platform)
+    assert lock.acquire(blocking=False)
+    lock.release()
+
+
+def test_checkin_job_marks_error_when_any_member_fails(monkeypatch) -> None:
+    adapter = _FakeAdapter()
+    adapter.platform = "partial-fail"
+    recorded: dict[str, object] = {}
+
+    class _Job:
+        def __init__(self, **kwargs: object) -> None:
+            self.__dict__.update(kwargs)
+            recorded["job"] = self
+
+    class _Db:
+        def add(self, job: _Job) -> None:
+            recorded["job"] = job
+
+        def commit(self) -> None:
+            return None
+
+        def refresh(self, _job: _Job) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("app.core.database.SessionLocal", lambda: _Db())
+    monkeypatch.setattr(
+        "app.services.checkin.orchestrator.JobRun",
+        _Job,
+    )
+    monkeypatch.setattr(
+        "app.services.checkin.orchestrator.run_checkin_job",
+        lambda *a, **k: {"ok": 2, "failed": 1, "skipped": 0, "total": 3},
+    )
+
+    checkin_job_wrapper(adapter)
+    job = recorded["job"]
+    assert job.status == "error"
+    assert "失败 1" in str(job.message)
 
 
 def test_registry_has_checkin_platforms() -> None:

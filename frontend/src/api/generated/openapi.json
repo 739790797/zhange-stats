@@ -4169,6 +4169,24 @@
               "title": "End"
             },
             "description": "结束日期 YYYY-MM-DD；缺省则仅查询当日"
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只返回该成员的时间轴；缺省为全部可见成员",
+              "title": "Member Id"
+            },
+            "description": "只返回该成员的时间轴；缺省为全部可见成员"
           }
         ],
         "responses": {
@@ -17073,43 +17091,6 @@
           }
         }
       }
-    },
-    "/{full_path}": {
-      "get": {
-        "summary": "Spa Fallback",
-        "operationId": "spa_fallback__full_path__get",
-        "parameters": [
-          {
-            "name": "full_path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Full Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -23299,6 +23280,45 @@
         ],
         "title": "MemberOut"
       },
+      "MemberPlayGame": {
+        "properties": {
+          "steam_app_id": {
+            "type": "string",
+            "title": "Steam App Id"
+          },
+          "game_name": {
+            "type": "string",
+            "title": "Game Name"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "total_seconds": {
+            "type": "integer",
+            "title": "Total Seconds"
+          },
+          "session_count": {
+            "type": "integer",
+            "title": "Session Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steam_app_id",
+          "game_name",
+          "total_seconds",
+          "session_count"
+        ],
+        "title": "MemberPlayGame"
+      },
       "MemberPlayMember": {
         "properties": {
           "id": {
@@ -23363,6 +23383,10 @@
           "member": {
             "$ref": "#/components/schemas/MemberPlayMember"
           },
+          "today_play_seconds": {
+            "type": "integer",
+            "title": "Today Play Seconds"
+          },
           "week_play_seconds": {
             "type": "integer",
             "title": "Week Play Seconds"
@@ -23374,6 +23398,27 @@
           "session_count": {
             "type": "integer",
             "title": "Session Count"
+          },
+          "games_today": {
+            "items": {
+              "$ref": "#/components/schemas/MemberPlayGame"
+            },
+            "type": "array",
+            "title": "Games Today"
+          },
+          "games_week": {
+            "items": {
+              "$ref": "#/components/schemas/MemberPlayGame"
+            },
+            "type": "array",
+            "title": "Games Week"
+          },
+          "games_month": {
+            "items": {
+              "$ref": "#/components/schemas/MemberPlayGame"
+            },
+            "type": "array",
+            "title": "Games Month"
           },
           "trend": {
             "items": {
@@ -23393,9 +23438,13 @@
         "type": "object",
         "required": [
           "member",
+          "today_play_seconds",
           "week_play_seconds",
           "month_play_seconds",
           "session_count",
+          "games_today",
+          "games_week",
+          "games_month",
           "trend",
           "recent_sessions"
         ],
@@ -30224,6 +30273,17 @@
           "game_name": {
             "type": "string",
             "title": "Game Name"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
           },
           "started_at": {
             "type": "string",

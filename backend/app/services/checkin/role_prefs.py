@@ -371,6 +371,40 @@ def matches_role_filter(
     return role_key(game_code, role_uid) in role_keys
 
 
+def _action_outcomes_by_member(
+    db: Session,
+    log_model: Any,
+    *,
+    member_ids: list[int],
+    checkin_date: Any,
+) -> tuple[dict[int, set[RoleKey]], set[int]]:
+    """今日 action：成功角色键，以及仍有失败 action 的成员。"""
+    from app.services.checkin.common import LOG_SOURCE_ACTION, is_success_status
+
+    if not member_ids:
+        return {}, set()
+    rows = (
+        db.query(log_model)
+        .filter(
+            log_model.member_id.in_(member_ids),
+            log_model.checkin_date == checkin_date,
+            log_model.source == LOG_SOURCE_ACTION,
+        )
+        .all()
+    )
+    success: dict[int, set[RoleKey]] = {}
+    failed_members: set[int] = set()
+    for row in rows:
+        mid = int(row.member_id)
+        if is_success_status(getattr(row, "status", None)):
+            success.setdefault(mid, set()).add(
+                role_key(row.game_code, row.role_uid)
+            )
+        else:
+            failed_members.add(mid)
+    return success, failed_members
+
+
 def collect_checkin_job_targets(
     db: Session,
     *,
@@ -378,9 +412,15 @@ def collect_checkin_job_targets(
     bind_model: Any,
     due_only: bool = False,
     member_id: int | None = None,
+    log_model: Any = None,
+    now: Any = None,
 ) -> dict[int, set[RoleKey] | None]:
-    """组装调度目标：member_id → role_keys（None=旧绑定全量）。"""
+    """组装调度目标：member_id → role_keys（None=旧绑定全量）。
+
+    due_only 时到点成员进入 30 分钟队列，本分钟只取出一批。
+    """
     from app.core.timeutil import now as now_beijing
+    from app.services.checkin.queue import CheckinQueueItem, plan_checkin_queue
 
     targets: dict[int, set[RoleKey] | None] = {}
 
@@ -397,29 +437,64 @@ def collect_checkin_job_targets(
         return targets
 
     if due_only:
-        t = now_beijing()
-        targets.update(
-            list_due_role_keys(
-                db,
-                platform=platform,
-                hour=t.hour,
-                minute=t.minute,
-                member_id=member_id,
-            )
-        )
-        q = db.query(bind_model).filter(
-            bind_model.auto_checkin.is_(True),
-            bind_model.checkin_hour == t.hour,
-            bind_model.checkin_minute == t.minute,
+        t = now if now is not None else now_beijing()
+        checkin_date = t.date()
+        pref_q = db.query(CheckinRolePref).filter(
+            CheckinRolePref.platform == platform,
+            CheckinRolePref.included.is_(True),
+            CheckinRolePref.enabled.is_(True),
+            CheckinRolePref.checkin_hour.isnot(None),
+            CheckinRolePref.checkin_minute.isnot(None),
         )
         if member_id is not None:
-            q = q.filter(bind_model.member_id == int(member_id))
-        for bind in q.all():
-            if bind.member_id in targets:
+            pref_q = pref_q.filter(CheckinRolePref.member_id == int(member_id))
+        pref_rows = pref_q.all()
+        items: list[CheckinQueueItem] = [
+            CheckinQueueItem(
+                member_id=int(row.member_id),
+                role_key=role_key(row.game_code, row.role_uid),
+                hour=int(row.checkin_hour),
+                minute=int(row.checkin_minute),
+            )
+            for row in pref_rows
+        ]
+        pref_members = {int(row.member_id) for row in pref_rows}
+        legacy_q = db.query(bind_model).filter(bind_model.auto_checkin.is_(True))
+        if member_id is not None:
+            legacy_q = legacy_q.filter(bind_model.member_id == int(member_id))
+        for bind in legacy_q.all():
+            if int(bind.member_id) in pref_members:
                 continue
-            if count_prefs(db, platform=platform, member_id=bind.member_id) == 0:
-                targets[bind.member_id] = None
-        return targets
+            if count_prefs(db, platform=platform, member_id=bind.member_id) != 0:
+                continue
+            items.append(
+                CheckinQueueItem(
+                    member_id=int(bind.member_id),
+                    role_key=None,
+                    hour=int(bind.checkin_hour),
+                    minute=int(bind.checkin_minute),
+                )
+            )
+        if log_model is not None and items:
+            success, failed_members = _action_outcomes_by_member(
+                db,
+                log_model,
+                member_ids=sorted({item.member_id for item in items}),
+                checkin_date=checkin_date,
+            )
+            kept: list[CheckinQueueItem] = []
+            for item in items:
+                if item.role_key is None:
+                    if (
+                        item.member_id in success
+                        and item.member_id not in failed_members
+                    ):
+                        continue
+                elif item.role_key in success.get(item.member_id, set()):
+                    continue
+                kept.append(item)
+            items = kept
+        return plan_checkin_queue(items, now=t)
 
     for bind in db.query(bind_model).filter(bind_model.auto_checkin.is_(True)).all():
         targets[bind.member_id] = list_enabled_role_keys_for_member(

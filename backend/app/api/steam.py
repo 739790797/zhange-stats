@@ -77,6 +77,9 @@ def steam_day(
     end_str: str | None = Query(
         None, alias="end", description="结束日期 YYYY-MM-DD；缺省则仅查询当日"
     ),
+    member_id: int | None = Query(
+        None, description="只返回该成员的时间轴；缺省为全部可见成员"
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
@@ -93,9 +96,12 @@ def steam_day(
                 status_code=400, detail="end 格式应为 YYYY-MM-DD"
             ) from exc
     try:
-        return build_range_detail(db, start, end, user)
+        data = build_range_detail(db, start, end, user, member_id=member_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if data is None:
+        raise HTTPException(status_code=404, detail="成员不存在")
+    return data
 
 
 @router.get("/now", response_model=list[SteamNowItem])

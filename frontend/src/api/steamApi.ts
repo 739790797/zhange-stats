@@ -14,11 +14,16 @@ export async function fetchMemberPlayStats(memberId: number) {
   return data;
 }
 
-export async function fetchSteamDay(date: string, end?: string) {
+export async function fetchSteamDay(
+  date: string,
+  end?: string,
+  memberId?: number,
+) {
   const { data } = await client.get<SteamDayData>("/steam/day", {
     params: {
       date,
       ...(end ? { end } : {}),
+      ...(memberId != null ? { member_id: memberId } : {}),
     },
   });
   return data;

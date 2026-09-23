@@ -42,7 +42,11 @@ from app.services.articles.texteller import model_sync_job as texteller_model_sy
 from app.services.ocr.models import model_sync_job as ocr_model_sync_job
 from app.services.tarkov.sync import full_sync_job_wrapper as tarkov_full_sync_job_wrapper
 
+from app.services.checkin.queue import CHECKIN_QUEUE_WINDOW_MINUTES
+
 logger = logging.getLogger("zhange.scheduler")
+
+CHECKIN_MISFIRE_GRACE_SECONDS = CHECKIN_QUEUE_WINDOW_MINUTES * 60
 
 _SCHEDULER_LOCK = threading.Lock()
 _MANUAL_TRIGGER_LOCKS: dict[str, threading.Lock] = {
@@ -209,6 +213,8 @@ def register_scheduler_jobs(
                 id=job_id,
                 replace_existing=True,
                 max_instances=1,
+                coalesce=True,
+                misfire_grace_time=CHECKIN_MISFIRE_GRACE_SECONDS,
             )
             started = True
 

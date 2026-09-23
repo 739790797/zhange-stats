@@ -88,6 +88,8 @@ def _sessions_in_window(
             load_only(
                 PlaySession.id,
                 PlaySession.member_id,
+                PlaySession.steam_app_id,
+                PlaySession.game_name,
                 PlaySession.started_at,
                 PlaySession.ended_at,
                 PlaySession.last_seen_at,
@@ -283,7 +285,8 @@ def build_range_detail(
     range_start: date,
     range_end: date,
     viewer: User,
-) -> dict:
+    member_id: int | None = None,
+) -> dict | None:
     if range_end < range_start:
         raise ValueError("end 不能早于 date")
     # 防止误请求超长区间拖垮查询
@@ -291,6 +294,10 @@ def build_range_detail(
         raise ValueError("时间轴区间最长 31 天")
 
     visible_ids = visible_member_ids_for_user(db, viewer)
+    if member_id is not None:
+        if member_id not in visible_ids:
+            return None
+        visible_ids = {member_id}
     vis = visibility_meta(db, viewer, visible_ids)
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
@@ -557,7 +564,7 @@ def build_overview(db: Session, viewer: User) -> dict:
     """圈子 Steam 总览：站内已注册成员。"""
     visible_ids = visible_member_ids_for_user(db, viewer)
     today_d = today()
-    week_start = today_d - timedelta(days=today.weekday())
+    week_start = today_d - timedelta(days=today_d.weekday())
     window_start, _ = _day_bounds(week_start)
     _, window_end = _day_bounds(today_d)
 
@@ -630,6 +637,48 @@ def build_overview(db: Session, viewer: User) -> dict:
     }
 
 
+def _games_in_window(
+    sessions: list[PlaySession],
+    window_start: datetime,
+    window_end: datetime,
+    name_map: dict[str, str],
+    icon_map: dict[str, str],
+) -> tuple[int, list[dict]]:
+    """按与日历相同的窗口重叠，把会话折成总时长和分游戏列表。"""
+    totals: dict[str, dict] = {}
+    total_seconds = 0
+    for session in sessions:
+        seconds = _overlap_seconds(
+            _to_aware(session.started_at),
+            _session_end(session),
+            window_start,
+            window_end,
+        )
+        if seconds <= 0:
+            continue
+        total_seconds += seconds
+        app_id = (session.steam_app_id or "").strip()
+        row = totals.get(app_id)
+        if row is None:
+            row = {
+                "steam_app_id": app_id,
+                "game_name": _localize(app_id, session.game_name, name_map)
+                or session.game_name
+                or app_id,
+                "icon_url": icon_map.get(app_id),
+                "total_seconds": 0,
+                "session_count": 0,
+            }
+            totals[app_id] = row
+        row["total_seconds"] += seconds
+        row["session_count"] += 1
+    games = sorted(
+        totals.values(),
+        key=lambda item: (-item["total_seconds"], item["game_name"]),
+    )
+    return total_seconds, games
+
+
 def build_member_play_stats(
     db: Session, member_id: int, viewer: User
 ) -> dict | None:
@@ -644,34 +693,52 @@ def build_member_play_stats(
         return None
 
     today_d = today()
-    week_start = today_d - timedelta(days=today.weekday())
+    week_start = today_d - timedelta(days=today_d.weekday())
     month_start = today_d.replace(day=1)
     trend_start = today_d - timedelta(days=13)
 
     week_ws, _ = _day_bounds(week_start)
     _, week_we = _day_bounds(today_d)
     month_ws, _ = _day_bounds(month_start)
-    trend_ws, _ = _day_bounds(trend_start)
-    _, day_we = _day_bounds(today_d)
+    today_ws, today_we = _day_bounds(today_d)
 
-    all_for_month = _sessions_in_window(db, month_ws, day_we, member_id=member_id)
+    # 周首或近两周可能落在本月之前，查询窗口取最早的一天。
+    fetch_start = min(week_start, month_start, trend_start)
+    fetch_ws, _ = _day_bounds(fetch_start)
+    window_sessions = _sessions_in_window(
+        db, fetch_ws, today_we, member_id=member_id
+    )
 
-    week_seconds = 0
-    month_seconds = 0
-    for s in all_for_month:
-        start = _to_aware(s.started_at)
-        end = _session_end(s)
-        week_seconds += _overlap_seconds(start, end, week_ws, week_we)
-        month_seconds += _overlap_seconds(start, end, month_ws, day_we)
+    recent = (
+        db.query(PlaySession)
+        .filter(PlaySession.source == "steam", PlaySession.member_id == member_id)
+        .order_by(PlaySession.started_at.desc())
+        .limit(50)
+        .all()
+    )
+    app_ids = [s.steam_app_id for s in window_sessions] + [
+        s.steam_app_id for s in recent
+    ]
+    name_map = resolve_app_names(db, app_ids)
+    icon_map = resolve_app_icons(db, app_ids, fetch_missing=False)
 
-    trend_sessions = _sessions_in_window(db, trend_ws, day_we, member_id=member_id)
+    today_seconds, games_today = _games_in_window(
+        window_sessions, today_ws, today_we, name_map, icon_map
+    )
+    week_seconds, games_week = _games_in_window(
+        window_sessions, week_ws, week_we, name_map, icon_map
+    )
+    month_seconds, games_month = _games_in_window(
+        window_sessions, month_ws, today_we, name_map, icon_map
+    )
+
     trend: list[dict] = []
     d = trend_start
     while d <= today_d:
         day_start, day_end = _day_bounds(d)
         seconds = 0
         count = 0
-        for s in trend_sessions:
+        for s in window_sessions:
             sec = _overlap_seconds(
                 _to_aware(s.started_at), _session_end(s), day_start, day_end
             )
@@ -687,15 +754,7 @@ def build_member_play_stats(
         )
         d += timedelta(days=1)
 
-    recent = (
-        db.query(PlaySession)
-        .filter(PlaySession.source == "steam", PlaySession.member_id == member_id)
-        .order_by(PlaySession.started_at.desc())
-        .limit(50)
-        .all()
-    )
     now_dt = now()
-    name_map = resolve_app_names(db, [s.steam_app_id for s in recent])
     recent_sessions = []
     for s in recent:
         start = _to_aware(s.started_at)
@@ -711,7 +770,8 @@ def build_member_play_stats(
                 "member_nickname": member.steam_persona_name or member.nickname,
                 "avatar_url": member.steam_avatar_url or member.avatar_url,
                 "steam_app_id": s.steam_app_id,
-                "game_name": _localize( s.steam_app_id, s.game_name, name_map),
+                "game_name": _localize(s.steam_app_id, s.game_name, name_map),
+                "icon_url": icon_map.get(s.steam_app_id),
                 "started_at": s.started_at,
                 "ended_at": s.ended_at,
                 "duration_seconds": duration,
@@ -728,9 +788,13 @@ def build_member_play_stats(
             "joined_at": member.joined_at,
             "steam_id": member.steam_id,
         },
+        "today_play_seconds": today_seconds,
         "week_play_seconds": week_seconds,
         "month_play_seconds": month_seconds,
         "session_count": len(recent),
+        "games_today": games_today,
+        "games_week": games_week,
+        "games_month": games_month,
         "trend": trend,
         "recent_sessions": recent_sessions,
     }

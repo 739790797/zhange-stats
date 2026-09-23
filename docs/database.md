@@ -51,7 +51,7 @@ articles ── * article_versions
 | `play_sessions` | 游戏中会话（热力）；索引含 `(member_id, started_at)` / `(member_id, ended_at)` / `(source, started_at)` / `last_seen_at`（复合最左前缀覆盖 member_id，无单列 member_id）；`member_id` ON DELETE CASCADE |
 | `presence_segments` | 离线/在线/游戏中（日时间轴）；索引含 `(member_id, started_at)` / `(member_id, ended_at)`；`member_id` ON DELETE CASCADE |
 | `skland_binds` | 森空岛凭证（加密）；`auto_checkin` 为各角色偏好派生摘要；`checkin_hour` / `checkin_minute` 仅作旧数据种子（调度与上次执行以 prefs / logs 为准） |
-| `checkin_role_prefs` | 各平台按角色的「加入本站」(`included`) 与自动签到开关/北京时间（`platform`+`game_code`+`role_uid`）；签到页与调度仅处理 `included`；`enabled` 另控自动签到；调度索引 `(platform, enabled, checkin_hour, checkin_minute)` |
+| `checkin_role_prefs` | 各平台按角色的「加入本站」(`included`) 与自动签到开关/北京时间（`platform`+`game_code`+`role_uid`）；签到页与调度仅处理 `included`；`enabled` 另控自动签到。设定时分是入队时间：之后 30 分钟内，今天还没有成功 action 的成员留在队列里，每分钟按 `member_id` 取出 ceil(排队人数 / 窗口剩余分钟)；超出窗口不再补签。不另建队列表。调度索引 `(platform, enabled, checkin_hour, checkin_minute)` |
 | `skland_checkin_logs` | 森空岛角色签到记录（展示路径打开页始终回源后 upsert；`source`=`status` 查询 / `action` 真正执行，不驱动产品 UI；含 `awards_text` / `awards_json`；调度可按今日成功态跳过；超期由 `job_runs_prune` 清理） |
 | `skland_attendance_raws` | 明日方舟签到日历 GET attendance 原始 JSON（按 member+uid 最新一份；跨月或 force / 签到后回源） |
 | `game_schedule_raws` | 活动日历上游原始 JSON（按游戏 `arknights` / `endfield` 各一份；读库优先；定时 / force 回源；失败或空列表不覆盖。终末地在 game-schedule 空列表时回源 fz.wiki「活动」页） |
@@ -79,10 +79,10 @@ articles ── * article_versions
 | `tarkov_user_collection_layouts` | 用户 3×4 收集摆放过账号（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode)`。清空格子也会写这一行，GET 带 `saved`，避免空网被本机旧缓存盖回去。ON DELETE CASCADE |
 | `tarkov_user_collection_placements` | 用户 3×4 收集摆放（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, item_id)`。`col`/`row`/`rotated` 为格子坐标。个人中心改格子即覆盖写入。ON DELETE CASCADE |
 | `tarkov_user_hideout_levels` | 用户藏身处模块等级（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, station_id)`。个人中心规划器升降级；缺行时仓库视为 1（蓝边 / EOD 视为 4）、其余 0。降级级联压低仍依赖该模块的设施；蓝边仓库不低于 4。ON DELETE CASCADE |
-| `tarkov_user_profiles` | 用户个人资料（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode)`。`pmc_faction`=`bear`/`usec`（可空字符串）、`game_edition`=`standard`/`eod`（白边/蓝边）、`player_level` 1–79、`trader_levels` 为 slug→好感 1–4 的 JSON。蓝边保存时把藏身处仓库抬到 4 级。ON DELETE CASCADE |
-| `tarkov_user_task_dones` | 用户任务完成勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「已完成」，与 `tarkov_user_task_starteds` / `tarkov_user_task_faileds` / `tarkov_user_task_objective_dones` 组成账号进度账。同一任务若同时出现：完成优先于失败优先于进行中。ON DELETE CASCADE |
+| `tarkov_user_profiles` | 用户个人资料（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode)`。`pmc_faction`=`bear`/`usec`（可空字符串）、`game_edition`=`standard`/`eod`（白边/蓝边）、`player_level` 1–79、`trader_levels` 为 slug→好感 1–4 的 JSON（不含 `btr-driver`）。蓝边保存时把藏身处仓库抬到 4 级。ON DELETE CASCADE |
+| `tarkov_user_task_dones` | 用户任务完成勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「已完成」，与 `tarkov_user_task_starteds` / `tarkov_user_task_faileds` / `tarkov_user_task_objective_dones` 组成账号进度账。浏览器任务线账在提交前收口：标完成会补前置；互斥组只留一个完成，其余进失败表；被挡住的任务从完成 / 进行中 / 失败拿掉；标进行中、失败或未开始会拿掉子孙的完成与进行中。服务端 `replace_*` 按提交的 id 覆盖，不另算任务线。同一任务若同时出现：完成优先于失败优先于进行中。ON DELETE CASCADE |
 | `tarkov_user_task_starteds` | 用户任务进行中勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。个人中心任务树「进行中」；换设备无游戏日志时仍从账号拉回。ON DELETE CASCADE |
-| `tarkov_user_task_faileds` | 用户任务失败勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。日志 type 11 且图鉴 `restartable` 不为真时写入；完成互斥任务时也会把 `mutex_ids` 写入此表。可重开任务失败仍记进行中，不进本表。ON DELETE CASCADE |
+| `tarkov_user_task_faileds` | 用户任务失败勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id)`。日志 type 11 且图鉴 `restartable` 不为真时写入。完成互斥任务时，同组里其余已完成项、以及仍在进行中的互斥邻居写入此表（浏览器任务线账算好再提交）。可重开任务失败仍记进行中，不进本表。ON DELETE CASCADE |
 | `tarkov_user_task_objective_dones` | 用户任务小步骤勾选（按 `game_mode`=`pvp`/`pve` 分开）；复合主键 `(user_id, game_mode, task_id, objective_id)`。准备/房间勾选写入账号进度账；整任务进入已完成时按任务目录把该任务全部步骤勾上。取消整任务完成不自动取消小步骤。ON DELETE CASCADE |
 | `tarkov_user_raid_logs` | 用户从本机游戏日志导入的战局摘要（地图 / 编号 / 开结束时间等，不含日志原文）。唯一 `(user_id, dedupe_key)`；索引 `(user_id, started_at)`。`user_id` ON DELETE CASCADE |
 | `tarkov_user_raid_preps` | 联机大厅单人准备落盘（按 `game_mode` + `map_slug`）；复合主键 `(user_id, game_mode, map_slug)`。`selected_json` / `objective_dones_json` / `key_brings_json` 为 JSON 列表。ON DELETE CASCADE |
@@ -110,7 +110,7 @@ articles ── * article_versions
 | `kujiequ_attendance_raws` | 鸣潮 / 战双签到日历（initSignInV2 + queryRecordV2）原始 JSON（按 member+game+role 最新一份；跨月或 force / 签到后回源） |
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档、删除超过 14 天的 `rum_samples`。索引含 `(job_key, started_at)` |
-| `rum_samples` | 浏览器 RUM 原始样本：`kind`=`api`（接口转圈）/`img`（第三方图），`url_key` 已归并 id/瓦片，`duration_ms` 为用户侧等待。公开 `POST /api/client-rum` 写入；管理端「用户等待」按侧栏业务分类后聚合 p50/p95。保留约 14 天。索引 `(recorded_at)` / `(kind, recorded_at)` |
+| `rum_samples` | 浏览器 RUM 原始样本：`kind`=`api`（接口转圈）/`img`（第三方图），`url_key` 已归并 id/瓦片，`duration_ms` 为用户侧等待。另存 `host`、`page_path`、`status_code`、`transfer_size`、`method`；不记用户 id。公开 `POST /api/client-rum` 写入；管理端「用户等待」按侧栏业务分类后聚合 p50/p95。保留约 14 天。索引 `(recorded_at)` / `(kind, recorded_at)` |
 | `system_configs` | 非界面 KV（如北京时间迁移标记）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
 | `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |

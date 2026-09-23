@@ -25,6 +25,7 @@ export function DayTimeline({
   spanSeconds,
   rangeStart,
   emptyText = "暂无绑定 Steam 的圈子成员",
+  showMemberLabel = true,
 }: {
   rows: SteamTimelineRow[];
   gamesLegend: {
@@ -36,13 +37,16 @@ export function DayTimeline({
   spanSeconds: number;
   rangeStart: Dayjs;
   emptyText?: string;
+  /** 成员详情只画一个人时隐藏左侧昵称列。 */
+  showMemberLabel?: boolean;
 }) {
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
   const [showOffline, setShowOffline] = useState(true);
   const [showOnline, setShowOnline] = useState(true);
   const [trackWidth, setTrackWidth] = useState(0);
   const trackMeasureRef = useRef<HTMLDivElement>(null);
-  const labelWidth = 112;
+  const labelWidth = showMemberLabel ? 112 : 0;
+  const marksOffset = showMemberLabel ? labelWidth : 8;
   const trackHeight = 28;
   const rowGap = 10;
   const logoSize = 18;
@@ -198,7 +202,7 @@ export function DayTimeline({
         style={{
           display: "flex",
           marginBottom: 8,
-          marginLeft: labelWidth,
+          marginLeft: marksOffset,
           position: "relative",
           height: 20,
         }}
@@ -240,6 +244,7 @@ export function DayTimeline({
                 padding: "0 8px",
               }}
             >
+              {showMemberLabel ? (
               <div
                 style={{
                   width: labelWidth,
@@ -266,6 +271,7 @@ export function DayTimeline({
                   </Typography.Text>
                 </Link>
               </div>
+              ) : null}
               <div
                 style={{
                   flex: 1,

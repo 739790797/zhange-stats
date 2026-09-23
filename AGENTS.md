@@ -62,7 +62,7 @@ alembic upgrade head
 - Button 内联 `#1a2332` 锁死主色；主应用引入第二套 UI 库或抄塔科夫暗色主题
 - 森空岛：B服 GET 空 records 当未签；attendance `gameId` 回退官服 `1`；B服 already 后再 GET 补奖
 - 塔科夫图鉴回源 `api.tarkov.dev` GraphQL（应走 json.tarkov.dev dump）
-- 塔科夫联机：非成员 `GET` 房间回完整棋盘（应只给预览：标题/地图/人数/是否要密码等，无棋盘）；房间码当秘密
+- 塔科夫联机：非成员（含未登录）`GET` 房间回完整棋盘（应只给预览：标题/地图/人数/是否要密码等，无棋盘）；房间码当秘密；访客占座
 - `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
 - 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
@@ -76,7 +76,7 @@ alembic upgrade head
 - 站点设置写回 `system_configs` 或把根 `.env` 当权威源（应写 `config/*.json`）；改 `scripts/config.example` 字段却不把该文件 `_version` 加 1；用模板覆盖用户已有值或新建 `database.json`
 - 管理端保存再要邮箱步进码（用户侧注册/绑邮/找回/注销发码保留）
 - 脚本用参数区分生产/开发，或做生产库同步到开发库 / curl 应急覆盖源码（公开入口只有 install / run / restart / update / backup / restore；环境看该安装树 `config/app.json`）
-- 成功快 GET / 健康与日志轮询打 INFO；循环内逐条 INFO；密钥、验证码、Cookie 进日志
+- 成功快 GET / 健康与日志轮询 / `POST /api/client-rum` 打 INFO；循环内逐条 INFO；密钥、验证码、Cookie 进日志
 - 质量门红时当已发版、手工打 tag，或改 `VERSION` 却不打算让生产看见新版本
 
 ## PR 自检
@@ -86,7 +86,7 @@ alembic upgrade head
 - [ ] 改签到/盒子：盒子符合 raw 读库优先；签到展示始终 force 回源、不展示执行记录
 - [ ] 改森空岛渠道/补奖/cred：已对照 `skland-upstream.mdc`，相关 `test_skland_*` 通过
 - [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
-- [ ] 改塔科夫联机：非成员 GET 仅为预览；限流与 `docs/security.md`「塔科夫联机」一致
+- [ ] 改塔科夫联机：未登录可看大厅与房间预览；非成员 GET 仅为预览；访客不能占座；限流与 `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」一致
 - [ ] 改文件管理：只扫安装根；密钥 / MariaDB 数据 / 备份不可下/改/删；相关 `test_file_manager` 通过
 - [ ] 改用户附件：走 `user_files`；OpenAPI `serial`；相关 `test_user_files` 通过
 - [ ] 改纯函数/渠道/`force`/弱口令：已按 `testing.mdc` 补测（规则在哪层实现就在哪层测）

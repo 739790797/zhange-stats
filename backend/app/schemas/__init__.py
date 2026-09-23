@@ -121,6 +121,7 @@ from app.schemas.skland import (
     SklandStatusOut,
 )
 from app.schemas.steam import (
+    MemberPlayGame,
     MemberPlayMember,
     MemberPlayStatsResponse,
     PlayTrendPoint,
@@ -318,6 +319,7 @@ __all__ = [
     "SteamSessionBrief",
     "SteamOverviewResponse",
     "PlayTrendPoint",
+    "MemberPlayGame",
     "MemberPlayMember",
     "MemberPlayStatsResponse",
 ]

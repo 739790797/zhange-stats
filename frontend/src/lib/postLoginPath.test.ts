@@ -19,6 +19,14 @@ describe("postLoginPath", () => {
       postLoginPath({ pathname: "/guides/tarkov", search: "?q=ammo" }),
     ).toBe("/guides/tarkov?q=ammo");
   });
+
+  it("rejects protocol-relative and off-site targets", () => {
+    expect(postLoginPath({ pathname: "//evil.example" })).toBe("/");
+    expect(postLoginPath({ pathname: "/\\evil.example" })).toBe("/");
+    expect(postLoginPath({ pathname: "https://evil.example" })).toBe("/");
+    expect(postLoginPath({ pathname: "/login", search: "?next=1" })).toBe("/");
+    expect(postLoginPath({ pathname: "/login?next=1" })).toBe("/");
+  });
 });
 
 describe("rememberPostLoginPath", () => {

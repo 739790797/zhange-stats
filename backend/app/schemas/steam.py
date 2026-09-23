@@ -161,6 +161,7 @@ class SteamSessionBrief(BaseModel):
     avatar_url: str | None = None
     steam_app_id: str
     game_name: str
+    icon_url: str | None = None
     started_at: datetime
     ended_at: datetime | None = None
     duration_seconds: int
@@ -191,10 +192,22 @@ class MemberPlayMember(BaseModel):
     steam_id: str | None = None
 
 
+class MemberPlayGame(BaseModel):
+    steam_app_id: str
+    game_name: str
+    icon_url: str | None = None
+    total_seconds: int
+    session_count: int
+
+
 class MemberPlayStatsResponse(BaseModel):
     member: MemberPlayMember
+    today_play_seconds: int
     week_play_seconds: int
     month_play_seconds: int
     session_count: int
+    games_today: list[MemberPlayGame]
+    games_week: list[MemberPlayGame]
+    games_month: list[MemberPlayGame]
     trend: list[PlayTrendPoint]
     recent_sessions: list[SteamSessionBrief]

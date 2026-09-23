@@ -37,7 +37,7 @@
 公开页 `/guides/tarkov`（未登录可看首页、物品/弹药/地图/商人/BOSS、任务目录与详情、搜索、藏身处目录百科、钥匙分类百科、工作台读枪/算属性/枪匠求解/社区方案、三狗状态、联机大厅列表与房间预览）。个人中心六个 Tab、OCR、出图代理、创建/加入房间与房间 WS 须登录；页内用登录卡，不整站踢去 `/login`。Minecraft 仍须登录。
 
 - **读权限**：图鉴 GET、搜索、工作台 `allowed-items` / `calculate` / `community-builds` / `gunsmith-solve`、三狗 GET、大厅列表与房间预览不要求登录 Cookie / Bearer。仍 `require_feature("guides.tarkov")`。非成员（含未登录）`GET` 房间只回预览，不含棋盘/人员
-- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务完成 / 日志摘要 / 云端 raid-prep state、OCR、`build-image`、创建加入房间须登录
+- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务进度（完成、进行中、失败、小步骤） / 日志摘要 / 云端 raid-prep state、OCR、`build-image`、创建加入房间须登录
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：搜索 40/IP/分钟；工作台 allowed/calculate 60/IP/分钟；community-builds 30/IP/10 分钟；gunsmith-solve 20/IP/分钟；三狗 40/IP/分钟；大厅列表 40/IP/分钟（登录用户另计账号）
 - 功能开关 `guides.tarkov`；关闭后公开 API 403。访客侧栏靠 `allowGuest` 露出入口，不打需登录的 `/platform-features/effective`
 
@@ -49,7 +49,7 @@
 - **写权限**：认领 / 标点 / 设密等须在座；密码只在 **join** 时校验
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：创建 20/IP/10 分钟、10/账号/10 分钟；加入（含密码错误）10/IP+房间/10 分钟、10/账号+房间/10 分钟；大厅列表 40/IP/分钟、40/账号/分钟
 - **大厅查询**：只加载当前顶栏模式、`listed` 且无密码、仍有人在座的房；过期座位按 `last_seen` 定向回收，不把全部房间扫进内存
-- **日志**：客户端本机解析；库表 `tarkov_user_raid_logs` 只存摘要。截图坐标只广播数字，不传图片；最近一次坐标留在进程内存，供同房间晚加入的入座成员（含同一账号的其他设备）从 WS snapshot 拿到，不落库
+- **日志**：客户端本机解析；同步后在浏览器审阅（日志行、任务名、状态变更），原文不入库。库表 `tarkov_user_raid_logs` 只存摘要。离线战局手选地图只在本机 localStorage。截图坐标只广播数字，不传图片；最近一次坐标留在进程内存，供同房间晚加入的入座成员（含同一账号的其他设备）从 WS snapshot 拿到，不落库
 
 ## 文字识别
 
@@ -69,11 +69,11 @@
 
 ## 塔科夫工作台社区方案
 
-选枪后可浏览 EFTForge **公开**社区方案（`GET /builds/public?gun_id=`）。只读列表，投影成本站 dump 可装的 `pairs`；不落库（短时 KV 缓存原始 JSON）、不代投票/评论、不热链对方卡图。对方仓库为 MIT，社区用户内容按公开列表展示并署名来源。关闭：`TARKOV_WORKBENCH_COMMUNITY=false`。限流：`GET /api/guides/tarkov/workbench/community-builds` 30/IP/10 分钟、20/账号/10 分钟。
+选枪后可浏览 EFTForge **公开**社区方案（`GET /builds/public?gun_id=`）。只读列表，投影成本站 dump 可装的 `pairs`；不落库（短时 KV 缓存原始 JSON）、不代投票/评论、不热链对方卡图。对方仓库为 MIT，社区用户内容按公开列表展示并署名来源。关闭：`TARKOV_WORKBENCH_COMMUNITY=false`。限流：`GET /api/guides/tarkov/workbench/community-builds` 30/IP/10 分钟（公开接口，只按 IP）。
 
 ## 塔科夫工作台枪匠求解
 
-枪匠改装目标从本站 tasks dump 的 `buildWeapon` 投影，不 vendor 第三方任务包。`POST /api/guides/tarkov/workbench/gunsmith-solve` 在工作台索引上做约束满足；限流 20/IP/分钟、12/账号/分钟。求解入口在本站任务详情与地图右侧任务卡，结果只在工作台展示。
+枪匠改装目标从本站 tasks dump 的 `buildWeapon` 投影，不 vendor 第三方任务包。`POST /api/guides/tarkov/workbench/gunsmith-solve` 在工作台索引上做约束满足；限流 20/IP/分钟（公开接口，只按 IP）。求解入口在本站任务详情与地图右侧任务卡，结果只在工作台展示。
 
 对外宣传前的环境核对见 [`deploy.md`](deploy.md)「公开运营检查」。
 

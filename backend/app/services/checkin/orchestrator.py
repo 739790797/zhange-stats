@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.biz_logging import log_context
+from app.core.biz_logging import clear_log_until_change, log_context, log_until_change
 from app.core.timeutil import now_naive, today
 from app.models.job_run import JobRun
 from app.services.checkin.adapter import (
@@ -205,6 +205,7 @@ def run_checkin_job(
         bind_model=adapter.bind_model,
         due_only=due_only,
         member_id=member_id,
+        log_model=adapter.log_model,
     )
     binds_by_member = {
         b.member_id: b
@@ -257,52 +258,75 @@ def checkin_job_wrapper(
 
     lock = _job_lock_for(adapter.platform)
     if not lock.acquire(blocking=False):
-        logger.debug("%s checkin job already running, skip", adapter.platform)
+        log_until_change(
+            logger,
+            f"checkin-lock:{adapter.platform}",
+            "%s checkin job already running, skip",
+            adapter.platform,
+        )
         return
-    db = SessionLocal()
-    job = JobRun(job_key=adapter.job_key, status="running")
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    ctx_kwargs: dict[str, str | int | None] = {
-        "platform": adapter.platform,
-        "job": "checkin",
-    }
-    if member_id is not None:
-        ctx_kwargs["member_id"] = member_id
-    with log_context(**ctx_kwargs):
+    clear_log_until_change(f"checkin-lock:{adapter.platform}")
+    # 连接池耗尽会在 SessionLocal / 首次 commit 抛出。锁必须在这次失败后仍释放，
+    # 否则下一分钟 acquire 失败，签到会一直停。
+    db: Session | None = None
+    try:
+        db = SessionLocal()
+        job = JobRun(job_key=adapter.job_key, status="running")
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        ctx_kwargs: dict[str, str | int | None] = {
+            "platform": adapter.platform,
+            "job": "checkin",
+        }
+        if member_id is not None:
+            ctx_kwargs["member_id"] = member_id
+        with log_context(**ctx_kwargs):
+            try:
+                logger.info(
+                    "%s checkin job begin due_only=%s member_id=%s",
+                    adapter.platform,
+                    due_only,
+                    member_id,
+                )
+                stats = run_checkin_job(
+                    adapter, db, due_only=due_only, member_id=member_id
+                )
+                logger.info(
+                    "%s checkin job done ok=%s failed=%s skipped=%s total=%s",
+                    adapter.platform,
+                    stats["ok"],
+                    stats["failed"],
+                    stats["skipped"],
+                    stats["total"],
+                )
+                failed = int(stats.get("failed") or 0)
+                job.status = "error" if failed > 0 else "ok"
+                job.message = (
+                    f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
+                    f"跳过 {stats['skipped']}（共 {stats['total']}）"
+                )
+                job.stats = stats
+                job.finished_at = now_naive()
+                db.commit()
+                clear_log_until_change(f"checkin-db:{adapter.platform}")
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("%s checkin job crashed", adapter.platform)
+                job.status = "error"
+                job.message = str(exc)
+                job.finished_at = now_naive()
+                db.commit()
+                clear_log_until_change(f"checkin-db:{adapter.platform}")
+    except Exception:
+        log_until_change(
+            logger,
+            f"checkin-db:{adapter.platform}",
+            "%s checkin job could not record run",
+            adapter.platform,
+        )
+    finally:
         try:
-            logger.info(
-                "%s checkin job begin due_only=%s member_id=%s",
-                adapter.platform,
-                due_only,
-                member_id,
-            )
-            stats = run_checkin_job(
-                adapter, db, due_only=due_only, member_id=member_id
-            )
-            logger.info(
-                "%s checkin job done ok=%s failed=%s skipped=%s total=%s",
-                adapter.platform,
-                stats["ok"],
-                stats["failed"],
-                stats["skipped"],
-                stats["total"],
-            )
-            job.status = "ok"
-            job.message = (
-                f"完成：成功 {stats['ok']} / 失败 {stats['failed']} / "
-                f"跳过 {stats['skipped']}（共 {stats['total']}）"
-            )
-            job.stats = stats
-            job.finished_at = now_naive()
-            db.commit()
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("%s checkin job crashed", adapter.platform)
-            job.status = "error"
-            job.message = str(exc)
-            job.finished_at = now_naive()
-            db.commit()
+            if db is not None:
+                db.close()
         finally:
-            db.close()
             lock.release()

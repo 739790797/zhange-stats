@@ -5081,23 +5081,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Spa Fallback */
-        get: operations["spa_fallback__full_path__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7894,6 +7877,19 @@ export interface components {
              */
             joined_at: string;
         };
+        /** MemberPlayGame */
+        MemberPlayGame: {
+            /** Steam App Id */
+            steam_app_id: string;
+            /** Game Name */
+            game_name: string;
+            /** Icon Url */
+            icon_url?: string | null;
+            /** Total Seconds */
+            total_seconds: number;
+            /** Session Count */
+            session_count: number;
+        };
         /** MemberPlayMember */
         MemberPlayMember: {
             /** Id */
@@ -7915,12 +7911,20 @@ export interface components {
         /** MemberPlayStatsResponse */
         MemberPlayStatsResponse: {
             member: components["schemas"]["MemberPlayMember"];
+            /** Today Play Seconds */
+            today_play_seconds: number;
             /** Week Play Seconds */
             week_play_seconds: number;
             /** Month Play Seconds */
             month_play_seconds: number;
             /** Session Count */
             session_count: number;
+            /** Games Today */
+            games_today: components["schemas"]["MemberPlayGame"][];
+            /** Games Week */
+            games_week: components["schemas"]["MemberPlayGame"][];
+            /** Games Month */
+            games_month: components["schemas"]["MemberPlayGame"][];
             /** Trend */
             trend: components["schemas"]["PlayTrendPoint"][];
             /** Recent Sessions */
@@ -11090,6 +11094,8 @@ export interface components {
             steam_app_id: string;
             /** Game Name */
             game_name: string;
+            /** Icon Url */
+            icon_url?: string | null;
             /**
              * Started At
              * Format: date-time
@@ -19603,6 +19609,8 @@ export interface operations {
                 date: string;
                 /** @description 结束日期 YYYY-MM-DD；缺省则仅查询当日 */
                 end?: string | null;
+                /** @description 只返回该成员的时间轴；缺省为全部可见成员 */
+                member_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -27258,37 +27266,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    spa_fallback__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

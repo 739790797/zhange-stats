@@ -171,11 +171,13 @@ jobs:
         run: npm audit --omit=dev --package-lock-only
 
       - name: Setup Python
+        if: always()
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: pip-audit
+        if: always()
         working-directory: backend
         run: |
           python -m pip install pip-audit
