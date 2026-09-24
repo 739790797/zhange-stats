@@ -1018,8 +1018,9 @@ def test_create_private_room_hidden_from_lobby() -> None:
     guest = _user(db, "guest", "乙")
     now = now_naive()
     plain, _joined, _vacated = rooms.create_room(db, host, now=now, listed=False)
-    assert plain[0]["listed"] is False
-    assert plain[0]["has_password"] is False
+    assert plain["listed"] is False
+    assert plain["has_password"] is False
+    rooms.leave_room(db, plain["public_id"], host, now=now)
     try:
         rooms.create_room(db, host, now=now, listed=True, password="secret")
         public_pwd = True
